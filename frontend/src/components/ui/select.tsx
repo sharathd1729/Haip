@@ -33,7 +33,10 @@ function SelectTrigger({
   );
 }
 
-function SelectScrollUpButton({ className, ...props }: React.ComponentProps<typeof SelectPrimitive.ScrollUpArrow>) {
+function SelectScrollUpButton({
+  className,
+  ...props
+}: React.ComponentProps<typeof SelectPrimitive.ScrollUpArrow>) {
   return (
     <SelectPrimitive.ScrollUpArrow
       className={cn("flex cursor-default items-center justify-center py-1", className)}
@@ -44,7 +47,10 @@ function SelectScrollUpButton({ className, ...props }: React.ComponentProps<type
   );
 }
 
-function SelectScrollDownButton({ className, ...props }: React.ComponentProps<typeof SelectPrimitive.ScrollDownArrow>) {
+function SelectScrollDownButton({
+  className,
+  ...props
+}: React.ComponentProps<typeof SelectPrimitive.ScrollDownArrow>) {
   return (
     <SelectPrimitive.ScrollDownArrow
       className={cn("flex cursor-default items-center justify-center py-1", className)}
@@ -58,6 +64,7 @@ function SelectScrollDownButton({ className, ...props }: React.ComponentProps<ty
 function SelectContent({
   className,
   children,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   position = "popper",
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Popup> & { position?: string }) {
@@ -85,11 +92,17 @@ function SelectContent({
   );
 }
 
-function SelectLabel({ className, ...props }: React.ComponentProps<typeof SelectPrimitive.GroupLabel>) {
+function SelectLabel({
+  className,
+  ...props
+}: React.ComponentProps<typeof SelectPrimitive.GroupLabel>) {
   return (
     <SelectPrimitive.GroupLabel
       data-slot="select-label"
-      className={cn("px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground", className)}
+      className={cn(
+        "px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground",
+        className
+      )}
       {...props}
     />
   );
@@ -99,9 +112,9 @@ function SelectItem({
   className,
   children,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Option>) {
+}: React.ComponentProps<typeof SelectPrimitive.Item>) {
   return (
-    <SelectPrimitive.Option
+    <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
         "relative flex w-full cursor-default select-none items-center rounded-md py-1.5 pl-8 pr-2 text-sm outline-none",
@@ -112,16 +125,19 @@ function SelectItem({
       {...props}
     >
       <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-        <SelectPrimitive.OptionIndicator>
+        <SelectPrimitive.ItemIndicator>
           <Check size={14} />
-        </SelectPrimitive.OptionIndicator>
+        </SelectPrimitive.ItemIndicator>
       </span>
-      <SelectPrimitive.OptionText>{children}</SelectPrimitive.OptionText>
-    </SelectPrimitive.Option>
+      <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+    </SelectPrimitive.Item>
   );
 }
 
-function SelectSeparator({ className, ...props }: React.ComponentProps<typeof SelectPrimitive.Separator>) {
+function SelectSeparator({
+  className,
+  ...props
+}: React.ComponentProps<typeof SelectPrimitive.Separator>) {
   return (
     <SelectPrimitive.Separator
       data-slot="select-separator"
