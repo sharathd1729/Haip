@@ -33,12 +33,17 @@ app = FastAPI(
     docs_url="/docs" if settings.ENVIRONMENT != "production" else None,
 )
 
+_origins = settings.allowed_origins_list
+import structlog as _sl
+_sl.get_logger().info("cors_origins_loaded", origins=_origins)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.allowed_origins_list,
+    allow_origins=_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Tenant context: must run after CORS, before route handlers
