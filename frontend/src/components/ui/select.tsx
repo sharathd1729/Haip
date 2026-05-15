@@ -75,9 +75,9 @@ function SelectContent({
           {...props}
         >
           <SelectScrollUpButton />
-          <SelectPrimitive.Viewport className="p-1">
+          <div className="p-1">
             {children}
-          </SelectPrimitive.Viewport>
+          </div>
           <SelectScrollDownButton />
         </SelectPrimitive.Popup>
       </SelectPrimitive.Positioner>
