@@ -60,6 +60,22 @@ function JoinForm() {
   }
 
   return (
+    <>
+      <div className="px-8 pt-8 pb-6 border-b border-gray-100 text-center">
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white font-bold text-lg mx-auto mb-4 shadow-lg shadow-teal-500/30">
+          H
+        </div>
+        <h1 className="text-xl font-bold text-gray-900">
+          {invite ? `Hi, ${invite.name.split(" ")[0]}!` : "Join your workspace"}
+        </h1>
+        <p className="text-sm text-gray-500 mt-1">
+          {invite
+            ? <>You&apos;ve been invited to <strong>{invite.tenant_name ?? "the workspace"}</strong> as <span className="text-teal-600 capitalize font-medium">{invite.role.replace("_", " ")}</span>. Set a password to get started.</>
+            : "Set a password to activate your account and start using HAIP."
+          }
+        </p>
+      </div>
+      <div className="px-8 py-7">
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label className="text-xs font-semibold text-gray-700 block mb-1.5">Set your password <span className="text-red-500">*</span></label>
@@ -103,6 +119,8 @@ function JoinForm() {
         {loading ? "Setting up your account…" : "Join workspace"}
       </button>
     </form>
+      </div>
+    </>
   );
 }
 
@@ -110,25 +128,9 @@ export default function JoinPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-[#0B1F3A] to-slate-900 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-        <div className="px-8 pt-8 pb-6 border-b border-gray-100 text-center">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white font-bold text-lg mx-auto mb-4 shadow-lg shadow-teal-500/30">
-            H
-          </div>
-          <h1 className="text-xl font-bold text-gray-900">
-            {invite ? `Hi, ${invite.name.split(" ")[0]}!` : "Join your workspace"}
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {invite
-              ? <>You've been invited to <strong>{invite.tenant_name ?? "the workspace"}</strong> as <span className="text-teal-600 capitalize font-medium">{invite.role.replace("_", " ")}</span>. Set a password to get started.</>
-              : "Set a password to activate your account and start using HAIP."
-            }
-          </p>
-        </div>
-        <div className="px-8 py-7">
-          <Suspense fallback={<div className="text-center text-sm text-gray-400 py-8">Loading…</div>}>
-            <JoinForm />
-          </Suspense>
-        </div>
+        <Suspense fallback={<div className="text-center text-sm text-gray-400 py-8">Loading…</div>}>
+          <JoinForm />
+        </Suspense>
       </div>
     </div>
   );
