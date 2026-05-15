@@ -10,11 +10,13 @@ ALGORITHM = "HS256"
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    # bcrypt hard-limits at 72 bytes; truncate to match hashing behaviour
+    return pwd_context.verify(plain[:72], hashed)
 
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    # bcrypt hard-limits at 72 bytes; truncate before hashing
+    return pwd_context.hash(password[:72])
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:

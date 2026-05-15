@@ -34,8 +34,6 @@ app = FastAPI(
 )
 
 _origins = settings.allowed_origins_list
-import structlog as _sl
-_sl.get_logger().info("cors_origins_loaded", origins=_origins)
 
 app.add_middleware(
     CORSMiddleware,
