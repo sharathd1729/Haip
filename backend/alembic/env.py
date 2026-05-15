@@ -32,6 +32,11 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
+        # Kill any idle connections that might be holding locks, then set a
+        # lock timeout so migrations fail fast instead of hanging forever.
+        from sqlalchemy import text as _text
+        connection.execute(_text("SET lock_timeout = '10s'"))
+        connection.execute(_text("SET statement_timeout = '60s'"))
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
             context.run_migrations()
