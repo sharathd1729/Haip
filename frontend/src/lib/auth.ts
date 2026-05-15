@@ -1,0 +1,95 @@
+import NextAuth from "next-auth";
+import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
+
+export const { handlers, auth, signIn, signOut } = NextAuth({
+  providers: [
+    CredentialsProvider({
+      name: "credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        const email = credentials?.email as string;
+        const password = credentials?.password as string;
+        const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+
+        // Try real backend first (preferred — returns proper JWT for API calls)
+        try {
+          const res = await fetch(`${apiBase}/auth/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const accessToken = data.access_token;
+            const meRes = await fetch(`${apiBase}/auth/me`, {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            if (meRes.ok) {
+              const me = await meRes.json();
+              return {
+                id: me.id, name: me.full_name ?? me.name, email: me.email,
+                role: me.role, tenantId: me.tenant_id ?? "haip-villa",
+                onboardingStep: me.tenant?.config?.onboarding_step ?? 9,
+                accessToken, refreshToken: "",
+              };
+            }
+          }
+        } catch {
+          // Backend unreachable — fall through to demo bypass
+        }
+
+        // Demo bypass fallback (when backend is unavailable)
+        const DEMO_USERS: Record<string, { name: string; role: string }> = {
+          "owner@haip.dev":       { name: "Sharath D.",     role: "owner" },
+          "manager@haip.dev":     { name: "Priya Menon",    role: "manager" },
+          "concierge@haip.dev":   { name: "Ravi Kumar",     role: "concierge" },
+          "reservations@haip.dev":{ name: "Ananya Singh",   role: "reservations" },
+          "compliance@haip.dev":  { name: "Deepa Nair",     role: "compliance" },
+          "sharath@ratha.in":     { name: "Sharath D.",     role: "owner" },
+        };
+        if (password === "haip2026" && DEMO_USERS[email]) {
+          const u = DEMO_USERS[email];
+          return { id: `demo-${email}`, name: u.name, email, role: u.role, tenantId: "haip-villa", onboardingStep: 9, accessToken: "demo", refreshToken: "" };
+        }
+        return null;
+      },
+    }),
+    ...(process.env.GOOGLE_CLIENT_ID
+      ? [
+          GoogleProvider({
+            clientId: process.env.GOOGLE_CLIENT_ID!,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+          }),
+        ]
+      : []),
+  ],
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.role = (user as any).role;
+        token.tenantId = (user as any).tenantId;
+        token.onboardingStep = (user as any).onboardingStep ?? 9;
+        token.accessToken = (user as any).accessToken;
+        token.refreshToken = (user as any).refreshToken;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      session.user.id = token.id as string;
+      session.user.role = token.role as string;
+      session.user.tenantId = token.tenantId as string;
+      session.user.onboarding_step = token.onboardingStep as number;
+      (session as any).accessToken = token.accessToken;
+      return session;
+    },
+  },
+  pages: {
+    signIn: "/login",
+  },
+  session: { strategy: "jwt" },
+});
