@@ -39,15 +39,17 @@ def _index_exists(index: str, table: str) -> bool:
 
 
 def upgrade() -> None:
-    # Kill idle/stale connections that may hold locks on tables we're about to ALTER.
-    # Safe at migration time — stale connections come from previous crashed deploys.
-    bind = op.get_bind()
-    bind.execute(text(
-        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
-        "WHERE pid != pg_backend_pid() "
-        "AND datname = current_database() "
-        "AND state IN ('idle', 'idle in transaction', 'idle in transaction (aborted)')"
-    ))
+    # Best-effort: kill stale connections. Neon may deny pg_signal_backend — skip.
+    try:
+        bind = op.get_bind()
+        bind.execute(text(
+            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+            "WHERE pid != pg_backend_pid() "
+            "AND datname = current_database() "
+            "AND state IN ('idle', 'idle in transaction', 'idle in transaction (aborted)')"
+        ))
+    except Exception:
+        pass
 
     # ── Caravan + channel manager columns on properties ───────────────────────
     cols_to_add = [
