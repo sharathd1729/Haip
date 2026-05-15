@@ -3,14 +3,14 @@
  * https://developers.facebook.com/docs/javascript/reference
  */
 
+// ── Internal FB SDK types (not exported — used only for Window augmentation) ──
+
 interface FBAuthResponse {
   accessToken: string;
   expiresIn: number;
   signedRequest: string;
   userID: string;
-  /** Present when response_type=code (Embedded Signup flow) */
   code?: string;
-  /** Present in older flows */
   grantedScopes?: string;
 }
 
@@ -20,15 +20,10 @@ interface FBLoginStatusResponse {
 }
 
 interface FBLoginOptions {
-  /** Comma-separated list of permissions to request */
   scope?: string;
-  /** Embedded Signup config ID (from Meta Business Suite) */
   config_id?: string;
-  /** Override default response type ("code" for ES) */
   response_type?: "code" | "token" | "granted_scopes";
-  /** Required when using response_type=code in Embedded Signup */
   override_default_response_type?: boolean;
-  /** Extra parameters for Embedded Signup */
   extras?: {
     setup?: Record<string, unknown>;
     featureType?: string;
@@ -47,42 +42,25 @@ interface FBInitOptions {
 
 interface FB {
   init(options: FBInitOptions): void;
-  login(
-    callback: (response: FBLoginStatusResponse) => void,
-    options?: FBLoginOptions
-  ): void;
+  login(callback: (response: FBLoginStatusResponse) => void, options?: FBLoginOptions): void;
   logout(callback?: (response: FBLoginStatusResponse) => void): void;
-  getLoginStatus(
-    callback: (response: FBLoginStatusResponse) => void,
-    roundTrip?: boolean
-  ): void;
-  api(
-    path: string,
-    callback: (response: Record<string, unknown>) => void
-  ): void;
-  api(
-    path: string,
-    params: Record<string, unknown>,
-    callback: (response: Record<string, unknown>) => void
-  ): void;
-  api(
-    path: string,
-    method: string,
-    params: Record<string, unknown>,
-    callback: (response: Record<string, unknown>) => void
-  ): void;
+  getLoginStatus(callback: (response: FBLoginStatusResponse) => void, roundTrip?: boolean): void;
+  api(path: string, callback: (response: Record<string, unknown>) => void): void;
+  api(path: string, params: Record<string, unknown>, callback: (response: Record<string, unknown>) => void): void;
+  api(path: string, method: string, params: Record<string, unknown>, callback: (response: Record<string, unknown>) => void): void;
 }
 
-interface Window {
-  FB: FB;
-  fbAsyncInit?: () => void;
+// ── Global Window augmentation ─────────────────────────────────────────────
+declare global {
+  interface Window {
+    FB: FB;
+    fbAsyncInit?: () => void;
+  }
 }
 
-/**
- * Message event data from Meta Embedded Signup popup.
- * Fired via window.postMessage from https://www.facebook.com
- */
-interface WhatsAppEmbeddedSignupFinishData {
+// ── Exported types used by hooks ───────────────────────────────────────────
+
+export interface WhatsAppEmbeddedSignupFinishData {
   type: "WA_EMBEDDED_SIGNUP";
   event: "FINISH";
   data: {
@@ -92,7 +70,7 @@ interface WhatsAppEmbeddedSignupFinishData {
   version: string;
 }
 
-interface WhatsAppEmbeddedSignupCancelData {
+export interface WhatsAppEmbeddedSignupCancelData {
   type: "WA_EMBEDDED_SIGNUP";
   event: "CANCEL";
   data: {
@@ -101,7 +79,7 @@ interface WhatsAppEmbeddedSignupCancelData {
   version: string;
 }
 
-interface WhatsAppEmbeddedSignupErrorData {
+export interface WhatsAppEmbeddedSignupErrorData {
   type: "WA_EMBEDDED_SIGNUP";
   event: "ERROR";
   data: {
@@ -110,7 +88,7 @@ interface WhatsAppEmbeddedSignupErrorData {
   version: string;
 }
 
-type WhatsAppEmbeddedSignupMessage =
+export type WhatsAppEmbeddedSignupMessage =
   | WhatsAppEmbeddedSignupFinishData
   | WhatsAppEmbeddedSignupCancelData
   | WhatsAppEmbeddedSignupErrorData;
