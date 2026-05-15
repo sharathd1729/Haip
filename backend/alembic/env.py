@@ -34,17 +34,21 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        # ── Kill ALL other connections first ──────────────────────────────────
-        # Previous crashed deploys leave zombie connections that hold locks on
-        # alembic_version AND on tables we ALTER. Kill them before Alembic even
-        # starts its transaction so nothing can block us.
-        connection.execute(_text(
-            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
-            "WHERE pid != pg_backend_pid() AND datname = current_database()"
-        ))
+        # ── Kill stale connections (best-effort — Neon may deny permission) ───
+        try:
+            connection.execute(_text(
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                "WHERE pid != pg_backend_pid() AND datname = current_database()"
+            ))
+        except Exception:
+            pass  # neondb_owner lacks pg_signal_backend — skip silently
+
         # Fail fast: never wait more than 10s for a lock or 60s per statement.
-        connection.execute(_text("SET lock_timeout = '10s'"))
-        connection.execute(_text("SET statement_timeout = '60s'"))
+        try:
+            connection.execute(_text("SET lock_timeout = '10s'"))
+            connection.execute(_text("SET statement_timeout = '60s'"))
+        except Exception:
+            pass  # Some managed Postgres flavours don't allow SET — skip
 
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
