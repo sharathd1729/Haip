@@ -34,6 +34,15 @@ frontend/.env.development
 !.env.example
 !frontend/.env.example
 
+# ── Claude / AI session files ─────────────────────────────────────────────────
+.claude/
+*.jsonl
+
+# ── Accidental local files ────────────────────────────────────────────────────
+*.txt
+!requirements*.txt
+!*.env.example
+
 # ── OS / Editor ───────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
