@@ -1,0 +1,42 @@
+# ── Python / Backend ──────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+*.so
+.venv/
+venv/
+env/
+.env
+backend/.env
+*.sqlite
+*.db
+uploads/
+celerybeat-schedule
+*.log
+
+# ── Node / Frontend ───────────────────────────────────────────────────────────
+node_modules/
+.next/
+out/
+frontend/.env
+frontend/.env.local
+frontend/.env.production
+frontend/.env.development
+.vercel/
+
+# ── Secrets / Keys ────────────────────────────────────────────────────────────
+*.pem
+*.key
+.env.*
+!.env.example
+!frontend/.env.example
+
+# ── OS / Editor ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

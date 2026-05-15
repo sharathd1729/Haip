@@ -1,0 +1,1762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>HAIP Villa — System Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+/* ── Reset & Base ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: "Manrope", sans-serif;
+  background: #F3F4F6;
+  color: #111827;
+  line-height: 1.6;
+  font-size: 15px;
+}
+
+/* ── Tokens ───────────────────────────────────────────────── */
+:root {
+  --navy: #0B1F3A;
+  --navy-2: #163458;
+  --teal: #14B8A6;
+  --teal-dark: #0d9488;
+  --teal-light: #ccfbf1;
+  --gold: #F59E0B;
+  --gold-light: #fef3c7;
+  --red: #ef4444;
+  --red-light: #fef2f2;
+  --purple: #8b5cf6;
+  --purple-light: #f3e8ff;
+  --green: #10b981;
+  --green-light: #ecfdf5;
+  --blue: #3b82f6;
+  --blue-light: #eff6ff;
+  --surface: #ffffff;
+  --border: #e2e8f0;
+}
+
+/* ── Layout ───────────────────────────────────────────────── */
+.container { max-width: 1100px; margin: 0 auto; padding: 0 28px; }
+
+/* ── Nav ──────────────────────────────────────────────────── */
+nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--navy);
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  padding: 0 28px;
+}
+.nav-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+}
+.nav-brand {
+  font-family: "Outfit", sans-serif;
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: #fff;
+  letter-spacing: -.02em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.nav-brand .dot {
+  width: 28px;
+  height: 28px;
+  background: linear-gradient(135deg, var(--teal), var(--teal-dark));
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+.nav-links {
+  display: flex;
+  gap: 4px;
+  list-style: none;
+}
+.nav-links a {
+  color: rgba(255,255,255,.5);
+  text-decoration: none;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 6px;
+  transition: all .15s;
+}
+.nav-links a:hover { color: #fff; background: rgba(255,255,255,.07); }
+
+/* ── Hero ─────────────────────────────────────────────────── */
+.hero {
+  background: linear-gradient(150deg, var(--navy) 0%, #163458 60%, #0d9488 100%);
+  padding: 80px 28px 100px;
+  text-align: center;
+}
+.hero-tag {
+  display: inline-block;
+  background: rgba(20,184,166,.2);
+  color: var(--teal);
+  border: 1px solid rgba(20,184,166,.3);
+  padding: 5px 14px;
+  border-radius: 99px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  margin-bottom: 24px;
+}
+.hero h1 {
+  font-family: "Outfit", sans-serif;
+  font-size: 3.25rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -.04em;
+  line-height: 1.1;
+  margin-bottom: 20px;
+}
+.hero h1 span { color: var(--teal); }
+.hero p {
+  font-size: 1.125rem;
+  color: rgba(255,255,255,.55);
+  max-width: 580px;
+  margin: 0 auto 48px;
+  line-height: 1.7;
+}
+.hero-stats {
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+  flex-wrap: wrap;
+}
+.hero-stat {
+  text-align: center;
+}
+.hero-stat .num {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--teal);
+  display: block;
+  line-height: 1;
+}
+.hero-stat .label {
+  font-size: 0.6875rem;
+  color: rgba(255,255,255,.35);
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  margin-top: 6px;
+  display: block;
+}
+
+/* ── Section ──────────────────────────────────────────────── */
+section { padding: 80px 0; }
+section:nth-child(even) { background: #fff; }
+.section-tag {
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--teal);
+  margin-bottom: 12px;
+}
+.section-title {
+  font-family: "Outfit", sans-serif;
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--navy);
+  letter-spacing: -.03em;
+  line-height: 1.2;
+  margin-bottom: 12px;
+}
+.section-sub {
+  color: #64748b;
+  font-size: 1rem;
+  max-width: 560px;
+  line-height: 1.7;
+  margin-bottom: 48px;
+}
+
+/* ── Cards ────────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(11,31,58,.06);
+  overflow: hidden;
+}
+.card-header {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.card-title {
+  font-family: "Outfit", sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--navy);
+}
+.card-body { padding: 20px 24px; }
+
+/* ── Architecture diagram ────────────────────────────────── */
+.arch-diagram {
+  display: grid;
+  grid-template-columns: 1fr 80px 1fr 80px 1fr;
+  gap: 0;
+  align-items: center;
+  margin: 48px 0;
+}
+.arch-box {
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 16px;
+  padding: 24px 20px;
+  text-align: center;
+  position: relative;
+}
+.arch-box.navy { border-color: var(--navy); background: rgba(11,31,58,.04); }
+.arch-box.teal { border-color: var(--teal); background: var(--teal-light); }
+.arch-box.gold { border-color: var(--gold); background: var(--gold-light); }
+.arch-box .icon {
+  font-size: 2rem;
+  margin-bottom: 8px;
+  display: block;
+}
+.arch-box .name {
+  font-family: "Outfit", sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--navy);
+  margin-bottom: 4px;
+}
+.arch-box .tech {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.6875rem;
+  color: #64748b;
+  display: block;
+}
+.arch-arrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.arch-arrow .line {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.arrow-svg { color: #94a3b8; }
+.arch-arrow .label {
+  font-size: 0.5625rem;
+  font-weight: 700;
+  color: var(--teal);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  text-align: center;
+  line-height: 1.3;
+}
+
+/* ── Feature grid ─────────────────────────────────────────── */
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+.feature-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px;
+  border-left: 4px solid;
+  transition: box-shadow .2s, transform .2s;
+}
+.feature-card:hover { box-shadow: 0 8px 24px rgba(11,31,58,.1); transform: translateY(-2px); }
+.feature-icon {
+  font-size: 1.75rem;
+  margin-bottom: 12px;
+  display: block;
+}
+.feature-name {
+  font-family: "Outfit", sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--navy);
+  margin-bottom: 8px;
+}
+.feature-desc {
+  font-size: 0.875rem;
+  color: #64748b;
+  line-height: 1.65;
+}
+
+/* ── Tech stack table ─────────────────────────────────────── */
+.tech-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+.tech-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.tech-icon-wrap {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+.tech-name {
+  font-family: "Outfit", sans-serif;
+  font-weight: 700;
+  font-size: 0.9375rem;
+  color: var(--navy);
+  margin-bottom: 2px;
+}
+.tech-role {
+  font-size: 0.8125rem;
+  color: #64748b;
+  line-height: 1.5;
+}
+.tech-tag {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  display: inline-block;
+  margin-top: 4px;
+}
+
+/* ── Data flow ────────────────────────────────────────────── */
+.flow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  margin: 32px 0;
+  position: relative;
+}
+.flow-step {
+  flex: 1;
+  text-align: center;
+  position: relative;
+}
+.flow-step::after {
+  content: "→";
+  position: absolute;
+  right: -14px;
+  top: 30px;
+  font-size: 1.25rem;
+  color: #94a3b8;
+  font-weight: 900;
+}
+.flow-step:last-child::after { display: none; }
+.flow-circle {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  margin: 0 auto 10px;
+  border: 2px solid;
+}
+.flow-step-name {
+  font-family: "Outfit", sans-serif;
+  font-weight: 700;
+  font-size: 0.875rem;
+  color: var(--navy);
+  margin-bottom: 4px;
+}
+.flow-step-desc {
+  font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.5;
+  padding: 0 8px;
+}
+
+/* ── DB Models ────────────────────────────────────────────── */
+.db-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+.db-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.db-card-header {
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.db-card-title {
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: #fff;
+}
+.db-card-body { padding: 12px 16px; }
+.db-field {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.75rem;
+}
+.db-field:last-child { border-bottom: none; }
+.db-field-name {
+  font-family: "IBM Plex Mono", monospace;
+  color: var(--navy);
+  font-weight: 500;
+  flex-shrink: 0;
+  min-width: 120px;
+}
+.db-field-type {
+  color: #94a3b8;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.6875rem;
+}
+.pk { color: var(--gold); font-weight: 700; }
+.fk { color: var(--teal-dark); }
+
+/* ── API endpoints ────────────────────────────────────────── */
+.endpoint-group { margin-bottom: 32px; }
+.endpoint-group-title {
+  font-family: "Outfit", sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--navy);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.endpoint {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  font-size: 0.8125rem;
+}
+.method {
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 700;
+  font-size: 0.6875rem;
+  padding: 3px 8px;
+  border-radius: 5px;
+  flex-shrink: 0;
+  letter-spacing: .06em;
+  min-width: 52px;
+  text-align: center;
+}
+.method.get    { background: #dbeafe; color: #1d4ed8; }
+.method.post   { background: var(--teal-light); color: var(--teal-dark); }
+.method.patch  { background: var(--gold-light); color: #d97706; }
+.method.delete { background: var(--red-light); color: #b91c1c; }
+.endpoint-path {
+  font-family: "IBM Plex Mono", monospace;
+  color: var(--navy);
+  font-size: 0.8125rem;
+  flex: 1;
+}
+.endpoint-desc { color: #64748b; font-size: 0.8125rem; }
+
+/* ── Screen list ──────────────────────────────────────────── */
+.screens-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+}
+.screen-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  transition: all .18s;
+  cursor: default;
+}
+.screen-card:hover { border-color: var(--teal); box-shadow: 0 4px 16px rgba(20,184,166,.1); }
+.screen-route {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.6875rem;
+  color: var(--teal-dark);
+  font-weight: 600;
+  margin-bottom: 6px;
+  display: block;
+}
+.screen-name {
+  font-family: "Outfit", sans-serif;
+  font-weight: 700;
+  color: var(--navy);
+  font-size: 0.9375rem;
+  margin-bottom: 6px;
+}
+.screen-desc { font-size: 0.8125rem; color: #64748b; line-height: 1.5; }
+.screen-icon { font-size: 1.5rem; margin-bottom: 10px; display: block; }
+
+/* ── Auth flow ────────────────────────────────────────────── */
+.auth-flow {
+  display: flex;
+  gap: 0;
+  align-items: center;
+  background: #f8fafc;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  margin: 32px 0;
+}
+.auth-step {
+  flex: 1;
+  padding: 24px 20px;
+  text-align: center;
+  border-right: 1px dashed var(--border);
+}
+.auth-step:last-child { border-right: none; }
+.auth-step-num {
+  width: 32px;
+  height: 32px;
+  background: var(--navy);
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 600;
+  font-size: 0.875rem;
+  margin: 0 auto 10px;
+}
+.auth-step-title {
+  font-weight: 700;
+  font-size: 0.875rem;
+  color: var(--navy);
+  margin-bottom: 4px;
+  font-family: "Outfit", sans-serif;
+}
+.auth-step-desc { font-size: 0.75rem; color: #64748b; line-height: 1.5; }
+
+/* ── AI Pipeline ──────────────────────────────────────────── */
+.pipeline {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.pipeline-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+.pipeline-dot {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+.pipeline-line {
+  width: 2px;
+  height: 24px;
+  background: var(--border);
+  margin-left: 17px;
+}
+.pipeline-content {}
+.pipeline-title {
+  font-weight: 700;
+  font-size: 0.9375rem;
+  color: var(--navy);
+  font-family: "Outfit", sans-serif;
+  margin-bottom: 3px;
+}
+.pipeline-detail { font-size: 0.8125rem; color: #64748b; line-height: 1.5; }
+.pipeline-tag {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.6875rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  display: inline-block;
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+/* ── Roles table ──────────────────────────────────────────── */
+.roles-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.roles-table th {
+  font-size: 0.6875rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #64748b;
+  padding: 10px 16px;
+  text-align: left;
+  border-bottom: 2px solid var(--border);
+  background: #f8fafc;
+}
+.roles-table td {
+  padding: 12px 16px;
+  font-size: 0.875rem;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+.roles-table tr:last-child td { border-bottom: none; }
+.role-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: .03em;
+}
+.check { color: var(--green); font-size: 1rem; }
+.cross { color: #d1d5db; font-size: 1rem; }
+
+/* ── Badge ────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+/* ── Footer ───────────────────────────────────────────────── */
+footer {
+  background: var(--navy);
+  color: rgba(255,255,255,.35);
+  text-align: center;
+  padding: 40px 28px;
+  font-size: 0.875rem;
+}
+footer strong { color: rgba(255,255,255,.7); }
+
+/* ── Callout ──────────────────────────────────────────────── */
+.callout {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 16px 20px;
+  border-radius: 12px;
+  border-left: 4px solid;
+  margin: 24px 0;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+.callout.teal   { background: var(--teal-light); border-color: var(--teal); color: #134e4a; }
+.callout.gold   { background: var(--gold-light); border-color: var(--gold); color: #78350f; }
+.callout.navy   { background: rgba(11,31,58,.06); border-color: var(--navy); color: var(--navy); }
+
+/* ── Mono value ───────────────────────────────────────────── */
+.mono {
+  font-family: "IBM Plex Mono", monospace;
+  background: #f1f5f9;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  color: var(--navy);
+}
+
+/* ── Responsive ───────────────────────────────────────────── */
+@media(max-width:768px) {
+  .hero h1 { font-size: 2.25rem; }
+  .arch-diagram { grid-template-columns: 1fr; gap: 8px; }
+  .arch-arrow { display: none; }
+  .flow { flex-direction: column; gap: 16px; }
+  .flow-step::after { content: "↓"; top: auto; bottom: -20px; right: 50%; transform: translateX(50%); }
+  .auth-flow { flex-direction: column; }
+  .auth-step { border-right: none; border-bottom: 1px dashed var(--border); }
+}
+</style>
+</head>
+<body>
+
+<!-- ── Navigation ─────────────────────────────────────────── -->
+<nav>
+  <div class="nav-inner">
+    <div class="nav-brand">
+      <div class="dot">📊</div>
+      HAIP Villa · Architecture
+    </div>
+    <ul class="nav-links">
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#stack">Tech Stack</a></li>
+      <li><a href="#architecture">Architecture</a></li>
+      <li><a href="#database">Database</a></li>
+      <li><a href="#api">API</a></li>
+      <li><a href="#ai">AI Pipeline</a></li>
+      <li><a href="#screens">Screens</a></li>
+      <li><a href="#auth">Auth & Roles</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ── Hero ───────────────────────────────────────────────── -->
+<div class="hero">
+  <div class="hero-tag">Technical Architecture · v2.0</div>
+  <h1>HAIP Villa<br/><span>Explained Simply</span></h1>
+  <p>A complete private villa rental CRM with AI call analysis, WhatsApp inbox, and revenue intelligence — built for luxury hospitality operators.</p>
+  <div class="hero-stats">
+    <div class="hero-stat">
+      <span class="num">30</span>
+      <span class="label">API Endpoints</span>
+    </div>
+    <div class="hero-stat">
+      <span class="num">13</span>
+      <span class="label">Database Tables</span>
+    </div>
+    <div class="hero-stat">
+      <span class="num">16</span>
+      <span class="label">Frontend Pages</span>
+    </div>
+    <div class="hero-stat">
+      <span class="num">100%</span>
+      <span class="label">Local AI (no cloud STT)</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── 1. WHAT IS THIS ────────────────────────────────────── -->
+<section id="overview">
+  <div class="container">
+    <div class="section-tag">What is HAIP Villa?</div>
+    <div class="section-title">One platform for the<br/>entire guest journey</div>
+    <p class="section-sub">Think of it as a CRM + Call Centre Analytics + WhatsApp Inbox + Revenue Dashboard — all in one. Built specifically for private villa rental businesses.</p>
+
+    <div class="feature-grid">
+
+      <div class="feature-card" style="border-color: #14B8A6">
+        <span class="feature-icon">🏖️</span>
+        <div class="feature-name">Guest Management (CRM)</div>
+        <p class="feature-desc">Store every guest's profile — contact details, nationality, language, past stays, preferences, GDPR consent, and VIP tags. A full 360° view of each guest in one click.</p>
+      </div>
+
+      <div class="feature-card" style="border-color: #F59E0B">
+        <span class="feature-icon">📋</span>
+        <div class="feature-name">Inquiry Pipeline (Kanban)</div>
+        <p class="feature-desc">Track every enquiry from the first WhatsApp message to confirmed booking. Move cards through stages: New → Contacted → Quoted → Negotiating → Confirmed. See revenue potential at every stage.</p>
+      </div>
+
+      <div class="feature-card" style="border-color: #3b82f6">
+        <span class="feature-icon">🏡</span>
+        <div class="feature-name">Villa & Booking Management</div>
+        <p class="feature-desc">Manage your property catalogue, nightly rates, seasonal pricing, and confirmed bookings. Each booking gets a unique reference (e.g. VR-2026-84721) and tracks payment status.</p>
+      </div>
+
+      <div class="feature-card" style="border-color: #8b5cf6">
+        <span class="feature-icon">🤖</span>
+        <div class="feature-name">AI Call Quality Analysis</div>
+        <p class="feature-desc">Upload a call recording. The AI automatically transcribes it (using Whisper — running locally on your computer), analyses the agent's performance, scores it out of 10, detects guest emotions, and gives coaching recommendations.</p>
+      </div>
+
+      <div class="feature-card" style="border-color: #25D366">
+        <span class="feature-icon">💬</span>
+        <div class="feature-name">WhatsApp Inbox</div>
+        <p class="feature-desc">All guest WhatsApp messages appear in one unified inbox. The platform receives messages via Meta's official Cloud API (webhook), auto-creates guest profiles if new, and lets your team reply from the dashboard.</p>
+      </div>
+
+      <div class="feature-card" style="border-color: #ef4444">
+        <span class="feature-icon">📣</span>
+        <div class="feature-name">Campaigns</div>
+        <p class="feature-desc">Broadcast WhatsApp or email campaigns to your guest list — seasonal offers, availability notifications, post-stay feedback requests. Schedule or send immediately.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── 2. TECH STACK ───────────────────────────────────────── -->
+<section id="stack" style="background:#fff;">
+  <div class="container">
+    <div class="section-tag">Technology</div>
+    <div class="section-title">What the system is built with</div>
+    <p class="section-sub">Each technology was chosen for a specific reason. Nothing is unnecessary.</p>
+
+    <div class="tech-grid">
+
+      <div class="tech-item">
+        <div class="tech-icon-wrap" style="background: rgba(20,184,166,.12)">🐍</div>
+        <div>
+          <div class="tech-name">FastAPI</div>
+          <div class="tech-role">The backend web server. Receives requests from the browser and responds with data. Very fast, modern Python.</div>
+          <span class="tech-tag" style="background: rgba(20,184,166,.12); color: var(--teal-dark)">Backend · Port 8001</span>
+        </div>
+      </div>
+
+      <div class="tech-item">
+        <div class="tech-icon-wrap" style="background: rgba(11,31,58,.08)">🐘</div>
+        <div>
+          <div class="tech-name">PostgreSQL</div>
+          <div class="tech-role">The database. Stores all guests, villas, bookings, calls, messages — everything. Like a very structured spreadsheet that never loses data.</div>
+          <span class="tech-tag" style="background: rgba(11,31,58,.08); color: var(--navy)">Database · Port 5432</span>
+        </div>
+      </div>
+
+      <div class="tech-item">
+        <div class="tech-icon-wrap" style="background: #eff6ff">⚛️</div>
+        <div>
+          <div class="tech-name">Next.js 14</div>
+          <div class="tech-role">The frontend — what you see in the browser. React-based, app router. All the dashboards, tables, charts are built here.</div>
+          <span class="tech-tag" style="background: #eff6ff; color: #1d4ed8">Frontend · Port 3001</span>
+        </div>
+      </div>
+
+      <div class="tech-item">
+        <div class="tech-icon-wrap" style="background: #f3e8ff">🎙️</div>
+        <div>
+          <div class="tech-name">faster-whisper</div>
+          <div class="tech-role">OpenAI's Whisper speech-to-text model, running locally on your machine. Converts call audio into text. No API key needed, no cost, no data leaves your computer.</div>
+          <span class="tech-tag" style="background: #f3e8ff; color: #7c3aed">Local AI · STT</span>
+        </div>
+      </div>
+
+      <div class="tech-item">
+        <div class="tech-icon-wrap" style="background: var(--gold-light)">✨</div>
+        <div>
+          <div class="tech-name">Gemini 2.5 Flash</div>
+          <div class="tech-role">Google's AI model. After Whisper transcribes the call, Gemini reads it and produces a QA score, summary, sentiment, key issues, and coaching recommendations.</div>
+          <span class="tech-tag" style="background: var(--gold-light); color: var(--gold-dark)">Cloud AI · QA Analysis</span>
+        </div>
+      </div>
+
+      <div class="tech-item">
+        <div class="tech-icon-wrap" style="background: var(--teal-light)">🔑</div>
+        <div>
+          <div class="tech-name">JWT Authentication</div>
+          <div class="tech-role">Login system. When you sign in, the server gives your browser a secure token (like a VIP wristband). Every API request carries this token to prove who you are.</div>
+          <span class="tech-tag" style="background: var(--teal-light); color: var(--teal-dark)">Security · Stateless</span>
+        </div>
+      </div>
+
+      <div class="tech-item">
+        <div class="tech-icon-wrap" style="background: #fff7ed">🛠️</div>
+        <div>
+          <div class="tech-name">Alembic</div>
+          <div class="tech-role">Database migration tool. Think of it as version control for your database schema. When you add a new column or table, Alembic updates the database safely without losing existing data.</div>
+          <span class="tech-tag" style="background: #fff7ed; color: #c2410c">DB Migrations</span>
+        </div>
+      </div>
+
+      <div class="tech-item">
+        <div class="tech-icon-wrap" style="background: #f0fdf4">📊</div>
+        <div>
+          <div class="tech-name">Recharts</div>
+          <div class="tech-role">JavaScript charting library used on the dashboard. Draws the revenue trend area chart, inquiry funnel bars, and emotion breakdown bars.</div>
+          <span class="tech-tag" style="background: #f0fdf4; color: #065f46">Charts · Frontend</span>
+        </div>
+      </div>
+
+      <div class="tech-item">
+        <div class="tech-icon-wrap" style="background: rgba(11,31,58,.06)">🗃️</div>
+        <div>
+          <div class="tech-name">SQLAlchemy</div>
+          <div class="tech-role">Python library that talks to PostgreSQL. Instead of writing raw SQL, you write Python objects and it translates them to database queries. Async support for speed.</div>
+          <span class="tech-tag" style="background: rgba(11,31,58,.06); color: var(--navy)">ORM · Async</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── 3. ARCHITECTURE ─────────────────────────────────────── -->
+<section id="architecture">
+  <div class="container">
+    <div class="section-tag">System Architecture</div>
+    <div class="section-title">How the three layers talk to each other</div>
+    <p class="section-sub">The system is split into three distinct layers. Each has one job. They talk to each other through well-defined interfaces.</p>
+
+    <div class="arch-diagram">
+
+      <!-- Browser -->
+      <div class="arch-box navy">
+        <span class="icon">🖥️</span>
+        <div class="name">Frontend</div>
+        <span class="tech">Next.js 14 · Port 3001</span>
+        <hr style="margin: 12px 0; border-color: #e2e8f0;" />
+        <div style="font-size:0.75rem; color:#64748b; text-align:left; line-height:1.8">
+          ✦ Dashboard pages<br/>
+          ✦ Tables, charts, forms<br/>
+          ✦ Calls API (lib/api.ts)<br/>
+          ✦ Outfit + Manrope fonts<br/>
+          ✦ JWT stored in localStorage
+        </div>
+      </div>
+
+      <!-- Arrow 1 -->
+      <div class="arch-arrow">
+        <div class="line">
+          <svg class="arrow-svg" width="60" height="24" viewBox="0 0 60 24">
+            <line x1="4" y1="12" x2="50" y2="12" stroke="currentColor" stroke-width="2" stroke-dasharray="4"/>
+            <polygon points="50,7 60,12 50,17" fill="currentColor"/>
+          </svg>
+        </div>
+        <div class="label" style="color:var(--teal)">HTTP<br/>REST API<br/>+ Bearer token</div>
+        <div class="line" style="transform: scaleX(-1)">
+          <svg class="arrow-svg" width="60" height="24" viewBox="0 0 60 24">
+            <line x1="4" y1="12" x2="50" y2="12" stroke="currentColor" stroke-width="2" stroke-dasharray="4"/>
+            <polygon points="50,7 60,12 50,17" fill="currentColor"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- API Server -->
+      <div class="arch-box teal">
+        <span class="icon">⚡</span>
+        <div class="name">Backend</div>
+        <span class="tech">FastAPI · Port 8001</span>
+        <hr style="margin: 12px 0; border-color: rgba(20,184,166,.3);" />
+        <div style="font-size:0.75rem; color:#134e4a; text-align:left; line-height:1.8">
+          ✦ 30 REST endpoints<br/>
+          ✦ JWT auth middleware<br/>
+          ✦ RBAC (role checking)<br/>
+          ✦ Whisper STT pipeline<br/>
+          ✦ Gemini QA analysis<br/>
+          ✦ WhatsApp webhook
+        </div>
+      </div>
+
+      <!-- Arrow 2 -->
+      <div class="arch-arrow">
+        <div class="line">
+          <svg class="arrow-svg" width="60" height="24" viewBox="0 0 60 24">
+            <line x1="4" y1="12" x2="50" y2="12" stroke="currentColor" stroke-width="2" stroke-dasharray="4"/>
+            <polygon points="50,7 60,12 50,17" fill="currentColor"/>
+          </svg>
+        </div>
+        <div class="label" style="color:var(--teal)">asyncpg<br/>SQL queries<br/>+ JSONB</div>
+        <div class="line" style="transform: scaleX(-1)">
+          <svg class="arrow-svg" width="60" height="24" viewBox="0 0 60 24">
+            <line x1="4" y1="12" x2="50" y2="12" stroke="currentColor" stroke-width="2" stroke-dasharray="4"/>
+            <polygon points="50,7 60,12 50,17" fill="currentColor"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Database -->
+      <div class="arch-box gold">
+        <span class="icon">🐘</span>
+        <div class="name">Database</div>
+        <span class="tech">PostgreSQL 16 · Port 5432</span>
+        <hr style="margin: 12px 0; border-color: #fde68a;" />
+        <div style="font-size:0.75rem; color:#78350f; text-align:left; line-height:1.8">
+          ✦ 13 tables<br/>
+          ✦ UUID primary keys<br/>
+          ✦ JSONB for flexible data<br/>
+          ✦ ARRAY for tags<br/>
+          ✦ Foreign key constraints<br/>
+          ✦ Managed by Alembic
+        </div>
+      </div>
+
+    </div>
+
+    <div class="callout teal">
+      <span style="font-size:1.25rem; flex-shrink:0">💡</span>
+      <div>
+        <strong>Why separate layers?</strong> Each layer can be scaled, replaced, or debugged independently. The browser doesn't know how the database is structured. The database doesn't know what the UI looks like. The backend is the only layer that knows everything — and it controls what data each user is allowed to see.
+      </div>
+    </div>
+
+    <!-- Request lifecycle -->
+    <h3 style="font-family:'Outfit',sans-serif; font-size:1.25rem; font-weight:700; color:var(--navy); margin: 48px 0 24px; letter-spacing:-.02em;">📦 What happens when you open the Guests page?</h3>
+
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-circle" style="border-color:var(--navy); background:rgba(11,31,58,.06)">🖱️</div>
+        <div class="flow-step-name">You click "Guests"</div>
+        <div class="flow-step-desc">Browser navigates to /guests. Next.js renders the page component.</div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-circle" style="border-color:var(--blue); background:var(--blue-light)">📡</div>
+        <div class="flow-step-name">API call fired</div>
+        <div class="flow-step-desc"><span class="mono">GET /api/v1/guests</span> sent to port 8001 with your JWT token in the header.</div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-circle" style="border-color:var(--teal); background:var(--teal-light)">🔐</div>
+        <div class="flow-step-name">Auth checked</div>
+        <div class="flow-step-desc">FastAPI verifies your JWT. If invalid or expired → 401 Unauthorized. If valid → proceed.</div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-circle" style="border-color:var(--gold); background:var(--gold-light)">🐘</div>
+        <div class="flow-step-name">DB queried</div>
+        <div class="flow-step-desc">SQLAlchemy runs <span class="mono">SELECT * FROM guests</span> on PostgreSQL. Results returned.</div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-circle" style="border-color:var(--green); background:var(--green-light)">✅</div>
+        <div class="flow-step-name">UI rendered</div>
+        <div class="flow-step-desc">JSON array of guests returned. React renders the table. You see data within ~80ms.</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ── 4. DATABASE ─────────────────────────────────────────── -->
+<section id="database" style="background:#fff;">
+  <div class="container">
+    <div class="section-tag">Database</div>
+    <div class="section-title">13 tables, every relationship explained</div>
+    <p class="section-sub">All data is stored in PostgreSQL. Each table has a clear purpose. Primary keys are UUIDs (long random IDs), foreign keys link tables together.</p>
+
+    <div class="db-grid">
+
+      <div class="db-card">
+        <div class="db-card-header" style="background:var(--navy)">
+          <span>👤</span>
+          <div class="db-card-title">users</div>
+        </div>
+        <div class="db-card-body">
+          <p style="font-size:0.75rem; color:#64748b; margin-bottom:10px">Platform staff who log into the dashboard</p>
+          <div class="db-field"><span class="db-field-name pk">id</span><span class="db-field-type">UUID · PK</span></div>
+          <div class="db-field"><span class="db-field-name">email</span><span class="db-field-type">VARCHAR · UNIQUE</span></div>
+          <div class="db-field"><span class="db-field-name">full_name</span><span class="db-field-type">VARCHAR</span></div>
+          <div class="db-field"><span class="db-field-name">hashed_pw</span><span class="db-field-type">bcrypt hash</span></div>
+          <div class="db-field"><span class="db-field-name">role</span><span class="db-field-type">owner | manager | concierge…</span></div>
+          <div class="db-field"><span class="db-field-name">is_active</span><span class="db-field-type">BOOLEAN</span></div>
+        </div>
+      </div>
+
+      <div class="db-card">
+        <div class="db-card-header" style="background:var(--teal-dark)">
+          <span>🌍</span>
+          <div class="db-card-title">guests</div>
+        </div>
+        <div class="db-card-body">
+          <p style="font-size:0.75rem; color:#64748b; margin-bottom:10px">Guest profiles. PK is the phone number (E.164 format like +447911234567)</p>
+          <div class="db-field"><span class="db-field-name pk">phone</span><span class="db-field-type">VARCHAR · PK</span></div>
+          <div class="db-field"><span class="db-field-name">full_name</span><span class="db-field-type">VARCHAR</span></div>
+          <div class="db-field"><span class="db-field-name">nationality</span><span class="db-field-type">VARCHAR</span></div>
+          <div class="db-field"><span class="db-field-name">source</span><span class="db-field-type">airbnb | direct | whatsapp…</span></div>
+          <div class="db-field"><span class="db-field-name">tags</span><span class="db-field-type">TEXT[] · e.g. [VIP, repeat]</span></div>
+          <div class="db-field"><span class="db-field-name">preferences</span><span class="db-field-type">JSONB · flexible key/values</span></div>
+          <div class="db-field"><span class="db-field-name">gdpr_consent</span><span class="db-field-type">BOOLEAN</span></div>
+        </div>
+      </div>
+
+      <div class="db-card">
+        <div class="db-card-header" style="background:#1d4ed8">
+          <span>🏡</span>
+          <div class="db-card-title">villas</div>
+        </div>
+        <div class="db-card-body">
+          <p style="font-size:0.75rem; color:#64748b; margin-bottom:10px">Your property catalogue</p>
+          <div class="db-field"><span class="db-field-name pk">id</span><span class="db-field-type">UUID · PK</span></div>
+          <div class="db-field"><span class="db-field-name">name</span><span class="db-field-type">VARCHAR · e.g. Villa Azura</span></div>
+          <div class="db-field"><span class="db-field-name">location_city</span><span class="db-field-type">VARCHAR</span></div>
+          <div class="db-field"><span class="db-field-name">bedrooms</span><span class="db-field-type">INTEGER</span></div>
+          <div class="db-field"><span class="db-field-name">base_rate_per_night</span><span class="db-field-type">NUMERIC · e.g. 2850.00</span></div>
+          <div class="db-field"><span class="db-field-name">amenities</span><span class="db-field-type">JSONB · [Pool, Gym, …]</span></div>
+        </div>
+      </div>
+
+      <div class="db-card">
+        <div class="db-card-header" style="background:#d97706">
+          <span>📋</span>
+          <div class="db-card-title">inquiries</div>
+        </div>
+        <div class="db-card-body">
+          <p style="font-size:0.75rem; color:#64748b; margin-bottom:10px">A lead / booking request. Tracks the pipeline stage.</p>
+          <div class="db-field"><span class="db-field-name pk">id</span><span class="db-field-type">UUID · PK</span></div>
+          <div class="db-field"><span class="db-field-name fk">guest_phone</span><span class="db-field-type">FK → guests</span></div>
+          <div class="db-field"><span class="db-field-name fk">villa_id</span><span class="db-field-type">FK → villas</span></div>
+          <div class="db-field"><span class="db-field-name">check_in</span><span class="db-field-type">DATE</span></div>
+          <div class="db-field"><span class="db-field-name">check_out</span><span class="db-field-type">DATE</span></div>
+          <div class="db-field"><span class="db-field-name">status</span><span class="db-field-type">new|quoted|confirmed|lost…</span></div>
+        </div>
+      </div>
+
+      <div class="db-card">
+        <div class="db-card-header" style="background:#065f46">
+          <span>📅</span>
+          <div class="db-card-title">stays</div>
+        </div>
+        <div class="db-card-body">
+          <p style="font-size:0.75rem; color:#64748b; margin-bottom:10px">Confirmed bookings with payment tracking</p>
+          <div class="db-field"><span class="db-field-name pk">id</span><span class="db-field-type">UUID · PK</span></div>
+          <div class="db-field"><span class="db-field-name fk">guest_phone</span><span class="db-field-type">FK → guests</span></div>
+          <div class="db-field"><span class="db-field-name fk">villa_id</span><span class="db-field-type">FK → villas</span></div>
+          <div class="db-field"><span class="db-field-name">booking_ref</span><span class="db-field-type">VR-2026-XXXXX · UNIQUE</span></div>
+          <div class="db-field"><span class="db-field-name">total_amount</span><span class="db-field-type">NUMERIC · 12,2</span></div>
+          <div class="db-field"><span class="db-field-name">payment_status</span><span class="db-field-type">pending|deposit_paid|fully_paid</span></div>
+        </div>
+      </div>
+
+      <div class="db-card">
+        <div class="db-card-header" style="background:#7c3aed">
+          <span>📞</span>
+          <div class="db-card-title">calls + call_analysis</div>
+        </div>
+        <div class="db-card-body">
+          <p style="font-size:0.75rem; color:#64748b; margin-bottom:10px">Two linked tables — one for the call itself, one for AI results</p>
+          <div class="db-field"><span class="db-field-name pk">id</span><span class="db-field-type">UUID · PK</span></div>
+          <div class="db-field"><span class="db-field-name">agent_name</span><span class="db-field-type">VARCHAR</span></div>
+          <div class="db-field"><span class="db-field-name">transcript</span><span class="db-field-type">TEXT · full transcript</span></div>
+          <div class="db-field"><span class="db-field-name">qa_score</span><span class="db-field-type">NUMERIC · e.g. 8.5 / 10</span></div>
+          <div class="db-field"><span class="db-field-name">emotion_timeline</span><span class="db-field-type">JSONB · [{time, emotion}]</span></div>
+          <div class="db-field"><span class="db-field-name">recommendations</span><span class="db-field-type">JSONB · string array</span></div>
+        </div>
+      </div>
+
+      <div class="db-card">
+        <div class="db-card-header" style="background:#25D366; color:#fff">
+          <span>💬</span>
+          <div class="db-card-title" style="color:#fff">conversations + messages</div>
+        </div>
+        <div class="db-card-body">
+          <p style="font-size:0.75rem; color:#64748b; margin-bottom:10px">WhatsApp/email thread (conversation) and individual messages</p>
+          <div class="db-field"><span class="db-field-name fk">guest_phone</span><span class="db-field-type">FK → guests</span></div>
+          <div class="db-field"><span class="db-field-name">channel</span><span class="db-field-type">whatsapp | email | phone</span></div>
+          <div class="db-field"><span class="db-field-name">direction</span><span class="db-field-type">inbound | outbound</span></div>
+          <div class="db-field"><span class="db-field-name">content</span><span class="db-field-type">TEXT · message body</span></div>
+          <div class="db-field"><span class="db-field-name">wa_message_id</span><span class="db-field-type">VARCHAR · dedup key</span></div>
+        </div>
+      </div>
+
+      <div class="db-card">
+        <div class="db-card-header" style="background:#c2410c">
+          <span>📣</span>
+          <div class="db-card-title">campaigns</div>
+        </div>
+        <div class="db-card-body">
+          <p style="font-size:0.75rem; color:#64748b; margin-bottom:10px">Broadcast message campaigns to multiple guests</p>
+          <div class="db-field"><span class="db-field-name">name</span><span class="db-field-type">VARCHAR</span></div>
+          <div class="db-field"><span class="db-field-name">type</span><span class="db-field-type">whatsapp | email</span></div>
+          <div class="db-field"><span class="db-field-name">status</span><span class="db-field-type">draft | scheduled | sent</span></div>
+          <div class="db-field"><span class="db-field-name">sent_count</span><span class="db-field-type">INTEGER</span></div>
+          <div class="db-field"><span class="db-field-name">audience_filter</span><span class="db-field-type">JSONB · who gets it</span></div>
+        </div>
+      </div>
+
+      <div class="db-card">
+        <div class="db-card-header" style="background:#475569">
+          <span>📝</span>
+          <div class="db-card-title">activities · consent_log · rate_plans</div>
+        </div>
+        <div class="db-card-body">
+          <p style="font-size:0.75rem; color:#64748b; margin-bottom:10px">Supporting tables for audit, pricing, and CRM activity</p>
+          <div class="db-field"><span class="db-field-name">activities</span><span class="db-field-type">Notes, tasks, calls logged against a guest</span></div>
+          <div class="db-field"><span class="db-field-name">consent_log</span><span class="db-field-type">GDPR audit trail — who consented when</span></div>
+          <div class="db-field"><span class="db-field-name">rate_plans</span><span class="db-field-type">Seasonal pricing per villa (peak / low)</span></div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="callout gold" style="margin-top:32px">
+      <span style="font-size:1.25rem; flex-shrink:0">🔗</span>
+      <div>
+        <strong>How tables link:</strong> A <strong>stay</strong> has a <strong>guest_phone</strong> (FK → guests) and a <strong>villa_id</strong> (FK → villas). A <strong>call</strong> has a <strong>call_analysis</strong> (1:1). A <strong>conversation</strong> has many <strong>messages</strong> (1:many). This is a relational database — relationships are enforced by the database engine, preventing orphaned or inconsistent data.
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ── 5. API ENDPOINTS ────────────────────────────────────── -->
+<section id="api">
+  <div class="container">
+    <div class="section-tag">REST API</div>
+    <div class="section-title">30 endpoints, one consistent pattern</div>
+    <p class="section-sub">Every endpoint follows the same structure: <span class="mono">/api/v1/{resource}</span>. GET reads data, POST creates, PATCH updates, DELETE removes. All require a valid JWT token in the Authorization header (except login).</p>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:40px; margin-top:32px">
+
+      <div>
+        <div class="endpoint-group">
+          <div class="endpoint-group-title">🔐 Authentication</div>
+          <div class="endpoint"><span class="method post">POST</span><span class="endpoint-path">/auth/login</span><span class="endpoint-desc">Returns JWT token</span></div>
+          <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/auth/me</span><span class="endpoint-desc">Current user profile</span></div>
+        </div>
+
+        <div class="endpoint-group">
+          <div class="endpoint-group-title">👤 Guests</div>
+          <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/guests</span><span class="endpoint-desc">List all guests (search?q=)</span></div>
+          <div class="endpoint"><span class="method post">POST</span><span class="endpoint-path">/guests</span><span class="endpoint-desc">Create guest profile</span></div>
+          <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/guests/{phone}</span><span class="endpoint-desc">360° profile (stays + calls + messages)</span></div>
+          <div class="endpoint"><span class="method patch">PATCH</span><span class="endpoint-path">/guests/{phone}</span><span class="endpoint-desc">Update guest details</span></div>
+          <div class="endpoint"><span class="method post">POST</span><span class="endpoint-path">/guests/{phone}/blacklist</span><span class="endpoint-desc">Block guest</span></div>
+        </div>
+
+        <div class="endpoint-group">
+          <div class="endpoint-group-title">🏡 Villas</div>
+          <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/villas</span><span class="endpoint-desc">All properties</span></div>
+          <div class="endpoint"><span class="method post">POST</span><span class="endpoint-path">/villas</span><span class="endpoint-desc">Add new villa</span></div>
+          <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/villas/{id}/availability</span><span class="endpoint-desc">Check available dates</span></div>
+          <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/villas/{id}/rate-plans</span><span class="endpoint-desc">Seasonal pricing</span></div>
+        </div>
+
+        <div class="endpoint-group">
+          <div class="endpoint-group-title">📋 Inquiries</div>
+          <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/inquiries</span><span class="endpoint-desc">Pipeline (filter by status)</span></div>
+          <div class="endpoint"><span class="method post">POST</span><span class="endpoint-path">/inquiries</span><span class="endpoint-desc">Create inquiry</span></div>
+          <div class="endpoint"><span class="method patch">PATCH</span><span class="endpoint-path">/inquiries/{id}</span><span class="endpoint-desc">Update status / notes</span></div>
+          <div class="endpoint"><span class="method post">POST</span><span class="endpoint-path">/inquiries/{id}/convert</span><span class="endpoint-desc">Convert to confirmed stay</span></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="endpoint-group">
+          <div class="endpoint-group-title">📅 Stays</div>
+          <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/stays</span><span class="endpoint-desc">All bookings</span></div>
+          <div class="endpoint"><span class="method post">POST</span><span class="endpoint-path">/stays</span><span class="endpoint-desc">Create booking</span></div>
+          <div class="endpoint"><span class="method patch">PATCH</span><span class="endpoint-path">/stays/{id}</span><span class="endpoint-desc">Update payment status etc.</span></div>
+        </div>
+
+        <div class="endpoint-group">
+          <div class="endpoint-group-title">🤖 AI Call Analysis</div>
+          <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/calls</span><span class="endpoint-desc">Call library</span></div>
+          <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/calls/{id}</span><span class="endpoint-desc">Full call + analysis report</span></div>
+          <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/calls/{id}/audio</span><span class="endpoint-desc">Stream audio file</span></div>
+          <div class="endpoint"><span class="method post">POST</span><span class="endpoint-path">/analyze/audio</span><span class="endpoint-desc">Upload audio → STT → AI QA</span></div>
+          <div class="endpoint"><span class="method post">POST</span><span class="endpoint-path">/analyze/transcript</span><span class="endpoint-desc">Paste text → AI QA only</span></div>
+        </div>
+
+        <div class="endpoint-group">
+          <div class="endpoint-group-title">💬 Conversations (WhatsApp)</div>
+          <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/conversations</span><span class="endpoint-desc">All threads (inbox)</span></div>
+          <div class="endpoint"><span class="method post">POST</span><span class="endpoint-path">/conversations/{id}/messages</span><span class="endpoint-desc">Send outbound message</span></div>
+          <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/webhooks/whatsapp</span><span class="endpoint-desc">Meta verification handshake</span></div>
+          <div class="endpoint"><span class="method post">POST</span><span class="endpoint-path">/webhooks/whatsapp</span><span class="endpoint-desc">Receive inbound messages</span></div>
+        </div>
+
+        <div class="endpoint-group">
+          <div class="endpoint-group-title">📊 Dashboard + Settings</div>
+          <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/dashboard</span><span class="endpoint-desc">All KPIs in one call</span></div>
+          <div class="endpoint"><span class="method get">GET</span><span class="endpoint-path">/settings</span><span class="endpoint-desc">Current platform settings</span></div>
+          <div class="endpoint"><span class="method patch">PATCH</span><span class="endpoint-path">/settings/ai</span><span class="endpoint-desc">Save Gemini key, Whisper size</span></div>
+          <div class="endpoint"><span class="method patch">PATCH</span><span class="endpoint-path">/settings/whatsapp</span><span class="endpoint-desc">Save WhatsApp credentials</span></div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</section>
+
+<!-- ── 6. AI PIPELINE ─────────────────────────────────────── -->
+<section id="ai" style="background:#fff;">
+  <div class="container">
+    <div class="section-tag">AI Intelligence</div>
+    <div class="section-title">How a 90-second call becomes a QA report</div>
+    <p class="section-sub">The call analysis pipeline runs entirely on your machine (except Gemini). Here's every step — from audio file to actionable insights.</p>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:48px; align-items:start;">
+
+      <div class="pipeline">
+
+        <div class="pipeline-step">
+          <div class="pipeline-dot" style="background:rgba(11,31,58,.08); border:2px solid var(--navy)">📁</div>
+          <div class="pipeline-content">
+            <div class="pipeline-title">1. Upload</div>
+            <div class="pipeline-detail">You drag an MP3/WAV/M4A/FLAC file (max 200MB) into the browser. It's sent via HTTP multipart form to the backend's <span class="mono">/analyze/audio</span> endpoint.</div>
+          </div>
+        </div>
+        <div class="pipeline-line"></div>
+
+        <div class="pipeline-step">
+          <div class="pipeline-dot" style="background:var(--teal-light); border:2px solid var(--teal)">🔄</div>
+          <div class="pipeline-content">
+            <div class="pipeline-title">2. Pre-processing</div>
+            <div class="pipeline-detail">ffmpeg converts the audio to a standard WAV format that Whisper can process. Handles any input codec — MP3, AAC, OGG, WebM.</div>
+            <span class="pipeline-tag" style="background:var(--teal-light); color:var(--teal-dark)">ffmpeg · local</span>
+          </div>
+        </div>
+        <div class="pipeline-line"></div>
+
+        <div class="pipeline-step">
+          <div class="pipeline-dot" style="background:var(--purple-light); border:2px solid var(--purple)">🎙️</div>
+          <div class="pipeline-content">
+            <div class="pipeline-title">3. Transcription (STT)</div>
+            <div class="pipeline-detail">faster-whisper runs the Whisper "base" model locally. No internet needed. Produces time-stamped word segments and detects the language automatically.</div>
+            <span class="pipeline-tag" style="background:var(--purple-light); color:#7c3aed">faster-whisper · CPU/GPU · local</span>
+          </div>
+        </div>
+        <div class="pipeline-line"></div>
+
+        <div class="pipeline-step">
+          <div class="pipeline-dot" style="background:var(--gold-light); border:2px solid var(--gold)">🧠</div>
+          <div class="pipeline-content">
+            <div class="pipeline-title">4. Emotion Detection (optional)</div>
+            <div class="pipeline-detail">SpeechBrain + wav2vec2 model analyses the audio waveform (not words — the tone) to detect emotions: happy, frustrated, angry, neutral. Produces a timeline of emotional states per 5-second window.</div>
+            <span class="pipeline-tag" style="background:var(--gold-light); color:var(--gold-dark)">SpeechBrain · local · optional</span>
+          </div>
+        </div>
+        <div class="pipeline-line"></div>
+
+        <div class="pipeline-step">
+          <div class="pipeline-dot" style="background:var(--blue-light); border:2px solid var(--blue)">✨</div>
+          <div class="pipeline-content">
+            <div class="pipeline-title">5. AI QA Analysis</div>
+            <div class="pipeline-detail">The full transcript is sent to Gemini 2.5 Flash (Google's API) with a detailed prompt asking it to: score the call out of 10, summarise what happened, identify key issues (missed upsell, wrong info given), and produce coaching recommendations. Requires a free Gemini API key.</div>
+            <span class="pipeline-tag" style="background:var(--blue-light); color:#1d4ed8">Gemini 2.5 Flash · cloud API</span>
+          </div>
+        </div>
+        <div class="pipeline-line"></div>
+
+        <div class="pipeline-step">
+          <div class="pipeline-dot" style="background:var(--green-light); border:2px solid var(--green)">💾</div>
+          <div class="pipeline-content">
+            <div class="pipeline-title">6. Save & Display</div>
+            <div class="pipeline-detail">All results are saved to PostgreSQL in the <span class="mono">calls</span> and <span class="mono">call_analysis</span> tables. Browser is redirected to the call detail page showing transcript, score, emotions, and recommendations.</div>
+            <span class="pipeline-tag" style="background:var(--green-light); color:#065f46">PostgreSQL · saved permanently</span>
+          </div>
+        </div>
+
+      </div>
+
+      <div>
+        <div class="callout navy" style="margin-bottom:20px">
+          <span style="font-size:1.25rem; flex-shrink:0">🔌</span>
+          <div><strong>No Gemini key?</strong> The platform degrades gracefully. Whisper still transcribes the audio. The call is saved with the transcript. But QA score, summary, and recommendations won't appear. Add a key in Settings to unlock AI features instantly — no restart needed.</div>
+        </div>
+
+        <div class="callout teal" style="margin-bottom:20px">
+          <span style="font-size:1.25rem; flex-shrink:0">🔒</span>
+          <div><strong>Privacy:</strong> Audio files are stored locally in <span class="mono">backend/audio_files/</span>. Transcription runs on your machine. Only the text transcript is sent to Gemini for analysis — no audio goes to the cloud.</div>
+        </div>
+
+        <div class="card" style="margin-top:20px">
+          <div class="card-header">
+            <span style="font-size:1.25rem">📊</span>
+            <div class="card-title">What Gemini returns</div>
+          </div>
+          <div class="card-body">
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <div style="display:flex; gap:12px; align-items:flex-start; font-size:0.875rem">
+                <span style="color:var(--teal); flex-shrink:0; margin-top:2px">●</span>
+                <div><strong>QA Score</strong> — 0.0 to 10.0. Based on agent professionalism, information accuracy, empathy, closing technique.</div>
+              </div>
+              <div style="display:flex; gap:12px; align-items:flex-start; font-size:0.875rem">
+                <span style="color:var(--gold); flex-shrink:0; margin-top:2px">●</span>
+                <div><strong>Sentiment</strong> — Overall call mood: positive, negative, or neutral.</div>
+              </div>
+              <div style="display:flex; gap:12px; align-items:flex-start; font-size:0.875rem">
+                <span style="color:var(--purple); flex-shrink:0; margin-top:2px">●</span>
+                <div><strong>Summary</strong> — 2–3 sentence plain-English description of what happened in the call.</div>
+              </div>
+              <div style="display:flex; gap:12px; align-items:flex-start; font-size:0.875rem">
+                <span style="color:var(--red); flex-shrink:0; margin-top:2px">●</span>
+                <div><strong>Key Issues</strong> — List of things that went wrong: missed upsell, wrong pricing quoted, rushed goodbye.</div>
+              </div>
+              <div style="display:flex; gap:12px; align-items:flex-start; font-size:0.875rem">
+                <span style="color:var(--green); flex-shrink:0; margin-top:2px">●</span>
+                <div><strong>Recommendations</strong> — Actionable coaching tips: "Always confirm check-in time before ending call".</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── 7. SCREENS ──────────────────────────────────────────── -->
+<section id="screens">
+  <div class="container">
+    <div class="section-tag">Frontend</div>
+    <div class="section-title">16 screens, every page explained</div>
+    <p class="section-sub">The frontend is built with Next.js 14 App Router. Each folder inside <span class="mono">app/(dashboard)/</span> is a page. The layout wraps them all with the sidebar and auth guard.</p>
+
+    <div class="screens-grid">
+
+      <div class="screen-card">
+        <span class="screen-icon">📊</span>
+        <span class="screen-route">/dashboard</span>
+        <div class="screen-name">Dashboard</div>
+        <div class="screen-desc">6 KPI cards, revenue trend chart, inquiry funnel bars, emotion breakdown, recent activity feed. All data from one API call.</div>
+      </div>
+
+      <div class="screen-card">
+        <span class="screen-icon">👥</span>
+        <span class="screen-route">/guests</span>
+        <div class="screen-name">Guest Directory</div>
+        <div class="screen-desc">Full table of all guests. VIP gold ring on avatar, source badges, search, GDPR status. Click any row to open 360° profile.</div>
+      </div>
+
+      <div class="screen-card">
+        <span class="screen-icon">🌐</span>
+        <span class="screen-route">/guests/[phone]</span>
+        <div class="screen-name">Guest Profile</div>
+        <div class="screen-desc">5-tab deep view: Overview (preferences, tags), Stays history, Calls, Messages, Activities timeline. Full guest intelligence.</div>
+      </div>
+
+      <div class="screen-card">
+        <span class="screen-icon">🏡</span>
+        <span class="screen-route">/villas</span>
+        <div class="screen-name">Properties</div>
+        <div class="screen-desc">Property cards with location, bedrooms, base rate. Active indicator. Click to view full villa page.</div>
+      </div>
+
+      <div class="screen-card">
+        <span class="screen-icon">🌴</span>
+        <span class="screen-route">/villas/[id]</span>
+        <div class="screen-name">Villa Detail</div>
+        <div class="screen-desc">Full villa info, amenity chips, rate plans panel showing seasonal pricing.</div>
+      </div>
+
+      <div class="screen-card">
+        <span class="screen-icon">📋</span>
+        <span class="screen-route">/inquiries</span>
+        <div class="screen-name">Inquiry Pipeline</div>
+        <div class="screen-desc">Kanban board: New → Contacted → Quoted → Negotiating → Confirmed. Funnel distribution bar at top. Toggle Lost column.</div>
+      </div>
+
+      <div class="screen-card">
+        <span class="screen-icon">🔎</span>
+        <span class="screen-route">/inquiries/[id]</span>
+        <div class="screen-name">Inquiry Detail</div>
+        <div class="screen-desc">Status change buttons, guest + villa info, activity log. "Convert to Stay" button when confirmed.</div>
+      </div>
+
+      <div class="screen-card">
+        <span class="screen-icon">📅</span>
+        <span class="screen-route">/stays</span>
+        <div class="screen-name">Stays</div>
+        <div class="screen-desc">Booking table with IBM Plex Mono refs in teal, night count, revenue in navy mono, payment status badges.</div>
+      </div>
+
+      <div class="screen-card">
+        <span class="screen-icon">🛎️</span>
+        <span class="screen-route">/stays/[id]</span>
+        <div class="screen-name">Stay Detail</div>
+        <div class="screen-desc">Booking ref badge, payment status, total revenue prominently displayed, links to guest and villa.</div>
+      </div>
+
+      <div class="screen-card">
+        <span class="screen-icon">💬</span>
+        <span class="screen-route">/conversations</span>
+        <div class="screen-name">Inbox</div>
+        <div class="screen-desc">Unified thread list for WhatsApp/email. Shows last message preview, channel badge, open/resolved status.</div>
+      </div>
+
+      <div class="screen-card">
+        <span class="screen-icon">✉️</span>
+        <span class="screen-route">/conversations/[id]</span>
+        <div class="screen-name">Message Thread</div>
+        <div class="screen-desc">Chat-style bubbles (teal for outbound, grey for inbound). Compose box at bottom. Auto-scroll to latest.</div>
+      </div>
+
+      <div class="screen-card">
+        <span class="screen-icon">📞</span>
+        <span class="screen-route">/calls</span>
+        <div class="screen-name">Call QA Library</div>
+        <div class="screen-desc">Table with score boxes in semantic colors, IBM Plex Mono agent refs, stats strip (avg score, high quality count).</div>
+      </div>
+
+      <div class="screen-card">
+        <span class="screen-icon">🔬</span>
+        <span class="screen-route">/calls/[id]</span>
+        <div class="screen-name">Call Analysis Report</div>
+        <div class="screen-desc">Audio player, chat-style transcript with Mic/User avatars, emotion timeline bar, vocal emotion scores, issues + recommendations panel.</div>
+      </div>
+
+      <div class="screen-card">
+        <span class="screen-icon">⬆️</span>
+        <span class="screen-route">/upload</span>
+        <div class="screen-name">Analyse a Call</div>
+        <div class="screen-desc">Drag-and-drop audio upload or paste transcript. Real-time progress bar. Gemini active/inactive callout banner.</div>
+      </div>
+
+      <div class="screen-card">
+        <span class="screen-icon">📣</span>
+        <span class="screen-route">/campaigns</span>
+        <div class="screen-name">Campaigns</div>
+        <div class="screen-desc">WhatsApp/email broadcast list. Status badges (draft/scheduled/sent). "Send Now" button for draft campaigns.</div>
+      </div>
+
+      <div class="screen-card">
+        <span class="screen-icon">⚙️</span>
+        <span class="screen-route">/settings</span>
+        <div class="screen-name">Settings</div>
+        <div class="screen-desc">Team members, WhatsApp credentials, API Keys (Gemini). Saves to backend .env instantly — no restart needed.</div>
+      </div>
+
+    </div>
+
+  </div>
+</section>
+
+<!-- ── 8. AUTH & ROLES ─────────────────────────────────────── -->
+<section id="auth" style="background:#fff;">
+  <div class="container">
+    <div class="section-tag">Security</div>
+    <div class="section-title">How login and permissions work</div>
+    <p class="section-sub">The platform uses JWT (JSON Web Tokens) for stateless authentication and role-based access control (RBAC) so different team members see different things.</p>
+
+    <h3 style="font-family:'Outfit',sans-serif; font-weight:700; color:var(--navy); margin-bottom:20px; font-size:1.125rem">Login Flow</h3>
+
+    <div class="auth-flow">
+      <div class="auth-step">
+        <div class="auth-step-num">1</div>
+        <div class="auth-step-title">You type email + password</div>
+        <div class="auth-step-desc">Browser sends <span class="mono">POST /auth/login</span> with credentials as JSON.</div>
+      </div>
+      <div class="auth-step">
+        <div class="auth-step-num">2</div>
+        <div class="auth-step-title">Backend verifies</div>
+        <div class="auth-step-desc">Looks up the user in PostgreSQL. Compares password against bcrypt hash. If wrong → 401 error.</div>
+      </div>
+      <div class="auth-step">
+        <div class="auth-step-num">3</div>
+        <div class="auth-step-title">JWT token issued</div>
+        <div class="auth-step-desc">If correct, backend returns a signed token containing your user ID and role. Expires after 8 hours.</div>
+      </div>
+      <div class="auth-step">
+        <div class="auth-step-num">4</div>
+        <div class="auth-step-title">Token stored</div>
+        <div class="auth-step-desc">Browser saves token in <span class="mono">localStorage</span>. Every subsequent API call sends it as <span class="mono">Authorization: Bearer {token}</span>.</div>
+      </div>
+      <div class="auth-step">
+        <div class="auth-step-num">5</div>
+        <div class="auth-step-title">Backend validates each request</div>
+        <div class="auth-step-desc">FastAPI middleware decodes the token on every request. If expired or tampered → 401. If valid → request proceeds.</div>
+      </div>
+    </div>
+
+    <h3 style="font-family:'Outfit',sans-serif; font-weight:700; color:var(--navy); margin:40px 0 20px; font-size:1.125rem">Roles & Permissions</h3>
+
+    <div class="card overflow-hidden">
+      <table class="roles-table">
+        <thead>
+          <tr>
+            <th>Role</th>
+            <th>View Dashboard</th>
+            <th>Manage Guests</th>
+            <th>Manage Villas</th>
+            <th>Change Settings / Keys</th>
+            <th>Manage Users</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="role-badge" style="background:rgba(11,31,58,.1); color:var(--navy)">owner</span></td>
+            <td><span class="check">✓</span></td>
+            <td><span class="check">✓</span></td>
+            <td><span class="check">✓</span></td>
+            <td><span class="check">✓</span></td>
+            <td><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td><span class="role-badge" style="background:#dbeafe; color:#1d4ed8">manager</span></td>
+            <td><span class="check">✓</span></td>
+            <td><span class="check">✓</span></td>
+            <td><span class="check">✓</span></td>
+            <td><span class="check">✓</span></td>
+            <td><span class="cross">—</span></td>
+          </tr>
+          <tr>
+            <td><span class="role-badge" style="background:var(--teal-light); color:var(--teal-dark)">concierge</span></td>
+            <td><span class="check">✓</span></td>
+            <td><span class="check">✓</span></td>
+            <td><span class="cross">—</span></td>
+            <td><span class="cross">—</span></td>
+            <td><span class="cross">—</span></td>
+          </tr>
+          <tr>
+            <td><span class="role-badge" style="background:var(--gold-light); color:var(--gold-dark)">reservations</span></td>
+            <td><span class="check">✓</span></td>
+            <td><span class="cross">—</span></td>
+            <td><span class="cross">—</span></td>
+            <td><span class="cross">—</span></td>
+            <td><span class="cross">—</span></td>
+          </tr>
+          <tr>
+            <td><span class="role-badge" style="background:#f3f4f6; color:#6b7280">readonly</span></td>
+            <td><span class="check">✓</span></td>
+            <td><span class="cross">—</span></td>
+            <td><span class="cross">—</span></td>
+            <td><span class="cross">—</span></td>
+            <td><span class="cross">—</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout teal" style="margin-top:24px">
+      <span style="font-size:1.25rem; flex-shrink:0">🛡️</span>
+      <div>
+        <strong>How role enforcement works in code:</strong> Each FastAPI endpoint uses a <span class="mono">Depends(require_roles("owner","manager"))</span> guard. If your token's role isn't in the allowed list, you get a <span class="mono">403 Forbidden</span> response — even if you know the URL. The check happens server-side, not just in the browser.
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ── 9. HOW TO RUN ───────────────────────────────────────── -->
+<section id="run">
+  <div class="container">
+    <div class="section-tag">Deployment</div>
+    <div class="section-title">How to run the platform locally</div>
+    <p class="section-sub">Everything runs on your Windows machine. No cloud hosting required.</p>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+
+      <div class="card overflow-hidden">
+        <div class="card-header" style="background:var(--navy)">
+          <span style="color:#fff; font-size:1.25rem">⚡</span>
+          <div class="card-title" style="color:#fff">Backend (FastAPI)</div>
+        </div>
+        <div class="card-body">
+          <p style="font-size:0.875rem; color:#64748b; margin-bottom:12px">Runs on port 8001. Needs PostgreSQL running first.</p>
+          <div style="background:#0f172a; padding:16px; border-radius:8px; font-family:'IBM Plex Mono',monospace; font-size:0.8125rem; color:#94a3b8; line-height:2">
+            <div><span style="color:#475569"># Navigate to backend folder</span></div>
+            <div><span style="color:var(--teal)">cd</span> C:\HAIP-Villa\backend</div>
+            <div style="margin-top:8px"><span style="color:#475569"># Start the server</span></div>
+            <div><span style="color:var(--teal)">python</span> <span style="color:#f8fafc">-m uvicorn main:app</span></div>
+            <div style="padding-left:16px; color:#f8fafc">--host 0.0.0.0 --port 8001</div>
+          </div>
+          <p style="font-size:0.75rem; color:#94a3b8; margin-top:12px">API docs available at <span class="mono">localhost:8001/api/docs</span></p>
+        </div>
+      </div>
+
+      <div class="card overflow-hidden">
+        <div class="card-header" style="background:#1d4ed8">
+          <span style="color:#fff; font-size:1.25rem">⚛️</span>
+          <div class="card-title" style="color:#fff">Frontend (Next.js)</div>
+        </div>
+        <div class="card-body">
+          <p style="font-size:0.875rem; color:#64748b; margin-bottom:12px">Runs on port 3001. Needs the backend running first.</p>
+          <div style="background:#0f172a; padding:16px; border-radius:8px; font-family:'IBM Plex Mono',monospace; font-size:0.8125rem; color:#94a3b8; line-height:2">
+            <div><span style="color:#475569"># Navigate to frontend folder</span></div>
+            <div><span style="color:var(--teal)">cd</span> C:\HAIP-Villa\frontend</div>
+            <div style="margin-top:8px"><span style="color:#475569"># Start the dev server</span></div>
+            <div><span style="color:var(--teal)">npm</span> <span style="color:#f8fafc">run dev</span></div>
+          </div>
+          <p style="font-size:0.75rem; color:#94a3b8; margin-top:12px">Open <span class="mono">localhost:3001</span> in your browser</p>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="callout gold" style="margin-top:24px">
+      <span style="font-size:1.25rem; flex-shrink:0">📋</span>
+      <div>
+        <strong>Default login credentials:</strong>
+        Email: <span class="mono">owner@haip.local</span> · Password: <span class="mono">haip1234</span> · Role: owner (full access). These are pre-seeded into the database by running <span class="mono">python seed.py</span> in the backend folder.
+      </div>
+    </div>
+
+    <!-- File structure -->
+    <h3 style="font-family:'Outfit',sans-serif; font-weight:700; color:var(--navy); margin:40px 0 20px; font-size:1.125rem">Project File Structure</h3>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+      <div>
+        <p style="font-size:0.75rem; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:#64748b; margin-bottom:12px">BACKEND (/backend)</p>
+        <div style="background:#0f172a; padding:16px; border-radius:10px; font-family:'IBM Plex Mono',monospace; font-size:0.75rem; color:#94a3b8; line-height:2">
+          <div><span style="color:var(--teal)">main.py</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← FastAPI app + routes</div>
+          <div><span style="color:var(--teal)">seed.py</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← Demo data script</div>
+          <div><span style="color:#475569">app/</span></div>
+          <div>&nbsp;&nbsp;<span style="color:#475569">core/</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#f8fafc">config.py</span> &nbsp;&nbsp;&nbsp;← Settings (.env reader)</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#f8fafc">security.py</span> &nbsp;← JWT + bcrypt + RBAC</div>
+          <div>&nbsp;&nbsp;<span style="color:#475569">db/</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#f8fafc">models.py</span> &nbsp;&nbsp;← All 13 SQLAlchemy models</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#f8fafc">database.py</span> &nbsp;← AsyncSession factory</div>
+          <div>&nbsp;&nbsp;<span style="color:#475569">routers/</span> &nbsp;&nbsp;&nbsp;&nbsp;← One file per resource</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#f8fafc">guests.py</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#f8fafc">calls.py</span> &nbsp;&nbsp;&nbsp;← Includes /analyze/*</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#f8fafc">settings.py</span> &nbsp;← .env hot-reload</div>
+          <div>&nbsp;&nbsp;<span style="color:#475569">services/</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#f8fafc">audio/pipeline.py</span> ← STT pipeline</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#f8fafc">ai/gemini_adapter.py</span></div>
+          <div><span style="color:var(--gold)">.env</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← API keys + DB URL</div>
+        </div>
+      </div>
+
+      <div>
+        <p style="font-size:0.75rem; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:#64748b; margin-bottom:12px">FRONTEND (/frontend)</p>
+        <div style="background:#0f172a; padding:16px; border-radius:10px; font-family:'IBM Plex Mono',monospace; font-size:0.75rem; color:#94a3b8; line-height:2">
+          <div><span style="color:#475569">app/</span></div>
+          <div>&nbsp;&nbsp;<span style="color:var(--teal)">globals.css</span> &nbsp;← Design tokens + fonts</div>
+          <div>&nbsp;&nbsp;<span style="color:var(--teal)">layout.tsx</span> &nbsp;&nbsp;← Root layout</div>
+          <div>&nbsp;&nbsp;<span style="color:#475569">login/</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#f8fafc">page.tsx</span> &nbsp;&nbsp;← Login screen</div>
+          <div>&nbsp;&nbsp;<span style="color:#475569">(dashboard)/</span> &nbsp;← Protected pages</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#f8fafc">layout.tsx</span> &nbsp;← Sidebar + auth guard</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#f8fafc">dashboard/page.tsx</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#f8fafc">guests/[phone]/page.tsx</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#f8fafc">calls/[id]/page.tsx</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#f8fafc">settings/page.tsx</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#f8fafc">... (12 more pages)</span></div>
+          <div><span style="color:#475569">components/layout/</span></div>
+          <div>&nbsp;&nbsp;<span style="color:var(--teal)">Sidebar.tsx</span> &nbsp;← Nav + AI status</div>
+          <div><span style="color:#475569">lib/</span></div>
+          <div>&nbsp;&nbsp;<span style="color:var(--teal)">api.ts</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← All API calls</div>
+          <div><span style="color:var(--gold)">.env.local</span> &nbsp;&nbsp;← NEXT_PUBLIC_API_URL</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ── Footer ──────────────────────────────────────────────── -->
+<footer>
+  <p><strong>HAIP Villa</strong> · Hospitality AI Intelligence Platform · v2.0.0</p>
+  <p style="margin-top:8px">Built with FastAPI · PostgreSQL · Next.js 14 · faster-whisper · Gemini 2.5 Flash</p>
+  <p style="margin-top:16px; font-size:0.75rem">Open <strong>localhost:3001</strong> in your browser to use the platform · Login: <strong>owner@haip.local / haip1234</strong></p>
+</footer>
+
+<script>
+// Smooth active nav highlighting
+const sections = document.querySelectorAll('section[id]');
+const navLinks  = document.querySelectorAll('.nav-links a');
+
+window.addEventListener('scroll', () => {
+  let current = '';
+  sections.forEach(s => {
+    if (window.scrollY >= s.offsetTop - 80) current = s.id;
+  });
+  navLinks.forEach(a => {
+    a.style.color = a.getAttribute('href') === '#' + current
+      ? '#fff'
+      : 'rgba(255,255,255,.5)';
+    a.style.background = a.getAttribute('href') === '#' + current
+      ? 'rgba(20,184,166,.15)'
+      : '';
+  });
+}, { passive: true });
+</script>
+
+</body>
+</html>

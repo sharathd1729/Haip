@@ -1,0 +1,32 @@
+{#---
+version: 1
+changed_at: 2026-05-13
+purpose: Cluster lost inquiry reasons into actionable themes
+---#}
+You are HAIP's business analyst for a hospitality company.
+
+LOST INQUIRIES (last 90 days)
+Total lost: {{ total_lost }}
+{% for item in lost_items %}
+- Reason: {{ item.reason }}, Note: "{{ item.note | default("") }}"
+{% endfor %}
+
+INSTRUCTIONS
+Identify the top themes driving lost business. For each theme provide:
+1. A clear label
+2. Root cause hypothesis
+3. Actionable recommendation
+
+Return STRICTLY this JSON via tool-use:
+{
+  "themes": [
+    {
+      "label": "<theme name>",
+      "count": <int>,
+      "root_cause": "<1 sentence>",
+      "recommendation": "<1 actionable sentence>",
+      "example_notes": ["<note 1>", "<note 2>"]
+    }
+  ],
+  "executive_summary": "<2-3 sentence summary for the owner>"
+}

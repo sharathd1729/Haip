@@ -1,0 +1,601 @@
+HAIP  •  EXECUTION PLAN
+Ratha + Jade · Execution Plan
+New IVR model · cost-bounded stack · scalable architecture · client-by-client rollout
+₹20K HAIP infra budget · <₹10K per-client plan · ready to scale to 50+ tenants
+Document
+Execution Plan v1 · supersedes IVR Cost Model v1
+Owner
+Sharath D.
+Status
+Active — for engineering and sales
+Date
+May 2026
+Current client
+Ratha — Luxury Caravan Travel & Experiential Journeys
+Next client
+Jade Hospitainment — Luxury Pool Villas, Bangalore
+Pivot summary
+No in-app calling · CallerDesk/Acefone · ₹20K budget · ₹10K plan
+Table of Contents
+1.  What's Changed
+Four decisions reset the plan since the v2 PRD. All four shrink scope, sharpen positioning and pull cost down. None of them invalidate the underlying architecture — the adapter pattern carries forward and the hospitality data model is unchanged.
+#
+Change
+What it means in practice
+1
+No in-app calling
+Agents answer calls on their personal mobile (the IVR forwards). HAIP is post-call intelligence + pre-call prep + click-to-call trigger — never the active call surface.
+2
+CallerDesk or Acefone
+These two are the India-SMB-priced IVR providers we integrate with. We drop Exotel/Plivo as the default — keep them as future adapters.
+3
+Ratha is the design partner
+A luxury caravan / experiential-journey operator. Low call volume, high deal value, multi-day pre-trip engagement. Build HAIP for them first; generalise to all hospitality SMBs in V2.
+4
+Strict cost ceiling
+Every third-party tool we put on Ratha's stack has to fit inside ₹20,000 / month total HAIP infra cost. For new clients (Jade, etc.) the published plan must come in under ₹10,000 / month — and we still need a margin.
+CONSEQUENCE — What this unlocks
+Way faster client onboarding — no live-call infrastructure to ship, no real-time streaming complexity, no SIP fork to debug.
+Lower infra cost — no live SIP processing, no GPU-hot live transcription, no WebSocket transcript stream. We process recordings asynchronously, which is much cheaper.
+Cheaper client price-point — fits the ₹10K plan ceiling without margin collapse.
+BYOC stays the model — clients keep their own CallerDesk/Acefone account and pay them directly for telephony. HAIP is pure SaaS overlay.
+2.  The New Agent Flow
+The agent cockpit changes from a "live call panel with dialler, mute, hold and live transcript" to a "before-and-after-the-call workspace". Same data model, same value props (Auto-QA, coaching, scorecards) — but the cockpit is no longer a real-time telephony surface.
+2.1  Inbound call flow
+Guest dials the property's virtual number (provisioned on CallerDesk/Acefone in the client's name).
+IVR plays the greeting + recording-consent prompt. Optional language menu.
+IVR forwards the call to the on-duty concierge's personal mobile (via simultaneous-ring, sticky-routing, or round-robin per the client's setup).
+Concierge picks up on their phone and has the conversation. They have no HAIP screen open during the call — it's a normal phone call.
+Call ends. CallerDesk/Acefone POSTs a webhook to HAIP with the recording URL, duration, caller number and agent leg ID.
+HAIP processes asynchronously: dedup Guest by phone → upsert · create Call record · link to existing Inquiry or create new · fetch recording from IVR CDN · store on S3 · transcribe · run AI judge · write score with evidence spans.
+Within 90 seconds of call end, the concierge's cockpit shows a post-call wrap-up card: AI-drafted summary · disposition picker (Hot / Quoted / Booked / Lost / Callback) · suggested next action.
+Score and theme propagate to the Reservations Pulse, Owner Daily, and Compliance Center surfaces.
+2.2  Outbound call flow (click-to-call)
+Concierge opens a Guest record or an Inquiry in HAIP. Sees the prep card: lifetime stays, past objections, AI-suggested opener.
+Clicks the green "Call" button. HAIP calls the IVR provider's click-to-call API: "ring agent's mobile, then bridge to guest's mobile".
+Agent's personal phone rings. Agent picks up, hears a brief beep, then the guest's phone starts ringing.
+Guest picks up. Conversation happens entirely between the two mobile phones. The IVR records it in the background. No HAIP screen during the call.
+Call ends. Same async processing as the inbound flow.
+After-call wrap-up appears in cockpit. Concierge picks disposition, edits the AI summary if needed, schedules a follow-up if needed.
+2.3  What the cockpit surfaces today (post-pivot)
+Today's queue — inbound waiting (rare; mostly forwarded directly), callbacks scheduled, follow-ups due, outbound dial list.
+Prep card on the Guest 360 — last 5 conversations, lifetime value, predicted CSAT, suggested opener.
+Click-to-call button — one click triggers the IVR bridge.
+After-call wrap-up — AI summary, disposition picker, suggested next action, schedule follow-up.
+Personal scorecard — today's calls, conversions, talk time, QA score, 7-day trend.
+Coaching nudge — one fix to apply this week from the team lead.
+Knowledge cards — quick RAG lookups for "what's our pet policy", "rate card for June", etc.
+PROTOTYPE — Cockpit work to redo in the existing prototype
+Remove the live-call card (timer · mute · hold · transfer · hangup · live transcript stream).
+Replace with a "current call · ringing your mobile" notice when an inbound call lands, and a click-to-call trigger for outbound.
+Add the after-call wrap-up panel that appears after the IVR webhook fires.
+Keep the queue, scorecard, AI assist (now becomes pre-call prep + post-call summary, not in-call whisper).
+3.  CallerDesk vs Acefone — Which to Pick
+Both are Indian SMB-focused, both have the recording-pull + click-to-call API HAIP needs, both have masking and IVR builders. The real differences are pricing model, KYC ease, API maturity, and how flexible the IVR flow editor is.
+3.1  Head-to-head
+Aspect
+CallerDesk
+Acefone (by Servetel)
+Pricing model
+Per-min + DID rental · transparent
+Bundled plans (calls + minutes incl.) — better for predictable volume
+Indian DID rental
+₹500–700 / mo
+₹500–800 / mo
+Per-minute (inbound)
+₹0.50–0.65
+₹0.45–0.60 (bundled into plan)
+Per-minute (outbound)
+₹0.65–0.90
+₹0.55–0.85
+KYC
+Lightweight · 1–2 days
+Standard · 2–4 days
+Click-to-call API
+Yes · clean docs
+Yes · part of "Click 2 Call" feature
+Recording API
+Pull via signed URL
+Pull via signed URL
+Webhook reliability
+Good · documented retry
+Excellent · enterprise-grade
+IVR builder UX
+Cleaner · self-serve
+More features, slightly older UX
+Multi-agent routing
+Yes
+Yes · more rule options
+CRM integrations
+Native to a few CRMs
+More integrations + webhooks
+Support
+Email + WhatsApp
+Phone + email + dedicated AM on plans
+Best for
+Single-property startups · founder-led ops · low fixed cost
+Multi-property + larger teams · predictable monthly cost
+3.2  The recommendation
+PICK — Recommend per client based on size
+For Ratha (low volume, single-brand, founder-led): CallerDesk. Pay only for what you use; setup is fastest; ₹500-1,500/month effective bill.
+For Jade Hospitainment (multi-villa, predictable volume): Acefone. Bundled plans hide variability; better support; ₹3,000-6,000/month effective bill.
+Build the adapter for CallerDesk first (Ratha go-live), Acefone second (Jade go-live). Same internal interface; the adapter is ~2 days of engineering each.
+Add Exotel + Twilio later as adapters become demand-driven (no client switching cost when we do).
+3.3  What HAIP integrates
+Capability
+Why HAIP needs it
+Inbound call webhook
+Fired when a call completes. Contains call ID, from, to, duration, recording URL, agent leg ID, direction.
+Recording pull (signed URL)
+Download the MP3 to our S3 within minutes of call end.
+Click-to-call API
+For outbound from the cockpit. We POST {from_agent_mobile, to_guest_mobile}; the IVR bridges them.
+DID provisioning + flow assignment
+During onboarding, we attach our webhook URL to the client's IVR flow.
+Masking config
+Always-on so concierge personal numbers never leak to guests and vice versa.
+Recording consent prompt
+Configured in the IVR flow at the client's end. We log the consent event in our audit log.
+4.  Cost Model — Living Inside ₹20K/month
+HAIP's total monthly tooling bill across all third-party SaaS, infrastructure and APIs must stay under ₹20,000. This section breaks it down line by line, picks the cheapest viable stack, and confirms we have headroom for 3-5 clients before we need to upgrade anything.
+4.1  Per-month fixed infrastructure
+Service
+Plan / size
+Provider
+Cost (₹/mo)
+Application server
+t3.small (2 vCPU, 2 GB)
+AWS Mumbai · 730 hrs
+1,800
+PostgreSQL
+RDS db.t3.micro (single AZ, 20 GB)
+AWS Mumbai
+1,500
+Redis (queue + sessions)
+ElastiCache t4g.micro
+AWS Mumbai
+900
+S3 storage (recordings)
+Up to 200 GB hot + lifecycle to cold
+AWS Mumbai S3 + Glacier
+600
+Domain + Cloudflare
+CF Free + SSL + WAF
+Cloudflare
+0
+Monitoring
+Sentry free + Grafana Cloud free + Better Stack free
+Mix
+0
+Email (transactional)
+3,000 emails/mo
+Resend free tier
+0
+CI/CD
+GitHub Actions free (2,000 min)
+GitHub
+0
+DNS + uptime
+Cloudflare DNS + UptimeRobot free
+Mix
+0
+Fixed infra subtotal
+₹4,800 / mo
+That covers the always-on cost regardless of how many clients we have on the platform. Adding clients adds variable cost only.
+4.2  Variable cost per call
+Component
+Provider
+Unit rate
+Per 4-min call
+Notes
+Transcription · default
+Deepgram Nova-2
+₹0.36 / min
+₹1.44
+Good Indic + English
+Transcription · cost mode
+Whisper Large v3 self-hosted on app server
+~₹0.05 / min
+₹0.20
+Use for volumes > 1K calls/mo
+LLM · classification
+Claude Haiku
+~₹0.05 / call
+₹0.05
+Sentiment + intent + language
+LLM · rubric judge
+Claude Haiku-only (default)
+~₹0.10 / call
+₹0.10
+For most calls
+LLM · ambiguous edge
+Claude Sonnet (10% of calls)
+~₹3.27 / call
+₹0.33 amortised
+Only when Haiku confidence < 0.78
+Storage · per call/month
+S3 + KMS
+~₹0.01
+₹0.01
+90-day hot, then cold tier
+Total per call (premium)
+₹1.93
+Total per call (cost mode)
+₹0.69
+Whisper-only + Haiku-only
+4.3  WhatsApp Cloud API (per client)
+Meta charges per "service conversation" (24-hour window) per category: utility, marketing, authentication.
+Hospitality use is mostly Service + occasional Utility. Avg cost ₹0.55–0.85 per conversation.
+At 100 WhatsApp conversations/day per client = 3,000/mo → ₹1,650–2,550/month.
+Ratha's volume is likely lower — say 50 conv/day = ₹825–1,275/mo.
+4.4  Per-client variable cost — Ratha at 50 calls/day
+Item
+Volume / mo
+Unit cost
+Total (₹)
+Inbound calls scored (cost mode)
+1,500
+₹0.69
+1,035
+WhatsApp conversations
+~1,800
+₹0.70 avg
+1,260
+S3 storage (recordings, 90d hot)
+~6 GB
+Included
+Included
+Extra LLM (Sonnet edge cases)
+~150 calls
+Already counted
+—
+Ratha variable subtotal
+~₹2,295 / mo
+BUDGET — The full Ratha bill
+Fixed infra: ₹4,800. Variable for Ratha: ₹2,295. Total HAIP-side: ₹7,095 / month.
+Even doubling for safety + miscellaneous: ₹14,000 / month. Well under the ₹20K ceiling, with room for 1-2 more clients before we add infra.
+Ratha's own bill to CallerDesk for telephony (their cost, not HAIP's): ~₹1,500–2,000 / month at their volume.
+5.  Tech Stack — Built to Scale Without Re-platforming
+Every choice below maps to "cheap when small, scalable when large". Nothing locks us in to a vendor or a price point we can't walk away from.
+5.1  The full stack
+Layer
+Phase 1 (1-5 clients)
+Phase 3 (15-50 clients)
+Frontend
+Next.js 15 (App Router) on Vercel free tier OR same EC2
+Same Next.js on AWS ECS or Vercel paid
+Backend API
+FastAPI (Python 3.12) on t3.small EC2
+FastAPI on ECS Fargate, auto-scale 2-10 tasks
+Database
+Postgres 16 with pgvector on RDS t3.micro
+RDS db.r6g.large multi-AZ + read replicas
+Queue / jobs
+Celery + Redis on the same EC2
+Celery on dedicated workers · Redis ElastiCache
+Storage
+S3 + KMS · 90d hot · Glacier cold
+Same · multi-region replication for enterprise tier
+Search / vector
+pgvector inside Postgres
+Same · partition by tenant_id when > 50M rows
+Realtime (notifications)
+Server-Sent Events on FastAPI
+Centrifugo or Ably for WS
+Background workers
+1 worker process on EC2
+4-12 workers across Fargate tasks
+ML inference
+Deepgram API + Claude API
+Whisper self-hosted on g4dn.xlarge + cached Haiku
+Auth
+NextAuth.js + Postgres (email/password + magic link)
+NextAuth + WorkOS for SSO on enterprise tier
+Multi-tenancy
+Single Postgres · tenant_id on every row · RLS policies
+Same · split heaviest tenants to dedicated DB when needed
+Observability
+Sentry free + Grafana Cloud free + structured logs to S3
+Sentry team + Grafana paid + Honeycomb for traces
+CI/CD
+GitHub Actions free tier
+GitHub Actions paid + ArgoCD for deploys
+Domain / CDN / WAF
+Cloudflare free
+Same — Cloudflare scales infinitely on free
+Hosting region
+AWS Mumbai (ap-south-1)
+ap-south-1 + ap-southeast-1 + eu-central-1 by tenant residency
+5.2  Why these choices
+FastAPI + Postgres + Celery is the cheapest "real backend" stack for India in 2026. Single VPS or small EC2 can run all three at low volumes. The same code scales to enterprise.
+pgvector instead of Pinecone/Weaviate. One database vendor. Zero per-vector cost. Easily handles a few million vectors per tenant before we need to think about it.
+Next.js + Vercel free tier in Phase 1. Costs nothing until ~100K page views/month. By then we're at scale and can afford the upgrade.
+Cloudflare free everywhere. DNS · CDN · WAF · SSL · DDoS protection · analytics — all free, all production-grade.
+Open-source observability (Sentry + Grafana free tiers). Self-host Plausible for analytics if even ₹500/mo matters.
+Claude API as the LLM. Haiku is cheap enough to use for everything at low volume. Sonnet upgrade only for ambiguous edge cases. No GPU bill until we choose to add one for Whisper.
+6.  Security & Multi-tenancy
+Security is non-negotiable even at Phase-1 scale, especially because we're storing voice recordings and PII for paying clients. Multi-tenancy must be airtight from day one — a tenant accidentally seeing another tenant's data is an existential bug.
+6.1  Multi-tenant data isolation
+Every row in every table carries `tenant_id`. Compound primary keys where appropriate.
+Postgres Row-Level Security (RLS) enforced at the DB layer. The app server sets `current_setting('app.tenant_id')` on every request; RLS policies filter every query.
+No application code is trusted to filter by tenant — RLS is the safety net.
+Per-tenant KMS data keys for recording encryption. Tenant A's key cannot decrypt Tenant B's recordings, even if their data leaks.
+Test: end-of-week regression test that simulates "admin of tenant A logs in, tries to fetch Tenant B record by guessing IDs" — must return 0 rows / 403.
+6.2  Encryption
+At rest: AES-256 on S3, on RDS (storage encryption + per-column encryption for PII fields).
+In transit: TLS 1.3 everywhere, including app↔DB and worker↔S3.
+Secrets: AWS Secrets Manager. No secrets in env files, no secrets in code.
+BYOK on Enterprise tier (V2) — customer brings their own KMS key.
+6.3  Access control
+Roles: Owner / Manager / Reservations / Concierge / FOH / Marketing / Compliance / Read-only.
+Plus attribute-based: villa-scope (concierge for Villa A only sees Villa A).
+SSO via Google + Microsoft on the free tier (NextAuth). SAML / SCIM on Enterprise (WorkOS).
+Audit log append-only, hash-chained, 5-year retention. Every score, override, export, login, role change.
+Session: 15-min access JWT + 30-day refresh; revoke on password change.
+MFA mandatory for Owner + Compliance roles.
+6.4  PII & DPDP
+PII redaction at L1 — before transcripts reach the LLM. Card / Aadhaar / PAN / phone / email → reversible tokens.
+Per-tenant data residency. India tenants live in ap-south-1. EU guest data isolated to eu-central-1 on Enterprise.
+Delete-on-request flow — guest record + linked rows + recordings purged within 30 days; audit entry recorded.
+Sub-processor list public on the HAIP trust centre. DPAs signed with Anthropic, Deepgram, AWS, CallerDesk/Acefone.
+Recording consent prompt in the IVR flow. Consent event logged in HAIP's consent log.
+Annual third-party penetration test from Year 2.
+6.5  BYOC credentials security
+IVR account credentials (CallerDesk/Acefone API keys) encrypted with per-tenant KMS keys.
+Decrypted only by the worker process when calling the IVR API. Never logged, never echoed.
+Credential read events go to the audit log.
+Credential rotation supported with zero downtime.
+Tenant can revoke HAIP's API access from their IVR provider at any time — we detect within 5 minutes and pause processing.
+7.  Scaling Path — 1 to 50 Clients
+Phase boundaries are picked so we never have to re-architect; we only add capacity. Each phase ships in a single day of devops work because the application code doesn't change.
+Phase
+Clients
+Monthly volume
+Stack
+HAIP infra cost / mo
+1
+1–5
+~5K calls + 10K WA conv
+Single t3.small EC2 + RDS micro + ElastiCache micro
+~₹5K–10K
+2
+5–15
+~20K calls + 40K WA conv
+t3.medium EC2 + RDS small + Redis micro · 2 workers
+~₹15K–25K
+3
+15–50
+~70K calls + 150K WA conv
+ECS Fargate (2-10 tasks) + RDS medium multi-AZ + dedicated workers + Whisper GPU box
+~₹60K–120K
+4
+50+
+Multi-region
+Multi-AZ everything · read replicas · sharded by tenant_id · ML inference cluster
+Scales linearly per client; CAC < LTV by Phase 3
+7.1  When we move between phases
+Phase 1 → 2 trigger: p95 API latency > 600ms OR CPU > 70% sustained OR DB connections > 70% pool.
+Phase 2 → 3 trigger: monthly bill exceeds ₹40K OR > 15 paying clients OR any single tenant exceeds 30K calls/month.
+Phase 3 → 4 trigger: EU customer signs up OR a single tenant requests dedicated VPC OR DB exceeds 1 TB.
+7.2  What does NOT change between phases
+The application code. Same FastAPI, same Next.js, same Postgres schema.
+The data model. Same Guest, Inquiry, Conversation, Call, Stay, Score.
+The customer experience. Tenants on Phase 1 and Phase 3 see identical UIs.
+The pricing. Tier prices stay fixed; only the underlying infrastructure changes.
+8.  Ratha — Design-partner Plan
+Ratha is the first paying-but-special client: a luxury caravan / experiential-journey operator. Low call volume (likely 30-50 inbound/day), high deal value (multi-night caravan trips), long pre-trip engagement (planning route, food, experiences). HAIP is tuned to that shape.
+8.1  Ratha-specific build choices
+CallerDesk for IVR — fastest setup, lowest fixed cost.
+Single virtual number for Ratha brand; forwards to founder + 1-2 trip designers based on availability.
+WhatsApp as the primary channel (luxury Indian travellers prefer it). Web chat secondary, voice tertiary.
+AI Concierge from day one — but in shadow mode for first 30 days. Drafts replies, human approves, model learns.
+QA rubric tuned for experiential travel: discovery quality (capture occasion + group + budget) · itinerary expertise · pricing transparency · empathy on luxury cues · close + commitment.
+Trip planner module — pulls activities, restaurants, photographers, transport into one quote PDF.
+Multi-day pre-trip engagement sequence — D-14 itinerary doc, D-7 dietary + special-occasion check, D-1 driver briefing.
+Lost-reason tracking specifically: "wrong dates" · "weather concern" · "budget mismatch" · "couldn't decide on route".
+8.2  Ratha success metrics
+Metric
+Today (baseline)
+90-day target
+Inquiry-to-quote time
+6+ hours (manual)
+< 30 minutes (AI Concierge)
+% inquiries auto-handled by AI
+0%
+> 60% to resolution
+Call QA coverage
+~5% sampled manually
+100% auto-scored
+Direct booking %
+70% (est.)
+> 80%
+Pre-trip preference completion
+~40% (ad hoc)
+> 90% (auto sequence)
+Repeat / referral %
+Untracked
+Tracked with VoG
+Lost-reason taxonomy
+Anecdotal
+Weekly clustered themes
+8.3  Ratha onboarding — 30 days
+W1 — Sign up Ratha on CallerDesk. KYC + DID + IVR flow built (greeting + consent + forward to founder).
+W1 — HAIP staging deployed on AWS Mumbai. CallerDesk credentials connected. Test inbound call → webhook → recording → transcript visible.
+W2 — Ratha's brand voice guide drafted with the founder. AI Concierge prompt v1 written. RAG knowledge base populated (10 sample itineraries, FAQs, rate plans, transfer options).
+W2 — Hospitality QA rubric customised for experiential travel. Activate auto-scoring in shadow mode.
+W3 — WhatsApp Cloud API integrated. AI Concierge handles WhatsApp inbound in shadow mode (human reviews every reply before send).
+W3 — Owner Daily + Reservations Pulse dashboards live. Founder runs morning standup off them.
+W4 — Concierge mode flipped from shadow to autonomous for confidence > 0.78 on WhatsApp. Voice QA + after-call wrap-up live in concierge cockpit.
+W4 — Drift monitor + eval harness running. Onboarding signed off. Monthly review cadence begins.
+9.  Jade Hospitainment — Next-Client Plan
+Jade Hospitainment operates luxury pool villas and vacation rentals in Bangalore. Multi-property, higher inbound volume, mix of OTA + direct, broader staff (reservations + FOH + housekeeping). The HAIP build for them validates the multi-property dimension of the platform.
+9.1  What's different about Jade vs Ratha
+Dimension
+Ratha (caravan)
+Jade (pool villas)
+Properties
+Single brand · routes
+Multiple villas at distinct locations
+Booking lifecycle
+Long discovery · multi-day pre-trip
+Shorter — guests book 1-30 days out
+Channel mix
+Direct ~70% · referral ~25%
+Direct ~40-50% · OTA (Airbnb, Booking, Vrbo) ~50%
+Volume
+30-50 inbound calls/day
+60-120 inbound calls/day (estimated)
+Staff structure
+Founder + 1-2 trip designers
+Reservations team + FOH per villa + housekeeping
+Channel-manager need
+Light (caravan inventory is simple)
+Critical — multi-OTA sync via Hostaway or Guesty
+Pre-arrival flows
+Multi-day itinerary planning
+Standard FOH check-in prep
+Compliance burden
+Lower — small team, single brand
+Higher — multiple staff, OTA payouts, GST, DPDP
+IVR pick
+CallerDesk (low fixed cost)
+Acefone (bundled plan, multi-agent routing)
+9.2  Jade-specific HAIP modules
+Channel manager integration (Hostaway recommended) — pulls Airbnb/Booking.com/Vrbo bookings into HAIP as Stays.
+Multi-villa availability calendar — Villa × Date grid, color-coded by status across the portfolio.
+FOH cockpit per villa — today's arrivals/departures/transfers/housekeeping with mobile-first responsiveness.
+Acefone IVR adapter — sticky routing to the on-duty reservations team member, with after-hours voicemail + WhatsApp follow-up template.
+Marketing module — OTA-vs-direct trend, lost-reason themes from inquiries that didn't convert.
+Pricing intelligence — daily rate suggestion based on occupancy + demand signals (V1.5 — not MVP).
+Per-villa scoping in role permissions — concierge for Villa A only sees Villa A.
+9.3  Jade onboarding — 30 days
+W1 — Acefone account + DIDs per villa. IVR flow per villa (greeting + masking + route to reservations team). HAIP adapter for Acefone built (~2 days dev).
+W1 — Hostaway integration. All historical Stays imported. Calendar populated for next 90 days.
+W2 — Per-villa knowledge base populated (specs, photos, amenities, rate plans, house rules). Brand voice tuned per villa if needed.
+W2 — Reservations team + FOH staff invited with role-scoped access. Mobile-friendly FOH view tested on-site.
+W3 — AI Concierge live on WhatsApp + web chat in shadow mode. Auto-QA on inbound calls running.
+W3 — Owner Daily + Marketing & ROAS + Reservations Pulse dashboards live. Channel-mix tracking activated.
+W4 — Auto-confirm bookings turned on for Concierge. Pre-arrival sequences scheduled. Lost-reason clustering producing weekly themes.
+W4 — Go-live review + 90-day success-metric baseline locked.
+9.4  Jade success metrics — 90-day targets
+Inquiry-to-first-response time: < 5 minutes p95 (24/7) via AI Concierge.
+Direct booking %: from 40% baseline to 55%.
+Call QA coverage: 100% auto-scored from day 30.
+FOH special-request fulfilment rate: > 95% (currently un-measured).
+Lost-reason theme volume: weekly delta reported.
+Inquiries-to-bookings conversion: + 4-6 percentage points.
+10.  Pricing — Under ₹10K Per Client
+With the cost-mode stack (Whisper + Haiku) and BYOC for telephony, we can hit aggressive price points and still keep margins healthy enough to fund growth.
+10.1  Public pricing
+Tier
+Price / mo
+Calls included
+WA conv incl.
+Users
+Modules
+Starter
+₹3,999
+500
+1,500
+2
+Inbox · Auto-QA · Owner Daily · CRM
+Growth
+₹6,999
+1,500
+4,500
+5
+Starter + AI Concierge · Coaching · VoG
+Scale
+₹9,999
+3,000
+9,000
+Unlimited
+All modules + Predictive · Compliance · Multi-property
+Enterprise
+Custom (₹15K+)
+Unlimited
+Unlimited
+Unlimited
+BYOK · VPC deploy · custom SLA · white-label
+10.2  Unit economics per tier
+Tier
+Sticker
+Variable cost
+Allocated fixed
+Total cost
+Margin
+Starter
+₹3,999
+~₹1,200
+~₹1,200
+~₹2,400
+₹1,599 · 40%
+Growth
+₹6,999
+~₹3,200
+~₹1,200
+~₹4,400
+₹2,599 · 37%
+Scale
+₹9,999
+~₹5,800
+~₹1,200
+~₹7,000
+₹2,999 · 30%
+Enterprise
+₹15,000+
+Variable
+Dedicated
+Variable
+> 40%
+ECONOMICS — Margins are real
+Allocated fixed cost = ₹6,000 fixed infra ÷ 5 clients = ₹1,200/client. Scales down as we add clients.
+At 10 clients on Growth tier: revenue ₹69,990, total cost ₹38,000 (incl. ₹6K fixed), gross margin ~46%.
+At 20 clients mixed-tier: revenue ~₹1.4L/mo, cost ~₹70K, gross margin 50%. CAC payback < 6 months on PLG channel.
+10.3  Pilot pricing for Ratha + Jade
+Ratha — Growth tier free for 6 months in exchange for case-study rights + 1 testimonial video. Then converts to ₹6,999/mo.
+Jade — Growth tier ₹4,999/mo for first 3 months (founder discount), then full ₹6,999/mo from month 4.
+Next 5 design partners — same Growth-tier 3-month founder discount.
+From client 6 onwards — full pricing, no discount.
+11.  30 / 60 / 90 Day Execution
+Window
+What ships
+0–30 days
+• Update prototype: remove in-app dialler, add after-call wrap-up + click-to-call.
+• Build CallerDesk adapter (~2 days dev).
+• Provision AWS Mumbai + RDS + Redis + S3 + Sentry + Cloudflare.
+• Apply Phase 1 infra (~₹5K/mo fixed cost ceiling).
+• Deploy HAIP staging. Ratha's CallerDesk account onboarded.
+• Ratha brand voice + KB populated. AI Concierge in shadow mode.
+• 100% Ratha calls auto-scored. Owner Daily live with real data.
+30–60 days
+• Ratha AI Concierge flipped to autonomous on WhatsApp.
+• Lost-reason clustering + weekly themes producing actionable insights.
+• Coaching cockpit live for Ratha trip designers.
+• Build Acefone adapter for Jade (~2 days dev).
+• Build Hostaway integration for Jade (~3-4 days dev).
+• Jade KYC, DIDs, IVR flows configured. Multi-villa calendar live.
+• First case study published from Ratha results.
+60–90 days
+• Jade fully onboarded and running.
+• 3rd and 4th design partners (target villas / boutique hotels in Bangalore + Goa).
+• Whisper self-hosting activated on app box (cost-mode default).
+• Marketing module (campaign ROAS) and pre-arrival sequences live.
+• HAIP plans publicly listed on a marketing site. PLG funnel begins.
+• Phase 1 → Phase 2 infra readiness assessed.
+90+ days
+• Scale → 10–15 paying tenants by month 6.
+• Phase 2 infra upgrade (t3.medium · RDS small · 2 workers).
+• Predictive module (no-show / cancellation risk).
+• Compliance bundle (DPDP audit-ready trust centre).
+• Public V1 product launch and pricing page.
+12.  Decisions to Lock This Week
+Confirm CallerDesk as Ratha's IVR. Sign up + submit KYC today (it takes 1–2 days).
+Confirm Acefone as Jade's IVR. Hold the contract signing until Ratha is live (week 3).
+Confirm AWS Mumbai for hosting (alternative: Hetzner / DigitalOcean — but DPDP residency in India is cleaner with AWS).
+Pick the cost-mode stack default — Whisper + Haiku-only — instead of premium for both Ratha and Jade.
+Confirm Hostaway as channel-manager partner for Jade (alternative: Guesty or Lodgify).
+Pick a brand domain — e.g., haip.app / haip.io / try.haip.app. Required by week 1 for staging links and email sender authentication.
+Decide whether to start a public PLG site at day 60 or hold for month 6.
+Approve the pricing tiers (₹3,999 / ₹6,999 / ₹9,999) — or adjust.
+— End of execution plan —

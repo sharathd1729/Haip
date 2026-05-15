@@ -1,0 +1,92 @@
+version: "3.9"
+
+# ── Production stack ───────────────────────────────────────────────────────────
+# Usage: docker compose -f docker-compose.prod.yml up -d
+# Expects: .env.production file (or env vars injected by your host)
+# External services (recommended): Neon (Postgres) + Upstash (Redis)
+
+services:
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: haip_api
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      - ENVIRONMENT=production
+    ports:
+      - "8000:8000"
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: haip_worker
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      - ENVIRONMENT=production
+    command: >
+      celery -A app.workers.celery_app worker
+      --loglevel=info
+      --concurrency=2
+      --queues=default
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://api.haip.app/api/v1}
+        - NEXTAUTH_URL=${NEXTAUTH_URL:-https://haip.app}
+    container_name: haip_frontend
+    restart: unless-stopped
+    env_file: ./frontend/.env.local
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+  redis:
+    image: redis:7-alpine
+    container_name: haip_redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  flower:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: haip_flower
+    restart: unless-stopped
+    env_file: ./backend/.env
+    command: celery -A app.workers.celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+
+volumes:
+  uploads:

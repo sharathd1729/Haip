@@ -1,0 +1,43 @@
+# ── Core ─────────────────────────────────────────────────────────────────────
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+gunicorn==23.0.0
+sqlalchemy==2.0.36
+alembic==1.14.0
+psycopg2-binary==2.9.10
+pgvector==0.3.6
+redis==5.2.1
+celery==5.4.0
+pydantic==2.10.3
+pydantic[email]==2.10.3
+pydantic-settings==2.6.1
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.12
+httpx==0.28.1
+boto3==1.35.76
+anthropic==0.40.0
+deepgram-sdk==3.7.7
+openai-whisper==20240930
+python-dotenv==1.0.1
+structlog==24.4.0
+jinja2==3.1.6
+sentry-sdk[fastapi]==2.19.2
+phonenumbers==8.13.50
+pillow==11.0.0
+celery-batches==0.9
+flower==2.0.1
+pyotp==2.9.0
+qrcode[pil]==7.4.2
+
+# ── Free-tier AI providers ────────────────────────────────────────────────────
+# Groq  — free Whisper transcription + fast LLM inference
+# No extra SDK needed; we call the OpenAI-compatible REST API via httpx.
+# (httpx is already listed above)
+
+# Google Gemini — free LLM (1M tokens/day)
+google-generativeai==0.8.3
+
+# ── Testing ───────────────────────────────────────────────────────────────────
+pytest==8.3.4
+pytest-asyncio==0.24.0

@@ -1,0 +1,37 @@
+version: "3.9"
+
+# ── Local dev stack ────────────────────────────────────────────────────────────
+# Usage: docker compose up
+# For production (Railway/Render) use docker-compose.prod.yml instead.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: haip_postgres
+    environment:
+      POSTGRES_USER: haip
+      POSTGRES_PASSWORD: haip
+      POSTGRES_DB: haip
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U haip -d haip"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: haip_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres_data:

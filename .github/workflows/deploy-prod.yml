@@ -1,0 +1,135 @@
+name: Deploy — Production
+
+on:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false   # never cancel an in-flight prod deploy
+
+jobs:
+  build-backend:
+    name: Build & push backend image (prod)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & push
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.ref_name }}
+        run: |
+          docker build -t $ECR_REGISTRY/haip-backend:$IMAGE_TAG ./backend
+          docker push $ECR_REGISTRY/haip-backend:$IMAGE_TAG
+          docker tag  $ECR_REGISTRY/haip-backend:$IMAGE_TAG \
+                      $ECR_REGISTRY/haip-backend:prod-latest
+          docker push $ECR_REGISTRY/haip-backend:prod-latest
+
+  build-frontend:
+    name: Build & push frontend image (prod)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & push
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.ref_name }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.PROD_API_URL }}
+        run: |
+          docker build \
+            --build-arg NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
+            -t $ECR_REGISTRY/haip-frontend:$IMAGE_TAG \
+            ./frontend
+          docker push $ECR_REGISTRY/haip-frontend:$IMAGE_TAG
+          docker tag  $ECR_REGISTRY/haip-frontend:$IMAGE_TAG \
+                      $ECR_REGISTRY/haip-frontend:prod-latest
+          docker push $ECR_REGISTRY/haip-frontend:prod-latest
+
+  deploy:
+    name: Deploy to production ECS
+    needs: [build-backend, build-frontend]
+    runs-on: ubuntu-latest
+    environment: production   # requires manual approval in GitHub Environments
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      - name: Run DB migrations (via ECS task)
+        run: |
+          aws ecs run-task \
+            --cluster haip-prod \
+            --task-definition haip-migrate \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ secrets.PROD_SUBNET }}],securityGroups=[${{ secrets.PROD_SG }}],assignPublicIp=ENABLED}" \
+            --wait
+
+      - name: Deploy backend service (blue/green via CodeDeploy)
+        run: |
+          aws ecs update-service \
+            --cluster haip-prod \
+            --service haip-backend \
+            --force-new-deployment \
+            --region ap-south-1
+
+      - name: Deploy frontend service
+        run: |
+          aws ecs update-service \
+            --cluster haip-prod \
+            --service haip-frontend \
+            --force-new-deployment \
+            --region ap-south-1
+
+      - name: Wait for services to stabilize
+        run: |
+          aws ecs wait services-stable \
+            --cluster haip-prod \
+            --services haip-backend haip-frontend
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+
+      - name: Notify Slack
+        if: always()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "*Production deploy ${{ job.status }}* — `${{ github.ref_name }}`  by ${{ github.actor }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
