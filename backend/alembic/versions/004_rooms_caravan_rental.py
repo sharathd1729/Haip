@@ -78,8 +78,13 @@ def upgrade() -> None:
     if not _index_exists("ix_rooms_property_id", "rooms"):
         op.create_index("ix_rooms_property_id", "rooms", ["property_id"])
 
-    # RLS for rooms (idempotent raw SQL)
-    op.execute("ALTER TABLE rooms ENABLE ROW LEVEL SECURITY;")
+    # RLS for rooms — only ALTER if RLS is not already enabled (avoids lock wait)
+    op.execute(
+        "DO $$ BEGIN "
+        "IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname='rooms' AND relrowsecurity=true) THEN "
+        "ALTER TABLE rooms ENABLE ROW LEVEL SECURITY; "
+        "END IF; END $$;"
+    )
     op.execute(
         "DO $$ BEGIN "
         "IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='rooms' AND policyname='rooms_isolation') THEN "
