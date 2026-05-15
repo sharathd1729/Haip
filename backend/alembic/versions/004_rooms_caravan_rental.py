@@ -24,7 +24,7 @@ def upgrade() -> None:
     op.add_column("properties", sa.Column("vehicle_name", sa.String(255), nullable=True))
     op.add_column("properties", sa.Column("vehicle_type", sa.String(50), nullable=True))
     op.add_column("properties", sa.Column("home_base", sa.String(100), nullable=True))
-    op.add_column("properties", sa.Column("routes", sa.JSON(), nullable=True, server_default="'[]'"))
+    op.add_column("properties", sa.Column("routes", sa.JSON(), nullable=True, server_default=sa.text("'[]'")))
     op.add_column("properties", sa.Column("price_per_day", sa.Numeric(10, 2), nullable=True))
     op.add_column("properties", sa.Column("price_per_km", sa.Numeric(6, 2), nullable=True))
     op.add_column("properties", sa.Column("driver_included", sa.Boolean(), nullable=True, server_default="true"))
@@ -39,10 +39,10 @@ def upgrade() -> None:
         sa.Column("tenant_id", sa.String(), sa.ForeignKey("tenants.id"), nullable=False),
         sa.Column("property_id", sa.String(), sa.ForeignKey("properties.id"), nullable=False),
         sa.Column("room_number", sa.String(20), nullable=False),
-        sa.Column("room_type", sa.String(50), nullable=False, server_default="'standard'"),
+        sa.Column("room_type", sa.String(50), nullable=False, server_default=sa.text("'standard'")),
         sa.Column("floor", sa.Integer(), nullable=True),
         sa.Column("capacity", sa.Integer(), nullable=False, server_default="2"),
-        sa.Column("amenities", sa.JSON(), nullable=True, server_default="'[]'"),
+        sa.Column("amenities", sa.JSON(), nullable=True, server_default=sa.text("'[]'")),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
         sa.Column("created_at", sa.String(), nullable=True),
         sa.Column("updated_at", sa.String(), nullable=True),
