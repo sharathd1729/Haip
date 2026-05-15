@@ -21,17 +21,9 @@ RUN mkdir -p /app/uploads
 
 EXPOSE 8000
 
-# Health check — Railway/Render use this to know when the container is ready
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+# Health check — uses $PORT so it works on Railway and local
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
+    CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 
-# Production: gunicorn manages multiple uvicorn workers
-# Development override: uvicorn app.main:app --reload --port 8000
-CMD ["gunicorn", "app.main:app", \
-     "--worker-class", "uvicorn.workers.UvicornWorker", \
-     "--workers", "2", \
-     "--bind", "0.0.0.0:8000", \
-     "--timeout", "120", \
-     "--keep-alive", "5", \
-     "--access-logfile", "-", \
-     "--error-logfile", "-"]
+# Run migrations then start gunicorn bound to Railway's dynamic $PORT
+CMD ["sh", "-c", "alembic upgrade head && gunicorn app.main:app --worker-class uvicorn.workers.UvicornWorker --workers 2 --bind 0.0.0.0:${PORT:-8000} --timeout 120 --keep-alive 5 --access-logfile - --error-logfile -"]
