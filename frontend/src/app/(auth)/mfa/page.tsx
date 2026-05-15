@@ -1,10 +1,10 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Shield, Loader2, AlertCircle } from "lucide-react";
 import api from "@/lib/api";
 
-export default function MFAPage() {
+function MFAForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
@@ -29,7 +29,6 @@ export default function MFAPage() {
       inputRefs.current[i + 1]?.focus();
     }
 
-    // Auto-submit when all 6 digits filled
     if (digit && i === 5) {
       const full = [...next].join("");
       if (full.length === 6) submitCode(full);
@@ -73,6 +72,47 @@ export default function MFAPage() {
   };
 
   return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="flex justify-center gap-2" onPaste={handlePaste}>
+        {code.map((digit, i) => (
+          <input
+            key={i}
+            ref={el => { inputRefs.current[i] = el; }}
+            type="text"
+            inputMode="numeric"
+            maxLength={1}
+            value={digit}
+            onChange={e => handleChange(i, e.target.value)}
+            onKeyDown={e => handleKeyDown(i, e)}
+            className={`w-11 h-14 text-center text-xl font-bold border rounded-xl
+              focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500
+              transition-all ${error ? "border-red-400 bg-red-50" : "border-gray-200 bg-gray-50"}
+              ${digit ? "text-gray-900 bg-white border-gray-400" : "text-gray-400"}`}
+          />
+        ))}
+      </div>
+
+      {error && (
+        <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+          <AlertCircle size={14} className="flex-shrink-0" />
+          {error}
+        </div>
+      )}
+
+      <button
+        type="submit"
+        disabled={loading || code.join("").length < 6}
+        className="w-full py-3 bg-[#0B1F3A] hover:bg-[#0d2548] disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+      >
+        {loading && <Loader2 size={16} className="animate-spin" />}
+        Verify
+      </button>
+    </form>
+  );
+}
+
+export default function MFAPage() {
+  return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-lg w-full max-w-sm p-8">
         <div className="text-center mb-8">
@@ -87,45 +127,9 @@ export default function MFAPage() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* OTP input boxes */}
-          <div className="flex justify-center gap-2" onPaste={handlePaste}>
-            {code.map((digit, i) => (
-              <input
-                key={i}
-                ref={el => { inputRefs.current[i] = el; }}
-                type="text"
-                inputMode="numeric"
-                maxLength={1}
-                value={digit}
-                onChange={e => handleChange(i, e.target.value)}
-                onKeyDown={e => handleKeyDown(i, e)}
-                className={`w-11 h-14 text-center text-xl font-bold border rounded-xl
-                  focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500
-                  transition-all ${error ? "border-red-400 bg-red-50" : "border-gray-200 bg-gray-50"}
-                  ${digit ? "text-gray-900 bg-white border-gray-400" : "text-gray-400"}`}
-                suppressHydrationWarning
-              />
-            ))}
-          </div>
-
-          {/* Error */}
-          {error && (
-            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
-              <AlertCircle size={14} className="flex-shrink-0" />
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading || code.join("").length < 6}
-            className="w-full py-3 bg-[#0B1F3A] hover:bg-[#0d2548] disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
-          >
-            {loading && <Loader2 size={16} className="animate-spin" />}
-            Verify
-          </button>
-        </form>
+        <Suspense fallback={null}>
+          <MFAForm />
+        </Suspense>
 
         <p className="text-center text-xs text-gray-400 mt-6">
           Lost access to your authenticator?{" "}
