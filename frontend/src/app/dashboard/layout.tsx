@@ -20,50 +20,61 @@ export default async function DashboardLayout({ children }: { children: React.Re
     onboarding_step?: number;
   };
 
-  // Gate: require at least step 2 completed (brand + 1 property)
   const onboardingStep = user.onboarding_step ?? 0;
-  if (onboardingStep < 2) {
-    redirect("/onboarding");
-  }
+  if (onboardingStep < 2) redirect("/onboarding");
 
-  // Steps 2–8 remain; show banner until all 9 are done
   const onboardingComplete = onboardingStep >= 9;
 
   return (
     <BrandThemeProvider>
-      {/* ── Desktop layout ──────────────────────────────────────────── */}
-      <div className="hidden md:flex h-screen overflow-hidden bg-gray-50">
-        <Sidebar user={user} />
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <TopBar user={user} />
+      {/*
+        Single layout — children render exactly once.
+        Shell elements (sidebar, topbar, bottom nav) are shown/hidden via CSS.
+      */}
+      <div
+        className="flex bg-gray-50"
+        style={{ minHeight: "100dvh", maxHeight: "100dvh", overflow: "hidden" }}
+      >
+        {/* ── Sidebar (desktop only) ───────────────────────────────── */}
+        <div className="hidden md:flex flex-shrink-0">
+          <Sidebar user={user} />
+        </div>
+
+        {/* ── Main column ─────────────────────────────────────────── */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {/* Desktop topbar */}
+          <div className="hidden md:block">
+            <TopBar user={user} />
+          </div>
+
+          {/* Mobile header */}
+          <div className="md:hidden">
+            <MobileHeader user={user} />
+          </div>
+
+          {/* Setup banner (both breakpoints) */}
           {!onboardingComplete && (
             <FinishSetupBanner currentStep={onboardingStep} />
           )}
-          <main className="flex-1 overflow-auto">
-            {children}
+
+          {/* Page content — scrollable, padded for mobile bottom nav */}
+          <main
+            className="flex-1 overflow-y-auto"
+            style={{ paddingBottom: "calc(env(safe-area-inset-bottom))" }}
+          >
+            {/* Extra bottom padding on mobile so content clears the bottom nav */}
+            <div className="md:pb-0 pb-20">
+              {children}
+            </div>
           </main>
         </div>
-        <DashboardSSEBridge />
+
+        {/* ── Mobile bottom nav (fixed, outside flow) ─────────────── */}
+        <MobileNav user={user} />
       </div>
 
-      {/* ── Mobile layout ───────────────────────────────────────────── */}
-      <div
-        className="flex md:hidden flex-col bg-gray-50"
-        style={{ minHeight: "100dvh" }}
-      >
-        <MobileHeader user={user} />
-        {!onboardingComplete && (
-          <FinishSetupBanner currentStep={onboardingStep} />
-        )}
-        <main
-          className="flex-1 overflow-auto"
-          style={{ paddingBottom: "calc(56px + env(safe-area-inset-bottom))" }}
-        >
-          {children}
-        </main>
-        <MobileNav user={user} />
-        <DashboardSSEBridge />
-      </div>
+      {/* SSE bridge — rendered once, outside layout columns */}
+      <DashboardSSEBridge />
     </BrandThemeProvider>
   );
 }

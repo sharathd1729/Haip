@@ -64,15 +64,15 @@ function GettingStarted({ firstName }: { firstName: string }) {
   ];
 
   return (
-    <div className="p-6 max-w-[900px] mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-[900px] mx-auto space-y-4 sm:space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-[22px] font-bold text-gray-900">Good morning, {firstName} 👋</h1>
+        <h1 className="text-xl sm:text-[22px] font-bold text-gray-900">Good morning, {firstName} 👋</h1>
         <p className="text-[13px] text-gray-400 mt-0.5">{today}</p>
       </div>
 
       {/* Welcome banner */}
-      <div className="bg-gradient-to-br from-[#0B1F3A] to-[#163458] rounded-2xl p-6 text-white relative overflow-hidden">
+      <div className="bg-gradient-to-br from-[#0B1F3A] to-[#163458] rounded-2xl p-4 sm:p-6 text-white relative overflow-hidden">
         <div className="absolute top-0 right-0 w-48 h-48 bg-teal-500/10 rounded-full -translate-y-1/2 translate-x-1/4" />
         <div className="relative">
           <div className="flex items-center gap-2 mb-2">
@@ -157,11 +157,11 @@ function LiveDashboard({ dash, firstName }: { dash: DashboardData; firstName: st
   };
 
   return (
-    <div className="p-6 max-w-[1280px] mx-auto space-y-5">
+    <div className="p-4 sm:p-6 max-w-[1280px] mx-auto space-y-4 sm:space-y-5">
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-[22px] font-bold text-gray-900">Good morning, {firstName}</h1>
+          <h1 className="text-xl sm:text-[22px] font-bold text-gray-900">Good morning, {firstName}</h1>
           <p className="text-[13px] text-gray-400 mt-0.5">{today}</p>
         </div>
         <button
@@ -345,12 +345,12 @@ export function DashboardOverview({ user }: Props) {
       <div className="p-6 max-w-[1280px] mx-auto space-y-5">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-gray-100 rounded-xl w-48" />
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-gray-100 rounded-xl" />)}
           </div>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="col-span-2 h-64 bg-gray-100 rounded-xl" />
-            <div className="h-64 bg-gray-100 rounded-xl" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2 h-48 sm:h-64 bg-gray-100 rounded-xl" />
+            <div className="h-48 sm:h-64 bg-gray-100 rounded-xl" />
           </div>
         </div>
       </div>
