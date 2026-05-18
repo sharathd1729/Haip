@@ -70,6 +70,10 @@ class Message(Base, TimestampMixin, TenantMixin):
     ai_confidence = Column(String(10), nullable=True)
     was_approved = Column(Boolean, nullable=True)  # null = not AI, True/False = approved/rejected
 
+    # Idempotency — prevents duplicate sends on network retry
+    # Partial unique index (tenant_id, idempotency_key WHERE NOT NULL) added in migration 005
+    idempotency_key = Column(String(64), nullable=True, index=False)
+
     # Sender
     sender_id = Column(String, ForeignKey("users.id"), nullable=True)
     sender_name = Column(String(255), nullable=True)

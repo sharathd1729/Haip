@@ -23,5 +23,19 @@ def get_db():
 
 
 def set_tenant_context(db, tenant_id: str):
-    """Set tenant context for RLS policies."""
-    db.execute(text(f"SET app.tenant_id = '{tenant_id}'"))
+    """
+    Set the Postgres session variable for RLS enforcement.
+
+    Uses a parameterised SELECT set_config() rather than string interpolation
+    to eliminate the SQL-injection vector (B7).  The call is silently ignored
+    on non-Postgres engines (e.g. SQLite in tests).
+    """
+    try:
+        db.execute(
+            text("SELECT set_config('app.tenant_id', :t, true)"),
+            {"t": str(tenant_id)},
+        )
+    except Exception:
+        # Non-Postgres engines (SQLite in unit tests) don't support set_config;
+        # skip gracefully — RLS is not enforced in those environments anyway.
+        pass

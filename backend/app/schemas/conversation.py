@@ -1,5 +1,6 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Union
+from datetime import datetime
 
 
 class MessageOut(BaseModel):
@@ -13,7 +14,9 @@ class MessageOut(BaseModel):
     ai_confidence: Optional[float] = None
     was_approved: Optional[bool] = None
     sender_name: Optional[str] = None
-    created_at: Optional[str] = None
+    idempotency_key: Optional[str] = None
+    # Accept either datetime (Postgres/SQLite ORM result) or ISO string (legacy)
+    created_at: Optional[Union[datetime, str]] = None
 
     class Config:
         from_attributes = True
