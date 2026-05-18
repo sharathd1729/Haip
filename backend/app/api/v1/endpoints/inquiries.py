@@ -7,7 +7,7 @@ from app.api.v1.deps import get_current_user
 from app.models.user import User
 from app.models.inquiry import Inquiry, InquiryStage
 from app.schemas.inquiry import InquiryOut, InquiryCreateRequest, InquiryUpdateRequest
-from app.services.inquiry_service import get_or_create, update_status
+from app.services.inquiry_service import get_or_create, update_stage, InvalidStageTransition
 
 router = APIRouter(prefix="/inquiries", tags=["inquiries"])
 
@@ -59,7 +59,11 @@ def create_inquiry(
 
 
 @router.get("/{inquiry_id}", response_model=InquiryOut)
-def get_inquiry(inquiry_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_inquiry(
+    inquiry_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     inq = db.query(Inquiry).filter_by(id=inquiry_id, tenant_id=current_user.tenant_id).first()
     if not inq:
         raise HTTPException(status_code=404, detail="Inquiry not found")
@@ -78,14 +82,35 @@ def update_inquiry(
         raise HTTPException(status_code=404, detail="Inquiry not found")
 
     updates = body.model_dump(exclude_none=True)
+    reason = updates.pop("reason", None)
+
+    # Stage transitions go through the state-machine service
     if "stage" in updates:
         try:
-            updates["stage"] = InquiryStage(updates["stage"])
-        except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid stage: {updates['stage']}")
+            new_stage = InquiryStage(updates.pop("stage"))
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
 
+        try:
+            update_stage(
+                db,
+                tenant_id=current_user.tenant_id,
+                inquiry_id=inquiry_id,
+                new_stage=new_stage,
+                actor_user_id=current_user.id,
+                actor_role=current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role),
+                reason=reason,
+            )
+        except InvalidStageTransition as e:
+            raise HTTPException(status_code=422, detail=e.detail)
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+
+    # Apply remaining non-stage field updates
     for k, v in updates.items():
-        setattr(inq, k, v)
+        if hasattr(inq, k):
+            setattr(inq, k, v)
+
     db.commit()
     db.refresh(inq)
     return inq

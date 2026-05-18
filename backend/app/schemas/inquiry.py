@@ -42,6 +42,8 @@ class InquiryCreateRequest(BaseModel):
 
 class InquiryUpdateRequest(BaseModel):
     stage: Optional[str] = None
+    # Required when performing a backward stage transition (owner/manager only)
+    reason: Optional[str] = None
     property_id: Optional[str] = None
     assigned_to: Optional[str] = None
     lost_reason: Optional[str] = None
