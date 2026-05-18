@@ -1,11 +1,10 @@
 """Meta WhatsApp Cloud API webhook."""
 import json
-import hashlib
-import hmac
-from fastapi import APIRouter, Request, HTTPException, Query, Depends
+from fastapi import APIRouter, Request, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.config import settings
+from app.core.webhook_security import verify_meta_signature
 from app.workers.tasks.whatsapp import process_whatsapp_message
 import structlog
 
@@ -27,24 +26,17 @@ async def whatsapp_verify(
 @router.post("/whatsapp")
 async def whatsapp_webhook(request: Request):
     body = await request.body()
-    headers = dict(request.headers)
+    sig = request.headers.get("X-Hub-Signature-256", "")
 
-    if not _verify_meta_signature(body, headers):
-        raise HTTPException(status_code=401, detail="Invalid Meta signature")
+    # Raises 401 on failure; in dev with no secret logs a warning and continues
+    verify_meta_signature(
+        body=body,
+        signature_header=sig,
+        env=settings.ENVIRONMENT,
+        secret=settings.META_APP_SECRET,
+    )
 
     payload = json.loads(body)
     log.info("whatsapp_webhook_received")
     process_whatsapp_message.delay(payload=payload)
     return {"status": "queued"}
-
-
-def _verify_meta_signature(body: bytes, headers: dict) -> bool:
-    if not settings.META_APP_SECRET:
-        return True
-    sig = headers.get("x-hub-signature-256", "")
-    if not sig.startswith("sha256="):
-        return False
-    expected = "sha256=" + hmac.new(
-        settings.META_APP_SECRET.encode(), body, hashlib.sha256
-    ).hexdigest()
-    return hmac.compare_digest(sig, expected)
