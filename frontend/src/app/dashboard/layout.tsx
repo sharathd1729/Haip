@@ -1,4 +1,6 @@
 import { Sidebar } from "@/components/layout/Sidebar";
+import { MobileNav } from "@/components/layout/MobileNav";
+import { MobileHeader } from "@/components/layout/MobileHeader";
 import { TopBar } from "@/components/shell/TopBar";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
@@ -29,7 +31,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <BrandThemeProvider>
-      <div className="flex h-screen overflow-hidden bg-gray-50">
+      {/* ── Desktop layout ──────────────────────────────────────────── */}
+      <div className="hidden md:flex h-screen overflow-hidden bg-gray-50">
         <Sidebar user={user} />
         <div className="flex-1 flex flex-col overflow-hidden">
           <TopBar user={user} />
@@ -40,7 +43,25 @@ export default async function DashboardLayout({ children }: { children: React.Re
             {children}
           </main>
         </div>
-        {/* SSE bridge: subscribes to /sse/inbox and pushes to Zustand stores */}
+        <DashboardSSEBridge />
+      </div>
+
+      {/* ── Mobile layout ───────────────────────────────────────────── */}
+      <div
+        className="flex md:hidden flex-col bg-gray-50"
+        style={{ minHeight: "100dvh" }}
+      >
+        <MobileHeader user={user} />
+        {!onboardingComplete && (
+          <FinishSetupBanner currentStep={onboardingStep} />
+        )}
+        <main
+          className="flex-1 overflow-auto"
+          style={{ paddingBottom: "calc(56px + env(safe-area-inset-bottom))" }}
+        >
+          {children}
+        </main>
+        <MobileNav user={user} />
         <DashboardSSEBridge />
       </div>
     </BrandThemeProvider>

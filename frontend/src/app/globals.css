@@ -123,8 +123,20 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Prevent iOS callout on long press */
+    -webkit-touch-callout: none;
   }
   html {
     @apply font-sans;
+    /* iOS momentum scrolling */
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Remove blue tap highlight on mobile */
+  a, button {
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Smooth scrolling on mobile content areas */
+  .overflow-auto, .overflow-y-auto {
+    -webkit-overflow-scrolling: touch;
   }
 }
