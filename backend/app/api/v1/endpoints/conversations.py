@@ -6,7 +6,7 @@ from typing import List
 from app.core.database import get_db
 from app.api.v1.deps import get_current_user
 from app.models.user import User
-from app.models.conversation import Conversation, Message
+from app.models.conversation import Conversation, Message, MessageDeliveryState
 from app.schemas.conversation import MessageOut, SendMessageRequest, AIDraftRequest, ConversationOut
 from app.workers.tasks.concierge_draft import concierge_draft
 import structlog
@@ -100,6 +100,7 @@ def send_message(
         sender_name=current_user.name,
         was_approved=True,
         idempotency_key=idempotency_key,  # None if header absent
+        delivery_state=MessageDeliveryState.PENDING,
     )
     db.add(msg)
 
@@ -114,7 +115,10 @@ def send_message(
         has_idempotency_key=idempotency_key is not None,
     )
 
-    # Queue delivery
+    # Transition to QUEUED then dispatch
+    msg.delivery_state = MessageDeliveryState.QUEUED
+    db.commit()
+
     from app.workers.tasks.send_whatsapp import send_whatsapp
     send_whatsapp.delay(message_id=msg.id, tenant_id=current_user.tenant_id)
     return msg
@@ -155,6 +159,7 @@ def approve_ai_draft(
 
     msg.was_approved = True
     msg.sender_id = current_user.id
+    msg.delivery_state = MessageDeliveryState.QUEUED
     db.commit()
 
     from app.workers.tasks.send_whatsapp import send_whatsapp

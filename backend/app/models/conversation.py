@@ -18,6 +18,27 @@ class MessageDirection(str, enum.Enum):
     OUTBOUND = "outbound"
 
 
+class MessageDeliveryState(str, enum.Enum):
+    """
+    Lifecycle of an outbound message send (orthogonal to was_approved).
+
+    pending   — row inserted, not yet enqueued
+    queued    — Celery task has been dispatched
+    sent      — Meta Cloud API returned 200 with a wamid
+    delivered — Meta status webhook: delivered
+    read      — Meta status webhook: read
+    failed    — retry exhaustion or permanent 4xx from Meta
+    rejected  — Meta returned an explicit error code (e.g. template rejected)
+    """
+    PENDING   = "pending"
+    QUEUED    = "queued"
+    SENT      = "sent"
+    DELIVERED = "delivered"
+    READ      = "read"
+    FAILED    = "failed"
+    REJECTED  = "rejected"
+
+
 class Conversation(Base, TimestampMixin, TenantMixin):
     __tablename__ = "conversations"
 
@@ -73,6 +94,14 @@ class Message(Base, TimestampMixin, TenantMixin):
     # Idempotency — prevents duplicate sends on network retry
     # Partial unique index (tenant_id, idempotency_key WHERE NOT NULL) added in migration 005
     idempotency_key = Column(String(64), nullable=True, index=False)
+
+    # Delivery state — tracks the outbound send lifecycle independently of approval
+    # NULL for inbound messages; defaults to 'pending' for outbound (migration 006)
+    delivery_state = Column(
+        SAEnum(MessageDeliveryState), nullable=True,
+        default=None,  # set explicitly in send_message endpoint
+    )
+    delivery_error = Column(Text, nullable=True)  # last error from Meta API
 
     # Sender
     sender_id = Column(String, ForeignKey("users.id"), nullable=True)

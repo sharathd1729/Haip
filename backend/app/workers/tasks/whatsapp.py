@@ -2,12 +2,22 @@
 import uuid
 from app.workers.celery_app import celery_app
 from app.core.database import SessionLocal
-from app.models.conversation import Conversation, Message, ChannelType, MessageDirection
+from app.models.conversation import (
+    Conversation, Message, ChannelType, MessageDirection, MessageDeliveryState,
+)
 from app.models.guest import Guest
 from app.models.tenant import Tenant
 import structlog
 
 log = structlog.get_logger()
+
+# Map Meta status strings → our delivery states
+_META_STATUS_MAP = {
+    "sent":      MessageDeliveryState.SENT,
+    "delivered": MessageDeliveryState.DELIVERED,
+    "read":      MessageDeliveryState.READ,
+    "failed":    MessageDeliveryState.FAILED,
+}
 
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=10, name="whatsapp.process_message")
@@ -41,6 +51,10 @@ def _process_value(value: dict):
 
         for msg in value.get("messages", []):
             _handle_inbound_message(db, tenant, msg, value.get("contacts", []))
+
+        # Handle delivery status callbacks (sent/delivered/read/failed)
+        for status_obj in value.get("statuses", []):
+            _handle_status_update(db, tenant, status_obj)
 
         db.commit()
     finally:
@@ -142,3 +156,72 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
             )
         except Exception as exc:
             log.error("failed_to_queue_concierge_draft", error=str(exc))
+
+
+def _handle_status_update(db, tenant: Tenant, status_obj: dict):
+    """
+    Process a Meta delivery-status callback and advance the message's
+    delivery_state (sent → delivered → read, or → failed).
+
+    status_obj shape (from Meta docs):
+      {
+        "id": "<wamid>",
+        "status": "delivered" | "read" | "sent" | "failed",
+        "timestamp": "...",
+        "recipient_id": "...",
+        "errors": [{"code": ..., "title": "..."}]   # only on failed
+      }
+    """
+    wamid = status_obj.get("id")
+    meta_status = status_obj.get("status", "")
+
+    if not wamid or meta_status not in _META_STATUS_MAP:
+        return  # ignore unknown statuses
+
+    new_state = _META_STATUS_MAP[meta_status]
+
+    message = db.query(Message).filter_by(
+        tenant_id=tenant.id,
+        channel_message_id=wamid,
+    ).first()
+
+    if not message:
+        log.warning(
+            "wa_status_update_no_message",
+            wamid=wamid,
+            status=meta_status,
+        )
+        return
+
+    # Only advance state — never go backwards (read > delivered > sent)
+    _STATE_RANK = {
+        MessageDeliveryState.PENDING:   0,
+        MessageDeliveryState.QUEUED:    1,
+        MessageDeliveryState.SENT:      2,
+        MessageDeliveryState.DELIVERED: 3,
+        MessageDeliveryState.READ:      4,
+        MessageDeliveryState.FAILED:    5,
+        MessageDeliveryState.REJECTED:  5,
+    }
+    current_rank = _STATE_RANK.get(message.delivery_state, 0)
+    new_rank = _STATE_RANK.get(new_state, 0)
+
+    if new_rank >= current_rank:
+        message.delivery_state = new_state
+        message.channel_status = meta_status
+
+        if meta_status == "failed":
+            errors = status_obj.get("errors", [])
+            error_msg = "; ".join(
+                f"{e.get('code')}: {e.get('title', '')}" for e in errors
+            ) if errors else "Meta reported failure"
+            message.delivery_error = error_msg[:500]
+        else:
+            message.delivery_error = None
+
+        log.info(
+            "wa_delivery_state_updated",
+            message_id=message.id,
+            wamid=wamid,
+            new_state=new_state.value,
+        )

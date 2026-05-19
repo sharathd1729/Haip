@@ -15,6 +15,8 @@ class MessageOut(BaseModel):
     was_approved: Optional[bool] = None
     sender_name: Optional[str] = None
     idempotency_key: Optional[str] = None
+    delivery_state: Optional[str] = None
+    delivery_error: Optional[str] = None
     # Accept either datetime (Postgres/SQLite ORM result) or ISO string (legacy)
     created_at: Optional[Union[datetime, str]] = None
 
