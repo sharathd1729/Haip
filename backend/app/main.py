@@ -6,6 +6,7 @@ from app.core.config import settings
 from app.core.database import engine, Base
 from app.core.logging import configure_logging
 from app.core.tenancy import tenant_context_middleware
+from app.core.request_id import request_id_middleware
 from app.api.v1.router import api_router
 import structlog
 
@@ -44,8 +45,11 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-# Tenant context: must run after CORS, before route handlers
-app.middleware("http")(tenant_context_middleware)
+# Middleware execution order (last-registered runs first for requests):
+#   CORS → tenant_context → request_id → route handlers
+# Starlette registers middleware as a stack — add in reverse desired order.
+app.middleware("http")(request_id_middleware)   # inner: sets request_id after tenant decoded
+app.middleware("http")(tenant_context_middleware)  # outer: decodes JWT, sets request.state
 
 app.include_router(api_router)
 
