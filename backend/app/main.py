@@ -14,7 +14,12 @@ configure_logging()
 log = structlog.get_logger()
 
 if settings.SENTRY_DSN:
-    sentry_sdk.init(dsn=settings.SENTRY_DSN, traces_sample_rate=0.1)
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        release=settings.SENTRY_RELEASE or None,   # None → Sentry auto-detects from git
+        environment=settings.ENVIRONMENT,
+        traces_sample_rate=0.1,
+    )
 
 
 @asynccontextmanager

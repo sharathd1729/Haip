@@ -122,6 +122,21 @@ jobs:
         with:
           generate_release_notes: true
 
+      # ── B17: Sentry release tagging ──────────────────────────────────────────
+      # Creates a Sentry release, associates commits, and finalises it.
+      # SENTRY_RELEASE is also injected as a Railway / ECS env var so the
+      # Python SDK's `release=` argument is set at runtime.
+      - name: Create Sentry release
+        if: success()
+        uses: getsentry/action-release@v1
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG:        ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT:    ${{ secrets.SENTRY_PROJECT }}
+        with:
+          environment: production
+          version:     ${{ github.ref_name }}
+
       - name: Notify Slack
         if: always()
         uses: slackapi/slack-github-action@v1.26.0

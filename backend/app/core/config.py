@@ -79,6 +79,10 @@ class Settings(BaseSettings):
 
     # Sentry
     SENTRY_DSN: str = ""
+    # Set by CI to the git SHA / tag (e.g. "v1.2.3" or "abc1234").
+    # Used for Sentry release tracking and source-map association.
+    # In Railway / GitHub Actions: set SENTRY_RELEASE=${{ github.sha }}
+    SENTRY_RELEASE: str = ""
 
     # Hostaway
     HOSTAWAY_ACCOUNT_ID: str = ""

@@ -61,9 +61,20 @@ export default function CompliancePage() {
     staleTime: 30_000,
   });
 
-  const { data: consents = [], isLoading: consentsLoading } = useQuery<ConsentRecord[]>({
+  const {
+    data: consents = [],
+    isLoading: consentsLoading,
+    isError: consentsError,
+    error: consentsErrorObj,
+    refetch: refetchConsents,
+  } = useQuery<ConsentRecord[]>({
     queryKey: ["consents"],
-    queryFn: () => api.get("/guests/consents").then(r => r.data).catch(() => []),
+    // D8: do NOT swallow errors — let React Query surface them so the UI
+    // can show a retry prompt and Sentry can capture them.
+    queryFn: async () => {
+      const r = await api.get("/guests/consents");
+      return r.data;
+    },
     enabled: tab === "consents",
   });
 
@@ -187,11 +198,29 @@ export default function CompliancePage() {
       {/* Consent registry */}
       {tab === "consents" && (
         <div className="flex-1 overflow-y-auto p-5">
+          {/* D8: surface fetch errors instead of silently returning [] */}
+          {consentsError && (
+            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
+              <span className="text-red-500 text-sm font-semibold mt-0.5">⚠</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-red-700">Failed to load consent records</p>
+                <p className="text-xs text-red-500 mt-0.5 break-words">
+                  {(consentsErrorObj as Error)?.message ?? "Unknown error"}
+                </p>
+              </div>
+              <button
+                onClick={() => refetchConsents()}
+                className="shrink-0 text-xs font-medium text-red-600 hover:text-red-800 underline"
+              >
+                Retry
+              </button>
+            </div>
+          )}
           {consentsLoading ? (
             <Skeleton className="h-64 rounded-2xl" />
-          ) : consents.length === 0 ? (
+          ) : !consentsError && consents.length === 0 ? (
             <div className="py-16 text-center text-sm text-gray-400">No consent records yet</div>
-          ) : (
+          ) : !consentsError && (
             <table className="w-full text-sm">
               <thead>
                 <tr>
