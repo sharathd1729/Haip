@@ -1,17 +1,33 @@
 """
-Tenant context middleware.
-Extracts tenant_id from the JWT access token on every request and sets
-the Postgres session variable `app.tenant_id` so RLS policies fire correctly.
+Tenant context middleware (B7 — hardened).
+
+Responsibilities:
+  1. Attach tenant_id / user_id / role to request.state for use by
+     structured logging and any middleware that runs after this one.
+  2. Do NOT attempt to set the Postgres RLS variable here.
+
+Why not set RLS here?
+  Middleware runs on a different DB connection than the one injected by
+  FastAPI's Depends(get_db) dependency.  Calling set_config() on a
+  throwaway SessionLocal() would have zero effect on the connection that
+  actually executes ORM queries.
+
+  RLS context is set correctly in api/v1/deps.py → get_current_user()
+  via database.set_tenant_context(db, user.tenant_id), which operates
+  on the *same* SQLAlchemy session that the endpoint uses.
+
+  database.set_tenant_context() uses a parameterised SELECT set_config()
+  call (is_local=True) so the variable is:
+    • transaction-scoped — no leakage between requests
+    • injection-safe    — tenant_id is bound, never interpolated
 """
-from fastapi import Request, HTTPException, status
-from sqlalchemy import text
-from app.core.database import SessionLocal
+from fastapi import Request
 from app.core.security import decode_token
 import structlog
 
 log = structlog.get_logger()
 
-# Paths that do NOT require a tenant context
+# Paths that do NOT require a tenant context (no JWT expected)
 _PUBLIC_PREFIXES = (
     "/health",
     "/docs",
@@ -31,7 +47,7 @@ async def tenant_context_middleware(request: Request, call_next):
     if any(path.startswith(p) for p in _PUBLIC_PREFIXES):
         return await call_next(request)
 
-    # Extract bearer token
+    # Extract bearer token — non-JWT requests (e.g. OPTIONS) pass through
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
         return await call_next(request)
@@ -46,19 +62,9 @@ async def tenant_context_middleware(request: Request, call_next):
     if not tenant_id:
         return await call_next(request)
 
-    # Attach to request state for downstream access
+    # Attach decoded claims to request.state for logging / other middleware
     request.state.tenant_id = tenant_id
     request.state.user_id = decoded.get("sub")
     request.state.role = decoded.get("role")
-
-    # Set Postgres session variable for RLS — use a fresh db connection
-    db = SessionLocal()
-    try:
-        db.execute(text("SELECT set_config('app.tenant_id', :t, true)"), {"t": str(tenant_id)})
-        db.commit()
-    except Exception:
-        pass
-    finally:
-        db.close()
 
     return await call_next(request)
