@@ -12,6 +12,7 @@ from app.models.call import Call
 from app.models.guest import Guest
 from app.models.inquiry import Inquiry, InquiryStage, InquirySource
 from app.adapters.ivr import get_ivr_adapter
+from app.models.call import RecordingStatus
 from app.workers.celery_app import celery_app
 import structlog
 import uuid
@@ -89,17 +90,51 @@ def ingest_call(self, payload: dict, tenant_id: str, ivr_provider: str):
         raise self.retry(exc=exc)
 
 
-@celery_app.task(bind=True, max_retries=3, default_retry_delay=60, name="call_ingest.fetch_recording")
-def fetch_and_store_recording(self, call_id: str, recording_url: str, tenant_id: str, ivr_provider: str):
-    """Download recording from IVR provider and store in S3."""
-    from app.workers.tasks.transcription import transcribe_call
+# Retry schedule for missing recordings (seconds):
+#   attempt 1 failed → retry in +1 h
+#   attempt 2 failed → retry in +6 h
+#   attempt 3 failed → retry in +24 h
+#   attempt 4 failed → permanently_missing (no further retries)
+_RETRY_DELAYS = [3600, 21600, 86400]   # 1 h, 6 h, 24 h
+_RETRY_STATES = [
+    RecordingStatus.MISSING_RETRY_1,
+    RecordingStatus.MISSING_RETRY_2,
+    RecordingStatus.MISSING_RETRY_3,
+]
 
+
+@celery_app.task(
+    bind=True,
+    max_retries=len(_RETRY_DELAYS),
+    name="call_ingest.fetch_recording",
+)
+def fetch_and_store_recording(self, call_id: str, recording_url: str, tenant_id: str, ivr_provider: str):
+    """Thin Celery wrapper — delegates to _do_fetch_recording for testability."""
+    _do_fetch_recording(self, call_id, recording_url, tenant_id, ivr_provider)
+
+
+def _do_fetch_recording(task_self, call_id: str, recording_url: str, tenant_id: str, ivr_provider: str):
+    """
+    Download recording from IVR provider and store in S3 / R2.
+
+    Extracted from the Celery task so it can be unit-tested with a plain mock
+    for task_self instead of fighting Celery's property descriptors.
+
+    Retry schedule (B15):
+      - Attempt 1 fails → status=missing_retry_1, retry in +1 h
+      - Attempt 2 fails → status=missing_retry_2, retry in +6 h
+      - Attempt 3 fails → status=missing_retry_3, retry in +24 h
+      - Attempt 4 fails → status=permanently_missing — no more retries
+    """
     db: Session = SessionLocal()
     try:
         call = db.query(Call).filter_by(id=call_id, tenant_id=tenant_id).first()
         if not call:
-            log.error("call_not_found", call_id=call_id)
+            log.error("call_not_found_for_recording_fetch", call_id=call_id)
             return
+
+        call.recording_status = RecordingStatus.FETCHING
+        db.commit()
 
         adapter = get_ivr_adapter(ivr_provider)
 
@@ -117,7 +152,6 @@ def fetch_and_store_recording(self, call_id: str, recording_url: str, tenant_id:
 
         audio_bytes = _run_async(adapter.fetch_recording(recording_url))
 
-        # Upload to S3 / Cloudflare R2
         s3_key = f"{tenant_id}/calls/{call_id}/recording.mp3"
         s3_kwargs = dict(
             aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
@@ -138,20 +172,49 @@ def fetch_and_store_recording(self, call_id: str, recording_url: str, tenant_id:
 
         call.recording_s3_key = s3_key
         call.recording_fetched = True
+        call.recording_status = RecordingStatus.AVAILABLE
+        call.recording_error = None
         call.transcription_status = "queued"
         db.commit()
 
         log.info("recording_stored", call_id=call_id, s3_key=s3_key)
 
-        # Queue transcription (use new structured pipeline)
         from app.workers.tasks.transcribe import transcribe as transcribe_new
         transcribe_new.delay(call_id=call_id, tenant_id=tenant_id)
 
     except Exception as exc:
-        log.error("recording_fetch_failed", call_id=call_id, error=str(exc))
-        raise self.retry(exc=exc)
+        error_str = str(exc)
+        retry_index = task_self.request.retries  # 0-based
+
+        if retry_index < len(_RETRY_DELAYS):
+            new_status = _RETRY_STATES[retry_index]
+            delay = _RETRY_DELAYS[retry_index]
+            log.warning(
+                "recording_fetch_failed_will_retry",
+                call_id=call_id,
+                attempt=retry_index + 1,
+                next_status=new_status.value,
+                retry_in_seconds=delay,
+                error=error_str,
+            )
+            _mark_recording_status(db, call, new_status, error_str)
+            raise task_self.retry(exc=exc, countdown=delay)
+        else:
+            log.error("recording_permanently_missing", call_id=call_id, error=error_str)
+            _mark_recording_status(db, call, RecordingStatus.PERMANENTLY_MISSING, error_str)
+
     finally:
         db.close()
+
+
+def _mark_recording_status(db, call: Call, status: RecordingStatus, error: str) -> None:
+    """Persist recording_status + error; never raises."""
+    try:
+        call.recording_status = status
+        call.recording_error = error[:500]
+        db.commit()
+    except Exception:
+        pass
 
 
 def _dedup_guest(db: Session, tenant_id: str, phone: str) -> Guest:

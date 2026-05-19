@@ -20,6 +20,27 @@ class CallDisposition(str, enum.Enum):
     VOICEMAIL = "voicemail"
 
 
+class RecordingStatus(str, enum.Enum):
+    """
+    Lifecycle of the call recording fetch pipeline.
+
+    pending           — IVR webhook received; recording URL noted; fetch not yet attempted
+    fetching          — download from IVR provider is in-flight
+    available         — file stored in S3 / R2 successfully
+    missing_retry_1   — first attempt failed; retry scheduled at +1 h
+    missing_retry_2   — second attempt failed; retry scheduled at +6 h
+    missing_retry_3   — third attempt failed; retry scheduled at +24 h
+    permanently_missing — all retries exhausted; no further attempts will be made
+    """
+    PENDING             = "pending"
+    FETCHING            = "fetching"
+    AVAILABLE           = "available"
+    MISSING_RETRY_1     = "missing_retry_1"
+    MISSING_RETRY_2     = "missing_retry_2"
+    MISSING_RETRY_3     = "missing_retry_3"
+    PERMANENTLY_MISSING = "permanently_missing"
+
+
 class Call(Base, TimestampMixin, TenantMixin):
     __tablename__ = "calls"
 
@@ -43,7 +64,13 @@ class Call(Base, TimestampMixin, TenantMixin):
     # Recording
     recording_url_ivr = Column(Text, nullable=True)  # IVR provider URL
     recording_s3_key = Column(Text, nullable=True)   # Our S3 key
-    recording_fetched = Column(Boolean, default=False)
+    recording_fetched = Column(Boolean, default=False)  # legacy; use recording_status instead
+    recording_status = Column(
+        SAEnum(RecordingStatus),
+        nullable=True,
+        default=RecordingStatus.PENDING,
+    )
+    recording_error = Column(Text, nullable=True)  # last error from fetch
 
     # Processing status
     transcription_status = Column(String(20), default="pending")  # pending/processing/done/failed

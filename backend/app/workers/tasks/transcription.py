@@ -2,10 +2,11 @@
 Transcription pipeline: S3 recording → Deepgram → store transcript → queue AI scoring.
 """
 import boto3
+from botocore.exceptions import ClientError
 from celery import shared_task
 from app.core.database import SessionLocal
 from app.core.config import settings
-from app.models.call import Call
+from app.models.call import Call, RecordingStatus
 from app.workers.celery_app import celery_app
 import structlog
 
@@ -14,7 +15,17 @@ log = structlog.get_logger()
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=30, name="transcription.transcribe_call")
 def transcribe_call(self, call_id: str, tenant_id: str):
-    """Transcribe call recording using Deepgram Nova-2."""
+    """Thin Celery wrapper — delegates to _do_transcribe for testability."""
+    _do_transcribe(self, call_id, tenant_id)
+
+
+def _do_transcribe(task_self, call_id: str, tenant_id: str):
+    """
+    Transcribe call recording using Deepgram Nova-2.
+
+    Extracted from the Celery task so it can be unit-tested without
+    fighting Celery's property descriptors.
+    """
     from app.workers.tasks.ai_scoring import score_call
 
     db = SessionLocal()
@@ -27,14 +38,29 @@ def transcribe_call(self, call_id: str, tenant_id: str):
         call.transcription_status = "processing"
         db.commit()
 
-        # Fetch audio from S3
+        # Fetch audio from S3 — guard against missing object (B15)
         s3 = boto3.client(
             "s3",
             aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
             region_name=settings.AWS_REGION,
         )
-        obj = s3.get_object(Bucket=settings.S3_BUCKET_NAME, Key=call.recording_s3_key)
+        try:
+            obj = s3.get_object(Bucket=settings.S3_BUCKET_NAME, Key=call.recording_s3_key)
+        except ClientError as s3_err:
+            error_code = s3_err.response.get("Error", {}).get("Code", "")
+            if error_code in ("NoSuchKey", "404"):
+                log.error(
+                    "transcription_s3_object_missing",
+                    call_id=call_id,
+                    s3_key=call.recording_s3_key,
+                )
+                call.transcription_status = "failed"
+                call.recording_status = RecordingStatus.PERMANENTLY_MISSING
+                call.recording_error = f"S3 object not found: {call.recording_s3_key}"
+                db.commit()
+                return  # non-retryable — the file is simply not there
+            raise  # other S3 errors are retryable
         audio_bytes = obj["Body"].read()
 
         # Deepgram transcription
@@ -63,7 +89,7 @@ def transcribe_call(self, call_id: str, tenant_id: str):
             except Exception:
                 pass
         log.error("transcription_failed", call_id=call_id, error=str(exc))
-        raise self.retry(exc=exc)
+        raise task_self.retry(exc=exc)
     finally:
         db.close()
 
