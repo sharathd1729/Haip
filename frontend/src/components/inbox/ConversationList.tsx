@@ -1,13 +1,23 @@
 "use client";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { ChannelIcon } from "./ChannelIcon";
-import { Sparkles } from "lucide-react";
+import { Sparkles, ArrowUpDown } from "lucide-react";
 import type { ConversationSummary } from "@/store/inbox";
+
+type SortMode = "smart" | "recent" | "unread";
+
+const SORT_LABELS: Record<SortMode, string> = {
+  smart:  "Smart",
+  recent: "Recent",
+  unread: "Unread first",
+};
 
 interface ConversationListProps {
   conversations: ConversationSummary[];
   activeId: string | null;
   onSelect: (id: string) => void;
+  onSortChange?: (mode: SortMode) => void;
   channelFilter?: string;
   className?: string;
 }
@@ -26,21 +36,75 @@ export function ConversationList({
   conversations,
   activeId,
   onSelect,
+  onSortChange,
   channelFilter,
   className,
 }: ConversationListProps) {
+  const [sort, setSort] = useState<SortMode>(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("inbox_sort") as SortMode) ?? "smart";
+    }
+    return "smart";
+  });
+  const [showSortMenu, setShowSortMenu] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem("inbox_sort", sort);
+    onSortChange?.(sort);
+  }, [sort, onSortChange]);
+
   const filtered = channelFilter
     ? conversations.filter(c => c.channel === channelFilter)
     : conversations;
 
+  // Client-side sort (mirrors backend smart/recent/unread)
+  const sorted = [...filtered].sort((a, b) => {
+    if (sort === "unread") {
+      const diff = (b.unread_count ?? 0) - (a.unread_count ?? 0);
+      if (diff !== 0) return diff;
+    } else if (sort === "smart") {
+      const aUnread = (a.unread_count ?? 0) > 0 ? 0 : 1;
+      const bUnread = (b.unread_count ?? 0) > 0 ? 0 : 1;
+      if (aUnread !== bUnread) return aUnread - bUnread;
+    }
+    return new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime();
+  });
+
   return (
     <div className={cn("flex flex-col overflow-y-auto", className)}>
-      {filtered.length === 0 && (
+      {/* W11: sort indicator */}
+      <div className="px-4 py-1.5 border-b border-gray-50 flex items-center justify-between relative">
+        <span className="text-[10px] text-gray-400">Sort: <span className="font-medium text-gray-600">{SORT_LABELS[sort]}</span></span>
+        <button
+          onClick={() => setShowSortMenu(v => !v)}
+          className="text-gray-400 hover:text-gray-600 transition-colors"
+          title="Change sort order"
+        >
+          <ArrowUpDown size={12} />
+        </button>
+        {showSortMenu && (
+          <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-10 overflow-hidden">
+            {(Object.keys(SORT_LABELS) as SortMode[]).map(m => (
+              <button
+                key={m}
+                onClick={() => { setSort(m); setShowSortMenu(false); }}
+                className={cn(
+                  "w-full text-left px-4 py-2 text-xs transition-colors",
+                  sort === m ? "bg-teal-50 text-teal-700 font-medium" : "text-gray-700 hover:bg-gray-50"
+                )}
+              >
+                {SORT_LABELS[m]}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {sorted.length === 0 && (
         <div className="py-16 text-center text-sm text-gray-400">
           No conversations yet
         </div>
       )}
-      {filtered.map(conv => {
+      {sorted.map(conv => {
         const isActive = conv.id === activeId;
         return (
           <button

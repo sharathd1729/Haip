@@ -1,12 +1,12 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
-  ArrowLeft, Phone, Clock, User, ChevronDown,
-  CheckCircle2, AlertCircle, Save, Loader2, ExternalLink, Play,
+  ArrowLeft, Phone, Clock, User, ChevronDown, ChevronRight,
+  CheckCircle2, AlertCircle, Save, Loader2, ExternalLink, Play, Copy,
 } from "lucide-react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -98,6 +98,9 @@ export default function CallDetailPage() {
   const [wrapUpNotes, setWrapUpNotes] = useState("");
   const [showAllCriteria, setShowAllCriteria] = useState(false);
   const [processing, setProcessing] = useState(false);
+  // C3: track which criteria are expanded (multiple can be open simultaneously)
+  const [expandedCriteria, setExpandedCriteria] = useState<Set<number>>(new Set());
+  const transcriptRef = useRef<HTMLDivElement>(null);
 
   const isPipelineRunning = (call: CallDetail | undefined) =>
     call && ["queued", "pending", "processing"].includes(call.transcription_status ?? "");
@@ -158,7 +161,12 @@ export default function CallDetailPage() {
     },
   });
 
-  const activeIdx = call?.transcript?.turns?.findLastIndex(t => t.t0 <= playheadTime) ?? -1;
+  // C1: correct active-turn calculation — last turn whose range contains playheadTime
+  const activeIdx = call?.transcript?.turns?.reduce<number>((best, t, i) => {
+    // t0 is turn start in seconds; prefer the turn that has started and not yet ended
+    if (t.t0 <= playheadTime && (t.t1 === undefined || playheadTime < t.t1)) return i;
+    return best;
+  }, -1) ?? -1;
 
   if (isLoading) return <CallDetailSkeleton />;
   if (error || !call) {
@@ -351,10 +359,11 @@ export default function CallDetailPage() {
                 </Link>
               )}
             </div>
-            <div className="p-4 space-y-2 max-h-[520px] overflow-y-auto">
+            <div ref={transcriptRef} className="p-4 space-y-2 max-h-[520px] overflow-y-auto">
               {call.transcript?.turns && call.transcript.turns.length > 0 ? (
                 call.transcript.turns.map((turn, idx) => {
                   const scoreForTurn = criteria.flatMap(c => c.evidence_spans ?? []);
+                  const isActive = idx === activeIdx;
                   return (
                     <TranscriptTurn
                       key={idx}
@@ -363,10 +372,17 @@ export default function CallDetailPage() {
                       t0={turn.t0}
                       t1={turn.t1}
                       evidenceSpans={scoreForTurn}
-                      isActive={idx === activeIdx}
+                      isActive={isActive}
                       onClick={(t) => {
-                        const audio = document.querySelector("audio");
-                        if (audio) { audio.currentTime = t; audio.play().catch(() => {}); }
+                        // C1: seek to exact t0; toggle play/pause on same active turn
+                        const audio = document.querySelector("audio") as HTMLAudioElement | null;
+                        if (!audio) return;
+                        if (isActive && !audio.paused) {
+                          audio.pause();
+                        } else {
+                          audio.currentTime = t; // t is already t0 in seconds
+                          audio.play().catch(() => {});
+                        }
                       }}
                     />
                   );
@@ -413,27 +429,53 @@ export default function CallDetailPage() {
                 </div>
               </div>
 
-              {/* Criteria breakdown */}
-              <div className="space-y-2.5">
+              {/* Criteria breakdown — C3: click to expand evidence */}
+              <div className="space-y-2">
                 {visibleCriteria.map((c, i) => {
                   const pct = Math.round((c.score / c.max_score) * 100);
+                  const isExpanded = expandedCriteria.has(i);
                   return (
-                    <div key={i}>
-                      <div className="flex items-center justify-between text-xs mb-1">
-                        <span className="text-gray-600 font-medium capitalize">{c.criterion.replace(/_/g, " ")}</span>
-                        <span className="text-gray-500 font-mono">{c.score}/{c.max_score}</span>
+                    <div key={i} className="rounded-xl border border-gray-100 overflow-hidden">
+                      <button
+                        className="w-full text-left px-3 py-2 flex items-center gap-2 hover:bg-gray-50 transition-colors"
+                        onClick={() => setExpandedCriteria(prev => {
+                          const next = new Set(prev);
+                          isExpanded ? next.delete(i) : next.add(i);
+                          return next;
+                        })}
+                      >
+                        {isExpanded
+                          ? <ChevronDown size={12} className="text-gray-400 flex-shrink-0" />
+                          : <ChevronRight size={12} className="text-gray-400 flex-shrink-0" />}
+                        <span className="text-xs text-gray-600 font-medium capitalize flex-1">{c.criterion.replace(/_/g, " ")}</span>
+                        <span className="text-xs text-gray-500 font-mono flex-shrink-0">{c.score}/{c.max_score}</span>
+                      </button>
+                      <div className="px-3 pb-2">
+                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-1">
+                          <div
+                            className={cn("h-full rounded-full", pct >= 80 ? "bg-teal-500" : pct >= 50 ? "bg-amber-400" : "bg-red-400")}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        {/* Collapsed: one-line preview */}
+                        {c.evidence && !isExpanded && (
+                          <p className="text-[11px] text-gray-400 italic line-clamp-1">{c.evidence}</p>
+                        )}
                       </div>
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className={cn(
-                            "h-full rounded-full transition-all",
-                            pct >= 80 ? "bg-teal-500" : pct >= 50 ? "bg-amber-400" : "bg-red-400"
-                          )}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                      {c.evidence && (
-                        <p className="text-[11px] text-gray-400 mt-0.5 italic line-clamp-1">{c.evidence}</p>
+                      {/* Expanded: full evidence + copy */}
+                      {isExpanded && c.evidence && (
+                        <div className="px-3 pb-3 border-t border-gray-50 pt-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-xs text-gray-600 leading-relaxed flex-1">{c.evidence}</p>
+                            <button
+                              onClick={() => navigator.clipboard.writeText(c.evidence)}
+                              title="Copy evidence"
+                              className="text-gray-300 hover:text-gray-500 transition-colors flex-shrink-0"
+                            >
+                              <Copy size={12} />
+                            </button>
+                          </div>
+                        </div>
                       )}
                     </div>
                   );

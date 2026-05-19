@@ -10,6 +10,8 @@ interface KanbanColumnProps {
   count: number;
   onCardClick?: (id: string) => void;
   onDrop?: (cardId: string, newStage: string) => void;
+  onDragStart?: (cardId: string) => void;
+  onDragEnd?: () => void;
   className?: string;
 }
 
@@ -21,6 +23,8 @@ export function KanbanColumn({
   count,
   onCardClick,
   onDrop,
+  onDragStart: notifyDragStart,
+  onDragEnd: notifyDragEnd,
   className,
 }: KanbanColumnProps) {
   const handleDragOver = (e: React.DragEvent) => {
@@ -32,11 +36,13 @@ export function KanbanColumn({
     e.preventDefault();
     const cardId = e.dataTransfer.getData("cardId");
     if (cardId) onDrop?.(cardId, id);
+    notifyDragEnd?.();
   };
 
   const handleDragStart = (e: React.DragEvent, cardId: string) => {
     e.dataTransfer.setData("cardId", cardId);
     e.dataTransfer.effectAllowed = "move";
+    notifyDragStart?.(cardId);
   };
 
   return (
@@ -63,6 +69,7 @@ export function KanbanColumn({
             key={card.id}
             draggable
             onDragStart={e => handleDragStart(e, card.id)}
+            onDragEnd={() => notifyDragEnd?.()}
           >
             <KanbanCard
               card={card}

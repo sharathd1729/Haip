@@ -24,16 +24,31 @@ _IDEMPOTENCY_WINDOW_HOURS = 24
 def list_conversations(
     channel: str = None,
     is_open: bool = None,
+    sort: str = Query(default="smart", pattern="^(smart|recent|unread)$"),
     limit: int = Query(default=50, le=200),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    from sqlalchemy import case, func
     q = db.query(Conversation).filter_by(tenant_id=current_user.tenant_id)
     if channel:
         q = q.filter_by(channel=channel)
     if is_open is not None:
         q = q.filter_by(is_open=is_open)
-    return q.order_by(Conversation.last_message_at.desc().nullslast()).limit(limit).all()
+
+    if sort == "unread":
+        q = q.order_by(
+            Conversation.unread_count.desc().nullslast(),
+            Conversation.last_message_at.desc().nullslast(),
+        )
+    elif sort == "smart":
+        # Priority: (1) unread first, (2) recent
+        unread_first = case((Conversation.unread_count > 0, 0), else_=1)
+        q = q.order_by(unread_first, Conversation.last_message_at.desc().nullslast())
+    else:
+        q = q.order_by(Conversation.last_message_at.desc().nullslast())
+
+    return q.limit(limit).all()
 
 
 @router.get("/{conversation_id}/messages", response_model=List[MessageOut])
@@ -142,6 +157,51 @@ def request_ai_draft(
         tenant_id=current_user.tenant_id,
     )
     return {"status": "draft_queued", "draft_id": draft_id}
+
+
+@router.post("/{conversation_id}/messages/{message_id}/retry", response_model=MessageOut)
+def retry_failed_message(
+    conversation_id: str,
+    message_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Re-enqueue delivery for a failed message (W23).
+    Uses the original idempotency_key — safe to double-click.
+    Only allowed within 24h of original failure.
+    """
+    msg = db.query(Message).filter_by(
+        id=message_id, conversation_id=conversation_id, tenant_id=current_user.tenant_id
+    ).first()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if msg.delivery_state != MessageDeliveryState.FAILED:
+        raise HTTPException(status_code=409, detail="Message is not in failed state")
+
+    # Guard: only allow retry within 24h
+    if msg.created_at:
+        created = msg.created_at
+        if hasattr(created, "replace") and created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        age = (datetime.now(timezone.utc) - created).total_seconds()
+        if age > 86400:
+            raise HTTPException(status_code=410, detail="Retry window (24h) has expired")
+
+    msg.delivery_state = MessageDeliveryState.PENDING
+    msg.delivery_error = None
+    db.commit()
+    db.refresh(msg)
+
+    # Back to QUEUED and re-dispatch
+    msg.delivery_state = MessageDeliveryState.QUEUED
+    db.commit()
+
+    from app.workers.tasks.send_whatsapp import send_whatsapp
+    send_whatsapp.delay(message_id=message_id, tenant_id=current_user.tenant_id)
+
+    db.refresh(msg)
+    return msg
 
 
 @router.post("/{conversation_id}/messages/{message_id}/approve")

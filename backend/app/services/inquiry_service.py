@@ -1,5 +1,6 @@
 """Inquiry pipeline service — with state-machine transition validation."""
 import uuid
+from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy.orm import Session
 from app.models.inquiry import Inquiry, InquiryStage, InquirySource
@@ -171,6 +172,7 @@ def _apply_stage(
     """Write the stage change + audit event. Caller must commit."""
     old_stage = inquiry.stage
     inquiry.stage = new_stage
+    inquiry.current_stage_entered_at = datetime.now(timezone.utc)
 
     # Write audit event (best-effort — don't crash the transition if audit fails)
     try:

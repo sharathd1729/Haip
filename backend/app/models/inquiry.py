@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, JSON, ForeignKey, Text, Numeric, Integer, Enum as SAEnum
+from sqlalchemy import Column, String, Boolean, JSON, ForeignKey, Text, Numeric, Integer, DateTime, Enum as SAEnum
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 from app.models.base import TimestampMixin, TenantMixin, gen_uuid
@@ -70,6 +70,9 @@ class Inquiry(Base, TimestampMixin, TenantMixin):
     quoted_amount = Column(Numeric(12, 2), nullable=True)
     quoted_at = Column(String, nullable=True)
     quote_pdf_url = Column(Text, nullable=True)
+
+    # Stage timing (K5)
+    current_stage_entered_at = Column(DateTime(timezone=True), nullable=True)
 
     # SLA tracking
     first_response_at = Column(String, nullable=True)

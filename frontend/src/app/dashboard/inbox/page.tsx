@@ -7,12 +7,14 @@ import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { ConversationList } from "@/components/inbox/ConversationList";
 import { MessageBubble } from "@/components/inbox/MessageBubble";
+import { SavedReplyMenu } from "@/components/inbox/SavedReplyMenu";
 import { TypingDots } from "@/components/inbox/TypingDots";
 import { ChannelIcon } from "@/components/inbox/ChannelIcon";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useInboxStore } from "@/store/inbox";
 import { useInboxStream } from "@/hooks/useInboxStream";
+import { useAutoGrow } from "@/hooks/useAutoGrow";
 import { useToast } from "@/components/ui/toast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -21,7 +23,9 @@ interface Message {
   id: string;
   text: string;
   direction: "inbound" | "outbound";
-  status?: "pending" | "sent" | "delivered" | "read" | "failed";
+  status?: "pending" | "queued" | "sent" | "delivered" | "read" | "failed";
+  delivery_state?: string;
+  delivery_error?: string;
   timestamp: string;
   sender_name?: string;
   ai_drafted?: boolean;
@@ -64,7 +68,15 @@ export default function InboxPage() {
   const [aiTyping, setAiTyping] = useState(false);
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
+  const [emptyPulse, setEmptyPulse] = useState(false);
+  const [showSavedReplies, setShowSavedReplies] = useState(false);
+  const [savedReplyQuery, setSavedReplyQuery] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useAutoGrow(textareaRef, replyText, 6);
+
+  const isEmpty = replyText.trim().length === 0;
 
   const { isLoading: listLoading } = useQuery({
     queryKey: ["conversations"],
@@ -107,6 +119,16 @@ export default function InboxPage() {
     onError: () => toast({ variant: "error", title: "Send failed" }),
   });
 
+  const retryMutation = useMutation({
+    mutationFn: ({ conversationId, messageId }: { conversationId: string; messageId: string }) =>
+      api.post(`/conversations/${conversationId}/messages/${messageId}/retry`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["conversation", activeConversationId] });
+      toast({ variant: "success", title: "Message re-queued" });
+    },
+    onError: () => toast({ variant: "error", title: "Retry failed" }),
+  });
+
   const draftMutation = useMutation({
     mutationFn: () =>
       api.post(`/conversations/${activeConversationId}/messages/ai-draft`, {}),
@@ -127,9 +149,39 @@ export default function InboxPage() {
     onError: () => toast({ variant: "error", title: "Approval failed" }),
   });
 
+  // W1: pulse animation on empty send attempt
+  const triggerEmptyPulse = () => {
+    setEmptyPulse(true);
+    setTimeout(() => setEmptyPulse(false), 800);
+  };
+
   const handleSend = () => {
-    if (!replyText.trim() || !activeConversationId) return;
+    if (isEmpty) { triggerEmptyPulse(); return; }
+    if (!activeConversationId) return;
     sendMutation.mutate(replyText.trim());
+  };
+
+  // W3: "/" in composer opens saved-reply menu
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setReplyText(val);
+    if (val === "/" || val.startsWith("/")) {
+      setShowSavedReplies(true);
+      setSavedReplyQuery(val.slice(1));
+    } else {
+      setShowSavedReplies(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Cmd+Enter / Ctrl+Enter also sends (X2)
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); handleSend(); return; }
+    // Plain Enter sends; Shift+Enter inserts newline (W2)
+    if (e.key === "Enter" && !e.shiftKey) {
+      if (showSavedReplies) return; // let SavedReplyMenu handle Enter
+      e.preventDefault();
+      handleSend();
+    }
   };
 
   return (
@@ -231,7 +283,8 @@ export default function InboxPage() {
                       id={msg.id}
                       text={msg.text}
                       direction={msg.direction}
-                      status={msg.status}
+                      status={(msg.delivery_state ?? msg.status) as any}
+                      deliveryError={msg.delivery_error}
                       timestamp={msg.timestamp}
                       isAiDraft={!!(msg.ai_drafted && msg.direction === "outbound")}
                       aiConfidence={msg.ai_confidence}
@@ -242,6 +295,7 @@ export default function InboxPage() {
                         api.post(`/conversations/${activeConversationId}/messages/${id}/reject`, {}).catch(() => {});
                         queryClient.invalidateQueries({ queryKey: ["conversation", activeConversationId] });
                       }}
+                      onRetry={(id) => retryMutation.mutate({ conversationId: activeConversationId!, messageId: id })}
                     />
                   ))}
                   {aiTyping && <div className="flex justify-start"><TypingDots /></div>}
@@ -275,23 +329,58 @@ export default function InboxPage() {
               </div>
             )}
 
-            <div className="px-4 py-3 border-t border-gray-100 flex gap-2 flex-shrink-0">
-              <textarea
-                value={replyText}
-                onChange={e => setReplyText(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                rows={1}
-                placeholder="Type a message… (Enter to send)"
-                className="flex-1 text-sm border border-gray-200 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none bg-gray-50 placeholder:text-gray-400"
-                style={{ minHeight: "42px", maxHeight: "120px" }}
-              />
-              <button
-                onClick={handleSend}
-                disabled={!replyText.trim() || sendMutation.isPending}
-                className="w-10 h-10 rounded-xl bg-[#0B1F3A] hover:bg-[#163458] disabled:opacity-40 text-white flex items-center justify-center flex-shrink-0 transition-colors"
-              >
-                {sendMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-              </button>
+            {/* Composer — W1, W2, W3 */}
+            <div className="px-4 pt-2 pb-1 border-t border-gray-100 flex-shrink-0">
+              <div className="relative flex gap-2 items-end">
+                {/* W3: SavedReplyMenu */}
+                {showSavedReplies && (
+                  <SavedReplyMenu
+                    query={savedReplyQuery}
+                    context={{
+                      guest_name: detail?.guest_name,
+                    }}
+                    onSelect={(resolved) => {
+                      setReplyText(resolved);
+                      setShowSavedReplies(false);
+                      textareaRef.current?.focus();
+                    }}
+                    onClose={() => setShowSavedReplies(false)}
+                    anchorRef={textareaRef}
+                  />
+                )}
+                <textarea
+                  ref={textareaRef}
+                  value={replyText}
+                  onChange={handleTextChange}
+                  onKeyDown={handleKeyDown}
+                  rows={1}
+                  placeholder="Type a message or / for saved replies…"
+                  className={cn(
+                    "flex-1 text-sm border rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none bg-gray-50 placeholder:text-gray-400 transition-all",
+                    // W1: pulse on empty send attempt
+                    emptyPulse ? "border-red-300 ring-2 ring-red-200 animate-pulse" : "border-gray-200"
+                  )}
+                  style={{ minHeight: "42px" }}
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={sendMutation.isPending}
+                  className={cn(
+                    "w-10 h-10 rounded-xl text-white flex items-center justify-center flex-shrink-0 transition-colors",
+                    // W1: visually distinct when empty (no opacity trick — just color shift)
+                    isEmpty
+                      ? "bg-gray-300 cursor-not-allowed"
+                      : "bg-[#0B1F3A] hover:bg-[#163458]"
+                  )}
+                  aria-label="Send message"
+                >
+                  {sendMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                </button>
+              </div>
+              {/* W2: helper text */}
+              <p className="text-[10px] text-gray-400 mt-1 px-1">
+                Enter to send · Shift+Enter for newline · / for saved replies
+              </p>
             </div>
           </>
         )}

@@ -1,15 +1,16 @@
 "use client";
-import { CheckCheck, Check, Clock, Sparkles, ThumbsUp, ThumbsDown, Edit2 } from "lucide-react";
+import { CheckCheck, Check, Clock, RotateCw, Sparkles, ThumbsUp, ThumbsDown, Edit2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type MessageDirection = "inbound" | "outbound";
-export type MessageStatus = "pending" | "sent" | "delivered" | "read" | "failed";
+export type MessageStatus = "pending" | "queued" | "sent" | "delivered" | "read" | "failed";
 
 export interface MessageBubbleProps {
   id: string;
   text: string;
   direction: MessageDirection;
   status?: MessageStatus;
+  deliveryError?: string;
   timestamp: string;
   isAiDraft?: boolean;
   aiConfidence?: number;
@@ -17,16 +18,37 @@ export interface MessageBubbleProps {
   onApprove?: (id: string) => void;
   onEdit?: (id: string, text: string) => void;
   onReject?: (id: string) => void;
+  onRetry?: (id: string) => void;
   className?: string;
 }
 
-function StatusIcon({ status }: { status?: MessageStatus }) {
-  if (status === "read")      return <CheckCheck size={12} className="text-teal-400" />;
-  if (status === "delivered") return <CheckCheck size={12} className="text-gray-400" />;
-  if (status === "sent")      return <Check size={12} className="text-gray-400" />;
-  if (status === "pending")   return <Clock size={12} className="text-gray-300" />;
-  if (status === "failed")    return <span className="text-[10px] text-red-400">!</span>;
-  return null;
+const STATUS_META: Record<
+  MessageStatus,
+  { icon: React.ReactNode; label: string; color: string }
+> = {
+  pending:   { icon: <Clock size={12} />,       label: "Pending",   color: "text-gray-300" },
+  queued:    { icon: <Clock size={12} />,        label: "Queued",    color: "text-gray-300" },
+  sent:      { icon: <Check size={12} />,        label: "Sent",      color: "text-gray-400" },
+  delivered: { icon: <CheckCheck size={12} />,   label: "Delivered", color: "text-gray-400" },
+  read:      { icon: <CheckCheck size={12} />,   label: "Read",      color: "text-teal-400" },
+  failed:    { icon: <RotateCw size={12} />,     label: "Failed",    color: "text-red-400" },
+};
+
+// W20: always-visible status icon with tooltip
+function StatusIcon({ status, error }: { status?: MessageStatus; error?: string }) {
+  if (!status) return null;
+  const meta = STATUS_META[status];
+  if (!meta) return null;
+  const tip = error ? `Failed: ${error}` : meta.label;
+  return (
+    <span
+      title={tip}
+      className={cn("flex-shrink-0 transition-colors", meta.color)}
+      aria-label={tip}
+    >
+      {meta.icon}
+    </span>
+  );
 }
 
 function formatTime(iso: string) {
@@ -39,6 +61,7 @@ export function MessageBubble({
   text,
   direction,
   status,
+  deliveryError,
   timestamp,
   isAiDraft,
   aiConfidence,
@@ -46,9 +69,11 @@ export function MessageBubble({
   onApprove,
   onEdit,
   onReject,
+  onRetry,
   className,
 }: MessageBubbleProps) {
   const isOut = direction === "outbound";
+  const isFailed = status === "failed";
 
   return (
     <div className={cn("flex flex-col", isOut ? "items-end" : "items-start", className)}>
@@ -64,6 +89,8 @@ export function MessageBubble({
           isOut
             ? isAiDraft
               ? "bg-teal-50 border border-teal-200 text-gray-800 rounded-br-sm"
+              : isFailed
+              ? "bg-red-50 border border-red-200 text-gray-800 rounded-br-sm"
               : "bg-[#0B1F3A] text-white rounded-br-sm"
             : "bg-white border border-gray-100 shadow-sm text-gray-800 rounded-bl-sm"
         )}>
@@ -81,10 +108,20 @@ export function MessageBubble({
           <p className="whitespace-pre-wrap">{text}</p>
         </div>
 
-        {/* Meta row */}
+        {/* Meta row — W20: status always visible, not hover-gated */}
         <div className={cn("flex items-center gap-1.5 px-1", isOut ? "flex-row-reverse" : "flex-row")}>
           <span className="text-[10px] text-gray-400">{formatTime(timestamp)}</span>
-          {isOut && <StatusIcon status={status} />}
+          {isOut && <StatusIcon status={status} error={deliveryError} />}
+          {/* W23: inline retry for failed messages */}
+          {isOut && isFailed && onRetry && (
+            <button
+              onClick={() => onRetry(id)}
+              title={deliveryError ? `Retry — last error: ${deliveryError}` : "Retry sending"}
+              className="flex items-center gap-0.5 text-[10px] font-medium text-red-500 hover:text-red-700 transition-colors ml-1"
+            >
+              <RotateCw size={10} /> Retry
+            </button>
+          )}
         </div>
 
         {/* AI draft action buttons */}
