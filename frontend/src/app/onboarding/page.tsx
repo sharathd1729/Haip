@@ -798,8 +798,6 @@ export default function OnboardingPage() {
                       </button>
                     ))}
                   </div>
-                </div>
-
                   <FieldError msg={fieldErrors.segment} />
                 </div>
 
