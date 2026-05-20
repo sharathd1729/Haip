@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { Send, Sparkles, User, Loader2, BellOff, Search, X, StickyNote, Reply, Clock, ChevronDown, CalendarClock, Timer, AlertTriangle, LayoutTemplate } from "lucide-react";
+import { Send, Sparkles, User, Loader2, BellOff, Search, X, StickyNote, Reply, Clock, ChevronDown, ChevronLeft, CalendarClock, Timer, AlertTriangle, LayoutTemplate } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { ConversationList } from "@/components/inbox/ConversationList";
@@ -147,6 +147,9 @@ export default function InboxPage() {
     markRead,
     setAiDraft,
   } = useInboxStore();
+
+  // Mobile: single-panel navigation ("list" | "thread")
+  const [mobileView, setMobileView] = useState<"list" | "thread">("list");
 
   const [channelFilter, setChannelFilter] = useState("");
   const [replyText, setReplyText] = useState("");
@@ -412,8 +415,14 @@ export default function InboxPage() {
 
   return (
     <div className="h-full flex overflow-hidden bg-white">
-      {/* Left: conversation list */}
-      <div className="w-72 flex-shrink-0 border-r border-gray-100 flex flex-col">
+      {/* Left: conversation list — full-width on mobile when mobileView==="list", sidebar on md+ */}
+      <div className={cn(
+        "flex-col border-r border-gray-100",
+        // mobile: full width on list view, hidden on thread view
+        mobileView === "list" ? "flex w-full" : "hidden",
+        // desktop: always visible, fixed width
+        "md:flex md:w-72 md:flex-shrink-0",
+      )}>
         {/* W18: online agents indicator */}
         {onlineUsers.length > 0 && (
           <div className="px-3 py-1.5 border-b border-gray-50 flex items-center gap-1.5">
@@ -481,7 +490,7 @@ export default function InboxPage() {
           <ConversationList
             conversations={conversations}
             activeId={activeConversationId}
-            onSelect={id => setActiveConversation(id)}
+            onSelect={id => { setActiveConversation(id); setMobileView("thread"); }}
             channelFilter={channelFilter || undefined}
             className="flex-1"
             onBulkResolve={ids => {
@@ -498,8 +507,12 @@ export default function InboxPage() {
         )}
       </div>
 
-      {/* Center: message thread */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Center: message thread — full-width on mobile when mobileView==="thread" */}
+      <div className={cn(
+        "flex-col overflow-hidden",
+        mobileView === "thread" ? "flex flex-1" : "hidden",
+        "md:flex md:flex-1",
+      )}>
         {!activeConversationId ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
             <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
@@ -510,7 +523,15 @@ export default function InboxPage() {
           </div>
         ) : (
           <>
-            <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-3 flex-shrink-0">
+            <div className="px-3 md:px-5 py-3 border-b border-gray-100 flex items-center gap-2 md:gap-3 flex-shrink-0">
+              {/* Mobile back button */}
+              <button
+                onClick={() => setMobileView("list")}
+                className="md:hidden flex items-center justify-center w-8 h-8 rounded-lg text-gray-500 hover:bg-gray-100 flex-shrink-0 -ml-1"
+                aria-label="Back to conversations"
+              >
+                <ChevronLeft size={18} />
+              </button>
               {detail ? (
                 <>
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-400 to-blue-500 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
@@ -650,7 +671,7 @@ export default function InboxPage() {
               </div>
             )}
 
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+            <div className="flex-1 overflow-y-auto px-3 md:px-5 py-4 space-y-3">
               {detailLoading ? (
                 <div className="space-y-4">
                   {Array.from({ length: 4 }).map((_, i) => (
@@ -758,7 +779,7 @@ export default function InboxPage() {
 
             {/* Composer — W1, W2, W3, W24, W5 */}
             <div className={cn(
-              "px-4 pt-2 pb-1 border-t flex-shrink-0",
+              "px-3 md:px-4 pt-2 pb-2 md:pb-1 border-t flex-shrink-0",
               windowBlocked && !isInternalNote && "hidden",
               isInternalNote ? "border-amber-200 bg-amber-50/40" : "border-gray-100"
             )}>
@@ -934,9 +955,9 @@ export default function InboxPage() {
         )}
       </div>
 
-      {/* Right: guest mini-card */}
+      {/* Right: guest mini-card — hidden on mobile */}
       {detail && (
-        <div className="w-64 flex-shrink-0 border-l border-gray-100 overflow-y-auto p-4 space-y-4">
+        <div className="hidden md:flex md:flex-col w-64 flex-shrink-0 border-l border-gray-100 overflow-y-auto p-4 space-y-4">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Guest</p>
             <div className="flex items-center gap-2.5">
