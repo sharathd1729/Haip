@@ -84,7 +84,7 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/register", response_model=LoginResponse, status_code=status.HTTP_201_CREATED)
-def register(req: RegisterRequest, db: Session = Depends(get_db)):
+async def register(req: RegisterRequest, db: Session = Depends(get_db)):
     # Check email unique
     if db.query(User).filter_by(email=req.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -127,6 +127,13 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
         token_hash=token_hash,
     ))
     db.commit()
+
+    # Send welcome email (non-blocking — never fail registration if email fails)
+    try:
+        from app.services.email_service import send_welcome_email
+        await send_welcome_email(to_email=user.email, name=user.name, tenant_name=tenant.name)
+    except Exception as exc:
+        log.warning("welcome_email_failed", email=user.email, error=str(exc))
 
     return LoginResponse(
         access_token=access,
@@ -585,3 +592,92 @@ def mfa_disable(
     user.mfa_secret = None
     db.commit()
     return {"status": "mfa_disabled"}
+
+
+# ─── Forgot / Reset Password ──────────────────────────────────────────────────
+
+_RESET_TTL = 3600  # 1 hour
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+@router.post("/forgot-password", status_code=200)
+async def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """
+    Send a password-reset link to the given email.
+    Always returns 200 — never reveals whether the email exists (prevents enumeration).
+    """
+    _GENERIC_RESPONSE = {"message": "If that email is registered, you'll receive a reset link shortly."}
+
+    user = db.query(User).filter_by(email=req.email, is_deleted=False).first()
+    if not user:
+        return _GENERIC_RESPONSE
+
+    r = _get_redis()
+    if r is None:
+        log.warning("forgot_password_redis_unavailable", email=req.email)
+        return _GENERIC_RESPONSE
+
+    # Generate a secure token
+    reset_token = secrets.token_urlsafe(32)
+    redis_key = f"pwd_reset:{reset_token}"
+    r.setex(redis_key, _RESET_TTL, user.id)
+
+    reset_link = f"{settings.FRONTEND_URL}/reset-password?token={reset_token}"
+
+    try:
+        from app.services.email_service import send_password_reset_email
+        await send_password_reset_email(
+            to_email=user.email,
+            name=user.name,
+            reset_link=reset_link,
+        )
+        log.info("password_reset_email_sent", user_id=user.id)
+    except Exception as exc:
+        log.error("password_reset_email_failed", user_id=user.id, error=str(exc))
+
+    return _GENERIC_RESPONSE
+
+
+@router.post("/reset-password", status_code=200)
+def reset_password(req: ResetPasswordRequest, db: Session = Depends(get_db)):
+    """
+    Validate reset token and update the user's password.
+    Token is single-use and expires after 1 hour.
+    """
+    if len(req.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+
+    r = _get_redis()
+    if r is None:
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable. Please try again shortly.")
+
+    redis_key = f"pwd_reset:{req.token}"
+    user_id = r.get(redis_key)
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Reset link is invalid or has expired. Please request a new one.")
+
+    user = db.query(User).filter_by(id=user_id, is_deleted=False).first()
+    if not user or not user.is_active:
+        r.delete(redis_key)
+        raise HTTPException(status_code=404, detail="Account not found.")
+
+    # Update password
+    user.hashed_password = get_password_hash(req.new_password)
+
+    # Revoke all existing refresh tokens for security
+    db.query(RefreshToken).filter_by(user_id=user.id, is_revoked=False).update({"is_revoked": True})
+    db.commit()
+
+    # Consume token — single use
+    r.delete(redis_key)
+
+    log.info("password_reset_success", user_id=user.id)
+    return {"message": "Password updated successfully. Please sign in with your new password."}

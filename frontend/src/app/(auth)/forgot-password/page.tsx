@@ -7,14 +7,29 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Stub: In production, call POST /auth/forgot-password
-    await new Promise(r => setTimeout(r, 800));
-    setLoading(false);
-    setSent(true);
+    setError("");
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.detail || "Something went wrong. Please try again.");
+      } else {
+        setSent(true);
+      }
+    } catch {
+      setError("Unable to reach the server. Please check your connection.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -38,7 +53,7 @@ export default function ForgotPasswordPage() {
               <p className="text-gray-500 text-sm leading-relaxed mb-6">
                 We&apos;ve sent a password reset link to{" "}
                 <span className="font-medium text-gray-700">{email}</span>.
-                It expires in 30 minutes.
+                It expires in 1 hour.
               </p>
               <p className="text-xs text-gray-400 mb-6">
                 Don&apos;t see it? Check your spam folder, or{" "}
@@ -76,6 +91,13 @@ export default function ForgotPasswordPage() {
                     suppressHydrationWarning
                   />
                 </div>
+
+                {error && (
+                  <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                    {error}
+                  </p>
+                )}
+
                 <button
                   type="submit"
                   disabled={loading}
