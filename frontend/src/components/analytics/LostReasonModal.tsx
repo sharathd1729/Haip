@@ -28,9 +28,9 @@ interface LostInquiry {
 
 interface LostInquiryPage {
   theme: string;
-  total: int;
-  page: int;
-  per_page: int;
+  total: number;
+  page: number;
+  per_page: number;
   items: LostInquiry[];
 }
 

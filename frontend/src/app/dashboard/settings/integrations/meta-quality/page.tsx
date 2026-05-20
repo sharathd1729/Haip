@@ -345,9 +345,10 @@ export default function MetaQualityPage() {
                   />
                   <Tooltip
                     contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }}
-                    formatter={(v: number) => {
+                    formatter={(v) => {
+                      const n = typeof v === "number" ? v : Number(v);
                       const map: Record<number, string> = { 3: "GREEN", 2: "YELLOW", 1: "RED", 0: "UNKNOWN" };
-                      return [map[v] ?? v, "Rating"];
+                      return [map[n] ?? String(n), "Rating"] as [string, string];
                     }}
                   />
                   {/* Reference lines for thresholds */}

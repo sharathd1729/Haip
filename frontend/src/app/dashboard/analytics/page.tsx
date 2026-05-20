@@ -550,10 +550,9 @@ export default function AnalyticsPage() {
                     fill={a.direction === "high" ? RED_400 : AMBER_400}
                     stroke="white"
                     strokeWidth={2}
-                    isFront
                     label={{
                       value: a.direction === "high" ? "▲" : "▼",
-                      position: a.direction === "high" ? "top" : "bottom",
+                      position: a.direction === "high" ? "top" : "bottom" as const,
                       fontSize: 9,
                       fill: a.direction === "high" ? RED_400 : AMBER_400,
                     }}
