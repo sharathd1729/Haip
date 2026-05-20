@@ -100,11 +100,15 @@ class Settings(BaseSettings):
                 raise ValueError("DATABASE_URL must be a real PostgreSQL URL in production.")
             if not (self.GEMINI_API_KEY or self.ANTHROPIC_API_KEY):
                 raise ValueError("At least one AI provider key (GEMINI_API_KEY or ANTHROPIC_API_KEY) is required.")
-            # B1: webhook security — refuse to start if Meta secret is absent
+            # B1: webhook security — warn (not crash) if Meta secret is absent.
+            # WhatsApp/Instagram webhooks will be rejected until this is set,
+            # but core call-intelligence features still function without it.
             if not self.META_APP_SECRET:
-                raise ValueError(
-                    "META_APP_SECRET must be set in production. "
-                    "Without it, all Meta webhooks (WhatsApp/Instagram) are unauthenticated."
+                import warnings
+                warnings.warn(
+                    "META_APP_SECRET is not set. All inbound Meta webhooks "
+                    "(WhatsApp / Instagram) will be rejected until this is configured.",
+                    stacklevel=2,
                 )
             # B6: CORS — refuse to start with the localhost default in prod
             _localhost_defaults = {"http://localhost:3000", "http://localhost:3001", ""}
