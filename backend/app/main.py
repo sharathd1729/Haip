@@ -63,4 +63,33 @@ app.include_router(api_router)
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "1.0.0", "env": settings.ENVIRONMENT}
+    """
+    Public health check — used by Railway, load balancers, and uptime monitors.
+    Returns 200 as long as the process is alive and DB is reachable.
+    Returns 503 only if the database is unreachable (nothing would work anyway).
+    """
+    from app.core.database import engine
+    from sqlalchemy import text
+    db_ok = True
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+    except Exception:
+        db_ok = False
+
+    status_code = 200 if db_ok else 503
+    body = {
+        "status": "ok" if db_ok else "degraded",
+        "version": "1.0.0",
+        "env": settings.ENVIRONMENT,
+        "db": "ok" if db_ok else "unreachable",
+        # Feature flags — shows operators exactly what's enabled
+        "features": {
+            "ai":             settings.ai_enabled,
+            "transcription":  settings.transcription_enabled,
+            "whatsapp":       settings.whatsapp_enabled,
+            "email":          settings.email_enabled,
+        },
+    }
+    from fastapi.responses import JSONResponse
+    return JSONResponse(content=body, status_code=status_code)

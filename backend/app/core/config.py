@@ -1,8 +1,11 @@
 from pydantic_settings import BaseSettings
 from pydantic import model_validator
 from typing import List
+import logging
 
-_INSECURE_DEFAULTS = {
+_log = logging.getLogger("haip.config")
+
+_INSECURE_KEY_DEFAULTS = {
     "change-me-in-production",
     "secret",
     "your-secret-key",
@@ -16,40 +19,29 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     SECRET_KEY: str = "change-me-in-production"
     ALLOWED_ORIGINS: str = "http://localhost:3000"
-    FRONTEND_URL: str = "http://localhost:3000"   # Used for invite links, password reset, etc.
+    FRONTEND_URL: str = "http://localhost:3000"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
     # Database
-    DATABASE_URL: str
+    DATABASE_URL: str = ""
     REDIS_URL: str = "redis://localhost:6379/0"
 
-    # ── Object storage (AWS S3 or Cloudflare R2 — R2 is free 10GB) ──────────
+    # ── Object storage (AWS S3 or Cloudflare R2) ─────────────────────────────
     AWS_ACCESS_KEY_ID: str = ""
     AWS_SECRET_ACCESS_KEY: str = ""
     AWS_REGION: str = "ap-south-1"
     S3_BUCKET_NAME: str = "haip-recordings"
     KMS_KEY_ID: str = ""
-    # Set for Cloudflare R2: https://<account-id>.r2.cloudflarestorage.com
-    # Leave blank for real AWS S3
     AWS_S3_ENDPOINT_URL: str = ""
 
     # ── AI provider selection ─────────────────────────────────────────────────
-    # LLM_PROVIDER: "gemini" | "claude"  (auto-detected from keys if blank)
     LLM_PROVIDER: str = ""
-    # TRANSCRIPTION_PROVIDER: "groq" | "deepgram" | "whisper"  (auto if blank)
     TRANSCRIPTION_PROVIDER: str = ""
 
-    # Anthropic Claude (paid — fallback when Gemini not configured)
     ANTHROPIC_API_KEY: str = ""
-
-    # Google Gemini (FREE tier: 15 rpm, 1M tokens/day)
     GEMINI_API_KEY: str = ""
-
-    # Groq  (FREE tier: 7200 sec audio/day, fast inference)
     GROQ_API_KEY: str = ""
-
-    # Deepgram (paid — fallback when Groq not configured)
     DEEPGRAM_API_KEY: str = ""
 
     # CallerDesk
@@ -63,13 +55,11 @@ class Settings(BaseSettings):
     ACEFONE_API_SECRET: str = ""
     ACEFONE_WEBHOOK_SECRET: str = ""
 
-    # WhatsApp
+    # WhatsApp / Instagram (Meta)
     META_WHATSAPP_PHONE_NUMBER_ID: str = ""
     META_WHATSAPP_ACCESS_TOKEN: str = ""
     META_WHATSAPP_WEBHOOK_VERIFY_TOKEN: str = ""
     META_APP_SECRET: str = ""
-
-    # Instagram
     META_INSTAGRAM_ACCESS_TOKEN: str = ""
     META_INSTAGRAM_PAGE_ID: str = ""
 
@@ -79,9 +69,6 @@ class Settings(BaseSettings):
 
     # Sentry
     SENTRY_DSN: str = ""
-    # Set by CI to the git SHA / tag (e.g. "v1.2.3" or "abc1234").
-    # Used for Sentry release tracking and source-map association.
-    # In Railway / GitHub Actions: set SENTRY_RELEASE=${{ github.sha }}
     SENTRY_RELEASE: str = ""
 
     # Hostaway
@@ -89,40 +76,91 @@ class Settings(BaseSettings):
     HOSTAWAY_API_KEY: str = ""
 
     @model_validator(mode="after")
-    def _validate_secrets(self) -> "Settings":
-        if self.ENVIRONMENT == "production":
-            if self.SECRET_KEY in _INSECURE_DEFAULTS or len(self.SECRET_KEY) < 32:
-                raise ValueError(
-                    "SECRET_KEY must be a random 32+ character string in production. "
-                    "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
-                )
-            if not self.DATABASE_URL or self.DATABASE_URL.startswith("sqlite"):
-                raise ValueError("DATABASE_URL must be a real PostgreSQL URL in production.")
-            if not (self.GEMINI_API_KEY or self.ANTHROPIC_API_KEY):
-                raise ValueError("At least one AI provider key (GEMINI_API_KEY or ANTHROPIC_API_KEY) is required.")
-            # B1: webhook security — warn (not crash) if Meta secret is absent.
-            # WhatsApp/Instagram webhooks will be rejected until this is set,
-            # but core call-intelligence features still function without it.
-            if not self.META_APP_SECRET:
-                import warnings
-                warnings.warn(
-                    "META_APP_SECRET is not set. All inbound Meta webhooks "
-                    "(WhatsApp / Instagram) will be rejected until this is configured.",
-                    stacklevel=2,
-                )
-            # B6: CORS — refuse to start with the localhost default in prod
-            _localhost_defaults = {"http://localhost:3000", "http://localhost:3001", ""}
+    def _validate_and_warn(self) -> "Settings":
+        """
+        Hard-fail ONLY on the two things that make the whole app non-functional:
+          1. No DATABASE_URL  — nothing can be persisted
+          2. Weak SECRET_KEY  — all JWT tokens are compromised
+
+        Every other missing key is a WARN — it disables that specific feature
+        but must never crash the platform for all tenants.
+        """
+        is_prod = self.ENVIRONMENT == "production"
+
+        # ── Hard failures (always, any environment) ───────────────────────────
+        if not self.DATABASE_URL:
+            raise ValueError(
+                "DATABASE_URL is required. Set it to your PostgreSQL connection string."
+            )
+        if self.DATABASE_URL.startswith("sqlite") and is_prod:
+            raise ValueError(
+                "DATABASE_URL must be a PostgreSQL URL in production. "
+                "SQLite does not support the multi-tenant row-level security used by HAIP."
+            )
+        if is_prod and (self.SECRET_KEY in _INSECURE_KEY_DEFAULTS or len(self.SECRET_KEY) < 32):
+            raise ValueError(
+                "SECRET_KEY must be a random 32+ character string in production.\n"
+                "Generate one: python -c \"import secrets; print(secrets.token_hex(32))\""
+            )
+
+        # ── Soft warnings (feature-level degradation, never crash) ────────────
+        if is_prod:
+            _localhost = {"http://localhost:3000", "http://localhost:3001", ""}
             origins = {o.strip() for o in self.ALLOWED_ORIGINS.split(",")}
-            if origins <= _localhost_defaults or not self.ALLOWED_ORIGINS.strip():
-                raise RuntimeError(
-                    "ALLOWED_ORIGINS must be set explicitly in production "
-                    "(e.g. 'https://yourdomain.com'). The localhost default is not valid."
+            if origins <= _localhost:
+                _log.warning(
+                    "ALLOWED_ORIGINS is still set to localhost. "
+                    "Browser requests from your production frontend will be blocked by CORS. "
+                    "Set ALLOWED_ORIGINS=https://your-app.vercel.app in Railway."
                 )
+
+            if not (self.GEMINI_API_KEY or self.ANTHROPIC_API_KEY):
+                _log.warning(
+                    "No AI provider key found (GEMINI_API_KEY or ANTHROPIC_API_KEY). "
+                    "Call transcription, QA scoring and AI drafts will be unavailable."
+                )
+
+            if not self.META_APP_SECRET:
+                _log.warning(
+                    "META_APP_SECRET not set. "
+                    "Inbound WhatsApp/Instagram webhooks will be rejected (signature check fails). "
+                    "Core call-intelligence and CRM features are unaffected."
+                )
+
+            if not self.GROQ_API_KEY and not self.DEEPGRAM_API_KEY:
+                _log.warning(
+                    "No transcription key (GROQ_API_KEY or DEEPGRAM_API_KEY). "
+                    "Call transcription will be unavailable."
+                )
+
+            if not self.RESEND_API_KEY:
+                _log.warning(
+                    "RESEND_API_KEY not set. Invitation emails will be silently dropped."
+                )
+
         return self
+
+    # ── Feature-flag helpers (use these in feature code instead of key checks) ─
+
+    @property
+    def ai_enabled(self) -> bool:
+        return bool(self.GEMINI_API_KEY or self.ANTHROPIC_API_KEY)
+
+    @property
+    def transcription_enabled(self) -> bool:
+        return bool(self.GROQ_API_KEY or self.DEEPGRAM_API_KEY)
+
+    @property
+    def whatsapp_enabled(self) -> bool:
+        return bool(self.META_APP_SECRET and self.META_WHATSAPP_ACCESS_TOKEN)
+
+    @property
+    def email_enabled(self) -> bool:
+        return bool(self.RESEND_API_KEY)
 
     @property
     def allowed_origins_list(self) -> List[str]:
-        return [o.strip() for o in self.ALLOWED_ORIGINS.split(",")]
+        return [o.strip() for o in self.ALLOWED_ORIGINS.split(",") if o.strip()]
 
     class Config:
         env_file = ".env"
