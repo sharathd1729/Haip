@@ -112,26 +112,27 @@ interface AnomalyTooltipProps {
   // recharts TooltipPayloadEntry.value is ValueType | undefined — keep loose
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   payload?: readonly any[];
-  label?: string;
+  label?: string | number;
   anomalyMap?: Record<string, AnomalyPoint>;
 }
 
 function AnomalyTooltip({ active, payload, label, anomalyMap = {} }: AnomalyTooltipProps) {
   if (!active || !payload?.length) return null;
-  const anomaly = label ? anomalyMap[label] : null;
+  const labelStr = label != null ? String(label) : undefined;
+  const anomaly = labelStr ? anomalyMap[labelStr] : null;
   return (
     <div
       className="bg-white border border-gray-200 rounded-xl p-3 shadow-md text-xs"
       style={{ minWidth: 152 }}
     >
       <p className="font-semibold text-gray-900 mb-1.5">
-        {label
-          ? new Date(label).toLocaleDateString("en-IN", {
+        {labelStr
+          ? new Date(labelStr).toLocaleDateString("en-IN", {
               weekday: "short",
               day: "numeric",
               month: "short",
             })
-          : label}
+          : labelStr}
       </p>
       {payload.map((p, i) => (
         <p key={i} style={{ color: p.color }} className="mb-0.5">
