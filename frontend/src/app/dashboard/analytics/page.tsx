@@ -109,7 +109,7 @@ function DeltaChip({ delta, invertColor = false }: { delta: KPIDelta; invertColo
 
 interface AnomalyTooltipProps {
   active?: boolean;
-  payload?: Array<{ value: number; name: string; color: string }>;
+  payload?: ReadonlyArray<{ value: number; name: string; color: string }>;
   label?: string;
   anomalyMap?: Record<string, AnomalyPoint>;
 }
