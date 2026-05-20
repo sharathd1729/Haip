@@ -109,7 +109,9 @@ function DeltaChip({ delta, invertColor = false }: { delta: KPIDelta; invertColo
 
 interface AnomalyTooltipProps {
   active?: boolean;
-  payload?: ReadonlyArray<{ value: number; name: string; color: string }>;
+  // recharts TooltipPayloadEntry.value is ValueType | undefined — keep loose
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload?: readonly any[];
   label?: string;
   anomalyMap?: Record<string, AnomalyPoint>;
 }
