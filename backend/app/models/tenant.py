@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, JSON
+from sqlalchemy import Column, String, Boolean, JSON, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -30,6 +30,14 @@ class Tenant(Base, TimestampMixin):
     # Limits (overrides plan defaults)
     monthly_call_limit = Column(String, nullable=True)
     monthly_wa_limit = Column(String, nullable=True)
+
+    # K14: round-robin assignment state
+    last_assigned_user_id = Column(String, nullable=True)
+
+    # B10: per-tenant timezone + business hours
+    timezone = Column(String(60), default="Asia/Kolkata", nullable=False)
+    # business_hours: dict keyed by weekday 0-6 (Mon-Sun), each {"open": "HH:MM", "close": "HH:MM", "closed": bool}
+    business_hours = Column(JSON, default=dict, nullable=False)
 
     users = relationship("User", back_populates="tenant", lazy="dynamic")
     guests = relationship("Guest", back_populates="tenant", lazy="dynamic")

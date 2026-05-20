@@ -526,15 +526,165 @@ def connect_integration(
     return row
 
 
+@router.get("/meta/quality")
+def get_meta_quality(
+    days: int = 30,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    S7 — Return the last `days` of Meta WABA quality snapshots for the tenant.
+    Frontend uses these to render the quality trend chart.
+    """
+    from app.workers.tasks.meta_quality_poll import MetaQualitySnapshot
+    from datetime import timedelta
+    from sqlalchemy import func
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+    snapshots = (
+        db.query(MetaQualitySnapshot)
+        .filter_by(tenant_id=current_user.tenant_id)
+        .filter(MetaQualitySnapshot.created_at >= cutoff)
+        .order_by(MetaQualitySnapshot.created_at.asc())
+        .limit(720)  # 30 days × 24h = 720 hourly snapshots max
+        .all()
+    )
+
+    # Latest snapshot = current state
+    latest = snapshots[-1] if snapshots else None
+
+    return {
+        "current": {
+            "quality_rating": latest.quality_rating if latest else None,
+            "messaging_limit_tier": latest.messaging_limit_tier if latest else None,
+            "polled_at": latest.created_at.isoformat() if latest and latest.created_at else None,
+        },
+        "snapshots": [
+            {
+                "ts": s.created_at.isoformat() if s.created_at else None,
+                "quality_rating": s.quality_rating,
+                "messaging_limit_tier": s.messaging_limit_tier,
+            }
+            for s in snapshots
+        ],
+    }
+
+
 @router.post("/{kind}/test", response_model=IntegrationHealthResponse)
 def test_integration(
     kind: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """
+    O6 — Perform a live round-trip to verify the integration is working.
+    Returns diagnostic message if it fails.
+    Cached: updates last_health_at; caller should debounce on frontend (60s).
+    """
     row = db.query(Integration).filter_by(tenant_id=current_user.tenant_id, kind=kind).first()
     if not row:
-        return IntegrationHealthResponse(kind=kind, status="not_configured")
+        return IntegrationHealthResponse(kind=kind, status="not_configured", message="Integration not configured yet.")
+
+    creds = decrypt_credentials(row.credentials_enc) if row.credentials_enc else {}
+
+    status = "connected"
+    message = "Connection verified successfully."
+
+    try:
+        if kind == "whatsapp_meta":
+            # Call GET /{phone_number_id} on Graph API
+            phone_number_id = creds.get("phone_number_id", "")
+            access_token = creds.get("access_token", "")
+            if not phone_number_id or not access_token:
+                status = "error"
+                message = "Missing phone_number_id or access_token in credentials."
+            else:
+                resp = httpx.get(
+                    f"https://graph.facebook.com/v19.0/{phone_number_id}",
+                    params={"access_token": access_token},
+                    timeout=8,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    display_name = data.get("display_phone_number", phone_number_id)
+                    message = f"Connected: {display_name}"
+                elif resp.status_code == 401:
+                    status = "error"
+                    message = "Token expired or invalid. Please reconnect with a fresh System User token."
+                else:
+                    status = "error"
+                    err = resp.json().get("error", {})
+                    message = f"Meta API error: {err.get('message', resp.text[:120])}"
+
+        elif kind == "instagram":
+            access_token = creds.get("access_token", "")
+            ig_account_id = creds.get("ig_account_id", "")
+            if not access_token or not ig_account_id:
+                status = "error"
+                message = "Missing ig_account_id or access_token."
+            else:
+                resp = httpx.get(
+                    f"https://graph.facebook.com/v19.0/{ig_account_id}",
+                    params={"fields": "id,name", "access_token": access_token},
+                    timeout=8,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    message = f"Connected: {data.get('name', ig_account_id)}"
+                elif resp.status_code == 401:
+                    status = "error"
+                    message = "Token expired or revoked. Please reconnect Instagram."
+                else:
+                    status = "error"
+                    message = f"Instagram API error ({resp.status_code})"
+
+        elif kind in ("callerdesk", "acefone"):
+            # For IVR: call the provider's health/account endpoint
+            api_key = creds.get("api_key", "")
+            if not api_key:
+                status = "error"
+                message = "Missing api_key in credentials."
+            else:
+                if kind == "callerdesk":
+                    resp = httpx.get(
+                        "https://api.callerdesk.io/v1/account",
+                        headers={"Authorization": f"Bearer {api_key}"},
+                        timeout=8,
+                    )
+                else:
+                    resp = httpx.get(
+                        "https://api.acefone.in/v1/account/details",
+                        headers={"X-API-Key": api_key},
+                        timeout=8,
+                    )
+                if resp.status_code == 200:
+                    message = f"{kind.title()} account verified."
+                elif resp.status_code in (401, 403):
+                    status = "error"
+                    message = "Invalid API key. Please check your credentials."
+                else:
+                    status = "error"
+                    message = f"{kind.title()} API error ({resp.status_code})."
+
+        else:
+            # Generic: just mark health timestamp and return ok
+            message = f"{kind} connection appears configured. No active test available."
+
+    except httpx.TimeoutException:
+        status = "error"
+        message = "Connection timed out. Check your credentials or try again."
+    except Exception as exc:
+        status = "error"
+        message = f"Unexpected error: {str(exc)[:120]}"
+
+    # Persist test result
     row.last_health_at = _now()
+    row.status = status  # type: ignore[assignment]
+    if status == "error":
+        row.error_message = message
+    else:
+        row.error_message = None
     db.commit()
-    return IntegrationHealthResponse(kind=kind, status=row.status, message="OK")
+
+    return IntegrationHealthResponse(kind=kind, status=status, message=message)

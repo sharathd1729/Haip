@@ -31,25 +31,33 @@ function DialogContent({
   children,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Popup>) {
+  // M6: lock body scroll when open
   return (
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%]",
-          "gap-4 bg-background p-6 shadow-xl rounded-2xl border border-border",
+          // M6: max-height 90dvh with internal scroll; close button always visible
+          "fixed left-[50%] top-[50%] z-50 flex flex-col w-full max-w-lg translate-x-[-50%] translate-y-[-50%]",
+          "max-h-[90dvh] bg-background shadow-xl rounded-2xl border border-border overflow-hidden",
           "data-[open]:animate-in data-[open]:fade-in-0 data-[open]:zoom-in-95 data-[open]:slide-in-from-left-1/2 data-[open]:slide-in-from-top-48%",
           "data-[closed]:animate-out data-[closed]:fade-out-0 data-[closed]:zoom-out-95 data-[closed]:slide-out-to-left-1/2 data-[closed]:slide-out-to-top-48%",
           className
         )}
         {...props}
       >
-        {children}
-        <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm text-muted-foreground hover:text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-ring">
-          <X size={16} />
-          <span className="sr-only">Close</span>
-        </DialogPrimitive.Close>
+        {/* Sticky close button header */}
+        <div className="flex-shrink-0 flex items-center justify-end px-4 pt-4">
+          <DialogPrimitive.Close className="rounded-sm text-muted-foreground hover:text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-ring">
+            <X size={16} />
+            <span className="sr-only">Close</span>
+          </DialogPrimitive.Close>
+        </div>
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto p-6 pt-2 gap-4 flex flex-col">
+          {children}
+        </div>
       </DialogPrimitive.Popup>
     </DialogPortal>
   );

@@ -5,7 +5,7 @@ import {
   Users, UserPlus, Mail, Shield, Crown, Eye,
   Clock, CheckCircle2, XCircle, ChevronDown,
   Copy, Trash2, Loader2, AlertCircle, X,
-  Settings, RefreshCw, MoreHorizontal,
+  Settings, RefreshCw, MoreHorizontal, MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
@@ -217,11 +217,20 @@ function InviteModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
 
 // ─── Invitation Link Modal ────────────────────────────────────────────────────
 
+function buildWaLink(inviteLink: string, name: string, role: string, tenantName = "our team"): string {
+  const roleLabel = role.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  const msg =
+    `Hi ${name || "there"} 👋\n\nYou've been invited to join *${tenantName}* on HAIP as a *${roleLabel}*.\n\nClick the link to accept:\n${inviteLink}\n\nThis link expires in 24 hours. See you on the platform! 🙌`;
+  return `https://wa.me/?text=${encodeURIComponent(msg)}`;
+}
+
 function InvitationLinkModal({ invitation, onClose }: { invitation: Invitation; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
   const link = typeof window !== "undefined"
     ? `${window.location.origin}/join?token=${invitation.token}`
     : `https://yourapp.com/join?token=${invitation.token}`;
+
+  const waLink = buildWaLink(link, invitation.name, invitation.role);
 
   const copy = () => {
     navigator.clipboard.writeText(link);
@@ -246,8 +255,19 @@ function InvitationLinkModal({ invitation, onClose }: { invitation: Invitation; 
             <p className="text-xs text-gray-500 mt-1">Link expires in 7 days</p>
           </div>
 
+          {/* O10 — WhatsApp share button */}
+          <a
+            href={waLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-semibold transition-colors"
+          >
+            <MessageSquare size={15} />
+            Send via WhatsApp
+          </a>
+
           <div>
-            <p className="text-xs font-semibold text-gray-700 mb-1.5">Invitation link</p>
+            <p className="text-xs font-semibold text-gray-700 mb-1.5">Or copy the link</p>
             <div className="flex items-center gap-2 bg-gray-50 rounded-xl border border-gray-200 px-3 py-2.5">
               <code className="text-[11px] text-gray-600 flex-1 truncate font-mono">{link}</code>
               <button
@@ -625,6 +645,17 @@ function InvitationRow({ invitation, onRevoke }: { invitation: Invitation; onRev
 
       {!invitation.is_accepted && !invitation.is_revoked && (
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* O10 — Share via WhatsApp */}
+          <a
+            href={buildWaLink(link, invitation.name, invitation.role)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-green-600 hover:text-green-800 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-green-50 transition-colors"
+            title="Share via WhatsApp"
+          >
+            <MessageSquare size={12} />
+            <span className="hidden sm:inline">WhatsApp</span>
+          </a>
           <button
             onClick={copy}
             className="text-xs text-teal-600 hover:text-teal-800 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-teal-50 transition-colors"

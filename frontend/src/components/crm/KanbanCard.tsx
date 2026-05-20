@@ -1,5 +1,5 @@
 "use client";
-import { Phone, MessageSquare, Calendar, MoreHorizontal, AlertTriangle, Clock } from "lucide-react";
+import { Phone, MessageSquare, Calendar, MoreHorizontal, AlertTriangle, Clock, StickyNote } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GuestAvatar } from "./GuestAvatar";
 
@@ -73,12 +73,15 @@ export interface KanbanCardData {
   // K6
   sla_state?: string;
   sla_elapsed_seconds?: number;
+  // K15
+  note_count?: number;
 }
 
 interface KanbanCardProps {
   card: KanbanCardData;
   onClick?: (id: string) => void;
   onAssign?: (id: string, userId: string | null) => void;
+  onNoteClick?: (id: string, guestName: string) => void;  // K15
   draggable?: boolean;
   className?: string;
 }
@@ -88,7 +91,7 @@ function formatDate(iso?: string) {
   return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
-export function KanbanCard({ card, onClick, onAssign, draggable, className }: KanbanCardProps) {
+export function KanbanCard({ card, onClick, onAssign, onNoteClick, draggable, className }: KanbanCardProps) {
   const stripe = ageStripeColor(card.current_stage_entered_at);
   const ageTip  = ageLabel(card.current_stage_entered_at);
 
@@ -170,13 +173,26 @@ export function KanbanCard({ card, onClick, onAssign, draggable, className }: Ka
           </div>
         )}
 
-        {/* Footer: channel + K6 SLA badge */}
+        {/* Footer: channel + K6 SLA badge + K15 notes */}
         <div className="flex items-center gap-1.5 justify-between">
           <div className="flex items-center gap-1">
             {card.channel === "whatsapp" && <MessageSquare size={12} className="text-green-500" />}
             {card.channel === "call" && <Phone size={12} className="text-blue-500" />}
           </div>
-          <SlaChip slaState={card.sla_state} elapsedSeconds={card.sla_elapsed_seconds} />
+          <div className="flex items-center gap-1.5">
+            <SlaChip slaState={card.sla_state} elapsedSeconds={card.sla_elapsed_seconds} />
+            {/* K15: notes button */}
+            <button
+              onClick={e => { e.stopPropagation(); onNoteClick?.(card.id, card.guest_name || card.guest_phone); }}
+              title="Internal notes"
+              className="flex items-center gap-0.5 text-[10px] text-gray-400 hover:text-amber-500 transition-colors"
+            >
+              <StickyNote size={11} />
+              {(card.note_count ?? 0) > 0 && (
+                <span className="text-amber-500 font-semibold">{card.note_count}</span>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

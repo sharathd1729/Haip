@@ -5,6 +5,8 @@ import { TopBar } from "@/components/shell/TopBar";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { DashboardSSEBridge } from "./DashboardSSEBridge";
+import { DashboardClientShell, StatusBarSlot } from "@/components/dashboard/DashboardClientShell";
+import { SampleDataBanner } from "@/components/dashboard/SampleDataBanner";
 import { FinishSetupBanner } from "./FinishSetupBanner";
 import { BrandThemeProvider } from "@/components/providers/BrandThemeProvider";
 
@@ -52,6 +54,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <MobileHeader user={user} />
           </div>
 
+          {/* Health status bar (X8) — visible only when degraded */}
+          <StatusBarSlot />
+
+          {/* Sample data banner (O2) — amber strip when viewing sample data */}
+          <SampleDataBanner />
+
           {/* Setup banner (both breakpoints) */}
           {!onboardingComplete && (
             <FinishSetupBanner currentStep={onboardingStep} />
@@ -75,6 +83,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
       {/* SSE bridge — rendered once, outside layout columns */}
       <DashboardSSEBridge />
+
+      {/* Client-side overlays: CommandPalette, StatusBar, ChecklistWidget */}
+      <DashboardClientShell />
     </BrandThemeProvider>
   );
 }

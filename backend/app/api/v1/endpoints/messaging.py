@@ -238,6 +238,38 @@ def create_template(
     return tmpl
 
 
+@router.post("/templates/lint")
+def lint_template(
+    body: TemplateCreateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """T4 — Pre-submit linter: returns lint findings before sending to Meta."""
+    from app.services.template_linter import lint_template as _lint, lint_to_dict
+
+    # Extract body text and header text from components
+    body_text   = ""
+    header_text = None
+    for comp in (body.components or []):
+        ctype = (comp.get("type") or "").upper()
+        if ctype == "BODY":
+            body_text   = comp.get("text", "")
+        elif ctype == "HEADER":
+            header_text = comp.get("text")
+
+    findings = _lint(
+        body=body_text,
+        header=header_text,
+        category=body.category or "UTILITY",
+    )
+    errors = [f for f in findings if f.level == "error"]
+    return {
+        "findings":  lint_to_dict(findings),
+        "has_errors": len(errors) > 0,
+        "can_submit": len(errors) == 0,
+    }
+
+
 @router.post("/templates/{template_id}/submit")
 def submit_template(
     template_id: str,

@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -6,8 +7,14 @@ from app.core.database import get_db
 from app.api.v1.deps import get_current_user
 from app.models.user import User
 from app.models.inquiry import Inquiry, InquiryStage
+from app.models.conversation import Conversation, Message
 from app.schemas.inquiry import InquiryOut, InquiryCreateRequest, InquiryUpdateRequest
 from app.services.inquiry_service import get_or_create, update_stage, InvalidStageTransition
+from app.services.assignment import get_next_assignee
+from pydantic import BaseModel
+
+class NoteRequest(BaseModel):
+    body: str
 
 router = APIRouter(prefix="/inquiries", tags=["inquiries"])
 
@@ -38,6 +45,11 @@ def create_inquiry(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    # K14: auto-assign via round-robin if no explicit assignee
+    assigned_to = body.assigned_to if hasattr(body, "assigned_to") and body.assigned_to else None
+    if not assigned_to:
+        assigned_to = get_next_assignee(db, current_user.tenant_id)
+
     inquiry = Inquiry(
         id=str(uuid.uuid4()),
         tenant_id=current_user.tenant_id,
@@ -51,6 +63,7 @@ def create_inquiry(
         children=body.children,
         occasion=body.occasion,
         budget=body.budget,
+        assigned_to=assigned_to,
     )
     db.add(inquiry)
     db.commit()
@@ -114,3 +127,97 @@ def update_inquiry(
     db.commit()
     db.refresh(inq)
     return inq
+
+
+# ── K15: Internal notes per inquiry ─────────────────────────────────────────
+
+def _get_or_create_notes_conversation(db: Session, inquiry: Inquiry, tenant_id: str) -> Conversation:
+    """Get or create a special 'notes' conversation for this inquiry."""
+    conv = db.query(Conversation).filter_by(
+        inquiry_id=inquiry.id,
+        tenant_id=tenant_id,
+        channel="internal",
+    ).first()
+    if not conv:
+        conv = Conversation(
+            id=str(uuid.uuid4()),
+            tenant_id=tenant_id,
+            guest_id=inquiry.guest_id,
+            inquiry_id=inquiry.id,
+            channel="internal",
+            is_open=True,
+        )
+        db.add(conv)
+        db.flush()
+    return conv
+
+
+@router.get("/{inquiry_id}/notes")
+def list_inquiry_notes(
+    inquiry_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    inq = db.query(Inquiry).filter_by(id=inquiry_id, tenant_id=current_user.tenant_id).first()
+    if not inq:
+        raise HTTPException(status_code=404, detail="Inquiry not found")
+
+    conv = db.query(Conversation).filter_by(
+        inquiry_id=inquiry_id,
+        tenant_id=current_user.tenant_id,
+        channel="internal",
+    ).first()
+    if not conv:
+        return []
+
+    notes = (
+        db.query(Message)
+        .filter_by(conversation_id=conv.id, is_internal=True)
+        .order_by(Message.created_at.asc())
+        .all()
+    )
+    return [
+        {
+            "id": n.id,
+            "body": n.body,
+            "sender_id": n.sender_id,
+            "sender_name": None,  # TODO: join user
+            "created_at": n.created_at.isoformat() if n.created_at else None,
+        }
+        for n in notes
+    ]
+
+
+@router.post("/{inquiry_id}/notes", status_code=201)
+def add_inquiry_note(
+    inquiry_id: str,
+    body: NoteRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    inq = db.query(Inquiry).filter_by(id=inquiry_id, tenant_id=current_user.tenant_id).first()
+    if not inq:
+        raise HTTPException(status_code=404, detail="Inquiry not found")
+
+    conv = _get_or_create_notes_conversation(db, inq, current_user.tenant_id)
+
+    note = Message(
+        id=str(uuid.uuid4()),
+        conversation_id=conv.id,
+        tenant_id=current_user.tenant_id,
+        direction="outbound",
+        body=body.body,
+        sender_id=current_user.id,
+        is_internal=True,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(note)
+    db.commit()
+    db.refresh(note)
+    return {
+        "id": note.id,
+        "body": note.body,
+        "sender_id": note.sender_id,
+        "sender_name": f"{current_user.first_name or ''} {current_user.last_name or ''}".strip() or current_user.email,
+        "created_at": note.created_at.isoformat() if note.created_at else None,
+    }

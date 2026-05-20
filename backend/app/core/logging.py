@@ -6,6 +6,7 @@ All loggers created with structlog.get_logger() will use this config.
 import logging
 import structlog
 from app.core.config import settings
+from app.services.pii_redactor import pii_redaction_processor
 
 
 def configure_logging() -> None:
@@ -15,6 +16,8 @@ def configure_logging() -> None:
         structlog.stdlib.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
+        # D13: redact PII from all log output
+        pii_redaction_processor,
     ]
 
     if settings.ENVIRONMENT == "production":

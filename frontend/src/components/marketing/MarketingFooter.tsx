@@ -33,6 +33,7 @@ const links = {
     { label: "Trust Center", href: "/trust" },
     { label: "DPDP Compliance", href: "/dpdp" },
     { label: "Security", href: "/security" },
+    { label: "Privacy & Grievances", href: "/grievance" },
   ],
 };
 

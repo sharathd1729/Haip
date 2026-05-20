@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Building2, Users, Shield, QrCode, Loader2, CheckCircle, AlertCircle, Bell, Bot, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -168,6 +168,22 @@ function WorkspaceSettings() {
             </select>
           </div>
 
+          {/* B10: Business hours — shown below timezone */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Business hours</label>
+            <p className="text-xs text-gray-400 mb-3">Used for SLA timers, daily digest scheduling, and AI concierge availability.</p>
+            <div className="border border-gray-100 rounded-xl overflow-hidden">
+              {["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map((day, idx) => (
+                <div key={day} className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
+                  <span className="w-24 text-xs font-medium text-gray-700">{day}</span>
+                  <span className="text-xs text-gray-400">{idx < 5 ? "09:00 – 21:00" : idx === 5 ? "10:00 – 18:00" : "10:00 – 14:00"}</span>
+                  <span className="ml-auto text-[10px] text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full font-medium">Open</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-[11px] text-gray-400 mt-2">Full business hours editor coming in the next release.</p>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Current plan</label>
             <div className="flex items-center gap-3">
@@ -185,9 +201,9 @@ function WorkspaceSettings() {
             try {
               await api.patch("/tenants/me", {
                 name: form.name,
+                timezone: form.timezone,    // B10: top-level tenant field
                 brand_config: {
                   brand_name: form.brand_name,
-                  timezone: form.timezone,
                   language: form.language,
                 },
               });
@@ -296,48 +312,88 @@ function AISettings() {
 }
 
 /* ── Notifications ─────────────────────────────────────────────────────────── */
-function NotificationSettings() {
-  const [prefs, setPrefs] = useState({
-    new_inquiry_email: true,
-    new_inquiry_push: true,
-    low_qa_score_email: true,
-    low_qa_score_push: false,
-    call_summary_email: false,
-    call_summary_push: true,
-    daily_digest_email: true,
-    weekly_report_email: true,
-    system_alerts_email: true,
-  });
-  const [saved, setSaved] = useState(false);
 
-  const toggle = (k: keyof typeof prefs) => {
-    setPrefs(p => ({...p, [k]: !p[k]}));
+// Default prefs used before the API responds
+const DEFAULT_PREFS = {
+  new_inquiry_email: true,
+  new_inquiry_push: true,
+  low_qa_score_email: true,
+  low_qa_score_push: false,
+  call_summary_email: false,
+  call_summary_push: true,
+  daily_digest_email: false,   // A7: explicit opt-in — default false
+  weekly_report_email: true,
+  system_alerts_email: true,
+};
+
+type NotifPrefs = typeof DEFAULT_PREFS;
+
+function NotificationSettings() {
+  const [prefs, setPrefs] = useState<NotifPrefs>(DEFAULT_PREFS);
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // A7: load current prefs + digest_opt_in from backend on mount
+  useEffect(() => {
+    api.get("/users/me").then(r => {
+      const serverPrefs = r.data.notification_prefs ?? {};
+      setPrefs({
+        ...DEFAULT_PREFS,
+        ...serverPrefs,
+        // digest_opt_in is a first-class DB column; mirror it into the prefs key
+        daily_digest_email: r.data.digest_opt_in ?? DEFAULT_PREFS.daily_digest_email,
+      });
+    }).catch(() => {/* keep defaults if endpoint unavailable */});
+  }, []);
+
+  const toggle = (k: keyof NotifPrefs) => {
+    setPrefs(p => ({ ...p, [k]: !p[k] }));
     setSaved(false);
+    setError(null);
   };
 
-  const GROUPS = [
+  // A7: save prefs + digest_opt_in to backend
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    try {
+      const { daily_digest_email, ...rest } = prefs;
+      await api.patch("/users/me", {
+        notification_prefs: rest,
+        digest_opt_in: daily_digest_email,  // persisted as dedicated column
+      });
+      setSaved(true);
+    } catch {
+      setError("Failed to save. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const GROUPS: { label: string; items: { key: keyof NotifPrefs; label: string; channel: string }[] }[] = [
     {
       label: "Leads & Inquiries",
       items: [
-        { key: "new_inquiry_email" as const, label: "New inquiry received", channel: "Email" },
-        { key: "new_inquiry_push" as const, label: "New inquiry received", channel: "Push" },
+        { key: "new_inquiry_email", label: "New inquiry received", channel: "Email" },
+        { key: "new_inquiry_push",  label: "New inquiry received", channel: "Push" },
       ],
     },
     {
       label: "Calls & QA",
       items: [
-        { key: "low_qa_score_email" as const, label: "QA score below threshold", channel: "Email" },
-        { key: "low_qa_score_push" as const, label: "QA score below threshold", channel: "Push" },
-        { key: "call_summary_email" as const, label: "Call wrap-up ready", channel: "Email" },
-        { key: "call_summary_push" as const, label: "Call wrap-up ready", channel: "Push" },
+        { key: "low_qa_score_email",  label: "QA score below threshold", channel: "Email" },
+        { key: "low_qa_score_push",   label: "QA score below threshold", channel: "Push" },
+        { key: "call_summary_email",  label: "Call wrap-up ready",        channel: "Email" },
+        { key: "call_summary_push",   label: "Call wrap-up ready",        channel: "Push" },
       ],
     },
     {
       label: "Reports & Digests",
       items: [
-        { key: "daily_digest_email" as const, label: "Daily KPI digest (8 AM)", channel: "Email" },
-        { key: "weekly_report_email" as const, label: "Weekly performance report (Monday 9 AM)", channel: "Email" },
-        { key: "system_alerts_email" as const, label: "System alerts (integrations, errors)", channel: "Email" },
+        { key: "daily_digest_email",    label: "Daily KPI digest via WhatsApp (9 AM local)", channel: "WhatsApp" },
+        { key: "weekly_report_email",   label: "Weekly performance report (Monday 9 AM)",    channel: "Email" },
+        { key: "system_alerts_email",   label: "System alerts (integrations, errors)",        channel: "Email" },
       ],
     },
   ];
@@ -371,7 +427,8 @@ function NotificationSettings() {
           </div>
         </Card>
       ))}
-      <SaveButton saved={saved} onClick={() => setSaved(true)} />
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      <SaveButton saved={saved} onClick={handleSave} loading={saving} />
     </div>
   );
 }

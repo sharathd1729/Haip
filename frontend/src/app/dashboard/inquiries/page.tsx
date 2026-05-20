@@ -1,8 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { LayoutGrid, List, Plus, X } from "lucide-react";
+import { LayoutGrid, List, Plus, X, StickyNote, Send } from "lucide-react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { KanbanColumn } from "@/components/crm/KanbanColumn";
@@ -44,6 +44,70 @@ const LOST_REASONS = [
   "Price too high", "Went with competitor", "Dates unavailable",
   "No response", "Changed plans", "Other",
 ];
+
+// ─── M3: Kanban scroll-snap container with indicator dots ─────────────────────
+
+function KanbanScrollContainer({ children, stageCount }: { children: React.ReactNode; stageCount: number }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    function onScroll() {
+      if (!el) return;
+      // Each column is ~276px (272 + 4px gap)
+      const colWidth = 276;
+      setActiveIdx(Math.round(el.scrollLeft / colWidth));
+    }
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  function scrollTo(idx: number) {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTo({ left: idx * 276, behavior: "smooth" });
+  }
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Scroll area with snap on mobile */}
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-x-auto overflow-y-hidden"
+        style={{
+          scrollSnapType: "x mandatory",
+          WebkitOverflowScrolling: "touch",
+        }}
+      >
+        <div
+          className="flex gap-4 p-5 h-full"
+          style={{ minWidth: "max-content" }}
+        >
+          {children}
+        </div>
+      </div>
+
+      {/* M3: indicator dots — visible on mobile only */}
+      <div className="md:hidden flex items-center justify-center gap-1.5 py-2 flex-shrink-0">
+        {Array.from({ length: stageCount }).map((_, i) => (
+          <button
+            key={i}
+            onClick={() => scrollTo(i)}
+            aria-label={`Go to column ${i + 1}`}
+            className={cn(
+              "rounded-full transition-all duration-200",
+              i === activeIdx
+                ? "w-4 h-1.5 bg-teal-500"
+                : "w-1.5 h-1.5 bg-gray-300"
+            )}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function InquiriesPage() {
   const router = useRouter();
@@ -136,6 +200,45 @@ export default function InquiriesPage() {
   for (const s of STAGES) grouped[s.id] = [];
   for (const inq of inquiries) (grouped[inq.stage ?? "new"] ??= []).push(inq);
 
+  // K13: aging widget stats
+  const now = Date.now();
+  const activeInqs = inquiries.filter(i => !["booked","lost","ghosted"].includes(i.stage));
+  const staleCount  = activeInqs.filter(i => {
+    const ref = i.current_stage_entered_at ?? i.created_at;
+    return ref && (now - new Date(ref).getTime()) > 3 * 86_400_000;
+  }).length;
+  const breachCount = activeInqs.filter(i => i.sla_state === "breach").length;
+  const newCount    = grouped["new"]?.length ?? 0;
+
+  const [agingFilter, setAgingFilter] = useState<"stale" | "breach" | null>(null);
+
+  // K11: saved views for inquiries
+  const { data: inquirySavedViews = [] } = useQuery({
+    queryKey: ["saved-views", "inquiries"],
+    queryFn: () => api.get("/saved-views?scope=inquiries").then(r => r.data),
+  } as any);
+  const [activeViewId, setActiveViewId] = useState<string | null>(null);
+
+  // K15: internal notes per inquiry
+  const [notesPanel, setNotesPanel] = useState<{ inquiryId: string; guestName: string } | null>(null);
+  const [noteText, setNoteText] = useState("");
+
+  const { data: inquiryNotes = [], refetch: refetchNotes } = useQuery({
+    queryKey: ["inquiry-notes", notesPanel?.inquiryId],
+    queryFn: () => api.get(`/inquiries/${notesPanel!.inquiryId}/notes`).then(r => r.data),
+    enabled: !!notesPanel,
+  } as any);
+
+  const addNoteMutation = useMutation({
+    mutationFn: (text: string) => api.post(`/inquiries/${notesPanel!.inquiryId}/notes`, { body: text }),
+    onSuccess: () => {
+      setNoteText("");
+      refetchNotes();
+      toast({ variant: "success", title: "Note added" });
+    },
+    onError: () => toast({ variant: "error", title: "Failed to add note" }),
+  });
+
   return (
     <div className="h-full flex flex-col bg-white overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
@@ -158,8 +261,76 @@ export default function InquiriesPage() {
         </div>
       </div>
 
+      {/* K11: saved views chips */}
+      {(inquirySavedViews as any[]).length > 0 && (
+        <div className="px-5 py-2 border-b border-gray-50 flex items-center gap-2 flex-shrink-0 overflow-x-auto">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 flex-shrink-0">Views:</span>
+          <button
+            onClick={() => setActiveViewId(null)}
+            className={cn(
+              "text-[11px] font-medium px-2.5 py-1 rounded-lg flex-shrink-0 transition-colors",
+              activeViewId === null ? "bg-teal-100 text-teal-700" : "text-gray-500 hover:bg-gray-100"
+            )}
+          >
+            All
+          </button>
+          {(inquirySavedViews as any[]).map((view: any) => (
+            <button
+              key={view.id}
+              onClick={() => setActiveViewId(activeViewId === view.id ? null : view.id)}
+              className={cn(
+                "text-[11px] font-medium px-2.5 py-1 rounded-lg flex-shrink-0 transition-colors",
+                activeViewId === view.id ? "bg-teal-100 text-teal-700" : "text-gray-500 hover:bg-gray-100"
+              )}
+            >
+              {view.name}
+              {view.is_shared && <span className="ml-1 text-gray-400">·shared</span>}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* K13: Inquiry-aging chip strip */}
+      {!isLoading && (
+        <div className="px-5 py-2 border-b border-gray-50 flex items-center gap-2 flex-shrink-0 bg-gray-50/50">
+          <button
+            onClick={() => setAgingFilter(null)}
+            className={cn("text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors",
+              agingFilter === null ? "bg-teal-100 text-teal-700" : "text-gray-500 hover:bg-gray-100"
+            )}
+          >
+            All active: {activeInqs.length}
+          </button>
+          <button
+            onClick={() => setAgingFilter(f => f === "breach" ? null : "breach")}
+            className={cn("text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1",
+              agingFilter === "breach"
+                ? "bg-red-100 text-red-700"
+                : breachCount > 0 ? "text-red-600 hover:bg-red-50" : "text-gray-400 cursor-default"
+            )}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-current" />
+            {breachCount} SLA breach
+          </button>
+          <button
+            onClick={() => setAgingFilter(f => f === "stale" ? null : "stale")}
+            className={cn("text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1",
+              agingFilter === "stale"
+                ? "bg-amber-100 text-amber-700"
+                : staleCount > 0 ? "text-amber-600 hover:bg-amber-50" : "text-gray-400 cursor-default"
+            )}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-current" />
+            {staleCount} stale &gt;3d
+          </button>
+          <span className="text-[11px] text-gray-400 ml-auto">
+            {newCount} in New
+          </span>
+        </div>
+      )}
+
       {view === "kanban" && (
-        <div className="flex-1 overflow-x-auto overflow-y-hidden">
+        <KanbanScrollContainer stageCount={STAGES.length}>
           <div className="flex gap-4 p-5 h-full min-w-max">
             {isLoading
               ? Array.from({ length: 5 }).map((_, i) => (
@@ -174,13 +345,24 @@ export default function InquiriesPage() {
                     ? (() => { const r = canTransition(draggingFrom, stage.id as InquiryStage); return r.allowed !== false; })()
                     : true;
 
+                  // K13: filter cards by aging chip selection
+                  const visibleCards = (grouped[stage.id] ?? []).filter(inq => {
+                    if (!agingFilter) return true;
+                    if (agingFilter === "breach") return inq.sla_state === "breach";
+                    if (agingFilter === "stale") {
+                      const ref = inq.current_stage_entered_at ?? inq.created_at;
+                      return ref && (now - new Date(ref).getTime()) > 3 * 86_400_000;
+                    }
+                    return true;
+                  });
+
                   return (
                     <KanbanColumn
                       key={stage.id}
                       id={stage.id}
                       title={stage.title}
                       color={cn(stage.color, !isAllowedDrop && draggingFrom && "opacity-40")}
-                      cards={grouped[stage.id].map(inq => ({
+                      cards={visibleCards.map(inq => ({
                         id: inq.id,
                         guest_name: inq.guest_name,
                         guest_phone: inq.guest_phone,
@@ -196,8 +378,12 @@ export default function InquiriesPage() {
                         sla_state: inq.sla_state,
                         sla_elapsed_seconds: inq.sla_elapsed_seconds,
                       }))}
-                      count={grouped[stage.id].length}
+                      count={visibleCards.length}
                       onCardClick={id => router.push(`/dashboard/guests?inquiry=${id}`)}
+                      onNoteClick={(id, guestName) => {
+                        setNotesPanel({ inquiryId: id, guestName });
+                        setNoteText("");
+                      }}
                       onDrop={handleDrop}
                       onDragStart={(cardId) => {
                         const inq = inquiries.find(i => i.id === cardId);
@@ -209,7 +395,7 @@ export default function InquiriesPage() {
                 })
             }
           </div>
-        </div>
+        </KanbanScrollContainer>
       )}
 
       {view === "table" && (
@@ -285,6 +471,78 @@ export default function InquiriesPage() {
                 disabled={!lostReason || (lostReason === "Other" && lostCustom.trim().length < 5)}
                 className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 disabled:opacity-40 text-white font-semibold rounded-xl text-sm transition-colors"
               >Mark as lost</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* K15: Internal notes slide-over panel */}
+      {notesPanel && (
+        <div className="fixed inset-0 z-40 flex justify-end">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/20" onClick={() => setNotesPanel(null)} />
+          <div className="relative w-80 bg-white shadow-2xl flex flex-col h-full">
+            {/* Header */}
+            <div className="flex items-center gap-3 px-4 py-4 border-b border-gray-100">
+              <StickyNote size={16} className="text-amber-500" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-gray-900">Internal Notes</p>
+                <p className="text-xs text-gray-400 truncate">{notesPanel.guestName}</p>
+              </div>
+              <button onClick={() => setNotesPanel(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Notes list */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {(inquiryNotes as any[]).length === 0 ? (
+                <div className="text-center py-12">
+                  <StickyNote size={24} className="text-gray-200 mx-auto mb-2" />
+                  <p className="text-sm text-gray-400">No notes yet</p>
+                  <p className="text-xs text-gray-300 mt-1">Notes are only visible to your team</p>
+                </div>
+              ) : (
+                (inquiryNotes as any[]).map((note: any) => (
+                  <div key={note.id} className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5">
+                    <p className="text-sm text-amber-900 whitespace-pre-wrap">{note.body}</p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <span className="text-[10px] text-amber-400">
+                        {note.sender_name || "Team"}
+                      </span>
+                      <span className="text-[10px] text-amber-300">·</span>
+                      <span className="text-[10px] text-amber-400">
+                        {new Date(note.created_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Composer */}
+            <div className="p-3 border-t border-gray-100 bg-gray-50">
+              <textarea
+                value={noteText}
+                onChange={e => setNoteText(e.target.value)}
+                placeholder="Add a note… (only visible to team)"
+                rows={3}
+                className="w-full text-sm border border-amber-200 rounded-xl px-3 py-2.5 bg-amber-50 text-gray-800 placeholder:text-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none mb-2"
+                onKeyDown={e => {
+                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && noteText.trim()) {
+                    addNoteMutation.mutate(noteText.trim());
+                  }
+                }}
+              />
+              <button
+                onClick={() => noteText.trim() && addNoteMutation.mutate(noteText.trim())}
+                disabled={!noteText.trim() || addNoteMutation.isPending}
+                className="w-full py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
+              >
+                {addNoteMutation.isPending ? <span className="animate-spin">⏳</span> : <Send size={13} />}
+                Add note
+              </button>
+              <p className="text-[10px] text-gray-400 text-center mt-1">Ctrl+Enter to submit</p>
             </div>
           </div>
         </div>

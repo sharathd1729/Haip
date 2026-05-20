@@ -34,6 +34,11 @@ celery_app = Celery(
         "app.workers.tasks.sync_retalwise",
         "app.workers.tasks.sync_hostaway",
         "app.workers.tasks.sync_all_pms",
+        # Compliance
+        "app.workers.tasks.retention_purge",
+        "app.workers.tasks.meta_quality_poll",
+        # A7: owner daily digest
+        "app.workers.tasks.owner_digest",
     ],
 )
 
@@ -81,6 +86,16 @@ celery_app.conf.beat_schedule = {
         "task": "tasks.dpdp_purge",
         "schedule": crontab(hour=2, minute=0),
     },
+    # D5: nightly retention purge: 02:30 IST
+    "retention-purge-nightly": {
+        "task": "retention.nightly_purge",
+        "schedule": crontab(hour=2, minute=30),
+    },
+    # S7: hourly Meta quality poll: :15 each hour
+    "meta-quality-hourly": {
+        "task": "meta_quality.poll_all_tenants",
+        "schedule": crontab(minute=15),
+    },
     # Hourly RentalWise sync for all tenants: fires at :05 each hour
     "sync-retalwise-hourly": {
         "task": "sync_retalwise_all_tenants",
@@ -90,5 +105,10 @@ celery_app.conf.beat_schedule = {
     "sync-hostaway-hourly": {
         "task": "sync_hostaway_all_tenants",
         "schedule": crontab(minute=10),
+    },
+    # A7: owner digest orchestrator — runs hourly, dispatches to tenants at 9am local
+    "owner-digest-hourly": {
+        "task": "owner_digest.orchestrate",
+        "schedule": crontab(minute=0),  # top of every hour
     },
 }

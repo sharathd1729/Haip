@@ -34,17 +34,21 @@ const PLANS = [
   { id: "pro",     label: "Pro",     price: "₹9,999/mo", desc: "Unlimited properties" },
 ];
 
+// O3 — IVR providers ranked by Indian market share with help links
 const IVR_PROVIDERS = [
-  { id: "callerdesk", label: "CallerDesk", desc: "Most popular for Indian hospitality" },
-  { id: "acefone",    label: "Acefone",    desc: "Enterprise-grade IVR" },
-  { id: "skip",       label: "Skip for now", desc: "" },
+  { id: "acefone",    label: "Acefone",       desc: "Most widely used for Indian hospitality — virtual numbers, IVR, call recording", badge: "Popular" },
+  { id: "callerdesk", label: "CallerDesk",    desc: "Simple API, quick setup, good for smaller operations" },
+  { id: "myoperator", label: "MyOperator",    desc: "Enterprise call management — contact sales for API access", badge: "Enterprise" },
+  { id: "skip",       label: "Set up later",  desc: "You can connect an IVR provider from Settings → Integrations" },
 ];
 
+// O3 — Channel managers ranked by Indian market share with help links
 const CHANNEL_MANAGERS = [
-  { id: "retalwise", label: "RentalWise",  desc: "username + password + API URL" },
-  { id: "hostaway",  label: "Hostaway",    desc: "Account ID + API Secret" },
-  { id: "airbnb",    label: "Airbnb",      desc: "Connect via OAuth" },
-  { id: "manual",    label: "Add manually", desc: "Enter properties by hand" },
+  { id: "hostaway",   label: "Hostaway",        desc: "Account ID + API Secret — top OTA channel manager" },
+  { id: "cloudbeds",  label: "Cloudbeds",        desc: "Property Management System + channel manager", badge: "Coming soon" },
+  { id: "ezee",       label: "eZee Centrix",     desc: "Popular in Indian hotels — API key required", badge: "Coming soon" },
+  { id: "retalwise",  label: "RentalWise",       desc: "Username + password + API URL" },
+  { id: "manual",     label: "Add manually",     desc: "Enter properties by hand — no PMS needed" },
 ];
 
 const VEHICLE_TYPES = [
@@ -88,13 +92,27 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
   );
 }
 
-function SkipButton({ onSkip }: { onSkip: () => void }) {
+// O1 — Prominent "Set up later" button for optional steps (4-9)
+function SetupLaterButton({ onSkip, label = "Set up later" }: { onSkip: () => void; label?: string }) {
   return (
-    <button onClick={onSkip}
-      className="text-xs text-white/25 hover:text-white/50 transition-colors py-2 w-full text-center">
-      Skip for now — I&apos;ll do this later
+    <button
+      onClick={onSkip}
+      className="w-full py-2.5 rounded-2xl border border-white/10 text-white/40 hover:text-white/70 hover:border-white/20 text-xs font-medium transition-all flex items-center justify-center gap-1.5"
+    >
+      {label} — I&apos;ll finish this from Settings
     </button>
   );
+}
+
+// Legacy alias kept for backward-compat within this file
+function SkipButton({ onSkip }: { onSkip: () => void }) {
+  return <SetupLaterButton onSkip={onSkip} />;
+}
+
+// O4 — Inline field error hint
+function FieldError({ msg }: { msg?: string }) {
+  if (!msg) return null;
+  return <p className="text-xs text-red-400 mt-1 flex items-center gap-1"><X size={10} />{msg}</p>;
 }
 
 function BackButton({ onBack }: { onBack: () => void }) {
@@ -419,17 +437,24 @@ function RentalApartmentStep({
       <div className="space-y-2 mb-6">
         {CHANNEL_MANAGERS.map(cm => (
           <button key={cm.id} onClick={() => { setChannelManager(cm.id); setSyncStatus("idle"); }}
+            disabled={(cm as any).badge === "Coming soon"}
             className={cn(
               "w-full flex items-center gap-3 p-4 rounded-2xl border text-left transition-all",
-              channelManager === cm.id ? "bg-teal-500/10 border-teal-500/30" : "bg-white/3 border-white/8 hover:bg-white/5"
+              channelManager === cm.id ? "bg-teal-500/10 border-teal-500/30" : "bg-white/3 border-white/8 hover:bg-white/5",
+              (cm as any).badge === "Coming soon" && "opacity-40 cursor-not-allowed"
             )}>
             <div className={cn("w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center",
               channelManager === cm.id ? "border-teal-400" : "border-white/20")}>
               {channelManager === cm.id && <div className="w-2 h-2 rounded-full bg-teal-400" />}
             </div>
-            <div>
-              <div className={cn("text-sm font-bold", channelManager === cm.id ? "text-teal-300" : "text-white/60")}>{cm.label}</div>
-              {cm.desc && <div className="text-[11px] text-white/30">{cm.desc}</div>}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={cn("text-sm font-bold", channelManager === cm.id ? "text-teal-300" : "text-white/60")}>{cm.label}</span>
+                {(cm as any).badge && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-white/10 text-white/40 border border-white/10">{(cm as any).badge}</span>
+                )}
+              </div>
+              {cm.desc && <div className="text-[11px] text-white/30 mt-0.5">{cm.desc}</div>}
             </div>
           </button>
         ))}
@@ -492,6 +517,18 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // O4 — per-field validation errors (keyed by field name)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const clearFieldError = (key: string) => setFieldErrors(e => { const n = { ...e }; delete n[key]; return n; });
+  // O1 — track skipped steps so checklist (O5) can surface them
+  const [skippedSteps, setSkippedSteps] = useState<Set<number>>(new Set());
+  const skipStep = async (stepNum: number) => {
+    setSkippedSteps(s => new Set(s).add(stepNum));
+    try { await api.patch("/tenants/me", { config: { [`step_${stepNum}_skipped`]: true } }); } catch { /* non-fatal */ }
+    const next = Math.min(stepNum + 1, TOTAL_STEPS - 1);
+    setStep(next);
+    await persistStep(next);
+  };
 
   // Step 0 — Brand basics
   const [brandName, setBrandName] = useState("");
@@ -566,8 +603,13 @@ export default function OnboardingPage() {
 
   // ── Step 0 submit ──────────────────────────────────────────────────────────
   const handleBrandSubmit = useCallback(async () => {
-    if (!brandName.trim() || !segment) return;
-    setSaving(true); setError("");
+    // O4 — field-level validation
+    const errs: Record<string, string> = {};
+    if (!brandName.trim()) errs.brandName = "Business name is required";
+    if (!brandCity.trim()) errs.brandCity = "City is required";
+    if (!segment) errs.segment = "Please select your business segment";
+    if (Object.keys(errs).length) { setFieldErrors(errs); return; }
+    setSaving(true); setError(""); setFieldErrors({});
     try {
       await api.patch("/tenants/me", {
         name: brandName,
@@ -726,22 +768,27 @@ export default function OnboardingPage() {
                     onChange={e => {
                       setBrandName(e.target.value);
                       setBrandSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""));
+                      clearFieldError("brandName");
                     }}
                     placeholder="Ratha Travels"
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:border-teal-500/50 transition-all" />
+                    className={cn("w-full px-4 py-3 bg-white/5 border rounded-xl text-sm text-white placeholder-white/25 focus:outline-none transition-all",
+                      fieldErrors.brandName ? "border-red-500/60 focus:border-red-500/80" : "border-white/10 focus:border-teal-500/50")} />
+                  <FieldError msg={fieldErrors.brandName} />
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-white/50 uppercase tracking-wider mb-2">City / headquarters *</label>
-                  <input value={brandCity} onChange={e => setBrandCity(e.target.value)} placeholder="Goa"
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:border-teal-500/50 transition-all" />
+                  <input value={brandCity} onChange={e => { setBrandCity(e.target.value); clearFieldError("brandCity"); }} placeholder="Goa"
+                    className={cn("w-full px-4 py-3 bg-white/5 border rounded-xl text-sm text-white placeholder-white/25 focus:outline-none transition-all",
+                      fieldErrors.brandCity ? "border-red-500/60 focus:border-red-500/80" : "border-white/10 focus:border-teal-500/50")} />
+                  <FieldError msg={fieldErrors.brandCity} />
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-white/50 uppercase tracking-wider mb-3">Business segment *</label>
                   <div className="grid grid-cols-4 gap-2">
                     {SEGMENTS.map(s => (
-                      <button key={s.id} onClick={() => setSegment(s.id)}
+                      <button key={s.id} onClick={() => { setSegment(s.id); clearFieldError("segment"); }}
                         className={cn(
                           "flex flex-col items-center p-3 rounded-xl border text-center transition-all",
                           segment === s.id ? "bg-teal-500/15 border-teal-500/40 text-teal-300" : "bg-white/3 border-white/8 text-white/40 hover:bg-white/6 hover:text-white/70"
@@ -751,6 +798,9 @@ export default function OnboardingPage() {
                       </button>
                     ))}
                   </div>
+                </div>
+
+                  <FieldError msg={fieldErrors.segment} />
                 </div>
 
                 <div>
@@ -884,7 +934,7 @@ export default function OnboardingPage() {
                 </div>
               </div>
 
-              <div className="space-y-2 mb-6">
+              <div className="space-y-2 mb-5">
                 {IVR_PROVIDERS.map(p => (
                   <button key={p.id} onClick={() => setIvrProvider(p.id)}
                     className={cn(
@@ -895,10 +945,26 @@ export default function OnboardingPage() {
                       ivrProvider === p.id ? "border-teal-400" : "border-white/20")}>
                       {ivrProvider === p.id && <div className="w-2 h-2 rounded-full bg-teal-400" />}
                     </div>
-                    <div>
-                      <div className={cn("text-sm font-bold", ivrProvider === p.id ? "text-teal-300" : "text-white/60")}>{p.label}</div>
-                      {p.desc && <div className="text-[11px] text-white/30">{p.desc}</div>}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={cn("text-sm font-bold", ivrProvider === p.id ? "text-teal-300" : "text-white/60")}>{p.label}</span>
+                        {(p as any).badge && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-teal-500/20 text-teal-400 border border-teal-500/20">{(p as any).badge}</span>
+                        )}
+                      </div>
+                      {p.desc && <div className="text-[11px] text-white/30 mt-0.5">{p.desc}</div>}
                     </div>
+                    {p.id !== "skip" && (
+                      <a
+                        href={`https://wa.me/919999999999?text=I+need+help+choosing+an+IVR+provider+for+HAIP.+I+am+considering+${p.label}.`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        className="text-[10px] text-teal-400/60 hover:text-teal-400 transition-colors flex-shrink-0 underline underline-offset-2"
+                      >
+                        Not sure?
+                      </a>
+                    )}
                   </button>
                 ))}
               </div>
@@ -918,8 +984,11 @@ export default function OnboardingPage() {
                 disabled={ivrProvider !== "skip" && !ivrApiKey.trim()}
                 loading={saving}
                 onClick={handleIvrSubmit}
-                label={ivrProvider === "skip" ? "Skip" : "Connect & Continue"}
+                label={ivrProvider === "skip" ? "Set up later" : "Connect & Continue"}
               />
+              {ivrProvider !== "skip" && (
+                <SetupLaterButton onSkip={() => skipStep(3)} />
+              )}
             </div>
           )}
 
@@ -955,7 +1024,7 @@ export default function OnboardingPage() {
 
               <div className="flex flex-col gap-3">
                 <ContinueButton onClick={goNext} label={waConnected ? "Continue" : "Continue anyway"} />
-                {!waConnected && <SkipButton onSkip={goNext} />}
+                {!waConnected && <SetupLaterButton onSkip={() => skipStep(4)} />}
               </div>
             </div>
           )}
@@ -1000,7 +1069,7 @@ export default function OnboardingPage() {
               <div className="flex flex-col gap-3">
                 <ContinueButton loading={saving} onClick={handleInviteSubmit}
                   label={inviteEmails.length > 0 ? `Invite ${inviteEmails.length} & Continue` : "Continue"} />
-                <SkipButton onSkip={goNext} />
+                <SetupLaterButton onSkip={() => skipStep(5)} />
               </div>
             </div>
           )}
@@ -1052,10 +1121,13 @@ export default function OnboardingPage() {
                 ))}
               </div>
 
-              <ContinueButton onClick={async () => {
-                await api.patch("/tenants/me", { brand_config: { concierge_mode: conciergeMode } }).catch(() => {});
-                goNext();
-              }} />
+              <div className="flex flex-col gap-3">
+                <ContinueButton onClick={async () => {
+                  await api.patch("/tenants/me", { brand_config: { concierge_mode: conciergeMode } }).catch(() => {});
+                  goNext();
+                }} />
+                <SetupLaterButton onSkip={() => skipStep(6)} />
+              </div>
             </div>
           )}
 
@@ -1099,10 +1171,13 @@ export default function OnboardingPage() {
                 </label>
               </div>
 
-              <ContinueButton disabled={!dpdpAcknowledged} onClick={async () => {
-                await api.patch("/tenants/me", { brand_config: { dpdp_acknowledged: true } }).catch(() => {});
-                goNext();
-              }} label="Acknowledge & Continue" />
+              <div className="flex flex-col gap-3">
+                <ContinueButton disabled={!dpdpAcknowledged} onClick={async () => {
+                  await api.patch("/tenants/me", { brand_config: { dpdp_acknowledged: true } }).catch(() => {});
+                  goNext();
+                }} label="Acknowledge & Continue" />
+                <SetupLaterButton onSkip={() => skipStep(7)} label="Review DPDP later" />
+              </div>
             </div>
           )}
 

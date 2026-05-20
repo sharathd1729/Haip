@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, JSON, ForeignKey, Text, Enum as SAEnum
+from sqlalchemy import Column, String, Boolean, JSON, ForeignKey, Text, Enum as SAEnum, DateTime
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 from app.models.base import TimestampMixin, TenantMixin, gen_uuid
@@ -58,6 +58,12 @@ class Conversation(Base, TimestampMixin, TenantMixin):
     last_message_at = Column(String, nullable=True)
     sla_breached = Column(Boolean, default=False)
 
+    # W14: Snooze
+    snoozed_until = Column(DateTime(timezone=True), nullable=True)
+
+    # O2: sample data flag
+    is_sample = Column(Boolean, default=False, nullable=False, index=True)
+
     # AI Concierge
     ai_mode = Column(String(20), default="shadow")  # shadow / autonomous / off
     ai_draft = Column(Text, nullable=True)           # Pending AI reply
@@ -102,6 +108,18 @@ class Message(Base, TimestampMixin, TenantMixin):
         default=None,  # set explicitly in send_message endpoint
     )
     delivery_error = Column(Text, nullable=True)  # last error from Meta API
+
+    # Internal notes — W24: never delivered to guest
+    is_internal = Column(Boolean, default=False, nullable=False)
+
+    # O2: sample data flag
+    is_sample = Column(Boolean, default=False, nullable=False, index=True)
+
+    # Reply-to-message — W5: quoted reply threading
+    replied_to_message_id = Column(String, ForeignKey("messages.id"), nullable=True)
+
+    # Scheduled send — W4
+    scheduled_for = Column(String, nullable=True)  # ISO datetime string
 
     # Sender
     sender_id = Column(String, ForeignKey("users.id"), nullable=True)

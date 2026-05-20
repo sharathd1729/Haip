@@ -115,7 +115,10 @@ def send_message(
         sender_name=current_user.name,
         was_approved=True,
         idempotency_key=idempotency_key,  # None if header absent
-        delivery_state=MessageDeliveryState.PENDING,
+        is_internal=body.is_internal,
+        replied_to_message_id=body.replied_to_message_id,
+        scheduled_for=body.scheduled_for,
+        delivery_state=None if (body.is_internal or body.scheduled_for) else MessageDeliveryState.PENDING,
     )
     db.add(msg)
 
@@ -127,8 +130,13 @@ def send_message(
         "send_message_created",
         message_id=msg.id,
         conversation_id=conversation_id,
+        is_internal=body.is_internal,
         has_idempotency_key=idempotency_key is not None,
     )
+
+    # Internal notes are never dispatched; scheduled messages wait for the beat task
+    if body.is_internal or body.scheduled_for:
+        return msg
 
     # Transition to QUEUED then dispatch
     msg.delivery_state = MessageDeliveryState.QUEUED
@@ -202,6 +210,156 @@ def retry_failed_message(
 
     db.refresh(msg)
     return msg
+
+
+@router.post("/{conversation_id}/snooze")
+def snooze_conversation(
+    conversation_id: str,
+    body: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """W14 — Snooze a conversation until a given datetime (ISO string)."""
+    conv = db.query(Conversation).filter_by(id=conversation_id, tenant_id=current_user.tenant_id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    snooze_until = body.get("snooze_until")
+    if snooze_until:
+        from dateutil.parser import parse as parse_dt
+        try:
+            conv.snoozed_until = parse_dt(snooze_until)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid snooze_until datetime")
+    else:
+        conv.snoozed_until = None  # unsnooze
+    db.commit()
+    return {"status": "snoozed", "snoozed_until": snooze_until}
+
+
+@router.get("/search")
+def search_conversations(
+    q: str = Query(..., min_length=1),
+    limit: int = Query(default=20, le=50),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """W17 — Full-text search across messages in the tenant."""
+    from sqlalchemy import text, func
+    from app.models.guest import Guest
+
+    results = db.execute(text("""
+        SELECT
+            m.id        AS message_id,
+            m.body      AS snippet,
+            m.created_at AS message_at,
+            c.id        AS conversation_id,
+            c.channel,
+            g.name      AS guest_name,
+            g.phone     AS guest_phone,
+            ts_rank(m.search_vector, plainto_tsquery('simple', :q)) AS rank
+        FROM messages m
+        JOIN conversations c ON m.conversation_id = c.id
+        LEFT JOIN guests g ON c.guest_id = g.id
+        WHERE c.tenant_id = :tid
+          AND m.is_internal = false
+          AND m.search_vector @@ plainto_tsquery('simple', :q)
+        ORDER BY rank DESC, m.created_at DESC
+        LIMIT :limit
+    """), {"q": q, "tid": current_user.tenant_id, "limit": limit})
+
+    rows = results.fetchall()
+    return [
+        {
+            "message_id":      r.message_id,
+            "conversation_id": r.conversation_id,
+            "channel":         str(r.channel),
+            "guest_name":      r.guest_name,
+            "guest_phone":     r.guest_phone,
+            "snippet":         r.snippet,
+            "message_at":      r.message_at.isoformat() if r.message_at else None,
+        }
+        for r in rows
+    ]
+
+
+@router.get("/{conversation_id}")
+def get_conversation_detail(
+    conversation_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Return conversation metadata + messages + D9 service window info.
+    `last_inbound_at` = timestamp of the most recent inbound message (WhatsApp 24h window starts here).
+
+    NOTE: this route must be declared AFTER GET /search to avoid "search" being
+    treated as a conversation_id wildcard.
+    """
+    from app.models.guest import Guest
+
+    conv = db.query(Conversation).filter_by(
+        id=conversation_id, tenant_id=current_user.tenant_id
+    ).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    guest = db.query(Guest).filter_by(id=conv.guest_id).first()
+
+    messages = (
+        db.query(Message)
+        .filter_by(conversation_id=conversation_id)
+        .order_by(Message.created_at.asc())
+        .limit(200)
+        .all()
+    )
+
+    # D9: compute last_inbound_at — most recent inbound message timestamp
+    last_inbound: "Message | None" = (
+        db.query(Message)
+        .filter_by(conversation_id=conversation_id, direction="inbound")
+        .order_by(Message.created_at.desc())
+        .first()
+    )
+
+    def _iso(val) -> "str | None":
+        if val is None:
+            return None
+        if isinstance(val, str):
+            return val
+        return val.isoformat()
+
+    last_inbound_at = _iso(last_inbound.created_at) if last_inbound else None
+
+    def _msg_dict(m: Message) -> dict:
+        body = m.body or ""
+        return {
+            "id": m.id,
+            "text": body,
+            "direction": m.direction.value if hasattr(m.direction, "value") else str(m.direction),
+            "channel": m.channel.value if hasattr(m.channel, "value") else str(m.channel),
+            "status": m.delivery_state.value if m.delivery_state and hasattr(m.delivery_state, "value") else str(m.delivery_state or ""),
+            "delivery_state": m.delivery_state.value if m.delivery_state and hasattr(m.delivery_state, "value") else None,
+            "delivery_error": m.delivery_error,
+            "timestamp": _iso(m.created_at) or "",
+            "sender_name": m.sender_name,
+            "ai_drafted": m.is_ai_generated,
+            "ai_confidence": m.ai_confidence,
+            "is_internal": m.is_internal,
+            "replied_to_message_id": m.replied_to_message_id,
+        }
+
+    channel_val = conv.channel.value if hasattr(conv.channel, "value") else str(conv.channel)
+    status = "open" if conv.is_open else "resolved"
+
+    return {
+        "id": conv.id,
+        "guest_name": guest.name if guest else None,
+        "guest_phone": guest.phone if guest else "",
+        "channel": channel_val,
+        "status": status,
+        "last_inbound_at": last_inbound_at,
+        "messages": [_msg_dict(m) for m in messages],
+    }
 
 
 @router.post("/{conversation_id}/messages/{message_id}/approve")

@@ -10,6 +10,8 @@ import {
   Settings, User, CreditCard, HelpCircle, Search,
   Sparkles, ChevronRight,
 } from "lucide-react";
+import { ChangelogModal } from "@/components/dashboard/ChangelogModal";
+import { HelpDrawer } from "@/components/dashboard/HelpDrawer";
 
 // ---------------------------------------------------------------------------
 // Breadcrumb from pathname
@@ -77,7 +79,7 @@ function NotificationBell() {
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="relative w-8 h-8 rounded-lg hover:bg-white/5 flex items-center justify-center text-white/40 hover:text-white/70 transition-colors"
+        className="relative w-10 h-10 rounded-lg hover:bg-white/5 flex items-center justify-center text-white/40 hover:text-white/70 transition-colors min-h-10 min-w-10"
       >
         <Bell size={16} />
         {unread > 0 && (
@@ -280,6 +282,27 @@ export function TopBar({ user, workspaceName }: TopBarProps) {
           <Sparkles size={10} style={{ color: "var(--brand-primary)" }} />
           <span className="text-[10px] font-semibold" style={{ color: "var(--brand-primary)" }}>AI active</span>
         </div>
+
+        {/* Cmd+K hint (desktop only) */}
+        <button
+          onClick={() => {
+            // Dispatch synthetic Cmd+K to trigger the CommandPalette listener
+            const isMac = navigator.platform.toUpperCase().includes("MAC");
+            window.dispatchEvent(
+              new KeyboardEvent("keydown", { key: "k", metaKey: isMac, ctrlKey: !isMac, bubbles: true })
+            );
+          }}
+          className="hidden lg:flex items-center gap-1 px-2 py-1 rounded-md text-[10px] text-white/25 hover:text-white/50 hover:bg-white/5 transition-colors font-mono"
+          title="Open command palette"
+        >
+          <span>⌘K</span>
+        </button>
+
+        {/* Help drawer (X10) */}
+        <HelpDrawer />
+
+        {/* Changelog (X9) */}
+        <ChangelogModal />
 
         <NotificationBell />
         <UserMenu user={user} />

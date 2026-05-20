@@ -14,9 +14,13 @@ class MessageOut(BaseModel):
     ai_confidence: Optional[float] = None
     was_approved: Optional[bool] = None
     sender_name: Optional[str] = None
+    sender_id: Optional[str] = None
     idempotency_key: Optional[str] = None
     delivery_state: Optional[str] = None
     delivery_error: Optional[str] = None
+    is_internal: bool = False
+    replied_to_message_id: Optional[str] = None
+    scheduled_for: Optional[str] = None
     # Accept either datetime (Postgres/SQLite ORM result) or ISO string (legacy)
     created_at: Optional[Union[datetime, str]] = None
 
@@ -33,6 +37,8 @@ class ConversationOut(BaseModel):
     is_open: bool = True
     ai_mode: Optional[str] = "shadow"
     last_message_at: Optional[str] = None
+    last_inbound_at: Optional[str] = None  # D9: last inbound message timestamp (computed)
+    snoozed_until: Optional[Union[datetime, str]] = None
 
     class Config:
         from_attributes = True
@@ -41,6 +47,9 @@ class ConversationOut(BaseModel):
 class SendMessageRequest(BaseModel):
     body: str
     media_url: Optional[str] = None
+    is_internal: bool = False
+    replied_to_message_id: Optional[str] = None
+    scheduled_for: Optional[str] = None  # W4: ISO datetime
 
 
 class AIDraftRequest(BaseModel):

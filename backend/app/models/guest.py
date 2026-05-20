@@ -37,6 +37,14 @@ class Guest(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     marketing_consent = Column(Boolean, default=False)
     recording_consent = Column(Boolean, default=True)
 
+    # O2: sample data flag — rows with is_sample=True are wiped on first real inbound
+    is_sample = Column(Boolean, default=False, nullable=False, index=True)
+
+    # D11: DPDP deletion grace period (30-day soft-delete)
+    deletion_state = Column(String(20), default="none", nullable=False)   # none | pending | deleted
+    deletion_requested_at = Column(String, nullable=True)                  # ISO datetime
+    deletion_completed_at = Column(String, nullable=True)                  # ISO datetime
+
     # Unique per tenant
     __table_args__ = (
         # (tenant_id, phone) must be unique

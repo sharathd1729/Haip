@@ -52,6 +52,9 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [agreed, setAgreed] = useState(false);
+  // O8 — granular DPDP consents (default off per DPDP-correct posture)
+  const [consentMarketing, setConsentMarketing] = useState(false);
+  const [consentAnalytics, setConsentAnalytics] = useState(false);
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -87,6 +90,10 @@ export default function RegisterPage() {
             password: form.password,
             tenant_name: form.tenant_name,
             tenant_slug: form.tenant_slug,
+            // O8 — per-purpose consents
+            consent_transactional: true,
+            consent_marketing: consentMarketing,
+            consent_analytics: consentAnalytics,
           }),
         }
       );
@@ -279,20 +286,61 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            <div className="flex items-start gap-2.5 pt-1">
-              <input
-                id="agree"
-                type="checkbox"
-                checked={agreed}
-                onChange={e => setAgreed(e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300 text-teal-500 focus:ring-teal-500 cursor-pointer mt-0.5 flex-shrink-0"
-              />
-              <label htmlFor="agree" className="text-xs text-gray-500 cursor-pointer leading-relaxed">
-                I agree to the{" "}
-                <Link href="/terms" target="_blank" className="text-teal-600 hover:underline font-medium">Terms of Service</Link>
-                {" "}and{" "}
-                <Link href="/privacy" target="_blank" className="text-teal-600 hover:underline font-medium">Privacy Policy</Link>
-              </label>
+            {/* O8 — Granular DPDP consents (DPDP-correct: separate checkboxes, default-off) */}
+            <div className="space-y-2.5 pt-1 border-t border-gray-100">
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider pt-1">Data usage consents</p>
+
+              {/* Transactional — required */}
+              <div className="flex items-start gap-2.5">
+                <input
+                  id="agree"
+                  type="checkbox"
+                  checked={agreed}
+                  onChange={e => setAgreed(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-teal-500 focus:ring-teal-500 cursor-pointer mt-0.5 flex-shrink-0"
+                />
+                <label htmlFor="agree" className="text-xs text-gray-600 cursor-pointer leading-relaxed">
+                  <span className="font-semibold text-gray-800">Service communications</span>{" "}
+                  <span className="text-red-500 font-semibold text-[10px]">required</span>
+                  <span className="block text-gray-400 mt-0.5">Account notifications, billing, security alerts. Required to use HAIP.</span>
+                  {" "}
+                  <Link href="/terms" target="_blank" className="text-teal-600 hover:underline font-medium">Terms</Link>
+                  {" "}·{" "}
+                  <Link href="/privacy" target="_blank" className="text-teal-600 hover:underline font-medium">Privacy Policy</Link>
+                </label>
+              </div>
+
+              {/* Marketing — optional, default off */}
+              <div className="flex items-start gap-2.5">
+                <input
+                  id="consent-marketing"
+                  type="checkbox"
+                  checked={consentMarketing}
+                  onChange={e => setConsentMarketing(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-teal-500 focus:ring-teal-500 cursor-pointer mt-0.5 flex-shrink-0"
+                />
+                <label htmlFor="consent-marketing" className="text-xs text-gray-600 cursor-pointer leading-relaxed">
+                  <span className="font-semibold text-gray-800">Marketing communications</span>{" "}
+                  <span className="text-gray-400 text-[10px]">optional</span>
+                  <span className="block text-gray-400 mt-0.5">Product updates, tips, and offers from HAIP. You can unsubscribe anytime.</span>
+                </label>
+              </div>
+
+              {/* Analytics — optional, default off */}
+              <div className="flex items-start gap-2.5">
+                <input
+                  id="consent-analytics"
+                  type="checkbox"
+                  checked={consentAnalytics}
+                  onChange={e => setConsentAnalytics(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-teal-500 focus:ring-teal-500 cursor-pointer mt-0.5 flex-shrink-0"
+                />
+                <label htmlFor="consent-analytics" className="text-xs text-gray-600 cursor-pointer leading-relaxed">
+                  <span className="font-semibold text-gray-800">Product analytics</span>{" "}
+                  <span className="text-gray-400 text-[10px]">optional</span>
+                  <span className="block text-gray-400 mt-0.5">Help us improve HAIP by sharing anonymous usage data.</span>
+                </label>
+              </div>
             </div>
 
             <button

@@ -2,8 +2,9 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     auth, calls, dashboard,
     tenants, users, guests, inquiries, conversations, properties,
-    qa, integrations, analytics, audit, sse, messaging, reports, saved_replies,
+    qa, integrations, analytics, audit, sse, messaging, reports, saved_replies, saved_views,
     webhooks_callerdesk, webhooks_acefone, webhooks_whatsapp, webhooks_instagram,
+    grievance, incidents, health, changelog, sample_data, admin_dlq,
 )
 
 api_router = APIRouter(prefix="/api/v1")
@@ -21,6 +22,7 @@ api_router.include_router(guests.router)
 api_router.include_router(inquiries.router)
 api_router.include_router(conversations.router)
 api_router.include_router(saved_replies.router)
+api_router.include_router(saved_views.router)
 api_router.include_router(properties.router)
 api_router.include_router(calls.router)
 
@@ -34,6 +36,22 @@ api_router.include_router(integrations.router)
 api_router.include_router(messaging.router)
 api_router.include_router(audit.router)
 api_router.include_router(sse.router)
+
+# Compliance
+api_router.include_router(grievance.router)
+api_router.include_router(incidents.router)
+
+# Health / status bar (X8)
+api_router.include_router(health.router)
+
+# Changelog (X9)
+api_router.include_router(changelog.router)
+
+# Sample data (O2 / O9)
+api_router.include_router(sample_data.router)
+
+# Admin: DLQ (B3)
+api_router.include_router(admin_dlq.router)
 
 # Webhooks (no JWT required — use shared-secret auth)
 api_router.include_router(webhooks_callerdesk.router)

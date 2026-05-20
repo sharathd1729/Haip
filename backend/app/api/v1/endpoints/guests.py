@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -91,8 +92,93 @@ def dpdp_delete_guest(
     current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.COMPLIANCE)),
     db: Session = Depends(get_db),
 ):
-    result = dpdp_delete(db, current_user.tenant_id, guest_id)
-    append_audit(db, tenant_id=current_user.tenant_id, actor_user_id=current_user.id,
-                 action="dpdp.delete", target_type="guest", target_id=guest_id)
+    """
+    D11: Initiate DPDP deletion with 30-day grace period.
+    Sets guest to 'pending' state; hard-delete runs after 30 days by the nightly purge.
+    """
+    guest = db.query(Guest).filter_by(
+        id=guest_id, tenant_id=current_user.tenant_id
+    ).first()
+    if not guest:
+        raise HTTPException(status_code=404, detail="Guest not found")
+    if guest.deletion_state == "pending":
+        return {"status": "already_pending", "deletion_requested_at": guest.deletion_requested_at}
+
+    now = datetime.now(timezone.utc).isoformat()
+    guest.deletion_state = "pending"
+    guest.deletion_requested_at = now
+    guest.is_deleted = True  # hide from regular lists immediately
+
+    append_audit(
+        db, tenant_id=current_user.tenant_id, actor_user_id=current_user.id,
+        action="dpdp.delete_requested", target_type="guest", target_id=guest_id,
+        payload={"deletion_requested_at": now},
+    )
     db.commit()
+    return {
+        "status": "pending_deletion",
+        "deletion_requested_at": now,
+        "grace_period_days": 30,
+        "hard_delete_after": "30 days",
+    }
+
+
+@router.post("/{guest_id}/dpdp/restore")
+def dpdp_restore_guest(
+    guest_id: str,
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.COMPLIANCE)),
+    db: Session = Depends(get_db),
+):
+    """D11: Restore a guest from pending deletion (admin only, within 30-day window)."""
+    guest = db.query(Guest).filter_by(
+        id=guest_id, tenant_id=current_user.tenant_id
+    ).first()
+    if not guest:
+        raise HTTPException(status_code=404, detail="Guest not found")
+    if guest.deletion_state != "pending":
+        raise HTTPException(status_code=400, detail="Guest is not pending deletion")
+
+    guest.deletion_state = "none"
+    guest.deletion_requested_at = None
+    guest.is_deleted = False
+
+    append_audit(
+        db, tenant_id=current_user.tenant_id, actor_user_id=current_user.id,
+        action="dpdp.delete_restored", target_type="guest", target_id=guest_id,
+    )
+    db.commit()
+    return {"status": "restored"}
+
+
+@router.get("/dpdp/pending-deletions")
+def list_pending_deletions(
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.COMPLIANCE)),
+    db: Session = Depends(get_db),
+):
+    """D11: Admin queue — guests pending hard deletion."""
+    from datetime import timedelta
+    guests = (
+        db.query(Guest)
+        .filter_by(tenant_id=current_user.tenant_id, deletion_state="pending")
+        .order_by(Guest.deletion_requested_at.asc())
+        .all()
+    )
+    result = []
+    for g in guests:
+        req_at = g.deletion_requested_at
+        days_left = None
+        if req_at:
+            try:
+                req_dt = datetime.fromisoformat(req_at)
+                hard_delete_dt = req_dt + timedelta(days=30)
+                days_left = max(0, (hard_delete_dt - datetime.now(timezone.utc)).days)
+            except Exception:
+                pass
+        result.append({
+            "id": g.id,
+            "name": g.name,
+            "phone": g.phone[-4:] if g.phone else None,  # D13: mask
+            "deletion_requested_at": req_at,
+            "days_until_hard_delete": days_left,
+        })
     return result

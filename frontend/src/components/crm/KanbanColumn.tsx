@@ -9,6 +9,7 @@ interface KanbanColumnProps {
   cards: KanbanCardData[];
   count: number;
   onCardClick?: (id: string) => void;
+  onNoteClick?: (id: string, guestName: string) => void;  // K15
   onDrop?: (cardId: string, newStage: string) => void;
   onDragStart?: (cardId: string) => void;
   onDragEnd?: () => void;
@@ -22,6 +23,7 @@ export function KanbanColumn({
   cards,
   count,
   onCardClick,
+  onNoteClick,
   onDrop,
   onDragStart: notifyDragStart,
   onDragEnd: notifyDragEnd,
@@ -48,9 +50,10 @@ export function KanbanColumn({
   return (
     <div
       className={cn(
-        "flex flex-col bg-gray-50/60 rounded-2xl border border-gray-100 min-w-[260px] max-w-[300px]",
+        "flex flex-col bg-gray-50/60 rounded-2xl border border-gray-100 min-w-[260px] max-w-[300px] flex-shrink-0",
         className
       )}
+      style={{ scrollSnapAlign: "start" }}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
@@ -74,6 +77,7 @@ export function KanbanColumn({
             <KanbanCard
               card={card}
               onClick={onCardClick}
+              onNoteClick={onNoteClick}
               draggable={false} // drag handled by parent div
             />
           </div>

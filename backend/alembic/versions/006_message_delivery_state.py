@@ -40,14 +40,34 @@ def _type_exists(type_name: str) -> bool:
     return result.fetchone() is not None
 
 
+def _enum_is_uppercase(type_name: str) -> bool:
+    """Return True if the first label of this PG enum is uppercase."""
+    bind = op.get_bind()
+    result = bind.execute(text(
+        "SELECT enumlabel FROM pg_enum e JOIN pg_type t ON e.enumtypid = t.oid "
+        "WHERE t.typname = :n ORDER BY e.enumsortorder LIMIT 1"
+    ), {"n": type_name})
+    row = result.fetchone()
+    return bool(row and row[0] == row[0].upper())
+
+
 def upgrade() -> None:
     bind = op.get_bind()
     is_pg = bind.dialect.name == "postgresql"
 
-    # ── 1. Create the Postgres enum type if needed ────────────────────────────
-    if is_pg and not _type_exists("messagedeliverystate"):
-        states_sql = ", ".join(f"'{s}'" for s in _STATES)
-        op.execute(text(f"CREATE TYPE messagedeliverystate AS ENUM ({states_sql})"))
+    # ── 1. Create/fix the Postgres enum type ─────────────────────────────────
+    # SQLAlchemy may have auto-created this enum with UPPERCASE labels before
+    # this migration ran. If so, drop it (no column uses it yet) and recreate
+    # with lowercase so the rest of the migration works cleanly.
+    if is_pg:
+        if _type_exists("messagedeliverystate"):
+            if _enum_is_uppercase("messagedeliverystate"):
+                op.execute(text("DROP TYPE messagedeliverystate"))
+                states_sql = ", ".join(f"'{s}'" for s in _STATES)
+                op.execute(text(f"CREATE TYPE messagedeliverystate AS ENUM ({states_sql})"))
+        else:
+            states_sql = ", ".join(f"'{s}'" for s in _STATES)
+            op.execute(text(f"CREATE TYPE messagedeliverystate AS ENUM ({states_sql})"))
 
     # ── 2. Add delivery_state column ──────────────────────────────────────────
     if not _column_exists("messages", "delivery_state"):
@@ -75,9 +95,6 @@ def upgrade() -> None:
         )
 
     # ── 4. Back-fill existing outbound rows ───────────────────────────────────
-    # Rows that have a channel_status of 'sent'/'delivered'/'read' get the
-    # matching delivery_state; everything else gets 'sent' as a safe default
-    # (they were created before this column existed and were successfully sent).
     if is_pg:
         op.execute(text("""
             UPDATE messages

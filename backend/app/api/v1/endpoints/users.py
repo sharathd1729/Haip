@@ -9,13 +9,41 @@ from app.core.security import get_password_hash
 from app.api.v1.deps import get_current_user, require_roles
 from app.models.user import User, UserRole, UserInvitation
 from app.models.tenant import Tenant
-from app.schemas.user import UserOut, UserInviteRequest, UserUpdateRequest, InvitationOut
+from app.schemas.user import UserOut, UserInviteRequest, UserUpdateRequest, UserSelfUpdateRequest, InvitationOut
 from app.core.audit import append_audit
 from app.core.config import settings
 from app.services.email_service import send_invitation_email
 
 router = APIRouter(prefix="/users", tags=["users"])
 
+
+# ─── Self-service endpoints (any authenticated user) ──────────────────────────
+
+@router.get("/me", response_model=UserOut)
+def get_me(current_user: User = Depends(get_current_user)):
+    """Return the calling user's own profile including notification prefs and digest opt-in."""
+    return current_user
+
+
+@router.patch("/me", response_model=UserOut)
+def update_me(
+    body: UserSelfUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Self-update: name, phone, notification_prefs, digest_opt_in.
+    Cannot change role or is_active (use /users/{id} for that, owner-only).
+    """
+    changes = body.model_dump(exclude_none=True)
+    for field, value in changes.items():
+        setattr(current_user, field, value)
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+
+# ─── Admin / manager endpoints ────────────────────────────────────────────────
 
 @router.get("", response_model=List[UserOut])
 def list_users(
@@ -197,6 +225,48 @@ def list_invitations(
     return result
 
 
+@router.get("/invitations/{invitation_id}/wa-link")
+def get_invitation_wa_link(
+    invitation_id: str,
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """
+    O10 — Return a wa.me deep link for sharing an invitation via WhatsApp.
+    Generates the invite URL and prefills a WhatsApp message the operator can forward.
+    """
+    invitation = db.query(UserInvitation).filter_by(
+        id=invitation_id, tenant_id=current_user.tenant_id
+    ).first()
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invitation not found")
+    if invitation.is_revoked or invitation.is_accepted:
+        raise HTTPException(status_code=400, detail="Invitation is no longer active")
+
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    tenant_name = tenant.name if tenant else "our team"
+
+    invite_link = f"{settings.FRONTEND_URL.rstrip('/')}/join?token={invitation.token}"
+
+    # Build a WhatsApp-ready message
+    role_label = invitation.role.value.replace("_", " ").title()
+    message = (
+        f"Hi {invitation.name or 'there'} 👋\n\n"
+        f"You've been invited to join *{tenant_name}* on HAIP as a *{role_label}*.\n\n"
+        f"Click the link to accept and set up your account:\n{invite_link}\n\n"
+        f"This link expires in 24 hours. See you on the platform! 🙌"
+    )
+    import urllib.parse
+    wa_href = f"https://wa.me/?text={urllib.parse.quote(message)}"
+
+    return {
+        "invitation_id": invitation_id,
+        "invite_link": invite_link,
+        "wa_href": wa_href,
+        "expires_at": invitation.expires_at,
+    }
+
+
 @router.delete("/invitations/{token}", status_code=status.HTTP_204_NO_CONTENT)
 def revoke_invitation(
     token: str,
@@ -210,3 +280,39 @@ def revoke_invitation(
         raise HTTPException(status_code=404, detail="Invitation not found")
     invitation.is_revoked = True
     db.commit()
+
+
+# ── W18: Presence heartbeat ──────────────────────────────────────────────────
+
+@router.post("/me/heartbeat", status_code=204)
+def presence_heartbeat(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Update last_seen_at for the current user (call every 30s from frontend)."""
+    current_user.last_seen_at = datetime.now(timezone.utc)
+    db.commit()
+
+
+@router.get("/presence")
+def get_presence(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return which users are 'online' (seen in last 90 seconds)."""
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=90)
+    users = db.query(User).filter(
+        User.tenant_id == current_user.tenant_id,
+        User.is_active == True,  # noqa
+        User.last_seen_at >= cutoff,
+    ).all()
+    return [
+        {
+            "id": u.id,
+            "name": u.name,
+            "email": u.email,
+            "role": u.role.value if hasattr(u.role, "value") else str(u.role),
+            "last_seen_at": u.last_seen_at.isoformat() if u.last_seen_at else None,
+        }
+        for u in users
+    ]

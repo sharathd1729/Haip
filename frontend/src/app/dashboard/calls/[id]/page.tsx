@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
   ArrowLeft, Phone, Clock, User, ChevronDown, ChevronRight,
-  CheckCircle2, AlertCircle, Save, Loader2, ExternalLink, Play, Copy,
+  CheckCircle2, AlertCircle, Save, Loader2, ExternalLink, Play, Copy, Star, BookmarkIcon, MessageSquare, X,
 } from "lucide-react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -100,7 +100,21 @@ export default function CallDetailPage() {
   const [processing, setProcessing] = useState(false);
   // C3: track which criteria are expanded (multiple can be open simultaneously)
   const [expandedCriteria, setExpandedCriteria] = useState<Set<number>>(new Set());
+  // C8: per-turn bookmarks (stored locally, keyed by turn index)
+  const [bookmarks, setBookmarks] = useState<Set<number>>(new Set());
+  // C7: per-turn coaching notes (local, keyed by turn index)
+  const [coachingNotes, setCoachingNotes] = useState<Record<number, string>>({});
+  const [editingNote, setEditingNote] = useState<number | null>(null);
+  const [noteInput, setNoteInput] = useState("");
   const transcriptRef = useRef<HTMLDivElement>(null);
+
+  const toggleBookmark = (idx: number) =>
+    setBookmarks(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
 
   const isPipelineRunning = (call: CallDetail | undefined) =>
     call && ["queued", "pending", "processing"].includes(call.transcription_status ?? "");
@@ -364,27 +378,135 @@ export default function CallDetailPage() {
                 call.transcript.turns.map((turn, idx) => {
                   const scoreForTurn = criteria.flatMap(c => c.evidence_spans ?? []);
                   const isActive = idx === activeIdx;
+                  const isBookmarked = bookmarks.has(idx);
+                  const hasNote = !!coachingNotes[idx];
+                  const isEditingThis = editingNote === idx;
                   return (
-                    <TranscriptTurn
-                      key={idx}
-                      speaker={turn.speaker}
-                      text={turn.text}
-                      t0={turn.t0}
-                      t1={turn.t1}
-                      evidenceSpans={scoreForTurn}
-                      isActive={isActive}
-                      onClick={(t) => {
-                        // C1: seek to exact t0; toggle play/pause on same active turn
-                        const audio = document.querySelector("audio") as HTMLAudioElement | null;
-                        if (!audio) return;
-                        if (isActive && !audio.paused) {
-                          audio.pause();
-                        } else {
-                          audio.currentTime = t; // t is already t0 in seconds
-                          audio.play().catch(() => {});
-                        }
-                      }}
-                    />
+                    <div key={idx} className="relative group/turn">
+                      <div className="flex items-start gap-1">
+                        {/* C8: bookmark star button */}
+                        <button
+                          onClick={() => toggleBookmark(idx)}
+                          title={isBookmarked ? "Remove bookmark" : "Bookmark this moment"}
+                          className={cn(
+                            "flex-shrink-0 mt-2 w-5 h-5 flex items-center justify-center rounded transition-colors",
+                            isBookmarked
+                              ? "text-amber-400"
+                              : "text-transparent group-hover/turn:text-gray-300 hover:!text-amber-400"
+                          )}
+                        >
+                          <Star size={13} className={isBookmarked ? "fill-amber-400" : ""} />
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <TranscriptTurn
+                            speaker={turn.speaker}
+                            text={turn.text}
+                            t0={turn.t0}
+                            t1={turn.t1}
+                            evidenceSpans={scoreForTurn}
+                            isActive={isActive}
+                            onClick={(t) => {
+                              const audio = document.querySelector("audio") as HTMLAudioElement | null;
+                              if (!audio) return;
+                              if (isActive && !audio.paused) {
+                                audio.pause();
+                              } else {
+                                audio.currentTime = t;
+                                audio.play().catch(() => {});
+                              }
+                            }}
+                          />
+                        </div>
+                        {/* C7: coaching comment button */}
+                        <button
+                          onClick={() => {
+                            if (isEditingThis) {
+                              setEditingNote(null);
+                            } else {
+                              setEditingNote(idx);
+                              setNoteInput(coachingNotes[idx] ?? "");
+                            }
+                          }}
+                          title={hasNote ? "Edit coaching note" : "Add coaching note"}
+                          className={cn(
+                            "flex-shrink-0 mt-2 w-5 h-5 flex items-center justify-center rounded transition-colors",
+                            hasNote
+                              ? "text-blue-400"
+                              : "text-transparent group-hover/turn:text-gray-300 hover:!text-blue-400"
+                          )}
+                        >
+                          <MessageSquare size={13} className={hasNote ? "fill-blue-100" : ""} />
+                        </button>
+                      </div>
+
+                      {/* C7: coaching note display */}
+                      {hasNote && !isEditingThis && (
+                        <div className="ml-6 mt-1 flex items-start gap-2 px-3 py-2 bg-blue-50 border border-blue-100 rounded-xl">
+                          <MessageSquare size={11} className="text-blue-400 mt-0.5 flex-shrink-0" />
+                          <p className="flex-1 text-xs text-blue-800">{coachingNotes[idx]}</p>
+                          <button
+                            onClick={() => {
+                              setEditingNote(idx);
+                              setNoteInput(coachingNotes[idx] ?? "");
+                            }}
+                            className="text-blue-300 hover:text-blue-600 text-[10px]">edit</button>
+                          <button
+                            onClick={() => setCoachingNotes(prev => { const n = { ...prev }; delete n[idx]; return n; })}
+                            className="text-blue-200 hover:text-red-400 transition-colors"
+                          >
+                            <X size={10} />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* C7: coaching note editor */}
+                      {isEditingThis && (
+                        <div className="ml-6 mt-1 flex flex-col gap-1.5">
+                          <textarea
+                            autoFocus
+                            value={noteInput}
+                            onChange={e => setNoteInput(e.target.value)}
+                            placeholder="Add a coaching note for this turn…"
+                            rows={2}
+                            className="w-full text-xs px-3 py-2 border border-blue-200 rounded-xl bg-blue-50 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none"
+                            onKeyDown={e => {
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                if (noteInput.trim()) {
+                                  setCoachingNotes(prev => ({ ...prev, [idx]: noteInput.trim() }));
+                                } else {
+                                  setCoachingNotes(prev => { const n = { ...prev }; delete n[idx]; return n; });
+                                }
+                                setEditingNote(null);
+                              } else if (e.key === "Escape") {
+                                setEditingNote(null);
+                              }
+                            }}
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                if (noteInput.trim()) {
+                                  setCoachingNotes(prev => ({ ...prev, [idx]: noteInput.trim() }));
+                                } else {
+                                  setCoachingNotes(prev => { const n = { ...prev }; delete n[idx]; return n; });
+                                }
+                                setEditingNote(null);
+                              }}
+                              className="text-[11px] font-medium px-2.5 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setEditingNote(null)}
+                              className="text-[11px] text-gray-400 hover:text-gray-600 px-2"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   );
                 })
               ) : (
@@ -600,6 +722,54 @@ export default function CallDetailPage() {
               )}
             </button>
           </div>
+
+          {/* C8: Bookmarked moments panel */}
+          {bookmarks.size > 0 && call.transcript?.turns && (
+            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Star size={14} className="text-amber-400 fill-amber-400" />
+                <h3 className="text-sm font-semibold text-gray-900">
+                  Bookmarked moments
+                  <span className="ml-1.5 text-xs font-normal text-gray-400">({bookmarks.size})</span>
+                </h3>
+              </div>
+              <div className="space-y-2">
+                {Array.from(bookmarks)
+                  .sort((a, b) => a - b)
+                  .map(idx => {
+                    const turn = call.transcript!.turns[idx];
+                    if (!turn) return null;
+                    const mins = Math.floor(turn.t0 / 60);
+                    const secs = Math.floor(turn.t0 % 60);
+                    const timeStr = `${mins}:${secs.toString().padStart(2, "0")}`;
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          const audio = document.querySelector("audio") as HTMLAudioElement | null;
+                          if (!audio) return;
+                          audio.currentTime = turn.t0;
+                          audio.play().catch(() => {});
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl bg-amber-50 border border-amber-100 hover:bg-amber-100 transition-colors group"
+                      >
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-[10px] font-mono font-semibold text-amber-600">{timeStr}</span>
+                          <span className="text-[10px] text-amber-500 capitalize">{turn.speaker}</span>
+                        </div>
+                        <p className="text-xs text-gray-700 line-clamp-2">{turn.text}</p>
+                      </button>
+                    );
+                  })}
+              </div>
+              <button
+                onClick={() => setBookmarks(new Set())}
+                className="mt-3 text-[11px] text-gray-400 hover:text-red-500 transition-colors"
+              >
+                Clear all bookmarks
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

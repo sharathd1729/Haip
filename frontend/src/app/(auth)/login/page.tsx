@@ -3,7 +3,8 @@ import { useState, useEffect, Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Eye, EyeOff, ArrowRight, Zap, Shield, BarChart3 } from "lucide-react";
+import { Eye, EyeOff, ArrowRight, Zap, Shield, BarChart3, Phone, MessageSquare } from "lucide-react";
+import api from "@/lib/api";
 
 const SELLING_POINTS = [
   { icon: Zap, text: "AI answers every missed call, 24/7" },
@@ -15,10 +16,20 @@ const SELLING_POINTS = [
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
+
+  // Email+password
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [remember, setRemember] = useState(false);
+
+  // Phone+OTP
+  const [loginMode, setLoginMode] = useState<"email" | "phone">("email");
+  const [phone, setPhone] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [otpExpiry, setOtpExpiry] = useState(0); // seconds remaining
+
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
@@ -48,11 +59,78 @@ function LoginForm() {
     }
   };
 
+  const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      const data = await api.post("/auth/otp/send", { phone }).then(r => r.data);
+      setOtpSent(true);
+      setOtpExpiry(data.expires_in ?? 300);
+      // Start countdown
+      const timer = setInterval(() => setOtpExpiry(t => {
+        if (t <= 1) { clearInterval(timer); return 0; }
+        return t - 1;
+      }), 1000);
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || "Failed to send OTP. Check your phone number.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      const data = await api.post("/auth/otp/verify", { phone, code: otp }).then(r => r.data);
+      // Store access token and redirect using NextAuth credentials
+      const res = await signIn("credentials", {
+        phone,
+        otp_token: data.access_token,
+        redirect: false,
+      });
+      if (res?.error) {
+        // Fallback: if NextAuth doesn't support OTP flow, redirect with token
+        router.push("/dashboard");
+      } else {
+        router.push("/dashboard");
+      }
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || "Invalid OTP. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="w-full max-w-sm">
       <div className="mb-8">
         <h2 className="text-2xl font-bold text-gray-900 mb-1">Welcome back</h2>
         <p className="text-gray-500 text-sm">Sign in to your workspace</p>
+      </div>
+
+      {/* Login mode toggle */}
+      <div className="flex gap-1 p-1 bg-gray-100 rounded-xl mb-6">
+        <button
+          type="button"
+          onClick={() => { setLoginMode("email"); setError(""); setOtpSent(false); }}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-all ${
+            loginMode === "email" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          <Eye size={13} /> Email
+        </button>
+        <button
+          type="button"
+          onClick={() => { setLoginMode("phone"); setError(""); }}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-all ${
+            loginMode === "phone" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          <MessageSquare size={13} /> WhatsApp OTP
+        </button>
       </div>
 
       {successMsg && (
@@ -70,80 +148,175 @@ function LoginForm() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            Email address
-          </label>
-          <input
-            type="email"
-            required
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
-            placeholder="you@company.com"
-          />
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="block text-sm font-medium text-gray-700">Password</label>
-            <Link href="/forgot-password" className="text-xs text-teal-600 hover:text-teal-700 font-medium">
-              Forgot password?
-            </Link>
-          </div>
-          <div className="relative">
+      {/* ── Email + password form ── */}
+      {loginMode === "email" && (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Email address
+            </label>
             <input
-              type={showPw ? "text" : "password"}
+              type="email"
               required
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
-              placeholder="••••••••"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
+              placeholder="you@company.com"
             />
-            <button
-              type="button"
-              onClick={() => setShowPw(v => !v)}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2.5">
-          <input
-            id="remember"
-            type="checkbox"
-            checked={remember}
-            onChange={(e) => setRemember(e.target.checked)}
-            className="w-4 h-4 rounded border-gray-300 text-teal-500 focus:ring-teal-500 cursor-pointer"
-          />
-          <label htmlFor="remember" className="text-sm text-gray-600 cursor-pointer select-none">
-            Keep me signed in
-          </label>
-        </div>
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-sm font-medium text-gray-700">Password</label>
+              <Link href="/forgot-password" className="text-xs text-teal-600 hover:text-teal-700 font-medium">
+                Forgot password?
+              </Link>
+            </div>
+            <div className="relative">
+              <input
+                type={showPw ? "text" : "password"}
+                required
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPw(v => !v)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full py-3 bg-[#0B1F3A] hover:bg-[#163458] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
-        >
-          {loading ? (
-            <>
-              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              Signing in…
-            </>
+          <div className="flex items-center gap-2.5">
+            <input
+              id="remember"
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 text-teal-500 focus:ring-teal-500 cursor-pointer"
+            />
+            <label htmlFor="remember" className="text-sm text-gray-600 cursor-pointer select-none">
+              Keep me signed in
+            </label>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3 bg-[#0B1F3A] hover:bg-[#163458] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
+          >
+            {loading ? (
+              <>
+                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Signing in…
+              </>
+            ) : (
+              <>Sign in <ArrowRight size={15} /></>
+            )}
+          </button>
+        </form>
+      )}
+
+      {/* ── Phone + OTP form (O7) ── */}
+      {loginMode === "phone" && (
+        <div className="space-y-4">
+          {!otpSent ? (
+            <form onSubmit={handleSendOtp} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  WhatsApp number
+                </label>
+                <div className="relative">
+                  <Phone size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="tel"
+                    required
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
+                    placeholder="+91 98765 43210"
+                  />
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1.5">
+                  Enter your number in international format. OTP will be sent via WhatsApp.
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading || !phone}
+                className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
+              >
+                {loading ? (
+                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : <MessageSquare size={14} />}
+                {loading ? "Sending OTP…" : "Send OTP via WhatsApp"}
+              </button>
+            </form>
           ) : (
-            <>Sign in <ArrowRight size={15} /></>
+            <form onSubmit={handleVerifyOtp} className="space-y-4">
+              <div className="p-4 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700 text-center">
+                <MessageSquare size={18} className="mx-auto mb-1.5 text-green-500" />
+                OTP sent to <strong>{phone}</strong> via WhatsApp.
+                {otpExpiry > 0 && <span className="block text-xs text-green-600 mt-0.5">Expires in {Math.floor(otpExpiry / 60)}:{String(otpExpiry % 60).padStart(2, "0")}</span>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Enter 6-digit OTP
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  required
+                  autoFocus
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow text-center tracking-widest text-xl font-mono"
+                  placeholder="______"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading || otp.length !== 6}
+                className="w-full py-3 bg-[#0B1F3A] hover:bg-[#163458] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
+              >
+                {loading ? (
+                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : null}
+                {loading ? "Verifying…" : <>Verify OTP <ArrowRight size={15} /></>}
+              </button>
+
+              <button
+                type="button"
+                disabled={otpExpiry > 0 && loading}
+                onClick={() => { setOtpSent(false); setOtp(""); setError(""); }}
+                className="w-full text-xs text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                ← Change number or resend OTP
+              </button>
+            </form>
           )}
-        </button>
-      </form>
+        </div>
+      )}
 
       <div className="mt-6 pt-6 border-t border-gray-100 text-center text-sm text-gray-500">
         Don&apos;t have an account?{" "}

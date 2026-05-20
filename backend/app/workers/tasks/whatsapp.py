@@ -49,7 +49,16 @@ def _process_value(value: dict):
             log.warning("tenant_not_found_for_wa_number", phone_number_id=phone_number_id)
             return
 
-        for msg in value.get("messages", []):
+        messages = value.get("messages", [])
+        if messages:
+            # O2: auto-wipe sample data on first real inbound message
+            try:
+                from app.services.sample_data import auto_wipe_on_real_inbound
+                auto_wipe_on_real_inbound(db, tenant.id)
+            except Exception as wipe_exc:
+                log.warning("sample_auto_wipe_failed", error=str(wipe_exc))
+
+        for msg in messages:
             _handle_inbound_message(db, tenant, msg, value.get("contacts", []))
 
         # Handle delivery status callbacks (sent/delivered/read/failed)
@@ -134,6 +143,28 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
     db.flush()  # ensure message.id is assigned before we pass it
 
     log.info("wa_message_stored", guest=from_number, conversation=conversation.id)
+
+    # ── D1: Opt-out / opt-in detection ───────────────────────────────────────
+    if body and body.strip():
+        try:
+            from app.services.opt_out_detector import detect_opt_out
+            from app.services.opt_out_responder import process_opt_out_event
+            result = detect_opt_out(body)
+            if result.matched and result.direction:
+                process_opt_out_event(
+                    db=db,
+                    tenant_id=tenant.id,
+                    guest_id=guest.id,
+                    guest_phone=from_number,
+                    direction=result.direction,
+                    matched_keyword=result.matched_keyword or "",
+                )
+                log.info("opt_out_detected", direction=result.direction, kw=result.matched_keyword)
+                # For opt-out, skip concierge draft (don't reply twice)
+                if result.direction == "opt_out":
+                    return
+        except Exception as exc:
+            log.error("opt_out_detection_failed", error=str(exc))
 
     # ── Trigger AI Concierge ───────────────────────────────────────────────
     # Only trigger for text/interactive messages (not raw media without caption)

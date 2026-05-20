@@ -593,6 +593,20 @@ function IntegrationCard({
         </div>
       )}
 
+      {/* S7: Meta quality shortcut — only for connected WhatsApp */}
+      {isConnected && item.provider === "whatsapp_meta" && (
+        <a
+          href="/dashboard/settings/integrations/meta-quality"
+          className="flex items-center justify-between px-3 py-2 bg-blue-50 border border-blue-100 rounded-xl text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+        >
+          <span className="flex items-center gap-1.5">
+            <Wifi size={11} />
+            View WABA quality rating &amp; trend
+          </span>
+          <ExternalLink size={10} />
+        </a>
+      )}
+
       {/* Error message */}
       {status === "error" && integration?.error_message && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-2.5 text-xs text-red-700 flex gap-2">
@@ -618,7 +632,7 @@ function IntegrationCard({
               className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-200 rounded-xl text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
             >
               {isVerifying ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-              Verify
+              Test connection
             </button>
             <button
               onClick={() => onDisconnect(item.provider)}
@@ -723,14 +737,19 @@ export default function IntegrationsPage() {
   });
 
   const verifyMutation = useMutation({
-    mutationFn: (provider: string) => api.post(`/integrations/${provider}/verify`),
-    onSuccess: () => {
+    mutationFn: (provider: string) => api.post(`/integrations/${provider}/test`).then(r => r.data as { status: string; message: string }),
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["integrations"] });
-      showToast("Connection verified!", "success");
+      if (data.status === "connected") {
+        showToast(data.message || "Connection verified!", "success");
+      } else {
+        showToast(data.message || "Verification failed — check your credentials.", "error");
+      }
     },
-    onError: () => {
+    onError: (err: any) => {
       queryClient.invalidateQueries({ queryKey: ["integrations"] });
-      showToast("Verification failed — check your credentials.", "error");
+      const msg = err?.response?.data?.detail || "Verification failed — check your credentials.";
+      showToast(msg, "error");
     },
     onSettled: () => setVerifyingProvider(null),
   });

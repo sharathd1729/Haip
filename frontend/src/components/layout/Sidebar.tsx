@@ -221,6 +221,21 @@ export function Sidebar({ user }: SidebarProps) {
         })}
       </nav>
 
+      {/* D6: Grievance / Privacy micro-link */}
+      <div className="px-4 pb-1">
+        <Link
+          href="/grievance"
+          className="block text-[10px] text-center py-1 rounded transition-colors"
+          style={{ color: "rgba(255,255,255,0.25)" }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.6)"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.25)"; }}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Privacy &amp; Grievances
+        </Link>
+      </div>
+
       {/* User footer */}
       <div
         className="p-3 flex-shrink-0"

@@ -11,6 +11,9 @@ class UserOut(BaseModel):
     is_active: bool
     is_mfa_enabled: bool
     property_scope: Optional[List[str]] = []
+    # A7: digest opt-in + notification prefs (returned for self-view)
+    digest_opt_in: Optional[bool] = False
+    notification_prefs: Optional[dict] = {}
 
     class Config:
         from_attributes = True
@@ -28,6 +31,14 @@ class UserUpdateRequest(BaseModel):
     role: Optional[str] = None
     is_active: Optional[bool] = None
     property_scope: Optional[List[str]] = None
+
+
+# A7: self-update (any authenticated user — cannot change role/is_active)
+class UserSelfUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    notification_prefs: Optional[dict] = None
+    digest_opt_in: Optional[bool] = None
 
 
 class InvitationOut(BaseModel):

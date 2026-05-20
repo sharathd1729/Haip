@@ -27,7 +27,10 @@ class User(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     hashed_password = Column(String(255), nullable=True)
     role = Column(SAEnum(UserRole), default=UserRole.CONCIERGE, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+    is_deleted = Column(Boolean, default=False, nullable=False)
+    is_available_for_assignment = Column(Boolean, default=True, nullable=False)  # K14
     is_mfa_enabled = Column(Boolean, default=False, nullable=False)
+    last_seen_at = Column(DateTime(timezone=True), nullable=True)  # W18: presence heartbeat
     mfa_secret = Column(String(64), nullable=True)   # base32 TOTP secret (encrypted at rest recommended)
 
     # Google/Microsoft SSO
@@ -39,6 +42,9 @@ class User(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
 
     # Notification prefs
     notification_prefs = Column(JSON, default=dict)
+
+    # A7: daily owner digest opt-in (default False — explicit opt-in required)
+    digest_opt_in = Column(Boolean, default=False, nullable=False)
 
     tenant = relationship("Tenant", back_populates="users")
     refresh_tokens = relationship("RefreshToken", back_populates="user", lazy="dynamic")

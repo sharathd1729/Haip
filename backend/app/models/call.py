@@ -97,6 +97,9 @@ class Call(Base, TimestampMixin, TenantMixin):
     llm_cost_usd = Column(Numeric(8, 4), default=0)
     storage_cost_usd = Column(Numeric(8, 4), default=0)
 
+    # O2: sample data flag
+    is_sample = Column(Boolean, default=False, nullable=False, index=True)
+
     # Language
     detected_language = Column(String(10), nullable=True)
     is_code_mixed = Column(Boolean, default=False)
