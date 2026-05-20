@@ -9,7 +9,7 @@ export default auth((req: NextRequest & { auth: any }) => {
   // ── Logged-in users ────────────────────────────────────────────────────────
   // Send them away from marketing root + auth pages → into the app
   if (isLoggedIn) {
-    if (pathname === "/" || pathname === "/login" || pathname === "/register" || pathname === "/forgot-password") {
+    if (pathname === "/" || pathname === "/login" || pathname === "/register") {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
   }
@@ -32,6 +32,7 @@ export const config = {
     "/login",
     "/register",
     "/forgot-password",
+    "/reset-password",
     "/dashboard/:path*",
   ],
 };
