@@ -13,16 +13,12 @@
  */
 
 import { CommandPalette } from "@/components/ui/CommandPalette";
-import { ChecklistWidget } from "@/components/dashboard/ChecklistWidget";
 
 export function DashboardClientShell() {
   return (
     <>
       {/* Global Cmd+K command palette — renders as a portal overlay */}
       <CommandPalette />
-
-      {/* Setup checklist widget — fixed bottom-right, dismissible */}
-      <ChecklistWidget />
     </>
   );
 }
