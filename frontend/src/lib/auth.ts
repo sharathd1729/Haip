@@ -13,11 +13,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       async authorize(credentials) {
         const email = credentials?.email as string;
         const password = credentials?.password as string;
-        const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+        const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
         // Try real backend first (preferred — returns proper JWT for API calls)
         try {
-          const res = await fetch(`${apiBase}/auth/login`, {
+          const res = await fetch(`${apiBase}/api/v1/auth/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, password }),
@@ -25,7 +25,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           if (res.ok) {
             const data = await res.json();
             const accessToken = data.access_token;
-            const meRes = await fetch(`${apiBase}/auth/me`, {
+            const meRes = await fetch(`${apiBase}/api/v1/auth/me`, {
               headers: { Authorization: `Bearer ${accessToken}` },
             });
             if (meRes.ok) {
