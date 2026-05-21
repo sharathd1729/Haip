@@ -19,6 +19,18 @@ export const metadata: Metadata = {
   title: "HAIP — Hospitality AI Intelligence Platform",
   description: "Unified inbox + AI call intelligence for luxury hospitality",
   manifest: "/manifest.json",
+  openGraph: {
+    title: "HAIP — Hospitality AI Intelligence Platform",
+    description: "Unified inbox + AI call intelligence for luxury hospitality",
+    url: "https://www.genhaip.com",
+    siteName: "HAIP",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "HAIP — Hospitality AI Intelligence Platform",
+    description: "Unified inbox + AI call intelligence for luxury hospitality",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
