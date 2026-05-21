@@ -30,17 +30,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           if (res.ok) {
             const data = await res.json();
             const accessToken = data.access_token;
-            const meRes = await fetch(`${apiBase}/api/v1/auth/me`, {
+            const meUrl = `${apiBase}/api/v1/auth/me`;
+            console.log("[AUTH] calling me →", meUrl);
+            const meRes = await fetch(meUrl, {
               headers: { Authorization: `Bearer ${accessToken}` },
             });
+            console.log("[AUTH] me response status:", meRes.status);
             if (meRes.ok) {
               const me = await meRes.json();
+              console.log("[AUTH] me data:", JSON.stringify(me).slice(0, 200));
               return {
                 id: me.id, name: me.full_name ?? me.name, email: me.email,
                 role: me.role, tenantId: me.tenant_id ?? "haip-villa",
                 onboardingStep: me.tenant?.config?.onboarding_step ?? 9,
                 accessToken, refreshToken: "",
               };
+            } else {
+              const errText = await meRes.text().catch(() => "");
+              console.error("[AUTH] me failed:", meRes.status, errText);
             }
           } else {
             const errText = await res.text().catch(() => "");
