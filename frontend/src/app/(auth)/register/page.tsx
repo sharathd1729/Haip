@@ -46,10 +46,27 @@ function PasswordStrength({ password }: { password: string }) {
   );
 }
 
+// Map raw backend error strings → human-readable messages + which field to highlight
+function friendlyError(detail: string): { msg: string; field?: string } {
+  const d = detail.toLowerCase();
+  if (d.includes("slug already taken") || d.includes("slug") && d.includes("taken"))
+    return { msg: "That workspace URL is already in use. Try adding a city or number (e.g. haip-homes-blr).", field: "slug" };
+  if (d.includes("email already") || d.includes("email") && d.includes("exist"))
+    return { msg: "An account with this email already exists. Try logging in instead.", field: "email" };
+  if (d.includes("invalid email"))
+    return { msg: "Please enter a valid work email address.", field: "email" };
+  if (d.includes("password") && d.includes("short"))
+    return { msg: "Password must be at least 8 characters.", field: "password" };
+  if (d.includes("tenant name"))
+    return { msg: "Please enter your business or brand name.", field: "tenant_name" };
+  return { msg: detail };
+}
+
 export default function RegisterPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fieldError, setFieldError] = useState<string | undefined>();
   const [showPw, setShowPw] = useState(false);
   const [agreed, setAgreed] = useState(false);
   // O8 — granular DPDP consents (default off per DPDP-correct posture)
@@ -72,11 +89,12 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!agreed) { setError("Please accept the terms to continue."); return; }
-    if (form.password.length < 8) { setError("Password must be at least 8 characters."); return; }
+    if (!agreed) { setError("Please accept the terms to continue."); setFieldError(undefined); return; }
+    if (form.password.length < 8) { setError("Password must be at least 8 characters."); setFieldError("password"); return; }
 
     setLoading(true);
     setError("");
+    setFieldError(undefined);
 
     try {
       const res = await fetch(
@@ -100,7 +118,10 @@ export default function RegisterPage() {
 
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        setError(d.detail ?? "Registration failed. Please try again.");
+        const raw = typeof d.detail === "string" ? d.detail : "Registration failed. Please try again.";
+        const { msg, field } = friendlyError(raw);
+        setError(msg);
+        setFieldError(field);
         return;
       }
 
@@ -197,7 +218,7 @@ export default function RegisterPage() {
             <p className="text-gray-500 text-sm">Start your 14-day free trial — no card required</p>
           </div>
 
-          {error && (
+          {error && !fieldError && (
             <div className="mb-5 p-3.5 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
               {error}
             </div>
@@ -225,11 +246,12 @@ export default function RegisterPage() {
                 required
                 autoComplete="email"
                 value={form.email}
-                onChange={e => set("email", e.target.value)}
+                onChange={e => { set("email", e.target.value); if (fieldError === "email") setFieldError(undefined); }}
                 placeholder="you@company.com"
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
+                className={`w-full px-4 py-3 border rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:border-transparent transition-shadow ${fieldError === "email" ? "border-red-400 focus:ring-red-400" : "border-gray-200 focus:ring-teal-500"}`}
                 suppressHydrationWarning
               />
+              {fieldError === "email" && <p className="mt-1.5 text-xs text-red-600">{error}</p>}
             </div>
 
             <div>
@@ -262,7 +284,7 @@ export default function RegisterPage() {
                 type="text"
                 required
                 value={form.tenant_name}
-                onChange={e => handleTenantName(e.target.value)}
+                onChange={e => { handleTenantName(e.target.value); if (fieldError === "slug") setFieldError(undefined); }}
                 placeholder="Ratha Travels"
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
                 suppressHydrationWarning
@@ -271,19 +293,22 @@ export default function RegisterPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Workspace URL</label>
-              <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden bg-white focus-within:ring-2 focus-within:ring-teal-500 focus-within:border-transparent transition-shadow">
+              <div className={`flex items-center border rounded-xl overflow-hidden bg-white focus-within:ring-2 focus-within:border-transparent transition-shadow ${fieldError === "slug" ? "border-red-400 focus-within:ring-red-400" : "border-gray-200 focus-within:ring-teal-500"}`}>
                 <span className="px-3 py-3 bg-gray-50 text-gray-400 text-sm border-r border-gray-200 whitespace-nowrap select-none">
                   genhaip.com/
                 </span>
                 <input
                   value={form.tenant_slug}
-                  onChange={e => set("tenant_slug", e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                  onChange={e => { set("tenant_slug", e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "")); if (fieldError === "slug") setFieldError(undefined); }}
                   placeholder="ratha-travels"
                   required
                   className="flex-1 px-3 py-3 text-sm focus:outline-none bg-transparent"
                   suppressHydrationWarning
                 />
               </div>
+              {fieldError === "slug" && (
+                <p className="mt-1.5 text-xs text-red-600">{error}</p>
+              )}
             </div>
 
             {/* O8 — Granular DPDP consents (DPDP-correct: separate checkboxes, default-off) */}
