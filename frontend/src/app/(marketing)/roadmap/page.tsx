@@ -59,7 +59,7 @@ export default function RoadmapPage() {
             <span className="text-xs font-semibold text-teal-300 uppercase tracking-wider">Public roadmap</span>
           </div>
           <h1 className="text-4xl sm:text-5xl font-black tracking-tight mb-4">Where HAIP is heading</h1>
-          <p className="text-white/55 text-lg leading-relaxed">Honest, public, and customer-driven. Bring your own item — we read everything that lands at <Link href="/contact" className="text-teal-400 hover:text-teal-300 underline">hello@haip.app</Link>.</p>
+          <p className="text-white/55 text-lg leading-relaxed">Honest, public, and customer-driven. Bring your own item — we read everything that lands at <Link href="/contact" className="text-teal-400 hover:text-teal-300 underline">gen.haip@gmail.com</Link>.</p>
         </div>
       </section>
 
@@ -93,7 +93,7 @@ export default function RoadmapPage() {
           <p className="text-white/55 text-sm max-w-md mx-auto mb-6">If a customer asks for it twice, it goes on the board. Tell us what would unlock value for your team — we&apos;ll prioritise transparently.</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link href="/contact" className="inline-flex items-center gap-2 px-5 py-2.5 bg-teal-500 hover:bg-teal-400 text-white text-sm font-bold rounded-xl">Suggest a feature <ArrowRight size={14} /></Link>
-            <a href="https://wa.me/+919876543210" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-sm font-semibold rounded-xl">
+            <a href="https://wa.me/+918147698153" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-sm font-semibold rounded-xl">
               <MessageSquare size={14} /> WhatsApp the product team
             </a>
           </div>

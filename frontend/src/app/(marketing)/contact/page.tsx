@@ -74,14 +74,14 @@ export default function ContactPage() {
               title="Sales"
               subtitle="Pricing · demo · onboarding"
               primary={{ label: "Book a demo", href: "/book-demo" }}
-              secondary={{ label: "hello@haip.app", href: "mailto:hello@haip.app" }}
+              secondary={{ label: "gen.haip@gmail.com", href: "mailto:gen.haip@gmail.com" }}
             />
             <Channel
               icon={<HelpCircle size={20} className="text-amber-400" />}
               tone="amber"
               title="Customer success"
               subtitle="Existing customer · how-to · billing"
-              primary={{ label: "WhatsApp support", href: "https://wa.me/+919876543210" }}
+              primary={{ label: "WhatsApp support", href: "https://wa.me/+918147698153" }}
               secondary={{ label: "support@haip.app", href: "mailto:support@haip.app" }}
             />
             <Channel
@@ -160,7 +160,7 @@ export default function ContactPage() {
               <InfoCard icon={<MapPin size={16} className="text-rose-400" />} title="Where we&apos;re based" lines={["HAIP Technologies Pvt. Ltd.", "Bengaluru, Karnataka, India"]} />
               <InfoCard icon={<Mail size={16} className="text-teal-400" />} title="Quick links" lines={[]}>
                 <div className="space-y-2 text-sm">
-                  <a className="block text-white/60 hover:text-white" href="mailto:hello@haip.app">hello@haip.app</a>
+                  <a className="block text-white/60 hover:text-white" href="mailto:gen.haip@gmail.com">gen.haip@gmail.com</a>
                   <a className="block text-white/60 hover:text-white" href="mailto:support@haip.app">support@haip.app</a>
                   <a className="block text-white/60 hover:text-white" href="mailto:security@haip.app">security@haip.app</a>
                   <a className="block text-white/60 hover:text-white" href="mailto:dpo@haip.app">dpo@haip.app (data protection)</a>
@@ -168,9 +168,9 @@ export default function ContactPage() {
               </InfoCard>
               <InfoCard icon={<Phone size={16} className="text-green-400" />} title="On the phone" lines={[]}>
                 <div className="space-y-1">
-                  <p className="text-sm text-white">+91 98765 43210</p>
+                  <p className="text-sm text-white">+91 81476 98153</p>
                   <p className="text-xs text-white/40">Mon–Sat · 9 am to 8 pm IST</p>
-                  <a href="https://wa.me/+919876543210" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs text-green-400 hover:text-green-300 mt-1 font-semibold">
+                  <a href="https://wa.me/+918147698153" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs text-green-400 hover:text-green-300 mt-1 font-semibold">
                     <MessageSquare size={11} /> WhatsApp us anytime
                   </a>
                 </div>

@@ -136,7 +136,7 @@ export default function BookDemoPage() {
                   </p>
                   <div className="flex flex-col sm:flex-row gap-3 justify-center">
                     <Link href="/" className="px-5 py-2.5 bg-teal-500 hover:bg-teal-400 rounded-xl text-sm font-semibold text-white transition-colors">Back to home</Link>
-                    <a href={`https://wa.me/+919876543210?text=Hi%20HAIP%2C%20I%20just%20booked%20a%20demo%20%E2%80%94%20here%27s%20my%20company%3A%20${encodeURIComponent(form.company)}`} target="_blank" rel="noopener noreferrer" className="px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-semibold text-white transition-colors inline-flex items-center justify-center gap-2">
+                    <a href={`https://wa.me/+918147698153?text=Hi%20HAIP%2C%20I%20just%20booked%20a%20demo%20%E2%80%94%20here%27s%20my%20company%3A%20${encodeURIComponent(form.company)}`} target="_blank" rel="noopener noreferrer" className="px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-semibold text-white transition-colors inline-flex items-center justify-center gap-2">
                       <MessageSquare size={14} /> Message us on WhatsApp now
                     </a>
                   </div>
@@ -211,18 +211,18 @@ export default function BookDemoPage() {
 
             {/* Alt-contact strip */}
             <div className="mt-5 grid sm:grid-cols-3 gap-3">
-              <a href="https://wa.me/+919876543210" target="_blank" rel="noopener noreferrer" className="bg-[#0f2744]/60 hover:bg-[#0f2744] border border-white/8 hover:border-green-500/30 rounded-xl px-4 py-3 flex items-center gap-3 transition-colors">
+              <a href="https://wa.me/+918147698153" target="_blank" rel="noopener noreferrer" className="bg-[#0f2744]/60 hover:bg-[#0f2744] border border-white/8 hover:border-green-500/30 rounded-xl px-4 py-3 flex items-center gap-3 transition-colors">
                 <MessageSquare size={16} className="text-green-400 flex-shrink-0" />
                 <div className="min-w-0">
                   <p className="text-[11px] text-white/40">WhatsApp us</p>
-                  <p className="text-xs font-semibold text-white truncate">+91 98765 43210</p>
+                  <p className="text-xs font-semibold text-white truncate">+91 81476 98153</p>
                 </div>
               </a>
-              <a href="mailto:hello@haip.app" className="bg-[#0f2744]/60 hover:bg-[#0f2744] border border-white/8 hover:border-teal-500/30 rounded-xl px-4 py-3 flex items-center gap-3 transition-colors">
+              <a href="mailto:gen.haip@gmail.com" className="bg-[#0f2744]/60 hover:bg-[#0f2744] border border-white/8 hover:border-teal-500/30 rounded-xl px-4 py-3 flex items-center gap-3 transition-colors">
                 <Building2 size={16} className="text-teal-400 flex-shrink-0" />
                 <div className="min-w-0">
                   <p className="text-[11px] text-white/40">Email sales</p>
-                  <p className="text-xs font-semibold text-white truncate">hello@haip.app</p>
+                  <p className="text-xs font-semibold text-white truncate">gen.haip@gmail.com</p>
                 </div>
               </a>
               <div className="bg-[#0f2744]/60 border border-white/8 rounded-xl px-4 py-3 flex items-center gap-3">

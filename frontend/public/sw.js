@@ -49,8 +49,11 @@ self.addEventListener('fetch', (event) => {
           if (cached) return cached;
           // For navigation requests show offline page
           if (event.request.mode === 'navigate') {
-            return caches.match('/offline');
+            return caches.match('/offline').then((offlinePage) =>
+              offlinePage ?? new Response('Offline', { status: 503, statusText: 'Service Unavailable' })
+            );
           }
+          return new Response('Network error', { status: 503 });
         })
       )
   );
