@@ -13,15 +13,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       async authorize(credentials) {
         const email = credentials?.email as string;
         const password = credentials?.password as string;
-        const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+        const apiBase = process.env.BACKEND_URL
+          ?? process.env.NEXT_PUBLIC_API_URL
+          ?? "http://localhost:8000";
 
         // Try real backend first (preferred — returns proper JWT for API calls)
         try {
-          const res = await fetch(`${apiBase}/api/v1/auth/login`, {
+          const loginUrl = `${apiBase}/api/v1/auth/login`;
+          console.log("[AUTH] login attempt →", loginUrl, "for", email);
+          const res = await fetch(loginUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, password }),
           });
+          console.log("[AUTH] login response status:", res.status);
           if (res.ok) {
             const data = await res.json();
             const accessToken = data.access_token;
@@ -37,9 +42,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                 accessToken, refreshToken: "",
               };
             }
+          } else {
+            const errText = await res.text().catch(() => "");
+            console.error("[AUTH] login failed:", res.status, errText);
           }
-        } catch {
-          // Backend unreachable — fall through to demo bypass
+        } catch (e) {
+          console.error("[AUTH] fetch error:", e);
         }
 
         // Demo bypass fallback (when backend is unavailable)
