@@ -128,7 +128,7 @@ async def send_welcome_email(*, to_email: str, name: str, tenant_name: str) -> b
       </ul>
 
       <div style="text-align: center; margin: 32px 0;">
-        <a href="https://app.haip.in/dashboard"
+        <a href="https://www.genhaip.com/dashboard"
            style="display: inline-block; background: #0B1F3A; color: white; text-decoration: none;
                   font-weight: 700; font-size: 15px; padding: 14px 32px; border-radius: 12px;">
           Go to dashboard →
