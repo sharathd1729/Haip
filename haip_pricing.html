@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HAIP — Pricing Calculator</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f9f9f8;
+    --surface: #ffffff;
+    --surface2: #f4f4f2;
+    --border: rgba(0,0,0,0.1);
+    --border2: rgba(0,0,0,0.18);
+    --text: #111110;
+    --text2: #6b6b67;
+    --text3: #999994;
+    --blue: #1a6fb5;
+    --blue-bg: #e8f2fb;
+    --blue-border: #93c0e8;
+    --green: #1a7a4a;
+    --green-bg: #e6f5ec;
+    --amber: #a05c10;
+    --amber-bg: #fef3e2;
+    --red: #b03030;
+    --red-bg: #fdeaea;
+    --radius: 10px;
+    --radius-sm: 7px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111110;
+      --surface: #1c1c1a;
+      --surface2: #252523;
+      --border: rgba(255,255,255,0.1);
+      --border2: rgba(255,255,255,0.18);
+      --text: #f0efeb;
+      --text2: #9b9b96;
+      --text3: #666662;
+      --blue: #5ba8e8;
+      --blue-bg: #0f2a40;
+      --blue-border: #2d5f8a;
+      --green: #4caf78;
+      --green-bg: #0d2e1c;
+      --amber: #e0a050;
+      --amber-bg: #2e1e08;
+      --red: #e06060;
+      --red-bg: #2e0f0f;
+    }
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── header ── */
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+  }
+  .logo-mark {
+    width: 32px;
+    height: 32px;
+    background: var(--text);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--surface);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+  .logo-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.3px;
+  }
+  .logo-tag {
+    font-size: 12px;
+    color: var(--text3);
+    margin-top: 1px;
+  }
+  .header-badge {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: var(--blue-bg);
+    color: var(--blue);
+    border: 1px solid var(--blue-border);
+    font-weight: 500;
+  }
+
+  /* ── hero ── */
+  .hero {
+    text-align: center;
+    padding: 56px 2rem 40px;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  .hero h1 {
+    font-size: 32px;
+    font-weight: 650;
+    letter-spacing: -0.8px;
+    color: var(--text);
+    line-height: 1.2;
+    margin-bottom: 12px;
+  }
+  .hero p {
+    font-size: 15px;
+    color: var(--text2);
+    line-height: 1.6;
+  }
+
+  /* ── main layout ── */
+  .main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 0 1.5rem 80px;
+  }
+
+  /* ── section label ── */
+  .sec {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text3);
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    margin: 0 0 12px;
+  }
+
+  /* ── property slider ── */
+  .prop-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .prop-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .prop-count {
+    font-size: 40px;
+    font-weight: 650;
+    letter-spacing: -1px;
+    color: var(--text);
+    min-width: 72px;
+    line-height: 1;
+  }
+  .prop-label {
+    font-size: 14px;
+    color: var(--text2);
+  }
+  input[type=range] {
+    flex: 1;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--border2);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--text);
+    cursor: pointer;
+    border: 3px solid var(--surface);
+    box-shadow: 0 0 0 1px var(--border2);
+  }
+  input[type=number] {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 14px;
+    outline: none;
+    transition: border-color .15s;
+  }
+  input[type=number]:focus { border-color: var(--blue); }
+
+  /* ── modules ── */
+  .mod-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 1.5rem;
+  }
+  @media (min-width: 560px) {
+    .mod-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+  .mod {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: border-color .12s, background .12s;
+    user-select: none;
+  }
+  .mod:hover { border-color: var(--border2); }
+  .mod.on {
+    background: var(--blue-bg);
+    border: 2px solid var(--blue-border);
+  }
+  .mod i {
+    font-size: 20px;
+    color: var(--text3);
+    display: block;
+  }
+  .mod.on i { color: var(--blue); }
+  .mod-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 8px 0 3px;
+  }
+  .mod.on .mod-name { color: var(--blue); }
+  .mod-desc {
+    font-size: 11px;
+    color: var(--text3);
+    line-height: 1.5;
+    margin-bottom: 8px;
+  }
+  .mod.on .mod-desc { color: var(--blue); opacity: .8; }
+  .mod-price {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text2);
+  }
+  .mod.on .mod-price { color: var(--blue); }
+  .mod { position: relative; }
+  .check {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--blue);
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  .mod.on .check { display: flex; }
+  .check i { font-size: 11px; color: #fff; }
+
+  /* ── breakdown ── */
+  .breakdown-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 1rem;
+  }
+  .bk-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .bk-row:last-child { border-bottom: none; }
+  .bk-lbl { color: var(--text2); }
+  .bk-val { font-weight: 600; color: var(--text); }
+  .empty-state {
+    padding: 24px 16px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--text3);
+  }
+
+  /* ── total ── */
+  .total-box {
+    background: var(--blue-bg);
+    border: 2px solid var(--blue-border);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: .5rem;
+  }
+  .total-lbl { font-size: 14px; font-weight: 600; color: var(--blue); }
+  .total-val { font-size: 32px; font-weight: 700; color: var(--blue); letter-spacing: -1px; }
+  .per-prop { font-size: 12px; color: var(--text3); text-align: right; margin-bottom: .25rem; }
+  .min-note {
+    font-size: 11px;
+    color: var(--amber);
+    text-align: right;
+    background: var(--amber-bg);
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    float: right;
+    margin-bottom: 1.5rem;
+  }
+  .clear { clear: both; }
+
+  /* ── margin section ── */
+  .margin-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 1rem;
+  }
+  .mc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    text-align: center;
+  }
+  .mc-lbl { font-size: 11px; color: var(--text3); margin-bottom: 5px; }
+  .mc-val { font-size: 20px; font-weight: 650; color: var(--text); letter-spacing: -0.5px; }
+  .mc-val.good { color: var(--green); }
+  .mc-val.warn { color: var(--amber); }
+  .mc-val.bad  { color: var(--red); }
+
+  .bar-lbl {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text3);
+    margin-bottom: 5px;
+  }
+  .bar-bg {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .bar-fg {
+    height: 6px;
+    border-radius: 3px;
+    transition: width .35s, background .35s;
+  }
+
+  /* ── divider ── */
+  .divider { height: 1px; background: var(--border); margin: 1.75rem 0; }
+
+  /* ── footer ── */
+  .footer {
+    text-align: center;
+    padding: 2rem;
+    font-size: 12px;
+    color: var(--text3);
+    border-top: 1px solid var(--border);
+  }
+  .footer a { color: var(--blue); text-decoration: none; }
+
+  @media (max-width: 520px) {
+    .hero h1 { font-size: 24px; }
+    .margin-cards { grid-template-columns: 1fr; }
+    .total-val { font-size: 26px; }
+    .main { padding: 0 1rem 80px; }
+    .hero { padding: 32px 1rem 28px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <a class="logo" href="#">
+    <div class="logo-mark">H</div>
+    <div>
+      <div class="logo-name">HAIP</div>
+      <div class="logo-tag">Hospitality AI Intelligence Platform</div>
+    </div>
+  </a>
+  <span class="header-badge">Pricing Calculator</span>
+</header>
+
+<section class="hero">
+  <h1>Simple, pay-as-you-go pricing</h1>
+  <p>Select the modules your business needs. Pay only per property, only for what you use. No platform fees, no lock-ins.</p>
+</section>
+
+<main class="main">
+
+  <!-- Properties -->
+  <div class="prop-card">
+    <p class="sec">How many properties do you manage?</p>
+    <div class="prop-row">
+      <input type="range" min="1" max="150" value="10" id="pr" step="1" style="flex:1;">
+      <span class="prop-count" id="pd">10</span>
+      <span class="prop-label">properties</span>
+    </div>
+  </div>
+
+  <!-- Modules -->
+  <p class="sec">Choose your modules</p>
+  <div class="mod-grid" id="mg"></div>
+
+  <!-- Breakdown -->
+  <div class="divider"></div>
+  <p class="sec">Price breakdown</p>
+  <div class="breakdown-card" id="bk">
+    <div class="empty-state">Select one or more modules above to see your pricing</div>
+  </div>
+
+  <!-- Total -->
+  <div class="total-box">
+    <span class="total-lbl">Total / month</span>
+    <span class="total-val" id="tv">₹0</span>
+  </div>
+  <p class="per-prop" id="pp-lbl"></p>
+  <span class="min-note" id="min-note" style="display:none;">Minimum billing of ₹2,500/month applied</span>
+  <div class="clear"></div>
+
+  <!-- Margin (internal view) -->
+  <div id="margin-wrap" style="display:none;">
+    <div class="divider"></div>
+    <p class="sec">Your gross margin</p>
+    <div class="margin-cards">
+      <div class="mc">
+        <div class="mc-lbl">Your cost / month</div>
+        <div class="mc-val" id="cv">₹0</div>
+      </div>
+      <div class="mc">
+        <div class="mc-lbl">Revenue / month</div>
+        <div class="mc-val" id="rv">₹0</div>
+      </div>
+      <div class="mc">
+        <div class="mc-lbl">Gross margin</div>
+        <div class="mc-val" id="mv">—</div>
+      </div>
+    </div>
+    <div style="margin-top:12px;">
+      <div class="bar-lbl"><span>0%</span><span id="bpct">—</span><span>100%</span></div>
+      <div class="bar-bg"><div class="bar-fg" id="bar" style="width:0%;background:#1a7a4a;"></div></div>
+    </div>
+  </div>
+
+</main>
+
+<footer class="footer">
+  <p>HAIP &mdash; Hospitality AI Intelligence Platform &nbsp;&middot;&nbsp; All prices in INR &nbsp;&middot;&nbsp; <a href="mailto:sharath.d1729@gmail.com">Contact us</a></p>
+</footer>
+
+<script>
+const MODS = [
+  { id: 'ivr',  icon: 'ti-phone',            name: 'IVR + Call intelligence',
+    desc: 'Transcription · QA scoring · Insights dashboard',
+    ppm: 500, cost: 220 },
+  { id: 'wa',   icon: 'ti-brand-whatsapp',   name: 'WhatsApp communication',
+    desc: 'Inbox · Templates · Guest auto-linking',
+    ppm: 200, cost: 60 },
+  { id: 'ai',   icon: 'ti-robot',            name: 'AI concierge',
+    desc: 'Auto-replies · Intent detection · Human handoff',
+    ppm: 300, cost: 120 },
+  { id: 'crm',  icon: 'ti-users',            name: 'CRM & guest pipeline',
+    desc: 'Guest profiles · Inquiry tracking · Lead score',
+    ppm: 150, cost: 50 },
+  { id: 'ig',   icon: 'ti-brand-instagram',  name: 'Instagram DM',
+    desc: 'IG inquiries · Inbox · Guest profile linking',
+    ppm: 150, cost: 45 },
+];
+
+const MIN = 2500;
+let sel = new Set(), props = 10;
+
+function fmt(n) {
+  return '₹' + Math.round(n).toLocaleString('en-IN');
+}
+
+function calc() {
+  props = parseInt(document.getElementById('pr').value) || 1;
+  document.getElementById('pd').textContent = props;
+
+  let rev = 0, cost = 0, rows = [];
+  sel.forEach(id => {
+    const m = MODS.find(x => x.id === id);
+    if (!m) return;
+    const r = m.ppm * props, c = m.cost * props;
+    rev += r; cost += c;
+    rows.push({ l: m.name + ' &nbsp;·&nbsp; ' + props + ' props × ₹' + m.ppm, v: fmt(r) });
+  });
+
+  const minApplied = sel.size > 0 && rev < MIN;
+  const bill = minApplied ? MIN : rev;
+
+  const bk = document.getElementById('bk');
+  bk.innerHTML = rows.length
+    ? rows.map(r => `<div class="bk-row"><span class="bk-lbl">${r.l}</span><span class="bk-val">${r.v}</span></div>`).join('')
+    : '<div class="empty-state">Select one or more modules above to see your pricing</div>';
+
+  document.getElementById('tv').textContent = fmt(bill);
+  document.getElementById('min-note').style.display = minApplied ? 'inline-block' : 'none';
+  const pp = props > 0 ? Math.round(bill / props) : 0;
+  document.getElementById('pp-lbl').textContent = sel.size > 0 ? fmt(pp) + ' per property / month' : '';
+
+  const show = sel.size > 0;
+  document.getElementById('margin-wrap').style.display = show ? '' : 'none';
+  if (show) {
+    const margin = bill > 0 ? (bill - cost) / bill * 100 : 0;
+    document.getElementById('cv').textContent = fmt(cost);
+    document.getElementById('rv').textContent = fmt(bill);
+    const mv = document.getElementById('mv');
+    mv.textContent = Math.round(margin) + '%';
+    mv.className = 'mc-val ' + (margin >= 60 ? 'good' : margin >= 40 ? 'warn' : 'bad');
+    document.getElementById('bpct').textContent = Math.round(margin) + '%';
+    const bar = document.getElementById('bar');
+    bar.style.width = Math.min(Math.max(margin, 0), 100) + '%';
+    bar.style.background = margin >= 60 ? '#1a7a4a' : margin >= 40 ? '#e0a050' : '#b03030';
+  }
+
+  document.querySelectorAll('.mod').forEach(c => c.classList.toggle('on', sel.has(c.dataset.id)));
+}
+
+document.getElementById('mg').innerHTML = MODS.map(m =>
+  `<div class="mod" data-id="${m.id}" onclick="toggle('${m.id}')">
+    <i class="ti ${m.icon}"></i>
+    <div class="check"><i class="ti ti-check"></i></div>
+    <p class="mod-name">${m.name}</p>
+    <p class="mod-desc">${m.desc}</p>
+    <p class="mod-price">₹${m.ppm} / property / month</p>
+  </div>`
+).join('');
+
+function toggle(id) { sel.has(id) ? sel.delete(id) : sel.add(id); calc(); }
+document.getElementById('pr').addEventListener('input', calc);
+calc();
+</script>
+</body>
+</html>
