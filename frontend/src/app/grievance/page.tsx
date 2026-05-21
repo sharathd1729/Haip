@@ -48,7 +48,7 @@ export default function GrievancePage() {
 
   const mutation = useMutation({
     mutationFn: async (data: FormState) => {
-      const res = await fetch("/api/v1/grievance/submit", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/grievance/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),

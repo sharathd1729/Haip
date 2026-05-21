@@ -34,10 +34,11 @@ export interface SSEPayload {
 
 type Handler = (payload: SSEPayload) => void;
 
-const BASE_URL =
-  typeof window !== "undefined"
-    ? (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1")
-    : "";
+// Normalize so BASE_URL always ends with /api/v1 (matches lib/api.ts logic)
+const _rawBase = typeof window !== "undefined"
+  ? (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "")
+  : "";
+const BASE_URL = _rawBase && !_rawBase.endsWith("/api/v1") ? `${_rawBase}/api/v1` : _rawBase;
 
 const MIN_RETRY_MS = 1_000;
 const MAX_RETRY_MS = 30_000;

@@ -144,20 +144,21 @@ def list_integrations(
 
         result.append(IntegrationOut(
             id=row.id,
-            organization_id=row.tenant_id,
-            provider=row.kind,
+            tenant_id=row.tenant_id,
+            kind=row.kind,
             status=row.status or "disconnected",
-            metadata_json=safe_meta,
-            last_synced_at=row.last_health_at,
-            error_message=None,
-            token_expiry=None,
-            created_at=row.created_at or "",
-            updated_at=row.updated_at or "",
-            provider_name=cat.get("name"),
-            provider_description=cat.get("description"),
-            provider_category=cat.get("category"),
-            provider_auth_type=cat.get("auth_type"),
-            provider_logo=cat.get("logo"),
+            config={
+                **safe_meta,
+                # Embed catalog metadata so the frontend can display it
+                "provider_name": cat.get("name"),
+                "provider_description": cat.get("description"),
+                "provider_category": cat.get("category"),
+                "provider_auth_type": cat.get("auth_type"),
+                "provider_logo": cat.get("logo"),
+                "last_error": (row.config or {}).get("last_error"),
+            },
+            installed_at=row.installed_at,
+            last_health_at=row.last_health_at,
         ))
     return result
 
@@ -586,7 +587,7 @@ def test_integration(
     if not row:
         return IntegrationHealthResponse(kind=kind, status="not_configured", message="Integration not configured yet.")
 
-    creds = decrypt_credentials(row.credentials_enc) if row.credentials_enc else {}
+    creds = decrypt_credentials(row.credentials_kms_blob) if row.credentials_kms_blob else {}
 
     status = "connected"
     message = "Connection verified successfully."
@@ -678,13 +679,15 @@ def test_integration(
         status = "error"
         message = f"Unexpected error: {str(exc)[:120]}"
 
-    # Persist test result
+    # Persist test result — error_message is stored in config dict (no dedicated column)
     row.last_health_at = _now()
     row.status = status  # type: ignore[assignment]
+    cfg = dict(row.config or {})
     if status == "error":
-        row.error_message = message
+        cfg["last_error"] = message
     else:
-        row.error_message = None
+        cfg.pop("last_error", None)
+    row.config = cfg
     db.commit()
 
     return IntegrationHealthResponse(kind=kind, status=status, message=message)

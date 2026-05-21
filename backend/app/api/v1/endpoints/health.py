@@ -74,7 +74,7 @@ def dashboard_health(
             "label": "WhatsApp",
             "status": status,
             "last_sync": wa.last_health_at.isoformat() if wa.last_health_at else None,
-            "message": wa.error_message if wa.status == "error" else None,
+            "message": (wa.config or {}).get("last_error") if wa.status == "error" else None,
             "reconnect_href": "/dashboard/settings/integrations",
         })
 
@@ -94,7 +94,7 @@ def dashboard_health(
                 "label": "IVR" if kind == "callerdesk" else "IVR (Acefone)",
                 "status": status,
                 "last_sync": ivr.last_health_at.isoformat() if ivr.last_health_at else None,
-                "message": ivr.error_message if ivr.status == "error" else None,
+                "message": (ivr.config or {}).get("last_error") if ivr.status == "error" else None,
                 "reconnect_href": "/dashboard/settings/integrations",
             })
 
@@ -136,7 +136,7 @@ def dashboard_health(
             "label": "Instagram",
             "status": status,
             "last_sync": ig.last_health_at.isoformat() if ig.last_health_at else None,
-            "message": ig.error_message if ig.status == "error" else None,
+            "message": (ig.config or {}).get("last_error") if ig.status == "error" else None,
             "reconnect_href": "/dashboard/settings/integrations",
         })
 

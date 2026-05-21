@@ -415,7 +415,7 @@ def _dispatch_otp(phone: str, code: str, name: str) -> None:
                 log.info("otp_code_fallback", phone=phone, code=code)  # dev only
                 return
 
-            creds = decrypt_credentials(wa.credentials_enc)
+            creds = decrypt_credentials(wa.credentials_kms_blob)
             import httpx
             resp = httpx.post(
                 f"https://graph.facebook.com/v19.0/{creds.get('phone_number_id')}/messages",
