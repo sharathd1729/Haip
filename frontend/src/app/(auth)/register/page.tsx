@@ -273,7 +273,7 @@ export default function RegisterPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Workspace URL</label>
               <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden bg-white focus-within:ring-2 focus-within:ring-teal-500 focus-within:border-transparent transition-shadow">
                 <span className="px-3 py-3 bg-gray-50 text-gray-400 text-sm border-r border-gray-200 whitespace-nowrap select-none">
-                  haip.app/
+                  genhaip.com/
                 </span>
                 <input
                   value={form.tenant_slug}

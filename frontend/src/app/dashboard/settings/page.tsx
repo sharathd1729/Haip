@@ -119,7 +119,7 @@ function WorkspaceSettings() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Workspace URL</label>
             <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
-              <span className="px-3 py-2 text-gray-400 text-sm border-r border-gray-200">haip.app/</span>
+              <span className="px-3 py-2 text-gray-400 text-sm border-r border-gray-200">genhaip.com/</span>
               <span className="px-3 py-2 text-gray-700 text-sm font-medium flex-1">{form.slug}</span>
               <span className="px-3 text-xs text-gray-400">Contact support to change</span>
             </div>
