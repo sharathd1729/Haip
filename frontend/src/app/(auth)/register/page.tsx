@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
@@ -19,7 +19,7 @@ function PasswordStrength({ password }: { password: string }) {
   ];
   if (!password) return null;
   const score = checks.filter(c => c.ok).length;
-  const colors = ["bg-red-400", "bg-amber-400", "bg-teal-500"];
+  const colors = ["bg-red-400", "bg-amber-400", "bg-indigo-500"];
   const labels = ["Weak", "Fair", "Strong"];
 
   return (
@@ -30,14 +30,14 @@ function PasswordStrength({ password }: { password: string }) {
         ))}
       </div>
       {score > 0 && (
-        <p className={`text-xs font-medium ${score === 3 ? "text-teal-600" : score === 2 ? "text-amber-600" : "text-red-500"}`}>
+        <p className={`text-xs font-medium ${score === 3 ? "text-indigo-600" : score === 2 ? "text-amber-600" : "text-red-500"}`}>
           {labels[score - 1]}
         </p>
       )}
       <div className="flex flex-wrap gap-x-3 gap-y-0.5">
         {checks.map(c => (
-          <span key={c.label} className={`text-[11px] flex items-center gap-1 ${c.ok ? "text-teal-600" : "text-gray-400"}`}>
-            <Check size={10} className={c.ok ? "text-teal-500" : "text-gray-300"} />
+          <span key={c.label} className={`text-[11px] flex items-center gap-1 ${c.ok ? "text-indigo-600" : "text-gray-400"}`}>
+            <Check size={10} className={c.ok ? "text-indigo-500" : "text-gray-300"} />
             {c.label}
           </span>
         ))}
@@ -147,15 +147,15 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen flex">
       {/* ── Left panel: perks ── */}
-      <div className="hidden lg:flex lg:w-[44%] flex-col justify-between bg-[#0B1F3A] p-12 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-[44%] flex-col justify-between bg-[#0D1B4B] p-12 relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-[-100px] right-[-100px] w-[400px] h-[400px] rounded-full bg-teal-500/10 blur-3xl" />
+          <div className="absolute top-[-100px] right-[-100px] w-[400px] h-[400px] rounded-full bg-indigo-500/10 blur-3xl" />
           <div className="absolute bottom-[-80px] left-[-80px] w-[300px] h-[300px] rounded-full bg-blue-500/8 blur-3xl" />
         </div>
 
         <div className="relative">
           <Link href="/" className="inline-flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-teal-500 flex items-center justify-center text-[#0B1F3A] font-bold text-lg shadow-lg shadow-teal-500/30">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 via-blue-500 to-violet-600 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-blue-500/30">
               H
             </div>
             <span className="text-white font-bold text-xl tracking-tight">HAIP</span>
@@ -164,7 +164,7 @@ export default function RegisterPage() {
 
         <div className="relative space-y-8">
           <div>
-            <div className="inline-block px-3 py-1 rounded-full bg-teal-500/10 border border-teal-500/20 text-teal-400 text-xs font-semibold mb-4">
+            <div className="inline-block px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold mb-4">
               14-day free trial
             </div>
             <h1 className="text-3xl font-bold text-white leading-tight mb-3">
@@ -178,8 +178,8 @@ export default function RegisterPage() {
           <div className="space-y-3">
             {PERKS.map(p => (
               <div key={p} className="flex items-start gap-3">
-                <div className="w-5 h-5 rounded-full bg-teal-500/20 border border-teal-500/30 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Check size={11} className="text-teal-400" />
+                <div className="w-5 h-5 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Check size={11} className="text-indigo-400" />
                 </div>
                 <span className="text-blue-100/80 text-sm">{p}</span>
               </div>
@@ -207,8 +207,8 @@ export default function RegisterPage() {
       <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 px-6 py-12 overflow-y-auto">
         <div className="lg:hidden mb-8">
           <Link href="/" className="inline-flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-teal-500 flex items-center justify-center text-[#0B1F3A] font-bold text-base">H</div>
-            <span className="text-[#0B1F3A] font-bold text-xl tracking-tight">HAIP</span>
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-400 via-blue-500 to-violet-600 flex items-center justify-center text-white font-bold text-base">H</div>
+            <span className="text-[#0D1B4B] font-bold text-xl tracking-tight">HAIP</span>
           </Link>
         </div>
 
@@ -234,7 +234,7 @@ export default function RegisterPage() {
                 value={form.name}
                 onChange={e => set("name", e.target.value)}
                 placeholder="Sharath D."
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow"
                 suppressHydrationWarning
               />
             </div>
@@ -248,7 +248,7 @@ export default function RegisterPage() {
                 value={form.email}
                 onChange={e => { set("email", e.target.value); if (fieldError === "email") setFieldError(undefined); }}
                 placeholder="you@company.com"
-                className={`w-full px-4 py-3 border rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:border-transparent transition-shadow ${fieldError === "email" ? "border-red-400 focus:ring-red-400" : "border-gray-200 focus:ring-teal-500"}`}
+                className={`w-full px-4 py-3 border rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:border-transparent transition-shadow ${fieldError === "email" ? "border-red-400 focus:ring-red-400" : "border-gray-200 focus:ring-indigo-500"}`}
                 suppressHydrationWarning
               />
               {fieldError === "email" && <p className="mt-1.5 text-xs text-red-600">{error}</p>}
@@ -264,7 +264,7 @@ export default function RegisterPage() {
                   value={form.password}
                   onChange={e => set("password", e.target.value)}
                   placeholder="Min. 8 characters"
-                  className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
+                  className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow"
                   suppressHydrationWarning
                 />
                 <button
@@ -286,14 +286,14 @@ export default function RegisterPage() {
                 value={form.tenant_name}
                 onChange={e => { handleTenantName(e.target.value); if (fieldError === "slug") setFieldError(undefined); }}
                 placeholder="Ratha Travels"
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow"
                 suppressHydrationWarning
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Workspace URL</label>
-              <div className={`flex items-center border rounded-xl overflow-hidden bg-white focus-within:ring-2 focus-within:border-transparent transition-shadow ${fieldError === "slug" ? "border-red-400 focus-within:ring-red-400" : "border-gray-200 focus-within:ring-teal-500"}`}>
+              <div className={`flex items-center border rounded-xl overflow-hidden bg-white focus-within:ring-2 focus-within:border-transparent transition-shadow ${fieldError === "slug" ? "border-red-400 focus-within:ring-red-400" : "border-gray-200 focus-within:ring-indigo-500"}`}>
                 <span className="px-3 py-3 bg-gray-50 text-gray-400 text-sm border-r border-gray-200 whitespace-nowrap select-none">
                   genhaip.com/
                 </span>
@@ -322,16 +322,16 @@ export default function RegisterPage() {
                   type="checkbox"
                   checked={agreed}
                   onChange={e => setAgreed(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-teal-500 focus:ring-teal-500 cursor-pointer mt-0.5 flex-shrink-0"
+                  className="w-4 h-4 rounded border-gray-300 text-indigo-500 focus:ring-indigo-500 cursor-pointer mt-0.5 flex-shrink-0"
                 />
                 <label htmlFor="agree" className="text-xs text-gray-600 cursor-pointer leading-relaxed">
                   <span className="font-semibold text-gray-800">Service communications</span>{" "}
                   <span className="text-red-500 font-semibold text-[10px]">required</span>
                   <span className="block text-gray-400 mt-0.5">Account notifications, billing, security alerts. Required to use HAIP.</span>
                   {" "}
-                  <Link href="/terms" target="_blank" className="text-teal-600 hover:underline font-medium">Terms</Link>
+                  <Link href="/terms" target="_blank" className="text-indigo-600 hover:underline font-medium">Terms</Link>
                   {" "}·{" "}
-                  <Link href="/privacy" target="_blank" className="text-teal-600 hover:underline font-medium">Privacy Policy</Link>
+                  <Link href="/privacy" target="_blank" className="text-indigo-600 hover:underline font-medium">Privacy Policy</Link>
                 </label>
               </div>
 
@@ -342,7 +342,7 @@ export default function RegisterPage() {
                   type="checkbox"
                   checked={consentMarketing}
                   onChange={e => setConsentMarketing(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-teal-500 focus:ring-teal-500 cursor-pointer mt-0.5 flex-shrink-0"
+                  className="w-4 h-4 rounded border-gray-300 text-indigo-500 focus:ring-indigo-500 cursor-pointer mt-0.5 flex-shrink-0"
                 />
                 <label htmlFor="consent-marketing" className="text-xs text-gray-600 cursor-pointer leading-relaxed">
                   <span className="font-semibold text-gray-800">Marketing communications</span>{" "}
@@ -358,7 +358,7 @@ export default function RegisterPage() {
                   type="checkbox"
                   checked={consentAnalytics}
                   onChange={e => setConsentAnalytics(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-teal-500 focus:ring-teal-500 cursor-pointer mt-0.5 flex-shrink-0"
+                  className="w-4 h-4 rounded border-gray-300 text-indigo-500 focus:ring-indigo-500 cursor-pointer mt-0.5 flex-shrink-0"
                 />
                 <label htmlFor="consent-analytics" className="text-xs text-gray-600 cursor-pointer leading-relaxed">
                   <span className="font-semibold text-gray-800">Product analytics</span>{" "}
@@ -371,7 +371,7 @@ export default function RegisterPage() {
             <button
               type="submit"
               disabled={loading || !agreed}
-              className="w-full py-3 bg-teal-500 hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm shadow-teal-200 mt-2"
+              className="w-full py-3 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm shadow-indigo-200 mt-2"
             >
               {loading ? (
                 <>
@@ -389,7 +389,7 @@ export default function RegisterPage() {
 
           <div className="mt-6 pt-6 border-t border-gray-100 text-center text-sm text-gray-500">
             Already have an account?{" "}
-            <Link href="/login" className="text-teal-600 font-semibold hover:text-teal-700 transition-colors">
+            <Link href="/login" className="text-indigo-600 font-semibold hover:text-indigo-700 transition-colors">
               Sign in
             </Link>
           </div>

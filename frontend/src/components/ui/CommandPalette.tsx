@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 /**
  * X6 — Command palette (Cmd+K / Ctrl+K)
@@ -217,21 +217,21 @@ export function CommandPalette() {
                         onMouseEnter={() => setCursor(idx)}
                         className={cn(
                           "w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors",
-                          isActive ? "bg-teal-50" : "hover:bg-gray-50"
+                          isActive ? "bg-indigo-50" : "hover:bg-gray-50"
                         )}
                       >
-                        <span className={cn("flex-shrink-0", isActive ? "text-teal-600" : "text-gray-400")}>
+                        <span className={cn("flex-shrink-0", isActive ? "text-indigo-600" : "text-gray-400")}>
                           {item.icon}
                         </span>
                         <div className="flex-1 min-w-0">
-                          <p className={cn("text-sm font-medium truncate", isActive ? "text-teal-700" : "text-gray-800")}>
+                          <p className={cn("text-sm font-medium truncate", isActive ? "text-indigo-700" : "text-gray-800")}>
                             {item.label}
                           </p>
                           {item.subtitle && (
                             <p className="text-xs text-gray-400 truncate">{item.subtitle}</p>
                           )}
                         </div>
-                        {isActive && <ArrowRight size={13} className="text-teal-500 flex-shrink-0" />}
+                        {isActive && <ArrowRight size={13} className="text-indigo-500 flex-shrink-0" />}
                       </button>
                     );
                   })}

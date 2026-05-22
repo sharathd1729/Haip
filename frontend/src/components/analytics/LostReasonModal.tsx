@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 /**
  * A4 — Lost-reason theme drill-down modal.
@@ -131,15 +131,15 @@ export function LostReasonModal({ theme, themeLabel, count, onClose }: LostReaso
 
           {/* Bulk action bar */}
           {selected.size > 0 && (
-            <div className="flex items-center gap-3 px-5 py-2.5 bg-teal-50 border-b border-teal-100 flex-shrink-0">
-              <span className="text-xs font-semibold text-teal-700">{selected.size} selected</span>
-              <button className="flex items-center gap-1 text-xs text-teal-700 hover:text-teal-900 bg-white px-2.5 py-1 rounded-lg border border-teal-200 transition-colors font-medium">
+            <div className="flex items-center gap-3 px-5 py-2.5 bg-indigo-50 border-b border-indigo-100 flex-shrink-0">
+              <span className="text-xs font-semibold text-indigo-700">{selected.size} selected</span>
+              <button className="flex items-center gap-1 text-xs text-indigo-700 hover:text-indigo-900 bg-white px-2.5 py-1 rounded-lg border border-indigo-200 transition-colors font-medium">
                 <Tag size={11} /> Tag
               </button>
-              <button className="flex items-center gap-1 text-xs text-teal-700 hover:text-teal-900 bg-white px-2.5 py-1 rounded-lg border border-teal-200 transition-colors font-medium">
+              <button className="flex items-center gap-1 text-xs text-indigo-700 hover:text-indigo-900 bg-white px-2.5 py-1 rounded-lg border border-indigo-200 transition-colors font-medium">
                 <Send size={11} /> Re-engage
               </button>
-              <button className="flex items-center gap-1 text-xs text-teal-700 hover:text-teal-900 bg-white px-2.5 py-1 rounded-lg border border-teal-200 transition-colors font-medium">
+              <button className="flex items-center gap-1 text-xs text-indigo-700 hover:text-indigo-900 bg-white px-2.5 py-1 rounded-lg border border-indigo-200 transition-colors font-medium">
                 <Flag size={11} /> Flag for review
               </button>
               <button
@@ -155,7 +155,7 @@ export function LostReasonModal({ theme, themeLabel, count, onClose }: LostReaso
           <div className="flex items-center gap-3 px-5 py-2 bg-gray-50 border-b border-gray-100 flex-shrink-0 text-[11px] font-bold text-gray-400 uppercase tracking-wider">
             <input
               type="checkbox"
-              className="w-3.5 h-3.5 accent-teal-500 flex-shrink-0 cursor-pointer"
+              className="w-3.5 h-3.5 accent-indigo-500 flex-shrink-0 cursor-pointer"
               checked={!!data && selected.size === data.items.length && data.items.length > 0}
               onChange={selectAll}
             />
@@ -182,12 +182,12 @@ export function LostReasonModal({ theme, themeLabel, count, onClose }: LostReaso
                   key={inq.id}
                   className={cn(
                     "flex items-center gap-3 px-5 py-3 border-b border-gray-50 hover:bg-gray-50/80 transition-colors group",
-                    selected.has(inq.id) && "bg-teal-50/40"
+                    selected.has(inq.id) && "bg-indigo-50/40"
                   )}
                 >
                   <input
                     type="checkbox"
-                    className="w-3.5 h-3.5 accent-teal-500 flex-shrink-0 cursor-pointer"
+                    className="w-3.5 h-3.5 accent-indigo-500 flex-shrink-0 cursor-pointer"
                     checked={selected.has(inq.id)}
                     onChange={() => toggleSelect(inq.id)}
                   />
@@ -206,7 +206,7 @@ export function LostReasonModal({ theme, themeLabel, count, onClose }: LostReaso
                   </span>
                   <button
                     onClick={() => { onClose(); router.push(`/dashboard/inquiries/${inq.id}`); }}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:text-teal-600 hover:bg-teal-50 transition-colors opacity-0 group-hover:opacity-100"
+                    className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 transition-colors opacity-0 group-hover:opacity-100"
                     title="Open inquiry"
                   >
                     <ExternalLink size={13} />

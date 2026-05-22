@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { ChannelIcon } from "./ChannelIcon";
@@ -96,15 +96,15 @@ export function ConversationList({
     <div className={cn("flex flex-col overflow-y-auto", className)}>
       {/* W13: bulk action toolbar */}
       {isSelecting && (
-        <div className="px-3 py-2 border-b border-teal-100 bg-teal-50 flex items-center gap-2 flex-shrink-0">
-          <span className="text-xs font-semibold text-teal-700">{selected.size} selected</span>
-          <button onClick={selectAll} className="text-[11px] text-teal-600 hover:underline">All</button>
+        <div className="px-3 py-2 border-b border-indigo-100 bg-indigo-50 flex items-center gap-2 flex-shrink-0">
+          <span className="text-xs font-semibold text-indigo-700">{selected.size} selected</span>
+          <button onClick={selectAll} className="text-[11px] text-indigo-600 hover:underline">All</button>
           <div className="flex-1" />
           {onBulkMarkRead && (
             <button
               onClick={() => { onBulkMarkRead(Array.from(selected)); clearSelection(); }}
               title="Mark as read"
-              className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg bg-white border border-teal-200 text-teal-600 hover:bg-teal-100"
+              className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-100"
             >
               <CheckCheck size={11} /> Read
             </button>
@@ -113,7 +113,7 @@ export function ConversationList({
             <button
               onClick={() => { onBulkResolve(Array.from(selected)); clearSelection(); }}
               title="Resolve conversations"
-              className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg bg-white border border-teal-200 text-teal-600 hover:bg-teal-100"
+              className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-100"
             >
               <Archive size={11} /> Resolve
             </button>
@@ -141,7 +141,7 @@ export function ConversationList({
                 onClick={() => { setSort(m); setShowSortMenu(false); }}
                 className={cn(
                   "w-full text-left px-4 py-2 text-xs transition-colors",
-                  sort === m ? "bg-teal-50 text-teal-700 font-medium" : "text-gray-700 hover:bg-gray-50"
+                  sort === m ? "bg-indigo-50 text-indigo-700 font-medium" : "text-gray-700 hover:bg-gray-50"
                 )}
               >
                 {SORT_LABELS[m]}
@@ -164,8 +164,8 @@ export function ConversationList({
             onClick={() => isSelecting ? toggleSelect(conv.id, { stopPropagation: () => {} } as any) : onSelect(conv.id)}
             className={cn(
               "w-full text-left px-4 py-3.5 border-b border-gray-50 transition-colors group",
-              isActive ? "bg-teal-50/70" : "hover:bg-gray-50",
-              isChecked && "bg-teal-50"
+              isActive ? "bg-indigo-50/70" : "hover:bg-gray-50",
+              isChecked && "bg-indigo-50"
             )}
           >
             <div className="flex items-start gap-3">
@@ -175,13 +175,13 @@ export function ConversationList({
                 onClick={e => toggleSelect(conv.id, e)}
               >
                 {isChecked
-                  ? <CheckSquare size={16} className="text-teal-500" />
+                  ? <CheckSquare size={16} className="text-indigo-500" />
                   : <Square size={16} className="text-gray-300" />
                 }
               </div>
               {/* Avatar — hide when checkbox visible */}
               <div className={cn(
-                "w-9 h-9 rounded-full bg-gradient-to-br from-teal-400 to-blue-500 flex items-center justify-center text-white text-sm font-bold flex-shrink-0",
+                "w-9 h-9 rounded-full bg-gradient-to-br from-indigo-400 to-blue-500 flex items-center justify-center text-white text-sm font-bold flex-shrink-0",
                 (isSelecting || isChecked) ? "hidden" : "group-hover:hidden block"
               )}>
                 {conv.guest_name?.[0]?.toUpperCase() ?? "?"}
@@ -192,7 +192,7 @@ export function ConversationList({
                 <div className="flex items-center justify-between gap-1 mb-0.5">
                   <span className={cn(
                     "text-sm font-semibold truncate",
-                    isActive ? "text-teal-700" : "text-gray-900"
+                    isActive ? "text-indigo-700" : "text-gray-900"
                   )}>
                     {conv.guest_name || conv.guest_phone}
                   </span>
@@ -223,12 +223,12 @@ export function ConversationList({
                     </span>
                   )}
                   {conv.has_ai_draft && (
-                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-teal-100 text-teal-600 flex items-center gap-1">
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-600 flex items-center gap-1">
                       <Sparkles size={9} /> AI draft
                     </span>
                   )}
                   {conv.unread_count > 0 && (
-                    <span className="ml-auto bg-teal-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center flex-shrink-0">
+                    <span className="ml-auto bg-indigo-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center flex-shrink-0">
                       {conv.unread_count > 9 ? "9+" : conv.unread_count}
                     </span>
                   )}

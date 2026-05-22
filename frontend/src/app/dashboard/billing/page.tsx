@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import {
@@ -152,9 +152,9 @@ export default function BillingPage() {
             <h1 className="text-xl font-bold text-gray-900">Billing</h1>
             <p className="text-sm text-gray-400 mt-0.5">Manage your plan, usage, and payment details</p>
           </div>
-          <div className="flex items-center gap-2 bg-teal-50 border border-teal-200 rounded-xl px-3 py-1.5">
-            <Star size={13} className="text-teal-600" />
-            <span className="text-xs font-bold text-teal-700">Growth Plan</span>
+          <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-1.5">
+            <Star size={13} className="text-indigo-600" />
+            <span className="text-xs font-bold text-indigo-700">Growth Plan</span>
           </div>
         </div>
 
@@ -166,7 +166,7 @@ export default function BillingPage() {
               onClick={() => setTab(t)}
               className={cn(
                 "px-4 py-1.5 rounded-lg text-sm font-medium capitalize transition-colors",
-                tab === t ? "bg-teal-500 text-white" : "text-gray-500 hover:bg-gray-100"
+                tab === t ? "bg-indigo-500 text-white" : "text-gray-500 hover:bg-gray-100"
               )}
             >
               {t}
@@ -189,7 +189,7 @@ function Overview() {
   return (
     <div className="max-w-2xl space-y-6">
       {/* Current plan summary */}
-      <div className="bg-white rounded-2xl border border-teal-200 shadow-sm p-5">
+      <div className="bg-white rounded-2xl border border-indigo-200 shadow-sm p-5">
         <div className="flex items-start justify-between">
           <div>
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Current plan</p>
@@ -201,7 +201,7 @@ function Overview() {
               <CheckCircle size={14} />
               Active
             </div>
-            <button className="mt-2 flex items-center gap-1 text-xs text-teal-600 hover:underline font-medium">
+            <button className="mt-2 flex items-center gap-1 text-xs text-indigo-600 hover:underline font-medium">
               Upgrade to Scale <ArrowUpRight size={11} />
             </button>
           </div>
@@ -228,7 +228,7 @@ function Overview() {
             <p className="text-sm font-medium text-gray-900">•••• •••• •••• 4242</p>
             <p className="text-xs text-gray-400">Visa · Expires 12/27</p>
           </div>
-          <button className="ml-auto text-xs text-teal-600 hover:underline font-medium">Update</button>
+          <button className="ml-auto text-xs text-indigo-600 hover:underline font-medium">Update</button>
         </div>
         <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 flex items-start gap-2">
           <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />
@@ -274,11 +274,11 @@ function Plans() {
             key={plan.id}
             className={cn(
               "bg-white rounded-2xl border p-5 flex flex-col",
-              plan.highlight ? "border-teal-400 shadow-md shadow-teal-50 ring-1 ring-teal-400/20" : "border-gray-100 shadow-sm"
+              plan.highlight ? "border-indigo-400 shadow-md shadow-indigo-50 ring-1 ring-indigo-400/20" : "border-gray-100 shadow-sm"
             )}
           >
             {plan.badge && (
-              <span className="self-start text-[10px] bg-teal-100 text-teal-700 font-bold px-2 py-0.5 rounded-full uppercase tracking-wide mb-3">
+              <span className="self-start text-[10px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full uppercase tracking-wide mb-3">
                 {plan.badge}
               </span>
             )}
@@ -297,7 +297,7 @@ function Plans() {
             <ul className="space-y-2 flex-1 mb-5">
               {plan.features.map(f => (
                 <li key={f} className="flex items-start gap-2 text-xs text-gray-600">
-                  <CheckCircle size={12} className="text-teal-500 flex-shrink-0 mt-0.5" />
+                  <CheckCircle size={12} className="text-indigo-500 flex-shrink-0 mt-0.5" />
                   {f}
                 </li>
               ))}
@@ -309,7 +309,7 @@ function Plans() {
                 plan.highlight
                   ? "bg-gray-100 text-gray-400 cursor-default"
                   : plan.price
-                  ? "bg-teal-500 text-white hover:bg-teal-600"
+                  ? "bg-indigo-500 text-white hover:bg-indigo-600"
                   : "border border-gray-200 text-gray-700 hover:bg-gray-50"
               )}
               disabled={plan.highlight}

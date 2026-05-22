@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useRef, useState, useEffect, useCallback } from "react";
 import { Play, Pause, Volume2, VolumeX, RotateCcw, SkipBack, SkipForward } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -119,7 +119,7 @@ export function CallPlayer({
       onBlur={() => setFocused(false)}
       className={cn(
         "flex flex-col gap-3 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm outline-none",
-        focused && "ring-2 ring-teal-300",
+        focused && "ring-2 ring-indigo-300",
         className
       )}
     >
@@ -132,7 +132,7 @@ export function CallPlayer({
         onClick={handleSeekClick}
       >
         <div
-          className="absolute left-0 top-0 bottom-0 bg-teal-500/15 transition-none"
+          className="absolute left-0 top-0 bottom-0 bg-indigo-500/15 transition-none"
           style={{ width: `${pct}%` }}
         />
         <div className="absolute inset-0 flex items-center gap-px px-2">
@@ -142,14 +142,14 @@ export function CallPlayer({
             return (
               <div
                 key={i}
-                className={cn("flex-1 rounded-full transition-colors", filled ? "bg-teal-500" : "bg-gray-200")}
+                className={cn("flex-1 rounded-full transition-colors", filled ? "bg-indigo-500" : "bg-gray-200")}
                 style={{ height: `${h}%` }}
               />
             );
           })}
         </div>
         <div
-          className="absolute top-0 bottom-0 w-0.5 bg-teal-600 shadow-sm"
+          className="absolute top-0 bottom-0 w-0.5 bg-indigo-600 shadow-sm"
           style={{ left: `${pct}%` }}
         />
       </div>
@@ -170,7 +170,7 @@ export function CallPlayer({
         <button
           onClick={toggle}
           disabled={loading || error}
-          className="w-9 h-9 rounded-xl bg-[#0B1F3A] hover:bg-[#163458] disabled:opacity-50 text-white flex items-center justify-center transition-colors flex-shrink-0"
+          className="w-9 h-9 rounded-xl bg-[#0D1B4B] hover:bg-[#1a2864] disabled:opacity-50 text-white flex items-center justify-center transition-colors flex-shrink-0"
         >
           {loading ? (
             <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">

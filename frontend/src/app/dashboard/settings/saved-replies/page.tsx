@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Pencil, Trash2, Globe, User, X, MessageSquare } from "lucide-react";
@@ -70,8 +70,8 @@ export default function SavedRepliesPage() {
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-6">
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-teal-100 flex items-center justify-center">
-          <MessageSquare size={18} className="text-teal-600" />
+        <div className="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center">
+          <MessageSquare size={18} className="text-indigo-600" />
         </div>
         <div>
           <h1 className="text-lg font-bold text-gray-900">Saved replies</h1>
@@ -89,7 +89,7 @@ export default function SavedRepliesPage() {
           )}
           <button
             onClick={() => setForm({ title: "", body: "", language: "en" })}
-            className="flex items-center gap-1.5 text-xs bg-teal-500 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-teal-600 transition-colors"
+            className="flex items-center gap-1.5 text-xs bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-indigo-600 transition-colors"
           >
             <Plus size={13} /> New reply
           </button>
@@ -110,7 +110,7 @@ export default function SavedRepliesPage() {
             <div key={r.id} className="flex items-start gap-3 bg-white border border-gray-100 rounded-xl p-4 hover:border-gray-200 transition-colors">
               {r.user_id
                 ? <User size={14} className="text-gray-400 mt-0.5 flex-shrink-0" />
-                : <Globe size={14} className="text-teal-500 mt-0.5 flex-shrink-0" />}
+                : <Globe size={14} className="text-indigo-500 mt-0.5 flex-shrink-0" />}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   <p className="text-sm font-semibold text-gray-900">{r.title}</p>
@@ -155,7 +155,7 @@ export default function SavedRepliesPage() {
                   value={form.title}
                   onChange={e => setForm(f => f ? { ...f, title: e.target.value } : f)}
                   placeholder="e.g. Welcome back"
-                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
               <div>
@@ -165,7 +165,7 @@ export default function SavedRepliesPage() {
                   onChange={e => setForm(f => f ? { ...f, body: e.target.value } : f)}
                   rows={4}
                   placeholder="Use {{guest.name}}, {{property.name}}, {{check_in}}, {{check_out}}"
-                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
+                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
                 />
                 <p className="text-[11px] text-gray-400 mt-1">
                   Merge fields: {"{{guest.name}} {{property.name}} {{check_in}} {{check_out}} {{owner.name}}"}
@@ -177,7 +177,7 @@ export default function SavedRepliesPage() {
               <button
                 onClick={() => { if (form) saveMutation.mutate(form); }}
                 disabled={!form.title.trim() || !form.body.trim() || saveMutation.isPending}
-                className="flex-1 py-2.5 bg-teal-500 hover:bg-teal-600 disabled:opacity-40 text-white font-semibold rounded-xl text-sm"
+                className="flex-1 py-2.5 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-40 text-white font-semibold rounded-xl text-sm"
               >
                 {form.id ? "Update" : "Create"}
               </button>

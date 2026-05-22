@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useCallback, useRef } from "react";
 import { useBrandTheme } from "@/components/providers/BrandThemeProvider";
@@ -292,7 +292,7 @@ export default function BrandingPage() {
                 "flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-colors",
                 saved
                   ? "bg-green-50 text-green-700 border border-green-200"
-                  : "bg-teal-500 text-white hover:bg-teal-600 disabled:opacity-50"
+                  : "bg-indigo-500 text-white hover:bg-indigo-600 disabled:opacity-50"
               )}
               style={!saved ? { backgroundColor: local.primaryColor, color: bright ? "#111" : "#fff" } : {}}
             >
@@ -353,7 +353,7 @@ export default function BrandingPage() {
                   ) : (
                     <button
                       onClick={() => logoInputRef.current?.click()}
-                      className="w-full h-16 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-1 hover:border-teal-400 transition-colors"
+                      className="w-full h-16 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-1 hover:border-indigo-400 transition-colors"
                     >
                       <Upload size={14} className="text-gray-400" />
                       <span className="text-[10px] text-gray-400">Upload PNG/SVG</span>
@@ -386,7 +386,7 @@ export default function BrandingPage() {
                         inp.onchange = (ev) => handleLogoUpload(ev as any, "logoDarkUrl");
                         inp.click();
                       }}
-                      className="w-full h-16 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-1 hover:border-teal-400 transition-colors"
+                      className="w-full h-16 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-1 hover:border-indigo-400 transition-colors"
                     >
                       <Upload size={14} className="text-gray-400" />
                       <span className="text-[10px] text-gray-400">Upload for dark bg</span>
@@ -402,7 +402,7 @@ export default function BrandingPage() {
                     type="text" value={local.companyName ?? ""}
                     onChange={e => update({ companyName: e.target.value })}
                     placeholder="HAIP"
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
                   />
                 </div>
                 <div>
@@ -411,7 +411,7 @@ export default function BrandingPage() {
                     type="text" value={local.tagline ?? ""}
                     onChange={e => update({ tagline: e.target.value })}
                     placeholder="Hospitality AI"
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
                   />
                 </div>
               </div>
@@ -500,7 +500,7 @@ export default function BrandingPage() {
                   </div>
                   <div className="flex gap-1.5 flex-wrap">
                     {[
-                      "#0B1F3A", "#1e3a5f", "#1e1b4b", "#052e16", "#1c0a00",
+                      "#0D1B4B", "#1e3a5f", "#1e1b4b", "#052e16", "#1c0a00",
                       "#0f172a", "#111827", "#1c1400", "#000000", "#1a1a1a",
                     ].map(c => (
                       <ColorSwatch

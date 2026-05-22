@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { Gift, X, Tag, Calendar, ChevronRight, Sparkles } from "lucide-react";
@@ -54,7 +54,7 @@ function markSeen(version: string) {
 const TAG_COLORS: Record<string, string> = {
   inbox: "bg-blue-500/15 text-blue-300",
   calls: "bg-violet-500/15 text-violet-300",
-  workflow: "bg-teal-500/15 text-teal-300",
+  workflow: "bg-indigo-500/15 text-indigo-300",
   compliance: "bg-amber-500/15 text-amber-300",
   dpdp: "bg-orange-500/15 text-orange-300",
   meta: "bg-blue-400/15 text-blue-300",
@@ -83,7 +83,7 @@ function EntryCard({ entry, isFirst }: { entry: ChangelogEntry; isFirst: boolean
       className={cn(
         "border rounded-2xl overflow-hidden transition-colors",
         isFirst
-          ? "border-teal-500/25 bg-teal-500/5"
+          ? "border-indigo-500/25 bg-indigo-500/5"
           : "border-white/6 bg-white/2 hover:bg-white/4"
       )}
     >
@@ -96,7 +96,7 @@ function EntryCard({ entry, isFirst }: { entry: ChangelogEntry; isFirst: boolean
           className={cn(
             "flex-shrink-0 mt-0.5 text-[10px] font-bold px-2 py-0.5 rounded-lg",
             isFirst
-              ? "bg-teal-500/20 text-teal-300"
+              ? "bg-indigo-500/20 text-indigo-300"
               : "bg-white/6 text-white/35"
           )}
         >
@@ -107,7 +107,7 @@ function EntryCard({ entry, isFirst }: { entry: ChangelogEntry; isFirst: boolean
           <div className="flex items-center gap-2 mb-0.5">
             <p className="text-sm font-semibold text-white/85 truncate">{entry.title}</p>
             {isFirst && (
-              <span className="flex-shrink-0 text-[9px] font-bold bg-teal-500/25 text-teal-300 px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+              <span className="flex-shrink-0 text-[9px] font-bold bg-indigo-500/25 text-indigo-300 px-1.5 py-0.5 rounded-full uppercase tracking-wider">
                 Latest
               </span>
             )}
@@ -137,7 +137,7 @@ function EntryCard({ entry, isFirst }: { entry: ChangelogEntry; isFirst: boolean
             <ul className="space-y-2">
               {entry.items.map((item, i) => (
                 <li key={i} className="flex gap-2">
-                  <span className="w-1 h-1 rounded-full bg-teal-500/50 flex-shrink-0 mt-[5px]" />
+                  <span className="w-1 h-1 rounded-full bg-indigo-500/50 flex-shrink-0 mt-[5px]" />
                   <div>
                     <span className="text-xs font-semibold text-white/75">{item.title}</span>
                     {item.detail && (
@@ -175,7 +175,7 @@ export function ChangelogGiftButton({ onClick, hasUnread }: { onClick: () => voi
     >
       <Gift size={15} />
       {hasUnread && (
-        <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-teal-400 ring-2 ring-[#0B1F3A]" />
+        <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-indigo-400 ring-2 ring-[#0D1B4B]" />
       )}
     </button>
   );
@@ -247,8 +247,8 @@ export function ChangelogModal() {
               className="flex items-center gap-3 px-5 py-4 border-b border-white/6 flex-shrink-0"
               style={{ backgroundColor: "rgba(20,184,166,0.05)" }}
             >
-              <div className="w-8 h-8 rounded-xl bg-teal-500/15 flex items-center justify-center">
-                <Sparkles size={14} className="text-teal-400" />
+              <div className="w-8 h-8 rounded-xl bg-indigo-500/15 flex items-center justify-center">
+                <Sparkles size={14} className="text-indigo-400" />
               </div>
               <div className="flex-1">
                 <h2 className="text-sm font-bold text-white/90">What&apos;s new</h2>

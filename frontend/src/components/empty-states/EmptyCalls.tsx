@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { Phone, BarChart2, ArrowRight, Plug2 } from "lucide-react";
 
 export function EmptyCalls() {
@@ -15,7 +15,7 @@ export function EmptyCalls() {
         {[
           { icon: <Phone size={14} className="text-blue-400" />, label: "Auto-transcription", desc: "Every call transcribed in Indian English" },
           { icon: <BarChart2 size={14} className="text-purple-400" />, label: "QA scoring", desc: "Automated agent quality review" },
-          { icon: <ArrowRight size={14} className="text-teal-400" />, label: "Revenue insights", desc: "Missed opportunities surfaced" },
+          { icon: <ArrowRight size={14} className="text-indigo-400" />, label: "Revenue insights", desc: "Missed opportunities surfaced" },
         ].map(item => (
           <div key={item.label} className="bg-gray-50 rounded-xl p-3 border border-gray-100">
             <div className="flex items-center gap-1.5 mb-1">{item.icon}<span className="text-xs font-bold text-gray-700">{item.label}</span></div>
@@ -25,7 +25,7 @@ export function EmptyCalls() {
       </div>
       <Link
         href="/dashboard/settings/integrations"
-        className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0B1F3A] hover:bg-[#163458] text-white text-sm font-semibold rounded-xl transition-colors"
+        className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0D1B4B] hover:bg-[#1a2864] text-white text-sm font-semibold rounded-xl transition-colors"
       >
         <Plug2 size={15} /> Connect IVR provider
       </Link>

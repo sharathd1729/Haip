@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 /**
  * WhatsAppConnectButton
@@ -64,9 +64,9 @@ function StepIndicator({ step }: { step: number }) {
             className={cn(
               "w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0",
               i < step
-                ? "bg-teal-500 text-white"
+                ? "bg-indigo-500 text-white"
                 : i === step
-                ? "bg-teal-100 text-teal-700 ring-2 ring-teal-400 ring-offset-1"
+                ? "bg-indigo-100 text-indigo-700 ring-2 ring-indigo-400 ring-offset-1"
                 : "bg-gray-100 text-gray-400"
             )}
           >
@@ -132,7 +132,7 @@ function WaitingOverlay({
 
         <div className="px-6 pb-5 flex items-center gap-3">
           <div className="flex items-center gap-2 text-xs text-gray-400">
-            <Loader2 size={13} className="animate-spin text-teal-500" />
+            <Loader2 size={13} className="animate-spin text-indigo-500" />
             Waiting for Facebook…
           </div>
           <button

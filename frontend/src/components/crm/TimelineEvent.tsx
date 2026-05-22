@@ -1,4 +1,4 @@
-import { Phone, MessageSquare, Home, Star } from "lucide-react";
+﻿import { Phone, MessageSquare, Home, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type TimelineEventType = "call" | "message" | "stay" | "inquiry" | "score";
@@ -21,7 +21,7 @@ const TYPE_CONFIG: Record<TimelineEventType, {
   message: { icon: <MessageSquare size={13} />, color: "text-green-600",  bg: "bg-green-100" },
   stay:    { icon: <Home size={13} />,          color: "text-purple-600", bg: "bg-purple-100" },
   inquiry: { icon: <Star size={13} />,          color: "text-amber-600",  bg: "bg-amber-100" },
-  score:   { icon: <Star size={13} />,          color: "text-teal-600",   bg: "bg-teal-100" },
+  score:   { icon: <Star size={13} />,          color: "text-indigo-600",   bg: "bg-indigo-100" },
 };
 
 function formatDate(iso: string) {
@@ -55,7 +55,7 @@ export function TimelineEvent({ type, title, subtitle, timestamp, score, isLast 
             {score != null && (
               <span className={cn(
                 "text-[10px] font-bold px-1.5 py-0.5 rounded",
-                score >= 80 ? "bg-teal-100 text-teal-700" :
+                score >= 80 ? "bg-indigo-100 text-indigo-700" :
                 score >= 60 ? "bg-amber-100 text-amber-700" :
                 "bg-red-100 text-red-600"
               )}>

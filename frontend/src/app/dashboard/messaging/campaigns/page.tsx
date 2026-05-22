@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -39,7 +39,7 @@ interface Template {
 const STATUS_CFG = {
   draft:     { label: "Draft",     cls: "bg-gray-50 text-gray-600 border-gray-200",    icon: <Eye size={10} /> },
   scheduled: { label: "Scheduled", cls: "bg-blue-50 text-blue-700 border-blue-200",    icon: <Clock size={10} /> },
-  running:   { label: "Running",   cls: "bg-teal-50 text-teal-700 border-teal-200",    icon: <Play size={10} /> },
+  running:   { label: "Running",   cls: "bg-indigo-50 text-indigo-700 border-indigo-200",    icon: <Play size={10} /> },
   completed: { label: "Completed", cls: "bg-green-50 text-green-700 border-green-200", icon: <CheckCircle2 size={10} /> },
   paused:    { label: "Paused",    cls: "bg-amber-50 text-amber-700 border-amber-200", icon: <Pause size={10} /> },
 };
@@ -117,7 +117,7 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
             <label className="text-xs font-semibold text-gray-700 block mb-1.5">Campaign name <span className="text-red-500">*</span></label>
             <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               placeholder="Diwali 2025 Offer"
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
           </div>
 
           <div>
@@ -128,7 +128,7 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
               </div>
             ) : (
               <select value={form.template_id} onChange={e => setForm(f => ({ ...f, template_id: e.target.value }))}
-                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30">
                 <option value="">Select a template…</option>
                 {approvedTemplates.map(t => (
                   <option key={t.id} value={t.id}>{t.name} ({t.category.toLowerCase()})</option>
@@ -141,14 +141,14 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
             <label className="text-xs font-semibold text-gray-700 block mb-1.5">Audience tags <span className="text-gray-400 font-normal">(optional)</span></label>
             <input value={form.audience_tags} onChange={e => setForm(f => ({ ...f, audience_tags: e.target.value }))}
               placeholder="vip, repeat-guest, june-arrivals (comma-separated)"
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
             <p className="text-[10px] text-gray-400 mt-1">Leave blank to send to all opted-in subscribers.</p>
           </div>
 
           <div>
             <label className="text-xs font-semibold text-gray-700 block mb-1.5">Schedule for later <span className="text-gray-400 font-normal">(optional)</span></label>
             <input type="datetime-local" value={form.scheduled_at} onChange={e => setForm(f => ({ ...f, scheduled_at: e.target.value }))}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
             <p className="text-[10px] text-gray-400 mt-1">Leave blank to save as draft and launch manually.</p>
           </div>
 
@@ -162,7 +162,7 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
         <div className="px-6 pb-5 flex gap-3">
           <button onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
           <button onClick={handleCreate} disabled={submitting}
-            className="flex-1 py-2.5 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+            className="flex-1 py-2.5 bg-indigo-500 text-white rounded-xl text-sm font-semibold hover:bg-indigo-600 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
             {submitting ? <Loader2 size={14} className="animate-spin" /> : <Megaphone size={14} />}
             Create campaign
           </button>
@@ -204,7 +204,7 @@ function CampaignCard({ campaign, onLaunch, onDelete }: {
         <div className="flex items-center gap-1.5 flex-shrink-0">
           {(campaign.status === "draft" || campaign.status === "paused") && (
             <button onClick={() => onLaunch(campaign.id)}
-              className="flex items-center gap-1.5 text-xs bg-teal-500 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-teal-600 transition-colors">
+              className="flex items-center gap-1.5 text-xs bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-indigo-600 transition-colors">
               <Play size={11} /> Launch
             </button>
           )}
@@ -221,7 +221,7 @@ function CampaignCard({ campaign, onLaunch, onDelete }: {
           {[
             { label: "Sent", value: sent, icon: <Send size={12} className="text-gray-400" /> },
             { label: "Delivered", value: delivered, sub: rate(campaign.delivered_count, campaign.sent_count), icon: <CheckCircle2 size={12} className="text-blue-400" /> },
-            { label: "Read", value: read, sub: rate(campaign.read_count, campaign.sent_count), icon: <Eye size={12} className="text-teal-500" /> },
+            { label: "Read", value: read, sub: rate(campaign.read_count, campaign.sent_count), icon: <Eye size={12} className="text-indigo-500" /> },
             { label: "Failed", value: parseInt(campaign.failed_count) || 0, icon: <AlertCircle size={12} className="text-red-400" /> },
           ].map(stat => (
             <div key={stat.label} className="text-center">
@@ -290,7 +290,7 @@ export default function CampaignsPage() {
             <p className="text-sm text-gray-400 mt-0.5">Broadcast WhatsApp messages to opted-in guests using approved templates.</p>
           </div>
           <button onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 bg-teal-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors shadow-sm shadow-teal-200">
+            className="flex items-center gap-2 bg-indigo-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-600 transition-colors shadow-sm shadow-indigo-200">
             <Plus size={15} /> New campaign
           </button>
         </div>
@@ -300,7 +300,7 @@ export default function CampaignsPage() {
           <div className="grid grid-cols-3 gap-4">
             {[
               { label: "Total sent", value: totalSent.toLocaleString(), icon: <Send size={14} className="text-gray-500" /> },
-              { label: "Total read", value: totalRead.toLocaleString(), icon: <Eye size={14} className="text-teal-500" /> },
+              { label: "Total read", value: totalRead.toLocaleString(), icon: <Eye size={14} className="text-indigo-500" /> },
               { label: "Read rate", value: rate(totalRead.toString(), totalSent.toString()), icon: <TrendingUp size={14} className="text-blue-500" /> },
             ].map(s => (
               <div key={s.label} className="bg-gray-50 rounded-xl p-3 flex items-center gap-3">
@@ -324,7 +324,7 @@ export default function CampaignsPage() {
             <p className="text-sm text-gray-500 font-medium">No campaigns yet</p>
             <p className="text-xs text-gray-400 mt-1">Create your first campaign to reach guests at scale via WhatsApp.</p>
             <button onClick={() => setShowCreate(true)}
-              className="mt-4 flex items-center gap-2 bg-teal-500 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-teal-600 transition-colors mx-auto">
+              className="mt-4 flex items-center gap-2 bg-indigo-500 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-indigo-600 transition-colors mx-auto">
               <Plus size={14} /> Create campaign
             </button>
           </div>

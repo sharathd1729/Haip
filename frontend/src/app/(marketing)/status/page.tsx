@@ -1,4 +1,4 @@
-import { Activity, CheckCircle2 } from "lucide-react";
+﻿import { Activity, CheckCircle2 } from "lucide-react";
 
 const services = [
   { name: "API (api.haip.app)", status: "operational" },
@@ -30,7 +30,7 @@ const colors: Record<string, { dot: string; label: string; cell: string }> = {
 
 export default function StatusPage() {
   return (
-    <div className="bg-[#0B1F3A] text-white min-h-screen">
+    <div className="bg-[#0D1B4B] text-white min-h-screen">
       <section className="pt-32 pb-10 px-5 sm:px-8">
         <div className="max-w-4xl mx-auto">
           <div className="inline-flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-full px-4 py-1.5 mb-5">
@@ -74,7 +74,7 @@ export default function StatusPage() {
           </div>
           <div className="flex items-center justify-between text-[11px] text-white/35 mt-2">
             <span>90 days ago</span>
-            <span className="text-teal-300 font-semibold">99.97% uptime</span>
+            <span className="text-indigo-300 font-semibold">99.97% uptime</span>
             <span>Today</span>
           </div>
         </div>

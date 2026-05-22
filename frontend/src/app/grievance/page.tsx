@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 /**
  * D6 — Public Grievance Officer page
@@ -89,8 +89,8 @@ export default function GrievancePage() {
       {/* Header */}
       <div className="bg-[#060e1c] text-white py-16 px-5">
         <div className="max-w-3xl mx-auto text-center">
-          <div className="w-14 h-14 rounded-2xl bg-teal-500/20 border border-teal-500/30 flex items-center justify-center mx-auto mb-5">
-            <Shield size={26} className="text-teal-400" />
+          <div className="w-14 h-14 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center mx-auto mb-5">
+            <Shield size={26} className="text-indigo-400" />
           </div>
           <h1 className="text-3xl font-bold mb-3">Privacy &amp; Grievances</h1>
           <p className="text-white/60 text-base leading-relaxed max-w-xl mx-auto">
@@ -110,8 +110,8 @@ export default function GrievancePage() {
             <p className="text-sm font-semibold text-gray-900">HAIP Privacy Team</p>
             <div className="mt-4 space-y-3">
               <div className="flex items-center gap-2.5">
-                <Mail size={14} className="text-teal-500 flex-shrink-0" />
-                <a href="mailto:privacy@haip.in" className="text-sm text-teal-600 hover:text-teal-700 font-medium">
+                <Mail size={14} className="text-indigo-500 flex-shrink-0" />
+                <a href="mailto:privacy@haip.in" className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">
                   privacy@haip.in
                 </a>
               </div>
@@ -135,7 +135,7 @@ export default function GrievancePage() {
                 ["Complaint", "Escalate to the Data Protection Board"],
               ].map(([right, desc]) => (
                 <li key={right} className="flex gap-2.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-teal-400 mt-1.5 flex-shrink-0" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-1.5 flex-shrink-0" />
                   <div>
                     <span className="font-semibold text-gray-900">{right}</span>
                     <span className="text-gray-500 ml-1 text-xs">{desc}</span>
@@ -175,7 +175,7 @@ export default function GrievancePage() {
               </p>
               <button
                 onClick={() => setSubmitted(false)}
-                className="text-sm text-teal-600 hover:text-teal-700 font-medium underline underline-offset-4"
+                className="text-sm text-indigo-600 hover:text-indigo-700 font-medium underline underline-offset-4"
               >
                 Submit another grievance
               </button>
@@ -203,7 +203,7 @@ export default function GrievancePage() {
                       placeholder="Rahul Sharma"
                       className={cn(
                         "w-full text-sm border rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:border-transparent transition-colors",
-                        errors.name ? "border-red-300 focus:ring-red-300" : "border-gray-200 focus:ring-teal-500"
+                        errors.name ? "border-red-300 focus:ring-red-300" : "border-gray-200 focus:ring-indigo-500"
                       )}
                     />
                     {errors.name && <p className="text-xs text-red-600 mt-1">{errors.name}</p>}
@@ -217,7 +217,7 @@ export default function GrievancePage() {
                       placeholder="rahul@email.com"
                       className={cn(
                         "w-full text-sm border rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:border-transparent transition-colors",
-                        errors.email ? "border-red-300 focus:ring-red-300" : "border-gray-200 focus:ring-teal-500"
+                        errors.email ? "border-red-300 focus:ring-red-300" : "border-gray-200 focus:ring-indigo-500"
                       )}
                     />
                     {errors.email && <p className="text-xs text-red-600 mt-1">{errors.email}</p>}
@@ -232,7 +232,7 @@ export default function GrievancePage() {
                     value={form.phone}
                     onChange={set("phone")}
                     placeholder="+91 98765 43210"
-                    className="w-full text-sm border border-gray-200 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-colors"
+                    className="w-full text-sm border border-gray-200 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
                   />
                 </div>
 
@@ -245,7 +245,7 @@ export default function GrievancePage() {
                       onChange={set("grievance_type")}
                       className={cn(
                         "w-full text-sm border rounded-xl px-3.5 py-2.5 appearance-none focus:outline-none focus:ring-2 focus:border-transparent bg-white pr-10 transition-colors",
-                        errors.grievance_type ? "border-red-300 focus:ring-red-300" : "border-gray-200 focus:ring-teal-500"
+                        errors.grievance_type ? "border-red-300 focus:ring-red-300" : "border-gray-200 focus:ring-indigo-500"
                       )}
                     >
                       <option value="">Select type…</option>
@@ -268,7 +268,7 @@ export default function GrievancePage() {
                     placeholder="Please describe your concern in detail. Include dates, which service, and what resolution you are seeking."
                     className={cn(
                       "w-full text-sm border rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:border-transparent resize-none transition-colors",
-                      errors.description ? "border-red-300 focus:ring-red-300" : "border-gray-200 focus:ring-teal-500"
+                      errors.description ? "border-red-300 focus:ring-red-300" : "border-gray-200 focus:ring-indigo-500"
                     )}
                   />
                   <div className="flex items-center justify-between mt-1">
@@ -282,7 +282,7 @@ export default function GrievancePage() {
                 <button
                   type="submit"
                   disabled={mutation.isPending}
-                  className="w-full py-3 rounded-xl bg-[#0B1F3A] hover:bg-[#163458] text-white text-sm font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="w-full py-3 rounded-xl bg-[#0D1B4B] hover:bg-[#1a2864] text-white text-sm font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {mutation.isPending ? (
                     <>
@@ -294,7 +294,7 @@ export default function GrievancePage() {
 
                 <p className="text-[11px] text-gray-400 text-center leading-relaxed">
                   By submitting, you agree that HAIP may process your information to respond to this grievance per our{" "}
-                  <Link href="/privacy" className="text-teal-500 hover:underline">Privacy Policy</Link>.
+                  <Link href="/privacy" className="text-indigo-500 hover:underline">Privacy Policy</Link>.
                   We will respond within 30 days.
                 </p>
               </form>
@@ -307,7 +307,7 @@ export default function GrievancePage() {
       <div className="border-t border-gray-200 py-8 text-center">
         <p className="text-xs text-gray-400">
           HAIP Hospitality AI Intelligence Platform · privacy@haip.in ·{" "}
-          <Link href="/privacy" className="text-teal-500 hover:underline">Privacy Policy</Link>{" "}
+          <Link href="/privacy" className="text-indigo-500 hover:underline">Privacy Policy</Link>{" "}
           · Regulated under the Digital Personal Data Protection Act, 2023
         </p>
       </div>

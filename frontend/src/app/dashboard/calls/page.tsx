@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -63,7 +63,7 @@ const DISPOSITION_BADGES: Record<string, { label: string; variant: "success" | "
 };
 
 function SentimentIcon({ s }: { s?: string }) {
-  if (s === "positive") return <TrendingUp size={13} className="text-teal-500" />;
+  if (s === "positive") return <TrendingUp size={13} className="text-indigo-500" />;
   if (s === "negative") return <TrendingDown size={13} className="text-red-400" />;
   return <Minus size={13} className="text-gray-400" />;
 }
@@ -118,15 +118,15 @@ export default function CallsPage() {
               className={cn(
                 "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors font-medium",
                 hasFilters
-                  ? "bg-teal-50 border-teal-200 text-teal-700"
+                  ? "bg-indigo-50 border-indigo-200 text-indigo-700"
                   : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
               )}
             >
-              <Filter size={13} /> Filters {hasFilters && <span className="bg-teal-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]">•</span>}
+              <Filter size={13} /> Filters {hasFilters && <span className="bg-indigo-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]">•</span>}
             </button>
             <button
               onClick={() => setShowUpload(true)}
-              className="flex items-center gap-1.5 text-xs bg-[#0B1F3A] text-white px-3 py-1.5 rounded-lg font-medium hover:bg-[#163458] transition-colors"
+              className="flex items-center gap-1.5 text-xs bg-[#0D1B4B] text-white px-3 py-1.5 rounded-lg font-medium hover:bg-[#1a2864] transition-colors"
             >
               <Upload size={13} /> Upload
             </button>
@@ -140,7 +140,7 @@ export default function CallsPage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search by guest, phone, or agent…"
-            className="w-full pl-8 pr-4 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-gray-50"
+            className="w-full pl-8 pr-4 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-gray-50"
           />
         </div>
 
@@ -150,7 +150,7 @@ export default function CallsPage() {
             <select
               value={filters.disposition ?? ""}
               onChange={e => setFilters({ disposition: e.target.value as any })}
-              className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+              className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">All dispositions</option>
               {["pending","qualified","booked","lost","spam","callback"].map(d => (
@@ -161,10 +161,10 @@ export default function CallsPage() {
             <div className="flex items-center gap-1.5">
               <Calendar size={13} className="text-gray-400" />
               <input type="date" value={filters.dateFrom ?? ""} onChange={e => setFilters({ dateFrom: e.target.value })}
-                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               <span className="text-gray-400 text-xs">–</span>
               <input type="date" value={filters.dateTo ?? ""} onChange={e => setFilters({ dateTo: e.target.value })}
-                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
 
             {hasFilters && (
@@ -179,12 +179,12 @@ export default function CallsPage() {
         {wrapUpQueue.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {wrapUpQueue.map(callId => (
-              <div key={callId} className="flex items-center gap-1.5 bg-teal-50 border border-teal-200 rounded-lg px-2.5 py-1 text-xs text-teal-700 font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
+              <div key={callId} className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 rounded-lg px-2.5 py-1 text-xs text-indigo-700 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
                 Wrap-up ready
                 <button onClick={() => { router.push(`/dashboard/calls/${callId}`); dismissWrapUp(callId); }}
                   className="underline hover:no-underline ml-0.5">View</button>
-                <button onClick={() => dismissWrapUp(callId)} className="text-teal-400 hover:text-teal-600 ml-1"><X size={10} /></button>
+                <button onClick={() => dismissWrapUp(callId)} className="text-indigo-400 hover:text-indigo-600 ml-1"><X size={10} /></button>
               </div>
             ))}
           </div>
@@ -394,8 +394,8 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
     return (
       <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 text-center">
-          <div className="w-14 h-14 rounded-full bg-teal-50 flex items-center justify-center mx-auto mb-4">
-            <Phone size={24} className="text-teal-500" />
+          <div className="w-14 h-14 rounded-full bg-indigo-50 flex items-center justify-center mx-auto mb-4">
+            <Phone size={24} className="text-indigo-500" />
           </div>
           <h2 className="text-lg font-bold text-gray-900 mb-1">Pipeline started!</h2>
           <p className="text-sm text-gray-500 mb-6">
@@ -406,7 +406,7 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
               <div key={i} className="flex items-center gap-3">
                 <div className={cn(
                   "w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0",
-                  s.done ? "bg-teal-500 text-white" : "bg-gray-100 text-gray-400"
+                  s.done ? "bg-indigo-500 text-white" : "bg-gray-100 text-gray-400"
                 )}>
                   {s.done ? "✓" : i + 1}
                 </div>
@@ -414,7 +414,7 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
                   {s.label}
                 </span>
                 {s.active && !s.done && (
-                  <span className="text-[10px] bg-teal-50 text-teal-600 rounded-full px-2 py-0.5 font-medium animate-pulse">
+                  <span className="text-[10px] bg-indigo-50 text-indigo-600 rounded-full px-2 py-0.5 font-medium animate-pulse">
                     processing…
                   </span>
                 )}
@@ -450,7 +450,7 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
               className={cn(
                 "flex-1 py-2.5 text-sm font-medium transition-colors",
                 tab === t
-                  ? "border-b-2 border-teal-500 text-teal-600"
+                  ? "border-b-2 border-indigo-500 text-indigo-600"
                   : "text-gray-400 hover:text-gray-600"
               )}
             >
@@ -476,8 +476,8 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
               onDrop={onDrop}
               className={cn(
                 "relative border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all",
-                dragging ? "border-teal-400 bg-teal-50" : "border-gray-200 hover:border-teal-300 hover:bg-gray-50",
-                file ? "border-teal-400 bg-teal-50/50" : ""
+                dragging ? "border-indigo-400 bg-indigo-50" : "border-gray-200 hover:border-indigo-300 hover:bg-gray-50",
+                file ? "border-indigo-400 bg-indigo-50/50" : ""
               )}
               onClick={() => document.getElementById("audio-file-input")?.click()}
             >
@@ -490,8 +490,8 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
               />
               {file ? (
                 <div className="flex items-center justify-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center flex-shrink-0">
-                    <Phone size={18} className="text-teal-600" />
+                  <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                    <Phone size={18} className="text-indigo-600" />
                   </div>
                   <div className="text-left">
                     <p className="text-sm font-semibold text-gray-800 truncate max-w-[220px]">{file.name}</p>
@@ -523,7 +523,7 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-1.5">
                   <div
-                    className="bg-teal-500 h-1.5 rounded-full transition-all duration-300"
+                    className="bg-indigo-500 h-1.5 rounded-full transition-all duration-300"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
@@ -538,7 +538,7 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
                   value={guestPhone}
                   onChange={e => setGuestPhone(e.target.value)}
                   placeholder="+91 98765 43210"
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
               <div>
@@ -547,7 +547,7 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
                   value={agentName}
                   onChange={e => setAgentName(e.target.value)}
                   placeholder="Ravi Kumar"
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
             </div>
@@ -563,7 +563,7 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
                     className={cn(
                       "flex-1 py-2 rounded-xl text-xs font-medium border transition-colors capitalize",
                       direction === d
-                        ? "bg-teal-50 border-teal-400 text-teal-700"
+                        ? "bg-indigo-50 border-indigo-400 text-indigo-700"
                         : "border-gray-200 text-gray-500 hover:bg-gray-50"
                     )}
                   >
@@ -576,7 +576,7 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
             <button
               type="submit"
               disabled={!file || uploading}
-              className="w-full py-2.5 bg-[#0B1F3A] text-white font-semibold rounded-xl text-sm hover:bg-[#163458] disabled:opacity-40 transition-colors"
+              className="w-full py-2.5 bg-[#0D1B4B] text-white font-semibold rounded-xl text-sm hover:bg-[#1a2864] disabled:opacity-40 transition-colors"
             >
               {uploading ? "Uploading…" : "Upload & analyze →"}
             </button>
@@ -592,7 +592,7 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
                 value={agentNameTxt}
                 onChange={e => setAgentNameTxt(e.target.value)}
                 placeholder="Ravi Kumar"
-                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
             <div>
@@ -603,13 +603,13 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
                 onChange={e => setTranscript(e.target.value)}
                 rows={8}
                 placeholder={"Agent: Good morning, HAIP Villa. How can I help?\nGuest: Hi, I'd like to book a room for 3 nights…"}
-                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-teal-500"
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
             <button
               type="submit"
               disabled={analyzingTxt}
-              className="w-full py-2.5 bg-teal-500 text-white font-semibold rounded-xl text-sm hover:bg-teal-600 disabled:opacity-50 transition-colors"
+              className="w-full py-2.5 bg-indigo-500 text-white font-semibold rounded-xl text-sm hover:bg-indigo-600 disabled:opacity-50 transition-colors"
             >
               {analyzingTxt ? "Analyzing…" : "Analyze with AI →"}
             </button>

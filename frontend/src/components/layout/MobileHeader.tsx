@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -49,7 +49,7 @@ interface MobileHeaderProps {
 export function MobileHeader({ user }: MobileHeaderProps) {
   const [bellOpen, setBellOpen] = useState(false);
   const { theme } = useBrandTheme();
-  const primary = theme.primaryColor || "#14b8a6";
+  const primary = theme.primaryColor || "#4361EE";
 
   const notifications = [
     { id: 1, text: "Priya Sharma sent a WhatsApp message", time: "2m ago", read: false },
@@ -62,7 +62,7 @@ export function MobileHeader({ user }: MobileHeaderProps) {
     <header
       className="h-14 flex items-center justify-between px-4 flex-shrink-0"
       style={{
-        backgroundColor: "var(--brand-topbar-bg, #0B1F3A)",
+        backgroundColor: "var(--brand-topbar-bg, #0D1B4B)",
         borderBottom: "1px solid rgba(255,255,255,0.05)",
         paddingTop: "env(safe-area-inset-top)",
       }}
@@ -115,7 +115,7 @@ export function MobileHeader({ user }: MobileHeaderProps) {
                 <div className="flex items-center justify-between px-4 py-3 border-b border-white/6">
                   <span className="text-xs font-bold text-white/60 uppercase tracking-wider">Notifications</span>
                   {unread > 0 && (
-                    <span className="text-[10px] bg-teal-500/20 text-teal-400 px-2 py-0.5 rounded-full font-bold">
+                    <span className="text-[10px] bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded-full font-bold">
                       {unread} new
                     </span>
                   )}
@@ -123,14 +123,14 @@ export function MobileHeader({ user }: MobileHeaderProps) {
                 {notifications.map((n) => (
                   <div
                     key={n.id}
-                    className={`px-4 py-3 border-b border-white/4 last:border-0 ${!n.read ? "bg-teal-500/4" : ""}`}
+                    className={`px-4 py-3 border-b border-white/4 last:border-0 ${!n.read ? "bg-indigo-500/4" : ""}`}
                   >
                     <p className="text-xs text-white/70 leading-relaxed mb-1">{n.text}</p>
                     <p className="text-[10px] text-white/25">{n.time}</p>
                   </div>
                 ))}
                 <div className="px-4 py-3 text-center">
-                  <button className="text-xs text-teal-400 font-semibold">Mark all read</button>
+                  <button className="text-xs text-indigo-400 font-semibold">Mark all read</button>
                 </div>
               </div>
             </>

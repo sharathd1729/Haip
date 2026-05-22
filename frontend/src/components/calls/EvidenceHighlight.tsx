@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { cn } from "@/lib/utils";
 
 interface EvidenceSpan {
@@ -16,7 +16,7 @@ interface EvidenceHighlightProps {
 }
 
 const SENTIMENT_STYLES: Record<string, string> = {
-  positive: "bg-teal-100 text-teal-800 border-teal-200",
+  positive: "bg-indigo-100 text-indigo-800 border-indigo-200",
   negative: "bg-red-100 text-red-800 border-red-200",
   neutral:  "bg-blue-50 text-blue-800 border-blue-200",
 };

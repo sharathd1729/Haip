@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import Fuse from "fuse.js";
@@ -92,7 +92,7 @@ export function SavedReplyMenu({ query, context, onSelect, onClose, anchorRef }:
             onMouseDown={e => { e.preventDefault(); pick(r); }}
             className={cn(
               "w-full text-left px-3 py-2.5 transition-colors border-b border-gray-50 last:border-0",
-              i === activeIdx ? "bg-teal-50" : "hover:bg-gray-50"
+              i === activeIdx ? "bg-indigo-50" : "hover:bg-gray-50"
             )}
           >
             <p className="text-xs font-semibold text-gray-800 truncate">{r.title}</p>

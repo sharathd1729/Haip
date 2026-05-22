@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import {
@@ -125,7 +125,7 @@ const MODULES = [
     id: "analytics",
     label: "Analytics & Reports",
     icon: <BarChart2 size={16} />,
-    color: "from-teal-500 to-teal-600",
+    color: "from-indigo-500 to-indigo-600",
     faqs: [
       {
         q: "What is the difference between Analytics and Reports?",
@@ -207,9 +207,9 @@ function FAQItem({ q, a }: { q: string; a: string }) {
         onClick={() => setOpen(o => !o)}
         className="w-full flex items-start justify-between gap-4 py-4 text-left group"
       >
-        <span className="text-sm font-medium text-gray-800 group-hover:text-teal-700 transition-colors">{q}</span>
+        <span className="text-sm font-medium text-gray-800 group-hover:text-indigo-700 transition-colors">{q}</span>
         <span className="flex-shrink-0 mt-0.5">
-          {open ? <ChevronUp size={15} className="text-teal-500" /> : <ChevronDown size={15} className="text-gray-400" />}
+          {open ? <ChevronUp size={15} className="text-indigo-500" /> : <ChevronDown size={15} className="text-gray-400" />}
         </span>
       </button>
       {open && (
@@ -248,7 +248,7 @@ export default function HelpPage() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search FAQs… e.g. 'connect WhatsApp' or 'QA score'"
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white"
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 bg-white"
             />
             {search && (
               <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -271,12 +271,12 @@ export default function HelpPage() {
                 <div className="py-8 text-center text-gray-400">
                   <HelpCircle size={32} className="mx-auto mb-3 opacity-30" />
                   <p className="text-sm">No FAQs match your search.</p>
-                  <p className="text-xs mt-1">Try a different keyword or <a href="mailto:hello@haip.app" className="text-teal-600 hover:underline">email support</a>.</p>
+                  <p className="text-xs mt-1">Try a different keyword or <a href="mailto:hello@haip.app" className="text-indigo-600 hover:underline">email support</a>.</p>
                 </div>
               ) : (
                 searchResults.map((f, i) => (
                   <div key={i}>
-                    <p className="text-[10px] font-bold text-teal-600 uppercase tracking-wider mt-3 mb-0.5">{f.module}</p>
+                    <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider mt-3 mb-0.5">{f.module}</p>
                     <FAQItem q={f.q} a={f.a} />
                   </div>
                 ))
@@ -293,8 +293,8 @@ export default function HelpPage() {
                     className={cn(
                       "flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all text-center",
                       activeModule === m.id
-                        ? "border-teal-400 bg-teal-50 shadow-sm"
-                        : "bg-white border-gray-100 hover:border-teal-200 hover:shadow-sm"
+                        ? "border-indigo-400 bg-indigo-50 shadow-sm"
+                        : "bg-white border-gray-100 hover:border-indigo-200 hover:shadow-sm"
                     )}
                   >
                     <div className={cn("w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center text-white shadow-sm", m.color)}>
@@ -324,10 +324,10 @@ export default function HelpPage() {
           )}
 
           {/* Contact section */}
-          <div className="bg-[#0B1F3A] rounded-2xl p-6 text-white">
+          <div className="bg-[#0D1B4B] rounded-2xl p-6 text-white">
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-xl bg-teal-500/20 flex items-center justify-center flex-shrink-0">
-                <Mail size={22} className="text-teal-400" />
+              <div className="w-12 h-12 rounded-xl bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
+                <Mail size={22} className="text-indigo-400" />
               </div>
               <div className="flex-1">
                 <h3 className="text-base font-bold mb-1">Still need help?</h3>
@@ -337,7 +337,7 @@ export default function HelpPage() {
                 <div className="flex flex-wrap gap-3">
                   <a
                     href="mailto:hello@haip.app?subject=HAIP Support Request"
-                    className="flex items-center gap-2 px-4 py-2.5 bg-teal-500 hover:bg-teal-400 text-white rounded-xl text-sm font-semibold transition-colors"
+                    className="flex items-center gap-2 px-4 py-2.5 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl text-sm font-semibold transition-colors"
                   >
                     <Mail size={14} />
                     Email support
@@ -371,11 +371,11 @@ export default function HelpPage() {
               <a
                 key={l.label}
                 href={l.href}
-                className="flex items-center gap-2.5 bg-white rounded-xl border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-teal-200 hover:text-teal-700 hover:shadow-sm transition-all group"
+                className="flex items-center gap-2.5 bg-white rounded-xl border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-indigo-200 hover:text-indigo-700 hover:shadow-sm transition-all group"
               >
-                <span className="text-gray-400 group-hover:text-teal-500">{l.icon}</span>
+                <span className="text-gray-400 group-hover:text-indigo-500">{l.icon}</span>
                 {l.label}
-                <ChevronDown size={12} className="ml-auto rotate-[-90deg] text-gray-300 group-hover:text-teal-400" />
+                <ChevronDown size={12} className="ml-auto rotate-[-90deg] text-gray-300 group-hover:text-indigo-400" />
               </a>
             ))}
           </div>

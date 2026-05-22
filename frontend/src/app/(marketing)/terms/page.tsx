@@ -1,8 +1,8 @@
-export default function TermsPage() {
+﻿export default function TermsPage() {
   return (
-    <div className="bg-[#0B1F3A] text-white min-h-screen pt-24">
+    <div className="bg-[#0D1B4B] text-white min-h-screen pt-24">
       <div className="max-w-3xl mx-auto px-5 sm:px-8 py-16">
-        <p className="text-xs font-bold text-teal-400 uppercase tracking-widest mb-4">Legal</p>
+        <p className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-4">Legal</p>
         <h1 className="text-4xl font-black tracking-tight mb-3">Terms of Service</h1>
         <p className="text-white/30 text-sm mb-10">Last updated: {new Date().toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" })}</p>
         <div className="prose prose-invert max-w-none space-y-6 text-white/60 text-base leading-relaxed">
@@ -20,7 +20,7 @@ export default function TermsPage() {
           <h2 className="text-lg font-bold text-white">6. Governing law</h2>
           <p>These terms are governed by Indian law. Any disputes shall be subject to the exclusive jurisdiction of courts in Bengaluru, Karnataka.</p>
           <h2 className="text-lg font-bold text-white">7. Contact</h2>
-          <p>For any questions, contact <a href="mailto:legal@haip.app" className="text-teal-400">legal@haip.app</a>.</p>
+          <p>For any questions, contact <a href="mailto:legal@haip.app" className="text-indigo-400">legal@haip.app</a>.</p>
         </div>
       </div>
     </div>

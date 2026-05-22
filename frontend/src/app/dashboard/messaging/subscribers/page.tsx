@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -91,28 +91,28 @@ function AddSubscriberModal({ onClose, onAdded }: { onClose: () => void; onAdded
             <div className="relative">
               <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-                placeholder="+91 98765 43210" className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
+                placeholder="+91 98765 43210" className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
             </div>
             <p className="text-[10px] text-gray-400 mt-1">Include country code. E.g. +91 for India.</p>
           </div>
           <div>
             <label className="text-xs font-semibold text-gray-700 block mb-1.5">Name <span className="text-gray-400 font-normal">(optional)</span></label>
             <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              placeholder="Priya Sharma" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
+              placeholder="Priya Sharma" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
           </div>
           <div>
             <label className="text-xs font-semibold text-gray-700 block mb-1.5">Tags <span className="text-gray-400 font-normal">(optional)</span></label>
             <input value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))}
-              placeholder="vip, repeat-guest (comma-separated)" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
+              placeholder="vip, repeat-guest (comma-separated)" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
           </div>
-          <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 text-[11px] text-teal-700">
+          <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-[11px] text-indigo-700">
             By adding this contact, you confirm they have explicitly opted in to receive WhatsApp messages from you, as required by Meta's policies.
           </div>
           {error && <div className="flex items-center gap-2 text-xs text-red-700 bg-red-50 rounded-xl px-3 py-2"><AlertCircle size={13} /> {error}</div>}
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
             <button type="submit" disabled={submitting}
-              className="flex-1 py-2.5 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+              className="flex-1 py-2.5 bg-indigo-500 text-white rounded-xl text-sm font-semibold hover:bg-indigo-600 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
               {submitting ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
               Add subscriber
             </button>
@@ -184,7 +184,7 @@ export default function SubscribersPage() {
               <Download size={13} /> Export
             </button>
             <button onClick={() => setShowAdd(true)}
-              className="flex items-center gap-2 bg-teal-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors shadow-sm shadow-teal-200">
+              className="flex items-center gap-2 bg-indigo-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-600 transition-colors shadow-sm shadow-indigo-200">
               <Plus size={15} /> Add contact
             </button>
           </div>
@@ -194,7 +194,7 @@ export default function SubscribersPage() {
         <div className="grid grid-cols-3 gap-3 mb-4">
           {[
             { label: "Total contacts", value: subscribers.length, cls: "text-gray-900" },
-            { label: "Opted in", value: optedInCount, cls: "text-teal-600" },
+            { label: "Opted in", value: optedInCount, cls: "text-indigo-600" },
             { label: "Opted out", value: optedOutCount, cls: "text-red-500" },
           ].map(s => (
             <div key={s.label} className="bg-gray-50 rounded-xl p-3">
@@ -209,13 +209,13 @@ export default function SubscribersPage() {
           <div className="relative flex-1">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name, phone, or tag…"
-              className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white" />
+              className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30 bg-white" />
           </div>
           <div className="flex gap-1">
             {(["all", "opted_in", "opted_out"] as const).map(f => (
               <button key={f} onClick={() => setFilter(f)}
                 className={cn("px-3 py-2 rounded-xl text-xs font-medium transition-colors",
-                  filter === f ? "bg-[#0B1F3A] text-white" : "border border-gray-200 text-gray-600 hover:bg-gray-50")}>
+                  filter === f ? "bg-[#0D1B4B] text-white" : "border border-gray-200 text-gray-600 hover:bg-gray-50")}>
                 {f === "all" ? "All" : f === "opted_in" ? "Opted in" : "Opted out"}
               </button>
             ))}
@@ -238,7 +238,7 @@ export default function SubscribersPage() {
             {filtered.map(sub => (
               <div key={sub.id} className="px-6 py-3.5 flex items-center gap-4 hover:bg-gray-50/60 transition-colors">
                 {/* Status indicator */}
-                <div className={cn("w-2.5 h-2.5 rounded-full flex-shrink-0", sub.opted_in ? "bg-teal-400" : "bg-red-400")} />
+                <div className={cn("w-2.5 h-2.5 rounded-full flex-shrink-0", sub.opted_in ? "bg-indigo-400" : "bg-red-400")} />
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
@@ -273,7 +273,7 @@ export default function SubscribersPage() {
                   <button
                     onClick={() => sub.opted_in ? optOutMutation.mutate(sub.id) : optInMutation.mutate(sub.id)}
                     className={cn("text-xs px-2.5 py-1 rounded-lg font-medium transition-colors border",
-                      sub.opted_in ? "text-red-500 border-red-200 hover:bg-red-50" : "text-teal-600 border-teal-200 hover:bg-teal-50"
+                      sub.opted_in ? "text-red-500 border-red-200 hover:bg-red-50" : "text-indigo-600 border-indigo-200 hover:bg-indigo-50"
                     )}
                   >
                     {sub.opted_in ? "Opt out" : "Opt in"}

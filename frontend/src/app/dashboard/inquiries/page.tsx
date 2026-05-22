@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -36,7 +36,7 @@ const STAGES = [
   { id: "responding", title: "Responding", color: "border-l-4 border-l-purple-400" },
   { id: "quoted",     title: "Quoted",     color: "border-l-4 border-l-amber-400" },
   { id: "site_visit", title: "Site Visit", color: "border-l-4 border-l-orange-400" },
-  { id: "booked",     title: "Booked",     color: "border-l-4 border-l-teal-500" },
+  { id: "booked",     title: "Booked",     color: "border-l-4 border-l-indigo-500" },
   { id: "lost",       title: "Lost",       color: "border-l-4 border-l-red-400" },
 ];
 
@@ -99,7 +99,7 @@ function KanbanScrollContainer({ children, stageCount }: { children: React.React
             className={cn(
               "rounded-full transition-all duration-200",
               i === activeIdx
-                ? "w-4 h-1.5 bg-teal-500"
+                ? "w-4 h-1.5 bg-indigo-500"
                 : "w-1.5 h-1.5 bg-gray-300"
             )}
           />
@@ -255,7 +255,7 @@ export default function InquiriesPage() {
               <List size={15} />
             </button>
           </div>
-          <button className="flex items-center gap-1.5 text-xs bg-teal-500 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-teal-600 transition-colors">
+          <button className="flex items-center gap-1.5 text-xs bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-indigo-600 transition-colors">
             <Plus size={13} /> New inquiry
           </button>
         </div>
@@ -269,7 +269,7 @@ export default function InquiriesPage() {
             onClick={() => setActiveViewId(null)}
             className={cn(
               "text-[11px] font-medium px-2.5 py-1 rounded-lg flex-shrink-0 transition-colors",
-              activeViewId === null ? "bg-teal-100 text-teal-700" : "text-gray-500 hover:bg-gray-100"
+              activeViewId === null ? "bg-indigo-100 text-indigo-700" : "text-gray-500 hover:bg-gray-100"
             )}
           >
             All
@@ -280,7 +280,7 @@ export default function InquiriesPage() {
               onClick={() => setActiveViewId(activeViewId === view.id ? null : view.id)}
               className={cn(
                 "text-[11px] font-medium px-2.5 py-1 rounded-lg flex-shrink-0 transition-colors",
-                activeViewId === view.id ? "bg-teal-100 text-teal-700" : "text-gray-500 hover:bg-gray-100"
+                activeViewId === view.id ? "bg-indigo-100 text-indigo-700" : "text-gray-500 hover:bg-gray-100"
               )}
             >
               {view.name}
@@ -296,7 +296,7 @@ export default function InquiriesPage() {
           <button
             onClick={() => setAgingFilter(null)}
             className={cn("text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors",
-              agingFilter === null ? "bg-teal-100 text-teal-700" : "text-gray-500 hover:bg-gray-100"
+              agingFilter === null ? "bg-indigo-100 text-indigo-700" : "text-gray-500 hover:bg-gray-100"
             )}
           >
             All active: {activeInqs.length}

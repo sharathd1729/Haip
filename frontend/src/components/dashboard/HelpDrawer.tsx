@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import {
@@ -120,7 +120,7 @@ export function HelpDrawer() {
                   className={cn(
                     "flex-1 py-2.5 text-xs font-semibold transition-colors capitalize",
                     tab === t
-                      ? "text-teal-400 border-b-2 border-teal-500"
+                      ? "text-indigo-400 border-b-2 border-indigo-500"
                       : "text-white/35 hover:text-white/60"
                   )}
                 >
@@ -154,7 +154,7 @@ export function HelpDrawer() {
                         className={cn(
                           "text-[10px] font-semibold px-2 py-0.5 rounded-lg transition-colors",
                           filterCat === cat
-                            ? "bg-teal-500/20 text-teal-300"
+                            ? "bg-indigo-500/20 text-indigo-300"
                             : "bg-white/5 text-white/30 hover:text-white/60"
                         )}
                       >

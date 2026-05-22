@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
@@ -52,7 +52,7 @@ function JoinForm() {
   if (done) {
     return (
       <div className="text-center py-8">
-        <CheckCircle2 size={48} className="text-teal-500 mx-auto mb-4" />
+        <CheckCircle2 size={48} className="text-indigo-500 mx-auto mb-4" />
         <h2 className="text-xl font-bold text-gray-900 mb-2">Welcome to the workspace!</h2>
         <p className="text-sm text-gray-500">Redirecting you to the dashboard…</p>
       </div>
@@ -62,7 +62,7 @@ function JoinForm() {
   return (
     <>
       <div className="px-8 pt-8 pb-6 border-b border-gray-100 text-center">
-        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white font-bold text-lg mx-auto mb-4 shadow-lg shadow-teal-500/30">
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center text-white font-bold text-lg mx-auto mb-4 shadow-lg shadow-blue-500/30">
           H
         </div>
         <h1 className="text-xl font-bold text-gray-900">
@@ -70,7 +70,7 @@ function JoinForm() {
         </h1>
         <p className="text-sm text-gray-500 mt-1">
           {invite
-            ? <>You&apos;ve been invited to <strong>{invite.tenant_name ?? "the workspace"}</strong> as <span className="text-teal-600 capitalize font-medium">{invite.role.replace("_", " ")}</span>. Set a password to get started.</>
+            ? <>You&apos;ve been invited to <strong>{invite.tenant_name ?? "the workspace"}</strong> as <span className="text-indigo-600 capitalize font-medium">{invite.role.replace("_", " ")}</span>. Set a password to get started.</>
             : "Set a password to activate your account and start using HAIP."
           }
         </p>
@@ -85,7 +85,7 @@ function JoinForm() {
             value={form.password}
             onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
             placeholder="At least 8 characters"
-            className="w-full px-4 pr-10 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+            className="w-full px-4 pr-10 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
             required
           />
           <button type="button" onClick={() => setShowPassword(v => !v)}
@@ -101,7 +101,7 @@ function JoinForm() {
           value={form.confirm}
           onChange={e => setForm(f => ({ ...f, confirm: e.target.value }))}
           placeholder="Re-enter password"
-          className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+          className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
           required
         />
       </div>
@@ -113,7 +113,7 @@ function JoinForm() {
       <button
         type="submit"
         disabled={loading || !token}
-        className="w-full py-3 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+        className="w-full py-3 bg-indigo-500 text-white rounded-xl text-sm font-semibold hover:bg-indigo-600 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
       >
         {loading ? <Loader2 size={15} className="animate-spin" /> : null}
         {loading ? "Setting up your account…" : "Join workspace"}
@@ -126,7 +126,7 @@ function JoinForm() {
 
 export default function JoinPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-[#0B1F3A] to-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-[#0D1B4B] to-slate-900 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
         <Suspense fallback={<div className="text-center text-sm text-gray-400 py-8">Loading…</div>}>
           <JoinForm />

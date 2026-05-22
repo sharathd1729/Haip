@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -66,7 +66,7 @@ interface CallDetail {
 const DISPOSITION_OPTIONS = [
   { value: "pending",   label: "Pending",   color: "bg-gray-100 text-gray-600" },
   { value: "qualified", label: "Qualified",  color: "bg-blue-100 text-blue-700" },
-  { value: "booked",    label: "Booked",     color: "bg-teal-100 text-teal-700" },
+  { value: "booked",    label: "Booked",     color: "bg-indigo-100 text-indigo-700" },
   { value: "lost",      label: "Lost",       color: "bg-red-100 text-red-600" },
   { value: "spam",      label: "Spam",       color: "bg-gray-100 text-gray-400" },
   { value: "callback",  label: "Callback",   color: "bg-amber-100 text-amber-700" },
@@ -194,7 +194,7 @@ export default function CallDetailPage() {
       <div className="p-8 text-center">
         <AlertCircle size={40} className="text-red-400 mx-auto mb-3" />
         <p className="text-gray-500">{msg}</p>
-        <button onClick={() => router.back()} className="mt-4 text-teal-600 text-sm font-medium">← Go back</button>
+        <button onClick={() => router.back()} className="mt-4 text-indigo-600 text-sm font-medium">← Go back</button>
       </div>
     );
   }
@@ -273,7 +273,7 @@ export default function CallDetailPage() {
             <button
               onClick={() => processMutation.mutate()}
               disabled={processing}
-              className="flex items-center gap-2 px-4 py-2 bg-[#0B1F3A] text-white text-xs font-semibold rounded-xl hover:bg-[#163458] disabled:opacity-50 transition-colors flex-shrink-0"
+              className="flex items-center gap-2 px-4 py-2 bg-[#0D1B4B] text-white text-xs font-semibold rounded-xl hover:bg-[#1a2864] disabled:opacity-50 transition-colors flex-shrink-0"
             >
               {processing
                 ? <><Loader2 size={13} className="animate-spin" /> Processing…</>
@@ -322,7 +322,7 @@ export default function CallDetailPage() {
             <button
               onClick={() => processMutation.mutate()}
               disabled={processing}
-              className="flex items-center gap-2 px-4 py-2 bg-[#0B1F3A] text-white text-xs font-semibold rounded-xl hover:bg-[#163458] disabled:opacity-50 transition-colors flex-shrink-0"
+              className="flex items-center gap-2 px-4 py-2 bg-[#0D1B4B] text-white text-xs font-semibold rounded-xl hover:bg-[#1a2864] disabled:opacity-50 transition-colors flex-shrink-0"
             >
               {processing
                 ? <><Loader2 size={13} className="animate-spin" /> Running…</>
@@ -367,7 +367,7 @@ export default function CallDetailPage() {
               {call.guest_phone && (
                 <Link
                   href={`/dashboard/guests?phone=${encodeURIComponent(call.guest_phone)}`}
-                  className="text-xs text-teal-600 hover:text-teal-700 flex items-center gap-1 font-medium"
+                  className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1 font-medium"
                 >
                   View guest profile <ExternalLink size={11} />
                 </Link>
@@ -575,7 +575,7 @@ export default function CallDetailPage() {
                       <div className="px-3 pb-2">
                         <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-1">
                           <div
-                            className={cn("h-full rounded-full", pct >= 80 ? "bg-teal-500" : pct >= 50 ? "bg-amber-400" : "bg-red-400")}
+                            className={cn("h-full rounded-full", pct >= 80 ? "bg-indigo-500" : pct >= 50 ? "bg-amber-400" : "bg-red-400")}
                             style={{ width: `${pct}%` }}
                           />
                         </div>
@@ -607,7 +607,7 @@ export default function CallDetailPage() {
               {criteria.length > 5 && (
                 <button
                   onClick={() => setShowAllCriteria(v => !v)}
-                  className="mt-3 text-xs text-teal-600 hover:text-teal-700 font-medium flex items-center gap-1"
+                  className="mt-3 text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
                 >
                   {showAllCriteria ? "Show less" : `+${criteria.length - 5} more criteria`}
                   <ChevronDown size={12} className={cn("transition-transform", showAllCriteria && "rotate-180")} />
@@ -619,11 +619,11 @@ export default function CallDetailPage() {
                 <div className="mt-4 pt-4 border-t border-gray-50 grid grid-cols-2 gap-3">
                   {call.score.agent_strengths?.length ? (
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-teal-600 mb-1.5">Strengths</p>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 mb-1.5">Strengths</p>
                       <ul className="space-y-1">
                         {call.score.agent_strengths.slice(0, 3).map((s, i) => (
                           <li key={i} className="text-xs text-gray-600 flex items-start gap-1.5">
-                            <CheckCircle2 size={11} className="text-teal-400 mt-0.5 flex-shrink-0" /> {s}
+                            <CheckCircle2 size={11} className="text-indigo-400 mt-0.5 flex-shrink-0" /> {s}
                           </li>
                         ))}
                       </ul>
@@ -688,15 +688,15 @@ export default function CallDetailPage() {
                 onChange={e => setWrapUpNotes(e.target.value)}
                 rows={4}
                 placeholder="AI summary will appear here after analysis completes. You can also add manual notes."
-                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow resize-none text-gray-700 placeholder:text-gray-300"
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow resize-none text-gray-700 placeholder:text-gray-300"
               />
             </div>
 
             {/* Suggested next action */}
             {call.score?.next_action && (
-              <div className="mb-4 p-3 bg-teal-50 border border-teal-100 rounded-xl">
-                <p className="text-xs font-semibold text-teal-700 mb-1">Suggested next action</p>
-                <p className="text-sm text-teal-800">{call.score.next_action}</p>
+              <div className="mb-4 p-3 bg-indigo-50 border border-indigo-100 rounded-xl">
+                <p className="text-xs font-semibold text-indigo-700 mb-1">Suggested next action</p>
+                <p className="text-sm text-indigo-800">{call.score.next_action}</p>
               </div>
             )}
 
@@ -713,7 +713,7 @@ export default function CallDetailPage() {
             <button
               onClick={() => saveMutation.mutate()}
               disabled={saveMutation.isPending}
-              className="w-full py-2.5 bg-[#0B1F3A] hover:bg-[#163458] disabled:opacity-60 text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
+              className="w-full py-2.5 bg-[#0D1B4B] hover:bg-[#1a2864] disabled:opacity-60 text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
             >
               {saveMutation.isPending ? (
                 <><Loader2 size={14} className="animate-spin" /> Saving…</>

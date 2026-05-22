@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 /**
  * X11 — Tooltip discovery hotspot
@@ -126,11 +126,11 @@ export function Hotspot({
         onClick={() => setTooltipOpen(v => !v)}
         aria-label="What's this?"
         className={cn(
-          "absolute z-20 w-3 h-3 rounded-full bg-teal-500 border-2 border-white shadow-sm",
+          "absolute z-20 w-3 h-3 rounded-full bg-indigo-500 border-2 border-white shadow-sm",
           DOT_POSITIONS[position]
         )}
       >
-        <span className="absolute inset-0 rounded-full bg-teal-400 animate-ping opacity-75" />
+        <span className="absolute inset-0 rounded-full bg-indigo-400 animate-ping opacity-75" />
       </button>
 
       {/* Tooltip */}
@@ -155,7 +155,7 @@ export function Hotspot({
                 href={learnMoreUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-teal-400 hover:text-teal-300 font-medium"
+                className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 font-medium"
               >
                 <ExternalLink size={11} />
                 Watch demo

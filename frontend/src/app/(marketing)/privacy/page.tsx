@@ -1,8 +1,8 @@
-export default function PrivacyPage() {
+﻿export default function PrivacyPage() {
   return (
-    <div className="bg-[#0B1F3A] text-white min-h-screen pt-24">
+    <div className="bg-[#0D1B4B] text-white min-h-screen pt-24">
       <div className="max-w-3xl mx-auto px-5 sm:px-8 py-16">
-        <p className="text-xs font-bold text-teal-400 uppercase tracking-widest mb-4">Legal</p>
+        <p className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-4">Legal</p>
         <h1 className="text-4xl font-black tracking-tight mb-3">Privacy Policy</h1>
         <p className="text-white/30 text-sm mb-10">Last updated: {new Date().toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" })}</p>
         <div className="prose prose-invert max-w-none space-y-6 text-white/60 text-base leading-relaxed">
@@ -16,7 +16,7 @@ export default function PrivacyPage() {
           <h2 className="text-lg font-bold text-white">4. DPDP Compliance</h2>
           <p>HAIP is designed to comply with the Digital Personal Data Protection Act, 2023. We act as a Data Fiduciary and Data Processor as applicable. We support data subject rights including access, correction, and erasure.</p>
           <h2 className="text-lg font-bold text-white">5. Contact</h2>
-          <p>For privacy enquiries, contact us at <a href="mailto:privacy@haip.app" className="text-teal-400">privacy@haip.app</a>.</p>
+          <p>For privacy enquiries, contact us at <a href="mailto:privacy@haip.app" className="text-indigo-400">privacy@haip.app</a>.</p>
         </div>
       </div>
     </div>

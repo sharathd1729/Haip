@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { useSession } from "next-auth/react";
@@ -56,7 +56,7 @@ function PersonalInfoCard() {
       <div className="flex items-start gap-6 mb-6">
         {/* Avatar */}
         <div className="relative flex-shrink-0">
-          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-teal-200">
+          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-indigo-200">
             {initials}
           </div>
           <button className="absolute -bottom-1 -right-1 w-7 h-7 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-sm hover:bg-gray-50 transition-colors">
@@ -66,7 +66,7 @@ function PersonalInfoCard() {
         <div className="flex-1 min-w-0">
           <p className="text-base font-bold text-gray-900">{form.name}</p>
           <p className="text-sm text-gray-500 mt-0.5">{form.email}</p>
-          <span className="mt-1.5 inline-block text-[11px] bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full font-semibold capitalize">
+          <span className="mt-1.5 inline-block text-[11px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-semibold capitalize">
             {form.role}
           </span>
         </div>
@@ -85,7 +85,7 @@ function PersonalInfoCard() {
             onChange={e => { setForm(f => ({...f, bio: e.target.value})); setSaved(false); }}
             placeholder="Short description visible to your team…"
             rows={2}
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white resize-none"
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 bg-white resize-none"
           />
         </div>
       </div>
@@ -95,7 +95,7 @@ function PersonalInfoCard() {
         disabled={loading}
         className={cn(
           "mt-5 flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-colors",
-          saved ? "bg-green-50 text-green-700 border border-green-200" : "bg-teal-500 text-white hover:bg-teal-600 disabled:opacity-50"
+          saved ? "bg-green-50 text-green-700 border border-green-200" : "bg-indigo-500 text-white hover:bg-indigo-600 disabled:opacity-50"
         )}
       >
         {loading ? <Loader2 size={14} className="animate-spin" /> : saved ? <CheckCircle size={14} /> : <Save size={14} />}
@@ -183,7 +183,7 @@ function ChangePasswordCard() {
           <button
             onClick={handleSubmit}
             disabled={loading || !form.current || !form.next || !form.confirm}
-            className="flex items-center gap-2 px-5 py-2 bg-[#0B1F3A] text-white rounded-lg text-sm font-semibold hover:bg-[#0d2548] disabled:opacity-50 transition-colors"
+            className="flex items-center gap-2 px-5 py-2 bg-[#0D1B4B] text-white rounded-lg text-sm font-semibold hover:bg-[#1a2864] disabled:opacity-50 transition-colors"
           >
             {loading ? <Loader2 size={14} className="animate-spin" /> : <Lock size={14} />}
             Update password
@@ -206,7 +206,7 @@ function PreferencesCard() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Timezone</label>
             <select value={prefs.timezone} onChange={e => { setPrefs(p => ({...p, timezone: e.target.value})); setSaved(false); }}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white">
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 bg-white">
               <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
               <option value="Asia/Dubai">Asia/Dubai (GST)</option>
               <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
@@ -217,7 +217,7 @@ function PreferencesCard() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Language</label>
             <select value={prefs.language} onChange={e => { setPrefs(p => ({...p, language: e.target.value})); setSaved(false); }}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white">
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 bg-white">
               <option value="en">English</option>
               <option value="hi">Hindi</option>
               <option value="ta">Tamil</option>
@@ -230,13 +230,13 @@ function PreferencesCard() {
           <div className="flex gap-3">
             {[
               { id: "light", label: "Light", preview: "bg-white border-2 border-gray-200" },
-              { id: "dark",  label: "Dark",  preview: "bg-[#0B1F3A] border-2 border-gray-600" },
-              { id: "system",label: "System",preview: "bg-gradient-to-r from-white to-[#0B1F3A] border-2 border-gray-300" },
+              { id: "dark",  label: "Dark",  preview: "bg-[#0D1B4B] border-2 border-gray-600" },
+              { id: "system",label: "System",preview: "bg-gradient-to-r from-white to-[#0D1B4B] border-2 border-gray-300" },
             ].map(t => (
               <label key={t.id} className="cursor-pointer flex-1">
                 <input type="radio" name="theme" value={t.id} checked={prefs.theme === t.id} onChange={() => { setPrefs(p => ({...p, theme: t.id})); setSaved(false); }} className="sr-only" />
                 <div className={cn("rounded-xl p-3 flex flex-col items-center gap-2 transition-all",
-                  prefs.theme === t.id ? "ring-2 ring-teal-500 shadow-sm" : "hover:ring-1 ring-gray-200"
+                  prefs.theme === t.id ? "ring-2 ring-indigo-500 shadow-sm" : "hover:ring-1 ring-gray-200"
                 )}>
                   <div className={cn("w-full h-8 rounded-lg", t.preview)} />
                   <span className="text-xs font-medium text-gray-700">{t.label}</span>
@@ -250,7 +250,7 @@ function PreferencesCard() {
 
       <button onClick={() => setSaved(true)} className={cn(
         "mt-5 flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-colors",
-        saved ? "bg-green-50 text-green-700 border border-green-200" : "bg-teal-500 text-white hover:bg-teal-600"
+        saved ? "bg-green-50 text-green-700 border border-green-200" : "bg-indigo-500 text-white hover:bg-indigo-600"
       )}>
         {saved ? <><CheckCircle size={14} /> Saved!</> : <><Save size={14} /> Save preferences</>}
       </button>
@@ -314,7 +314,7 @@ function Field({ label, value, onChange, placeholder, disabled, hint, type = "te
         type={type} value={value} onChange={e => onChange(e.target.value)}
         placeholder={placeholder} disabled={disabled}
         className={cn(
-          "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30",
+          "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30",
           disabled ? "bg-gray-50 text-gray-400 cursor-not-allowed" : "bg-white"
         )}
       />
@@ -333,7 +333,7 @@ function PasswordField({ label, value, onChange, show, onToggle }: {
       <div className="relative">
         <input
           type={show ? "text" : "password"} value={value} onChange={e => onChange(e.target.value)}
-          className="w-full px-3 py-2 pr-10 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white"
+          className="w-full px-3 py-2 pr-10 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 bg-white"
         />
         <button type="button" onClick={onToggle} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
           {show ? <EyeOff size={14} /> : <Eye size={14} />}

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Shield, Loader2, AlertCircle } from "lucide-react";
@@ -85,7 +85,7 @@ function MFAForm() {
             onChange={e => handleChange(i, e.target.value)}
             onKeyDown={e => handleKeyDown(i, e)}
             className={`w-11 h-14 text-center text-xl font-bold border rounded-xl
-              focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500
+              focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500
               transition-all ${error ? "border-red-400 bg-red-50" : "border-gray-200 bg-gray-50"}
               ${digit ? "text-gray-900 bg-white border-gray-400" : "text-gray-400"}`}
           />
@@ -102,7 +102,7 @@ function MFAForm() {
       <button
         type="submit"
         disabled={loading || code.join("").length < 6}
-        className="w-full py-3 bg-[#0B1F3A] hover:bg-[#0d2548] disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+        className="w-full py-3 bg-[#0D1B4B] hover:bg-[#1a2864] disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
       >
         {loading && <Loader2 size={16} className="animate-spin" />}
         Verify
@@ -116,8 +116,8 @@ export default function MFAPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-lg w-full max-w-sm p-8">
         <div className="text-center mb-8">
-          <div className="w-14 h-14 bg-[#0B1F3A] rounded-2xl flex items-center justify-center mx-auto mb-5">
-            <Shield size={26} className="text-teal-400" />
+          <div className="w-14 h-14 bg-[#0D1B4B] rounded-2xl flex items-center justify-center mx-auto mb-5">
+            <Shield size={26} className="text-indigo-400" />
           </div>
           <h1 className="text-xl font-black text-gray-900 mb-2">
             Two-factor authentication
@@ -133,7 +133,7 @@ export default function MFAPage() {
 
         <p className="text-center text-xs text-gray-400 mt-6">
           Lost access to your authenticator?{" "}
-          <a href="mailto:support@haip.app" className="text-teal-600 hover:underline">
+          <a href="mailto:support@haip.app" className="text-indigo-600 hover:underline">
             Contact support
           </a>
         </p>

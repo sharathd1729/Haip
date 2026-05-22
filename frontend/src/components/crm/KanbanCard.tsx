@@ -1,11 +1,11 @@
-"use client";
+﻿"use client";
 import { Phone, MessageSquare, Calendar, MoreHorizontal, AlertTriangle, Clock, StickyNote } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GuestAvatar } from "./GuestAvatar";
 
 // K4: color palette for assignee avatars — consistent hash → color
 const AVATAR_PALETTE = [
-  "bg-purple-500", "bg-blue-500", "bg-teal-500", "bg-green-500",
+  "bg-purple-500", "bg-blue-500", "bg-indigo-500", "bg-green-500",
   "bg-amber-500", "bg-orange-500", "bg-rose-500", "bg-pink-500",
   "bg-indigo-500", "bg-cyan-500", "bg-lime-500", "bg-emerald-500",
 ];
@@ -20,7 +20,7 @@ function hashColor(userId: string): string {
 function ageStripeColor(enteredAt?: string | null): string {
   if (!enteredAt) return "bg-gray-200";
   const days = (Date.now() - new Date(enteredAt).getTime()) / 86_400_000;
-  if (days < 1)  return "bg-teal-400";
+  if (days < 1)  return "bg-indigo-400";
   if (days < 3)  return "bg-yellow-400";
   if (days < 7)  return "bg-orange-400";
   return "bg-red-500";
@@ -47,7 +47,7 @@ function SlaChip({ slaState, elapsedSeconds }: { slaState?: string; elapsedSecon
       "inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-full",
       slaState === "breach"  ? "bg-red-100 text-red-600"
       : slaState === "warning" ? "bg-amber-100 text-amber-600"
-      : "bg-teal-100 text-teal-600"
+      : "bg-indigo-100 text-indigo-600"
     )}>
       {label}
     </span>

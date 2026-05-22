@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useMemo } from "react";
 import { useMutation } from "@tanstack/react-query";
@@ -69,7 +69,7 @@ const REPORTS: ReportDef[] = [
     name: "Inquiries",
     description: "Lead pipeline data — stages, sources, values, agents, lost reasons, and conversion timelines.",
     icon: <Zap size={22} />,
-    gradient: "from-teal-500 to-teal-600",
+    gradient: "from-indigo-500 to-indigo-600",
     fields: [
       { key: "inquiry_id",    label: "Inquiry ID",        default: true },
       { key: "created_at",    label: "Created Date",      default: true },
@@ -206,7 +206,7 @@ function StepBadge({ step, current }: { step: number; current: number }) {
   return (
     <div className={cn(
       "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all flex-shrink-0",
-      done ? "bg-teal-500 text-white" : active ? "bg-[#0B1F3A] text-white" : "bg-gray-200 text-gray-400"
+      done ? "bg-indigo-500 text-white" : active ? "bg-[#0D1B4B] text-white" : "bg-gray-200 text-gray-400"
     )}>
       {done ? <Check size={13} /> : step}
     </div>
@@ -350,8 +350,8 @@ export default function ReportsPage() {
                   className={cn(
                     "flex items-start gap-3 p-4 rounded-2xl border-2 text-left transition-all",
                     selectedReport?.id === r.id
-                      ? "border-teal-500 bg-teal-50 shadow-sm"
-                      : "bg-white border-gray-100 hover:border-teal-300 hover:shadow-sm"
+                      ? "border-indigo-500 bg-indigo-50 shadow-sm"
+                      : "bg-white border-gray-100 hover:border-indigo-300 hover:shadow-sm"
                   )}
                 >
                   <div className={cn("w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center text-white flex-shrink-0 shadow-sm", r.gradient)}>
@@ -380,7 +380,7 @@ export default function ReportsPage() {
                   <button
                     key={r.label}
                     onClick={() => applyQuickRange(r.days)}
-                    className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-600 hover:border-teal-400 hover:text-teal-700 transition-colors"
+                    className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-600 hover:border-indigo-400 hover:text-indigo-700 transition-colors"
                   >
                     {r.label}
                   </button>
@@ -390,18 +390,18 @@ export default function ReportsPage() {
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">From</label>
                   <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white" />
+                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 bg-white" />
                 </div>
                 <span className="text-gray-400 mt-5">→</span>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">To</label>
                   <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white" />
+                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 bg-white" />
                 </div>
               </div>
               <button
                 onClick={() => setStep(3)}
-                className="flex items-center gap-2 px-5 py-2.5 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors"
+                className="flex items-center gap-2 px-5 py-2.5 bg-indigo-500 text-white rounded-xl text-sm font-semibold hover:bg-indigo-600 transition-colors"
               >
                 Continue <ChevronRight size={14} />
               </button>
@@ -423,9 +423,9 @@ export default function ReportsPage() {
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Columns</p>
                     <div className="flex gap-2">
-                      <button onClick={() => setActiveFields(new Set(selectedReport.fields.map(f => f.key)))} className="text-[11px] text-teal-600 hover:underline">All</button>
+                      <button onClick={() => setActiveFields(new Set(selectedReport.fields.map(f => f.key)))} className="text-[11px] text-indigo-600 hover:underline">All</button>
                       <span className="text-gray-300">|</span>
-                      <button onClick={() => setActiveFields(new Set(selectedReport.fields.filter(f => f.default).map(f => f.key)))} className="text-[11px] text-teal-600 hover:underline">Default</button>
+                      <button onClick={() => setActiveFields(new Set(selectedReport.fields.filter(f => f.default).map(f => f.key)))} className="text-[11px] text-indigo-600 hover:underline">Default</button>
                       <span className="text-gray-300">|</span>
                       <button onClick={() => setActiveFields(new Set())} className="text-[11px] text-gray-400 hover:underline">None</button>
                     </div>
@@ -439,10 +439,10 @@ export default function ReportsPage() {
                           onClick={() => toggleField(f.key)}
                           className={cn(
                             "flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm transition-all text-left",
-                            checked ? "border-teal-300 bg-teal-50 text-teal-800" : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                            checked ? "border-indigo-300 bg-indigo-50 text-indigo-800" : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
                           )}
                         >
-                          {checked ? <CheckSquare size={13} className="text-teal-500 flex-shrink-0" /> : <Square size={13} className="text-gray-300 flex-shrink-0" />}
+                          {checked ? <CheckSquare size={13} className="text-indigo-500 flex-shrink-0" /> : <Square size={13} className="text-gray-300 flex-shrink-0" />}
                           <span className="text-xs font-medium truncate">{f.label}</span>
                         </button>
                       );
@@ -462,7 +462,7 @@ export default function ReportsPage() {
                             <select
                               value={filterVals[f.key] ?? ""}
                               onChange={e => setFilterVals(v => ({...v, [f.key]: e.target.value}))}
-                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
                             >
                               {f.options?.map(o => <option key={o} value={o === "All" ? "" : o}>{o}</option>)}
                             </select>
@@ -472,7 +472,7 @@ export default function ReportsPage() {
                               value={filterVals[f.key] ?? ""}
                               onChange={e => setFilterVals(v => ({...v, [f.key]: e.target.value}))}
                               placeholder={`Filter by ${f.label.toLowerCase()}`}
-                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
                             />
                           )}
                         </div>
@@ -484,7 +484,7 @@ export default function ReportsPage() {
                 <button
                   onClick={() => previewMutation.mutate()}
                   disabled={!canPreview || previewMutation.isPending}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors disabled:opacity-50"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-indigo-500 text-white rounded-xl text-sm font-semibold hover:bg-indigo-600 transition-colors disabled:opacity-50"
                 >
                   {previewMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
                   Preview first 10 rows
@@ -505,7 +505,7 @@ export default function ReportsPage() {
                   <button
                     onClick={() => downloadMutation.mutate("csv")}
                     disabled={downloadMutation.isPending}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-teal-500 text-white rounded-xl text-xs font-semibold hover:bg-teal-600 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-4 py-2 bg-indigo-500 text-white rounded-xl text-xs font-semibold hover:bg-indigo-600 transition-colors disabled:opacity-50"
                   >
                     {downloadMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
                     CSV
@@ -513,7 +513,7 @@ export default function ReportsPage() {
                   <button
                     onClick={() => downloadMutation.mutate("json")}
                     disabled={downloadMutation.isPending}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-[#0B1F3A] text-white rounded-xl text-xs font-semibold hover:bg-[#0d2548] transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-4 py-2 bg-[#0D1B4B] text-white rounded-xl text-xs font-semibold hover:bg-[#1a2864] transition-colors disabled:opacity-50"
                   >
                     {downloadMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
                     JSON
@@ -574,20 +574,20 @@ function Section({
   return (
     <div className={cn(
       "bg-white rounded-2xl border shadow-sm transition-all",
-      done ? "border-teal-200" : open ? "border-gray-200" : "border-gray-100 opacity-50"
+      done ? "border-indigo-200" : open ? "border-gray-200" : "border-gray-100 opacity-50"
     )}>
       <div className="px-5 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className={cn("w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0",
-            done ? "bg-teal-500" : "bg-gray-200"
+            done ? "bg-indigo-500" : "bg-gray-200"
           )}>
             {done ? <Check size={11} className="text-white" /> : null}
           </div>
           <p className={cn("text-sm font-semibold", done ? "text-gray-700" : "text-gray-900")}>{title}</p>
-          {summary && <span className="text-xs text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full font-medium">{summary}</span>}
+          {summary && <span className="text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full font-medium">{summary}</span>}
         </div>
         {done && onEdit && (
-          <button onClick={onEdit} className="text-xs text-gray-400 hover:text-teal-600 transition-colors">Edit</button>
+          <button onClick={onEdit} className="text-xs text-gray-400 hover:text-indigo-600 transition-colors">Edit</button>
         )}
       </div>
       {open && !done && children && (

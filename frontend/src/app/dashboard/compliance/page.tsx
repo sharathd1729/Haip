@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -66,7 +66,7 @@ const ACTION_COLORS: Record<string, string> = {
   logout:            "text-gray-600 bg-gray-50",
   invite:            "text-purple-600 bg-purple-50",
   role_change:       "text-amber-600 bg-amber-50",
-  qa_override:       "text-teal-600 bg-teal-50",
+  qa_override:       "text-indigo-600 bg-indigo-50",
   "dpdp.delete_requested":  "text-red-600 bg-red-50",
   "dpdp.delete_restored":   "text-green-600 bg-green-50",
   "retention.purge": "text-orange-600 bg-orange-50",
@@ -204,7 +204,7 @@ export default function CompliancePage() {
               onClick={() => setTab(t.id)}
               className={cn(
                 "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                tab === t.id ? "bg-[#0B1F3A] text-white" : "text-gray-500 hover:bg-gray-100"
+                tab === t.id ? "bg-[#0D1B4B] text-white" : "text-gray-500 hover:bg-gray-100"
               )}
             >
               {t.label}
@@ -224,14 +224,14 @@ export default function CompliancePage() {
                 value={search}
                 onChange={e => { setSearch(e.target.value); setOffset(0); }}
                 placeholder="Filter by action…"
-                className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gray-50 w-44"
+                className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50 w-44"
               />
             </div>
             {/* D7: resource type filter */}
             <select
               value={resourceFilter}
               onChange={e => { setResourceFilter(e.target.value); setOffset(0); }}
-              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500"
+              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">All resources</option>
               <option value="guest">Guest</option>
@@ -287,7 +287,7 @@ export default function CompliancePage() {
                           {evt.target_id && link ? (
                             <Link
                               href={link}
-                              className="text-teal-600 hover:underline font-mono ml-1 flex items-center gap-0.5 inline-flex"
+                              className="text-indigo-600 hover:underline font-mono ml-1 flex items-center gap-0.5 inline-flex"
                             >
                               {shortId(evt.target_id)}
                               <ExternalLink size={9} />
@@ -349,7 +349,7 @@ export default function CompliancePage() {
                     <td className="px-4 py-3 text-gray-500 text-xs capitalize">{c.channel || "—"}</td>
                     <td className="px-4 py-3">
                       {c.granted
-                        ? <span className="flex items-center gap-1 text-xs text-teal-600"><CheckCircle2 size={12} /> Granted</span>
+                        ? <span className="flex items-center gap-1 text-xs text-indigo-600"><CheckCircle2 size={12} /> Granted</span>
                         : <span className="text-xs text-red-500">Revoked</span>}
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-400">
@@ -418,7 +418,7 @@ export default function CompliancePage() {
                       <button
                         onClick={() => restoreMutation.mutate(g.id)}
                         disabled={restoreMutation.isPending}
-                        className="flex items-center gap-1 text-xs text-teal-600 border border-teal-200 bg-teal-50 hover:bg-teal-100 px-2.5 py-1 rounded-lg transition-colors"
+                        className="flex items-center gap-1 text-xs text-indigo-600 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg transition-colors"
                       >
                         <RotateCcw size={11} /> Restore
                       </button>
@@ -501,7 +501,7 @@ export default function CompliancePage() {
                     {inc.scope && <span className="text-[10px] text-gray-400">Scope: {inc.scope}</span>}
                     <Link
                       href={`/dashboard/compliance/incidents/${inc.id}`}
-                      className="ml-auto text-[10px] text-teal-600 hover:underline flex items-center gap-0.5"
+                      className="ml-auto text-[10px] text-indigo-600 hover:underline flex items-center gap-0.5"
                     >
                       View + generate notification <ExternalLink size={9} />
                     </Link>
