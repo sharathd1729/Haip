@@ -3,16 +3,14 @@ import Link from "next/link";
 import { AlertCircle, ArrowRight, X } from "lucide-react";
 import { useState } from "react";
 
-const TOTAL_STEPS = 9;
+const TOTAL_STEPS = 6;
 
 const STEP_LABELS: Record<number, string> = {
-  2: "Add brand voice",
-  3: "Connect telephony",
-  4: "Connect WhatsApp",
-  5: "Invite your team",
-  6: "Set concierge mode",
-  7: "DPDP compliance",
-  8: "Test & finish",
+  1: "Set up brand voice",
+  2: "Invite your team",
+  3: "Set AI concierge mode",
+  4: "Review DPDP settings",
+  5: "Finish setup",
 };
 
 interface FinishSetupBannerProps {

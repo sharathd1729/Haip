@@ -27,7 +27,7 @@ const navSections: { label: string; items: NavItem[] }[] = [
     label: "Workspace",
     items: [
       { label: "Dashboard",  href: "/dashboard",           icon: <LayoutDashboard size={16} />, resource: "dashboard" },
-      { label: "Inbox",      href: "/dashboard/inbox",     icon: <Inbox size={16} />,           resource: "inbox",    badge: "3" },
+      { label: "Inbox",      href: "/dashboard/inbox",     icon: <Inbox size={16} />,           resource: "inbox" },
       { label: "Calls",      href: "/dashboard/calls",     icon: <Phone size={16} />,           resource: "calls" },
     ],
   },

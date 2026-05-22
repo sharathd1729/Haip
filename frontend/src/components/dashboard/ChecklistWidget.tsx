@@ -119,7 +119,7 @@ const ITEMS: ChecklistItem[] = [
     label: "Enable AI concierge",
     description: "Shadow or autonomous mode",
     icon: <Zap size={13} />,
-    href: "/dashboard/settings/concierge",
+    href: "/dashboard/settings",
     required: false,
   },
 ];
@@ -226,11 +226,11 @@ export function ChecklistWidget() {
   const completionMap: Record<string, boolean> = {
     brand: onboardingStep >= 1,
     property: properties.length > 0,
-    whatsapp: waConnected || !!cfg.step_4_skipped,
-    ivr: ivrConnected || !!cfg.step_3_skipped,
-    invite: onboardingStep >= 5 || !!cfg.step_5_skipped,
-    dpdp: onboardingStep >= 7 || !!cfg.step_7_skipped,
-    concierge: onboardingStep >= 6 || !!cfg.step_6_skipped,
+    whatsapp: waConnected,
+    ivr: ivrConnected,
+    invite: onboardingStep >= 3,
+    concierge: onboardingStep >= 4,
+    dpdp: onboardingStep >= 5,
   };
 
   const completedCount = Object.values(completionMap).filter(Boolean).length;

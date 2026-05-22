@@ -192,18 +192,30 @@ export default function InboxPage() {
   }, []);
 
   // Queries must be declared before derived state that references their data
-  const { isLoading: listLoading } = useQuery({
+  const { data: conversationData, isLoading: listLoading } = useQuery<any[]>({
     queryKey: ["conversations"],
     queryFn: () => api.get("/conversations").then(r => r.data),
-    onSuccess: (data: any[]) => setConversations(data),
-  } as any);
+    staleTime: 30_000,
+  });
+
+  // onSuccess was removed in TanStack Query v5 — use useEffect to sync store
+  useEffect(() => {
+    if (conversationData) setConversations(conversationData);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationData]);
 
   const { data: detail, isLoading: detailLoading } = useQuery<ConversationDetail>({
     queryKey: ["conversation", activeConversationId],
     queryFn: () => api.get(`/conversations/${activeConversationId}`).then(r => r.data),
     enabled: !!activeConversationId,
-    onSuccess: () => { if (activeConversationId) markRead(activeConversationId); },
-  } as any);
+    staleTime: 0,
+  });
+
+  // Mark as read when conversation detail loads
+  useEffect(() => {
+    if (detail && activeConversationId) markRead(activeConversationId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail?.id, activeConversationId]);
 
   // D9: derived service window state — only meaningful for WhatsApp
   // windowTick dependency ensures re-render every 60s to refresh countdown
