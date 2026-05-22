@@ -55,60 +55,54 @@ celery_app.conf.update(
     broker_use_ssl=_ssl_opts,
     redis_backend_use_ssl=_ssl_opts,
     task_routes={
-        "tasks.transcribe": {"queue": "transcription"},
-        "tasks.classify": {"queue": "ai_scoring"},
-        "tasks.judge": {"queue": "ai_scoring"},
-        "tasks.wrap_up": {"queue": "ai_scoring"},
-        "tasks.concierge_draft": {"queue": "whatsapp"},
-        "tasks.send_whatsapp": {"queue": "whatsapp"},
-        "tasks.lost_reason_cluster": {"queue": "ai_scoring"},
-        "tasks.dpdp_purge": {"queue": "call_ingest"},
-        "process_instagram_dm": {"queue": "whatsapp"},
-        "send_instagram_dm": {"queue": "whatsapp"},
-        "sync_retalwise": {"queue": "call_ingest"},
-        "sync_hostaway": {"queue": "call_ingest"},
-        "call_ingest.process": {"queue": "call_ingest"},
-        "call_ingest.fetch_recording": {"queue": "call_ingest"},
-        "transcription.transcribe_call": {"queue": "transcription"},
-        "ai_scoring.score_call": {"queue": "ai_scoring"},
+        # Use full module paths — short names like "tasks.X" don't match registered names
+        "app.workers.tasks.transcribe.*":           {"queue": "transcription"},
+        "app.workers.tasks.classify.*":             {"queue": "ai_scoring"},
+        "app.workers.tasks.judge.*":                {"queue": "ai_scoring"},
+        "app.workers.tasks.wrap_up.*":              {"queue": "ai_scoring"},
+        "app.workers.tasks.concierge_draft.*":      {"queue": "whatsapp"},
+        "app.workers.tasks.send_whatsapp.*":        {"queue": "whatsapp"},
+        "app.workers.tasks.lost_reason_cluster.*":  {"queue": "ai_scoring"},
+        "app.workers.tasks.dpdp_purge.*":           {"queue": "call_ingest"},
+        "app.workers.tasks.process_instagram_dm.*": {"queue": "whatsapp"},
+        "app.workers.tasks.send_instagram_dm.*":    {"queue": "whatsapp"},
+        "app.workers.tasks.sync_retalwise.*":       {"queue": "call_ingest"},
+        "app.workers.tasks.sync_hostaway.*":        {"queue": "call_ingest"},
+        "app.workers.tasks.call_ingest.*":          {"queue": "call_ingest"},
+        "app.workers.tasks.transcription.*":        {"queue": "transcription"},
+        "app.workers.tasks.ai_scoring.*":           {"queue": "ai_scoring"},
+        "app.workers.tasks.retention_purge.*":      {"queue": "call_ingest"},
     },
 )
 
 # Scheduled tasks (Celery Beat)
 celery_app.conf.beat_schedule = {
-    # Weekly lost-reason clustering: Sunday 23:00 IST
     "lost-reason-cluster-weekly": {
-        "task": "tasks.lost_reason_cluster",
+        "task": "app.workers.tasks.lost_reason_cluster.run",
         "schedule": crontab(hour=23, minute=0, day_of_week=0),
     },
-    # Daily DPDP purge: 02:00 IST
     "dpdp-purge-daily": {
-        "task": "tasks.dpdp_purge",
+        "task": "app.workers.tasks.dpdp_purge.run",
         "schedule": crontab(hour=2, minute=0),
     },
-    # D5: nightly retention purge: 02:30 IST
     "retention-purge-nightly": {
-        "task": "retention.nightly_purge",
+        "task": "app.workers.tasks.retention_purge.nightly_purge",
         "schedule": crontab(hour=2, minute=30),
     },
-    # S7: hourly Meta quality poll: :15 each hour
     "meta-quality-hourly": {
-        "task": "meta_quality.poll_all_tenants",
+        "task": "app.workers.tasks.meta_quality_poll.poll_all_tenants",
         "schedule": crontab(minute=15),
     },
-    # Hourly RentalWise sync for all tenants: fires at :05 each hour
     "sync-retalwise-hourly": {
-        "task": "sync_retalwise_all_tenants",
+        "task": "app.workers.tasks.sync_all_pms.sync_retalwise_all_tenants",
         "schedule": crontab(minute=5),
     },
-    # Hourly Hostaway sync for all tenants: fires at :10 each hour
     "sync-hostaway-hourly": {
-        "task": "sync_hostaway_all_tenants",
+        "task": "app.workers.tasks.sync_all_pms.sync_hostaway_all_tenants",
         "schedule": crontab(minute=10),
     },
-    # A7: owner digest orchestrator — runs hourly, dispatches to tenants at 9am local
     "owner-digest-hourly": {
-        "task": "owner_digest.orchestrate",
-        "schedule": crontab(minute=0),  # top of every hour
+        "task": "app.workers.tasks.owner_digest.orchestrate",
+        "schedule": crontab(minute=0),
     },
 }

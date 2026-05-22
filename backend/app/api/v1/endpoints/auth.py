@@ -205,6 +205,8 @@ def get_me(token: str = Depends(_oauth2_scheme), db: Session = Depends(get_db)):
         "role": user.role.value,
         "tenant_id": user.tenant_id,
         "is_mfa_enabled": user.is_mfa_enabled,
+        # Flat field so auth.ts can read me.onboarding_step directly
+        "onboarding_step": int((tenant.brand_config or {}).get("onboarding_step", 0)) if tenant else 0,
         "tenant": {
             "id": tenant.id if tenant else None,
             "name": tenant.name if tenant else None,
@@ -409,7 +411,7 @@ def _dispatch_otp(phone: str, code: str, name: str) -> None:
         # In production, use a dedicated system-level WABA
         db = SessionLocal()
         try:
-            wa = db.query(Integration).filter_by(kind="whatsapp_meta", status="connected").first()
+            wa = db.query(Integration).filter_by(kind="whatsapp_meta", status="active").first()
             if not wa:
                 log.warning("otp_wa_not_configured", phone=phone)
                 log.info("otp_code_fallback", phone=phone, code=code)  # dev only
@@ -496,6 +498,10 @@ def otp_verify(req: OtpVerifyRequest, db: Session = Depends(get_db)):
 
     log.info("otp_login_success", phone=phone, user_id=user.id)
 
+    # Look up tenant for onboarding_step (User model has no such column)
+    _otp_tenant = db.query(Tenant).filter_by(id=user.tenant_id).first()
+    _otp_step = int((_otp_tenant.brand_config or {}).get("onboarding_step", 0)) if _otp_tenant else 0
+
     return LoginResponse(
         access_token=access,
         refresh_token=refresh,
@@ -506,7 +512,7 @@ def otp_verify(req: OtpVerifyRequest, db: Session = Depends(get_db)):
             "email": user.email,
             "role": user.role.value,
             "tenant_id": user.tenant_id,
-            "onboarding_step": user.onboarding_step,
+            "onboarding_step": _otp_step,
         },
     )
 

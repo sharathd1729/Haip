@@ -101,7 +101,7 @@ def _purge_tenant(db, tenant_id: str) -> None:
             .filter(
                 Guest.tenant_id == tenant_id,
                 Guest.deletion_state == "pending",
-                Guest.deletion_requested_at < ghost_cutoff.isoformat(),
+                Guest.deletion_requested_at < ghost_cutoff,
             )
             .delete(synchronize_session=False)
         )

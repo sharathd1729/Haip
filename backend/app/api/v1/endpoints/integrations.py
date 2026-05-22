@@ -620,10 +620,10 @@ def test_integration(
 
         elif kind == "instagram":
             access_token = creds.get("access_token", "")
-            ig_account_id = creds.get("ig_account_id", "")
+            ig_account_id = creds.get("instagram_business_account_id", "")
             if not access_token or not ig_account_id:
                 status = "error"
-                message = "Missing ig_account_id or access_token."
+                message = "Missing instagram_business_account_id or access_token."
             else:
                 resp = httpx.get(
                     f"https://graph.facebook.com/v19.0/{ig_account_id}",
