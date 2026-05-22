@@ -28,16 +28,22 @@ export default auth((req: NextRequest & { auth: any }) => {
 
   const isLoggedIn = !!req.auth;
   const onboardingStep: number = (req.auth?.user as any)?.onboarding_step ?? 0;
+  // Only treat onboarding as truly "not started" when step is 0.
+  // Steps 1–8 = in progress → let them into the dashboard with a banner.
+  // Step 9+ = complete. This avoids blocking existing accounts.
+  const onboardingNotStarted = onboardingStep === 0;
   const onboardingDone = onboardingStep >= 9;
 
   // ── Logged-in users ────────────────────────────────────────────────────────
   if (isLoggedIn) {
-    // Send away from auth pages → into the app
+    // Send away from auth/marketing entry pages
     if (pathname === "/" || pathname === "/login" || pathname === "/register") {
-      const dest = onboardingDone ? "/dashboard" : "/onboarding";
+      // New accounts (step === 0) → onboarding wizard first
+      // Everyone else (step 1-8 in progress, or step 9 done) → dashboard
+      const dest = onboardingNotStarted ? "/onboarding" : "/dashboard";
       return NextResponse.redirect(new URL(dest, req.url));
     }
-    // Already finished onboarding → skip the onboarding page
+    // Already finished onboarding → skip back to dashboard if they hit /onboarding
     if (pathname === "/onboarding" && onboardingDone) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }

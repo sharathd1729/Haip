@@ -83,7 +83,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       : []),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
+      // Initial sign-in — populate token from the authorize() return value
       if (user) {
         token.id = user.id;
         token.role = (user as any).role;
@@ -92,13 +93,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.accessToken = (user as any).accessToken;
         token.refreshToken = (user as any).refreshToken;
       }
+      // updateSession({ onboarding_step: X }) calls — must update the JWT so
+      // the new value survives a full page reload and server components see it
+      if (trigger === "update" && (session as any)?.onboarding_step !== undefined) {
+        token.onboardingStep = (session as any).onboarding_step;
+      }
       return token;
     },
     async session({ session, token }) {
       session.user.id = token.id as string;
       session.user.role = token.role as string;
       session.user.tenantId = token.tenantId as string;
-      session.user.onboarding_step = token.onboardingStep as number;
+      session.user.onboarding_step = token.onboardingStep as number ?? 0;
       (session as any).accessToken = token.accessToken;
       return session;
     },

@@ -198,6 +198,30 @@ def get_me(token: str = Depends(_oauth2_scheme), db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     tenant = db.query(Tenant).filter_by(id=user.tenant_id).first()
+
+    # Derive onboarding_step — prefer what's saved, but auto-complete for
+    # existing accounts that were created before the onboarding wizard existed.
+    # "Existing account" = tenant has a name set AND has ≥1 property in the DB.
+    raw_step = int((tenant.brand_config or {}).get("onboarding_step", 0)) if tenant else 0
+    if raw_step < 9:
+        try:
+            from app.models.property import Property
+            has_properties = db.query(Property).filter_by(
+                tenant_id=user.tenant_id
+            ).limit(1).count() > 0
+        except Exception:
+            has_properties = False
+        # If the tenant already has properties, they're set up — mark complete
+        if has_properties:
+            raw_step = 9
+            # Persist so subsequent logins don't recompute this every time
+            if tenant:
+                cfg = dict(tenant.brand_config or {})
+                if cfg.get("onboarding_step", 0) < 9:
+                    cfg["onboarding_step"] = 9
+                    tenant.brand_config = cfg
+                    db.commit()
+
     return {
         "id": user.id,
         "name": user.name,
@@ -205,8 +229,7 @@ def get_me(token: str = Depends(_oauth2_scheme), db: Session = Depends(get_db)):
         "role": user.role.value,
         "tenant_id": user.tenant_id,
         "is_mfa_enabled": user.is_mfa_enabled,
-        # Flat field so auth.ts can read me.onboarding_step directly
-        "onboarding_step": int((tenant.brand_config or {}).get("onboarding_step", 0)) if tenant else 0,
+        "onboarding_step": raw_step,
         "tenant": {
             "id": tenant.id if tenant else None,
             "name": tenant.name if tenant else None,

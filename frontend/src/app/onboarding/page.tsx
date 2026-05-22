@@ -577,19 +577,28 @@ export default function OnboardingPage() {
 
   const accessToken = (session as any)?.accessToken;
 
-  // Resume from the step the user reached on a previous visit
-  const sessionStep = (session?.user as any)?.onboarding_step ?? 0;
+  // Fetch the real step from the backend on mount — do NOT trust the stale JWT.
+  // The JWT can lag behind if updateSession failed or if the user has a cached token.
   useEffect(() => {
     if (status === "loading") return;
     if (status === "unauthenticated" || !accessToken || accessToken === "demo") {
       router.replace("/login");
       return;
     }
-    // If the session shows they've already completed some steps, resume from there
-    // (but only set once on mount, not on every session update)
-    if (sessionStep > 0 && sessionStep < TOTAL_STEPS) {
-      setStep(sessionStep);
-    }
+    // Ask the backend what step this tenant is actually at
+    api.get("/me").then(res => {
+      const backendStep: number = res.data?.onboarding_step ?? 0;
+      if (backendStep >= TOTAL_STEPS) {
+        // Already done — skip the wizard entirely
+        router.replace("/dashboard");
+        return;
+      }
+      if (backendStep > 0) {
+        setStep(backendStep);
+      }
+    }).catch(() => {
+      // Non-fatal — just start from step 0 if the fetch fails
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, accessToken]);
 
@@ -604,10 +613,15 @@ export default function OnboardingPage() {
   }, [updateSession]);
 
   const goNext = useCallback(async () => {
-    const next = Math.min(step + 1, TOTAL_STEPS - 1);
-    setStep(next);
+    const next = step + 1;
     await persistStep(next);
-  }, [step, persistStep]);
+    if (next >= TOTAL_STEPS) {
+      // All steps done — go straight to the dashboard
+      router.replace("/dashboard");
+      return;
+    }
+    setStep(next);
+  }, [step, persistStep, router]);
 
   const goBack = () => setStep(s => Math.max(s - 1, 0));
 

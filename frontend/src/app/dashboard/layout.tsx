@@ -23,8 +23,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
   };
 
   const onboardingStep = user.onboarding_step ?? 0;
-  if (onboardingStep < 2) redirect("/onboarding");
-
+  // NOTE: Do NOT hard-redirect to /onboarding here. The JWT value is cached
+  // and may be stale for existing accounts. The FinishSetupBanner shows an
+  // inline prompt for users with incomplete setup instead of blocking them.
   const onboardingComplete = onboardingStep >= 9;
 
   return (
