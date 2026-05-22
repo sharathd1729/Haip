@@ -38,7 +38,7 @@ export default function ForgotPasswordPage() {
         {/* Logo */}
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2">
-            <img src="/app-icon.png" alt="HAIP" className="h-9 w-9 object-contain rounded-xl" />
+            <img src="/logo.png" alt="HAIP" className="h-11 w-auto object-contain" />
             <span className="text-[#0B1F3A] font-bold text-xl tracking-tight">HAIP</span>
           </Link>
         </div>

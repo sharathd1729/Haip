@@ -74,7 +74,7 @@ export function MobileHeader({ user }: MobileHeaderProps) {
             <img
               src={theme.logoDarkUrl ?? theme.logoUrl}
               alt={theme.companyName}
-              className="h-7 w-auto object-contain"
+              className="h-9 w-auto object-contain"
             />
           ) : (
             <div

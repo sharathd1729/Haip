@@ -40,8 +40,8 @@ export const metadata: Metadata = {
     telephone: false,
   },
   icons: {
-    icon: "/app-icon.png",
-    apple: "/app-icon.png",
+    icon: "/logo.png",
+    apple: "/logo.png",
   },
 };
 

@@ -112,13 +112,13 @@ export function Sidebar({ user }: SidebarProps) {
           <img
             src={theme.logoDarkUrl}
             alt={theme.companyName}
-            className="h-8 w-auto object-contain"
+            className="h-10 w-auto object-contain"
           />
         ) : theme.logoUrl ? (
           <img
             src={theme.logoUrl}
             alt={theme.companyName}
-            className="h-8 w-auto object-contain"
+            className="h-10 w-auto object-contain"
           />
         ) : (
           <>
