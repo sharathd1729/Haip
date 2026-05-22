@@ -4,8 +4,8 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import {
-  Phone, MessageSquare, Bot, Users, Instagram,
-  ArrowRight, Check, TrendingUp, Minus,
+  Phone, MessageSquare, Bot, Users,
+  ArrowRight, Check,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -51,7 +51,7 @@ const MODULES = [
   },
   {
     id: "ig",
-    icon: <Instagram size={20} />,
+    icon: <MessageSquare size={20} />,
     name: "Instagram DM",
     desc: "IG inquiries · Inbox · Guest profile linking",
     ppm: 150,
