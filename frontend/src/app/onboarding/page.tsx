@@ -28,11 +28,7 @@ const SEGMENTS = [
   { id: "other",            icon: <HelpCircle size={20} />,  label: "Other" },
 ];
 
-const PLANS = [
-  { id: "starter", label: "Starter", price: "₹3,999/mo", desc: "1 property, up to 500 calls" },
-  { id: "growth",  label: "Growth",  price: "₹6,999/mo", desc: "5 properties, 2,000 calls" },
-  { id: "pro",     label: "Pro",     price: "₹9,999/mo", desc: "Unlimited properties" },
-];
+// Plan selection removed from onboarding — users choose plan from /dashboard/billing
 
 // O3 — IVR providers ranked by Indian market share with help links
 const IVR_PROVIDERS = [
@@ -535,7 +531,6 @@ export default function OnboardingPage() {
   const [brandSlug, setBrandSlug] = useState("");
   const [brandCity, setBrandCity] = useState("");
   const [segment, setSegment] = useState("");
-  const [plan, setPlan] = useState("starter");
 
   // Step 1 — Properties (standard / villa / resort / travel / other)
   const [properties, setProperties] = useState<StandardProperty[]>([
@@ -629,7 +624,7 @@ export default function OnboardingPage() {
       await api.patch("/tenants/me", {
         name: brandName,
         slug: brandSlug || brandName.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-        brand_config: { city: brandCity, segment, plan },
+        brand_config: { city: brandCity, segment },
       });
       await goNext();
     } catch (err: any) {
@@ -641,7 +636,7 @@ export default function OnboardingPage() {
       }
       setError(err?.response?.data?.detail ? `Save failed: ${err.response.data.detail}` : "Could not save brand details. Please try again.");
     } finally { setSaving(false); }
-  }, [brandName, brandSlug, brandCity, segment, plan, goNext, router]);
+  }, [brandName, brandSlug, brandCity, segment, goNext, router]);
 
   // ── Step 1 submit — standard properties ───────────────────────────────────
   const handlePropertiesSubmit = useCallback(async () => {
@@ -820,22 +815,6 @@ export default function OnboardingPage() {
                   <FieldError msg={fieldErrors.segment} />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-white/50 uppercase tracking-wider mb-3">Plan</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {PLANS.map(p => (
-                      <button key={p.id} onClick={() => setPlan(p.id)}
-                        className={cn(
-                          "p-3 rounded-xl border text-left transition-all",
-                          plan === p.id ? "bg-teal-500/15 border-teal-500/40" : "bg-white/3 border-white/8 hover:bg-white/6"
-                        )}>
-                        <div className={cn("text-xs font-bold mb-0.5", plan === p.id ? "text-teal-300" : "text-white/60")}>{p.label}</div>
-                        <div className={cn("text-[11px] font-semibold", plan === p.id ? "text-teal-400" : "text-white/40")}>{p.price}</div>
-                        <div className="text-[10px] text-white/25 mt-0.5">{p.desc}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </div>
 
               <ContinueButton

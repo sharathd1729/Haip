@@ -4,9 +4,35 @@ import { useState } from "react";
 import {
   CreditCard, Zap, CheckCircle, ArrowUpRight, Download,
   AlertCircle, Clock, BarChart2, Phone, MessageSquare, Users,
-  ChevronRight, Star,
+  Star, FileText, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import api from "@/lib/api";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface Invoice {
+  id: string;
+  date: string;
+  amount: number;
+  status: "paid" | "pending" | "failed";
+  pdf_url?: string | null;
+}
+
+interface BillingInfo {
+  plan: string;
+  price: number;
+  renews_at: string | null;
+  status: "active" | "trial" | "past_due" | "cancelled";
+  usage: {
+    calls_used: number;       calls_limit: number;
+    messages_used: number;    messages_limit: number;
+    members_used: number;     members_limit: number;
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Static plan data
@@ -17,7 +43,6 @@ const PLANS = [
     id: "starter",
     name: "Starter",
     price: 3999,
-    period: "mo",
     highlight: false,
     features: [
       "500 calls / month",
@@ -33,7 +58,6 @@ const PLANS = [
     id: "growth",
     name: "Growth",
     price: 6999,
-    period: "mo",
     highlight: true,
     badge: "Current plan",
     features: [
@@ -51,7 +75,6 @@ const PLANS = [
     id: "scale",
     name: "Scale",
     price: 9999,
-    period: "mo",
     highlight: false,
     features: [
       "Unlimited calls",
@@ -68,7 +91,6 @@ const PLANS = [
     id: "enterprise",
     name: "Enterprise",
     price: null,
-    period: "mo",
     highlight: false,
     features: [
       "Custom usage limits",
@@ -81,14 +103,6 @@ const PLANS = [
   },
 ];
 
-const INVOICES = [
-  { id: "INV-2026-05", date: "1 May 2026",   amount: 6999, status: "paid" },
-  { id: "INV-2026-04", date: "1 Apr 2026",   amount: 6999, status: "paid" },
-  { id: "INV-2026-03", date: "1 Mar 2026",   amount: 6999, status: "paid" },
-  { id: "INV-2026-02", date: "1 Feb 2026",   amount: 6999, status: "paid" },
-  { id: "INV-2026-01", date: "1 Jan 2026",   amount: 6999, status: "paid" },
-];
-
 // ---------------------------------------------------------------------------
 // Usage meter
 // ---------------------------------------------------------------------------
@@ -97,7 +111,7 @@ function UsageMeter({ label, icon, used, limit, color }: {
   label: string; icon: React.ReactNode;
   used: number; limit: number; color: string;
 }) {
-  const pct = Math.min(100, Math.round((used / limit) * 100));
+  const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
   const isHigh = pct >= 80;
 
   return (
@@ -187,10 +201,7 @@ function Overview() {
               <CheckCircle size={14} />
               Active
             </div>
-            <button
-              onClick={() => {}}
-              className="mt-2 flex items-center gap-1 text-xs text-teal-600 hover:underline font-medium"
-            >
+            <button className="mt-2 flex items-center gap-1 text-xs text-teal-600 hover:underline font-medium">
               Upgrade to Scale <ArrowUpRight size={11} />
             </button>
           </div>
@@ -251,7 +262,10 @@ function Plans() {
     <div className="space-y-4">
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800 flex items-start gap-2 max-w-3xl">
         <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />
-        <span>Plan changes take effect on your next billing date. To upgrade immediately or negotiate annual pricing, <strong>contact us</strong> at <a href="mailto:hello@haip.app" className="underline">hello@haip.app</a>.</span>
+        <span>
+          Plan changes take effect on your next billing date. To upgrade immediately or negotiate annual pricing,{" "}
+          <a href="mailto:hello@haip.app" className="underline font-semibold">contact us</a>.
+        </span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -271,7 +285,10 @@ function Plans() {
             <p className="text-base font-bold text-gray-900">{plan.name}</p>
             <div className="mt-1 mb-4">
               {plan.price ? (
-                <span className="text-2xl font-bold text-gray-900">₹{plan.price.toLocaleString()}<span className="text-sm font-normal text-gray-400">/{plan.period}</span></span>
+                <span className="text-2xl font-bold text-gray-900">
+                  ₹{plan.price.toLocaleString()}
+                  <span className="text-sm font-normal text-gray-400">/mo</span>
+                </span>
               ) : (
                 <span className="text-lg font-bold text-gray-700">Custom pricing</span>
               )}
@@ -303,43 +320,85 @@ function Plans() {
         ))}
       </div>
 
-      <p className="text-xs text-gray-400 mt-2">All prices in INR. GST (18%) applies. Annual plans available at 20% discount.</p>
+      <p className="text-xs text-gray-400 mt-2">
+        All prices in INR. GST (18%) applies. Annual plans available at 20% discount.
+      </p>
     </div>
   );
 }
 
 /* ── Invoices ─────────────────────────────────────────────────────────────── */
 function Invoices() {
+  const { data: invoices = [], isLoading } = useQuery<Invoice[]>({
+    queryKey: ["billing-invoices"],
+    queryFn: () => api.get("/billing/invoices").then(r => r.data).catch(() => []),
+    staleTime: 60_000,
+  });
+
   return (
     <div className="max-w-2xl">
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
           <p className="text-sm font-semibold text-gray-800">Invoice history</p>
+          {invoices.length > 0 && (
+            <span className="text-xs text-gray-400">{invoices.length} invoice{invoices.length !== 1 ? "s" : ""}</span>
+          )}
         </div>
-        <div className="divide-y divide-gray-50">
-          {INVOICES.map(inv => (
-            <div key={inv.id} className="flex items-center gap-4 px-5 py-4">
-              <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0">
-                <CheckCircle size={15} className="text-green-500" />
+
+        {isLoading ? (
+          <div className="divide-y divide-gray-50">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="flex items-center gap-4 px-5 py-4 animate-pulse">
+                <div className="w-9 h-9 rounded-xl bg-gray-100" />
+                <div className="flex-1 space-y-1.5">
+                  <div className="h-3 bg-gray-100 rounded w-32" />
+                  <div className="h-2 bg-gray-100 rounded w-20" />
+                </div>
+                <div className="h-4 bg-gray-100 rounded w-16" />
               </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900">{inv.id}</p>
-                <p className="text-xs text-gray-400">{inv.date}</p>
+            ))}
+          </div>
+        ) : invoices.length === 0 ? (
+          <div className="py-16 text-center">
+            <FileText size={36} className="mx-auto mb-3 text-gray-200" />
+            <p className="text-sm font-medium text-gray-500 mb-1">No invoices yet</p>
+            <p className="text-xs text-gray-400">Your invoices will appear here once billing starts.</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {invoices.map(inv => (
+              <div key={inv.id} className="flex items-center gap-4 px-5 py-4">
+                <div className={cn(
+                  "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0",
+                  inv.status === "paid" ? "bg-green-50" : inv.status === "failed" ? "bg-red-50" : "bg-amber-50"
+                )}>
+                  <CheckCircle size={15} className={cn(
+                    inv.status === "paid" ? "text-green-500" : inv.status === "failed" ? "text-red-400" : "text-amber-400"
+                  )} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900">{inv.id}</p>
+                  <p className="text-xs text-gray-400">{inv.date}</p>
+                </div>
+                <p className="text-sm font-semibold text-gray-900">₹{inv.amount.toLocaleString()}</p>
+                <span className={cn(
+                  "text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase border",
+                  inv.status === "paid"    ? "bg-green-50 text-green-700 border-green-200" :
+                  inv.status === "failed"  ? "bg-red-50 text-red-700 border-red-200" :
+                                             "bg-amber-50 text-amber-700 border-amber-200"
+                )}>
+                  {inv.status}
+                </span>
+                {inv.pdf_url ? (
+                  <a href={inv.pdf_url} target="_blank" rel="noopener noreferrer"
+                    className="ml-2 text-gray-400 hover:text-gray-600 transition-colors" title="Download PDF">
+                    <Download size={14} />
+                  </a>
+                ) : (
+                  <div className="ml-2 w-[14px]" />
+                )}
               </div>
-              <p className="text-sm font-semibold text-gray-900">₹{inv.amount.toLocaleString()}</p>
-              <span className="text-[10px] bg-green-50 text-green-700 border border-green-200 px-2 py-0.5 rounded-full font-semibold uppercase">
-                {inv.status}
-              </span>
-              <button className="ml-2 text-gray-400 hover:text-gray-600 transition-colors" title="Download PDF">
-                <Download size={14} />
-              </button>
-            </div>
-          ))}
-        </div>
-        {INVOICES.length === 0 && (
-          <div className="py-12 text-center text-gray-400">
-            <CreditCard size={32} className="mx-auto mb-3 opacity-30" />
-            <p className="text-sm">No invoices yet</p>
+            ))}
           </div>
         )}
       </div>

@@ -1,304 +1,300 @@
 "use client";
 
+import { useState, useMemo } from "react";
 import Link from "next/link";
-import { useState } from "react";
-import { CheckCircle2, X, ArrowRight, MessageSquare, Phone, Zap, Shield, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  Phone, MessageSquare, Bot, Users, Instagram,
+  ArrowRight, Check, TrendingUp, Minus,
+} from "lucide-react";
 
-const plans = [
+// ---------------------------------------------------------------------------
+// Module definitions — mirrors the HTML calculator
+// ---------------------------------------------------------------------------
+
+const MODULES = [
   {
-    id: "starter",
-    name: "Starter",
-    tagline: "Perfect for single-property operators",
-    monthly: 3999,
-    annual: 3199,
-    cta: "Start free trial",
-    ctaHref: "/register?plan=starter",
-    featured: false,
-    color: "border-white/10",
-    highlight: false,
+    id: "ivr",
+    icon: <Phone size={20} />,
+    name: "IVR + Call intelligence",
+    desc: "Transcription · QA scoring · Insights dashboard",
+    ppm: 500,
+    cost: 220,
+    popular: true,
   },
   {
-    id: "growth",
-    name: "Growth",
-    tagline: "For growing hospitality teams",
-    monthly: 6999,
-    annual: 5599,
-    cta: "Start free trial",
-    ctaHref: "/register?plan=growth",
-    featured: true,
-    color: "border-teal-500/40",
-    highlight: true,
+    id: "wa",
+    icon: <MessageSquare size={20} />,
+    name: "WhatsApp communication",
+    desc: "Inbox · Templates · Guest auto-linking",
+    ppm: 200,
+    cost: 60,
+    popular: true,
   },
   {
-    id: "scale",
-    name: "Scale",
-    tagline: "Multi-property groups & resorts",
-    monthly: 9999,
-    annual: 7999,
-    cta: "Start free trial",
-    ctaHref: "/register?plan=scale",
-    featured: false,
-    color: "border-white/10",
-    highlight: false,
+    id: "ai",
+    icon: <Bot size={20} />,
+    name: "AI concierge",
+    desc: "Auto-replies · Intent detection · Human handoff",
+    ppm: 300,
+    cost: 120,
+    popular: false,
   },
   {
-    id: "enterprise",
-    name: "Enterprise",
-    tagline: "Custom solutions for hotel chains",
-    monthly: null,
-    annual: null,
-    cta: "Contact sales",
-    ctaHref: "/contact",
-    featured: false,
-    color: "border-white/10",
-    highlight: false,
+    id: "crm",
+    icon: <Users size={20} />,
+    name: "CRM & guest pipeline",
+    desc: "Guest profiles · Inquiry tracking · Lead score",
+    ppm: 150,
+    cost: 50,
+    popular: false,
+  },
+  {
+    id: "ig",
+    icon: <Instagram size={20} />,
+    name: "Instagram DM",
+    desc: "IG inquiries · Inbox · Guest profile linking",
+    ppm: 150,
+    cost: 45,
+    popular: false,
   },
 ];
 
-type FeatureRow = { label: string; starter: string | boolean; growth: string | boolean; scale: string | boolean; enterprise: string | boolean; help?: string };
+const MIN_BILL = 2500;
 
-const featureGroups: { group: string; icon: React.ReactNode; features: FeatureRow[] }[] = [
-  {
-    group: "Properties & Workspaces",
-    icon: <Zap size={14} />,
-    features: [
-      { label: "Properties / villas", starter: "1", growth: "5", scale: "Unlimited", enterprise: "Unlimited" },
-      { label: "Team members", starter: "3", growth: "15", scale: "Unlimited", enterprise: "Unlimited" },
-      { label: "Workspaces", starter: "1", growth: "1", scale: "3", enterprise: "Unlimited" },
-    ],
-  },
-  {
-    group: "Unified Inbox",
-    icon: <MessageSquare size={14} />,
-    features: [
-      { label: "WhatsApp Business (Cloud API)", starter: true, growth: true, scale: true, enterprise: true },
-      { label: "Instagram DMs", starter: false, growth: true, scale: true, enterprise: true },
-      { label: "Conversation history", starter: "3 months", growth: "12 months", scale: "Unlimited", enterprise: "Unlimited" },
-      { label: "AI-suggested replies", starter: false, growth: true, scale: true, enterprise: true },
-      { label: "Bulk WhatsApp campaigns", starter: false, growth: "500 / month", scale: "Unlimited", enterprise: "Unlimited" },
-      { label: "WhatsApp message templates", starter: "5", growth: "25", scale: "Unlimited", enterprise: "Unlimited" },
-    ],
-  },
-  {
-    group: "AI Call Intelligence",
-    icon: <Phone size={14} />,
-    features: [
-      { label: "Call transcription (per month)", starter: "500 min", growth: "3,000 min", scale: "Unlimited", enterprise: "Unlimited", help: "Minutes of audio processed by Whisper AI" },
-      { label: "QA scoring per call", starter: false, growth: true, scale: true, enterprise: true },
-      { label: "Sentiment analysis", starter: false, growth: true, scale: true, enterprise: true },
-      { label: "Missed revenue detection", starter: false, growth: true, scale: true, enterprise: true },
-      { label: "Agent performance dashboard", starter: false, growth: true, scale: true, enterprise: true },
-      { label: "IVR integrations (CallerDesk, Acefone)", starter: "1", growth: "2", scale: "All", enterprise: "All" },
-    ],
-  },
-  {
-    group: "Hospitality CRM",
-    icon: <Zap size={14} />,
-    features: [
-      { label: "Guest profiles", starter: "500", growth: "10,000", scale: "Unlimited", enterprise: "Unlimited" },
-      { label: "Property / villa management", starter: "1", growth: "5", scale: "Unlimited", enterprise: "Unlimited" },
-      { label: "Inquiry pipeline", starter: true, growth: true, scale: true, enterprise: true },
-      { label: "Stay & booking history", starter: true, growth: true, scale: true, enterprise: true },
-      { label: "Calendar integration", starter: false, growth: true, scale: true, enterprise: true },
-      { label: "Hostaway integration", starter: false, growth: false, scale: true, enterprise: true },
-    ],
-  },
-  {
-    group: "Compliance & Security",
-    icon: <Shield size={14} />,
-    features: [
-      { label: "DPDP compliant call archiving", starter: false, growth: true, scale: true, enterprise: true },
-      { label: "Call recording retention", starter: "30 days", growth: "90 days", scale: "1 year", enterprise: "Custom" },
-      { label: "Role-based access control", starter: "Basic", growth: "Full RBAC", scale: "Full RBAC", enterprise: "Custom" },
-      { label: "SSO / SAML", starter: false, growth: false, scale: false, enterprise: true },
-      { label: "Audit logs", starter: false, growth: false, scale: true, enterprise: true },
-      { label: "Dedicated data region", starter: false, growth: false, scale: false, enterprise: true },
-    ],
-  },
-  {
-    group: "Support",
-    icon: <Shield size={14} />,
-    features: [
-      { label: "Support channel", starter: "Email", growth: "Email + WhatsApp", scale: "Priority + Phone", enterprise: "Dedicated CSM" },
-      { label: "Response time SLA", starter: "48h", growth: "12h", scale: "4h", enterprise: "1h" },
-      { label: "Onboarding assistance", starter: "Self-serve", growth: "Guided setup", scale: "White-glove", enterprise: "Custom" },
-    ],
-  },
-];
-
-function FeatureValue({ value }: { value: string | boolean }) {
-  if (value === true) return <CheckCircle2 size={16} className="text-teal-400 mx-auto" />;
-  if (value === false) return <X size={14} className="text-white/15 mx-auto" />;
-  return <span className="text-xs text-white/60">{value}</span>;
+function fmt(n: number) {
+  return "₹" + Math.round(n).toLocaleString("en-IN");
 }
 
+// ---------------------------------------------------------------------------
+// Module card
+// ---------------------------------------------------------------------------
+
+function ModCard({
+  mod,
+  selected,
+  onToggle,
+}: {
+  mod: typeof MODULES[0];
+  selected: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      onClick={onToggle}
+      className={cn(
+        "relative rounded-2xl border p-5 text-left transition-all duration-150 w-full",
+        selected
+          ? "bg-teal-500/10 border-teal-500/40 shadow-sm shadow-teal-500/10"
+          : "bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/8"
+      )}
+    >
+      {/* Check dot */}
+      {selected && (
+        <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-teal-500 flex items-center justify-center">
+          <Check size={11} className="text-white" />
+        </div>
+      )}
+
+      <div className={cn("mb-3", selected ? "text-teal-400" : "text-white/30")}>
+        {mod.icon}
+      </div>
+
+      <p className={cn("text-sm font-bold mb-1", selected ? "text-teal-300" : "text-white/80")}>
+        {mod.name}
+      </p>
+      <p className={cn("text-[11px] leading-relaxed mb-3", selected ? "text-teal-400/80" : "text-white/30")}>
+        {mod.desc}
+      </p>
+      <p className={cn("text-sm font-bold", selected ? "text-teal-400" : "text-white/50")}>
+        {fmt(mod.ppm)} / property / month
+      </p>
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main page
+// ---------------------------------------------------------------------------
+
 export default function PricingPage() {
-  const [annual, setAnnual] = useState(false);
+  const [props, setProps] = useState(10);
+  const [selected, setSelected] = useState<Set<string>>(new Set(["ivr", "wa"]));
+
+  const toggle = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const { revenue, rows, bill, minApplied, perProp } = useMemo(() => {
+    let revenue = 0;
+    const rows: { label: string; value: string }[] = [];
+
+    for (const mod of MODULES) {
+      if (!selected.has(mod.id)) continue;
+      const r = mod.ppm * props;
+      revenue += r;
+      rows.push({
+        label: `${mod.name}  ·  ${props} props × ${fmt(mod.ppm)}`,
+        value: fmt(r),
+      });
+    }
+
+    const minApplied = selected.size > 0 && revenue < MIN_BILL;
+    const bill = minApplied ? MIN_BILL : revenue;
+    const perProp = props > 0 && bill > 0 ? Math.round(bill / props) : 0;
+
+    return { revenue, rows, bill, minApplied, perProp };
+  }, [selected, props]);
 
   return (
     <div className="bg-[#0B1F3A] min-h-screen text-white pt-24">
-      {/* Header */}
-      <div className="max-w-4xl mx-auto px-5 sm:px-8 text-center pt-12 pb-16">
+      {/* ── Hero ── */}
+      <div className="max-w-2xl mx-auto px-5 sm:px-8 text-center py-16">
         <p className="text-xs font-bold text-teal-400 uppercase tracking-widest mb-4">Pricing</p>
-        <h1 className="text-4xl sm:text-5xl font-black tracking-tight mb-4">
-          Simple, transparent pricing
+        <h1 className="text-4xl sm:text-5xl font-black tracking-tight mb-5 leading-tight">
+          Pay only for what<br className="hidden sm:block" /> you use
         </h1>
-        <p className="text-white/45 text-xl mb-8">
-          Start free. No credit card required. Cancel anytime.
+        <p className="text-white/45 text-lg leading-relaxed">
+          Pick the modules your property needs. Pay per property, per month.
+          No platform fees, no lock-ins.
         </p>
-
-        {/* Billing toggle */}
-        <div className="inline-flex items-center gap-3 bg-white/5 border border-white/10 rounded-2xl p-1.5">
-          <button
-            onClick={() => setAnnual(false)}
-            className={cn("px-4 py-2 rounded-xl text-sm font-semibold transition-all", !annual ? "bg-white text-[#0B1F3A]" : "text-white/50 hover:text-white")}
-          >
-            Monthly
-          </button>
-          <button
-            onClick={() => setAnnual(true)}
-            className={cn("px-4 py-2 rounded-xl text-sm font-semibold transition-all flex items-center gap-2", annual ? "bg-white text-[#0B1F3A]" : "text-white/50 hover:text-white")}
-          >
-            Annual
-            <span className="text-[10px] font-bold bg-teal-500 text-white px-1.5 py-0.5 rounded-lg">
-              Save 20%
-            </span>
-          </button>
-        </div>
       </div>
 
-      {/* Plan cards */}
-      <div className="max-w-6xl mx-auto px-5 sm:px-8 pb-16">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {plans.map(plan => (
-            <div
-              key={plan.id}
-              className={cn(
-                "relative rounded-2xl border p-6 flex flex-col",
-                plan.highlight
-                  ? "bg-teal-500/10 border-teal-500/40"
-                  : "bg-[#0f2744] border-white/10"
-              )}
-            >
-              {plan.featured && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-teal-500 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full">
-                  Most popular
-                </div>
-              )}
-              <div className="mb-6">
-                <h3 className="text-lg font-black text-white mb-1">{plan.name}</h3>
-                <p className="text-xs text-white/40 leading-relaxed">{plan.tagline}</p>
-              </div>
+      {/* ── Calculator ── */}
+      <div className="max-w-3xl mx-auto px-5 sm:px-8 pb-20">
 
-              {plan.monthly ? (
-                <div className="mb-6">
-                  <div className="flex items-end gap-1">
-                    <span className="text-3xl font-black text-teal-400">
-                      ₹{(annual ? plan.annual! : plan.monthly).toLocaleString()}
-                    </span>
-                    <span className="text-sm text-white/30 mb-1">/mo</span>
-                  </div>
-                  {annual && (
-                    <p className="text-xs text-white/30 mt-1">
-                      Billed ₹{(plan.annual! * 12).toLocaleString()} / year
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <div className="mb-6">
-                  <div className="text-2xl font-black text-white mb-1">Custom</div>
-                  <p className="text-xs text-white/30">Contact us for pricing</p>
-                </div>
-              )}
-
-              <Link
-                href={plan.ctaHref}
-                className={cn(
-                  "block text-center py-3 rounded-xl text-sm font-bold transition-all mb-6",
-                  plan.highlight
-                    ? "bg-teal-500 hover:bg-teal-400 text-white shadow-lg shadow-teal-500/25"
-                    : "bg-white/8 hover:bg-white/15 text-white border border-white/10"
-                )}
-              >
-                {plan.cta}
-              </Link>
-
-              <div className="text-[10px] text-white/20 text-center">
-                {plan.monthly ? "14-day free trial included" : "Custom contract"}
-              </div>
+        {/* Property slider */}
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-6">
+          <p className="text-xs font-bold text-white/40 uppercase tracking-widest mb-4">
+            How many properties do you manage?
+          </p>
+          <div className="flex items-center gap-5">
+            <input
+              type="range" min={1} max={150} step={1} value={props}
+              onChange={e => setProps(Number(e.target.value))}
+              className="flex-1 h-1 accent-teal-400 cursor-pointer"
+            />
+            <div className="text-right flex-shrink-0 w-28">
+              <span className="text-4xl font-black text-white tracking-tight">{props}</span>
+              <span className="text-white/40 text-sm ml-1.5">properties</span>
             </div>
+          </div>
+        </div>
+
+        {/* Module grid */}
+        <p className="text-xs font-bold text-white/40 uppercase tracking-widest mb-3">Choose modules</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-8">
+          {MODULES.map(mod => (
+            <ModCard
+              key={mod.id}
+              mod={mod}
+              selected={selected.has(mod.id)}
+              onToggle={() => toggle(mod.id)}
+            />
           ))}
         </div>
+
+        {/* Breakdown */}
+        <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden mb-4">
+          {rows.length === 0 ? (
+            <div className="py-8 text-center text-white/25 text-sm">
+              Select one or more modules above to see your pricing
+            </div>
+          ) : (
+            <div className="divide-y divide-white/6">
+              {rows.map((r, i) => (
+                <div key={i} className="flex items-center justify-between px-5 py-3.5">
+                  <span className="text-sm text-white/50">{r.label}</span>
+                  <span className="text-sm font-bold text-white">{r.value}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Total */}
+        <div className="bg-teal-500/10 border-2 border-teal-500/30 rounded-2xl px-6 py-5 flex items-center justify-between mb-2">
+          <span className="text-sm font-bold text-teal-300">Total / month</span>
+          <span className="text-4xl font-black text-teal-300 tracking-tight">
+            {fmt(bill)}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between mb-6">
+          <span className="text-xs text-white/25">
+            {selected.size > 0 && perProp > 0 ? `${fmt(perProp)} per property / month` : ""}
+          </span>
+          {minApplied && (
+            <span className="text-[11px] bg-amber-500/15 text-amber-400 border border-amber-500/20 px-3 py-1 rounded-full">
+              Minimum billing of ₹2,500 / month applied
+            </span>
+          )}
+        </div>
+
+        {/* CTA */}
+        <div className="flex flex-col sm:flex-row gap-3 justify-center mt-8">
+          <Link
+            href="/register"
+            className="flex items-center justify-center gap-2 px-8 py-4 bg-teal-500 hover:bg-teal-400 text-white font-bold rounded-2xl transition-all shadow-lg shadow-teal-500/25"
+          >
+            Start free trial <ArrowRight size={18} />
+          </Link>
+          <a
+            href="mailto:sharath.d1729@gmail.com"
+            className="flex items-center justify-center px-8 py-4 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-2xl border border-white/10 transition-all"
+          >
+            Talk to us
+          </a>
+        </div>
+
+        {/* Fine print */}
+        <p className="text-center text-xs text-white/20 mt-6">
+          All prices in INR · GST (18%) applicable · Annual plans at 20% discount · No credit card to start
+        </p>
       </div>
 
-      {/* Feature comparison table */}
-      <div className="max-w-6xl mx-auto px-5 sm:px-8 pb-24">
-        <h2 className="text-2xl font-black text-center mb-10">Full feature comparison</h2>
+      {/* ── Module comparison table ── */}
+      <div className="max-w-3xl mx-auto px-5 sm:px-8 pb-24">
+        <h2 className="text-2xl font-black text-center mb-10">What's included in each module</h2>
         <div className="overflow-x-auto rounded-2xl border border-white/8">
-          <table className="w-full min-w-[640px]">
+          <table className="w-full min-w-[500px]">
             <thead>
               <tr className="bg-[#0a1b30] border-b border-white/8">
-                <th className="text-left px-5 py-4 text-xs font-bold text-white/30 uppercase tracking-wider w-[35%]">Feature</th>
-                {plans.map(p => (
-                  <th key={p.id} className={cn(
-                    "px-3 py-4 text-xs font-bold uppercase tracking-wider text-center",
-                    p.highlight ? "text-teal-400" : "text-white/40"
-                  )}>
-                    {p.name}
-                  </th>
-                ))}
+                <th className="text-left px-5 py-4 text-xs font-bold text-white/30 uppercase tracking-wider w-[45%]">Module</th>
+                <th className="px-4 py-4 text-xs font-bold text-white/40 uppercase tracking-wider text-center">Price / property</th>
+                <th className="px-4 py-4 text-xs font-bold text-white/40 uppercase tracking-wider text-left hidden sm:table-cell">Key features</th>
               </tr>
             </thead>
             <tbody>
-              {featureGroups.map((group, gi) => (
-                <>
-                  <tr key={`group-${gi}`} className="bg-[#0a1b30]/50">
-                    <td colSpan={5} className="px-5 py-3">
-                      <div className="flex items-center gap-2 text-xs font-bold text-white/50 uppercase tracking-wider">
-                        <span className="text-teal-400/60">{group.icon}</span>
-                        {group.group}
+              {MODULES.map((mod, i) => (
+                <tr key={mod.id} className={cn("border-t border-white/4", i % 2 === 0 ? "" : "bg-white/1")}>
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-3">
+                      <span className="text-white/30">{mod.icon}</span>
+                      <div>
+                        <p className="text-sm font-semibold text-white/80">{mod.name}</p>
+                        <p className="text-[11px] text-white/30 sm:hidden mt-0.5">{mod.desc}</p>
                       </div>
-                    </td>
-                  </tr>
-                  {group.features.map((feat, fi) => (
-                    <tr key={`${gi}-${fi}`} className="border-t border-white/4 hover:bg-white/2 transition-colors">
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-sm text-white/60">{feat.label}</span>
-                          {feat.help && (
-                            <span title={feat.help} className="text-white/20 cursor-help">
-                              <HelpCircle size={11} />
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      {(["starter", "growth", "scale", "enterprise"] as const).map(key => (
-                        <td key={key} className={cn("px-3 py-3.5 text-center", key === "growth" && "bg-teal-500/3")}>
-                          <FeatureValue value={feat[key]} />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </>
+                    </div>
+                  </td>
+                  <td className="px-4 py-4 text-center">
+                    <span className="text-sm font-bold text-teal-400">{fmt(mod.ppm)}</span>
+                  </td>
+                  <td className="px-4 py-4 text-[11px] text-white/40 hidden sm:table-cell leading-relaxed">
+                    {mod.desc}
+                  </td>
+                </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </div>
-
-      {/* FAQ / CTA */}
-      <div className="max-w-3xl mx-auto px-5 sm:px-8 pb-24 text-center">
-        <h2 className="text-2xl font-black mb-4">Questions?</h2>
-        <p className="text-white/40 mb-8">Our team is happy to help you find the right plan for your property.</p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link href="/register" className="px-8 py-3.5 bg-teal-500 hover:bg-teal-400 text-white font-bold rounded-2xl transition-all inline-flex items-center gap-2 justify-center shadow-lg shadow-teal-500/25">
-            Start free trial <ArrowRight size={18} />
-          </Link>
-          <a href="mailto:sales@haip.app" className="px-8 py-3.5 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-2xl border border-white/10 transition-all">
-            Talk to sales
-          </a>
-        </div>
+        <p className="text-center text-xs text-white/20 mt-4">
+          Minimum monthly charge ₹2,500 · Enterprise custom pricing available
+        </p>
       </div>
     </div>
   );
