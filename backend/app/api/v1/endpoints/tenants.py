@@ -25,9 +25,13 @@ class BrandingTheme(BaseModel):
     tagline: Optional[str] = None
 
 
-@router.get("/me", response_model=UserOut)
-def get_me(current_user: User = Depends(get_current_user)):
-    return current_user
+@router.get("/me")
+def get_me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    data = UserOut.model_validate(current_user).model_dump()
+    # Expose onboarding_step so the frontend session JWT can track it correctly
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    data["onboarding_step"] = int((tenant.brand_config or {}).get("onboarding_step", 0)) if tenant else 0
+    return data
 
 
 @router.get("/tenants/me", response_model=TenantOut)

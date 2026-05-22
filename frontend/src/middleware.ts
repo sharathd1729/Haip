@@ -5,18 +5,25 @@ import type { NextRequest } from "next/server";
 export default auth((req: NextRequest & { auth: any }) => {
   const { pathname } = req.nextUrl;
   const isLoggedIn = !!req.auth;
+  const onboardingStep: number = (req.auth?.user as any)?.onboarding_step ?? 0;
+  const onboardingDone = onboardingStep >= 9;
 
   // ── Logged-in users ────────────────────────────────────────────────────────
-  // Send them away from marketing root + auth pages → into the app
   if (isLoggedIn) {
+    // Send away from auth pages → into the app
     if (pathname === "/" || pathname === "/login" || pathname === "/register") {
+      const dest = onboardingDone ? "/dashboard" : "/onboarding";
+      return NextResponse.redirect(new URL(dest, req.url));
+    }
+    // Already finished onboarding → skip the onboarding page
+    if (pathname === "/onboarding" && onboardingDone) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
   }
 
   // ── Logged-out users ───────────────────────────────────────────────────────
-  // Protect all /dashboard/* routes
-  if (!isLoggedIn && pathname.startsWith("/dashboard")) {
+  // Protect all /dashboard/* and /onboarding routes
+  if (!isLoggedIn && (pathname.startsWith("/dashboard") || pathname === "/onboarding")) {
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
@@ -33,6 +40,7 @@ export const config = {
     "/register",
     "/forgot-password",
     "/reset-password",
+    "/onboarding",
     "/dashboard/:path*",
   ],
 };

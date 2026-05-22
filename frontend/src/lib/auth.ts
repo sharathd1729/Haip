@@ -42,7 +42,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               return {
                 id: me.id, name: me.full_name ?? me.name, email: me.email,
                 role: me.role, tenantId: me.tenant_id ?? "haip-villa",
-                onboardingStep: me.tenant?.config?.onboarding_step ?? 9,
+                onboardingStep: me.onboarding_step ?? 0,
                 accessToken, refreshToken: "",
               };
             } else {
@@ -88,7 +88,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id = user.id;
         token.role = (user as any).role;
         token.tenantId = (user as any).tenantId;
-        token.onboardingStep = (user as any).onboardingStep ?? 9;
+        token.onboardingStep = (user as any).onboardingStep ?? 0;
         token.accessToken = (user as any).accessToken;
         token.refreshToken = (user as any).refreshToken;
       }

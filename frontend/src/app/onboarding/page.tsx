@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
@@ -581,10 +581,19 @@ export default function OnboardingPage() {
   const [dpdpAcknowledged, setDpdpAcknowledged] = useState(false);
 
   const accessToken = (session as any)?.accessToken;
+
+  // Resume from the step the user reached on a previous visit
+  const sessionStep = (session?.user as any)?.onboarding_step ?? 0;
   useEffect(() => {
     if (status === "loading") return;
     if (status === "unauthenticated" || !accessToken || accessToken === "demo") {
       router.replace("/login");
+      return;
+    }
+    // If the session shows they've already completed some steps, resume from there
+    // (but only set once on mount, not on every session update)
+    if (sessionStep > 0 && sessionStep < TOTAL_STEPS) {
+      setStep(sessionStep);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, accessToken]);
@@ -619,7 +628,11 @@ export default function OnboardingPage() {
       await goNext();
     } catch (err: any) {
       const s = err?.response?.status;
-      if (s === 401 || s === 403) { router.replace("/login?reason=session_expired"); return; }
+      if (s === 401 || s === 403) {
+        // Sign out first so the middleware doesn't redirect /login → /dashboard
+        await signOut({ callbackUrl: "/login?reason=session_expired" });
+        return;
+      }
       setError(err?.response?.data?.detail ? `Save failed: ${err.response.data.detail}` : "Could not save brand details. Please try again.");
     } finally { setSaving(false); }
   }, [brandName, brandSlug, brandCity, segment, plan, goNext, router]);
