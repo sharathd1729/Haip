@@ -8,10 +8,11 @@ import { cn } from "@/lib/utils";
 import {
   Bell, ChevronDown, Building2, Check, LogOut,
   Settings, User, CreditCard, HelpCircle, Search,
-  Sparkles, ChevronRight,
+  Sparkles, ChevronRight, Sun, Moon,
 } from "lucide-react";
 import { ChangelogModal } from "@/components/dashboard/ChangelogModal";
 import { HelpDrawer } from "@/components/dashboard/HelpDrawer";
+import { useThemeMode } from "@/hooks/useThemeMode";
 
 // ---------------------------------------------------------------------------
 // Breadcrumb from pathname
@@ -48,11 +49,11 @@ function Breadcrumb() {
     <nav className="flex items-center gap-1 text-sm">
       {crumbs.map((crumb, i) => (
         <span key={crumb.href} className="flex items-center gap-1">
-          {i > 0 && <ChevronRight size={12} className="text-white/20" />}
+          {i > 0 && <ChevronRight size={12} className="text-gray-300 dark:text-white/20" />}
           {crumb.isLast ? (
-            <span className="font-semibold text-white/80">{crumb.label}</span>
+            <span className="font-semibold text-gray-800 dark:text-white/80">{crumb.label}</span>
           ) : (
-            <Link href={crumb.href} className="text-white/35 hover:text-white/60 transition-colors">
+            <Link href={crumb.href} className="text-gray-400 hover:text-gray-700 dark:text-white/35 dark:hover:text-white/60 transition-colors">
               {crumb.label}
             </Link>
           )}
@@ -79,7 +80,7 @@ function NotificationBell() {
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="relative w-10 h-10 rounded-lg hover:bg-white/5 flex items-center justify-center text-white/40 hover:text-white/70 transition-colors min-h-10 min-w-10"
+        className="relative w-10 h-10 rounded-lg flex items-center justify-center transition-colors min-h-10 min-w-10 text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:text-white/40 dark:hover:text-white/70 dark:hover:bg-white/5"
       >
         <Bell size={16} />
         {unread > 0 && (
@@ -140,13 +141,13 @@ function WorkspaceSwitcher({ workspaceName }: { workspaceName?: string }) {
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/5 border border-white/8 hover:border-white/15 transition-all"
+        className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all border hover:bg-gray-100 border-gray-200 hover:border-gray-300 dark:hover:bg-white/5 dark:border-white/8 dark:hover:border-white/15"
       >
         <div className="w-5 h-5 rounded-md bg-teal-500/20 flex items-center justify-center">
           <Building2 size={11} className="text-teal-400" />
         </div>
-        <span className="text-xs font-semibold text-white/70 max-w-[120px] truncate">{name}</span>
-        <ChevronDown size={11} className="text-white/30" />
+        <span className="text-xs font-semibold text-gray-700 dark:text-white/70 max-w-[120px] truncate">{name}</span>
+        <ChevronDown size={11} className="text-gray-400 dark:text-white/30" />
       </button>
 
       {open && (
@@ -193,12 +194,12 @@ function UserMenu({ user }: { user?: TopBarProps["user"] }) {
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 rounded-lg hover:bg-white/5 px-1.5 py-1 transition-colors"
+        className="flex items-center gap-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 px-1.5 py-1 transition-colors"
       >
-        <div className="w-7 h-7 rounded-full bg-teal-500 flex items-center justify-center text-xs font-bold text-[#0B1F3A]">
+        <div className="w-7 h-7 rounded-full bg-teal-500 flex items-center justify-center text-xs font-bold text-white">
           {initials}
         </div>
-        <ChevronDown size={11} className="text-white/30" />
+        <ChevronDown size={11} className="text-gray-400 dark:text-white/30" />
       </button>
 
       {open && (
@@ -252,12 +253,19 @@ function UserMenu({ user }: { user?: TopBarProps["user"] }) {
 // ---------------------------------------------------------------------------
 
 export function TopBar({ user, workspaceName }: TopBarProps) {
+  const { mode, toggle } = useThemeMode();
+  const isDark = mode === "dark";
+
   return (
     <div
-      className="h-12 flex items-center justify-between px-4 flex-shrink-0 gap-3"
+      className={cn(
+        "h-12 flex items-center justify-between px-4 flex-shrink-0 gap-3 transition-colors",
+        isDark
+          ? "border-b border-white/5"
+          : "bg-white border-b border-gray-200"
+      )}
       style={{
-        backgroundColor: "var(--brand-topbar-bg, #0B1F3A)",
-        borderBottom: "1px solid rgba(255,255,255,0.05)",
+        backgroundColor: isDark ? "var(--brand-topbar-bg, #0B1F3A)" : undefined,
         fontFamily: "var(--brand-font)",
       }}
     >
@@ -286,16 +294,34 @@ export function TopBar({ user, workspaceName }: TopBarProps) {
         {/* Cmd+K hint (desktop only) */}
         <button
           onClick={() => {
-            // Dispatch synthetic Cmd+K to trigger the CommandPalette listener
             const isMac = navigator.platform.toUpperCase().includes("MAC");
             window.dispatchEvent(
               new KeyboardEvent("keydown", { key: "k", metaKey: isMac, ctrlKey: !isMac, bubbles: true })
             );
           }}
-          className="hidden lg:flex items-center gap-1 px-2 py-1 rounded-md text-[10px] text-white/25 hover:text-white/50 hover:bg-white/5 transition-colors font-mono"
+          className={cn(
+            "hidden lg:flex items-center gap-1 px-2 py-1 rounded-md text-[10px] transition-colors font-mono",
+            isDark
+              ? "text-white/25 hover:text-white/50 hover:bg-white/5"
+              : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+          )}
           title="Open command palette"
         >
           <span>⌘K</span>
+        </button>
+
+        {/* Dark / Light mode toggle */}
+        <button
+          onClick={toggle}
+          className={cn(
+            "w-8 h-8 flex items-center justify-center rounded-lg transition-colors",
+            isDark
+              ? "text-white/40 hover:text-white/70 hover:bg-white/8"
+              : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+          )}
+          title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          {isDark ? <Sun size={15} /> : <Moon size={15} />}
         </button>
 
         {/* Help drawer (X10) */}

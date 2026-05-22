@@ -48,7 +48,16 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className={`${inter.className} min-h-full bg-gray-50`}>
+      {/* Inline script runs before paint — prevents dark/light flash */}
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `
+          try {
+            var s = localStorage.getItem('haip_color_scheme');
+            if (s === 'dark') document.documentElement.classList.add('dark');
+          } catch(e) {}
+        `}} />
+      </head>
+      <body className={`${inter.className} min-h-full bg-white dark:bg-gray-950`}>
         <Providers>{children}</Providers>
         <PWARegister />
       </body>
