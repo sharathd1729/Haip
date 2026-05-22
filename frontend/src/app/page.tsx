@@ -498,34 +498,44 @@ export default function HomePage() {
         <div className="max-w-3xl mx-auto text-center">
           <p className="text-xs font-bold text-teal-400 uppercase tracking-widest mb-3">Simple, transparent pricing</p>
           <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-4">
-            Plans for every stage of growth
+            Pay only for what you use
           </h2>
           <p className="text-white/45 text-lg mb-10">
-            Start free. Upgrade when you&apos;re ready. No hidden fees.
+            Pick the modules your property needs. Pay per property, per month.<br className="hidden sm:block" />
+            No platform fees. No lock-ins.
           </p>
-          <div className="grid sm:grid-cols-3 gap-4 mb-8">
+
+          {/* Module pricing cards */}
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6 text-left">
             {[
-              { plan: "Starter", price: "₹3,999", period: "/ month", desc: "1 property, up to 500 calls", cta: "Start free", featured: false },
-              { plan: "Growth", price: "₹6,999", period: "/ month", desc: "5 properties, full AI stack", cta: "Most popular", featured: true },
-              { plan: "Scale", price: "₹9,999", period: "/ month", desc: "Unlimited properties + priority support", cta: "Start free", featured: false },
-            ].map(p => (
-              <div key={p.plan} className={`rounded-2xl p-6 text-left ${p.featured ? "bg-teal-500/15 border-2 border-teal-500/40" : "bg-white/4 border border-white/8"}`}>
-                {p.featured && <div className="text-[10px] font-bold text-teal-400 uppercase tracking-widest mb-3">Most popular</div>}
-                <div className="text-xl font-black text-white mb-1">{p.plan}</div>
-                <div className="flex items-end gap-1 mb-2">
-                  <span className="text-2xl font-black text-teal-400">{p.price}</span>
-                  <span className="text-xs text-white/30 mb-0.5">{p.period}</span>
+              { name: "IVR + Call Intelligence", price: "₹500", desc: "Transcription · QA scoring · Insights", popular: true },
+              { name: "WhatsApp Communication", price: "₹200", desc: "Inbox · Templates · Guest auto-linking", popular: true },
+              { name: "AI Concierge", price: "₹300", desc: "Auto-replies · Intent detection · Handoff", popular: false },
+              { name: "CRM & Guest Pipeline", price: "₹150", desc: "Guest profiles · Inquiry tracking", popular: false },
+              { name: "Instagram DM", price: "₹150", desc: "IG inquiries · Inbox · Guest linking", popular: false },
+            ].map(m => (
+              <div key={m.name} className={`rounded-2xl border p-5 ${m.popular ? "bg-teal-500/10 border-teal-500/30" : "bg-white/4 border-white/8"}`}>
+                {m.popular && <div className="text-[10px] font-bold text-teal-400 uppercase tracking-widest mb-2">Popular</div>}
+                <p className={`text-sm font-bold mb-1 ${m.popular ? "text-white" : "text-white/80"}`}>{m.name}</p>
+                <p className="text-xs text-white/35 mb-3 leading-relaxed">{m.desc}</p>
+                <div className="flex items-end gap-1">
+                  <span className="text-xl font-black text-teal-400">{m.price}</span>
+                  <span className="text-[11px] text-white/30 mb-0.5">/ property / month</span>
                 </div>
-                <p className="text-xs text-white/40 mb-4">{p.desc}</p>
-                <Link href="/pricing" className={`block text-center text-sm font-semibold py-2.5 rounded-xl transition-colors ${p.featured ? "bg-teal-500 hover:bg-teal-400 text-white" : "bg-white/8 hover:bg-white/12 text-white/70"}`}>
-                  {p.cta}
-                </Link>
               </div>
             ))}
+            {/* Minimum billing note */}
+            <div className="rounded-2xl border border-white/8 bg-white/4 p-5 flex flex-col justify-center">
+              <p className="text-sm font-bold text-white/60 mb-1">Minimum billing</p>
+              <p className="text-xl font-black text-white/40">₹2,500 <span className="text-sm font-normal">/ month</span></p>
+              <p className="text-xs text-white/25 mt-2">Scales with your portfolio</p>
+            </div>
           </div>
-          <Link href="/pricing" className="text-sm text-white/40 hover:text-teal-400 transition-colors inline-flex items-center gap-1">
-            See full pricing & feature comparison <ChevronRight size={14} />
+
+          <Link href="/pricing" className="inline-flex items-center gap-2 px-6 py-3 bg-teal-500 hover:bg-teal-400 text-white text-sm font-bold rounded-2xl transition-colors shadow-lg shadow-teal-500/20 mb-4">
+            Calculate your price <ChevronRight size={15} />
           </Link>
+          <p className="text-xs text-white/25">GST (18%) applicable · Annual plans at 20% discount · No credit card to start</p>
         </div>
       </section>
 
