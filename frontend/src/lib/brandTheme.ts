@@ -32,8 +32,8 @@ export interface BrandTheme {
 export const DEFAULT_THEME: BrandTheme = {
   primaryColor: "#14b8a6",
   sidebarColor: "#0B1F3A",
-  logoUrl: "",
-  logoDarkUrl: "",
+  logoUrl: "/logo.png",
+  logoDarkUrl: "/app-icon.png",
   fontFamily: "Inter",
   radiusScale: "rounded",
   companyName: "HAIP",

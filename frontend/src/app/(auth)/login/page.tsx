@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState, useEffect, Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -400,7 +400,7 @@ export default function LoginPage() {
         {/* Mobile logo */}
         <div className="lg:hidden mb-8">
           <Link href="/" className="inline-flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-teal-500 flex items-center justify-center text-[#0B1F3A] font-bold text-base">H</div>
+            <img src="/app-icon.png" alt="HAIP" className="h-9 w-9 object-contain rounded-xl" />
             <span className="text-[#0B1F3A] font-bold text-xl tracking-tight">HAIP</span>
           </Link>
         </div>

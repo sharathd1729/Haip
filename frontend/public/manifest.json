@@ -11,16 +11,22 @@
   "categories": ["business", "productivity"],
   "icons": [
     {
+      "src": "/app-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/app-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
       "src": "/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
-    },
-    {
-      "src": "/icon-maskable.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "maskable"
     }
   ],
   "shortcuts": [
@@ -29,14 +35,14 @@
       "short_name": "Inbox",
       "description": "Open your unified inbox",
       "url": "/dashboard/inbox",
-      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+      "icons": [{ "src": "/app-icon.png", "sizes": "512x512" }]
     },
     {
       "name": "Calls",
       "short_name": "Calls",
       "description": "View call recordings and QA scores",
       "url": "/dashboard/calls",
-      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+      "icons": [{ "src": "/app-icon.png", "sizes": "512x512" }]
     }
   ],
   "screenshots": [],

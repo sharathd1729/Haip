@@ -55,9 +55,7 @@ export function MarketingNav() {
       <div className="max-w-7xl mx-auto px-5 sm:px-8 flex items-center h-16 gap-6">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2.5 flex-shrink-0">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-[#0a1f3a] font-bold text-sm shadow-lg shadow-teal-500/30">
-            H
-          </div>
+          <img src="/app-icon.png" alt="HAIP" className="h-8 w-8 object-contain rounded-xl" />
           <span className="text-white font-bold text-lg tracking-tight">
             HA<span className="text-teal-400">IP</span>
           </span>
