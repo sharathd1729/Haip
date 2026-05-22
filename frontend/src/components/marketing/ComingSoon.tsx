@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { ArrowRight, Mail, MessageSquare } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -14,7 +14,7 @@ interface ComingSoonProps {
 }
 
 const accentMap = {
-  teal: { ring: "border-indigo-500/30", glow: "from-indigo-500/20", text: "text-indigo-400", bg: "bg-indigo-500/10", border: "border-indigo-500/20" },
+  teal: { ring: "border-teal-500/30", glow: "from-teal-500/20", text: "text-teal-400", bg: "bg-teal-500/10", border: "border-teal-500/20" },
   cyan: { ring: "border-cyan-500/30", glow: "from-cyan-500/20", text: "text-cyan-400", bg: "bg-cyan-500/10", border: "border-cyan-500/20" },
   amber: { ring: "border-amber-500/30", glow: "from-amber-500/20", text: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/20" },
   purple: { ring: "border-purple-500/30", glow: "from-purple-500/20", text: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/20" },
@@ -29,7 +29,7 @@ export function ComingSoon({
 }: ComingSoonProps) {
   const a = accentMap[accent];
   return (
-    <div className="bg-[#0D1B4B] text-white min-h-screen">
+    <div className="bg-[#0B1F3A] text-white min-h-screen">
       <section className="relative pt-32 pb-20 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className={`absolute top-1/3 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full ${a.glow.replace("from-", "bg-").replace("/20", "/8")} blur-[120px]`} />
@@ -55,7 +55,7 @@ export function ComingSoon({
           )}
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-8">
-            <Link href={primaryCta.href} className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-500 hover:bg-indigo-400 text-white font-bold rounded-2xl transition-all shadow-xl shadow-blue-500/30">
+            <Link href={primaryCta.href} className="inline-flex items-center gap-2 px-6 py-3 bg-teal-500 hover:bg-teal-400 text-white font-bold rounded-2xl transition-all shadow-xl shadow-teal-500/30">
               {primaryCta.label} <ArrowRight size={16} />
             </Link>
             <Link href={secondaryCta.href} className="inline-flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-2xl border border-white/10 transition-all">

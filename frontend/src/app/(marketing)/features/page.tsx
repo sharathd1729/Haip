@@ -1,8 +1,8 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { ArrowRight, Inbox, Phone, Users, MessageSquare, Star, BarChart2 } from "lucide-react";
 
 const features = [
-  { id: "inbox", icon: <Inbox size={24} />, title: "Unified Inbox", color: "text-indigo-400", desc: "All guest communication channels in one place. WhatsApp, Instagram DMs, and calls unified with full history and AI-powered suggested replies.", benefits: ["WhatsApp Business API (Meta official)", "Instagram DMs & mentions", "Phone call thread with transcript", "AI reply suggestions", "Team assignment & handoffs"] },
+  { id: "inbox", icon: <Inbox size={24} />, title: "Unified Inbox", color: "text-teal-400", desc: "All guest communication channels in one place. WhatsApp, Instagram DMs, and calls unified with full history and AI-powered suggested replies.", benefits: ["WhatsApp Business API (Meta official)", "Instagram DMs & mentions", "Phone call thread with transcript", "AI reply suggestions", "Team assignment & handoffs"] },
   { id: "calls", icon: <Phone size={24} />, title: "AI Call Intelligence", color: "text-purple-400", desc: "Every call transcribed, scored, and analyzed automatically. Surface missed revenue, coaching opportunities, and guest signals—without listening to a single recording.", benefits: ["Auto-transcription in Indian English", "Agent QA scoring (0–100)", "Sentiment analysis", "Missed revenue opportunity flags", "Integrates with CallerDesk, Acefone, Servetel, MCube"] },
   { id: "crm", icon: <Users size={24} />, title: "Hospitality CRM", color: "text-blue-400", desc: "A CRM purpose-built for hospitality. Guest profiles, property management, inquiry tracking, and booking history—all connected.", benefits: ["Rich guest profiles with communication history", "Property & villa management", "Inquiry pipeline with Kanban view", "Stay history & preferences", "Hostaway & PMS sync"] },
   { id: "whatsapp", icon: <MessageSquare size={24} />, title: "WhatsApp Automation", color: "text-green-400", desc: "Send targeted campaigns, automate booking confirmations, and run drip sequences via WhatsApp—using the official Meta Cloud API.", benefits: ["Bulk broadcast to opted-in guests", "Template message library", "Automated booking confirmations", "No-code campaign builder", "Meta Embedded Signup (no developer needed)"] },
@@ -12,10 +12,10 @@ const features = [
 
 export default function FeaturesPage() {
   return (
-    <div className="bg-[#0D1B4B] text-white pt-24 min-h-screen">
+    <div className="bg-[#0B1F3A] text-white pt-24 min-h-screen">
       <div className="max-w-7xl mx-auto px-5 sm:px-8 py-16">
         <div className="text-center mb-16">
-          <p className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-3">Features</p>
+          <p className="text-xs font-bold text-teal-400 uppercase tracking-widest mb-3">Features</p>
           <h1 className="text-4xl sm:text-5xl font-black tracking-tight mb-4">Everything your team needs</h1>
           <p className="text-white/45 text-lg max-w-xl mx-auto">One platform, built specifically for luxury hospitality operations.</p>
         </div>
@@ -33,7 +33,7 @@ export default function FeaturesPage() {
                     </li>
                   ))}
                 </ul>
-                <Link href="/register" className="inline-flex items-center gap-2 text-indigo-400 hover:text-indigo-300 font-semibold text-sm">
+                <Link href="/register" className="inline-flex items-center gap-2 text-teal-400 hover:text-teal-300 font-semibold text-sm">
                   Try free for 14 days <ArrowRight size={14} />
                 </Link>
               </div>

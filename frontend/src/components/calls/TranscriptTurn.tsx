@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { cn } from "@/lib/utils";
 import { EvidenceHighlight } from "./EvidenceHighlight";
 
@@ -27,14 +27,14 @@ function formatTime(s: number) {
 
 const SPEAKER_STYLES = {
   agent: {
-    avatar: "bg-[#0D1B4B] text-indigo-300",
+    avatar: "bg-[#0B1F3A] text-teal-300",
     label: "Agent",
     bubble: "bg-white border border-gray-100",
   },
   guest: {
-    avatar: "bg-indigo-500 text-white",
+    avatar: "bg-teal-500 text-white",
     label: "Guest",
-    bubble: "bg-indigo-50 border border-indigo-100",
+    bubble: "bg-teal-50 border border-teal-100",
   },
 } as const;
 
@@ -55,7 +55,7 @@ export function TranscriptTurn({
     <div
       className={cn(
         "flex gap-3 px-1 py-1 rounded-xl transition-colors",
-        isActive && "bg-indigo-50/60",
+        isActive && "bg-teal-50/60",
         onClick && "cursor-pointer"
       )}
       onClick={() => onClick?.(t0)}
@@ -73,7 +73,7 @@ export function TranscriptTurn({
         <div className="flex items-baseline gap-2 mb-1">
           <span className="text-xs font-semibold text-gray-600">{styles.label}</span>
           <button
-            className="text-[10px] text-gray-300 hover:text-indigo-500 transition-colors tabular-nums"
+            className="text-[10px] text-gray-300 hover:text-teal-500 transition-colors tabular-nums"
             onClick={(e) => { e.stopPropagation(); onClick?.(t0); }}
             title="Seek to this turn"
           >

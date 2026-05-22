@@ -1,11 +1,11 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 export default function AboutPage() {
   return (
-    <div className="bg-[#0D1B4B] text-white min-h-screen pt-24">
+    <div className="bg-[#0B1F3A] text-white min-h-screen pt-24">
       <div className="max-w-3xl mx-auto px-5 sm:px-8 py-16">
-        <p className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-4">About HAIP</p>
+        <p className="text-xs font-bold text-teal-400 uppercase tracking-widest mb-4">About HAIP</p>
         <h1 className="text-4xl font-black tracking-tight mb-6">
           Built by hospitality people, for hospitality people
         </h1>
@@ -29,7 +29,7 @@ export default function AboutPage() {
           </p>
         </div>
         <div className="mt-10">
-          <Link href="/register" className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-500 hover:bg-indigo-400 text-white font-bold rounded-xl transition-all">
+          <Link href="/register" className="inline-flex items-center gap-2 px-6 py-3 bg-teal-500 hover:bg-teal-400 text-white font-bold rounded-xl transition-all">
             Start free trial <ArrowRight size={16} />
           </Link>
         </div>

@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import {
   Compass, Sparkles, ArrowRight, CheckCircle2, Clock, Calendar, MessageSquare,
 } from "lucide-react";
@@ -6,7 +6,7 @@ import {
 const lanes = [
   {
     quarter: "Shipping now · 2026 Q2",
-    color: "bg-indigo-500/15 text-indigo-300 border-indigo-500/30",
+    color: "bg-teal-500/15 text-teal-300 border-teal-500/30",
     items: [
       { title: "AI Trip Designer for experiential travel", desc: "Quote-PDF generator from past itineraries + partner catalog." },
       { title: "Acefone adapter v2", desc: "Multi-property sticky routing, call analytics, masking." },
@@ -48,18 +48,18 @@ const lanes = [
 
 export default function RoadmapPage() {
   return (
-    <div className="bg-[#0D1B4B] text-white min-h-screen">
+    <div className="bg-[#0B1F3A] text-white min-h-screen">
       <section className="relative pt-32 pb-12 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full bg-indigo-500/8 blur-[120px]" />
+          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full bg-teal-500/8 blur-[120px]" />
         </div>
         <div className="relative max-w-3xl mx-auto px-5 sm:px-8 text-center">
-          <div className="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 rounded-full px-4 py-1.5 mb-5">
-            <Compass size={12} className="text-indigo-400" />
-            <span className="text-xs font-semibold text-indigo-300 uppercase tracking-wider">Public roadmap</span>
+          <div className="inline-flex items-center gap-2 bg-teal-500/10 border border-teal-500/20 rounded-full px-4 py-1.5 mb-5">
+            <Compass size={12} className="text-teal-400" />
+            <span className="text-xs font-semibold text-teal-300 uppercase tracking-wider">Public roadmap</span>
           </div>
           <h1 className="text-4xl sm:text-5xl font-black tracking-tight mb-4">Where HAIP is heading</h1>
-          <p className="text-white/55 text-lg leading-relaxed">Honest, public, and customer-driven. Bring your own item — we read everything that lands at <Link href="/contact" className="text-indigo-400 hover:text-indigo-300 underline">gen.haip@gmail.com</Link>.</p>
+          <p className="text-white/55 text-lg leading-relaxed">Honest, public, and customer-driven. Bring your own item — we read everything that lands at <Link href="/contact" className="text-teal-400 hover:text-teal-300 underline">gen.haip@gmail.com</Link>.</p>
         </div>
       </section>
 
@@ -92,7 +92,7 @@ export default function RoadmapPage() {
           <h2 className="text-2xl font-black mb-3">Got something you need?</h2>
           <p className="text-white/55 text-sm max-w-md mx-auto mb-6">If a customer asks for it twice, it goes on the board. Tell us what would unlock value for your team — we&apos;ll prioritise transparently.</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link href="/contact" className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-bold rounded-xl">Suggest a feature <ArrowRight size={14} /></Link>
+            <Link href="/contact" className="inline-flex items-center gap-2 px-5 py-2.5 bg-teal-500 hover:bg-teal-400 text-white text-sm font-bold rounded-xl">Suggest a feature <ArrowRight size={14} /></Link>
             <a href="https://wa.me/+918147698153" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-sm font-semibold rounded-xl">
               <MessageSquare size={14} /> WhatsApp the product team
             </a>

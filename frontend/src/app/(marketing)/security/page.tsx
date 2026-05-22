@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import {
   Shield, Lock, Server, FileCheck2, KeyRound, Eye, FileText, Globe2,
   CheckCircle2, ArrowRight, AlertTriangle, Mail, Database, BadgeCheck,
@@ -6,7 +6,7 @@ import {
 
 const pillars = [
   {
-    icon: <Lock size={20} className="text-indigo-400" />,
+    icon: <Lock size={20} className="text-teal-400" />,
     title: "Encryption everywhere",
     bullets: [
       "AES-256 at rest on S3, RDS, and ElastiCache.",
@@ -88,17 +88,17 @@ const compliance = [
 
 export default function SecurityPage() {
   return (
-    <div className="bg-[#0D1B4B] text-white min-h-screen">
+    <div className="bg-[#0B1F3A] text-white min-h-screen">
       {/* HERO */}
       <section className="relative pt-32 pb-20 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full bg-indigo-500/8 blur-[120px]" />
+          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full bg-teal-500/8 blur-[120px]" />
           <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)", backgroundSize: "32px 32px" }} />
         </div>
         <div className="relative max-w-5xl mx-auto px-5 sm:px-8 text-center">
-          <div className="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 rounded-full px-4 py-1.5 mb-6">
-            <Shield size={12} className="text-indigo-400" />
-            <span className="text-xs font-semibold text-indigo-300 uppercase tracking-wider">Trust center</span>
+          <div className="inline-flex items-center gap-2 bg-teal-500/10 border border-teal-500/20 rounded-full px-4 py-1.5 mb-6">
+            <Shield size={12} className="text-teal-400" />
+            <span className="text-xs font-semibold text-teal-300 uppercase tracking-wider">Trust center</span>
           </div>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.05] mb-5">
             Security &amp; privacy at HAIP
@@ -107,7 +107,7 @@ export default function SecurityPage() {
             We store voice recordings, guest PII, and full conversation history for paying clients. Multi-tenancy and encryption have to be airtight from day one — here is exactly how we do it.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <a href="mailto:security@haip.app" className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-500 hover:bg-indigo-400 text-white font-bold rounded-2xl transition-all shadow-xl shadow-indigo-500/25">
+            <a href="mailto:security@haip.app" className="inline-flex items-center gap-2 px-6 py-3 bg-teal-500 hover:bg-teal-400 text-white font-bold rounded-2xl transition-all shadow-xl shadow-teal-500/25">
               <Mail size={16} /> Email security@haip.app
             </a>
             <Link href="/dpdp" className="inline-flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-2xl border border-white/10 transition-all">
@@ -121,7 +121,7 @@ export default function SecurityPage() {
       <section className="px-5 sm:px-8 pb-8">
         <div className="max-w-6xl mx-auto grid sm:grid-cols-3 gap-4">
           {[
-            { icon: <Server size={18} className="text-indigo-400" />, title: "India-first", desc: "AWS Mumbai (ap-south-1) by default. No US/EU spillover for Indian tenants." },
+            { icon: <Server size={18} className="text-teal-400" />, title: "India-first", desc: "AWS Mumbai (ap-south-1) by default. No US/EU spillover for Indian tenants." },
             { icon: <BadgeCheck size={18} className="text-green-400" />, title: "DPDP-ready", desc: "Consent · residency · deletion · audit log · sub-processor disclosure." },
             { icon: <KeyRound size={18} className="text-amber-400" />, title: "Per-tenant KMS", desc: "Your recordings encrypted with a key only your tenant can use." },
           ].map(c => (
@@ -140,12 +140,12 @@ export default function SecurityPage() {
       <section className="py-20 px-5 sm:px-8">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
-            <p className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-3">How we protect your data</p>
+            <p className="text-xs font-bold text-teal-400 uppercase tracking-widest mb-3">How we protect your data</p>
             <h2 className="text-3xl sm:text-4xl font-black tracking-tight">Six pillars · production from day one</h2>
           </div>
           <div className="grid md:grid-cols-2 gap-5">
             {pillars.map(p => (
-              <div key={p.title} className="bg-[#0f2744]/70 border border-white/10 rounded-2xl p-6 hover:border-indigo-500/25 transition-colors">
+              <div key={p.title} className="bg-[#0f2744]/70 border border-white/10 rounded-2xl p-6 hover:border-teal-500/25 transition-colors">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center">{p.icon}</div>
                   <h3 className="text-lg font-bold text-white">{p.title}</h3>
@@ -153,7 +153,7 @@ export default function SecurityPage() {
                 <ul className="space-y-2.5">
                   {p.bullets.map(b => (
                     <li key={b} className="flex items-start gap-2.5 text-sm text-white/60 leading-relaxed">
-                      <CheckCircle2 size={14} className="text-indigo-400 flex-shrink-0 mt-1" />
+                      <CheckCircle2 size={14} className="text-teal-400 flex-shrink-0 mt-1" />
                       <span dangerouslySetInnerHTML={{ __html: b }} />
                     </li>
                   ))}
@@ -168,7 +168,7 @@ export default function SecurityPage() {
       <section className="py-20 px-5 sm:px-8 bg-[#0a1b30]">
         <div className="max-w-5xl mx-auto">
           <div className="mb-10">
-            <p className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-3">Sub-processor registry</p>
+            <p className="text-xs font-bold text-teal-400 uppercase tracking-widest mb-3">Sub-processor registry</p>
             <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-3">Every third party that touches your data</h2>
             <p className="text-white/55 max-w-2xl">Public list. Data Processing Agreements (DPAs) signed with each. We will notify you in advance of any new sub-processor we onboard.</p>
           </div>
@@ -193,7 +193,7 @@ export default function SecurityPage() {
       <section className="py-20 px-5 sm:px-8">
         <div className="max-w-5xl mx-auto">
           <div className="mb-10">
-            <p className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-3">Compliance status</p>
+            <p className="text-xs font-bold text-teal-400 uppercase tracking-widest mb-3">Compliance status</p>
             <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-3">Where we are, and where we&apos;re going</h2>
             <p className="text-white/55 max-w-2xl">We don&apos;t claim certifications we don&apos;t hold. Here is the honest status as of {new Date().toLocaleDateString("en-IN", { month: "short", year: "numeric" })}.</p>
           </div>
@@ -246,7 +246,7 @@ export default function SecurityPage() {
           <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-4">Need our security pack for a vendor review?</h2>
           <p className="text-white/55 mb-8 max-w-xl mx-auto">We&apos;re happy to share our architecture diagram, threat model, DPA, sub-processor registry, and pen-test plan with your compliance team — typically over a 30-minute call.</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link href="/book-demo?topic=security" className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-500 hover:bg-indigo-400 text-white font-bold rounded-2xl transition-all shadow-xl shadow-blue-500/30">
+            <Link href="/book-demo?topic=security" className="inline-flex items-center gap-2 px-6 py-3 bg-teal-500 hover:bg-teal-400 text-white font-bold rounded-2xl transition-all shadow-xl shadow-teal-500/30">
               Schedule security review <ArrowRight size={16} />
             </Link>
             <a href="mailto:dpo@haip.app" className="inline-flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-2xl border border-white/10 transition-all">

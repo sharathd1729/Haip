@@ -1,4 +1,4 @@
-﻿import { Sparkles, MessageSquare, Phone, Shield, Plug } from "lucide-react";
+import { Sparkles, MessageSquare, Phone, Shield, Plug } from "lucide-react";
 
 const releases = [
   {
@@ -43,13 +43,13 @@ const releases = [
 ];
 
 const tagStyles: Record<string, string> = {
-  new: "bg-indigo-500/15 text-indigo-300 border-indigo-500/25",
+  new: "bg-teal-500/15 text-teal-300 border-teal-500/25",
   improved: "bg-blue-500/15 text-blue-300 border-blue-500/25",
   fixed: "bg-amber-500/15 text-amber-300 border-amber-500/25",
 };
 
 const tagIcons: Record<string, React.ReactNode> = {
-  "Marketing site": <Sparkles size={12} className="text-indigo-400" />,
+  "Marketing site": <Sparkles size={12} className="text-teal-400" />,
   "AI Concierge": <MessageSquare size={12} className="text-cyan-400" />,
   "Call Intelligence": <Phone size={12} className="text-purple-400" />,
   Integrations: <Plug size={12} className="text-amber-400" />,
@@ -58,7 +58,7 @@ const tagIcons: Record<string, React.ReactNode> = {
 
 export default function ChangelogPage() {
   return (
-    <div className="bg-[#0D1B4B] text-white min-h-screen">
+    <div className="bg-[#0B1F3A] text-white min-h-screen">
       <section className="relative pt-32 pb-12 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full bg-purple-500/8 blur-[120px]" />
@@ -82,7 +82,7 @@ export default function ChangelogPage() {
                 <span className="text-xs text-white/35">·</span>
                 <span className="text-xs text-white/45">{r.date}</span>
                 <span className="inline-flex items-center gap-1.5 ml-auto bg-white/5 border border-white/10 rounded-md px-2 py-0.5 text-[11px] font-semibold text-white/70">
-                  {tagIcons[r.tag] ?? <Sparkles size={12} className="text-indigo-400" />} {r.tag}
+                  {tagIcons[r.tag] ?? <Sparkles size={12} className="text-teal-400" />} {r.tag}
                 </span>
               </div>
               <ul className="space-y-2.5">

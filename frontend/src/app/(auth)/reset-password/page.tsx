@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -60,22 +60,22 @@ function ResetPasswordForm() {
         {/* Logo */}
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-400 via-blue-500 to-violet-600 flex items-center justify-center text-white font-bold text-base">H</div>
-            <span className="text-[#0D1B4B] font-bold text-xl tracking-tight">HAIP</span>
+            <div className="w-9 h-9 rounded-xl bg-teal-500 flex items-center justify-center text-[#0B1F3A] font-bold text-base">H</div>
+            <span className="text-[#0B1F3A] font-bold text-xl tracking-tight">HAIP</span>
           </Link>
         </div>
 
         <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
           {done ? (
             <div className="text-center">
-              <div className="w-14 h-14 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center mx-auto mb-4">
-                <CheckCircle2 size={28} className="text-indigo-500" />
+              <div className="w-14 h-14 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center mx-auto mb-4">
+                <CheckCircle2 size={28} className="text-teal-500" />
               </div>
               <h2 className="text-xl font-bold text-gray-900 mb-2">Password updated!</h2>
               <p className="text-gray-500 text-sm leading-relaxed mb-4">
                 Your password has been reset successfully. Redirecting you to sign in…
               </p>
-              <Link href="/login" className="text-sm text-indigo-600 font-medium hover:underline">
+              <Link href="/login" className="text-sm text-teal-600 font-medium hover:underline">
                 Go to sign in →
               </Link>
             </div>
@@ -98,7 +98,7 @@ function ResetPasswordForm() {
                       value={password}
                       onChange={e => setPassword(e.target.value)}
                       placeholder="Min. 8 characters"
-                      className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow"
+                      className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
                       suppressHydrationWarning
                     />
                     <button
@@ -121,7 +121,7 @@ function ResetPasswordForm() {
                     value={confirm}
                     onChange={e => setConfirm(e.target.value)}
                     placeholder="Repeat your password"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
                     suppressHydrationWarning
                   />
                 </div>
@@ -135,7 +135,7 @@ function ResetPasswordForm() {
                 <button
                   type="submit"
                   disabled={loading || !token}
-                  className="w-full py-3 bg-[#0D1B4B] hover:bg-[#1a2864] disabled:opacity-60 text-white font-semibold rounded-xl text-sm transition-colors"
+                  className="w-full py-3 bg-[#0B1F3A] hover:bg-[#163458] disabled:opacity-60 text-white font-semibold rounded-xl text-sm transition-colors"
                 >
                   {loading ? "Updating…" : "Update password"}
                 </button>
@@ -158,7 +158,7 @@ export default function ResetPasswordPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
       </div>
     }>
       <ResetPasswordForm />

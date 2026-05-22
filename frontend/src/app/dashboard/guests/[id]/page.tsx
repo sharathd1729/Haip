@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
@@ -61,7 +61,7 @@ export default function GuestDetailPage() {
   if (!guest) return (
     <div className="p-8 text-center">
       <p className="text-gray-500 text-sm">Guest not found.</p>
-      <button onClick={() => router.back()} className="mt-3 text-indigo-600 text-sm font-medium">← Back</button>
+      <button onClick={() => router.back()} className="mt-3 text-teal-600 text-sm font-medium">← Back</button>
     </div>
   );
 
@@ -109,7 +109,7 @@ export default function GuestDetailPage() {
                 <p className="text-xs text-gray-400 mb-0.5">Predicted CSAT</p>
                 <p className={cn(
                   "text-lg font-black",
-                  (guest.predicted_csat ?? 0) >= 4 ? "text-indigo-600" : "text-amber-600"
+                  (guest.predicted_csat ?? 0) >= 4 ? "text-teal-600" : "text-amber-600"
                 )}>
                   {guest.predicted_csat?.toFixed(1) ?? "—"}
                   <span className="text-xs font-normal text-gray-400">/5</span>

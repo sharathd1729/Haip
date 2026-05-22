@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import {
   Shield, CheckCircle2, ArrowRight, ChevronRight, FileText, Mail,
   Lock, Eye, Trash2, Globe2, BadgeCheck, Database,
@@ -7,7 +7,7 @@ import {
 const principles = [
   { icon: <CheckCircle2 size={18} className="text-green-400" />, title: "Lawful processing", desc: "We process guest data only with consent or for the legitimate operation of the hospitality service you provide." },
   { icon: <Database size={18} className="text-cyan-400" />, title: "Purpose limitation", desc: "Guest data is used only for guest communication, AI assist, QA scoring and analytics. Not for cross-tenant model training." },
-  { icon: <Lock size={18} className="text-indigo-400" />, title: "Data minimisation", desc: "PII redacted before transcripts reach the LLM. Tokenised card / Aadhaar / PAN / phone / email." },
+  { icon: <Lock size={18} className="text-teal-400" />, title: "Data minimisation", desc: "PII redacted before transcripts reach the LLM. Tokenised card / Aadhaar / PAN / phone / email." },
   { icon: <Eye size={18} className="text-purple-400" />, title: "Transparency", desc: "Public sub-processor registry, public audit posture, plain-English DPA template." },
   { icon: <Globe2 size={18} className="text-amber-400" />, title: "Storage limitation", desc: "Default 90-day hot, lifecycle to cold tier. Configurable retention per tenant. Delete-on-request within 30 days." },
   { icon: <Shield size={18} className="text-rose-400" />, title: "Accountability", desc: "Hash-chained audit log of every score, override, export, login, role change — 5-year retention." },
@@ -22,7 +22,7 @@ const rights = [
 
 export default function DpdpPage() {
   return (
-    <div className="bg-[#0D1B4B] text-white min-h-screen">
+    <div className="bg-[#0B1F3A] text-white min-h-screen">
       <section className="relative pt-32 pb-16 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full bg-green-500/8 blur-[120px]" />
@@ -84,13 +84,13 @@ export default function DpdpPage() {
             </div>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 mt-6">
-            <Link href="/book-demo?topic=dpdp" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-bold rounded-xl shadow-xl shadow-indigo-500/25">
+            <Link href="/book-demo?topic=dpdp" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-teal-500 hover:bg-teal-400 text-white text-sm font-bold rounded-xl shadow-xl shadow-teal-500/25">
               Schedule a DPDP review <ArrowRight size={14} />
             </Link>
             <a href="mailto:dpo@haip.app" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-sm font-semibold rounded-xl">
               <FileText size={14} /> Email DPO · dpo@haip.app
             </a>
-            <Link href="/security" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-indigo-400 hover:text-indigo-300 text-sm font-semibold">
+            <Link href="/security" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-teal-400 hover:text-teal-300 text-sm font-semibold">
               See Trust Center <ChevronRight size={14} />
             </Link>
           </div>

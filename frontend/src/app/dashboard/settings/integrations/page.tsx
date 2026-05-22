@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -165,7 +165,7 @@ function WebhookInfoPanel({ provider }: { provider: string }) {
         onClick={() => setOpen(o => !o)}
         className="flex items-center justify-between w-full text-left"
       >
-        <p className="text-[10px] text-indigo-700 font-semibold uppercase tracking-wide flex items-center gap-1">
+        <p className="text-[10px] text-teal-700 font-semibold uppercase tracking-wide flex items-center gap-1">
           <Info size={10} />
           Configure {providerLabel} Webhook
         </p>
@@ -246,7 +246,7 @@ function ConnectModal({
     try { await onConnect(fields); } finally { setSubmitting(false); }
   };
 
-  const inputCls = "w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/30 bg-white";
+  const inputCls = "w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white";
 
   const subtitle = (() => {
     if (isWhatsApp)  return "Paste your WhatsApp Cloud API credentials from Meta Business Suite";
@@ -427,7 +427,7 @@ function ConnectModal({
           <button
             onClick={handleSubmit}
             disabled={!canSubmit || submitting}
-            className="px-4 py-2 bg-indigo-500 text-white rounded-xl text-sm font-medium hover:bg-indigo-600 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+            className="px-4 py-2 bg-teal-500 text-white rounded-xl text-sm font-medium hover:bg-teal-600 transition-colors disabled:opacity-50 flex items-center gap-1.5"
           >
             {submitting ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
             Connect
@@ -521,12 +521,12 @@ function IntegrationCard({
   return (
     <div className={cn(
       "bg-white rounded-2xl border transition-all duration-200 p-5 flex flex-col gap-4",
-      isConnected ? "border-indigo-200 shadow-sm shadow-indigo-50" : "border-gray-100 hover:border-gray-200 hover:shadow-sm"
+      isConnected ? "border-teal-200 shadow-sm shadow-teal-50" : "border-gray-100 hover:border-gray-200 hover:shadow-sm"
     )}>
       {/* Header */}
       <div className="flex items-start gap-4">
         <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0",
-          isConnected ? "bg-indigo-50" : "bg-gray-50"
+          isConnected ? "bg-teal-50" : "bg-gray-50"
         )}>
           <ProviderIcon logo={item.logo} size={24} />
         </div>
@@ -534,7 +534,7 @@ function IntegrationCard({
           <div className="flex items-center gap-2 flex-wrap mb-0.5">
             <span className="text-sm font-bold text-gray-900">{item.name}</span>
             {item.popular && (
-              <span className="text-[9px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wide">Popular</span>
+              <span className="text-[9px] bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wide">Popular</span>
             )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -643,7 +643,7 @@ function IntegrationCard({
           <button
             onClick={() => onConnect(item.provider)}
             disabled={isConnecting}
-            className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-indigo-500 text-white rounded-xl text-xs font-semibold hover:bg-indigo-600 transition-colors disabled:opacity-50 shadow-sm shadow-indigo-200"
+            className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-teal-500 text-white rounded-xl text-xs font-semibold hover:bg-teal-600 transition-colors disabled:opacity-50 shadow-sm shadow-teal-200"
           >
             {isConnecting ? <Loader2 size={13} className="animate-spin" /> : <Plug size={13} />}
             Connect {item.name}
@@ -814,7 +814,7 @@ export default function IntegrationsPage() {
               onClick={() => setActiveCategory(cat)}
               className={cn(
                 "px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors",
-                activeCategory === cat ? "bg-indigo-500 text-white" : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                activeCategory === cat ? "bg-teal-500 text-white" : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
               )}
             >
               {cat === "all" ? "All integrations" : cat}
@@ -904,8 +904,8 @@ export default function IntegrationsPage() {
 
         {/* Security footer */}
         <div className="mt-8 bg-white border border-gray-100 rounded-2xl p-4 flex items-start gap-3">
-          <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0 mt-0.5">
-            <Shield size={16} className="text-indigo-600" />
+          <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Shield size={16} className="text-teal-600" />
           </div>
           <div>
             <p className="text-xs font-semibold text-gray-700 mb-1">Enterprise-grade security</p>

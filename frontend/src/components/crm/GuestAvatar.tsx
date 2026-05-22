@@ -1,4 +1,4 @@
-﻿import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 interface GuestAvatarProps {
   name?: string | null;
@@ -16,7 +16,7 @@ const SIZE = {
 // Deterministic color from phone/name
 function avatarColor(seed: string) {
   const colors = [
-    "from-indigo-400 to-indigo-600",
+    "from-teal-400 to-teal-600",
     "from-blue-400 to-blue-600",
     "from-purple-400 to-purple-600",
     "from-amber-400 to-amber-600",

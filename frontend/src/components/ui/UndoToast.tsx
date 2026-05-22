@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
@@ -30,7 +30,7 @@ export function UndoToast({ message, delayMs = 8000, onUndo, onDismiss }: UndoTo
       {/* Countdown bar */}
       <div className="h-0.5 bg-gray-700">
         <div
-          className="h-full bg-indigo-400 transition-all duration-1000 ease-linear"
+          className="h-full bg-teal-400 transition-all duration-1000 ease-linear"
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -38,7 +38,7 @@ export function UndoToast({ message, delayMs = 8000, onUndo, onDismiss }: UndoTo
         <span className="text-sm flex-1">{message}</span>
         <button
           onClick={() => { onUndo(); onDismiss(); }}
-          className="text-sm font-bold text-indigo-400 hover:text-indigo-300 transition-colors flex-shrink-0"
+          className="text-sm font-bold text-teal-400 hover:text-teal-300 transition-colors flex-shrink-0"
         >
           Undo
         </button>

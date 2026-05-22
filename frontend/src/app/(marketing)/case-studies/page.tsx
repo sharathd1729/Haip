@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import {
   ArrowRight, Plane, Building2, Trees, Hotel, ChevronRight, Sparkles, TrendingUp, Quote,
 } from "lucide-react";
@@ -22,9 +22,9 @@ const featured = {
 
 const cases = [
   {
-    icon: <Building2 size={16} className="text-indigo-400" />,
+    icon: <Building2 size={16} className="text-teal-400" />,
     segment: "Luxury villas",
-    color: "bg-indigo-500/10 border-indigo-500/20 text-indigo-300",
+    color: "bg-teal-500/10 border-teal-500/20 text-teal-300",
     brand: "Ananta Villa Collection",
     location: "Goa &amp; Coorg · 11 villas",
     quote: "We were missing 30% of WhatsApp enquiries during peak hours. Every enquiry is captured and quote-ready in under 4 minutes now.",
@@ -73,17 +73,17 @@ const themes = [
 
 export default function CaseStudiesPage() {
   return (
-    <div className="bg-[#0D1B4B] text-white min-h-screen">
+    <div className="bg-[#0B1F3A] text-white min-h-screen">
       {/* HERO */}
       <section className="relative pt-32 pb-16 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full bg-indigo-500/8 blur-[120px]" />
+          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full bg-teal-500/8 blur-[120px]" />
           <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)", backgroundSize: "32px 32px" }} />
         </div>
         <div className="relative max-w-6xl mx-auto px-5 sm:px-8 text-center">
-          <div className="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 rounded-full px-4 py-1.5 mb-6">
-            <Sparkles size={12} className="text-indigo-400" />
-            <span className="text-xs font-semibold text-indigo-300 uppercase tracking-wider">Case studies</span>
+          <div className="inline-flex items-center gap-2 bg-teal-500/10 border border-teal-500/20 rounded-full px-4 py-1.5 mb-6">
+            <Sparkles size={12} className="text-teal-400" />
+            <span className="text-xs font-semibold text-teal-300 uppercase tracking-wider">Case studies</span>
           </div>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight mb-5">Real teams. Real numbers. Real guests.</h1>
           <p className="text-white/55 text-lg max-w-2xl mx-auto leading-relaxed">
@@ -96,7 +96,7 @@ export default function CaseStudiesPage() {
       <section className="px-5 sm:px-8 pb-4">
         <div className="max-w-6xl mx-auto flex flex-wrap gap-2 justify-center">
           {themes.map(t => (
-            <button key={t.label} className={`px-4 py-1.5 rounded-full text-xs font-semibold border transition-colors ${t.active ? "bg-indigo-500/15 border-indigo-500/40 text-indigo-300" : "bg-white/3 border-white/8 text-white/55 hover:text-white hover:border-white/15"}`}>
+            <button key={t.label} className={`px-4 py-1.5 rounded-full text-xs font-semibold border transition-colors ${t.active ? "bg-teal-500/15 border-teal-500/40 text-teal-300" : "bg-white/3 border-white/8 text-white/55 hover:text-white hover:border-white/15"}`}>
               {t.label} <span className="text-white/30 ml-1">({t.count})</span>
             </button>
           ))}
@@ -151,21 +151,21 @@ export default function CaseStudiesPage() {
       <section className="px-5 sm:px-8 pb-20">
         <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-5">
           {cases.map(c => (
-            <Link key={c.brand} href={c.href} className="group bg-[#0f2744]/70 hover:bg-[#0f2744] border border-white/8 hover:border-indigo-500/25 rounded-2xl p-6 transition-all hover:-translate-y-0.5">
+            <Link key={c.brand} href={c.href} className="group bg-[#0f2744]/70 hover:bg-[#0f2744] border border-white/8 hover:border-teal-500/25 rounded-2xl p-6 transition-all hover:-translate-y-0.5">
               <div className="flex items-center justify-between mb-5">
                 <div className={`inline-flex items-center gap-2 ${c.color} border rounded-full px-3 py-1`}>
                   {c.icon}
                   <span className="text-xs font-semibold uppercase tracking-wider">{c.segment}</span>
                 </div>
-                <ChevronRight size={16} className="text-white/30 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all" />
+                <ChevronRight size={16} className="text-white/30 group-hover:text-teal-400 group-hover:translate-x-0.5 transition-all" />
               </div>
-              <h3 className="text-lg font-bold text-white mb-1 group-hover:text-indigo-300 transition-colors">{c.brand}</h3>
+              <h3 className="text-lg font-bold text-white mb-1 group-hover:text-teal-300 transition-colors">{c.brand}</h3>
               <p className="text-xs text-white/40 mb-5" dangerouslySetInnerHTML={{ __html: c.location }} />
               <div className="bg-white/3 rounded-xl p-4 mb-5 relative">
                 <Quote size={14} className="absolute top-3 left-3 text-white/15" />
                 <p className="text-sm text-white/65 italic leading-relaxed pl-5" dangerouslySetInnerHTML={{ __html: c.quote }} />
               </div>
-              <div className="flex items-center gap-2 text-xs font-bold text-indigo-300">
+              <div className="flex items-center gap-2 text-xs font-bold text-teal-300">
                 <TrendingUp size={12} />
                 <span dangerouslySetInnerHTML={{ __html: c.metric }} />
               </div>
@@ -176,12 +176,12 @@ export default function CaseStudiesPage() {
 
       {/* CTA */}
       <section className="py-20 px-5 sm:px-8 bg-[#0a1b30] relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-transparent to-cyan-500/5 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-br from-teal-500/10 via-transparent to-cyan-500/5 pointer-events-none" />
         <div className="max-w-3xl mx-auto text-center relative">
           <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-4">Want to be the next case study?</h2>
           <p className="text-white/55 mb-8 max-w-xl mx-auto">Design partners get 6 months free in exchange for case-study rights. Limited slots — we&apos;re only taking 3 more this quarter.</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link href="/book-demo?topic=design-partner" className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-500 hover:bg-indigo-400 text-white font-bold rounded-2xl transition-all shadow-xl shadow-blue-500/30">
+            <Link href="/book-demo?topic=design-partner" className="inline-flex items-center gap-2 px-6 py-3 bg-teal-500 hover:bg-teal-400 text-white font-bold rounded-2xl transition-all shadow-xl shadow-teal-500/30">
               Apply as a design partner <ArrowRight size={16} />
             </Link>
             <Link href="/pricing" className="inline-flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-2xl border border-white/10 transition-all">

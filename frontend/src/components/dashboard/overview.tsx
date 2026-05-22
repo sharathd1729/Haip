@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { Upload, Phone, Users, TrendingUp, MessageSquare, Star, ArrowRight, Zap } from "lucide-react";
@@ -38,7 +38,7 @@ function GettingStarted({ firstName }: { firstName: string }) {
 
   const steps = [
     {
-      icon: <Upload size={20} className="text-indigo-500" />,
+      icon: <Upload size={20} className="text-teal-500" />,
       title: "Upload your first call",
       desc: "Drop an MP3/WAV recording and get an AI-powered QA score in under 90 seconds.",
       action: () => router.push("/dashboard/calls"),
@@ -72,12 +72,12 @@ function GettingStarted({ firstName }: { firstName: string }) {
       </div>
 
       {/* Welcome banner */}
-      <div className="bg-gradient-to-br from-[#0D1B4B] to-[#1a2864] rounded-2xl p-4 sm:p-6 text-white relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/10 rounded-full -translate-y-1/2 translate-x-1/4" />
+      <div className="bg-gradient-to-br from-[#0B1F3A] to-[#163458] rounded-2xl p-4 sm:p-6 text-white relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-48 h-48 bg-teal-500/10 rounded-full -translate-y-1/2 translate-x-1/4" />
         <div className="relative">
           <div className="flex items-center gap-2 mb-2">
-            <Zap size={18} className="text-indigo-400" />
-            <span className="text-xs font-bold uppercase tracking-widest text-indigo-400">Your workspace is ready</span>
+            <Zap size={18} className="text-teal-400" />
+            <span className="text-xs font-bold uppercase tracking-widest text-teal-400">Your workspace is ready</span>
           </div>
           <h2 className="text-xl font-bold mb-1">Welcome to HAIP</h2>
           <p className="text-sm text-white/70 max-w-lg">
@@ -85,7 +85,7 @@ function GettingStarted({ firstName }: { firstName: string }) {
           </p>
           <button
             onClick={() => router.push("/dashboard/calls")}
-            className="mt-4 flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
+            className="mt-4 flex items-center gap-2 bg-teal-500 hover:bg-teal-400 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
           >
             <Upload size={15} /> Upload first recording
           </button>
@@ -112,7 +112,7 @@ function GettingStarted({ firstName }: { firstName: string }) {
                     <ArrowRight size={14} className="text-gray-300 group-hover:text-gray-500 transition-colors flex-shrink-0" />
                   </div>
                   <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{step.desc}</p>
-                  <p className="text-xs text-indigo-600 font-medium mt-2">{step.cta}</p>
+                  <p className="text-xs text-teal-600 font-medium mt-2">{step.cta}</p>
                 </div>
               </div>
             </button>
@@ -148,7 +148,7 @@ function LiveDashboard({ dash, firstName }: { dash: DashboardData; firstName: st
   }
 
   const DISP_COLOR: Record<string, string> = {
-    booked:    "bg-indigo-50 text-indigo-700",
+    booked:    "bg-teal-50 text-teal-700",
     qualified: "bg-blue-50 text-blue-700",
     lost:      "bg-red-50 text-red-600",
     callback:  "bg-amber-50 text-amber-700",
@@ -166,7 +166,7 @@ function LiveDashboard({ dash, firstName }: { dash: DashboardData; firstName: st
         </div>
         <button
           onClick={() => router.push("/dashboard/calls")}
-          className="flex items-center gap-2 bg-[#0D1B4B] text-white text-xs font-semibold px-4 py-2 rounded-xl hover:bg-[#1a2864] transition-colors"
+          className="flex items-center gap-2 bg-[#0B1F3A] text-white text-xs font-semibold px-4 py-2 rounded-xl hover:bg-[#163458] transition-colors"
         >
           <Upload size={13} /> Upload call
         </button>
@@ -179,14 +179,14 @@ function LiveDashboard({ dash, firstName }: { dash: DashboardData; firstName: st
             label: "Total Calls",
             value: dash.total_calls.toLocaleString(),
             sub: `${dash.calls_this_week} this week`,
-            bar: "bg-indigo-500",
-            icon: <Phone size={16} className="text-indigo-500" />,
+            bar: "bg-teal-500",
+            icon: <Phone size={16} className="text-teal-500" />,
           },
           {
             label: "Avg QA Score",
             value: avgScore > 0 ? `${avgScore.toFixed(1)}%` : "—",
             sub: `${dash.scored_calls} calls scored`,
-            bar: avgScore >= 80 ? "bg-indigo-500" : avgScore >= 60 ? "bg-amber-400" : "bg-red-400",
+            bar: avgScore >= 80 ? "bg-teal-500" : avgScore >= 60 ? "bg-amber-400" : "bg-red-400",
             icon: <Star size={16} className="text-amber-500" />,
           },
           {
@@ -221,12 +221,12 @@ function LiveDashboard({ dash, firstName }: { dash: DashboardData; firstName: st
         <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
           <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="w-[3px] h-[14px] rounded-full bg-indigo-500 inline-block" />
+              <span className="w-[3px] h-[14px] rounded-full bg-teal-500 inline-block" />
               <span className="text-[13.5px] font-bold text-gray-900">Recent Calls</span>
             </div>
             <button
               onClick={() => router.push("/dashboard/calls")}
-              className="text-xs text-indigo-600 font-medium hover:underline flex items-center gap-1"
+              className="text-xs text-teal-600 font-medium hover:underline flex items-center gap-1"
             >
               View all <ArrowRight size={11} />
             </button>
@@ -238,7 +238,7 @@ function LiveDashboard({ dash, firstName }: { dash: DashboardData; firstName: st
                 <p className="text-sm text-gray-400">No calls yet — upload a recording to get started.</p>
                 <button
                   onClick={() => router.push("/dashboard/calls")}
-                  className="mt-3 text-xs text-indigo-600 font-medium hover:underline"
+                  className="mt-3 text-xs text-teal-600 font-medium hover:underline"
                 >
                   Upload first call →
                 </button>
@@ -283,7 +283,7 @@ function LiveDashboard({ dash, firstName }: { dash: DashboardData; firstName: st
         {/* QA overview */}
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
           <div className="px-5 py-3.5 border-b border-gray-100 flex items-center gap-2">
-            <span className="w-[3px] h-[14px] rounded-full bg-indigo-500 inline-block" />
+            <span className="w-[3px] h-[14px] rounded-full bg-teal-500 inline-block" />
             <span className="text-[13.5px] font-bold text-gray-900">QA Overview</span>
           </div>
           <div className="p-5 flex flex-col items-center gap-5">
@@ -296,7 +296,7 @@ function LiveDashboard({ dash, firstName }: { dash: DashboardData; firstName: st
                 </div>
                 <div className="w-full space-y-2.5">
                   {[
-                    { label: "Excellent (80–100%)", pct: Math.round(dash.recent_calls.filter(c => (c.qa_score ?? 0) >= 80).length / Math.max(dash.scored_calls, 1) * 100), color: "bg-indigo-500" },
+                    { label: "Excellent (80–100%)", pct: Math.round(dash.recent_calls.filter(c => (c.qa_score ?? 0) >= 80).length / Math.max(dash.scored_calls, 1) * 100), color: "bg-teal-500" },
                     { label: "Good (60–79%)",       pct: Math.round(dash.recent_calls.filter(c => (c.qa_score ?? 0) >= 60 && (c.qa_score ?? 0) < 80).length / Math.max(dash.scored_calls, 1) * 100), color: "bg-amber-400" },
                     { label: "Needs work (<60%)",   pct: Math.round(dash.recent_calls.filter(c => (c.qa_score ?? 0) < 60 && c.qa_score != null).length / Math.max(dash.scored_calls, 1) * 100), color: "bg-red-400" },
                   ].map(b => (

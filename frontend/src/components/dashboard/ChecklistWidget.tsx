@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 /**
  * O5 — Setup checklist widget.
@@ -145,7 +145,7 @@ function setDismissed() {
 // ---------------------------------------------------------------------------
 
 function ConfettiBurst() {
-  const colors = ["#4361EE", "#3b82f6", "#a855f7", "#f59e0b", "#ef4444", "#22c55e"];
+  const colors = ["#14b8a6", "#3b82f6", "#a855f7", "#f59e0b", "#ef4444", "#22c55e"];
   return (
     <div className="fixed inset-0 pointer-events-none z-[100] overflow-hidden">
       {Array.from({ length: 36 }).map((_, i) => {
@@ -286,7 +286,7 @@ export function ChecklistWidget() {
                 <circle
                   cx="14" cy="14" r="11"
                   fill="none"
-                  stroke="#4361EE"
+                  stroke="#14b8a6"
                   strokeWidth="3"
                   strokeDasharray={`${2 * Math.PI * 11}`}
                   strokeDashoffset={`${2 * Math.PI * 11 * (1 - pct / 100)}`}
@@ -341,7 +341,7 @@ export function ChecklistWidget() {
                   )}
                 >
                   {done ? (
-                    <CheckCircle2 size={15} className="text-indigo-400 flex-shrink-0" />
+                    <CheckCircle2 size={15} className="text-teal-400 flex-shrink-0" />
                   ) : (
                     <Circle size={15} className="text-white/20 flex-shrink-0 group-hover:text-white/40 transition-colors" />
                   )}
@@ -371,7 +371,7 @@ export function ChecklistWidget() {
           <div className="px-4 pb-3 pt-1">
             <div className="h-1 rounded-full bg-white/5 overflow-hidden">
               <div
-                className="h-full rounded-full bg-indigo-500 transition-all duration-500"
+                className="h-full rounded-full bg-teal-500 transition-all duration-500"
                 style={{ width: `${pct}%` }}
               />
             </div>

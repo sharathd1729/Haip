@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -46,7 +46,7 @@ interface Flow {
 
 const NODE_TYPES = {
   trigger: { label: "Trigger", icon: <Zap size={14} />, color: "bg-amber-50 border-amber-300 text-amber-700", dot: "bg-amber-400" },
-  message: { label: "Send Message", icon: <MessageSquare size={14} />, color: "bg-indigo-50 border-indigo-300 text-indigo-700", dot: "bg-indigo-400" },
+  message: { label: "Send Message", icon: <MessageSquare size={14} />, color: "bg-teal-50 border-teal-300 text-teal-700", dot: "bg-teal-400" },
   condition: { label: "Condition", icon: <GitBranch size={14} />, color: "bg-blue-50 border-blue-300 text-blue-700", dot: "bg-blue-400" },
   delay: { label: "Wait / Delay", icon: <Clock size={14} />, color: "bg-purple-50 border-purple-300 text-purple-700", dot: "bg-purple-400" },
   action: { label: "Action", icon: <Zap size={14} />, color: "bg-pink-50 border-pink-300 text-pink-700", dot: "bg-pink-400" },
@@ -109,7 +109,7 @@ function FlowCanvas({
                 className={cn(
                   "w-72 rounded-2xl border-2 p-4 cursor-pointer transition-all shadow-sm hover:shadow-md group relative",
                   cfg.color,
-                  isSelected && "ring-2 ring-offset-2 ring-indigo-500 shadow-md"
+                  isSelected && "ring-2 ring-offset-2 ring-teal-500 shadow-md"
                 )}
               >
                 <div className="flex items-start gap-3">
@@ -142,7 +142,7 @@ function FlowCanvas({
                   )}
                   <button
                     onClick={() => onAddNode("message", node.id)}
-                    className="w-6 h-6 rounded-full bg-white border-2 border-gray-300 flex items-center justify-center text-gray-400 hover:border-indigo-500 hover:text-indigo-500 hover:bg-indigo-50 transition-all"
+                    className="w-6 h-6 rounded-full bg-white border-2 border-gray-300 flex items-center justify-center text-gray-400 hover:border-teal-500 hover:text-teal-500 hover:bg-teal-50 transition-all"
                     title="Add step"
                   >
                     <Plus size={12} />
@@ -184,7 +184,7 @@ function NodeEditorPanel({
           <label className="text-xs font-semibold text-gray-700 block mb-1.5">Step type</label>
           <select value={local.type}
             onChange={e => setLocal(l => ({ ...l, type: e.target.value as FlowNode["type"] }))}
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30">
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
             {Object.entries(NODE_TYPES).map(([t, cfg]) => (
               <option key={t} value={t}>{cfg.label}</option>
             ))}
@@ -194,14 +194,14 @@ function NodeEditorPanel({
         <div>
           <label className="text-xs font-semibold text-gray-700 block mb-1.5">Step label</label>
           <input value={local.label} onChange={e => setLocal(l => ({ ...l, label: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
         </div>
 
         {local.type === "trigger" && (
           <div>
             <label className="text-xs font-semibold text-gray-700 block mb-1.5">Trigger event</label>
             <select value={local.content ?? ""} onChange={e => setLocal(l => ({ ...l, content: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30">
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
               <option value="">Select trigger…</option>
               {TRIGGER_OPTIONS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
@@ -213,7 +213,7 @@ function NodeEditorPanel({
             <label className="text-xs font-semibold text-gray-700 block mb-1.5">Message content</label>
             <textarea value={local.content ?? ""} onChange={e => setLocal(l => ({ ...l, content: e.target.value }))} rows={4}
               placeholder={"Hi {{name}}, welcome to our villa!\n\nYour booking is confirmed."}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
             <p className="text-[10px] text-gray-400 mt-1">Use {`{{name}}`}, {`{{property}}`} etc. for personalization.</p>
           </div>
         )}
@@ -222,7 +222,7 @@ function NodeEditorPanel({
           <div>
             <label className="text-xs font-semibold text-gray-700 block mb-1.5">Condition</label>
             <select value={local.condition ?? ""} onChange={e => setLocal(l => ({ ...l, condition: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30">
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
               <option value="">Select condition…</option>
               <option value="message_read">Message was read</option>
               <option value="replied">Contact replied</option>
@@ -237,7 +237,7 @@ function NodeEditorPanel({
             <label className="text-xs font-semibold text-gray-700 block mb-1.5">Wait duration (minutes)</label>
             <input type="number" min={1} value={local.delay_minutes ?? 60}
               onChange={e => setLocal(l => ({ ...l, delay_minutes: parseInt(e.target.value) || 60 }))}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
           </div>
         )}
 
@@ -245,7 +245,7 @@ function NodeEditorPanel({
           <div>
             <label className="text-xs font-semibold text-gray-700 block mb-1.5">Action</label>
             <select value={local.content ?? ""} onChange={e => setLocal(l => ({ ...l, content: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30">
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
               <option value="">Select action…</option>
               <option value="tag_vip">Add tag: VIP</option>
               <option value="create_inquiry">Create inquiry</option>
@@ -258,7 +258,7 @@ function NodeEditorPanel({
       <div className="px-4 pb-4 pt-2 border-t border-gray-100">
         <button
           onClick={() => { onUpdate(node.id, local); onClose(); }}
-          className="w-full py-2.5 bg-indigo-500 text-white rounded-xl text-sm font-semibold hover:bg-indigo-600 transition-colors"
+          className="w-full py-2.5 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors"
         >
           Apply changes
         </button>
@@ -321,19 +321,19 @@ function CreateFlowModal({ onClose, onCreated }: { onClose: () => void; onCreate
           <div>
             <label className="text-xs font-semibold text-gray-700 block mb-1.5">Flow name <span className="text-red-500">*</span></label>
             <input value={name} onChange={e => setName(e.target.value)} placeholder="Welcome series"
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
           </div>
           <div>
             <label className="text-xs font-semibold text-gray-700 block mb-1.5">Description <span className="text-gray-400 font-normal">(optional)</span></label>
             <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Sent to new opt-ins"
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
           </div>
           {error && <div className="flex items-center gap-2 text-xs text-red-700 bg-red-50 rounded-xl px-3 py-2"><AlertCircle size={13} /> {error}</div>}
         </div>
         <div className="px-6 pb-5 flex gap-3">
           <button onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
           <button onClick={handleCreate} disabled={submitting}
-            className="flex-1 py-2.5 bg-indigo-500 text-white rounded-xl text-sm font-semibold hover:bg-indigo-600 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+            className="flex-1 py-2.5 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
             {submitting ? <Loader2 size={14} className="animate-spin" /> : <GitBranch size={14} />}
             Create flow
           </button>
@@ -455,7 +455,7 @@ function FlowEditor({ flow: initialFlow, onBack, onSaved }: {
           ))}
           <div className="w-px h-5 bg-gray-200" />
           <button onClick={handleSave} disabled={saving}
-            className="flex items-center gap-1.5 text-xs bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-indigo-600 transition-colors disabled:opacity-50">
+            className="flex items-center gap-1.5 text-xs bg-teal-500 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-teal-600 transition-colors disabled:opacity-50">
             {saving ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
             Save
           </button>
@@ -536,7 +536,7 @@ export default function FlowsPage() {
             <p className="text-sm text-gray-400 mt-0.5">Automate multi-step WhatsApp conversations triggered by guest actions.</p>
           </div>
           <button onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 bg-indigo-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-600 transition-colors shadow-sm shadow-indigo-200">
+            className="flex items-center gap-2 bg-teal-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors shadow-sm shadow-teal-200">
             <Plus size={15} /> New flow
           </button>
         </div>
@@ -551,7 +551,7 @@ export default function FlowsPage() {
             <p className="text-sm text-gray-500 font-medium">No flows yet</p>
             <p className="text-xs text-gray-400 mt-1">Build automated message sequences triggered by guest actions.</p>
             <button onClick={() => setShowCreate(true)}
-              className="mt-4 flex items-center gap-2 bg-indigo-500 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-indigo-600 transition-colors mx-auto">
+              className="mt-4 flex items-center gap-2 bg-teal-500 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-teal-600 transition-colors mx-auto">
               <Plus size={14} /> Create flow
             </button>
           </div>
@@ -566,14 +566,14 @@ export default function FlowsPage() {
                 <div key={flow.id} className="bg-white border border-gray-100 rounded-2xl p-5 hover:shadow-sm transition-shadow">
                   <div className="flex items-start gap-4">
                     <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0",
-                      flow.is_active ? "bg-indigo-50" : "bg-gray-100")}>
-                      <GitBranch size={18} className={flow.is_active ? "text-indigo-600" : "text-gray-400"} />
+                      flow.is_active ? "bg-teal-50" : "bg-gray-100")}>
+                      <GitBranch size={18} className={flow.is_active ? "text-teal-600" : "text-gray-400"} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="text-sm font-bold text-gray-900">{flow.name}</h3>
                         <span className={cn("inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border",
-                          flow.is_active ? "bg-indigo-50 text-indigo-700 border-indigo-200" : "bg-gray-50 text-gray-500 border-gray-200")}>
+                          flow.is_active ? "bg-teal-50 text-teal-700 border-teal-200" : "bg-gray-50 text-gray-500 border-gray-200")}>
                           {flow.is_active ? <><Play size={8} /> Active</> : <><Pause size={8} /> Inactive</>}
                         </span>
                       </div>
@@ -590,7 +590,7 @@ export default function FlowsPage() {
                       </button>
                       <button onClick={() => toggleMutation.mutate(flow.id)}
                         className={cn("text-xs px-3 py-1.5 rounded-lg font-medium transition-colors border",
-                          flow.is_active ? "text-amber-600 border-amber-200 hover:bg-amber-50" : "text-indigo-600 border-indigo-200 hover:bg-indigo-50")}>
+                          flow.is_active ? "text-amber-600 border-amber-200 hover:bg-amber-50" : "text-teal-600 border-teal-200 hover:bg-teal-50")}>
                         {flow.is_active ? "Pause" : "Activate"}
                       </button>
                       <button onClick={() => { if (confirm("Delete this flow?")) deleteMutation.mutate(flow.id); }}
@@ -616,7 +616,7 @@ export default function FlowsPage() {
               { step: "4", title: "Measure", desc: "Track delivery, read rates, and drop-off per step" },
             ].map(s => (
               <div key={s.step} className="flex gap-3">
-                <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[11px] font-bold flex-shrink-0 mt-0.5">{s.step}</div>
+                <div className="w-6 h-6 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-[11px] font-bold flex-shrink-0 mt-0.5">{s.step}</div>
                 <div>
                   <p className="text-xs font-semibold text-gray-800">{s.title}</p>
                   <p className="text-[10px] text-gray-400 leading-relaxed mt-0.5">{s.desc}</p>

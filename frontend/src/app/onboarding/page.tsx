@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -36,7 +36,7 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
       {Array.from({ length: total }).map((_, i) => (
         <div key={i} className={cn(
           "h-1 rounded-full transition-all duration-300",
-          i < current ? "bg-indigo-500 w-6" : i === current ? "bg-indigo-500/70 w-10" : "bg-white/10 w-6"
+          i < current ? "bg-teal-500 w-6" : i === current ? "bg-teal-500/70 w-10" : "bg-white/10 w-6"
         )} />
       ))}
     </div>
@@ -74,7 +74,7 @@ function ContinueButton({ label = "Continue", disabled = false, loading = false,
   return (
     <button onClick={onClick} disabled={disabled || loading}
       type={onClick ? "button" : "submit"}
-      className="w-full py-3.5 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2">
+      className="w-full py-3.5 bg-teal-500 hover:bg-teal-400 disabled:opacity-40 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2">
       {loading ? <Loader2 size={18} className="animate-spin" /> : null}
       {label} {!loading && <ArrowRight size={18} />}
     </button>
@@ -218,11 +218,11 @@ export default function OnboardingPage() {
   if (status === "unauthenticated") { router.replace("/login"); return null; }
 
   return (
-    <div className="min-h-screen bg-[#0D1B4B] flex flex-col items-center justify-center p-5">
+    <div className="min-h-screen bg-[#0B1F3A] flex flex-col items-center justify-center p-5">
       {/* Brand */}
       <div className="flex items-center gap-2.5 mb-8">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center text-[#0a1f3a] font-bold text-sm">H</div>
-        <span className="text-white font-bold text-xl tracking-tight">HA<span className="text-indigo-400">IP</span></span>
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-[#0a1f3a] font-bold text-sm">H</div>
+        <span className="text-white font-bold text-xl tracking-tight">HA<span className="text-teal-400">IP</span></span>
       </div>
 
       <div className="w-full max-w-xl">
@@ -248,7 +248,7 @@ export default function OnboardingPage() {
           {step === 0 && (
             <div className="p-8">
               <div className="text-center mb-8">
-                <Sparkles size={28} className="text-indigo-400 mx-auto mb-3" />
+                <Sparkles size={28} className="text-teal-400 mx-auto mb-3" />
                 <h1 className="text-2xl font-black text-white mb-2">Welcome to HAIP!</h1>
                 <p className="text-white/45 text-sm">Let&apos;s set up your workspace in a few quick steps.</p>
               </div>
@@ -266,7 +266,7 @@ export default function OnboardingPage() {
                     placeholder="Ratha Travels"
                     className={cn(
                       "w-full px-4 py-3 bg-white/5 border rounded-xl text-sm text-white placeholder-white/25 focus:outline-none transition-all",
-                      fieldErrors.brandName ? "border-red-500/60" : "border-white/10 focus:border-indigo-500/50"
+                      fieldErrors.brandName ? "border-red-500/60" : "border-white/10 focus:border-teal-500/50"
                     )}
                   />
                   <FieldError msg={fieldErrors.brandName} />
@@ -280,7 +280,7 @@ export default function OnboardingPage() {
                     placeholder="Goa"
                     className={cn(
                       "w-full px-4 py-3 bg-white/5 border rounded-xl text-sm text-white placeholder-white/25 focus:outline-none transition-all",
-                      fieldErrors.brandCity ? "border-red-500/60" : "border-white/10 focus:border-indigo-500/50"
+                      fieldErrors.brandCity ? "border-red-500/60" : "border-white/10 focus:border-teal-500/50"
                     )}
                   />
                   <FieldError msg={fieldErrors.brandCity} />
@@ -294,10 +294,10 @@ export default function OnboardingPage() {
                         className={cn(
                           "flex flex-col items-center p-3 rounded-xl border text-center transition-all",
                           segment === s.id
-                            ? "bg-indigo-500/15 border-indigo-500/40 text-indigo-300"
+                            ? "bg-teal-500/15 border-teal-500/40 text-teal-300"
                             : "bg-white/3 border-white/8 text-white/40 hover:bg-white/6 hover:text-white/70"
                         )}>
-                        <div className={cn("mb-1", segment === s.id ? "text-indigo-400" : "text-white/25")}>{s.icon}</div>
+                        <div className={cn("mb-1", segment === s.id ? "text-teal-400" : "text-white/25")}>{s.icon}</div>
                         <div className="text-[10px] font-bold leading-tight">{s.label}</div>
                       </button>
                     ))}
@@ -333,13 +333,13 @@ export default function OnboardingPage() {
                   <label className="block text-xs font-bold text-white/50 uppercase tracking-wider mb-2">Brand personality (2–3 words)</label>
                   <input value={brandPersonality} onChange={e => setBrandPersonality(e.target.value)}
                     placeholder="e.g. warm, professional, luxurious"
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:border-indigo-500/50 transition-all" />
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:border-teal-500/50 transition-all" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-white/50 uppercase tracking-wider mb-2">Brand voice guide <span className="text-white/20 font-normal normal-case">(optional)</span></label>
                   <textarea value={brandVoice} onChange={e => setBrandVoice(e.target.value)} rows={4}
                     placeholder="Describe how your team communicates. E.g. 'We speak formally but warmly. We always use the guest's first name.'"
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:border-indigo-500/50 transition-all resize-none" />
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:border-teal-500/50 transition-all resize-none" />
                 </div>
               </div>
 
@@ -374,18 +374,18 @@ export default function OnboardingPage() {
                   <input type="email" value={inviteInput} onChange={e => setInviteInput(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addEmail(); } }}
                     placeholder="colleague@company.com"
-                    className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:border-indigo-500/50 transition-all" />
+                    className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-white/25 focus:outline-none focus:border-teal-500/50 transition-all" />
                   <button onClick={addEmail} disabled={!inviteInput.trim()}
-                    className="px-4 py-3 bg-indigo-500/20 hover:bg-indigo-500/30 disabled:opacity-40 text-indigo-400 rounded-xl text-sm font-bold transition-all border border-indigo-500/20">
+                    className="px-4 py-3 bg-teal-500/20 hover:bg-teal-500/30 disabled:opacity-40 text-teal-400 rounded-xl text-sm font-bold transition-all border border-teal-500/20">
                     Add
                   </button>
                 </div>
                 {inviteEmails.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {inviteEmails.map(email => (
-                      <div key={email} className="flex items-center gap-1.5 bg-indigo-500/15 border border-indigo-500/20 rounded-lg px-2.5 py-1.5">
-                        <span className="text-xs text-indigo-300">{email}</span>
-                        <button onClick={() => removeEmail(email)} className="text-indigo-400/50 hover:text-indigo-400 transition-colors"><X size={11} /></button>
+                      <div key={email} className="flex items-center gap-1.5 bg-teal-500/15 border border-teal-500/20 rounded-lg px-2.5 py-1.5">
+                        <span className="text-xs text-teal-300">{email}</span>
+                        <button onClick={() => removeEmail(email)} className="text-teal-400/50 hover:text-teal-400 transition-colors"><X size={11} /></button>
                       </div>
                     ))}
                   </div>
@@ -405,8 +405,8 @@ export default function OnboardingPage() {
             <div className="p-8">
               <BackButton onBack={goBack} />
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
-                  <Zap size={18} className="text-indigo-400" />
+                <div className="w-10 h-10 rounded-xl bg-teal-500/20 border border-teal-500/30 flex items-center justify-center">
+                  <Zap size={18} className="text-teal-400" />
                 </div>
                 <div>
                   <h2 className="text-xl font-black text-white">AI Concierge mode</h2>
@@ -423,22 +423,22 @@ export default function OnboardingPage() {
                     className={cn(
                       "w-full p-5 rounded-2xl border text-left transition-all",
                       conciergeMode === opt.id
-                        ? opt.color === "teal" ? "bg-indigo-500/10 border-indigo-500/30" : "bg-amber-500/10 border-amber-500/30"
+                        ? opt.color === "teal" ? "bg-teal-500/10 border-teal-500/30" : "bg-amber-500/10 border-amber-500/30"
                         : "bg-white/3 border-white/8 hover:bg-white/5"
                     )}>
                     <div className="flex items-start gap-3">
                       <div className={cn("w-4 h-4 rounded-full border-2 flex-shrink-0 mt-0.5 flex items-center justify-center",
                         conciergeMode === opt.id
-                          ? opt.color === "teal" ? "border-indigo-400" : "border-amber-400"
+                          ? opt.color === "teal" ? "border-teal-400" : "border-amber-400"
                           : "border-white/20")}>
                         {conciergeMode === opt.id && (
-                          <div className={cn("w-2 h-2 rounded-full", opt.color === "teal" ? "bg-indigo-400" : "bg-amber-400")} />
+                          <div className={cn("w-2 h-2 rounded-full", opt.color === "teal" ? "bg-teal-400" : "bg-amber-400")} />
                         )}
                       </div>
                       <div>
                         <div className={cn("font-bold text-sm mb-1",
                           conciergeMode === opt.id
-                            ? opt.color === "teal" ? "text-indigo-300" : "text-amber-300"
+                            ? opt.color === "teal" ? "text-teal-300" : "text-amber-300"
                             : "text-white/70")}>{opt.title}</div>
                         <p className="text-xs text-white/40 leading-relaxed">{opt.desc}</p>
                       </div>
@@ -483,14 +483,14 @@ export default function OnboardingPage() {
                     "Obtain consent before using data for marketing",
                   ].map(item => (
                     <li key={item} className="flex items-start gap-2.5 text-xs text-white/50">
-                      <CheckCircle2 size={14} className="text-indigo-400 flex-shrink-0 mt-0.5" />
+                      <CheckCircle2 size={14} className="text-teal-400 flex-shrink-0 mt-0.5" />
                       {item}
                     </li>
                   ))}
                 </ul>
                 <label className="flex items-start gap-3 cursor-pointer">
                   <input type="checkbox" checked={dpdpAcknowledged} onChange={e => setDpdpAcknowledged(e.target.checked)}
-                    className="w-4 h-4 mt-0.5 rounded border-white/20 text-indigo-500 flex-shrink-0" />
+                    className="w-4 h-4 mt-0.5 rounded border-white/20 text-teal-500 flex-shrink-0" />
                   <span className="text-xs text-white/60">
                     I acknowledge that I am the data fiduciary for my guests&apos; personal data and will comply with DPDP Act obligations.
                   </span>
@@ -511,8 +511,8 @@ export default function OnboardingPage() {
           {step === 5 && (
             <div className="p-8">
               <div className="text-center mb-8">
-                <div className="w-16 h-16 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center mx-auto mb-4">
-                  <CheckCircle2 size={32} className="text-indigo-400" />
+                <div className="w-16 h-16 rounded-2xl bg-teal-500/20 border border-teal-500/30 flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 size={32} className="text-teal-400" />
                 </div>
                 <h2 className="text-2xl font-black text-white mb-2">You&apos;re all set!</h2>
                 <p className="text-white/40 text-sm max-w-xs mx-auto">
@@ -522,7 +522,7 @@ export default function OnboardingPage() {
 
               <div className="space-y-2 mb-8">
                 {[
-                  { icon: <Bell size={16} />,  color: "text-indigo-400",  label: "Add your properties",         desc: "Go to Settings → Properties to add your villas, hotels, or units" },
+                  { icon: <Bell size={16} />,  color: "text-teal-400",  label: "Add your properties",         desc: "Go to Settings → Properties to add your villas, hotels, or units" },
                   { icon: <Bell size={16} />,  color: "text-blue-400",  label: "Connect your IVR or WhatsApp", desc: "Go to Settings → Integrations to connect CallerDesk, Acefone, or WhatsApp" },
                   { icon: <Bell size={16} />,  color: "text-amber-400", label: "Invite your team",             desc: "Add concierge and manager accounts from Settings → Team" },
                 ].map(item => (
@@ -537,7 +537,7 @@ export default function OnboardingPage() {
               </div>
 
               <button onClick={handleFinish} disabled={saving}
-                className="w-full py-3.5 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-60 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/25">
+                className="w-full py-3.5 bg-teal-500 hover:bg-teal-400 disabled:opacity-60 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-teal-500/25">
                 {saving ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
                 {saving ? "Setting up…" : "Go to dashboard"}
               </button>
@@ -548,7 +548,7 @@ export default function OnboardingPage() {
 
         <p className="text-center text-xs text-white/20 mt-6">
           Already set up?{" "}
-          <Link href="/dashboard" className="text-indigo-400 hover:text-indigo-300">Go to dashboard</Link>
+          <Link href="/dashboard" className="text-teal-400 hover:text-teal-300">Go to dashboard</Link>
         </p>
       </div>
     </div>

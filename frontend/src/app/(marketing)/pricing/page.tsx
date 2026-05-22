@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
@@ -85,28 +85,28 @@ function ModCard({
       className={cn(
         "relative rounded-2xl border p-5 text-left transition-all duration-150 w-full",
         selected
-          ? "bg-indigo-500/10 border-indigo-500/40 shadow-sm shadow-indigo-500/10"
+          ? "bg-teal-500/10 border-teal-500/40 shadow-sm shadow-teal-500/10"
           : "bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/8"
       )}
     >
       {/* Check dot */}
       {selected && (
-        <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center">
+        <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-teal-500 flex items-center justify-center">
           <Check size={11} className="text-white" />
         </div>
       )}
 
-      <div className={cn("mb-3", selected ? "text-indigo-400" : "text-white/30")}>
+      <div className={cn("mb-3", selected ? "text-teal-400" : "text-white/30")}>
         {mod.icon}
       </div>
 
-      <p className={cn("text-sm font-bold mb-1", selected ? "text-indigo-300" : "text-white/80")}>
+      <p className={cn("text-sm font-bold mb-1", selected ? "text-teal-300" : "text-white/80")}>
         {mod.name}
       </p>
-      <p className={cn("text-[11px] leading-relaxed mb-3", selected ? "text-indigo-400/80" : "text-white/30")}>
+      <p className={cn("text-[11px] leading-relaxed mb-3", selected ? "text-teal-400/80" : "text-white/30")}>
         {mod.desc}
       </p>
-      <p className={cn("text-sm font-bold", selected ? "text-indigo-400" : "text-white/50")}>
+      <p className={cn("text-sm font-bold", selected ? "text-teal-400" : "text-white/50")}>
         {fmt(mod.ppm)} / property / month
       </p>
     </button>
@@ -151,10 +151,10 @@ export default function PricingPage() {
   }, [selected, props]);
 
   return (
-    <div className="bg-[#0D1B4B] min-h-screen text-white pt-24">
+    <div className="bg-[#0B1F3A] min-h-screen text-white pt-24">
       {/* ── Hero ── */}
       <div className="max-w-2xl mx-auto px-5 sm:px-8 text-center py-16">
-        <p className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-4">Pricing</p>
+        <p className="text-xs font-bold text-teal-400 uppercase tracking-widest mb-4">Pricing</p>
         <h1 className="text-4xl sm:text-5xl font-black tracking-tight mb-5 leading-tight">
           Pay only for what<br className="hidden sm:block" /> you use
         </h1>
@@ -176,7 +176,7 @@ export default function PricingPage() {
             <input
               type="range" min={1} max={150} step={1} value={props}
               onChange={e => setProps(Number(e.target.value))}
-              className="flex-1 h-1 accent-indigo-400 cursor-pointer"
+              className="flex-1 h-1 accent-teal-400 cursor-pointer"
             />
             <div className="text-right flex-shrink-0 w-28">
               <span className="text-4xl font-black text-white tracking-tight">{props}</span>
@@ -217,9 +217,9 @@ export default function PricingPage() {
         </div>
 
         {/* Total */}
-        <div className="bg-indigo-500/10 border-2 border-indigo-500/30 rounded-2xl px-6 py-5 flex items-center justify-between mb-2">
-          <span className="text-sm font-bold text-indigo-300">Total / month</span>
-          <span className="text-4xl font-black text-indigo-300 tracking-tight">
+        <div className="bg-teal-500/10 border-2 border-teal-500/30 rounded-2xl px-6 py-5 flex items-center justify-between mb-2">
+          <span className="text-sm font-bold text-teal-300">Total / month</span>
+          <span className="text-4xl font-black text-teal-300 tracking-tight">
             {fmt(bill)}
           </span>
         </div>
@@ -239,7 +239,7 @@ export default function PricingPage() {
         <div className="flex flex-col sm:flex-row gap-3 justify-center mt-8">
           <Link
             href="/register"
-            className="flex items-center justify-center gap-2 px-8 py-4 bg-indigo-500 hover:bg-indigo-400 text-white font-bold rounded-2xl transition-all shadow-lg shadow-indigo-500/25"
+            className="flex items-center justify-center gap-2 px-8 py-4 bg-teal-500 hover:bg-teal-400 text-white font-bold rounded-2xl transition-all shadow-lg shadow-teal-500/25"
           >
             Start free trial <ArrowRight size={18} />
           </Link>
@@ -282,7 +282,7 @@ export default function PricingPage() {
                     </div>
                   </td>
                   <td className="px-4 py-4 text-center">
-                    <span className="text-sm font-bold text-indigo-400">{fmt(mod.ppm)}</span>
+                    <span className="text-sm font-bold text-teal-400">{fmt(mod.ppm)}</span>
                   </td>
                   <td className="px-4 py-4 text-[11px] text-white/40 hidden sm:table-cell leading-relaxed">
                     {mod.desc}

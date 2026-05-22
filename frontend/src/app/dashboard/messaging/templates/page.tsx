@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -152,7 +152,7 @@ function CreateTemplateModal({ onClose, onCreated }: { onClose: () => void; onCr
           {(["info", "body", "preview"] as const).map((s, i) => (
             <div key={s} className="flex items-center gap-2">
               <div className={cn("w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold",
-                step === s ? "bg-indigo-500 text-white" : (["info", "body", "preview"].indexOf(step) > i) ? "bg-indigo-100 text-indigo-700" : "bg-gray-200 text-gray-500"
+                step === s ? "bg-teal-500 text-white" : (["info", "body", "preview"].indexOf(step) > i) ? "bg-teal-100 text-teal-700" : "bg-gray-200 text-gray-500"
               )}>{i + 1}</div>
               <span className={cn("text-xs capitalize", step === s ? "font-semibold text-gray-800" : "text-gray-400")}>{s}</span>
               {i < 2 && <ChevronRight size={12} className="text-gray-300" />}
@@ -171,14 +171,14 @@ function CreateTemplateModal({ onClose, onCreated }: { onClose: () => void; onCr
                     value={form.name}
                     onChange={e => setForm(f => ({ ...f, name: e.target.value.toLowerCase().replace(/\s+/g, "_") }))}
                     placeholder="booking_confirmation"
-                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-teal-500/30"
                   />
                   <p className="text-[10px] text-gray-400 mt-1">Lowercase, underscores only. Cannot be changed after creation.</p>
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-700 block mb-1.5">Language</label>
                   <select value={form.language} onChange={e => setForm(f => ({ ...f, language: e.target.value }))}
-                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30">
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
                     {LANGUAGES.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
                   </select>
                 </div>
@@ -188,7 +188,7 @@ function CreateTemplateModal({ onClose, onCreated }: { onClose: () => void; onCr
                 <div className="grid grid-cols-3 gap-2">
                   {["MARKETING", "UTILITY", "AUTHENTICATION"].map(cat => (
                     <label key={cat} className={cn("flex flex-col gap-1 p-3 rounded-xl border cursor-pointer transition-all text-xs",
-                      form.category === cat ? "border-indigo-400 bg-indigo-50/50" : "border-gray-200 hover:border-gray-300"
+                      form.category === cat ? "border-teal-400 bg-teal-50/50" : "border-gray-200 hover:border-gray-300"
                     )}>
                       <input type="radio" name="cat" value={cat} checked={form.category === cat}
                         onChange={() => setForm(f => ({ ...f, category: cat }))} className="sr-only" />
@@ -212,20 +212,20 @@ function CreateTemplateModal({ onClose, onCreated }: { onClose: () => void; onCr
                 <label className="text-xs font-semibold text-gray-700 block mb-1.5">Header <span className="text-gray-400 font-normal">(optional)</span></label>
                 <input value={form.header} onChange={e => setForm(f => ({ ...f, header: e.target.value }))}
                   placeholder="Welcome to {{1}}"
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-700 block mb-1.5">Body <span className="text-red-500">*</span></label>
                 <textarea value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))} rows={5}
                   placeholder={"Hi {{1}},\n\nYour booking at {{2}} is confirmed for {{3}}.\n\nLooking forward to welcoming you!"}
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
                 <p className="text-[10px] text-gray-400 mt-1">Use {`{{1}}`}, {`{{2}}`} etc. for dynamic variables.</p>
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-700 block mb-1.5">Footer <span className="text-gray-400 font-normal">(optional)</span></label>
                 <input value={form.footer} onChange={e => setForm(f => ({ ...f, footer: e.target.value }))}
                   placeholder="Reply STOP to opt out"
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-700 block mb-1.5">Call-to-action button <span className="text-gray-400 font-normal">(optional)</span></label>
@@ -233,7 +233,7 @@ function CreateTemplateModal({ onClose, onCreated }: { onClose: () => void; onCr
                   {(["none", "url", "phone"] as const).map(t => (
                     <button key={t} onClick={() => setForm(f => ({ ...f, ctaType: t }))}
                       className={cn("px-3 py-1.5 rounded-lg text-xs font-medium transition-colors capitalize",
-                        form.ctaType === t ? "bg-indigo-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>
+                        form.ctaType === t ? "bg-teal-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>
                       {t === "none" ? "No button" : t === "url" ? "Visit URL" : "Call phone"}
                     </button>
                   ))}
@@ -241,11 +241,11 @@ function CreateTemplateModal({ onClose, onCreated }: { onClose: () => void; onCr
                 {form.ctaType !== "none" && (
                   <div className="grid grid-cols-2 gap-3">
                     <input value={form.ctaText} onChange={e => setForm(f => ({ ...f, ctaText: e.target.value }))}
-                      placeholder="Button label" className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
+                      placeholder="Button label" className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
                     <input value={form.ctaType === "url" ? form.ctaUrl : form.ctaPhone}
                       onChange={e => setForm(f => form.ctaType === "url" ? { ...f, ctaUrl: e.target.value } : { ...f, ctaPhone: e.target.value })}
                       placeholder={form.ctaType === "url" ? "https://…" : "+91XXXXXXXXXX"}
-                      className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
+                      className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
                   </div>
                 )}
               </div>
@@ -305,7 +305,7 @@ function CreateTemplateModal({ onClose, onCreated }: { onClose: () => void; onCr
               <button
                 onClick={() => setStep(s => s === "info" ? "body" : "preview")}
                 disabled={step === "info" ? !form.name.trim() : !form.body.trim()}
-                className="px-5 py-2 bg-indigo-500 text-white rounded-xl text-sm font-semibold hover:bg-indigo-600 disabled:opacity-50 transition-colors"
+                className="px-5 py-2 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 disabled:opacity-50 transition-colors"
               >
                 Continue
               </button>
@@ -313,7 +313,7 @@ function CreateTemplateModal({ onClose, onCreated }: { onClose: () => void; onCr
               <button
                 onClick={handleCreate}
                 disabled={submitting}
-                className="px-5 py-2 bg-indigo-500 text-white rounded-xl text-sm font-semibold hover:bg-indigo-600 disabled:opacity-50 transition-colors flex items-center gap-2"
+                className="px-5 py-2 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 disabled:opacity-50 transition-colors flex items-center gap-2"
               >
                 {submitting ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />}
                 Save template
@@ -369,7 +369,7 @@ export default function TemplatesPage() {
             <p className="text-sm text-gray-400 mt-0.5">Create and manage WhatsApp Business templates for campaigns and automated messages.</p>
           </div>
           <button onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 bg-indigo-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-600 transition-colors shadow-sm shadow-indigo-200">
+            className="flex items-center gap-2 bg-teal-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors shadow-sm shadow-teal-200">
             <Plus size={15} /> New template
           </button>
         </div>
@@ -379,7 +379,7 @@ export default function TemplatesPage() {
           {(["all", "draft", "pending", "approved", "rejected"] as const).map(f => (
             <button key={f} onClick={() => setFilter(f)}
               className={cn("px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors",
-                filter === f ? "bg-[#0D1B4B] text-white" : "text-gray-500 hover:bg-gray-100"
+                filter === f ? "bg-[#0B1F3A] text-white" : "text-gray-500 hover:bg-gray-100"
               )}>
               {f} {f !== "all" && `(${templates.filter(t => t.status === f).length})`}
             </button>
@@ -397,7 +397,7 @@ export default function TemplatesPage() {
             <p className="text-sm text-gray-500 font-medium">No templates yet</p>
             <p className="text-xs text-gray-400 mt-1">Create your first template to start sending WhatsApp messages at scale.</p>
             <button onClick={() => setShowCreate(true)}
-              className="mt-4 flex items-center gap-2 bg-indigo-500 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-indigo-600 transition-colors mx-auto">
+              className="mt-4 flex items-center gap-2 bg-teal-500 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-teal-600 transition-colors mx-auto">
               <Plus size={14} /> Create template
             </button>
           </div>
@@ -433,7 +433,7 @@ export default function TemplatesPage() {
                         <button
                           onClick={() => submitMutation.mutate(tmpl.id)}
                           disabled={submitMutation.isPending}
-                          className="flex items-center gap-1.5 text-xs bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-indigo-600 transition-colors disabled:opacity-50"
+                          className="flex items-center gap-1.5 text-xs bg-teal-500 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-teal-600 transition-colors disabled:opacity-50"
                         >
                           {submitMutation.isPending ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}
                           Submit

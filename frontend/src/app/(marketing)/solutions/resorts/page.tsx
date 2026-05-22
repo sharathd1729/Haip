@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import {
   ArrowRight, MessageSquare, Phone, Inbox, Sparkles, Trees,
   Users, BarChart2, TrendingUp, Shield, ChevronRight, CheckCircle2, Wine, Bike, Star,
@@ -12,7 +12,7 @@ const painPoints = [
 ];
 
 const features = [
-  { icon: <Inbox size={20} />, color: "text-indigo-400", title: "Unified inbox across departments", desc: "Reservations, FOH, F&B, Spa, Activities — every WhatsApp / IG / call thread routes to the right team with full guest context, and a copy lands on the central guest record." },
+  { icon: <Inbox size={20} />, color: "text-teal-400", title: "Unified inbox across departments", desc: "Reservations, FOH, F&B, Spa, Activities — every WhatsApp / IG / call thread routes to the right team with full guest context, and a copy lands on the central guest record." },
   { icon: <Sparkles size={20} />, color: "text-cyan-400", title: "Multi-property AI Concierge", desc: "Trained per property on inventory, packages, F&B menus and activity calendars. Drafts replies that match each property's voice, in shadow mode by default." },
   { icon: <Wine size={20} />, color: "text-amber-400", title: "Ancillary revenue intelligence", desc: "HAIP surfaces missed F&B / spa / activity upsell opportunities on every call and chat. Weekly digest of which agents/properties consistently leave revenue on the table." },
   { icon: <Trees size={20} />, color: "text-green-400", title: "Per-property scoping", desc: "Resort A's FOH only sees Resort A. Group GM sees the whole portfolio. Role × Property × Department permissions, set once." },
@@ -37,7 +37,7 @@ const faqs = [
 
 export default function ResortsSolutionPage() {
   return (
-    <div className="bg-[#0D1B4B] text-white min-h-screen">
+    <div className="bg-[#0B1F3A] text-white min-h-screen">
       {/* HERO */}
       <section className="relative pt-32 pb-20 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -53,13 +53,13 @@ export default function ResortsSolutionPage() {
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.05] mb-6">
               One platform for the
               <br />
-              <span className="bg-gradient-to-r from-green-300 via-indigo-300 to-indigo-400 bg-clip-text text-transparent">whole resort.</span>
+              <span className="bg-gradient-to-r from-green-300 via-teal-300 to-teal-400 bg-clip-text text-transparent">whole resort.</span>
             </h1>
             <p className="text-lg text-white/55 max-w-xl mb-8 leading-relaxed">
               Reservations, FOH, F&amp;B, spa, activities — every department on one intelligent workspace. AI Concierge per property, auto-QA on every call, role-scoped access for staff at scale.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 mb-6">
-              <Link href="/register?plan=scale&segment=resorts" className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-indigo-500 hover:bg-indigo-400 text-white font-bold rounded-2xl transition-all shadow-2xl shadow-blue-500/30 hover:-translate-y-0.5">Start 14-day free trial <ArrowRight size={16} /></Link>
+              <Link href="/register?plan=scale&segment=resorts" className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-teal-500 hover:bg-teal-400 text-white font-bold rounded-2xl transition-all shadow-2xl shadow-teal-500/30 hover:-translate-y-0.5">Start 14-day free trial <ArrowRight size={16} /></Link>
               <Link href="/book-demo?segment=resorts" className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-2xl border border-white/10 transition-all">Book a 30-min demo</Link>
             </div>
             <p className="text-xs text-white/30">Multi-property · Multi-department · Indian-hosted &amp; DPDP-ready</p>
@@ -68,7 +68,7 @@ export default function ResortsSolutionPage() {
           {/* Hero visual: department routing */}
           <div className="lg:col-span-5">
             <div className="relative">
-              <div className="absolute -inset-4 bg-gradient-to-br from-green-500/20 to-indigo-500/10 rounded-3xl blur-2xl" />
+              <div className="absolute -inset-4 bg-gradient-to-br from-green-500/20 to-teal-500/10 rounded-3xl blur-2xl" />
               <div className="relative bg-[#0f2744] rounded-2xl border border-white/10 p-5 shadow-2xl shadow-black/40">
                 <div className="flex items-center justify-between mb-4">
                   <p className="text-xs font-semibold text-white/40 uppercase tracking-wider">Routing · Today, 14:42</p>
@@ -76,7 +76,7 @@ export default function ResortsSolutionPage() {
                 </div>
                 <div className="space-y-2">
                   {[
-                    { dept: "Reservations", icon: <Inbox size={12} />, color: "bg-indigo-500/15 text-indigo-300", count: 14, last: "Anniversary suite for Dec 20–24" },
+                    { dept: "Reservations", icon: <Inbox size={12} />, color: "bg-teal-500/15 text-teal-300", count: 14, last: "Anniversary suite for Dec 20–24" },
                     { dept: "F&B", icon: <Wine size={12} />, color: "bg-amber-500/15 text-amber-300", count: 8, last: "Vegan dinner · 6pm · 4 pax" },
                     { dept: "Spa", icon: <Sparkles size={12} />, color: "bg-purple-500/15 text-purple-300", count: 5, last: "Couples massage · pre-arrival" },
                     { dept: "Activities", icon: <Bike size={12} />, color: "bg-cyan-500/15 text-cyan-300", count: 6, last: "Kayak hire · family of 5" },
@@ -94,9 +94,9 @@ export default function ResortsSolutionPage() {
                     </div>
                   ))}
                 </div>
-                <div className="mt-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-3 flex items-start gap-2">
-                  <Sparkles size={12} className="text-indigo-400 flex-shrink-0 mt-0.5" />
-                  <p className="text-[11px] text-indigo-200 leading-relaxed">3 ancillary upsell suggestions ready · Spa for Villa 7 family, photographer for honeymoon couple, helicopter transfer for VIP.</p>
+                <div className="mt-4 bg-teal-500/10 border border-teal-500/20 rounded-xl p-3 flex items-start gap-2">
+                  <Sparkles size={12} className="text-teal-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-teal-200 leading-relaxed">3 ancillary upsell suggestions ready · Spa for Villa 7 family, photographer for honeymoon couple, helicopter transfer for VIP.</p>
                 </div>
               </div>
             </div>
@@ -163,9 +163,9 @@ export default function ResortsSolutionPage() {
       <section className="py-24 px-5 sm:px-8">
         <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
           <div>
-            <div className="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 rounded-full px-3 py-1.5 mb-6">
-              <Users size={12} className="text-indigo-400" />
-              <span className="text-xs font-semibold text-indigo-300">Roles &amp; permissions</span>
+            <div className="inline-flex items-center gap-2 bg-teal-500/10 border border-teal-500/20 rounded-full px-3 py-1.5 mb-6">
+              <Users size={12} className="text-teal-400" />
+              <span className="text-xs font-semibold text-teal-300">Roles &amp; permissions</span>
             </div>
             <h2 className="text-3xl font-black tracking-tight mb-4 leading-tight">A workspace tuned to each role — eleven by default</h2>
             <p className="text-white/55 text-base leading-relaxed mb-6">
@@ -182,7 +182,7 @@ export default function ResortsSolutionPage() {
                 "QA / Coach — Rubrics, agent trends, coaching nudges",
               ].map(item => (
                 <li key={item} className="flex items-start gap-3 text-sm text-white/60">
-                  <CheckCircle2 size={16} className="text-indigo-400 flex-shrink-0 mt-0.5" /> {item}
+                  <CheckCircle2 size={16} className="text-teal-400 flex-shrink-0 mt-0.5" /> {item}
                 </li>
               ))}
             </ul>
@@ -190,7 +190,7 @@ export default function ResortsSolutionPage() {
           <div className="grid grid-cols-2 gap-3">
             {[
               { role: "Owner", desc: "Portfolio · 7 properties", color: "from-navy-2 to-navy", initials: "OG" },
-              { role: "Reservations", desc: "All villas · pipeline", color: "from-indigo-500 to-indigo-700", initials: "RL" },
+              { role: "Reservations", desc: "All villas · pipeline", color: "from-teal-500 to-teal-700", initials: "RL" },
               { role: "Concierge", desc: "Today · queue + queue", color: "from-purple-500 to-purple-700", initials: "CG" },
               { role: "Marketing", desc: "Campaigns · ROAS", color: "from-amber-500 to-amber-700", initials: "MK" },
               { role: "FOH", desc: "Property · today", color: "from-cyan-500 to-cyan-700", initials: "FH" },
@@ -246,7 +246,7 @@ export default function ResortsSolutionPage() {
 
       {/* CTA */}
       <section className="py-24 px-5 sm:px-8 bg-[#0a1b30] relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 via-transparent to-indigo-500/5 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 via-transparent to-teal-500/5 pointer-events-none" />
         <div className="max-w-3xl mx-auto text-center relative">
           <div className="w-16 h-16 rounded-2xl bg-green-500/20 border border-green-500/30 flex items-center justify-center mx-auto mb-6">
             <Trees size={28} className="text-green-400" />
@@ -254,7 +254,7 @@ export default function ResortsSolutionPage() {
           <h2 className="text-3xl sm:text-5xl font-black tracking-tight mb-4">Run a resort group like a single resort</h2>
           <p className="text-white/50 text-lg mb-10 max-w-xl mx-auto">One inbox. One AI brain. One source of truth — no matter how many properties, departments and staff you grow into.</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link href="/register?plan=scale&segment=resorts" className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 bg-indigo-500 hover:bg-indigo-400 text-white font-bold rounded-2xl transition-all shadow-2xl shadow-blue-500/30 hover:-translate-y-0.5">Start free trial <ArrowRight size={18} /></Link>
+            <Link href="/register?plan=scale&segment=resorts" className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 bg-teal-500 hover:bg-teal-400 text-white font-bold rounded-2xl transition-all shadow-2xl shadow-teal-500/30 hover:-translate-y-0.5">Start free trial <ArrowRight size={18} /></Link>
             <Link href="/book-demo?segment=resorts" className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-2xl border border-white/10 transition-all">Talk to sales</Link>
           </div>
         </div>

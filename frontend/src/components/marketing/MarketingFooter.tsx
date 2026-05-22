@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 
 const links = {
   Product: [
@@ -46,11 +46,11 @@ export function MarketingFooter() {
           {/* Brand */}
           <div className="col-span-2 space-y-4">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center text-[#0a1f3a] font-bold text-sm">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-[#0a1f3a] font-bold text-sm">
                 H
               </div>
               <span className="text-white font-bold text-lg tracking-tight">
-                HA<span className="text-indigo-400">IP</span>
+                HA<span className="text-teal-400">IP</span>
               </span>
             </div>
             <p className="text-sm text-white/40 leading-relaxed max-w-xs">

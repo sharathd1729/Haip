@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useState, FormEvent } from "react";
@@ -47,18 +47,18 @@ export default function ContactPage() {
   }
 
   return (
-    <div className="bg-[#0D1B4B] text-white min-h-screen">
+    <div className="bg-[#0B1F3A] text-white min-h-screen">
       <section className="relative pt-32 pb-24 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full bg-indigo-500/8 blur-[120px]" />
+          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full bg-teal-500/8 blur-[120px]" />
           <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)", backgroundSize: "32px 32px" }} />
         </div>
 
         <div className="relative max-w-6xl mx-auto px-5 sm:px-8">
           <div className="text-center mb-14">
-            <div className="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 rounded-full px-4 py-1.5 mb-5">
-              <Sparkles size={12} className="text-indigo-400" />
-              <span className="text-xs font-semibold text-indigo-300 uppercase tracking-wider">We&apos;d love to hear from you</span>
+            <div className="inline-flex items-center gap-2 bg-teal-500/10 border border-teal-500/20 rounded-full px-4 py-1.5 mb-5">
+              <Sparkles size={12} className="text-teal-400" />
+              <span className="text-xs font-semibold text-teal-300 uppercase tracking-wider">We&apos;d love to hear from you</span>
             </div>
             <h1 className="text-4xl sm:text-5xl font-black tracking-tight mb-4">Talk to us</h1>
             <p className="text-white/55 text-lg max-w-xl mx-auto leading-relaxed">
@@ -69,7 +69,7 @@ export default function ContactPage() {
           {/* Channel split */}
           <div className="grid sm:grid-cols-3 gap-4 mb-12">
             <Channel
-              icon={<Handshake size={20} className="text-indigo-400" />}
+              icon={<Handshake size={20} className="text-teal-400" />}
               tone="teal"
               title="Sales"
               subtitle="Pricing · demo · onboarding"
@@ -100,8 +100,8 @@ export default function ContactPage() {
             <div className="lg:col-span-3 bg-[#0f2744] border border-white/10 rounded-2xl p-7 sm:p-8 shadow-2xl shadow-black/30">
               {success ? (
                 <div className="text-center py-10">
-                  <div className="w-16 h-16 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center mx-auto mb-5">
-                    <CheckCircle2 size={32} className="text-indigo-400" />
+                  <div className="w-16 h-16 rounded-2xl bg-teal-500/20 border border-teal-500/30 flex items-center justify-center mx-auto mb-5">
+                    <CheckCircle2 size={32} className="text-teal-400" />
                   </div>
                   <h3 className="text-xl font-bold mb-2">Got it, {form.fullName.split(" ")[0]} — message received.</h3>
                   <p className="text-sm text-white/55 max-w-sm mx-auto">
@@ -147,7 +147,7 @@ export default function ContactPage() {
                     <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm rounded-xl px-4 py-3">{error}</div>
                   )}
 
-                  <button type="submit" disabled={submitting} className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-2xl transition-all shadow-xl shadow-blue-500/30">
+                  <button type="submit" disabled={submitting} className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-teal-500 hover:bg-teal-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-2xl transition-all shadow-xl shadow-teal-500/30">
                     {submitting ? "Sending…" : (<>Send message <ArrowRight size={16} /></>)}
                   </button>
                 </form>
@@ -158,7 +158,7 @@ export default function ContactPage() {
             <aside className="lg:col-span-2 space-y-4">
               <InfoCard icon={<Clock size={16} className="text-amber-400" />} title="Response times" lines={["Sales: < 2 working hours", "Support: < 4 working hours", "Partnerships: < 1 working day"]} />
               <InfoCard icon={<MapPin size={16} className="text-rose-400" />} title="Where we&apos;re based" lines={["HAIP Technologies Pvt. Ltd.", "Bengaluru, Karnataka, India"]} />
-              <InfoCard icon={<Mail size={16} className="text-indigo-400" />} title="Quick links" lines={[]}>
+              <InfoCard icon={<Mail size={16} className="text-teal-400" />} title="Quick links" lines={[]}>
                 <div className="space-y-2 text-sm">
                   <a className="block text-white/60 hover:text-white" href="mailto:gen.haip@gmail.com">gen.haip@gmail.com</a>
                   <a className="block text-white/60 hover:text-white" href="mailto:support@haip.app">support@haip.app</a>
@@ -210,13 +210,13 @@ function Channel({ icon, tone, title, subtitle, primary, secondary }: {
   primary: { label: string; href: string };
   secondary: { label: string; href: string };
 }) {
-  const ring = tone === "teal" ? "hover:border-indigo-500/30" : tone === "amber" ? "hover:border-amber-500/30" : "hover:border-cyan-500/30";
+  const ring = tone === "teal" ? "hover:border-teal-500/30" : tone === "amber" ? "hover:border-amber-500/30" : "hover:border-cyan-500/30";
   return (
     <div className={`bg-[#0f2744]/70 border border-white/8 ${ring} rounded-2xl p-6 transition-colors`}>
       <div className="w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center mb-4">{icon}</div>
       <h3 className="text-base font-bold text-white mb-1">{title}</h3>
       <p className="text-xs text-white/40 mb-5">{subtitle}</p>
-      <Link href={primary.href} className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-400 hover:text-indigo-300 mb-2.5">
+      <Link href={primary.href} className="inline-flex items-center gap-1.5 text-sm font-semibold text-teal-400 hover:text-teal-300 mb-2.5">
         {primary.label} <ArrowRight size={14} />
       </Link>
       <Link href={secondary.href} className="block text-xs text-white/50 hover:text-white/80 transition-colors">

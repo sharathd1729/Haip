@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import {
   ArrowRight, MessageSquare, Phone, Inbox, Sparkles,
   Hotel, Users, Star, BarChart2, TrendingUp, Shield, ChevronRight, CheckCircle2,
@@ -28,7 +28,7 @@ const painPoints = [
 ];
 
 const features = [
-  { icon: <Inbox size={20} />, color: "text-indigo-400", title: "Unified inbox for every channel", desc: "WhatsApp, Instagram, IVR calls, and direct web enquiries — one inbox, one timeline per guest, with auto-routing by language and shift." },
+  { icon: <Inbox size={20} />, color: "text-teal-400", title: "Unified inbox for every channel", desc: "WhatsApp, Instagram, IVR calls, and direct web enquiries — one inbox, one timeline per guest, with auto-routing by language and shift." },
   { icon: <Sparkles size={20} />, color: "text-cyan-400", title: "24/7 AI Concierge", desc: "Drafts replies on WhatsApp & web chat using your room types, packages, F&B menus and house rules. Shadow mode for the first 30 days, then autonomous on high-confidence enquiries." },
   { icon: <Phone size={20} />, color: "text-purple-400", title: "Every front-desk call auto-reviewed", desc: "Calls forward to your reservations team's mobile via CallerDesk or Acefone. HAIP pulls the recording, transcribes it, and scores it on your QA rubric — 100% coverage, no manual sampling." },
   { icon: <Hotel size={20} />, color: "text-amber-400", title: "Multi-property awareness", desc: "Per-property phone numbers, per-property AI knowledge bases, per-property FOH staff scoping. Role-based access so Property A's team only sees Property A." },
@@ -53,7 +53,7 @@ const faqs = [
 
 export default function HotelsSolutionPage() {
   return (
-    <div className="bg-[#0D1B4B] text-white min-h-screen">
+    <div className="bg-[#0B1F3A] text-white min-h-screen">
       {/* HERO */}
       <section className="relative pt-32 pb-20 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -69,13 +69,13 @@ export default function HotelsSolutionPage() {
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.05] mb-6">
               Front-desk excellence,
               <br />
-              <span className="bg-gradient-to-r from-amber-300 via-indigo-300 to-indigo-400 bg-clip-text text-transparent">running on autopilot.</span>
+              <span className="bg-gradient-to-r from-amber-300 via-teal-300 to-teal-400 bg-clip-text text-transparent">running on autopilot.</span>
             </h1>
             <p className="text-lg text-white/55 max-w-xl mb-8 leading-relaxed">
               HAIP is the unified inbox and AI concierge for boutique hotels in India. Capture every enquiry across WhatsApp, IG and calls — convert them direct, recover OTA commissions, and remember every guest who walks through your door.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 mb-6">
-              <Link href="/register?plan=growth&segment=hotels" className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-indigo-500 hover:bg-indigo-400 text-white font-bold rounded-2xl transition-all shadow-2xl shadow-blue-500/30 hover:-translate-y-0.5">Start 14-day free trial <ArrowRight size={16} /></Link>
+              <Link href="/register?plan=growth&segment=hotels" className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-teal-500 hover:bg-teal-400 text-white font-bold rounded-2xl transition-all shadow-2xl shadow-teal-500/30 hover:-translate-y-0.5">Start 14-day free trial <ArrowRight size={16} /></Link>
               <Link href="/book-demo?segment=hotels" className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-2xl border border-white/10 transition-all">Book a 30-min demo</Link>
             </div>
             <p className="text-xs text-white/30">BYOC telephony · Works with your existing PMS · Indian-hosted</p>
@@ -84,15 +84,15 @@ export default function HotelsSolutionPage() {
           {/* Hero visual: OTA-vs-direct mix card */}
           <div className="lg:col-span-5">
             <div className="relative">
-              <div className="absolute -inset-4 bg-gradient-to-br from-amber-500/20 to-indigo-500/10 rounded-3xl blur-2xl" />
+              <div className="absolute -inset-4 bg-gradient-to-br from-amber-500/20 to-teal-500/10 rounded-3xl blur-2xl" />
               <div className="relative bg-[#0f2744] rounded-2xl border border-white/10 p-5 shadow-2xl shadow-black/40">
                 <div className="flex items-center justify-between mb-4">
                   <p className="text-xs font-semibold text-white/40 uppercase tracking-wider">Booking mix · Last 30 days</p>
-                  <span className="text-[10px] px-2 py-1 rounded-md bg-indigo-500/20 text-indigo-300 font-semibold">+14% direct</span>
+                  <span className="text-[10px] px-2 py-1 rounded-md bg-teal-500/20 text-teal-300 font-semibold">+14% direct</span>
                 </div>
                 <div className="space-y-3 mb-4">
                   {[
-                    { name: "Direct (HAIP inbox)", pct: 58, color: "bg-indigo-500", count: "84 bookings" },
+                    { name: "Direct (HAIP inbox)", pct: 58, color: "bg-teal-500", count: "84 bookings" },
                     { name: "Booking.com", pct: 22, color: "bg-blue-500", count: "32 bookings · ₹84K commission" },
                     { name: "Airbnb", pct: 14, color: "bg-rose-500", count: "20 bookings · ₹56K commission" },
                     { name: "Walk-in / other", pct: 6, color: "bg-white/30", count: "9 bookings" },
@@ -109,9 +109,9 @@ export default function HotelsSolutionPage() {
                     </div>
                   ))}
                 </div>
-                <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-3 flex items-start gap-2">
-                  <TrendingUp size={14} className="text-indigo-400 flex-shrink-0 mt-0.5" />
-                  <p className="text-[11px] text-indigo-200 leading-relaxed"><span className="font-bold">₹1.4L saved this month</span> by closing direct via the unified inbox instead of OTAs.</p>
+                <div className="bg-teal-500/10 border border-teal-500/20 rounded-xl p-3 flex items-start gap-2">
+                  <TrendingUp size={14} className="text-teal-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-teal-200 leading-relaxed"><span className="font-bold">₹1.4L saved this month</span> by closing direct via the unified inbox instead of OTAs.</p>
                 </div>
               </div>
             </div>
@@ -207,8 +207,8 @@ export default function HotelsSolutionPage() {
                 { step: "IVR greets + consent", detail: "Plays brand greeting, captures recording consent", color: "bg-purple-500/15 text-purple-300" },
                 { step: "Forward to agent mobile", detail: "Round-robin or sticky to on-duty reservations staff", color: "bg-amber-500/15 text-amber-300" },
                 { step: "Normal phone conversation", detail: "Agent takes the call on their own phone, no app", color: "bg-white/5 text-white/60" },
-                { step: "Webhook → HAIP", detail: "Recording pulled, transcribed, AI-judged, stored on S3", color: "bg-indigo-500/15 text-indigo-300" },
-                { step: "Wrap-up in 90 sec", detail: "AI summary + disposition + next-action in cockpit", color: "bg-indigo-500/15 text-indigo-300" },
+                { step: "Webhook → HAIP", detail: "Recording pulled, transcribed, AI-judged, stored on S3", color: "bg-teal-500/15 text-teal-300" },
+                { step: "Wrap-up in 90 sec", detail: "AI summary + disposition + next-action in cockpit", color: "bg-teal-500/15 text-teal-300" },
               ].map((s, i) => (
                 <div key={s.step} className="flex items-start gap-3">
                   <div className={`w-7 h-7 rounded-lg ${s.color} flex items-center justify-center text-[11px] font-bold flex-shrink-0`}>{i + 1}</div>
@@ -265,7 +265,7 @@ export default function HotelsSolutionPage() {
 
       {/* CTA */}
       <section className="py-24 px-5 sm:px-8 bg-[#0a1b30] relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 via-transparent to-indigo-500/5 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 via-transparent to-teal-500/5 pointer-events-none" />
         <div className="max-w-3xl mx-auto text-center relative">
           <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center mx-auto mb-6">
             <Hotel size={28} className="text-amber-400" />
@@ -273,7 +273,7 @@ export default function HotelsSolutionPage() {
           <h2 className="text-3xl sm:text-5xl font-black tracking-tight mb-4">Turn your front desk into your growth engine</h2>
           <p className="text-white/50 text-lg mb-10 max-w-xl mx-auto">14-day free trial · BYOC telephony · DPDP-compliant. Live in under 20 minutes.</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link href="/register?plan=growth&segment=hotels" className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 bg-indigo-500 hover:bg-indigo-400 text-white font-bold rounded-2xl transition-all shadow-2xl shadow-blue-500/30 hover:-translate-y-0.5">Start free trial <ArrowRight size={18} /></Link>
+            <Link href="/register?plan=growth&segment=hotels" className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 bg-teal-500 hover:bg-teal-400 text-white font-bold rounded-2xl transition-all shadow-2xl shadow-teal-500/30 hover:-translate-y-0.5">Start free trial <ArrowRight size={18} /></Link>
             <Link href="/book-demo?segment=hotels" className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-2xl border border-white/10 transition-all">Talk to sales</Link>
           </div>
         </div>

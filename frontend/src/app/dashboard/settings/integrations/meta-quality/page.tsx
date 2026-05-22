@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 /**
  * S7 — Meta WABA Quality Rating widget
@@ -207,7 +207,7 @@ export default function MetaQualityPage() {
       ) : isError ? (
         <div className="bg-gray-50 border border-gray-200 rounded-2xl p-8 text-center">
           <p className="text-sm text-gray-500">Could not load quality data. Make sure WhatsApp is connected and the poll task is running.</p>
-          <Link href="/dashboard/settings/integrations" className="text-sm text-indigo-600 hover:underline mt-2 inline-block">
+          <Link href="/dashboard/settings/integrations" className="text-sm text-teal-600 hover:underline mt-2 inline-block">
             Check integrations →
           </Link>
         </div>

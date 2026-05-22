@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -41,7 +41,7 @@ interface Invitation {
 const ROLES = [
   { value: "owner",        label: "Owner",        description: "Full access to all features and billing", icon: <Crown size={13} className="text-amber-500" /> },
   { value: "manager",      label: "Manager",       description: "Manage team, guests, and operations", icon: <Shield size={13} className="text-blue-500" /> },
-  { value: "concierge",    label: "Concierge",     description: "Handle calls, inbox, and guest requests", icon: <Users size={13} className="text-indigo-500" /> },
+  { value: "concierge",    label: "Concierge",     description: "Handle calls, inbox, and guest requests", icon: <Users size={13} className="text-teal-500" /> },
   { value: "reservations", label: "Reservations",  description: "Manage inquiries and guest bookings", icon: <Settings size={13} className="text-purple-500" /> },
   { value: "marketing",    label: "Marketing",     description: "Campaigns, templates, and messaging", icon: <Mail size={13} className="text-pink-500" /> },
   { value: "compliance",   label: "Compliance",    description: "Audit logs and data compliance only", icon: <Eye size={13} className="text-gray-500" /> },
@@ -51,7 +51,7 @@ const ROLES = [
 const ROLE_COLORS: Record<string, string> = {
   owner:        "bg-amber-50 text-amber-700 border-amber-200",
   manager:      "bg-blue-50 text-blue-700 border-blue-200",
-  concierge:    "bg-indigo-50 text-indigo-700 border-indigo-200",
+  concierge:    "bg-teal-50 text-teal-700 border-teal-200",
   reservations: "bg-purple-50 text-purple-700 border-purple-200",
   marketing:    "bg-pink-50 text-pink-700 border-pink-200",
   compliance:   "bg-gray-50 text-gray-700 border-gray-200",
@@ -74,7 +74,7 @@ function RoleBadge({ role }: { role: string }) {
 
 function Avatar({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
   const initials = name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
-  const colors = ["bg-indigo-500", "bg-blue-500", "bg-purple-500", "bg-amber-500", "bg-pink-500"];
+  const colors = ["bg-teal-500", "bg-blue-500", "bg-purple-500", "bg-amber-500", "bg-pink-500"];
   const color = colors[name.charCodeAt(0) % colors.length];
   return (
     <div className={cn(
@@ -143,7 +143,7 @@ function InviteModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
                 value={form.name}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                 placeholder="Ravi Kumar"
-                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"
               />
             </div>
             <div>
@@ -153,7 +153,7 @@ function InviteModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
                 value={form.email}
                 onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                 placeholder="ravi@villaname.com"
-                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"
               />
             </div>
           </div>
@@ -167,16 +167,16 @@ function InviteModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
                   className={cn(
                     "flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all",
                     form.role === r.value
-                      ? "border-indigo-400 bg-indigo-50/50"
+                      ? "border-teal-400 bg-teal-50/50"
                       : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                   )}
                 >
                   <input type="radio" name="role" value={r.value} checked={form.role === r.value}
                     onChange={() => setForm(f => ({ ...f, role: r.value }))} className="sr-only" />
                   <div className={cn("w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0",
-                    form.role === r.value ? "border-indigo-500" : "border-gray-300"
+                    form.role === r.value ? "border-teal-500" : "border-gray-300"
                   )}>
-                    {form.role === r.value && <div className="w-2 h-2 rounded-full bg-indigo-500" />}
+                    {form.role === r.value && <div className="w-2 h-2 rounded-full bg-teal-500" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
@@ -203,7 +203,7 @@ function InviteModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
             <button
               type="submit"
               disabled={submitting}
-              className="flex-1 py-2.5 bg-indigo-500 text-white rounded-xl text-sm font-semibold hover:bg-indigo-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex-1 py-2.5 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {submitting ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
               Send Invitation
@@ -249,8 +249,8 @@ function InvitationLinkModal({ invitation, onClose }: { invitation: Invitation; 
           <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
         </div>
         <div className="px-6 py-5 space-y-4">
-          <div className="bg-indigo-50 rounded-xl p-4 text-center">
-            <CheckCircle2 size={28} className="text-indigo-500 mx-auto mb-2" />
+          <div className="bg-teal-50 rounded-xl p-4 text-center">
+            <CheckCircle2 size={28} className="text-teal-500 mx-auto mb-2" />
             <p className="text-sm font-semibold text-gray-800">{invitation.name} has been invited as <span className="capitalize">{invitation.role.replace("_", " ")}</span></p>
             <p className="text-xs text-gray-500 mt-1">Link expires in 7 days</p>
           </div>
@@ -273,7 +273,7 @@ function InvitationLinkModal({ invitation, onClose }: { invitation: Invitation; 
               <button
                 onClick={copy}
                 className={cn("flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-lg transition-colors flex-shrink-0",
-                  copied ? "text-green-600 bg-green-50" : "text-indigo-600 hover:bg-indigo-50"
+                  copied ? "text-green-600 bg-green-50" : "text-teal-600 hover:bg-teal-50"
                 )}
               >
                 {copied ? <CheckCircle2 size={12} /> : <Copy size={12} />}
@@ -286,7 +286,7 @@ function InvitationLinkModal({ invitation, onClose }: { invitation: Invitation; 
           </div>
         </div>
         <div className="px-6 pb-5">
-          <button onClick={onClose} className="w-full py-2.5 bg-[#0D1B4B] text-white rounded-xl text-sm font-semibold hover:bg-[#1a2864] transition-colors">
+          <button onClick={onClose} className="w-full py-2.5 bg-[#0B1F3A] text-white rounded-xl text-sm font-semibold hover:bg-[#163458] transition-colors">
             Done
           </button>
         </div>
@@ -346,7 +346,7 @@ function RoleDropdown({ currentRole, userId, onChanged }: {
                 onClick={() => changeRole(r.value)}
                 className={cn(
                   "w-full text-left px-3 py-2 text-xs hover:bg-gray-50 flex items-center gap-2 transition-colors",
-                  r.value === currentRole && "bg-indigo-50"
+                  r.value === currentRole && "bg-teal-50"
                 )}
               >
                 {r.icon}
@@ -354,7 +354,7 @@ function RoleDropdown({ currentRole, userId, onChanged }: {
                   <div className="font-semibold text-gray-800">{r.label}</div>
                   <div className="text-[10px] text-gray-400">{r.description}</div>
                 </div>
-                {r.value === currentRole && <CheckCircle2 size={11} className="text-indigo-500 ml-auto" />}
+                {r.value === currentRole && <CheckCircle2 size={11} className="text-teal-500 ml-auto" />}
               </button>
             ))}
           </div>
@@ -431,7 +431,7 @@ export default function TeamPage() {
           </div>
           <button
             onClick={() => setShowInviteModal(true)}
-            className="flex items-center gap-2 bg-indigo-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-600 transition-colors shadow-sm shadow-indigo-200"
+            className="flex items-center gap-2 bg-teal-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors shadow-sm shadow-teal-200"
           >
             <UserPlus size={15} /> Invite member
           </button>
@@ -445,7 +445,7 @@ export default function TeamPage() {
               onClick={() => setTab(t)}
               className={cn(
                 "px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors",
-                tab === t ? "bg-[#0D1B4B] text-white" : "text-gray-500 hover:bg-gray-100"
+                tab === t ? "bg-[#0B1F3A] text-white" : "text-gray-500 hover:bg-gray-100"
               )}
             >
               {t === "invitations" ? `Pending Invites ${pendingInvitations.length > 0 ? `(${pendingInvitations.length})` : ""}` : "Members"}
@@ -573,7 +573,7 @@ function MemberRow({ member, onRoleChanged, onToggleActive }: {
         <div className="flex items-center gap-2 mb-0.5">
           <span className="text-sm font-semibold text-gray-900 truncate">{member.name}</span>
           {member.is_mfa_enabled && (
-            <span title="MFA enabled"><Shield size={11} className="text-indigo-500 flex-shrink-0" /></span>
+            <span title="MFA enabled"><Shield size={11} className="text-teal-500 flex-shrink-0" /></span>
           )}
         </div>
         <span className="text-xs text-gray-400 truncate">{member.email}</span>
@@ -668,7 +668,7 @@ function InvitationRow({ invitation, onRevoke }: { invitation: Invitation; onRev
           </a>
           <button
             onClick={copy}
-            className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors"
+            className="text-xs text-teal-600 hover:text-teal-800 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-teal-50 transition-colors"
             title="Copy invitation link"
           >
             {copied ? <CheckCircle2 size={12} /> : <Copy size={12} />}

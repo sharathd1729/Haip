@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { Sparkles, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -41,7 +41,7 @@ export function AIDraftPanel({
             className={cn(
               "flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg transition-colors border",
               tone === t.value
-                ? "bg-indigo-100 border-indigo-300 text-indigo-700"
+                ? "bg-teal-100 border-teal-300 text-teal-700"
                 : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"
             )}
           >
@@ -58,7 +58,7 @@ export function AIDraftPanel({
         title="Regenerate draft with current tone"
         className={cn(
           "flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-lg border transition-colors",
-          "text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border-indigo-200 disabled:opacity-50"
+          "text-teal-600 bg-teal-50 hover:bg-teal-100 border-teal-200 disabled:opacity-50"
         )}
       >
         <RefreshCw size={11} className={isPending ? "animate-spin" : ""} />

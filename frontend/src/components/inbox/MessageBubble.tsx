@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { CheckCheck, Check, Clock, RotateCw, Sparkles, ThumbsUp, ThumbsDown, Edit2, Reply, StickyNote } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -33,7 +33,7 @@ const STATUS_META: Record<
   queued:    { icon: <Clock size={12} />,        label: "Queued",    color: "text-gray-300" },
   sent:      { icon: <Check size={12} />,        label: "Sent",      color: "text-gray-400" },
   delivered: { icon: <CheckCheck size={12} />,   label: "Delivered", color: "text-gray-400" },
-  read:      { icon: <CheckCheck size={12} />,   label: "Read",      color: "text-indigo-400" },
+  read:      { icon: <CheckCheck size={12} />,   label: "Read",      color: "text-teal-400" },
   failed:    { icon: <RotateCw size={12} />,     label: "Failed",    color: "text-red-400" },
 };
 
@@ -111,18 +111,18 @@ export function MessageBubble({
             "px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed",
             isOut
               ? isAiDraft
-                ? "bg-indigo-50 border border-indigo-200 text-gray-800 rounded-br-sm"
+                ? "bg-teal-50 border border-teal-200 text-gray-800 rounded-br-sm"
                 : isFailed
                 ? "bg-red-50 border border-red-200 text-gray-800 rounded-br-sm"
-                : "bg-[#0D1B4B] text-white rounded-br-sm"
+                : "bg-[#0B1F3A] text-white rounded-br-sm"
               : "bg-white border border-gray-100 shadow-sm text-gray-800 rounded-bl-sm"
           )}>
             {isAiDraft && (
-              <div className="flex items-center gap-1.5 mb-1.5 pb-1.5 border-b border-indigo-100">
-                <Sparkles size={12} className="text-indigo-500" />
-                <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wide">AI Draft</span>
+              <div className="flex items-center gap-1.5 mb-1.5 pb-1.5 border-b border-teal-100">
+                <Sparkles size={12} className="text-teal-500" />
+                <span className="text-[10px] font-bold text-teal-600 uppercase tracking-wide">AI Draft</span>
                 {aiConfidence != null && (
-                  <span className="ml-auto text-[10px] text-indigo-500 font-mono">
+                  <span className="ml-auto text-[10px] text-teal-500 font-mono">
                     {Math.round(aiConfidence * 100)}%
                   </span>
                 )}
@@ -137,7 +137,7 @@ export function MessageBubble({
               onClick={() => onReply(id)}
               title="Reply to this message"
               className={cn(
-                "absolute top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-400 hover:text-indigo-600 transition-colors",
+                "absolute top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-400 hover:text-teal-600 transition-colors",
                 isOut ? "-left-8" : "-right-8"
               )}
             >
@@ -167,7 +167,7 @@ export function MessageBubble({
           <div className="flex items-center gap-1.5 mt-0.5">
             <button
               onClick={() => onApprove?.(id)}
-              className="flex items-center gap-1 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2.5 py-1 rounded-lg transition-colors"
+              className="flex items-center gap-1 text-xs font-semibold text-teal-600 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2.5 py-1 rounded-lg transition-colors"
             >
               <ThumbsUp size={11} /> Approve
             </button>

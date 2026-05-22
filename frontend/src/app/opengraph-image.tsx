@@ -1,4 +1,4 @@
-﻿import { ImageResponse } from "next/og";
+import { ImageResponse } from "next/og";
 
 export const runtime = "edge";
 export const alt = "HAIP — Hospitality AI Intelligence Platform";
@@ -10,7 +10,7 @@ export default function OGImage() {
     (
       <div
         style={{
-          background: "#0D1B4B",
+          background: "#0B1F3A",
           width: "100%",
           height: "100%",
           display: "flex",
@@ -26,14 +26,14 @@ export default function OGImage() {
             width: 100,
             height: 100,
             borderRadius: 24,
-            background: "#4361EE",
+            background: "#14b8a6",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             marginBottom: 32,
           }}
         >
-          <span style={{ color: "#0D1B4B", fontSize: 56, fontWeight: 900 }}>H</span>
+          <span style={{ color: "#0B1F3A", fontSize: 56, fontWeight: 900 }}>H</span>
         </div>
 
         {/* Brand name */}
@@ -48,7 +48,7 @@ export default function OGImage() {
           Hospitality AI Intelligence Platform
         </p>
 
-        <p style={{ color: "#4361EE", fontSize: 22, marginTop: 16, textAlign: "center" }}>
+        <p style={{ color: "#14b8a6", fontSize: 22, marginTop: 16, textAlign: "center" }}>
           Unified inbox · AI call intelligence · Guest CRM
         </p>
 

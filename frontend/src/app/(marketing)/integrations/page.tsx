@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { ArrowRight, Check } from "lucide-react";
 
 const integrations = [
@@ -14,10 +14,10 @@ const integrations = [
 
 export default function IntegrationsMarketingPage() {
   return (
-    <div className="bg-[#0D1B4B] text-white min-h-screen pt-24">
+    <div className="bg-[#0B1F3A] text-white min-h-screen pt-24">
       <div className="max-w-6xl mx-auto px-5 sm:px-8 py-16">
         <div className="text-center mb-16">
-          <p className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-3">Integrations</p>
+          <p className="text-xs font-bold text-teal-400 uppercase tracking-widest mb-3">Integrations</p>
           <h1 className="text-4xl sm:text-5xl font-black tracking-tight mb-4">Works with your existing tools</h1>
           <p className="text-white/45 text-xl max-w-xl mx-auto">
             HAIP connects to the platforms you already use. Set up in minutes, not days.
@@ -39,11 +39,11 @@ export default function IntegrationsMarketingPage() {
           ))}
         </div>
 
-        <div className="bg-[#0f2744] border border-indigo-500/20 rounded-2xl p-8 text-center">
+        <div className="bg-[#0f2744] border border-teal-500/20 rounded-2xl p-8 text-center">
           <h2 className="text-xl font-black mb-3">Don&apos;t see your tool?</h2>
           <p className="text-white/45 mb-6">We&apos;re constantly adding new integrations. Vote for what you need or reach out to our team.</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link href="/register" className="px-6 py-3 bg-indigo-500 hover:bg-indigo-400 text-white font-bold rounded-xl inline-flex items-center gap-2">
+            <Link href="/register" className="px-6 py-3 bg-teal-500 hover:bg-teal-400 text-white font-bold rounded-xl inline-flex items-center gap-2">
               Start free trial <ArrowRight size={16} />
             </Link>
             <a href="mailto:integrations@haip.app" className="px-6 py-3 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-xl border border-white/10">

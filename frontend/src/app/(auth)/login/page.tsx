@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState, useEffect, Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -134,8 +134,8 @@ function LoginForm() {
       </div>
 
       {successMsg && (
-        <div className="mb-5 p-3.5 bg-indigo-50 border border-indigo-200 rounded-xl text-indigo-700 text-sm flex items-start gap-2">
-          <svg className="w-4 h-4 mt-0.5 flex-shrink-0 fill-indigo-500" viewBox="0 0 20 20">
+        <div className="mb-5 p-3.5 bg-teal-50 border border-teal-200 rounded-xl text-teal-700 text-sm flex items-start gap-2">
+          <svg className="w-4 h-4 mt-0.5 flex-shrink-0 fill-teal-500" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
           </svg>
           {successMsg}
@@ -161,7 +161,7 @@ function LoginForm() {
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
               placeholder="you@company.com"
             />
           </div>
@@ -169,7 +169,7 @@ function LoginForm() {
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-sm font-medium text-gray-700">Password</label>
-              <Link href="/forgot-password" className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
+              <Link href="/forgot-password" className="text-xs text-teal-600 hover:text-teal-700 font-medium">
                 Forgot password?
               </Link>
             </div>
@@ -180,7 +180,7 @@ function LoginForm() {
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow"
+                className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
                 placeholder="••••••••"
               />
               <button
@@ -199,7 +199,7 @@ function LoginForm() {
               type="checkbox"
               checked={remember}
               onChange={(e) => setRemember(e.target.checked)}
-              className="w-4 h-4 rounded border-gray-300 text-indigo-500 focus:ring-indigo-500 cursor-pointer"
+              className="w-4 h-4 rounded border-gray-300 text-teal-500 focus:ring-teal-500 cursor-pointer"
             />
             <label htmlFor="remember" className="text-sm text-gray-600 cursor-pointer select-none">
               Keep me signed in
@@ -209,7 +209,7 @@ function LoginForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-[#0D1B4B] hover:bg-[#1a2864] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
+            className="w-full py-3 bg-[#0B1F3A] hover:bg-[#163458] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
           >
             {loading ? (
               <>
@@ -242,7 +242,7 @@ function LoginForm() {
                     required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow"
+                    className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
                     placeholder="+91 98765 43210"
                   />
                 </div>
@@ -286,7 +286,7 @@ function LoginForm() {
                   autoFocus
                   value={otp}
                   onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow text-center tracking-widest text-xl font-mono"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow text-center tracking-widest text-xl font-mono"
                   placeholder="______"
                 />
               </div>
@@ -294,7 +294,7 @@ function LoginForm() {
               <button
                 type="submit"
                 disabled={loading || otp.length !== 6}
-                className="w-full py-3 bg-[#0D1B4B] hover:bg-[#1a2864] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
+                className="w-full py-3 bg-[#0B1F3A] hover:bg-[#163458] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
               >
                 {loading ? (
                   <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -320,7 +320,7 @@ function LoginForm() {
 
       <div className="mt-6 pt-6 border-t border-gray-100 text-center text-sm text-gray-500">
         Don&apos;t have an account?{" "}
-        <Link href="/register" className="text-indigo-600 font-semibold hover:text-indigo-700 transition-colors">
+        <Link href="/register" className="text-teal-600 font-semibold hover:text-teal-700 transition-colors">
           Start free trial
         </Link>
       </div>
@@ -332,15 +332,15 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex">
       {/* ── Left panel: marketing ── */}
-      <div className="hidden lg:flex lg:w-[52%] flex-col justify-between bg-[#0D1B4B] p-12 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-[52%] flex-col justify-between bg-[#0B1F3A] p-12 relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-[-80px] right-[-80px] w-[360px] h-[360px] rounded-full bg-indigo-500/10 blur-3xl" />
+          <div className="absolute top-[-80px] right-[-80px] w-[360px] h-[360px] rounded-full bg-teal-500/10 blur-3xl" />
           <div className="absolute bottom-[-60px] left-[-60px] w-[280px] h-[280px] rounded-full bg-blue-500/10 blur-3xl" />
         </div>
 
         <div className="relative">
           <Link href="/" className="inline-flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 via-blue-500 to-violet-600 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-blue-500/30">
+            <div className="w-10 h-10 rounded-xl bg-teal-500 flex items-center justify-center text-[#0B1F3A] font-bold text-lg shadow-lg shadow-teal-500/30">
               H
             </div>
             <span className="text-white font-bold text-xl tracking-tight">HAIP</span>
@@ -351,7 +351,7 @@ export default function LoginPage() {
           <div>
             <h1 className="text-4xl font-bold text-white leading-tight mb-4">
               Your hospitality team,<br />
-              <span className="text-indigo-400">supercharged by AI</span>
+              <span className="text-teal-400">supercharged by AI</span>
             </h1>
             <p className="text-blue-200/80 text-lg leading-relaxed max-w-sm">
               Every call answered, every guest remembered, every opportunity captured — automatically.
@@ -362,7 +362,7 @@ export default function LoginPage() {
             {SELLING_POINTS.map(({ icon: Icon, text }) => (
               <div key={text} className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
-                  <Icon size={15} className="text-indigo-400" />
+                  <Icon size={15} className="text-teal-400" />
                 </div>
                 <span className="text-blue-100/80 text-sm">{text}</span>
               </div>
@@ -383,7 +383,7 @@ export default function LoginPage() {
               &ldquo;HAIP cut our missed-call rate to zero. The AI handles guest queries before we even wake up.&rdquo;
             </p>
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-300 text-xs font-bold">
+              <div className="w-8 h-8 rounded-full bg-teal-500/20 border border-teal-500/30 flex items-center justify-center text-teal-300 text-xs font-bold">
                 RK
               </div>
               <div>
@@ -400,8 +400,8 @@ export default function LoginPage() {
         {/* Mobile logo */}
         <div className="lg:hidden mb-8">
           <Link href="/" className="inline-flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-400 via-blue-500 to-violet-600 flex items-center justify-center text-white font-bold text-base">H</div>
-            <span className="text-[#0D1B4B] font-bold text-xl tracking-tight">HAIP</span>
+            <div className="w-9 h-9 rounded-xl bg-teal-500 flex items-center justify-center text-[#0B1F3A] font-bold text-base">H</div>
+            <span className="text-[#0B1F3A] font-bold text-xl tracking-tight">HAIP</span>
           </Link>
         </div>
 

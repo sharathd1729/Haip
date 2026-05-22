@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
@@ -74,7 +74,7 @@ export default function GuestsPage() {
               {/* Identity card */}
               <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-4">
                 <div className="flex items-start gap-4">
-                  <div className="w-14 h-14 rounded-full bg-indigo-100 flex items-center justify-center text-xl font-bold text-indigo-700 flex-shrink-0">
+                  <div className="w-14 h-14 rounded-full bg-teal-100 flex items-center justify-center text-xl font-bold text-teal-700 flex-shrink-0">
                     {profile.full_name[0]}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -198,13 +198,13 @@ export default function GuestsPage() {
                   {profile.recent_messages.map(msg => (
                     <div key={msg.id} className={cn("flex gap-2 py-2", msg.direction === "outbound" ? "flex-row-reverse" : "")}>
                       <div className={cn("flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center",
-                        msg.direction === "inbound" ? "bg-gray-100" : "bg-indigo-100"
+                        msg.direction === "inbound" ? "bg-gray-100" : "bg-teal-100"
                       )}>
-                        <MessageSquare size={11} className={msg.direction === "inbound" ? "text-gray-500" : "text-indigo-600"} />
+                        <MessageSquare size={11} className={msg.direction === "inbound" ? "text-gray-500" : "text-teal-600"} />
                       </div>
                       <div className={cn("flex-1 max-w-[80%]", msg.direction === "outbound" && "text-right")}>
                         <div className={cn("text-xs px-3 py-2 rounded-xl inline-block",
-                          msg.direction === "inbound" ? "bg-gray-100 text-gray-800" : "bg-indigo-500 text-white"
+                          msg.direction === "inbound" ? "bg-gray-100 text-gray-800" : "bg-teal-500 text-white"
                         )}>
                           {msg.content}
                         </div>
@@ -256,7 +256,7 @@ export default function GuestsPage() {
             value={search}
             onChange={e => handleSearch(e.target.value)}
             placeholder="Search name, phone, email…"
-            className="w-full pl-8 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+            className="w-full pl-8 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"
           />
         </div>
       </div>
@@ -286,7 +286,7 @@ export default function GuestsPage() {
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-700 flex-shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-xs font-bold text-teal-700 flex-shrink-0">
                           {guest.full_name[0]}
                         </div>
                         <div>
@@ -314,7 +314,7 @@ export default function GuestsPage() {
                     </td>
                     <td className="px-4 py-3 text-gray-400 text-xs">{timeAgo(guest.created_at)}</td>
                     <td className="px-4 py-3">
-                      <span className="text-xs text-indigo-600 hover:underline">360 →</span>
+                      <span className="text-xs text-teal-600 hover:underline">360 →</span>
                     </td>
                   </tr>
                 ))}

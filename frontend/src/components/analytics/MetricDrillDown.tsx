@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 /**
  * A1 — KPI card drill-down side panel.
@@ -61,7 +61,7 @@ function HorizontalBarChart({ data, unit }: { data: DrillPoint[]; unit: string }
           <span className="w-28 text-xs text-gray-600 truncate text-right flex-shrink-0">{d.label}</span>
           <div className="flex-1 h-5 bg-gray-100 rounded-full overflow-hidden">
             <div
-              className="h-full rounded-full bg-indigo-500 transition-all duration-500"
+              className="h-full rounded-full bg-teal-500 transition-all duration-500"
               style={{ width: `${(d.value / max) * 100}%` }}
             />
           </div>
@@ -141,7 +141,7 @@ export function MetricDrillDown({ metricKey, metricLabel, onClose }: MetricDrill
               <select
                 value={rangeDays}
                 onChange={e => setRangeDays(e.target.value)}
-                className="appearance-none text-xs bg-gray-100 text-gray-700 px-3 py-1.5 pr-6 rounded-lg font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="appearance-none text-xs bg-gray-100 text-gray-700 px-3 py-1.5 pr-6 rounded-lg font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-500"
               >
                 {RANGE_OPTIONS.map(o => (
                   <option key={o.value} value={o.value}>{o.label}</option>
@@ -178,7 +178,7 @@ export function MetricDrillDown({ metricKey, metricLabel, onClose }: MetricDrill
               className={cn(
                 "text-xs font-medium px-3 py-1.5 rounded-lg transition-colors",
                 breakdown === key
-                  ? "bg-indigo-100 text-indigo-700"
+                  ? "bg-teal-100 text-teal-700"
                   : "text-gray-500 hover:bg-gray-100"
               )}
             >

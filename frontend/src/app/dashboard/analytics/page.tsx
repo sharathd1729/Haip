@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 /**
  * Analytics page — Owner dashboard
@@ -30,8 +30,8 @@ import { LostReasonModal } from "@/components/analytics/LostReasonModal";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const BRAND_PRIMARY = "#4361EE";
-const BRAND_LIGHT = "#c7d2fe";
+const TEAL_500 = "#14b8a6";
+const TEAL_200 = "#99f6e4";
 const AMBER_400 = "#fbbf24";
 const RED_400 = "#f87171";
 const GRAY_200 = "#e5e7eb";
@@ -95,7 +95,7 @@ function DeltaChip({ delta, invertColor = false }: { delta: KPIDelta; invertColo
   return (
     <span className={cn(
       "inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full",
-      positive ? "bg-indigo-100 text-indigo-700" :
+      positive ? "bg-teal-100 text-teal-700" :
       negative ? "bg-red-100 text-red-600" :
       "bg-gray-100 text-gray-500"
     )}>
@@ -182,7 +182,7 @@ function KPICard({ label, value, subtext, trend, icon, variant = "default", delt
     trend === "down" ? TrendingDown :
     Minus;
   const trendColor =
-    trend === "up" ? "text-indigo-500" :
+    trend === "up" ? "text-teal-500" :
     trend === "down" ? "text-red-400" :
     "text-gray-400";
 
@@ -193,7 +193,7 @@ function KPICard({ label, value, subtext, trend, icon, variant = "default", delt
         variant === "warning" ? "border-amber-200 bg-amber-50/30" :
         variant === "danger" ? "border-red-200 bg-red-50/30" :
         "border-gray-100",
-        onClick && "cursor-pointer hover:shadow-md hover:border-indigo-200 active:scale-[0.99]"
+        onClick && "cursor-pointer hover:shadow-md hover:border-teal-200 active:scale-[0.99]"
       )}
       onClick={onClick}
       title={onClick ? "Click to drill down" : undefined}
@@ -203,7 +203,7 @@ function KPICard({ label, value, subtext, trend, icon, variant = "default", delt
           "w-9 h-9 rounded-xl flex items-center justify-center",
           variant === "warning" ? "bg-amber-100 text-amber-600" :
           variant === "danger" ? "bg-red-100 text-red-500" :
-          "bg-indigo-50 text-indigo-600"
+          "bg-teal-50 text-teal-600"
         )}>
           {icon}
         </div>
@@ -216,7 +216,7 @@ function KPICard({ label, value, subtext, trend, icon, variant = "default", delt
       <p className="text-xs text-gray-500 mt-0.5">{label}</p>
       {subtext && <p className="text-[11px] text-gray-400 mt-1">{subtext}</p>}
       {onClick && (
-        <p className="text-[10px] text-indigo-500 mt-2 font-medium">Click to drill down →</p>
+        <p className="text-[10px] text-teal-500 mt-2 font-medium">Click to drill down →</p>
       )}
     </div>
   );
@@ -266,19 +266,19 @@ function PropertyFilter({
             <div
               className={cn(
                 "flex items-center gap-2 px-3 py-2.5 text-sm cursor-pointer hover:bg-gray-50 transition-colors",
-                value.length === 0 && "bg-indigo-50 text-indigo-700"
+                value.length === 0 && "bg-teal-50 text-teal-700"
               )}
               onClick={() => { onChange([]); setOpen(false); }}
             >
               <span className="flex-1 font-medium">All properties</span>
-              {value.length === 0 && <span className="text-indigo-500 text-xs">✓</span>}
+              {value.length === 0 && <span className="text-teal-500 text-xs">✓</span>}
             </div>
             {props.map(p => (
               <div
                 key={p.id}
                 className={cn(
                   "flex items-center gap-2 px-3 py-2.5 text-sm cursor-pointer hover:bg-gray-50 transition-colors",
-                  value.includes(p.id) && "bg-indigo-50 text-indigo-700"
+                  value.includes(p.id) && "bg-teal-50 text-teal-700"
                 )}
                 onClick={() => toggle(p.id)}
               >
@@ -286,7 +286,7 @@ function PropertyFilter({
                   type="checkbox"
                   checked={value.includes(p.id)}
                   readOnly
-                  className="w-3.5 h-3.5 accent-indigo-500"
+                  className="w-3.5 h-3.5 accent-teal-500"
                 />
                 <span className="flex-1 truncate">{p.name}</span>
               </div>
@@ -393,7 +393,7 @@ export default function AnalyticsPage() {
             <select
               value={rangeDays}
               onChange={e => setParam("range_days", e.target.value)}
-              className="appearance-none text-sm bg-white border border-gray-200 text-gray-700 px-3 py-2 pr-7 rounded-xl font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="appearance-none text-sm bg-white border border-gray-200 text-gray-700 px-3 py-2 pr-7 rounded-xl font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-500"
             >
               <option value="7">Last 7 days</option>
               <option value="14">Last 14 days</option>
@@ -415,7 +415,7 @@ export default function AnalyticsPage() {
             className={cn(
               "text-sm px-3 py-2 rounded-xl font-medium border transition-colors",
               compareTo !== "none"
-                ? "bg-indigo-500 text-white border-indigo-500"
+                ? "bg-teal-500 text-white border-teal-500"
                 : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
             )}
           >
@@ -535,9 +535,9 @@ export default function AnalyticsPage() {
                     />
                   )}
                 />
-                <Bar dataKey="count" name="Calls" fill={BRAND_PRIMARY} radius={[6, 6, 0, 0]} />
+                <Bar dataKey="count" name="Calls" fill={TEAL_500} radius={[6, 6, 0, 0]} />
                 {compareTo !== "none" && (
-                  <Bar dataKey="count_prev" name="Prev. period" fill={BRAND_LIGHT} radius={[6, 6, 0, 0]} opacity={0.6} />
+                  <Bar dataKey="count_prev" name="Prev. period" fill={TEAL_200} radius={[6, 6, 0, 0]} opacity={0.6} />
                 )}
                 {compareTo !== "none" && <Legend wrapperStyle={{ fontSize: "11px" }} />}
                 {/* A8: anomaly marker dots — pulsing red (high) or amber (low) */}

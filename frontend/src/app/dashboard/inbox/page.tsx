@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
@@ -121,7 +121,7 @@ function ChannelFilterRow({
             onClick={() => onChange(f.value)}
             className={cn(
               "flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors min-h-[36px] min-w-[40px]",
-              value === f.value ? "bg-indigo-500 text-white" : "text-gray-500 hover:bg-gray-100"
+              value === f.value ? "bg-teal-500 text-white" : "text-gray-500 hover:bg-gray-100"
             )}
           >
             {f.value && <ChannelIcon channel={f.value} className="w-3.5 h-3.5" />}
@@ -449,7 +449,7 @@ export default function InboxPage() {
                 <div
                   key={u.id}
                   title={`${u.name} (${u.role})`}
-                  className="w-5 h-5 rounded-full bg-indigo-500 border border-white flex items-center justify-center text-white text-[8px] font-bold"
+                  className="w-5 h-5 rounded-full bg-teal-500 border border-white flex items-center justify-center text-white text-[8px] font-bold"
                 >
                   {u.name[0]?.toUpperCase()}
                 </div>
@@ -468,7 +468,7 @@ export default function InboxPage() {
                   onClick={() => setActiveView(av => av === v.id ? null : v.id)}
                   className={cn(
                     "w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-colors",
-                    activeView === v.id ? "bg-indigo-100 text-indigo-700 font-medium" : "text-gray-600 hover:bg-gray-50"
+                    activeView === v.id ? "bg-teal-100 text-teal-700 font-medium" : "text-gray-600 hover:bg-gray-50"
                   )}
                 >
                   {v.name}
@@ -546,7 +546,7 @@ export default function InboxPage() {
               </button>
               {detail ? (
                 <>
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-400 to-blue-500 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-400 to-blue-500 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
                     {detail.guest_name?.[0]?.toUpperCase() ?? "?"}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -619,7 +619,7 @@ export default function InboxPage() {
                   <button
                     onClick={() => draftMutation.mutate()}
                     disabled={draftMutation.isPending || aiTyping}
-                    className="flex items-center gap-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 text-xs font-medium text-teal-600 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
                   >
                     {draftMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
                     AI draft
@@ -630,7 +630,7 @@ export default function InboxPage() {
 
             {/* W7: AI tone strip — show when AI draft exists or AI is active */}
             {(conversations.find(c => c.id === activeConversationId)?.has_ai_draft || aiTyping) && (
-              <div className="px-4 py-2 border-b border-indigo-100 bg-indigo-50/50 flex-shrink-0">
+              <div className="px-4 py-2 border-b border-teal-100 bg-teal-50/50 flex-shrink-0">
                 <AIDraftPanel
                   tone={aiTone}
                   onToneChange={setAiTone}
@@ -730,12 +730,12 @@ export default function InboxPage() {
             </div>
 
             {editingDraftId && (
-              <div className="px-5 py-3 bg-indigo-50 border-t border-indigo-100 flex gap-2">
+              <div className="px-5 py-3 bg-teal-50 border-t border-teal-100 flex gap-2">
                 <textarea
                   value={editText}
                   onChange={e => setEditText(e.target.value)}
                   rows={2}
-                  className="flex-1 text-sm border border-indigo-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none bg-white"
+                  className="flex-1 text-sm border border-teal-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none bg-white"
                 />
                 <div className="flex flex-col gap-1">
                   <button
@@ -747,7 +747,7 @@ export default function InboxPage() {
                           toast({ variant: "success", title: "Edited draft sent" });
                         });
                     }}
-                    className="text-xs font-semibold text-white bg-indigo-500 hover:bg-indigo-600 px-3 py-1.5 rounded-lg transition-colors"
+                    className="text-xs font-semibold text-white bg-teal-500 hover:bg-teal-600 px-3 py-1.5 rounded-lg transition-colors"
                   >Send</button>
                   <button onClick={() => setEditingDraftId(null)} className="text-xs text-gray-500 hover:text-gray-700 px-3 py-1.5">Cancel</button>
                 </div>
@@ -807,8 +807,8 @@ export default function InboxPage() {
               )}
               {/* W5: reply-to preview */}
               {replyToMsg && (
-                <div className="flex items-start gap-2 mb-2 px-1 py-1 bg-gray-100 rounded-lg border-l-2 border-indigo-400">
-                  <Reply size={11} className="text-indigo-500 mt-0.5 flex-shrink-0" />
+                <div className="flex items-start gap-2 mb-2 px-1 py-1 bg-gray-100 rounded-lg border-l-2 border-teal-400">
+                  <Reply size={11} className="text-teal-500 mt-0.5 flex-shrink-0" />
                   <p className="text-xs text-gray-600 truncate flex-1">{replyToMsg.text}</p>
                   <button onClick={() => setReplyToMsg(null)} className="text-gray-400 hover:text-gray-600 flex-shrink-0">
                     <X size={11} />
@@ -853,7 +853,7 @@ export default function InboxPage() {
                         onClick={() => insertMention(u)}
                         className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-50"
                       >
-                        <div className="w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+                        <div className="w-6 h-6 rounded-full bg-teal-500 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
                           {u.name?.[0]?.toUpperCase() ?? "?"}
                         </div>
                         <div className="text-left">
@@ -888,7 +888,7 @@ export default function InboxPage() {
                     <div className="border-t border-gray-100 my-1 pt-1 px-2 pb-1">
                       <input
                         type="datetime-local"
-                        className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                        className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-teal-400"
                         onChange={e => {
                           if (e.target.value) {
                             setScheduledFor(new Date(e.target.value).toISOString());
@@ -911,7 +911,7 @@ export default function InboxPage() {
                     "flex-1 text-sm border rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:border-transparent resize-none placeholder:text-gray-400 transition-all",
                     isInternalNote
                       ? "bg-amber-50 border-amber-300 focus:ring-amber-300"
-                      : "bg-gray-50 border-gray-200 focus:ring-indigo-500",
+                      : "bg-gray-50 border-gray-200 focus:ring-teal-500",
                     emptyPulse && "border-red-300 ring-2 ring-red-200 animate-pulse"
                   )}
                   style={{ minHeight: "42px" }}
@@ -929,7 +929,7 @@ export default function InboxPage() {
                         ? "bg-amber-500 hover:bg-amber-600"
                         : scheduledFor
                         ? "bg-blue-600 hover:bg-blue-700"
-                        : "bg-[#0D1B4B] hover:bg-[#1a2864]"
+                        : "bg-[#0B1F3A] hover:bg-[#163458]"
                     )}
                     aria-label="Send message"
                   >
@@ -946,7 +946,7 @@ export default function InboxPage() {
                         "h-10 w-6 rounded-r-xl text-white flex items-center justify-center transition-colors border-l border-white/20",
                         isEmpty ? "bg-gray-300 cursor-not-allowed"
                         : scheduledFor ? "bg-blue-600 hover:bg-blue-700"
-                        : "bg-[#0D1B4B] hover:bg-[#1a2864]"
+                        : "bg-[#0B1F3A] hover:bg-[#163458]"
                       )}
                     >
                       <ChevronDown size={11} />
@@ -973,7 +973,7 @@ export default function InboxPage() {
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Guest</p>
             <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-blue-500 flex items-center justify-center text-white font-bold flex-shrink-0">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-400 to-blue-500 flex items-center justify-center text-white font-bold flex-shrink-0">
                 {detail.guest_name?.[0]?.toUpperCase() ?? "?"}
               </div>
               <div>
@@ -996,7 +996,7 @@ export default function InboxPage() {
           <div className="pt-2 border-t border-gray-100">
             <a
               href={`/dashboard/guests?phone=${encodeURIComponent(detail.guest_phone)}`}
-              className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+              className="text-xs text-teal-600 hover:text-teal-700 font-medium flex items-center gap-1"
             >
               <User size={12} /> View guest profile →
             </a>

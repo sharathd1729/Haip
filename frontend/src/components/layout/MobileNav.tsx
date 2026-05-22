@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -83,7 +83,7 @@ export function MobileNav({ user }: MobileNavProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const { theme } = useBrandTheme();
 
-  const primary = theme.primaryColor || "#4361EE";
+  const primary = theme.primaryColor || "#14b8a6";
 
   function isActive(href: string) {
     return pathname === href || (href !== "/dashboard" && pathname.startsWith(href + "/"));

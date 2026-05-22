@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Building2, Users, Shield, QrCode, Loader2, CheckCircle, AlertCircle, Bell, Bot, ChevronRight } from "lucide-react";
@@ -29,15 +29,15 @@ export default function SettingsPage() {
             onClick={() => setTab(t.id)}
             className={cn(
               "w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-colors group",
-              tab === t.id ? "bg-indigo-50 text-indigo-700" : "text-gray-600 hover:bg-gray-50"
+              tab === t.id ? "bg-teal-50 text-teal-700" : "text-gray-600 hover:bg-gray-50"
             )}
           >
-            <span className={tab === t.id ? "text-indigo-500" : "text-gray-400"}>{t.icon}</span>
+            <span className={tab === t.id ? "text-teal-500" : "text-gray-400"}>{t.icon}</span>
             <div>
               <div className="text-sm font-medium">{t.label}</div>
               <div className="text-[10px] text-gray-400 leading-none mt-0.5">{t.desc}</div>
             </div>
-            <ChevronRight size={13} className={cn("ml-auto transition-opacity", tab === t.id ? "opacity-100 text-indigo-400" : "opacity-0 group-hover:opacity-40")} />
+            <ChevronRight size={13} className={cn("ml-auto transition-opacity", tab === t.id ? "opacity-100 text-teal-400" : "opacity-0 group-hover:opacity-40")} />
           </button>
         ))}
 
@@ -57,7 +57,7 @@ export default function SettingsPage() {
         <div className="mt-auto pt-4 border-t border-gray-100">
           <p className="text-[10px] text-gray-400 px-3">
             IVR, WhatsApp, Instagram, and PMS settings are managed in{" "}
-            <a href="/dashboard/settings/integrations" className="text-indigo-600 hover:underline font-medium">Integrations →</a>
+            <a href="/dashboard/settings/integrations" className="text-teal-600 hover:underline font-medium">Integrations →</a>
           </p>
         </div>
       </div>
@@ -131,7 +131,7 @@ function WorkspaceSettings() {
               <select
                 value={form.timezone}
                 onChange={e => setForm(f => ({...f, timezone: e.target.value}))}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 bg-white"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white"
               >
                 <option value="Asia/Kolkata">Asia/Kolkata (IST, UTC+5:30)</option>
                 <option value="Asia/Dubai">Asia/Dubai (GST, UTC+4)</option>
@@ -145,7 +145,7 @@ function WorkspaceSettings() {
               <select
                 value={form.language}
                 onChange={e => setForm(f => ({...f, language: e.target.value}))}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 bg-white"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white"
               >
                 <option value="en">English</option>
                 <option value="hi">Hindi</option>
@@ -160,7 +160,7 @@ function WorkspaceSettings() {
             <select
               value={form.date_format}
               onChange={e => setForm(f => ({...f, date_format: e.target.value}))}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 bg-white"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white"
             >
               <option value="DD/MM/YYYY">DD/MM/YYYY</option>
               <option value="MM/DD/YYYY">MM/DD/YYYY</option>
@@ -177,7 +177,7 @@ function WorkspaceSettings() {
                 <div key={day} className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
                   <span className="w-24 text-xs font-medium text-gray-700">{day}</span>
                   <span className="text-xs text-gray-400">{idx < 5 ? "09:00 – 21:00" : idx === 5 ? "10:00 – 18:00" : "10:00 – 14:00"}</span>
-                  <span className="ml-auto text-[10px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full font-medium">Open</span>
+                  <span className="ml-auto text-[10px] text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full font-medium">Open</span>
                 </div>
               ))}
             </div>
@@ -187,9 +187,9 @@ function WorkspaceSettings() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Current plan</label>
             <div className="flex items-center gap-3">
-              <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide">Growth</span>
+              <span className="bg-teal-100 text-teal-700 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide">Growth</span>
               <span className="text-sm text-gray-500">1,500 calls/mo · 4,500 WA conv · 5 users</span>
-              <a href="/dashboard/billing" className="ml-auto text-xs text-indigo-600 hover:underline font-medium">Manage billing →</a>
+              <a href="/dashboard/billing" className="ml-auto text-xs text-teal-600 hover:underline font-medium">Manage billing →</a>
             </div>
           </div>
         </div>
@@ -241,9 +241,9 @@ function AISettings() {
           {MODE_OPTIONS.map(m => (
             <label key={m.id} className={cn(
               "flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-colors",
-              waModeForm.mode === m.id ? "border-indigo-500 bg-indigo-50" : "border-gray-200 hover:border-gray-300"
+              waModeForm.mode === m.id ? "border-teal-500 bg-teal-50" : "border-gray-200 hover:border-gray-300"
             )}>
-              <input type="radio" name="wa_mode" value={m.id} checked={waModeForm.mode === m.id} onChange={() => setWaModeForm(f => ({...f, mode: m.id}))} className="mt-0.5 accent-indigo-500" />
+              <input type="radio" name="wa_mode" value={m.id} checked={waModeForm.mode === m.id} onChange={() => setWaModeForm(f => ({...f, mode: m.id}))} className="mt-0.5 accent-teal-500" />
               <div>
                 <div className="text-sm font-semibold text-gray-900">{m.label}</div>
                 <div className="text-xs text-gray-500">{m.desc}</div>
@@ -258,7 +258,7 @@ function AISettings() {
               type="number" min="0.5" max="1" step="0.01"
               value={waModeForm.confidence}
               onChange={e => setWaModeForm(f => ({...f, confidence: e.target.value}))}
-              className="w-32 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              className="w-32 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"
             />
             <p className="text-xs text-gray-400 mt-1">Recommended: 0.78. Replies below this score go to shadow mode for review.</p>
           </div>
@@ -273,9 +273,9 @@ function AISettings() {
           {MODE_OPTIONS.map(m => (
             <label key={m.id} className={cn(
               "flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-colors",
-              igModeForm.mode === m.id ? "border-indigo-500 bg-indigo-50" : "border-gray-200 hover:border-gray-300"
+              igModeForm.mode === m.id ? "border-teal-500 bg-teal-50" : "border-gray-200 hover:border-gray-300"
             )}>
-              <input type="radio" name="ig_mode" value={m.id} checked={igModeForm.mode === m.id} onChange={() => setIgModeForm(f => ({...f, mode: m.id}))} className="mt-0.5 accent-indigo-500" />
+              <input type="radio" name="ig_mode" value={m.id} checked={igModeForm.mode === m.id} onChange={() => setIgModeForm(f => ({...f, mode: m.id}))} className="mt-0.5 accent-teal-500" />
               <div>
                 <div className="text-sm font-semibold text-gray-900">{m.label}</div>
                 <div className="text-xs text-gray-500">{m.desc}</div>
@@ -290,7 +290,7 @@ function AISettings() {
               type="number" min="0.5" max="1" step="0.01"
               value={igModeForm.confidence}
               onChange={e => setIgModeForm(f => ({...f, confidence: e.target.value}))}
-              className="w-32 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              className="w-32 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"
             />
           </div>
         )}
@@ -414,7 +414,7 @@ function NotificationSettings() {
                   onClick={() => toggle(item.key)}
                   className={cn(
                     "relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0",
-                    prefs[item.key] ? "bg-indigo-500" : "bg-gray-200"
+                    prefs[item.key] ? "bg-teal-500" : "bg-gray-200"
                   )}
                 >
                   <span className={cn(
@@ -459,7 +459,7 @@ function SecuritySettings() {
           <Row label="Delete-on-request SLA" value="30 days" />
         </div>
         <div className="mt-4 flex items-center gap-3">
-          <a href="/dashboard/compliance" className="text-xs text-indigo-600 hover:underline font-medium">Open Compliance Centre →</a>
+          <a href="/dashboard/compliance" className="text-xs text-teal-600 hover:underline font-medium">Open Compliance Centre →</a>
           <button className="text-xs text-red-500 hover:underline ml-auto">Request data deletion</button>
         </div>
       </Card>
@@ -540,7 +540,7 @@ function MFACard() {
           <p className="text-sm text-gray-500">Add an extra layer of security. You'll be prompted for a 6-digit code from your authenticator app on each sign-in.</p>
           {error && <p className="text-xs text-red-500">{error}</p>}
           <button onClick={startSetup} disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-[#0D1B4B] text-white text-sm font-semibold rounded-lg hover:bg-[#1a2864] disabled:opacity-50 transition-colors">
+            className="flex items-center gap-2 px-4 py-2 bg-[#0B1F3A] text-white text-sm font-semibold rounded-lg hover:bg-[#0d2548] disabled:opacity-50 transition-colors">
             {loading ? <Loader2 size={14} className="animate-spin" /> : <QrCode size={14} />}
             Set up authenticator app
           </button>
@@ -554,7 +554,7 @@ function MFACard() {
             <p className="text-xs text-gray-500 mb-1">Manual entry key</p>
             <code className="text-xs font-mono text-gray-800 break-all select-all">{secret}</code>
           </div>
-          <button onClick={() => setStage("verify")} className="w-full py-2 bg-indigo-500 hover:bg-indigo-600 text-white font-semibold rounded-lg text-sm">
+          <button onClick={() => setStage("verify")} className="w-full py-2 bg-teal-500 hover:bg-teal-600 text-white font-semibold rounded-lg text-sm">
             I&apos;ve scanned — continue
           </button>
         </div>
@@ -565,11 +565,11 @@ function MFACard() {
           <input type="text" inputMode="numeric" maxLength={6} value={code}
             onChange={e => { setCode(e.target.value.replace(/\D/g, "").slice(0, 6)); setError(""); }}
             placeholder="000000"
-            className="w-full px-4 py-3 text-center text-2xl font-mono tracking-[0.5em] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full px-4 py-3 text-center text-2xl font-mono tracking-[0.5em] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500"
           />
           {error && <p className="text-xs text-red-500">{error}</p>}
           <button onClick={verifyCode} disabled={loading || code.length < 6}
-            className="w-full py-2.5 bg-[#0D1B4B] text-white font-semibold rounded-xl text-sm disabled:opacity-50 flex items-center justify-center gap-2 hover:bg-[#1a2864]">
+            className="w-full py-2.5 bg-[#0B1F3A] text-white font-semibold rounded-xl text-sm disabled:opacity-50 flex items-center justify-center gap-2 hover:bg-[#0d2548]">
             {loading && <Loader2 size={14} className="animate-spin" />}
             Verify & enable MFA
           </button>
@@ -606,7 +606,7 @@ function Field({ label, value, onChange, placeholder, type = "text", hint }: {
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
       <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 bg-white" />
+        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white" />
       {hint && <p className="text-xs text-gray-400 mt-1">{hint}</p>}
     </div>
   );
@@ -618,7 +618,7 @@ function SaveButton({ onClick, saved, loading = false, label = "Save changes" }:
   return (
     <button onClick={onClick} disabled={loading} className={cn(
       "mt-5 px-5 py-2 text-sm font-semibold rounded-lg transition-colors flex items-center gap-2 disabled:opacity-60",
-      saved ? "bg-green-50 text-green-700 border border-green-200" : "bg-indigo-500 text-white hover:bg-indigo-600"
+      saved ? "bg-green-50 text-green-700 border border-green-200" : "bg-teal-500 text-white hover:bg-teal-600"
     )}>
       {loading && <Loader2 size={13} className="animate-spin" />}
       {saved ? "✓ Saved" : label}

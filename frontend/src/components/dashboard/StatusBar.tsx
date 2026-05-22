@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 /**
  * X8 — Global status bar
@@ -149,7 +149,7 @@ export function StatusBar() {
               {detail.reconnect_href && (
                 <Link
                   href={detail.reconnect_href}
-                  className="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                  className="text-[11px] font-semibold text-teal-400 hover:text-teal-300 flex items-center gap-1"
                 >
                   Fix <ExternalLink size={10} />
                 </Link>

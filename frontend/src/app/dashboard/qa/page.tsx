@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Star, TrendingUp, TrendingDown, ChevronRight, Award, Loader2 } from "lucide-react";
@@ -72,7 +72,7 @@ export default function QAPage() {
   });
 
   const TrendIcon = ({ t }: { t: "up" | "down" | "neutral" }) =>
-    t === "up" ? <TrendingUp size={13} className="text-indigo-500" /> :
+    t === "up" ? <TrendingUp size={13} className="text-teal-500" /> :
     t === "down" ? <TrendingDown size={13} className="text-red-400" /> :
     <span className="w-3 h-0.5 bg-gray-300 inline-block" />;
 
@@ -95,7 +95,7 @@ export default function QAPage() {
               onClick={() => setTab(t)}
               className={cn(
                 "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors capitalize",
-                tab === t ? "bg-[#0D1B4B] text-white" : "text-gray-500 hover:bg-gray-100"
+                tab === t ? "bg-[#0B1F3A] text-white" : "text-gray-500 hover:bg-gray-100"
               )}
             >
               {t}
@@ -143,7 +143,7 @@ export default function QAPage() {
                     <div className="flex items-center gap-3 text-xs text-gray-500">
                       <span>{agent.call_count} calls scored</span>
                       {agent.top_criteria[0] && (
-                        <span className="text-indigo-600">✓ {agent.top_criteria[0]}</span>
+                        <span className="text-teal-600">✓ {agent.top_criteria[0]}</span>
                       )}
                       {agent.weak_criteria[0] && (
                         <span className="text-amber-500">↗ {agent.weak_criteria[0]}</span>

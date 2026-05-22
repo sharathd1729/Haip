@@ -1,4 +1,4 @@
-﻿/**
+/**
  * X7 — Reusable EmptyState component
  *
  * Use for every list / table view that can be empty.
@@ -41,7 +41,7 @@ function CTAButton({ cta, isPrimary }: { cta: EmptyStateCTAProps; isPrimary: boo
   const cls = cn(
     "inline-flex items-center gap-2 text-sm font-semibold rounded-xl px-5 py-2.5 transition-colors",
     isPrimary
-      ? "bg-indigo-500 hover:bg-indigo-600 text-white shadow-sm shadow-indigo-200"
+      ? "bg-teal-500 hover:bg-teal-600 text-white shadow-sm shadow-teal-200"
       : "bg-white border border-gray-200 hover:bg-gray-50 text-gray-700"
   );
   if (cta.href) {
@@ -75,7 +75,7 @@ export function EmptyState({
         {onClearFilter && (
           <button
             onClick={onClearFilter}
-            className="text-sm font-semibold text-indigo-600 hover:text-indigo-700 underline underline-offset-4"
+            className="text-sm font-semibold text-teal-600 hover:text-teal-700 underline underline-offset-4"
           >
             Clear filter
           </button>
@@ -106,7 +106,7 @@ export function EmptyState({
           href={learnMoreUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-700 mt-5 font-medium"
+          className="inline-flex items-center gap-1.5 text-xs text-teal-600 hover:text-teal-700 mt-5 font-medium"
         >
           <ExternalLink size={12} />
           {learnMoreLabel}

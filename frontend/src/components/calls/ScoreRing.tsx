@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { cn } from "@/lib/utils";
 
 interface ScoreRingProps {
@@ -10,7 +10,7 @@ interface ScoreRingProps {
 }
 
 function scoreColor(score: number) {
-  if (score >= 80) return { stroke: "#4361EE", text: "text-indigo-500" }; // indigo
+  if (score >= 80) return { stroke: "#14b8a6", text: "text-teal-500" }; // teal
   if (score >= 60) return { stroke: "#f59e0b", text: "text-amber-500" }; // amber
   return { stroke: "#ef4444", text: "text-red-500" };                     // red
 }

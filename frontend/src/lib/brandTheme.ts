@@ -1,4 +1,4 @@
-﻿/**
+/**
  * HAIP Brand Theme System
  *
  * CSS variables injected into :root at runtime by BrandThemeProvider.
@@ -19,8 +19,8 @@
  */
 
 export interface BrandTheme {
-  primaryColor: string;        // hex, e.g. "#4361EE"
-  sidebarColor: string;        // hex, e.g. "#0D1B4B"
+  primaryColor: string;        // hex, e.g. "#14b8a6"
+  sidebarColor: string;        // hex, e.g. "#0B1F3A"
   logoUrl?: string;            // uploaded logo URL
   logoDarkUrl?: string;        // dark-bg variant
   fontFamily: string;          // Google Font name or "Inter"
@@ -30,18 +30,18 @@ export interface BrandTheme {
 }
 
 export const DEFAULT_THEME: BrandTheme = {
-  primaryColor: "#4361EE",
-  sidebarColor: "#0D1B4B",
+  primaryColor: "#14b8a6",
+  sidebarColor: "#0B1F3A",
   logoUrl: "",
   logoDarkUrl: "",
-  fontFamily: "Plus Jakarta Sans",
+  fontFamily: "Inter",
   radiusScale: "rounded",
   companyName: "HAIP",
   tagline: "Hospitality AI",
 };
 
 export const PRESET_THEMES: { name: string; primaryColor: string; sidebarColor: string }[] = [
-  { name: "HAIP Blue",       primaryColor: "#4361EE", sidebarColor: "#0D1B4B" },
+  { name: "HAIP Teal",      primaryColor: "#14b8a6", sidebarColor: "#0B1F3A" },
   { name: "Ocean Blue",     primaryColor: "#3b82f6", sidebarColor: "#1e3a5f" },
   { name: "Indigo",         primaryColor: "#6366f1", sidebarColor: "#1e1b4b" },
   { name: "Violet",         primaryColor: "#8b5cf6", sidebarColor: "#1d0f3b" },
@@ -137,11 +137,11 @@ export function buildCSSVars(theme: BrandTheme): Record<string, string> {
     "--brand-radius-btn":     RADIUS_BTN_MAP[theme.radiusScale],
     "--brand-primary-rgb":    (() => {
       const rgb = hexToRgb(p);
-      return rgb ? `${rgb.r}, ${rgb.g}, ${rgb.b}` : "67, 97, 238";
+      return rgb ? `${rgb.r}, ${rgb.g}, ${rgb.b}` : "20, 184, 166";
     })(),
     "--brand-sidebar-rgb":    (() => {
       const rgb = hexToRgb(s);
-      return rgb ? `${rgb.r}, ${rgb.g}, ${rgb.b}` : "13, 27, 75";
+      return rgb ? `${rgb.r}, ${rgb.g}, ${rgb.b}` : "11, 31, 58";
     })(),
   };
 }
@@ -154,7 +154,7 @@ export function applyTheme(theme: BrandTheme): void {
   Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v));
 
   // Font injection (Google Fonts)
-  if (theme.fontFamily) {
+  if (theme.fontFamily && theme.fontFamily !== "Inter") {
     const fontName = theme.fontFamily.replace(/ /g, "+");
     const existingLink = document.getElementById("brand-font-link");
     if (!existingLink) {

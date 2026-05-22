@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Home, Plus, X, Edit2, Building2, Loader2, ChevronRight } from "lucide-react";
@@ -76,7 +76,7 @@ export default function PropertiesPage() {
         </div>
         <button
           onClick={() => { setEditing(null); setForm({ name: "", city: "", property_type: "villa" }); setShowForm(true); }}
-          className="flex items-center gap-1.5 text-xs bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-indigo-600 transition-colors"
+          className="flex items-center gap-1.5 text-xs bg-teal-500 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-teal-600 transition-colors"
         >
           <Plus size={13} /> Add property
         </button>
@@ -96,7 +96,7 @@ export default function PropertiesPage() {
             <p className="text-gray-400 text-sm mt-1 mb-4">Add your first property to get started</p>
             <button
               onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 text-sm bg-indigo-500 text-white px-4 py-2 rounded-xl font-medium hover:bg-indigo-600 transition-colors"
+              className="flex items-center gap-2 text-sm bg-teal-500 text-white px-4 py-2 rounded-xl font-medium hover:bg-teal-600 transition-colors"
             >
               <Plus size={15} /> Add property
             </button>
@@ -154,7 +154,7 @@ export default function PropertiesPage() {
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   placeholder="Jade Beach Villa"
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
               </div>
               <div>
@@ -164,7 +164,7 @@ export default function PropertiesPage() {
                   value={form.city}
                   onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
                   placeholder="Goa"
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
               </div>
               <div>
@@ -172,7 +172,7 @@ export default function PropertiesPage() {
                 <select
                   value={form.property_type}
                   onChange={e => setForm(f => ({ ...f, property_type: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
                 >
                   {PROPERTY_TYPES.map(t => (
                     <option key={t} value={t} className="capitalize">{t.charAt(0).toUpperCase() + t.slice(1)}</option>
@@ -190,7 +190,7 @@ export default function PropertiesPage() {
                 <button
                   type="submit"
                   disabled={isPending}
-                  className="flex-1 py-2.5 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
+                  className="flex-1 py-2.5 bg-teal-500 hover:bg-teal-600 disabled:opacity-50 text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
                 >
                   {isPending && <Loader2 size={14} className="animate-spin" />}
                   {editing ? "Save changes" : "Create property"}
