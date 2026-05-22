@@ -304,14 +304,19 @@ function RoleDropdown({ currentRole, userId, onChanged }: {
 }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [roleError, setRoleError] = useState("");
 
   const changeRole = async (role: string) => {
     if (role === currentRole) { setOpen(false); return; }
     setLoading(true);
+    setRoleError("");
     try {
       await api.patch(`/users/${userId}`, { role });
       onChanged();
-    } catch {}
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || "Failed to update role. Please try again.";
+      setRoleError(msg);
+    }
     setLoading(false);
     setOpen(false);
   };
@@ -319,13 +324,18 @@ function RoleDropdown({ currentRole, userId, onChanged }: {
   return (
     <div className="relative">
       <button
-        onClick={() => setOpen(v => !v)}
+        onClick={() => { setOpen(v => !v); setRoleError(""); }}
         className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
         disabled={loading}
       >
         <RoleBadge role={currentRole} />
         {loading ? <Loader2 size={11} className="animate-spin" /> : <ChevronDown size={11} />}
       </button>
+      {roleError && (
+        <p className="absolute right-0 top-full mt-1 text-[10px] text-red-500 bg-red-50 border border-red-200 rounded-lg px-2 py-1 z-30 whitespace-nowrap shadow">
+          {roleError}
+        </p>
+      )}
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />

@@ -128,7 +128,7 @@ function NotificationBell() {
 // ---------------------------------------------------------------------------
 
 interface TopBarProps {
-  user?: { name?: string | null; email?: string | null; role?: string; organization_id?: string };
+  user?: { name?: string | null; email?: string | null; role?: string; tenantId?: string };
   workspaceName?: string;
 }
 

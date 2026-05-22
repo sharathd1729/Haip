@@ -18,7 +18,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     name?: string | null;
     email?: string | null;
     role?: string;
-    organization_id?: string;
+    tenantId?: string;
     onboarding_step?: number;
   };
 

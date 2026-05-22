@@ -28,15 +28,12 @@ interface CatalogItem {
 
 interface Integration {
   id: string;
-  organization_id: string;
-  provider: string;
-  status: "connected" | "disconnected" | "error" | "pending";
-  metadata_json: Record<string, string>;
-  last_synced_at: string | null;
-  error_message: string | null;
-  token_expiry: string | null;
-  created_at: string;
-  updated_at: string;
+  tenant_id: string;
+  kind: string;   // matches IntegrationKind on backend (e.g. "whatsapp", "callerdesk")
+  status: "active" | "disconnected" | "error" | "pending";
+  config: Record<string, string>;   // merged metadata + provider info from backend
+  installed_at: string | null;
+  last_health_at: string | null;
 }
 
 interface WebhookInfo {
@@ -89,7 +86,7 @@ function ProviderIcon({
 
 function StatusBadge({ status }: { status: Integration["status"] }) {
   const cfg = {
-    connected:    { label: "Connected",     icon: <Wifi size={10} />,        cls: "bg-green-50 text-green-700 border-green-200" },
+    active:       { label: "Connected",     icon: <Wifi size={10} />,        cls: "bg-green-50 text-green-700 border-green-200" },
     error:        { label: "Error",          icon: <AlertCircle size={10} />, cls: "bg-red-50 text-red-700 border-red-200" },
     pending:      { label: "Pending",        icon: <Clock size={10} />,       cls: "bg-amber-50 text-amber-700 border-amber-200" },
     disconnected: { label: "Not connected",  icon: <WifiOff size={10} />,     cls: "bg-gray-50 text-gray-500 border-gray-200" },
@@ -106,7 +103,7 @@ function StatusBadge({ status }: { status: Integration["status"] }) {
 // Token expiry badge
 // ---------------------------------------------------------------------------
 
-function TokenExpiryBadge({ expiry }: { expiry: string | null }) {
+function TokenExpiryBadge({ expiry }: { expiry?: string | null }) {
   if (!expiry) return null;
   const exp = new Date(expiry);
   const now = new Date();
@@ -469,8 +466,9 @@ function Toast({ message, type, onClose }: { message: string; type: "success" | 
 
 function WebhookUrlCopy({ provider }: { provider: string }) {
   const [copied, setCopied] = useState(false);
-  const url = typeof window !== "undefined"
-    ? `${window.location.origin.replace(":3000", ":8000")}/webhooks/${provider}`
+  const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
+  const url = apiBase
+    ? `${apiBase}/webhooks/${provider}`
     : `https://your-haip-domain.com/webhooks/${provider}`;
 
   const copy = () => {
@@ -517,7 +515,7 @@ function IntegrationCard({
   isVerifying: boolean;
 }) {
   const status = integration?.status ?? "disconnected";
-  const isConnected = status === "connected";
+  const isConnected = status === "active";
   const isMessaging = item.provider === "whatsapp_meta" || item.provider === "instagram";
 
   return (
@@ -542,9 +540,7 @@ function IntegrationCard({
           <div className="flex items-center gap-2 flex-wrap">
             <StatusBadge status={status} />
             <span className="text-[10px] text-gray-400 capitalize">{item.category}</span>
-            {integration?.token_expiry && (
-              <TokenExpiryBadge expiry={integration.token_expiry} />
-            )}
+            <TokenExpiryBadge expiry={integration?.config?.token_expiry} />
           </div>
         </div>
       </div>
@@ -553,41 +549,41 @@ function IntegrationCard({
       <p className="text-xs text-gray-500 leading-relaxed">{item.description}</p>
 
       {/* Metadata (when connected) */}
-      {isConnected && integration?.metadata_json && Object.keys(integration.metadata_json).length > 0 && (
+      {isConnected && integration?.config && Object.keys(integration.config).length > 0 && (
         <div className="bg-gray-50 rounded-xl p-3 text-[11px] text-gray-600 space-y-1.5">
-          {integration.metadata_json.display_phone && (
+          {integration.config.display_phone && (
             <div className="flex items-center gap-2">
               <Phone size={11} className="text-gray-400" />
-              <span className="font-mono font-medium">{integration.metadata_json.display_phone}</span>
+              <span className="font-mono font-medium">{integration.config.display_phone}</span>
             </div>
           )}
-          {integration.metadata_json.verified_name && (
+          {integration.config.verified_name && (
             <div className="flex items-center gap-2">
               <CheckCircle2 size={11} className="text-green-500" />
-              <span>{integration.metadata_json.verified_name}</span>
+              <span>{integration.config.verified_name}</span>
             </div>
           )}
-          {integration.metadata_json.username && (
+          {integration.config.username && (
             <div className="flex items-center gap-2">
               <AtSign size={11} className="text-gray-400" />
-              <span>@{integration.metadata_json.username}</span>
+              <span>@{integration.config.username}</span>
             </div>
           )}
-          {integration.metadata_json.account_name && (
+          {integration.config.account_name && (
             <div className="flex items-center gap-2">
               <Zap size={11} className="text-gray-400" />
-              <span>{integration.metadata_json.account_name}</span>
+              <span>{integration.config.account_name}</span>
             </div>
           )}
-          {integration.metadata_json.waba_id && (
+          {integration.config.waba_id && (
             <div className="flex items-center gap-2 text-gray-400">
-              <span className="font-mono text-[10px]">WABA: {integration.metadata_json.waba_id}</span>
+              <span className="font-mono text-[10px]">WABA: {integration.config.waba_id}</span>
             </div>
           )}
-          {integration.last_synced_at && (
+          {integration.last_health_at && (
             <div className="flex items-center gap-2 text-gray-400 pt-0.5 border-t border-gray-100">
               <Clock size={10} />
-              <span>Last verified {new Date(integration.last_synced_at).toLocaleString()}</span>
+              <span>Last verified {new Date(integration.last_health_at).toLocaleString()}</span>
             </div>
           )}
         </div>
@@ -608,10 +604,10 @@ function IntegrationCard({
       )}
 
       {/* Error message */}
-      {status === "error" && integration?.error_message && (
+      {status === "error" && integration?.config?.last_error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-2.5 text-xs text-red-700 flex gap-2">
           <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />
-          <span>{integration.error_message}</span>
+          <span>{integration.config.last_error}</span>
         </div>
       )}
 
@@ -700,7 +696,14 @@ export default function IntegrationsPage() {
     staleTime: 30_000,
   });
 
-  const integrationMap = Object.fromEntries(integrations.map(i => [i.provider, i]));
+  // Backend returns `kind` (e.g. "whatsapp"), catalog uses `provider` (e.g. "whatsapp_meta").
+  // Build a map keyed by both kind and provider so catalog lookups always hit.
+  const integrationMap: Record<string, Integration> = {};
+  for (const i of integrations) {
+    integrationMap[i.kind] = i;
+    // Alias: "whatsapp" → "whatsapp_meta" so catalog cards look up correctly
+    if (i.kind === "whatsapp") integrationMap["whatsapp_meta"] = i;
+  }
 
   // Mutations
   const connectMutation = useMutation({
@@ -715,7 +718,7 @@ export default function IntegrationsPage() {
           queryFn: () => api.get(`/integrations/${provider}/webhook-info`).then(r => r.data),
         });
       }
-      showToast(`${catalog.find(c => c.provider === provider)?.name ?? provider} connected successfully!`, "success");
+      showToast(`${catalog.find(c => c.provider === provider)?.name ?? integrationMap[provider]?.config?.provider_name ?? provider} connected successfully!`, "success");
       setConnectModal(null);
     },
     onError: (err: any) => {
@@ -740,7 +743,7 @@ export default function IntegrationsPage() {
     mutationFn: (provider: string) => api.post(`/integrations/${provider}/test`).then(r => r.data as { status: string; message: string }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["integrations"] });
-      if (data.status === "connected") {
+      if (data.status === "active" || data.status === "connected") {
         showToast(data.message || "Connection verified!", "success");
       } else {
         showToast(data.message || "Verification failed — check your credentials.", "error");
@@ -781,7 +784,7 @@ export default function IntegrationsPage() {
   // Grouping
   const categories = ["all", ...Array.from(new Set(catalog.map(c => c.category)))];
   const filtered = activeCategory === "all" ? catalog : catalog.filter(c => c.category === activeCategory);
-  const connectedCount = integrations.filter(i => i.status === "connected").length;
+  const connectedCount = integrations.filter(i => i.status === "active").length;
   const isLoading = catalogLoading || integrationsLoading;
 
   return (

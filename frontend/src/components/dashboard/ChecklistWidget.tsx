@@ -217,9 +217,10 @@ export function ChecklistWidget() {
   // ---------------------------------------------------------------------------
   const cfg = tenant?.config ?? {};
   const onboardingStep = cfg.onboarding_step ?? 0;
-  const waConnected = integrations.some(i => i.kind === "whatsapp_meta" && i.status === "connected");
+  // Backend stores kind as "whatsapp" (not "whatsapp_meta") and status as "active" (not "connected")
+  const waConnected = integrations.some(i => (i.kind === "whatsapp" || i.kind === "whatsapp_meta") && (i.status === "active" || i.status === "connected"));
   const ivrConnected = integrations.some(
-    i => (i.kind === "callerdesk" || i.kind === "acefone") && i.status === "connected"
+    i => (i.kind === "callerdesk" || i.kind === "acefone") && (i.status === "active" || i.status === "connected")
   );
 
   const completionMap: Record<string, boolean> = {

@@ -513,7 +513,7 @@ function RentalApartmentStep({
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { data: session, status, update: updateSession } = useSession();
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -599,8 +599,14 @@ export default function OnboardingPage() {
   }, [status, accessToken]);
 
   const persistStep = useCallback(async (nextStep: number) => {
-    try { await api.patch("/tenants/me", { config: { onboarding_step: nextStep } }); } catch { /* non-fatal */ }
-  }, []);
+    try {
+      await api.patch("/tenants/me", { config: { onboarding_step: nextStep } });
+      // Refresh the JWT so onboarding_step in the session stays in sync.
+      // This prevents the middleware from bouncing back to /onboarding once
+      // onboarding_step >= 2 and the user navigates to /dashboard.
+      await updateSession({ onboarding_step: nextStep });
+    } catch { /* non-fatal */ }
+  }, [updateSession]);
 
   const goNext = useCallback(async () => {
     const next = Math.min(step + 1, TOTAL_STEPS - 1);
