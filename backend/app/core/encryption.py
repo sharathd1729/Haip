@@ -20,7 +20,8 @@ def _get_fernet() -> Fernet:
     key = os.environ.get(_KEY_ENV, "")
     if not key:
         # Dev fallback — deterministic but insecure; must be overridden in production.
-        key = base64.urlsafe_b64encode(b"haip-dev-key-insecure-32bytes!!").decode()
+        # Exactly 32 bytes → valid Fernet key.
+        key = base64.urlsafe_b64encode(b"haip-dev-key-insecure-32bytes!!!").decode()
     return Fernet(key.encode() if isinstance(key, str) else key)
 
 
