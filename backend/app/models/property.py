@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, JSON, ForeignKey, Text, Integer, Numeric
+from sqlalchemy import Column, String, Boolean, JSON, ForeignKey, Text, Integer, Numeric, Date
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 from app.models.base import TimestampMixin, TenantMixin, gen_uuid
@@ -63,6 +63,9 @@ class Property(Base, TimestampMixin, TenantMixin):
     rate_plans = relationship("RatePlan", back_populates="property", lazy="dynamic")
     stays = relationship("Stay", back_populates="property", lazy="dynamic")
     rooms = relationship("Room", back_populates="property", lazy="dynamic")
+    addons = relationship("PropertyAddOn", back_populates="property", lazy="dynamic")
+    seasonal_rates = relationship("SeasonalRate", back_populates="property", lazy="dynamic")
+    blocked_dates = relationship("BlockedDate", back_populates="property", lazy="dynamic")
 
 
 class Room(Base, TimestampMixin, TenantMixin):
@@ -132,3 +135,77 @@ class Stay(Base, TimestampMixin, TenantMixin):
 
     guest = relationship("Guest", back_populates="stays")
     property = relationship("Property", back_populates="stays")
+
+
+class PropertyAddOn(Base, TimestampMixin, TenantMixin):
+    """
+    Add-on services for a property or caravan.
+    Examples: candle-lit dinner, airport transfer, private chef, early check-in,
+              birthday cake, couples massage, bonfire, guided trek, etc.
+    """
+    __tablename__ = "property_addons"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    property_id = Column(String, ForeignKey("properties.id"), nullable=False, index=True)
+
+    name = Column(String(255), nullable=False)          # "Candle-lit dinner"
+    description = Column(Text, nullable=True)            # shown in quote
+    category = Column(String(50), default="experience")  # experience / transfer / meal / stay / other
+    price = Column(Numeric(10, 2), nullable=False)
+    price_type = Column(String(20), default="per_stay")  # per_stay | per_night | per_person | per_unit
+    currency = Column(String(3), default="INR")
+    is_active = Column(Boolean, default=True)
+    sort_order = Column(Integer, default=0)
+
+    property = relationship("Property", back_populates="addons")
+
+
+class SeasonalRate(Base, TimestampMixin, TenantMixin):
+    """
+    Date-range based pricing override for a property.
+    Supports: peak season, holiday surcharge, off-season discount.
+    Multiple seasonal rates can exist per property — first match wins (ordered by priority).
+    """
+    __tablename__ = "seasonal_rates"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    property_id = Column(String, ForeignKey("properties.id"), nullable=False, index=True)
+
+    name = Column(String(100), nullable=False)           # "Christmas Peak", "Monsoon Off-season"
+    date_from = Column(String(10), nullable=False)        # YYYY-MM-DD
+    date_to = Column(String(10), nullable=False)          # YYYY-MM-DD
+    price_per_night = Column(Numeric(10, 2), nullable=False)
+    min_nights = Column(Integer, default=1)
+    currency = Column(String(3), default="INR")
+    priority = Column(Integer, default=0)                 # higher wins when ranges overlap
+    is_active = Column(Boolean, default=True)
+
+    # Occupancy-based overrides: {4: 95000, 6: 110000}  (guests → price)
+    occupancy_pricing = Column(JSON, default=dict)
+
+    property = relationship("Property", back_populates="seasonal_rates")
+
+
+class BlockedDate(Base, TimestampMixin, TenantMixin):
+    """
+    Manual date blocks for a property — maintenance, personal use, offline booking.
+    When a date range is blocked the property will NOT appear in calculator results
+    and will show as 'Blocked' on the portfolio calendar.
+    """
+    __tablename__ = "blocked_dates"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    property_id = Column(String, ForeignKey("properties.id"), nullable=False, index=True)
+
+    blocked_from = Column(String(10), nullable=False)   # YYYY-MM-DD (inclusive)
+    blocked_to   = Column(String(10), nullable=False)   # YYYY-MM-DD (exclusive — same convention as check_in/out)
+
+    # Why is it blocked?
+    reason = Column(String(30), default="maintenance")  # maintenance | personal | offline_booking | other
+    notes  = Column(Text, nullable=True)                # free text, e.g. "AC repair"
+    is_active = Column(Boolean, default=True)
+
+    property = relationship("Property", back_populates="blocked_dates")

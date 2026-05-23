@@ -7,7 +7,8 @@ import {
   BarChart2, Star, Settings, LogOut, Inbox,
   Home, Shield, Plug2, Zap, Megaphone,
   UserCheck, GitBranch, FileDown, CreditCard,
-  HelpCircle, UserCircle, Palette,
+  HelpCircle, UserCircle, Palette, Calculator, Building2,
+  CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canSeeNav, type Resource } from "@/lib/permissions";
@@ -36,7 +37,9 @@ const navSections: { label: string; items: NavItem[] }[] = [
     items: [
       { label: "Inquiries",  href: "/dashboard/inquiries",  icon: <Zap size={16} />,        resource: "inquiries" },
       { label: "Guests",     href: "/dashboard/guests",     icon: <Users size={16} />,       resource: "guests" },
-      { label: "Properties", href: "/dashboard/properties", icon: <Home size={16} />,        resource: "properties" },
+      { label: "Portfolio",   href: "/dashboard/properties",          icon: <Building2 size={16} />,    resource: "properties" },
+      { label: "Calendar",    href: "/dashboard/properties/calendar", icon: <CalendarDays size={16} />, resource: "properties" },
+      { label: "Calculator",  href: "/dashboard/calculator",          icon: <Calculator size={16} />,   resource: "properties" },
     ],
   },
   {

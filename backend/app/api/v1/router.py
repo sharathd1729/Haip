@@ -5,6 +5,7 @@ from app.api.v1.endpoints import (
     qa, integrations, analytics, audit, sse, messaging, reports, saved_replies, saved_views,
     webhooks_callerdesk, webhooks_acefone, webhooks_whatsapp, webhooks_instagram,
     grievance, incidents, health, changelog, sample_data, admin_dlq,
+    calculator, calendar,
 )
 
 api_router = APIRouter(prefix="/api/v1")
@@ -24,6 +25,8 @@ api_router.include_router(conversations.router)
 api_router.include_router(saved_replies.router)
 api_router.include_router(saved_views.router)
 api_router.include_router(properties.router)
+api_router.include_router(calculator.router)
+api_router.include_router(calendar.router)
 api_router.include_router(calls.router)
 
 # Intelligence

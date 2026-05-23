@@ -22,7 +22,7 @@ from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.models.property import Property, PropertyAddOn, RatePlan, SeasonalRate
-from app.models.property import Stay
+from app.models.property import Stay, BlockedDate
 
 log = logging.getLogger(__name__)
 
@@ -299,9 +299,11 @@ class CalculatorService:
         checkout: str,
     ) -> bool:
         """
-        Return True if no confirmed/checked-in stay overlaps [checkin, checkout).
-        Two bookings overlap when: stay.check_in < checkout AND stay.check_out > checkin
+        Return True if no confirmed/checked-in stay OR active manual block
+        overlaps the requested [checkin, checkout) window.
+        Overlap condition: start < checkout AND end > checkin
         """
+        # Check stays table
         conflict = (
             db.query(Stay)
             .filter(
@@ -313,7 +315,22 @@ class CalculatorService:
             )
             .first()
         )
-        return conflict is None
+        if conflict:
+            return False
+
+        # Check manual blocks
+        blocked = (
+            db.query(BlockedDate)
+            .filter(
+                BlockedDate.property_id == property_id,
+                BlockedDate.tenant_id == tenant_id,
+                BlockedDate.is_active == True,
+                BlockedDate.blocked_from < checkout,
+                BlockedDate.blocked_to > checkin,
+            )
+            .first()
+        )
+        return blocked is None
 
     def _resolve_rate(
         self,
