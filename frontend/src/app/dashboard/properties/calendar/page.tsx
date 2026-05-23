@@ -3,8 +3,8 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  addDays, format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
-  parseISO, differenceInDays, isSameDay,
+  addDays, format, startOfMonth, endOfMonth,
+  parseISO,
 } from "date-fns";
 import {
   Calendar, ChevronLeft, ChevronRight, Download, Plus, X,
@@ -299,7 +299,7 @@ export default function CalendarPage() {
       setShowBlock(false);
       toast({ title: "Dates blocked", variant: "success" });
     },
-    onError: () => toast({ title: "Failed to block dates", variant: "destructive" }),
+    onError: () => toast({ title: "Failed to block dates", variant: "error" }),
   });
 
   const deleteBlock = useMutation({

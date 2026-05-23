@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     GROQ_API_KEY: str = ""
     DEEPGRAM_API_KEY: str = ""
+    SARVAM_API_KEY: str = ""   # Sarvam AI — best for Hindi/Indic/code-switched calls
 
     # CallerDesk
     CALLERDESK_API_KEY: str = ""
@@ -127,9 +128,9 @@ class Settings(BaseSettings):
                     "Core call-intelligence and CRM features are unaffected."
                 )
 
-            if not self.GROQ_API_KEY and not self.DEEPGRAM_API_KEY:
+            if not self.SARVAM_API_KEY and not self.GROQ_API_KEY and not self.DEEPGRAM_API_KEY:
                 _log.warning(
-                    "No transcription key (GROQ_API_KEY or DEEPGRAM_API_KEY). "
+                    "No transcription key set (SARVAM_API_KEY / GROQ_API_KEY / DEEPGRAM_API_KEY). "
                     "Call transcription will be unavailable."
                 )
 
@@ -148,7 +149,7 @@ class Settings(BaseSettings):
 
     @property
     def transcription_enabled(self) -> bool:
-        return bool(self.GROQ_API_KEY or self.DEEPGRAM_API_KEY)
+        return bool(self.SARVAM_API_KEY or self.GROQ_API_KEY or self.DEEPGRAM_API_KEY)
 
     @property
     def whatsapp_enabled(self) -> bool:

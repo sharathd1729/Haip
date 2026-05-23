@@ -4,7 +4,11 @@ Transcription adapter factory.
 Provider priority (first match wins):
   1. Explicit `provider` argument passed to get_transcription_adapter()
   2. TRANSCRIPTION_PROVIDER env var
-  3. Auto-detect: GROQ_API_KEY set → groq | DEEPGRAM_API_KEY set → deepgram | fallback → whisper (local)
+  3. Auto-detect:
+       SARVAM_API_KEY set  → sarvam   (best for Hindi / Indic / code-switched)
+       GROQ_API_KEY set    → groq
+       DEEPGRAM_API_KEY set→ deepgram
+       fallback            → whisper  (local, free, slowest)
 """
 from app.adapters.transcription.base import TranscriptionAdapter, TranscriptResult, TranscriptTurn
 from app.core.config import settings
@@ -14,13 +18,17 @@ def get_transcription_adapter(provider: str | None = None) -> TranscriptionAdapt
     """
     Return the correct TranscriptionAdapter.
 
-    provider values: "groq" | "deepgram" | "whisper"
+    provider values: "sarvam" | "groq" | "deepgram" | "whisper"
     """
     chosen = (
         provider
         or settings.TRANSCRIPTION_PROVIDER
         or _auto_detect_transcription()
     )
+
+    if chosen == "sarvam":
+        from app.adapters.transcription.sarvam import SarvamAdapter
+        return SarvamAdapter()
 
     if chosen == "groq":
         from app.adapters.transcription.groq_whisper import GroqWhisperAdapter
@@ -36,6 +44,8 @@ def get_transcription_adapter(provider: str | None = None) -> TranscriptionAdapt
 
 
 def _auto_detect_transcription() -> str:
+    if settings.SARVAM_API_KEY:
+        return "sarvam"
     if settings.GROQ_API_KEY:
         return "groq"
     if settings.DEEPGRAM_API_KEY:
