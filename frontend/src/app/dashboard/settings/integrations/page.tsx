@@ -442,14 +442,18 @@ function ConnectModal({
 // Toast
 // ---------------------------------------------------------------------------
 
-function Toast({ message, type, onClose }: { message: string; type: "success" | "error"; onClose: () => void }) {
+function Toast({ message, type, onClose }: { message: string; type: "success" | "error" | "warning"; onClose: () => void }) {
   return (
     <div className={cn(
       "fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border text-sm font-medium max-w-sm",
-      type === "success" ? "bg-green-50 text-green-800 border-green-200" : "bg-red-50 text-red-800 border-red-200"
+      type === "success" ? "bg-green-50 text-green-800 border-green-200"
+        : type === "warning" ? "bg-amber-50 text-amber-800 border-amber-200"
+        : "bg-red-50 text-red-800 border-red-200"
     )}>
       {type === "success"
         ? <CheckCircle2 size={16} className="text-green-600 flex-shrink-0" />
+        : type === "warning"
+        ? <AlertCircle size={16} className="text-amber-500 flex-shrink-0" />
         : <AlertCircle size={16} className="text-red-600 flex-shrink-0" />
       }
       <span className="flex-1">{message}</span>
@@ -670,14 +674,14 @@ function IntegrationCard({
 
 export default function IntegrationsPage() {
   const queryClient = useQueryClient();
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "warning" } | null>(null);
   const [connectModal, setConnectModal] = useState<{ provider: string; name: string; authType?: string; notes?: string } | null>(null);
   const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
   const [disconnectingProvider, setDisconnectingProvider] = useState<string | null>(null);
   const [verifyingProvider, setVerifyingProvider] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>("all");
 
-  const showToast = useCallback((message: string, type: "success" | "error") => {
+  const showToast = useCallback((message: string, type: "success" | "error" | "warning") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 5000);
   }, []);
@@ -709,7 +713,7 @@ export default function IntegrationsPage() {
   const connectMutation = useMutation({
     mutationFn: ({ provider, fields }: { provider: string; fields: Record<string, string> }) =>
       api.post(`/integrations/${provider}/connect-key`, fields),
-    onSuccess: (_, { provider }) => {
+    onSuccess: (res, { provider }) => {
       queryClient.invalidateQueries({ queryKey: ["integrations"] });
       // Also pre-fetch webhook info for messaging providers
       if (provider === "whatsapp_meta" || provider === "instagram") {
@@ -718,7 +722,13 @@ export default function IntegrationsPage() {
           queryFn: () => api.get(`/integrations/${provider}/webhook-info`).then(r => r.data),
         });
       }
-      showToast(`${catalog.find(c => c.provider === provider)?.name ?? integrationMap[provider]?.config?.provider_name ?? provider} connected successfully!`, "success");
+      const providerName = catalog.find(c => c.provider === provider)?.name ?? integrationMap[provider]?.config?.provider_name ?? provider;
+      const warning = (res as any)?.data?.warning;
+      if (warning) {
+        showToast(`${providerName} saved — ${warning}`, "warning");
+      } else {
+        showToast(`${providerName} connected successfully!`, "success");
+      }
       setConnectModal(null);
     },
     onError: (err: any) => {

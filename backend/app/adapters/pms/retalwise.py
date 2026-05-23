@@ -29,16 +29,26 @@ DEFAULT_BASE = "https://partners-api.rentalwise.com"
 
 
 class RentalwiseAdapter:
-    def __init__(self, username: str, password: str, base_url: str = DEFAULT_BASE):
-        self._auth = (username, password)
+    def __init__(self, username: str = "", password: str = "", base_url: str = DEFAULT_BASE, api_token: str = ""):
+        """
+        Supports two auth modes:
+          - Bearer token: pass api_token="12774|rw_production_..."
+          - Basic auth:   pass username + password
+        """
         self._base = base_url.rstrip("/")
+        if api_token:
+            self._headers = {"Authorization": f"Bearer {api_token}", "Accept": "application/json"}
+            self._auth = None
+        else:
+            self._headers = {"Accept": "application/json"}
+            self._auth = (username, password) if username else None
 
     # ── Internal helpers ──────────────────────────────────────────────────────
 
     def _get(self, path: str, params: dict | None = None) -> Any:
         url = f"{self._base}/{path.lstrip('/')}"
         try:
-            resp = httpx.get(url, auth=self._auth, params=params or {}, timeout=30)
+            resp = httpx.get(url, auth=self._auth, headers=self._headers, params=params or {}, timeout=30)
             resp.raise_for_status()
             return resp.json()
         except httpx.HTTPStatusError as exc:
@@ -53,7 +63,7 @@ class RentalwiseAdapter:
 
     def _post(self, path: str, payload: dict) -> Any:
         url = f"{self._base}/{path.lstrip('/')}"
-        resp = httpx.post(url, auth=self._auth, json=payload, timeout=30)
+        resp = httpx.post(url, auth=self._auth, headers=self._headers, json=payload, timeout=30)
         try:
             resp.raise_for_status()
         except httpx.HTTPStatusError as exc:
@@ -67,38 +77,68 @@ class RentalwiseAdapter:
     # ── Content endpoints ─────────────────────────────────────────────────────
 
     def get_properties(self) -> list[dict]:
-        """GET /properties — list all properties with full details."""
-        data = self._get("/properties")
-        items = data if isinstance(data, list) else data.get("data", data.get("properties", []))
+        """POST /property/query — list all properties."""
+        payload = {"paginate": {"page": 1, "perpage": 200}, "sort": [], "where": {}, "with": []}
+        data = self._post("/property/query", payload)
+        items = data if isinstance(data, list) else data.get("data", data.get("properties", data.get("items", [])))
         return [self._normalise_property(p) for p in items]
 
     def get_property(self, property_id: str) -> dict:
-        """GET /property/{id} — single property detail."""
-        data = self._get(f"/property/{property_id}")
-        return self._normalise_property(data)
+        """POST /property/query filtered by id."""
+        payload = {"paginate": {"page": 1, "perpage": 1}, "where": {"conditions": [{"field": "id", "value": property_id, "__condition__": "="}]}}
+        data = self._post("/property/query", payload)
+        items = data if isinstance(data, list) else data.get("data", data.get("properties", []))
+        return self._normalise_property(items[0]) if items else {}
 
-    def get_property_types(self) -> list[dict]:
-        return self._get("/property-types")
-
-    def get_amenities(self) -> list[dict]:
-        return self._get("/amenities")
-
-    def get_bed_types(self) -> list[dict]:
-        return self._get("/bed-types")
+    @staticmethod
+    def _str(val: any, fallback: str = "") -> str:
+        """Extract string from either a plain string or a multilingual dict like {'en': 'name'}."""
+        if val is None:
+            return fallback
+        if isinstance(val, dict):
+            return str(val.get("en") or val.get("EN") or next(iter(val.values()), fallback) or fallback)
+        return str(val) if val else fallback
 
     def _normalise_property(self, p: dict) -> dict:
+        # location.name contains the city (Translated dict)
+        location = p.get("location") or {}
+        city = self._str(location.get("name", p.get("city", "")))
+
+        # property_type is a nested object {id, name} or a plain string
+        ptype_raw = p.get("property_type", p.get("type", p.get("propertyType", "villa")))
+        if isinstance(ptype_raw, dict):
+            ptype = self._str(ptype_raw.get("name", "villa"))
+        else:
+            ptype = self._str(ptype_raw) or "villa"
+
+        # images: each image has thumbnail/medium/large/original URLs
+        images_raw = p.get("images", [])
+        images = [
+            img.get("large") or img.get("medium") or img.get("original") or img.get("thumbnail")
+            for img in images_raw
+            if isinstance(img, dict)
+        ]
+
+        # amenities: list of {id, name (Translated), original_name, ...}
+        amenities_raw = p.get("amenities", [])
+        amenities = [
+            self._str(a.get("name", a.get("original_name", "")))
+            for a in amenities_raw
+            if isinstance(a, dict)
+        ]
+
         return {
             "external_id": str(p.get("id", p.get("propertyId", p.get("property_id", "")))),
-            "name": p.get("name", p.get("propertyName", "")),
-            "type": p.get("type", p.get("propertyType", "villa")),
-            "city": p.get("city", ""),
-            "address": p.get("address", ""),
-            "max_guests": int(p.get("maxGuests", p.get("max_guests", 0))),
-            "bedrooms": int(p.get("bedrooms", p.get("bedroomsCount", 0))),
-            "bathrooms": int(p.get("bathrooms", p.get("bathroomsCount", 0))),
-            "description": p.get("description", ""),
-            "amenities": p.get("amenities", []),
-            "images": p.get("images", []),
+            "name": self._str(p.get("name", p.get("propertyName", ""))),
+            "type": ptype,
+            "city": city,
+            "address": self._str(p.get("address", "")),
+            "max_guests": int(p.get("max_occupancy", p.get("maxGuests", p.get("max_guests", p.get("max_adults", 0)))) or 0),
+            "bedrooms": int(p.get("bedrooms", p.get("bedroomsCount", 0)) or 0),
+            "bathrooms": int(p.get("bathrooms", p.get("bathroomsCount", 0)) or 0),
+            "description": self._str(p.get("description", "")),
+            "amenities": amenities,
+            "images": [img for img in images if img],
             "raw": p,
         }
 
@@ -106,88 +146,153 @@ class RentalwiseAdapter:
 
     def get_availability(self, property_id: str, date_from: str, date_to: str) -> list[dict]:
         """
-        GET /availability
-        Returns per-night availability for a property.
+        POST /property/get-rates-availability
+        Returns per-night availability + rates for a property.
         date_from / date_to: YYYY-MM-DD
         """
-        return self._get("/availability", params={
-            "propertyId": property_id,
-            "from": date_from,
-            "to": date_to,
+        return self._post("/property/get-rates-availability", {
+            "property": int(property_id),
+            "daterange": {"start": date_from, "end": date_to},
+            "fill_default_values": True,
         })
 
     # ── Rates ────────────────────────────────────────────────────────────────
 
     def get_rates(self, property_id: str, date_from: str, date_to: str) -> list[dict]:
         """
-        GET /rates — LOS (length-of-stay) rates for a property.
+        POST /property/rates-with-ranges — rates grouped by date range.
         """
-        return self._get("/rates", params={
-            "propertyId": property_id,
-            "from": date_from,
-            "to": date_to,
+        return self._post("/property/rates-with-ranges", {
+            "property": int(property_id),
+            "daterange": {"start": date_from, "end": date_to},
+            "fill_default_values": True,
         })
+
+    def fetch_property(self, property_id: str) -> dict:
+        """
+        POST /property/fetch — full property details including images and amenities.
+        """
+        try:
+            data = self._post("/property/fetch", {"id": int(property_id), "with": ["images", "amenities", "location", "property_type"]})
+            return self._normalise_property(data) if data else {}
+        except Exception as exc:
+            logger.warning("RentalWise fetch_property %s failed: %s", property_id, exc)
+            return {}
 
     # ── Reservations ──────────────────────────────────────────────────────────
 
-    def get_reservations(self, limit: int = 100, offset: int = 0) -> list[dict]:
-        """GET /reservations — list reservations."""
-        data = self._get("/reservations", params={"limit": limit, "offset": offset})
-        items = data if isinstance(data, list) else data.get("data", data.get("reservations", []))
+    def get_reservations(self, limit: int = 200, offset: int = 0) -> list[dict]:
+        """POST /booking/query — list bookings."""
+        page = (offset // limit) + 1
+        payload = {
+            "paginate": {"page": page, "perpage": limit},
+            "sort": [{"field": "id", "direction": "desc"}],
+            "where": {},
+            "with": ["main_guest", "property", "currency"],
+        }
+        try:
+            data = self._post("/booking/query", payload)
+        except Exception:
+            return []
+        items = data if isinstance(data, list) else data.get("data", data.get("bookings", data.get("items", [])))
         return [self._normalise_reservation(r) for r in items]
 
     def get_reservation(self, reservation_id: str) -> dict:
-        """GET /reservations/{id} — single reservation."""
-        data = self._get(f"/reservations/{reservation_id}")
-        return self._normalise_reservation(data)
-
-    def get_quote(self, property_id: str, check_in: str, check_out: str, guests: int = 2) -> dict:
-        """POST /quotes — get a price quote before creating a reservation."""
-        return self._post("/quotes", {
-            "propertyId": property_id,
-            "checkIn": check_in,
-            "checkOut": check_out,
-            "guests": guests,
-        })
+        """POST /booking/query filtered by id."""
+        payload = {
+            "paginate": {"page": 1, "perpage": 1},
+            "where": {"conditions": [{"field": "id", "value": reservation_id, "__condition__": "="}]},
+            "with": ["main_guest", "property", "currency"],
+        }
+        try:
+            data = self._post("/booking/query", payload)
+        except Exception:
+            return {}
+        items = data if isinstance(data, list) else data.get("data", [])
+        return self._normalise_reservation(items[0]) if items else {}
 
     def create_reservation(self, payload: dict) -> dict:
-        """POST /reservations — create a booking."""
-        return self._post("/reservations", payload)
+        """POST /booking — create a booking."""
+        return self._post("/booking", payload)
 
     def _normalise_reservation(self, r: dict) -> dict:
-        guest = r.get("guest", r.get("guestDetails", {})) or {}
+        # main_guest is the GuestAccount object
+        guest = r.get("main_guest") or r.get("guest") or r.get("guestDetails") or {}
+        guest_name = " ".join(filter(None, [
+            self._str(guest.get("first_name", guest.get("firstName", ""))),
+            self._str(guest.get("last_name", guest.get("lastName", ""))),
+        ])) or self._str(guest.get("name", guest.get("fullName", ""))) or self._str(r.get("guestName", ""))
+
+        # currency: Currency object with iso_code
+        currency_raw = r.get("currency", "INR")
+        currency = currency_raw.get("iso_code", "INR") if isinstance(currency_raw, dict) else str(currency_raw or "INR")
+
+        # channel: source_name is a plain string; channel may be a nested object
+        channel_raw = r.get("source_name") or r.get("channel_source") or r.get("channel") or "direct"
+        channel = channel_raw.get("name", "direct") if isinstance(channel_raw, dict) else str(channel_raw or "direct")
+
+        # property: Property object with id
+        prop_raw = r.get("property") or r.get("propertyId") or r.get("property_id") or ""
+        property_id = str(prop_raw.get("id", "") if isinstance(prop_raw, dict) else prop_raw or "")
+
+        # dates: API uses checkin/checkout (no underscore)
+        check_in = self._str(r.get("checkin", r.get("check_in", r.get("checkIn", r.get("arrival", "")))))
+        check_out = self._str(r.get("checkout", r.get("check_out", r.get("checkOut", r.get("departure", "")))))
+
+        # total price
+        total = float(r.get("total", r.get("totalAmount", r.get("total_amount", r.get("price", 0)))) or 0)
+
         return {
             "external_id": str(r.get("id", r.get("reservationId", r.get("reservation_id", "")))),
-            "property_id": str(r.get("propertyId", r.get("property_id", ""))),
-            "guest_name": (
-                guest.get("name", guest.get("fullName", ""))
-                or r.get("guestName", r.get("guest_name", ""))
-            ),
-            "guest_phone": (
-                guest.get("phone", guest.get("mobile", ""))
+            "property_id": property_id,
+            "guest_name": guest_name,
+            "guest_phone": self._str(
+                guest.get("phone", guest.get("mobile", guest.get("phone_number", "")))
                 or r.get("guestPhone", r.get("guest_phone", ""))
             ),
-            "guest_email": (
+            "guest_email": self._str(
                 guest.get("email", "")
                 or r.get("guestEmail", r.get("guest_email", ""))
             ),
-            "check_in": r.get("checkIn", r.get("check_in", r.get("arrival", ""))),
-            "check_out": r.get("checkOut", r.get("check_out", r.get("departure", ""))),
-            "status": r.get("status", "confirmed"),
-            "channel": r.get("channel", r.get("source", r.get("channelName", "direct"))),
-            "total_amount": float(r.get("totalAmount", r.get("total_amount", r.get("price", 0))) or 0),
-            "currency": r.get("currency", "INR"),
-            "nights": int(r.get("nights", 0)),
-            "guests_count": int(r.get("guests", r.get("guestsCount", 0))),
+            "check_in": check_in,
+            "check_out": check_out,
+            "status": self._str(r.get("status", "confirmed")),
+            "channel": channel,
+            "total_amount": total,
+            "currency": currency,
+            "nights": int(r.get("nights", 0) or 0),
+            "guests_count": int(r.get("adults", r.get("guests", r.get("guestsCount", 0))) or 0),
             "raw": r,
         }
+
+    def get_guests(self, limit: int = 500) -> list[dict]:
+        """Extract unique guests from bookings (RentalWise has no standalone /guests endpoint)."""
+        try:
+            reservations = self.get_reservations(limit=limit)
+            seen: set[str] = set()
+            guests = []
+            for r in reservations:
+                phone = r.get("guest_phone", "").strip()
+                email = r.get("guest_email", "").strip()
+                # Use phone as primary key; fall back to email if no phone
+                key = phone or email
+                if key and key not in seen:
+                    seen.add(key)
+                    guests.append({
+                        "phone": phone,
+                        "name": r.get("guest_name", ""),
+                        "email": email,
+                    })
+            return guests
+        except Exception:
+            return []
 
     # ── Health check ──────────────────────────────────────────────────────────
 
     def ping(self) -> bool:
         """Verify credentials are valid. Returns True on success."""
         try:
-            self._get("/properties")
+            self._post("/property/query", {"paginate": {"page": 1, "perpage": 1}})
             return True
         except Exception:
             return False

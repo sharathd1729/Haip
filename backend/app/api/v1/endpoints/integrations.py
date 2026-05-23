@@ -188,7 +188,11 @@ def connect_whatsapp_manual(
     if not access_token:
         raise HTTPException(status_code=400, detail="access_token is required")
 
-    # Quick validation — call Graph API to check token is valid
+    # Soft validation — try to verify token with Meta, but don't block save on failure.
+    # Users can use "Test Connection" after saving to confirm credentials are working.
+    display_phone = ""
+    verified_name = ""
+    validation_warning = None
     try:
         resp = httpx.get(
             f"https://graph.facebook.com/v20.0/{phone_number_id}",
@@ -197,18 +201,22 @@ def connect_whatsapp_manual(
         )
         data = resp.json()
         if "error" in data:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid credentials: {data['error'].get('message', 'Token rejected by Meta')}"
-            )
-        display_phone = data.get("display_phone_number", "")
-        verified_name = data.get("verified_name", "")
-    except HTTPException:
-        raise
+            err_meta = data["error"]
+            code = err_meta.get("code", 0)
+            msg = err_meta.get("message", "Token rejected by Meta")
+            if code in (190, 102):
+                validation_warning = "Token could not be verified with Meta — it may be expired. Use 'Test Connection' to confirm after saving."
+            elif code == 200:
+                validation_warning = "Token may be missing permissions (whatsapp_business_messaging / whatsapp_business_management). Credentials saved — use 'Test Connection' to verify."
+            elif code == 100:
+                validation_warning = "Phone Number ID may be incorrect. Credentials saved — use 'Test Connection' to confirm."
+            else:
+                validation_warning = f"Meta returned: {msg}. Credentials saved — use 'Test Connection' to verify."
+        else:
+            display_phone = data.get("display_phone_number", "")
+            verified_name = data.get("verified_name", "")
     except Exception:
-        # Validation failed — save anyway (offline / rate-limited)
-        display_phone = ""
-        verified_name = ""
+        validation_warning = "Could not reach Meta API to validate — credentials saved. Use 'Test Connection' once network is available."
 
     row = _upsert_integration(db, current_user.tenant_id, "whatsapp_meta")
     row.credentials_kms_blob = encrypt_credentials({
@@ -232,6 +240,7 @@ def connect_whatsapp_manual(
         "waba_id": waba_id,
         "display_phone": display_phone,
         "verified_name": verified_name,
+        "warning": validation_warning,
     }
 
 
@@ -362,18 +371,19 @@ def connect_retalwise(
     if not password:
         raise HTTPException(status_code=400, detail="password is required")
 
-    # Verify credentials before saving
-    from app.adapters.pms.retalwise import RentalwiseAdapter
-    adapter = RentalwiseAdapter(
-        username=username,
-        password=password,
-        base_url=base_url or "https://partners-api.rentalwise.com",
-    )
-    if not adapter.ping():
-        raise HTTPException(
-            status_code=400,
-            detail="Could not connect to RentalWise — check your username, password, and base URL."
+    # Soft ping — save credentials regardless; user can Test Connection afterward
+    ping_warning = None
+    try:
+        from app.adapters.pms.retalwise import RentalwiseAdapter
+        adapter = RentalwiseAdapter(
+            username=username,
+            password=password,
+            base_url=base_url or "https://partners-api.rentalwise.com",
         )
+        if not adapter.ping():
+            ping_warning = "Could not reach RentalWise API — credentials saved. Use 'Test Connection' to verify once the API is accessible."
+    except Exception:
+        ping_warning = "RentalWise API unreachable — credentials saved. Use 'Test Connection' to verify."
 
     row = _upsert_integration(db, current_user.tenant_id, "retalwise")
     row.credentials_kms_blob = encrypt_credentials({"username": username, "password": password})
@@ -391,7 +401,7 @@ def connect_retalwise(
     from app.workers.tasks.sync_retalwise import sync_retalwise
     background_tasks.add_task(lambda: sync_retalwise.delay(current_user.tenant_id))
 
-    return {"status": "connected", "provider": "retalwise"}
+    return {"status": "connected", "provider": "retalwise", "warning": ping_warning}
 
 
 # ─── Hostaway OAuth2 ─────────────────────────────────────────────────────────
@@ -465,8 +475,13 @@ def trigger_sync(
         raise HTTPException(status_code=404, detail="Integration not connected")
 
     if kind == "retalwise":
-        from app.workers.tasks.sync_retalwise import sync_retalwise
-        sync_retalwise.delay(current_user.tenant_id)
+        try:
+            # Try Celery first; fall back to direct execution if worker not running
+            from app.workers.tasks.sync_retalwise import sync_retalwise
+            sync_retalwise.delay(current_user.tenant_id)
+        except Exception:
+            from app.workers.tasks.sync_retalwise import sync_retalwise
+            sync_retalwise(current_user.tenant_id)
     elif kind == "hostaway":
         from app.workers.tasks.sync_hostaway import sync_hostaway
         sync_hostaway.delay(current_user.tenant_id)

@@ -9,6 +9,7 @@ Triggered:
 
 from __future__ import annotations
 import logging
+import re
 import uuid as _uuid
 from datetime import datetime, timezone
 from celery import shared_task
@@ -36,17 +37,22 @@ def sync_retalwise(self, tenant_id: str) -> dict:
             return {"status": "skipped", "reason": "not connected"}
 
         creds = decrypt_credentials(integration.credentials_kms_blob)
+        api_token = creds.get("api_token", "")
         username = creds.get("username", creds.get("api_key", ""))
         password = creds.get("password", creds.get("api_secret", ""))
-        if not username or not password:
+
+        if not api_token and not username:
             logger.error("RentalWise sync: missing credentials for tenant %s", tenant_id)
-            return {"status": "error", "reason": "missing username/password"}
+            return {"status": "error", "reason": "missing credentials"}
 
         config = integration.config or {}
         base_url = config.get("base_url", "https://partners-api.rentalwise.com")
 
         from app.adapters.pms.retalwise import RentalwiseAdapter
-        adapter = RentalwiseAdapter(username=username, password=password, base_url=base_url)
+        adapter = RentalwiseAdapter(
+            username=username, password=password,
+            base_url=base_url, api_token=api_token,
+        )
 
         stats = {"properties": 0, "reservations": 0, "guests": 0, "errors": []}
 
@@ -110,6 +116,30 @@ def sync_retalwise(self, tenant_id: str) -> dict:
         db.close()
 
 
+def _slugify(text: str) -> str:
+    """Convert a property name to a URL-safe slug."""
+    text = text.lower()
+    # Replace non-alphanumeric characters (including |, spaces, etc.) with hyphens
+    text = re.sub(r"[^a-z0-9]+", "-", text)
+    # Strip leading/trailing hyphens
+    return text.strip("-") or "property"
+
+
+def _unique_slug(db: Session, tenant_id: str, base: str, exclude_id: str | None = None) -> str:
+    """Return a slug that is unique within the tenant's properties."""
+    from app.models.property import Property as Prop
+    slug = base
+    n = 1
+    while True:
+        q = db.query(Prop).filter_by(tenant_id=tenant_id, slug=slug)
+        if exclude_id:
+            q = q.filter(Prop.id != exclude_id)
+        if not q.first():
+            return slug
+        slug = f"{base}-{n}"
+        n += 1
+
+
 def _upsert_property(db: Session, tenant_id: str, p: dict):
     """Create or update a Property row from RentalWise data."""
     external_id = p.get("external_id", "")
@@ -131,19 +161,28 @@ def _upsert_property(db: Session, tenant_id: str, p: dict):
         ).first()
 
     if not row:
+        new_id = str(_uuid.uuid4())
+        name = p.get("name") or "Unnamed"
+        slug = _unique_slug(db, tenant_id, _slugify(name))
         row = Property(
-            id=str(_uuid.uuid4()),
+            id=new_id,
             tenant_id=tenant_id,
             hostaway_listing_id=f"rw_{external_id}",  # prefix to distinguish from Hostaway
+            slug=slug,
         )
         db.add(row)
     else:
         row.hostaway_listing_id = f"rw_{external_id}"
+        # Backfill slug if missing
+        if not getattr(row, "slug", None):
+            name = p.get("name") or row.name or "Unnamed"
+            row.slug = _unique_slug(db, tenant_id, _slugify(name), exclude_id=row.id)
 
     row.name = p.get("name") or row.name or "Unnamed"
     row.type = p.get("type") or "villa"
     row.city = p.get("city") or ""
     row.address = p.get("address") or ""
+    row.channel_source = "retalwise"
     if p.get("max_guests"):
         row.max_adults = p["max_guests"]
     if p.get("bedrooms"):
@@ -160,7 +199,7 @@ def _upsert_stay(db: Session, tenant_id: str, r: dict):
     if not external_id:
         return
 
-    # Find guest by phone if available
+    # Find guest by phone — required (guest_id is NOT NULL)
     guest = None
     if r.get("guest_phone"):
         try:
@@ -174,6 +213,27 @@ def _upsert_stay(db: Session, tenant_id: str, r: dict):
         except Exception:
             pass
 
+    if not guest:
+        # Cannot create Stay without a guest — skip
+        logger.debug("RentalWise: skipping reservation %s — no guest phone", external_id)
+        return
+
+    # Resolve property — property_id is NOT NULL
+    property_row = None
+    rw_prop_id = r.get("property_id", "")
+    if rw_prop_id:
+        property_row = (
+            db.query(Property)
+            .filter_by(tenant_id=tenant_id)
+            .filter(Property.hostaway_listing_id == f"rw_{rw_prop_id}")
+            .first()
+        )
+
+    if not property_row:
+        # Cannot create Stay without a property — skip
+        logger.debug("RentalWise: skipping reservation %s — property not found", external_id)
+        return
+
     # Use hostaway_booking_id to store the RentalWise reservation ID (prefixed)
     rw_booking_id = f"rw_{external_id}"
     row = db.query(Stay).filter_by(
@@ -186,11 +246,14 @@ def _upsert_stay(db: Session, tenant_id: str, r: dict):
             id=str(_uuid.uuid4()),
             tenant_id=tenant_id,
             hostaway_booking_id=rw_booking_id,
+            guest_id=guest.id,
+            property_id=property_row.id,
         )
         db.add(row)
-
-    if guest:
+    else:
         row.guest_id = guest.id
+        row.property_id = property_row.id
+
     row.check_in = r.get("check_in") or ""
     row.check_out = r.get("check_out") or ""
     row.status = r.get("status", "confirmed")

@@ -12,9 +12,15 @@ interface Property {
   id: string;
   name: string;
   city?: string;
-  property_type?: string;
+  address?: string;
+  type?: string;
+  property_type?: string;  // alias — some endpoints return this
   is_active?: boolean;
-  created_at: string;
+  bedrooms?: number;
+  bathrooms?: number;
+  max_adults?: number;
+  channel_source?: string;
+  created_at?: string;
 }
 
 const PROPERTY_TYPES = ["villa", "resort", "hotel", "apartment", "hostel", "camp", "other"];
@@ -55,7 +61,7 @@ export default function PropertiesPage() {
 
   const openEdit = (p: Property) => {
     setEditing(p);
-    setForm({ name: p.name, city: p.city ?? "", property_type: p.property_type ?? "villa" });
+    setForm({ name: p.name, city: p.city ?? "", property_type: p.type ?? p.property_type ?? "villa" });
     setShowForm(true);
   };
 
@@ -119,19 +125,28 @@ export default function PropertiesPage() {
                     <Edit2 size={14} />
                   </button>
                 </div>
-                <h3 className="font-semibold text-gray-900 mb-1">{p.name}</h3>
+                <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2 leading-snug">{p.name}</h3>
                 <div className="flex items-center gap-2 flex-wrap">
-                  {p.city && <span className="text-xs text-gray-500">{p.city}</span>}
-                  {p.property_type && (
-                    <Badge variant="ghost" className="capitalize text-xs">{p.property_type}</Badge>
+                  {(p.city || p.address) && (
+                    <span className="text-xs text-gray-500 truncate max-w-[120px]">{p.city || p.address}</span>
+                  )}
+                  {(p.type || p.property_type) && (
+                    <Badge variant="ghost" className="capitalize text-xs">{p.type || p.property_type}</Badge>
                   )}
                   {p.is_active === false && (
                     <Badge variant="secondary" className="text-xs">Inactive</Badge>
                   )}
                 </div>
-                <p className="text-[11px] text-gray-400 mt-3">
-                  Added {new Date(p.created_at).toLocaleDateString("en-IN")}
-                </p>
+                <div className="flex items-center gap-3 mt-3 text-[11px] text-gray-400">
+                  {p.bedrooms != null && <span>{p.bedrooms} bed</span>}
+                  {p.bathrooms != null && <span>{p.bathrooms} bath</span>}
+                  {p.max_adults != null && <span>up to {p.max_adults} guests</span>}
+                </div>
+                {p.created_at && (
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    Added {new Date(p.created_at).toLocaleDateString("en-IN")}
+                  </p>
+                )}
               </div>
             ))}
           </div>

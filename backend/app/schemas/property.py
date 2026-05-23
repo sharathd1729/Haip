@@ -71,6 +71,10 @@ class PropertyOut(BaseModel):
     channel_source: Optional[str] = None
     channel_manager_listing_id: Optional[str] = None
 
+    # Timestamps
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
     class Config:
         from_attributes = True
 
