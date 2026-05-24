@@ -100,8 +100,8 @@ export function KanbanCard({ card, onClick, onAssign, onNoteClick, draggable, cl
       draggable={draggable}
       onClick={() => onClick?.(card.id)}
       className={cn(
-        "bg-white border border-gray-100 rounded-xl shadow-sm cursor-pointer overflow-hidden",
-        "hover:shadow-md hover:border-gray-200 transition-all",
+        "bg-card border border-border rounded-xl shadow-sm cursor-pointer overflow-hidden",
+        "hover:shadow-md hover:border-white/20 hover:bg-card/80 transition-all",
         "active:scale-[0.98] flex",
         draggable && "cursor-grab active:cursor-grabbing",
         className
@@ -116,11 +116,11 @@ export function KanbanCard({ card, onClick, onAssign, onNoteClick, draggable, cl
           <div className="flex items-center gap-2 min-w-0">
             <GuestAvatar name={card.guest_name} phone={card.guest_phone} size="sm" />
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-gray-900 truncate">
+              <p className="text-sm font-semibold text-foreground truncate">
                 {card.guest_name || card.guest_phone}
               </p>
               {card.property_name && (
-                <p className="text-xs text-gray-400 truncate">{card.property_name}</p>
+                <p className="text-xs text-muted-foreground truncate">{card.property_name}</p>
               )}
             </div>
           </div>
@@ -149,15 +149,15 @@ export function KanbanCard({ card, onClick, onAssign, onNoteClick, draggable, cl
 
         {/* Date range */}
         {(card.check_in || card.check_out) && (
-          <div className="flex items-center gap-1 text-[11px] text-gray-500 mb-2">
-            <Calendar size={11} className="text-gray-400" />
+          <div className="flex items-center gap-1 text-[11px] text-muted-foreground mb-2">
+            <Calendar size={11} className="text-muted-foreground" />
             {formatDate(card.check_in)} {card.check_out && `– ${formatDate(card.check_out)}`}
           </div>
         )}
 
         {/* Budget */}
         {card.budget && (
-          <p className="text-sm font-semibold text-gray-800 mb-2">
+          <p className="text-sm font-semibold text-foreground mb-2">
             ₹{card.budget.toLocaleString("en-IN")}
           </p>
         )}
@@ -166,7 +166,7 @@ export function KanbanCard({ card, onClick, onAssign, onNoteClick, draggable, cl
         {card.tags && card.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-2">
             {card.tags.slice(0, 3).map(tag => (
-              <span key={tag} className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-md">
+              <span key={tag} className="text-[10px] bg-white/10 text-muted-foreground px-1.5 py-0.5 rounded-md">
                 {tag}
               </span>
             ))}

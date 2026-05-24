@@ -84,37 +84,81 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* HAIP dark navy palette */
+  --background:          #0f1521;          /* main page bg — deep navy */
+  --foreground:          #e8edf8;          /* primary text */
+  --card:                #161e30;          /* card / panel bg */
+  --card-foreground:     #e8edf8;
+  --popover:             #1a2337;
+  --popover-foreground:  #e8edf8;
+  --primary:             #4f8ef7;          /* HAIP blue accent */
+  --primary-foreground:  #ffffff;
+  --secondary:           #1e2a42;
+  --secondary-foreground:#c5cfe0;
+  --muted:               #1a2337;
+  --muted-foreground:    #7a8ba8;
+  --accent:              #1e2a42;
+  --accent-foreground:   #c5cfe0;
+  --destructive:         oklch(0.704 0.191 22.216);
+  --border:              rgba(255, 255, 255, 0.07);
+  --input:               rgba(255, 255, 255, 0.08);
+  --ring:                rgba(79, 142, 247, 0.4);
+  --chart-1: #4f8ef7;
+  --chart-2: #34d399;
+  --chart-3: #f59e0b;
+  --chart-4: #a78bfa;
+  --chart-5: #f87171;
+  --sidebar:                    #0b1120;
+  --sidebar-foreground:         rgba(255,255,255,0.65);
+  --sidebar-primary:            #4f8ef7;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent:             rgba(255,255,255,0.05);
+  --sidebar-accent-foreground:  #ffffff;
+  --sidebar-border:             rgba(255,255,255,0.06);
+  --sidebar-ring:               rgba(79,142,247,0.4);
+}
+
+/* ── Global dark-mode overrides ───────────────────────────────────────────────
+   These remap the hardcoded Tailwind light utilities used across all pages
+   so every page gets dark styling without touching 27 individual files.
+────────────────────────────────────────────────────────────────────────────── */
+@layer utilities {
+  /* Backgrounds */
+  .dark .bg-white          { background-color: #161e30 !important; }
+  .dark .bg-gray-50        { background-color: #0f1521 !important; }
+  .dark .bg-gray-50\/50    { background-color: rgba(15,21,33,0.5) !important; }
+  .dark .bg-gray-100       { background-color: #1a2337 !important; }
+  .dark .bg-gray-200       { background-color: #1e2a42 !important; }
+
+  /* Text */
+  .dark .text-gray-900     { color: #e8edf8 !important; }
+  .dark .text-gray-800     { color: #d0d9ee !important; }
+  .dark .text-gray-700     { color: #b0bcda !important; }
+  .dark .text-gray-600     { color: #8a9abc !important; }
+  .dark .text-gray-500     { color: #6b7a96 !important; }
+  .dark .text-gray-400     { color: #4e5e7a !important; }
+  .dark .text-gray-300     { color: #3a4a66 !important; }
+
+  /* Borders */
+  .dark .border-gray-50    { border-color: rgba(255,255,255,0.04) !important; }
+  .dark .border-gray-100   { border-color: rgba(255,255,255,0.07) !important; }
+  .dark .border-gray-200   { border-color: rgba(255,255,255,0.10) !important; }
+  .dark .border-gray-300   { border-color: rgba(255,255,255,0.14) !important; }
+
+  /* Divide (table rows, list separators) */
+  .dark .divide-gray-50    > * + * { border-color: rgba(255,255,255,0.04) !important; }
+  .dark .divide-gray-100   > * + * { border-color: rgba(255,255,255,0.07) !important; }
+  .dark .divide-gray-200   > * + * { border-color: rgba(255,255,255,0.10) !important; }
+
+  /* Hover backgrounds */
+  .dark .hover\:bg-gray-50:hover  { background-color: rgba(255,255,255,0.04) !important; }
+  .dark .hover\:bg-gray-100:hover { background-color: rgba(255,255,255,0.07) !important; }
+
+  /* Shadow softening in dark */
+  .dark .shadow-sm  { box-shadow: 0 1px 3px rgba(0,0,0,0.5) !important; }
+  .dark .shadow-md  { box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important; }
+  .dark .shadow-lg  { box-shadow: 0 8px 24px rgba(0,0,0,0.6) !important; }
+  .dark .shadow-2xl { box-shadow: 0 16px 48px rgba(0,0,0,0.7) !important; }
 }
 
 @layer base {

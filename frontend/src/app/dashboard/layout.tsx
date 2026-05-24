@@ -35,7 +35,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         Shell elements (sidebar, topbar, bottom nav) are shown/hidden via CSS.
       */}
       <div
-        className="flex bg-gray-50 dark:bg-gray-950"
+        className="flex bg-background"
         style={{ minHeight: "100dvh", maxHeight: "100dvh", overflow: "hidden" }}
       >
         {/* ── Sidebar (desktop only) ───────────────────────────────── */}

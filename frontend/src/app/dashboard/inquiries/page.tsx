@@ -240,18 +240,18 @@ export default function InquiriesPage() {
   });
 
   return (
-    <div className="h-full flex flex-col bg-white overflow-hidden">
-      <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+    <div className="h-full flex flex-col bg-background overflow-hidden">
+      <div className="px-5 py-4 border-b border-border flex items-center justify-between flex-shrink-0">
         <div>
-          <h1 className="text-lg font-bold text-gray-900">Inquiries</h1>
-          <p className="text-xs text-gray-400 mt-0.5">{inquiries.length} total · drag cards to update stage</p>
+          <h1 className="text-lg font-bold text-foreground">Inquiries</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">{inquiries.length} total · drag cards to update stage</p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
-            <button onClick={() => setView("kanban")} className={cn("p-1.5 rounded-md transition-colors", view === "kanban" ? "bg-white shadow-sm text-gray-800" : "text-gray-400")}>
+          <div className="flex items-center bg-white/[0.06] rounded-lg p-0.5">
+            <button onClick={() => setView("kanban")} className={cn("p-1.5 rounded-md transition-colors", view === "kanban" ? "bg-white/10 text-foreground" : "text-muted-foreground")}>
               <LayoutGrid size={15} />
             </button>
-            <button onClick={() => setView("table")} className={cn("p-1.5 rounded-md transition-colors", view === "table" ? "bg-white shadow-sm text-gray-800" : "text-gray-400")}>
+            <button onClick={() => setView("table")} className={cn("p-1.5 rounded-md transition-colors", view === "table" ? "bg-white/10 text-foreground" : "text-muted-foreground")}>
               <List size={15} />
             </button>
           </div>
@@ -292,11 +292,11 @@ export default function InquiriesPage() {
 
       {/* K13: Inquiry-aging chip strip */}
       {!isLoading && (
-        <div className="px-5 py-2 border-b border-gray-50 flex items-center gap-2 flex-shrink-0 bg-gray-50/50">
+        <div className="px-5 py-2 border-b border-border flex items-center gap-2 flex-shrink-0">
           <button
             onClick={() => setAgingFilter(null)}
             className={cn("text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors",
-              agingFilter === null ? "bg-teal-100 text-teal-700" : "text-gray-500 hover:bg-gray-100"
+              agingFilter === null ? "bg-teal-500/20 text-teal-400" : "text-muted-foreground hover:bg-white/[0.06]"
             )}
           >
             All active: {activeInqs.length}
@@ -305,8 +305,8 @@ export default function InquiriesPage() {
             onClick={() => setAgingFilter(f => f === "breach" ? null : "breach")}
             className={cn("text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1",
               agingFilter === "breach"
-                ? "bg-red-100 text-red-700"
-                : breachCount > 0 ? "text-red-600 hover:bg-red-50" : "text-gray-400 cursor-default"
+                ? "bg-red-500/20 text-red-400"
+                : breachCount > 0 ? "text-red-400 hover:bg-red-500/10" : "text-muted-foreground/50 cursor-default"
             )}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-current" />
@@ -316,14 +316,14 @@ export default function InquiriesPage() {
             onClick={() => setAgingFilter(f => f === "stale" ? null : "stale")}
             className={cn("text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1",
               agingFilter === "stale"
-                ? "bg-amber-100 text-amber-700"
-                : staleCount > 0 ? "text-amber-600 hover:bg-amber-50" : "text-gray-400 cursor-default"
+                ? "bg-amber-500/20 text-amber-400"
+                : staleCount > 0 ? "text-amber-400 hover:bg-amber-500/10" : "text-muted-foreground/50 cursor-default"
             )}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-current" />
             {staleCount} stale &gt;3d
           </button>
-          <span className="text-[11px] text-gray-400 ml-auto">
+          <span className="text-[11px] text-muted-foreground ml-auto">
             {newCount} in New
           </span>
         </div>
@@ -401,30 +401,30 @@ export default function InquiriesPage() {
       {view === "table" && (
         <div className="flex-1 overflow-y-auto">
           <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-white border-b border-gray-100">
+            <thead className="sticky top-0 bg-background border-b border-border">
               <tr>
                 {["Guest", "Property", "Check-in", "Budget", "Stage", "Channel"].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400">{h}</th>
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-border">
               {isLoading
                 ? Array.from({ length: 6 }).map((_, i) => (
                     <tr key={i}>{Array.from({ length: 6 }).map((_, j) => <td key={j} className="px-4 py-3"><Skeleton className="h-4 w-full" /></td>)}</tr>
                   ))
                 : inquiries.length === 0
-                ? <tr><td colSpan={6} className="text-center py-16 text-sm text-gray-400">No inquiries yet</td></tr>
+                ? <tr><td colSpan={6} className="text-center py-16 text-sm text-muted-foreground">No inquiries yet</td></tr>
                 : inquiries.map(inq => (
-                    <tr key={inq.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/dashboard/guests?inquiry=${inq.id}`)}>
-                      <td className="px-4 py-3 font-medium text-gray-900">{inq.guest_name || inq.guest_phone}</td>
-                      <td className="px-4 py-3 text-gray-600">{inq.property_name || "—"}</td>
-                      <td className="px-4 py-3 text-gray-600">{inq.check_in ? new Date(inq.check_in).toLocaleDateString("en-IN") : "—"}</td>
-                      <td className="px-4 py-3 font-semibold text-gray-800">{inq.budget ? `₹${inq.budget.toLocaleString("en-IN")}` : "—"}</td>
+                    <tr key={inq.id} className="hover:bg-white/[0.04] cursor-pointer transition-colors" onClick={() => router.push(`/dashboard/guests?inquiry=${inq.id}`)}>
+                      <td className="px-4 py-3 font-medium text-foreground">{inq.guest_name || inq.guest_phone}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{inq.property_name || "—"}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{inq.check_in ? new Date(inq.check_in).toLocaleDateString("en-IN") : "—"}</td>
+                      <td className="px-4 py-3 font-semibold text-foreground">{inq.budget ? `₹${inq.budget.toLocaleString("en-IN")}` : "—"}</td>
                       <td className="px-4 py-3">
                         <Badge variant={inq.stage === "booked" ? "success" : inq.stage === "lost" ? "destructive" : inq.stage === "quoted" ? "info" : "secondary"} className="capitalize">{inq.stage}</Badge>
                       </td>
-                      <td className="px-4 py-3 text-gray-600 capitalize">{inq.channel || "—"}</td>
+                      <td className="px-4 py-3 text-muted-foreground capitalize">{inq.channel || "—"}</td>
                     </tr>
                   ))
               }
@@ -435,17 +435,17 @@ export default function InquiriesPage() {
 
       {/* Lost reason modal (K9) */}
       {lostModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-gray-900">Why was this inquiry lost?</h3>
-              <button onClick={() => setLostModal(null)}><X size={16} className="text-gray-400" /></button>
+              <h3 className="font-bold text-foreground">Why was this inquiry lost?</h3>
+              <button onClick={() => setLostModal(null)}><X size={16} className="text-muted-foreground" /></button>
             </div>
             <div className="space-y-2 mb-4">
               {LOST_REASONS.map(r => (
                 <button key={r} onClick={() => { setLostReason(r); if (r !== "Other") setLostCustom(""); }}
                   className={cn("w-full text-left px-4 py-2.5 rounded-xl border text-sm transition-all",
-                    lostReason === r ? "bg-red-50 border-red-200 text-red-700 font-medium" : "bg-gray-50 border-gray-100 text-gray-700 hover:bg-gray-100"
+                    lostReason === r ? "bg-red-500/20 border-red-500/40 text-red-400 font-medium" : "bg-white/[0.04] border-border text-foreground hover:bg-white/[0.08]"
                   )}>{r}</button>
               ))}
             </div>
@@ -457,15 +457,15 @@ export default function InquiriesPage() {
                   onChange={e => setLostCustom(e.target.value)}
                   placeholder="Please describe the reason (min 5 characters)…"
                   rows={3}
-                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-red-300 resize-none"
+                  className="w-full text-sm bg-white/[0.05] border border-border rounded-xl px-3 py-2.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-red-400/40 resize-none"
                 />
                 {lostCustom.trim().length > 0 && lostCustom.trim().length < 5 && (
-                  <p className="text-xs text-red-500 mt-1">Please add at least 5 characters</p>
+                  <p className="text-xs text-red-400 mt-1">Please add at least 5 characters</p>
                 )}
               </div>
             )}
             <div className="flex gap-2">
-              <button onClick={() => setLostModal(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
+              <button onClick={() => setLostModal(null)} className="flex-1 py-2.5 border border-border rounded-xl text-sm text-muted-foreground hover:bg-white/[0.05] transition-colors">Cancel</button>
               <button
                 onClick={confirmLost}
                 disabled={!lostReason || (lostReason === "Other" && lostCustom.trim().length < 5)}
@@ -481,15 +481,15 @@ export default function InquiriesPage() {
         <div className="fixed inset-0 z-40 flex justify-end">
           {/* Backdrop */}
           <div className="absolute inset-0 bg-black/20" onClick={() => setNotesPanel(null)} />
-          <div className="relative w-80 bg-white shadow-2xl flex flex-col h-full">
+          <div className="relative w-80 bg-card border-l border-border shadow-2xl flex flex-col h-full">
             {/* Header */}
-            <div className="flex items-center gap-3 px-4 py-4 border-b border-gray-100">
-              <StickyNote size={16} className="text-amber-500" />
+            <div className="flex items-center gap-3 px-4 py-4 border-b border-border">
+              <StickyNote size={16} className="text-amber-400" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-gray-900">Internal Notes</p>
-                <p className="text-xs text-gray-400 truncate">{notesPanel.guestName}</p>
+                <p className="text-sm font-bold text-foreground">Internal Notes</p>
+                <p className="text-xs text-muted-foreground truncate">{notesPanel.guestName}</p>
               </div>
-              <button onClick={() => setNotesPanel(null)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setNotesPanel(null)} className="text-muted-foreground hover:text-foreground transition-colors">
                 <X size={16} />
               </button>
             </div>
@@ -498,9 +498,9 @@ export default function InquiriesPage() {
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {(inquiryNotes as any[]).length === 0 ? (
                 <div className="text-center py-12">
-                  <StickyNote size={24} className="text-gray-200 mx-auto mb-2" />
-                  <p className="text-sm text-gray-400">No notes yet</p>
-                  <p className="text-xs text-gray-300 mt-1">Notes are only visible to your team</p>
+                  <StickyNote size={24} className="text-white/10 mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">No notes yet</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">Notes are only visible to your team</p>
                 </div>
               ) : (
                 (inquiryNotes as any[]).map((note: any) => (
@@ -521,13 +521,13 @@ export default function InquiriesPage() {
             </div>
 
             {/* Composer */}
-            <div className="p-3 border-t border-gray-100 bg-gray-50">
+            <div className="p-3 border-t border-border bg-background/50">
               <textarea
                 value={noteText}
                 onChange={e => setNoteText(e.target.value)}
                 placeholder="Add a note… (only visible to team)"
                 rows={3}
-                className="w-full text-sm border border-amber-200 rounded-xl px-3 py-2.5 bg-amber-50 text-gray-800 placeholder:text-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none mb-2"
+                className="w-full text-sm border border-amber-500/30 rounded-xl px-3 py-2.5 bg-amber-500/[0.08] text-foreground placeholder:text-amber-400/40 focus:outline-none focus:ring-2 focus:ring-amber-400/30 resize-none mb-2"
                 onKeyDown={e => {
                   if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && noteText.trim()) {
                     addNoteMutation.mutate(noteText.trim());
@@ -550,14 +550,14 @@ export default function InquiriesPage() {
 
       {/* K1: backward transition reason modal */}
       {backModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-bold text-gray-900">Why is this moving back?</h3>
-              <button onClick={() => setBackModal(null)}><X size={16} className="text-gray-400" /></button>
+              <h3 className="font-bold text-foreground">Why is this moving back?</h3>
+              <button onClick={() => setBackModal(null)}><X size={16} className="text-muted-foreground" /></button>
             </div>
-            <p className="text-xs text-gray-500 mb-4">
-              Moving from <strong>{backModal.from}</strong> → <strong>{backModal.to}</strong> requires a reason.
+            <p className="text-xs text-muted-foreground mb-4">
+              Moving from <strong className="text-foreground">{backModal.from}</strong> → <strong className="text-foreground">{backModal.to}</strong> requires a reason.
               Owner/manager role required.
             </p>
             <textarea
@@ -565,10 +565,10 @@ export default function InquiriesPage() {
               onChange={e => setBackReason(e.target.value)}
               placeholder="Reason for moving backward…"
               rows={3}
-              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none mb-4"
+              className="w-full text-sm bg-white/[0.05] border border-border rounded-xl px-3 py-2.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-amber-400/40 resize-none mb-4"
             />
             <div className="flex gap-2">
-              <button onClick={() => setBackModal(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
+              <button onClick={() => setBackModal(null)} className="flex-1 py-2.5 border border-border rounded-xl text-sm text-muted-foreground hover:bg-white/[0.05] transition-colors">Cancel</button>
               <button
                 onClick={confirmBackward}
                 disabled={!backReason.trim()}

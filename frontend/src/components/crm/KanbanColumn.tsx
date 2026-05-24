@@ -50,7 +50,9 @@ export function KanbanColumn({
   return (
     <div
       className={cn(
-        "flex flex-col bg-gray-50/60 rounded-2xl border border-gray-100 min-w-[260px] max-w-[300px] flex-shrink-0",
+        "flex flex-col rounded-2xl min-w-[260px] max-w-[300px] flex-shrink-0",
+        "bg-white/[0.03] dark:bg-white/[0.03] border border-white/[0.08]",
+        "light:bg-gray-50/60 light:border-gray-100",
         className
       )}
       style={{ scrollSnapAlign: "start" }}
@@ -58,9 +60,12 @@ export function KanbanColumn({
       onDrop={handleDrop}
     >
       {/* Column header */}
-      <div className={cn("px-4 py-3 border-b border-gray-100 flex items-center gap-2", color)}>
-        <span className="text-sm font-bold text-gray-800">{title}</span>
-        <span className="ml-auto text-xs font-semibold text-gray-500 bg-white border border-gray-200 rounded-full px-2 py-0.5">
+      <div className={cn(
+        "px-4 py-3 border-b border-white/[0.08] flex items-center gap-2",
+        color
+      )}>
+        <span className="text-sm font-bold text-foreground">{title}</span>
+        <span className="ml-auto text-xs font-semibold text-muted-foreground bg-white/10 border border-white/10 rounded-full px-2 py-0.5">
           {count}
         </span>
       </div>
@@ -83,7 +88,7 @@ export function KanbanColumn({
           </div>
         ))}
         {cards.length === 0 && (
-          <p className="text-xs text-gray-400 text-center py-6">Drop inquiries here</p>
+          <p className="text-xs text-muted-foreground text-center py-6">Drop inquiries here</p>
         )}
       </div>
     </div>
