@@ -118,6 +118,37 @@
   --sidebar-ring:               rgba(79,142,247,0.4);
 }
 
+/* ── Adaptive CSS variables (used by pages instead of hardcoded #hex) ─────────
+   Pages that use var(--page-bg), var(--panel-bg), var(--text-primary),
+   var(--text-secondary) automatically adapt to both themes.
+────────────────────────────────────────────────────────────────────────────── */
+:root {
+  --page-bg:           #ffffff;
+  --panel-bg:          #f8fafc;
+  --panel-border:      rgba(0, 0, 0, 0.08);
+  --text-primary:      #111827;
+  --text-secondary:    #4b5563;
+  --text-tertiary:     #9ca3af;
+  --icon-color:        #6b7280;
+  --input-bg:          #f1f5f9;
+  --input-border:      #e2e8f0;
+  --hover-bg:          rgba(0, 0, 0, 0.04);
+  --active-bg:         rgba(0, 0, 0, 0.07);
+}
+.dark {
+  --page-bg:           #0f1521;
+  --panel-bg:          #161e30;
+  --panel-border:      rgba(255, 255, 255, 0.07);
+  --text-primary:      #e8edf8;
+  --text-secondary:    #7a8ba8;
+  --text-tertiary:     #4e5e7a;
+  --icon-color:        #5a6e8a;
+  --input-bg:          rgba(255, 255, 255, 0.05);
+  --input-border:      rgba(255, 255, 255, 0.08);
+  --hover-bg:          rgba(255, 255, 255, 0.04);
+  --active-bg:         rgba(255, 255, 255, 0.08);
+}
+
 /* ── Global dark-mode overrides ───────────────────────────────────────────────
    These remap the hardcoded Tailwind light utilities used across all pages
    so every page gets dark styling without touching 27 individual files.
@@ -159,6 +190,56 @@
   .dark .shadow-md  { box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important; }
   .dark .shadow-lg  { box-shadow: 0 8px 24px rgba(0,0,0,0.6) !important; }
   .dark .shadow-2xl { box-shadow: 0 16px 48px rgba(0,0,0,0.7) !important; }
+
+  /* ── Dark mode: remap hardcoded dark hex backgrounds to CSS variables ── */
+  /* Pages/components that use these hardcoded colors will adapt to theme   */
+  .dark [class*="bg-\\[\\#0f"]:not([class*="bg-\\[\\#0f8"]),
+  .dark [class*="bg-\\[\\#0b"] { background-color: var(--page-bg) !important; }
+
+  /* ── Light mode: fix invisible text ───────────────────────────────────── */
+  /* text-white on a light bg = invisible; remap to foreground in main area  */
+  /* Exceptions: buttons/badges with colored bg keep white text              */
+  :root:not(.dark) main .text-white:not(
+    [class*="bg-teal"]:not([class*="bg-teal-50"]),
+    [class*="bg-blue"]:not([class*="bg-blue-50"]),
+    [class*="bg-green"]:not([class*="bg-green-50"]),
+    [class*="bg-purple"]:not([class*="bg-purple-50"]),
+    [class*="bg-amber"]:not([class*="bg-amber-50"]),
+    [class*="bg-red"]:not([class*="bg-red-50"]),
+    [class*="bg-indigo"],
+    [class*="bg-violet"],
+    [class*="bg-rose"],
+    [class*="bg-pink"]
+  ) { color: var(--foreground) !important; }
+
+  /* text-white opacity variants — remap in light main */
+  :root:not(.dark) main .text-white\/80 { color: color-mix(in srgb, var(--foreground) 80%, transparent) !important; }
+  :root:not(.dark) main .text-white\/70 { color: color-mix(in srgb, var(--foreground) 70%, transparent) !important; }
+  :root:not(.dark) main .text-white\/60 { color: color-mix(in srgb, var(--foreground) 60%, transparent) !important; }
+  :root:not(.dark) main .text-white\/50 { color: color-mix(in srgb, var(--foreground) 50%, transparent) !important; }
+  :root:not(.dark) main .text-white\/40 { color: color-mix(in srgb, var(--foreground) 40%, transparent) !important; }
+  :root:not(.dark) main .text-white\/35 { color: color-mix(in srgb, var(--foreground) 35%, transparent) !important; }
+  :root:not(.dark) main .text-white\/30 { color: color-mix(in srgb, var(--foreground) 30%, transparent) !important; }
+  :root:not(.dark) main .text-white\/25 { color: color-mix(in srgb, var(--foreground) 25%, transparent) !important; }
+  :root:not(.dark) main .text-white\/20 { color: color-mix(in srgb, var(--foreground) 20%, transparent) !important; }
+
+  /* Light mode: hardcoded dark-navy backgrounds in main content → use token */
+  :root:not(.dark) main [class*="bg-\\[\\#0f"],
+  :root:not(.dark) main [class*="bg-\\[\\#0b"],
+  :root:not(.dark) main [class*="bg-\\[\\#16"],
+  :root:not(.dark) main [class*="bg-\\[\\#1a"],
+  :root:not(.dark) main [class*="bg-\\[\\#12"] { background-color: var(--card) !important; }
+
+  /* Light mode: white/5, white/3 etc. bg overlays → dark/5 etc. */
+  :root:not(.dark) main .bg-white\/\[0\.03\]  { background-color: rgba(0,0,0,0.03) !important; }
+  :root:not(.dark) main .bg-white\/\[0\.04\]  { background-color: rgba(0,0,0,0.04) !important; }
+  :root:not(.dark) main .bg-white\/\[0\.05\]  { background-color: rgba(0,0,0,0.05) !important; }
+  :root:not(.dark) main .bg-white\/\[0\.06\]  { background-color: rgba(0,0,0,0.06) !important; }
+  :root:not(.dark) main .bg-white\/\[0\.08\]  { background-color: rgba(0,0,0,0.08) !important; }
+  :root:not(.dark) main .bg-white\/10         { background-color: rgba(0,0,0,0.06) !important; }
+  :root:not(.dark) main .border-white\/\[0\.07\] { border-color: rgba(0,0,0,0.07) !important; }
+  :root:not(.dark) main .border-white\/\[0\.08\] { border-color: rgba(0,0,0,0.08) !important; }
+  :root:not(.dark) main .border-white\/10      { border-color: rgba(0,0,0,0.08) !important; }
 }
 
 @layer base {

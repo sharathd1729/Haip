@@ -91,11 +91,11 @@ function NotificationBell() {
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-2 z-40 w-80 bg-[#0f2744] border border-white/10 rounded-2xl shadow-2xl shadow-black/40 overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/6">
-              <span className="text-xs font-bold text-white/60 uppercase tracking-wider">Notifications</span>
+          <div className="absolute right-0 top-full mt-2 z-40 w-80 bg-popover border border-border rounded-2xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Notifications</span>
               {unread > 0 && (
-                <span className="text-[10px] bg-teal-500/20 text-teal-400 px-2 py-0.5 rounded-full font-bold">
+                <span className="text-[10px] bg-teal-500/20 text-teal-500 dark:text-teal-400 px-2 py-0.5 rounded-full font-bold">
                   {unread} new
                 </span>
               )}
@@ -104,16 +104,16 @@ function NotificationBell() {
               <div
                 key={n.id}
                 className={cn(
-                  "px-4 py-3 border-b border-white/4 last:border-0 transition-colors hover:bg-white/3",
-                  !n.read && "bg-teal-500/4"
+                  "px-4 py-3 border-b border-border last:border-0 transition-colors hover:bg-accent",
+                  !n.read && "bg-teal-500/[0.04]"
                 )}
               >
-                <p className="text-xs text-white/70 leading-relaxed mb-1">{n.text}</p>
-                <p className="text-[10px] text-white/25">{n.time}</p>
+                <p className="text-xs text-foreground/80 leading-relaxed mb-1">{n.text}</p>
+                <p className="text-[10px] text-muted-foreground">{n.time}</p>
               </div>
             ))}
             <div className="px-4 py-3 text-center">
-              <button className="text-xs text-teal-400 hover:text-teal-300 font-semibold transition-colors">
+              <button className="text-xs text-teal-500 dark:text-teal-400 hover:text-teal-600 dark:hover:text-teal-300 font-semibold transition-colors">
                 Mark all read
               </button>
             </div>
@@ -153,15 +153,15 @@ function WorkspaceSwitcher({ workspaceName }: { workspaceName?: string }) {
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-full mt-2 z-40 w-64 bg-[#0f2744] border border-white/10 rounded-2xl shadow-2xl shadow-black/40 overflow-hidden">
-            <div className="px-4 py-3 border-b border-white/6">
-              <p className="text-[10px] font-bold text-white/30 uppercase tracking-wider mb-2">Workspaces</p>
+          <div className="absolute left-0 top-full mt-2 z-40 w-64 bg-popover border border-border rounded-2xl shadow-2xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-border">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Workspaces</p>
               <div className="flex items-center justify-between px-3 py-2 bg-teal-500/10 rounded-xl border border-teal-500/20">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-md bg-teal-500/30 flex items-center justify-center">
                     <Building2 size={11} className="text-teal-400" />
                   </div>
-                  <span className="text-sm font-semibold text-white/80 truncate max-w-[130px]">{name}</span>
+                  <span className="text-sm font-semibold text-foreground truncate max-w-[130px]">{name}</span>
                 </div>
                 <Check size={13} className="text-teal-400 flex-shrink-0" />
               </div>
@@ -170,7 +170,7 @@ function WorkspaceSwitcher({ workspaceName }: { workspaceName?: string }) {
               <Link
                 href="/onboarding"
                 onClick={() => setOpen(false)}
-                className="flex items-center gap-2 px-3 py-2 text-xs text-white/40 hover:text-white/70 hover:bg-white/5 rounded-xl transition-colors"
+                className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded-xl transition-colors"
               >
                 <span className="text-base leading-none">+</span> Add workspace
               </Link>
@@ -205,12 +205,12 @@ function UserMenu({ user }: { user?: TopBarProps["user"] }) {
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-2 z-40 w-52 bg-[#0f2744] border border-white/10 rounded-2xl shadow-2xl shadow-black/40 overflow-hidden">
+          <div className="absolute right-0 top-full mt-2 z-40 w-52 bg-popover border border-border rounded-2xl shadow-2xl overflow-hidden">
             {/* User info */}
-            <div className="px-4 py-3 border-b border-white/6">
-              <p className="text-sm font-bold text-white truncate">{user?.name ?? "User"}</p>
-              <p className="text-xs text-white/30 truncate">{user?.email ?? ""}</p>
-              <span className="inline-flex items-center gap-1 mt-1.5 text-[10px] bg-teal-500/15 text-teal-400 px-2 py-0.5 rounded-full font-bold capitalize">
+            <div className="px-4 py-3 border-b border-border">
+              <p className="text-sm font-bold text-foreground truncate">{user?.name ?? "User"}</p>
+              <p className="text-xs text-muted-foreground truncate">{user?.email ?? ""}</p>
+              <span className="inline-flex items-center gap-1 mt-1.5 text-[10px] bg-teal-500/15 text-teal-500 dark:text-teal-400 px-2 py-0.5 rounded-full font-bold capitalize">
                 {user?.role ?? "member"}
               </span>
             </div>
@@ -226,16 +226,16 @@ function UserMenu({ user }: { user?: TopBarProps["user"] }) {
                   key={item.label}
                   href={item.href}
                   onClick={() => setOpen(false)}
-                  className="flex items-center gap-2.5 px-3 py-2 text-xs text-white/50 hover:text-white hover:bg-white/5 rounded-xl transition-colors"
+                  className="flex items-center gap-2.5 px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded-xl transition-colors"
                 >
-                  <span className="text-white/30">{item.icon}</span>
+                  <span className="text-muted-foreground/60">{item.icon}</span>
                   {item.label}
                 </Link>
               ))}
-              <div className="h-px bg-white/6 my-1.5" />
+              <div className="h-px bg-border my-1.5" />
               <button
                 onClick={() => signOut({ callbackUrl: "/login" })}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/8 rounded-xl transition-colors"
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-500/8 rounded-xl transition-colors"
               >
                 <LogOut size={13} />
                 Sign out
@@ -258,14 +258,9 @@ export function TopBar({ user, workspaceName }: TopBarProps) {
 
   return (
     <div
-      className={cn(
-        "h-12 flex items-center justify-between px-4 flex-shrink-0 gap-3 transition-colors",
-        isDark
-          ? "border-b border-white/5"
-          : "bg-white border-b border-gray-200"
-      )}
+      className="h-12 flex items-center justify-between px-4 flex-shrink-0 gap-3 transition-colors border-b border-border"
       style={{
-        backgroundColor: isDark ? "var(--brand-topbar-bg, #0B1F3A)" : undefined,
+        backgroundColor: "var(--brand-topbar-bg, var(--background))",
         fontFamily: "var(--brand-font)",
       }}
     >
