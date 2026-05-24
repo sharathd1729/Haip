@@ -59,7 +59,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="h-full antialiased">
+    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
       {/* Inline script runs before paint — prevents dark/light flash */}
       <head>
         <script dangerouslySetInnerHTML={{ __html: `
