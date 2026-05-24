@@ -39,18 +39,21 @@ const links = {
 
 export function MarketingFooter() {
   return (
-    <footer className="bg-[#060e1c] border-t border-white/6">
+    <footer className="border-t" style={{ backgroundColor: "#090C0A", borderColor: "rgba(240,232,208,0.06)" }}>
       {/* Main footer */}
       <div className="max-w-7xl mx-auto px-5 sm:px-8 pt-16 pb-12">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-8 lg:gap-10">
           {/* Brand */}
           <div className="col-span-2 space-y-4">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-[#0a1f3a] font-bold text-sm">
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm"
+                style={{ background: "linear-gradient(135deg, #C8964A, #D4A85A)", color: "#090C0A" }}
+              >
                 H
               </div>
               <span className="text-white font-bold text-lg tracking-tight">
-                HA<span className="text-teal-400">IP</span>
+                HA<span style={{ color: "var(--mkt-gold)" }}>IP</span>
               </span>
             </div>
             <p className="text-sm text-white/40 leading-relaxed max-w-xs">

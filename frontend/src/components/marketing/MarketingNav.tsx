@@ -48,28 +48,29 @@ export function MarketingNav() {
       className={cn(
         "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
         scrolled
-          ? "bg-[#0B1F3A]/95 backdrop-blur-xl border-b border-white/8 shadow-xl shadow-black/20"
+          ? "backdrop-blur-xl border-b shadow-xl shadow-black/30"
           : "bg-transparent"
       )}
+      style={scrolled ? { backgroundColor: "rgba(14,18,16,0.95)", borderColor: "rgba(240,232,208,0.07)" } : undefined}
     >
       <div className="max-w-7xl mx-auto px-5 sm:px-8 flex items-center h-16 gap-6">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2.5 flex-shrink-0">
           <img src="/logo.png" alt="HAIP" className="h-9 w-auto object-contain" />
           <span className="text-white font-bold text-xl tracking-tight">
-            HA<span className="text-teal-400">IP</span>
+            HA<span style={{ color: "var(--mkt-gold)" }}>IP</span>
           </span>
         </Link>
 
         {/* Desktop Nav */}
         <nav className="hidden lg:flex items-center gap-1 flex-1">
           <Dropdown label="Features" open={openMenu === "features"} onEnter={() => setOpenMenu("features")} onLeave={() => setOpenMenu(null)}>
-            <div className="bg-[#0f2744] border border-white/10 rounded-xl shadow-2xl shadow-black/40 p-2 w-80">
+            <div className="rounded-xl shadow-2xl shadow-black/50 p-2 w-80" style={{ backgroundColor: "var(--mkt-panel)", border: "1px solid rgba(240,232,208,0.08)" }}>
               {features.map(f => (
                 <Link key={f.href} href={f.href} className="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors group">
                   <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 mt-0.5">{f.icon}</div>
                   <div className="min-w-0">
-                    <span className="text-sm font-medium text-white group-hover:text-teal-400 transition-colors block">{f.label}</span>
+                    <span className="text-sm font-medium text-white group-hover:text-[#C8964A] transition-colors block">{f.label}</span>
                     <span className="text-xs text-white/40 mt-0.5 block">{f.desc}</span>
                   </div>
                 </Link>
@@ -78,7 +79,7 @@ export function MarketingNav() {
           </Dropdown>
 
           <Dropdown label="Solutions" open={openMenu === "solutions"} onEnter={() => setOpenMenu("solutions")} onLeave={() => setOpenMenu(null)}>
-            <div className="bg-[#0f2744] border border-white/10 rounded-xl shadow-2xl shadow-black/40 p-2 w-80">
+            <div className="rounded-xl shadow-2xl shadow-black/50 p-2 w-80" style={{ backgroundColor: "var(--mkt-panel)", border: "1px solid rgba(240,232,208,0.08)" }}>
               {solutions.map(s => (
                 <Link key={s.href} href={s.href} className="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors group">
                   <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 mt-0.5">{s.icon}</div>
@@ -99,7 +100,7 @@ export function MarketingNav() {
           </Link>
 
           <Dropdown label="Resources" open={openMenu === "resources"} onEnter={() => setOpenMenu("resources")} onLeave={() => setOpenMenu(null)}>
-            <div className="bg-[#0f2744] border border-white/10 rounded-xl shadow-2xl shadow-black/40 p-2 w-80">
+            <div className="rounded-xl shadow-2xl shadow-black/50 p-2 w-80" style={{ backgroundColor: "var(--mkt-panel)", border: "1px solid rgba(240,232,208,0.08)" }}>
               {resources.map(r => (
                 <Link key={r.href} href={r.href} className="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors group">
                   <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 mt-0.5">{r.icon}</div>
@@ -126,7 +127,8 @@ export function MarketingNav() {
           </Link>
           <Link
             href="/register"
-            className="px-4 py-2 bg-teal-500 hover:bg-teal-400 text-white text-sm font-semibold rounded-xl transition-all shadow-lg shadow-teal-500/25 hover:shadow-teal-400/35"
+            className="px-4 py-2 text-sm font-semibold rounded-xl transition-all"
+            style={{ backgroundColor: "var(--mkt-gold)", color: "var(--mkt-bg)" }}
           >
             Start free trial
           </Link>
@@ -144,7 +146,7 @@ export function MarketingNav() {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="lg:hidden bg-[#0B1F3A] border-t border-white/8 px-5 py-4 space-y-1 max-h-[calc(100vh-64px)] overflow-y-auto">
+        <div className="lg:hidden border-t px-5 py-4 space-y-1 max-h-[calc(100vh-64px)] overflow-y-auto" style={{ backgroundColor: "var(--mkt-bg)", borderColor: "rgba(240,232,208,0.08)" }}>
           <MobileSection title="Features" items={features} onClose={() => setMobileOpen(false)} />
           <MobileSection title="Solutions" items={solutions} onClose={() => setMobileOpen(false)} />
           <div className="h-px bg-white/8 my-2" />
@@ -164,7 +166,8 @@ export function MarketingNav() {
           <Link
             href="/register"
             onClick={() => setMobileOpen(false)}
-            className="block px-4 py-2.5 bg-teal-500 text-white text-sm font-semibold rounded-xl text-center"
+            className="block px-4 py-2.5 text-sm font-semibold rounded-xl text-center"
+            style={{ backgroundColor: "var(--mkt-gold)", color: "var(--mkt-bg)" }}
           >
             Start free trial
           </Link>
