@@ -546,7 +546,7 @@ export default function HomePage() {
                       {f.title}
                     </h3>
                     <span
-                      className="flex-shrink-0 text-[10px] font-bold uppercase tracking-widest border rounded-full px-2.5 py-1"
+                      className="hidden sm:inline-flex flex-shrink-0 text-[10px] font-bold uppercase tracking-widest border rounded-full px-2.5 py-1"
                       style={{
                         color: "rgba(200,150,74,0.55)",
                         borderColor: "rgba(200,150,74,0.2)",
@@ -648,7 +648,7 @@ export default function HomePage() {
             </ul>
             <Link
               href="/features#inbox"
-              className="inline-flex items-center gap-2 text-sm font-semibold transition-colors group"
+              className="inline-flex items-center gap-2 py-2 text-sm font-semibold transition-colors group"
               style={{ color: "var(--mkt-gold)" }}
             >
               Explore Unified Inbox{" "}
@@ -844,7 +844,7 @@ export default function HomePage() {
             </ul>
             <Link
               href="/features#calls"
-              className="inline-flex items-center gap-2 text-sm font-semibold transition-colors group"
+              className="inline-flex items-center gap-2 py-2 text-sm font-semibold transition-colors group"
               style={{ color: "var(--mkt-gold)" }}
             >
               Explore AI Call Intelligence{" "}

@@ -136,7 +136,7 @@ export function MarketingNav() {
 
         {/* Mobile toggle */}
         <button
-          className="lg:hidden ml-auto p-2 text-white/70 hover:text-white"
+          className="lg:hidden ml-auto p-3 text-white/70 hover:text-white"
           onClick={() => setMobileOpen(!mobileOpen)}
           aria-label="Toggle menu"
         >
