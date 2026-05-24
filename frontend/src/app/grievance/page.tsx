@@ -111,7 +111,7 @@ export default function GrievancePage() {
             <div className="mt-4 space-y-3">
               <div className="flex items-center gap-2.5">
                 <Mail size={14} className="text-teal-500 flex-shrink-0" />
-                <a href="mailto:privacy@haip.in" className="text-sm text-teal-600 hover:text-teal-700 font-medium">
+                <a href="mailto:privacy@haip.in" className="text-sm text-[#3D9E7E] hover:text-[#4DB893] font-medium">
                   privacy@haip.in
                 </a>
               </div>
@@ -175,7 +175,7 @@ export default function GrievancePage() {
               </p>
               <button
                 onClick={() => setSubmitted(false)}
-                className="text-sm text-teal-600 hover:text-teal-700 font-medium underline underline-offset-4"
+                className="text-sm text-[#3D9E7E] hover:text-[#4DB893] font-medium underline underline-offset-4"
               >
                 Submit another grievance
               </button>
@@ -282,7 +282,7 @@ export default function GrievancePage() {
                 <button
                   type="submit"
                   disabled={mutation.isPending}
-                  className="w-full py-3 rounded-xl bg-[#0B1F3A] hover:bg-[#163458] text-white text-sm font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="w-full py-3 rounded-xl bg-[#0E1210] hover:bg-[#1B2419] text-white text-sm font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {mutation.isPending ? (
                     <>

@@ -126,7 +126,7 @@ const faqs = [
 // ---------------------------------------------------------------------------
 export default function VillasSolutionPage() {
   return (
-    <div className="bg-[#0B1F3A] text-white min-h-screen">
+    <div className="bg-[#0E1210] text-white min-h-screen">
       {/* ------------------------------------------------------------------ */}
       {/* HERO                                                                */}
       {/* ------------------------------------------------------------------ */}
@@ -155,7 +155,7 @@ export default function VillasSolutionPage() {
             </p>
             <div className="flex flex-col sm:flex-row gap-3 mb-6">
               <Link href="/register?plan=growth&segment=villas"
-                className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-teal-500 hover:bg-teal-400 text-white font-bold rounded-2xl transition-all shadow-2xl shadow-teal-500/30 hover:-translate-y-0.5">
+                className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-[#C8964A] hover:bg-[#D4A85A] text-[#0E1210] font-bold rounded-2xl transition-all shadow-2xl shadow-teal-500/30 hover:-translate-y-0.5">
                 Start 14-day free trial <ArrowRight size={16} />
               </Link>
               <Link href="/book-demo?segment=villas"
@@ -170,7 +170,7 @@ export default function VillasSolutionPage() {
           <div className="lg:col-span-5">
             <div className="relative">
               <div className="absolute -inset-4 bg-gradient-to-br from-teal-500/20 to-cyan-500/10 rounded-3xl blur-2xl" />
-              <div className="relative bg-[#0f2744] rounded-2xl border border-white/10 p-5 shadow-2xl shadow-black/40">
+              <div className="relative bg-[#141B15] rounded-2xl border border-white/10 p-5 shadow-2xl shadow-black/40">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <div className="w-9 h-9 rounded-full bg-green-500/20 flex items-center justify-center">
@@ -215,7 +215,7 @@ export default function VillasSolutionPage() {
       {/* ------------------------------------------------------------------ */}
       {/* STATS                                                               */}
       {/* ------------------------------------------------------------------ */}
-      <section className="py-14 border-y border-white/6 bg-gradient-to-r from-[#0a1b30] to-[#0f2744]">
+      <section className="py-14 border-y border-white/6 bg-gradient-to-r from-[#0E1210] to-[#141B15]">
         <div className="max-w-5xl mx-auto px-5 sm:px-8 grid grid-cols-2 md:grid-cols-4 gap-8">
           {stats.map(s => (
             <div key={s.label} className="text-center">
@@ -238,7 +238,7 @@ export default function VillasSolutionPage() {
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
             {painPoints.map(p => (
-              <div key={p.title} className="bg-[#0f2744]/60 border border-white/6 rounded-2xl p-6 hover:border-rose-500/20 transition-colors">
+              <div key={p.title} className="bg-[#141B15]/60 border border-white/6 rounded-2xl p-6 hover:border-rose-500/20 transition-colors">
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center flex-shrink-0">{p.icon}</div>
                   <div>
@@ -255,15 +255,15 @@ export default function VillasSolutionPage() {
       {/* ------------------------------------------------------------------ */}
       {/* USE CASES                                                           */}
       {/* ------------------------------------------------------------------ */}
-      <section className="py-24 px-5 sm:px-8 bg-[#0a1b30]">
+      <section className="py-24 px-5 sm:px-8 bg-[#0E1210]">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-14">
-            <p className="text-xs font-bold text-teal-400 uppercase tracking-widest mb-3">How HAIP works for villas</p>
+            <p className="text-xs font-bold text-[#3D9E7E] uppercase tracking-widest mb-3">How HAIP works for villas</p>
             <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-4">Six things your team will stop doing manually</h2>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
             {useCases.map(u => (
-              <div key={u.title} className="bg-[#0f2744] border border-white/8 rounded-2xl p-6 hover:border-teal-500/30 transition-all hover:-translate-y-0.5">
+              <div key={u.title} className="bg-[#141B15] border border-white/8 rounded-2xl p-6 hover:border-teal-500/30 transition-all hover:-translate-y-0.5">
                 <div className={`w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center mb-4 ${u.color}`}>
                   {u.icon}
                 </div>
@@ -281,12 +281,12 @@ export default function VillasSolutionPage() {
       <section className="py-24 px-5 sm:px-8">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-14">
-            <p className="text-xs font-bold text-teal-400 uppercase tracking-widest mb-3">The villa workflow, automated</p>
+            <p className="text-xs font-bold text-[#3D9E7E] uppercase tracking-widest mb-3">The villa workflow, automated</p>
             <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-4">From first ping to fifth-star review</h2>
           </div>
           <div className="space-y-3">
             {workflows.map((w, i) => (
-              <div key={w.step} className="flex gap-5 items-start bg-[#0f2744]/50 border border-white/6 rounded-2xl p-6 hover:border-teal-500/20 transition-colors">
+              <div key={w.step} className="flex gap-5 items-start bg-[#141B15]/50 border border-white/6 rounded-2xl p-6 hover:border-teal-500/20 transition-colors">
                 <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-teal-500/15 border border-teal-500/30 flex items-center justify-center">
                   <span className="text-teal-400 font-black text-sm">{w.step}</span>
                 </div>
@@ -304,8 +304,8 @@ export default function VillasSolutionPage() {
       {/* ------------------------------------------------------------------ */}
       {/* TESTIMONIAL                                                         */}
       {/* ------------------------------------------------------------------ */}
-      <section className="py-24 px-5 sm:px-8 bg-[#0a1b30]">
-        <div className="max-w-4xl mx-auto bg-gradient-to-br from-[#0f2744] to-[#0a1f3a] border border-white/10 rounded-3xl p-10 sm:p-14">
+      <section className="py-24 px-5 sm:px-8 bg-[#0E1210]">
+        <div className="max-w-4xl mx-auto bg-gradient-to-br from-[#141B15] to-[#0E1210] border border-white/10 rounded-3xl p-10 sm:p-14">
           <div className="flex gap-1 mb-6">
             {[...Array(5)].map((_, i) => <span key={i} className="text-teal-400">★</span>)}
           </div>
@@ -331,12 +331,12 @@ export default function VillasSolutionPage() {
       <section className="py-24 px-5 sm:px-8">
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-12">
-            <p className="text-xs font-bold text-teal-400 uppercase tracking-widest mb-3">FAQ</p>
+            <p className="text-xs font-bold text-[#3D9E7E] uppercase tracking-widest mb-3">FAQ</p>
             <h2 className="text-3xl sm:text-4xl font-black tracking-tight">Villa-specific questions</h2>
           </div>
           <div className="space-y-3">
             {faqs.map(f => (
-              <details key={f.q} className="group bg-[#0f2744]/60 border border-white/8 rounded-2xl px-6 py-5 hover:border-teal-500/30 transition-colors">
+              <details key={f.q} className="group bg-[#141B15]/60 border border-white/8 rounded-2xl px-6 py-5 hover:border-teal-500/30 transition-colors">
                 <summary className="flex items-center justify-between cursor-pointer list-none">
                   <h3 className="text-base font-semibold text-white pr-4">{f.q}</h3>
                   <ChevronRight size={18} className="text-teal-400 group-open:rotate-90 transition-transform flex-shrink-0" />
@@ -351,7 +351,7 @@ export default function VillasSolutionPage() {
       {/* ------------------------------------------------------------------ */}
       {/* FINAL CTA                                                           */}
       {/* ------------------------------------------------------------------ */}
-      <section className="py-24 px-5 sm:px-8 bg-[#0a1b30] relative overflow-hidden">
+      <section className="py-24 px-5 sm:px-8 bg-[#0E1210] relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-teal-500/10 via-transparent to-cyan-500/5 pointer-events-none" />
         <div className="max-w-3xl mx-auto text-center relative">
           <div className="w-16 h-16 rounded-2xl bg-teal-500/20 border border-teal-500/30 flex items-center justify-center mx-auto mb-6">
@@ -365,7 +365,7 @@ export default function VillasSolutionPage() {
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link href="/register?plan=growth&segment=villas"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 bg-teal-500 hover:bg-teal-400 text-white font-bold rounded-2xl transition-all shadow-2xl shadow-teal-500/30 hover:-translate-y-0.5">
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 bg-[#C8964A] hover:bg-[#D4A85A] text-[#0E1210] font-bold rounded-2xl transition-all shadow-2xl shadow-teal-500/30 hover:-translate-y-0.5">
               Start 14-day free trial <ArrowRight size={18} />
             </Link>
             <Link href="/book-demo?segment=villas"

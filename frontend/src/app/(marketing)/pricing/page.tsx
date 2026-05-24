@@ -151,10 +151,10 @@ export default function PricingPage() {
   }, [selected, props]);
 
   return (
-    <div className="bg-[#0B1F3A] min-h-screen text-white pt-24">
+    <div className="bg-[#0E1210] min-h-screen text-white pt-24">
       {/* ── Hero ── */}
       <div className="max-w-2xl mx-auto px-5 sm:px-8 text-center py-16">
-        <p className="text-xs font-bold text-teal-400 uppercase tracking-widest mb-4">Pricing</p>
+        <p className="text-xs font-bold text-[#3D9E7E] uppercase tracking-widest mb-4">Pricing</p>
         <h1 className="text-4xl sm:text-5xl font-black tracking-tight mb-5 leading-tight">
           Pay only for what<br className="hidden sm:block" /> you use
         </h1>
@@ -239,7 +239,7 @@ export default function PricingPage() {
         <div className="flex flex-col sm:flex-row gap-3 justify-center mt-8">
           <Link
             href="/register"
-            className="flex items-center justify-center gap-2 px-8 py-4 bg-teal-500 hover:bg-teal-400 text-white font-bold rounded-2xl transition-all shadow-lg shadow-teal-500/25"
+            className="flex items-center justify-center gap-2 px-8 py-4 bg-[#C8964A] hover:bg-[#D4A85A] text-[#0E1210] font-bold rounded-2xl transition-all shadow-lg shadow-teal-500/25"
           >
             Start free trial <ArrowRight size={18} />
           </Link>
@@ -263,7 +263,7 @@ export default function PricingPage() {
         <div className="overflow-x-auto rounded-2xl border border-white/8">
           <table className="w-full min-w-[500px]">
             <thead>
-              <tr className="bg-[#0a1b30] border-b border-white/8">
+              <tr className="bg-[#0E1210] border-b border-white/8">
                 <th className="text-left px-5 py-4 text-xs font-bold text-white/30 uppercase tracking-wider w-[45%]">Module</th>
                 <th className="px-4 py-4 text-xs font-bold text-white/40 uppercase tracking-wider text-center">Price / property</th>
                 <th className="px-4 py-4 text-xs font-bold text-white/40 uppercase tracking-wider text-left hidden sm:table-cell">Key features</th>

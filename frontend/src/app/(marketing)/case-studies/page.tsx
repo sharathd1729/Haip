@@ -73,7 +73,7 @@ const themes = [
 
 export default function CaseStudiesPage() {
   return (
-    <div className="bg-[#0B1F3A] text-white min-h-screen">
+    <div className="bg-[#0E1210] text-white min-h-screen">
       {/* HERO */}
       <section className="relative pt-32 pb-16 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -106,7 +106,7 @@ export default function CaseStudiesPage() {
       {/* FEATURED CASE STUDY */}
       <section className="py-16 px-5 sm:px-8">
         <div className="max-w-6xl mx-auto">
-          <Link href={featured.href} className="block group bg-[#0f2744] hover:bg-[#102a4a] border border-white/10 hover:border-cyan-500/30 rounded-3xl overflow-hidden transition-all">
+          <Link href={featured.href} className="block group bg-[#141B15] hover:bg-[#102a4a] border border-white/10 hover:border-cyan-500/30 rounded-3xl overflow-hidden transition-all">
             <div className="grid lg:grid-cols-12">
               {/* Left: copy */}
               <div className="lg:col-span-7 p-8 sm:p-12">
@@ -125,7 +125,7 @@ export default function CaseStudiesPage() {
                 </span>
               </div>
               {/* Right: metrics */}
-              <div className="lg:col-span-5 bg-[#0a1f3a] p-8 sm:p-10 border-t lg:border-t-0 lg:border-l border-white/8">
+              <div className="lg:col-span-5 bg-[#0E1210] p-8 sm:p-10 border-t lg:border-t-0 lg:border-l border-white/8">
                 <p className="text-xs font-bold text-cyan-400 uppercase tracking-widest mb-5">90-day results</p>
                 <div className="space-y-5">
                   {featured.metrics.map(m => (
@@ -151,7 +151,7 @@ export default function CaseStudiesPage() {
       <section className="px-5 sm:px-8 pb-20">
         <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-5">
           {cases.map(c => (
-            <Link key={c.brand} href={c.href} className="group bg-[#0f2744]/70 hover:bg-[#0f2744] border border-white/8 hover:border-teal-500/25 rounded-2xl p-6 transition-all hover:-translate-y-0.5">
+            <Link key={c.brand} href={c.href} className="group bg-[#141B15]/70 hover:bg-[#141B15] border border-white/8 hover:border-teal-500/25 rounded-2xl p-6 transition-all hover:-translate-y-0.5">
               <div className="flex items-center justify-between mb-5">
                 <div className={`inline-flex items-center gap-2 ${c.color} border rounded-full px-3 py-1`}>
                   {c.icon}
@@ -175,13 +175,13 @@ export default function CaseStudiesPage() {
       </section>
 
       {/* CTA */}
-      <section className="py-20 px-5 sm:px-8 bg-[#0a1b30] relative overflow-hidden">
+      <section className="py-20 px-5 sm:px-8 bg-[#0E1210] relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-teal-500/10 via-transparent to-cyan-500/5 pointer-events-none" />
         <div className="max-w-3xl mx-auto text-center relative">
           <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-4">Want to be the next case study?</h2>
           <p className="text-white/55 mb-8 max-w-xl mx-auto">Design partners get 6 months free in exchange for case-study rights. Limited slots — we&apos;re only taking 3 more this quarter.</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link href="/book-demo?topic=design-partner" className="inline-flex items-center gap-2 px-6 py-3 bg-teal-500 hover:bg-teal-400 text-white font-bold rounded-2xl transition-all shadow-xl shadow-teal-500/30">
+            <Link href="/book-demo?topic=design-partner" className="inline-flex items-center gap-2 px-6 py-3 bg-[#C8964A] hover:bg-[#D4A85A] text-[#0E1210] font-bold rounded-2xl transition-all shadow-xl shadow-[#C8964A]/30">
               Apply as a design partner <ArrowRight size={16} />
             </Link>
             <Link href="/pricing" className="inline-flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-2xl border border-white/10 transition-all">

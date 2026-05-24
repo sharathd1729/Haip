@@ -2,7 +2,7 @@
 
 export default function OfflinePage() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[#0a1b30] px-6 text-center">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#0E1210] px-6 text-center">
       <div className="w-16 h-16 rounded-2xl bg-teal-500/10 flex items-center justify-center mb-6">
         {/* Wifi-off icon */}
         <svg className="w-8 h-8 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -16,7 +16,7 @@ export default function OfflinePage() {
       </p>
       <button
         onClick={() => window.location.reload()}
-        className="mt-8 px-5 py-2.5 rounded-xl bg-teal-500 text-[#0a1b30] text-sm font-bold hover:bg-teal-400 transition-colors"
+        className="mt-8 px-5 py-2.5 rounded-xl bg-teal-500 text-[#0E1210] text-sm font-bold hover:bg-teal-400 transition-colors"
       >
         Retry
       </button>

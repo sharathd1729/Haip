@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Mail } from "lucide-react";
@@ -39,7 +39,7 @@ export default function ForgotPasswordPage() {
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2">
             <img src="/logo.png" alt="HAIP" className="h-11 w-auto object-contain" />
-            <span className="text-[#0B1F3A] font-bold text-xl tracking-tight">HAIP</span>
+            <span className="text-[#0E1210] font-bold text-xl tracking-tight">HAIP</span>
           </Link>
         </div>
 
@@ -57,7 +57,7 @@ export default function ForgotPasswordPage() {
               </p>
               <p className="text-xs text-gray-400 mb-6">
                 Don&apos;t see it? Check your spam folder, or{" "}
-                <button onClick={() => setSent(false)} className="text-teal-600 hover:underline font-medium">
+                <button onClick={() => setSent(false)} className="text-[#3D9E7E] hover:underline font-medium">
                   try again
                 </button>
                 .
@@ -101,7 +101,7 @@ export default function ForgotPasswordPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 bg-[#0B1F3A] hover:bg-[#163458] disabled:opacity-60 text-white font-semibold rounded-xl text-sm transition-colors"
+                  className="w-full py-3 bg-[#0E1210] hover:bg-[#1B2419] disabled:opacity-60 text-white font-semibold rounded-xl text-sm transition-colors"
                 >
                   {loading ? "Sending…" : "Send reset link"}
                 </button>

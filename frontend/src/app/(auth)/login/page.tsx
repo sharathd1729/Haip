@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState, useEffect, Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -169,7 +169,7 @@ function LoginForm() {
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-sm font-medium text-gray-700">Password</label>
-              <Link href="/forgot-password" className="text-xs text-teal-600 hover:text-teal-700 font-medium">
+              <Link href="/forgot-password" className="text-xs text-[#3D9E7E] hover:text-[#4DB893] font-medium">
                 Forgot password?
               </Link>
             </div>
@@ -209,7 +209,7 @@ function LoginForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-[#0B1F3A] hover:bg-[#163458] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
+            className="w-full py-3 bg-[#0E1210] hover:bg-[#1B2419] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
           >
             {loading ? (
               <>
@@ -294,7 +294,7 @@ function LoginForm() {
               <button
                 type="submit"
                 disabled={loading || otp.length !== 6}
-                className="w-full py-3 bg-[#0B1F3A] hover:bg-[#163458] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
+                className="w-full py-3 bg-[#0E1210] hover:bg-[#1B2419] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
               >
                 {loading ? (
                   <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -320,7 +320,7 @@ function LoginForm() {
 
       <div className="mt-6 pt-6 border-t border-gray-100 text-center text-sm text-gray-500">
         Don&apos;t have an account?{" "}
-        <Link href="/register" className="text-teal-600 font-semibold hover:text-teal-700 transition-colors">
+        <Link href="/register" className="text-[#3D9E7E] font-semibold hover:text-[#4DB893] transition-colors">
           Start free trial
         </Link>
       </div>
@@ -332,7 +332,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex">
       {/* ── Left panel: marketing ── */}
-      <div className="hidden lg:flex lg:w-[52%] flex-col justify-between bg-[#0B1F3A] p-12 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-[52%] flex-col justify-between bg-[#0E1210] p-12 relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-[-80px] right-[-80px] w-[360px] h-[360px] rounded-full bg-teal-500/10 blur-3xl" />
           <div className="absolute bottom-[-60px] left-[-60px] w-[280px] h-[280px] rounded-full bg-blue-500/10 blur-3xl" />
@@ -340,7 +340,7 @@ export default function LoginPage() {
 
         <div className="relative">
           <Link href="/" className="inline-flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-teal-500 flex items-center justify-center text-[#0B1F3A] font-bold text-lg shadow-lg shadow-teal-500/30">
+            <div className="w-10 h-10 rounded-xl bg-[#C8964A] flex items-center justify-center text-[#0E1210] font-bold text-lg shadow-lg shadow-[#C8964A]/30">
               H
             </div>
             <span className="text-white font-bold text-xl tracking-tight">HAIP</span>
@@ -401,7 +401,7 @@ export default function LoginPage() {
         <div className="lg:hidden mb-8">
           <Link href="/" className="inline-flex items-center gap-2">
             <img src="/logo.png" alt="HAIP" className="h-11 w-auto object-contain" />
-            <span className="text-[#0B1F3A] font-bold text-xl tracking-tight">HAIP</span>
+            <span className="text-[#0E1210] font-bold text-xl tracking-tight">HAIP</span>
           </Link>
         </div>
 

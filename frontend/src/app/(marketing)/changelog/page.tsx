@@ -58,7 +58,7 @@ const tagIcons: Record<string, React.ReactNode> = {
 
 export default function ChangelogPage() {
   return (
-    <div className="bg-[#0B1F3A] text-white min-h-screen">
+    <div className="bg-[#0E1210] text-white min-h-screen">
       <section className="relative pt-32 pb-12 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full bg-purple-500/8 blur-[120px]" />
@@ -76,7 +76,7 @@ export default function ChangelogPage() {
       <section className="px-5 sm:px-8 pb-24">
         <div className="max-w-3xl mx-auto space-y-10">
           {releases.map(r => (
-            <article key={r.version} className="bg-[#0f2744]/70 border border-white/8 rounded-2xl p-7">
+            <article key={r.version} className="bg-[#141B15]/70 border border-white/8 rounded-2xl p-7">
               <div className="flex items-center gap-3 mb-5 flex-wrap">
                 <h2 className="text-xl font-black text-white">{r.version}</h2>
                 <span className="text-xs text-white/35">·</span>

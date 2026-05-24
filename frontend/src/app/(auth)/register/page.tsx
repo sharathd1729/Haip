@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
@@ -30,13 +30,13 @@ function PasswordStrength({ password }: { password: string }) {
         ))}
       </div>
       {score > 0 && (
-        <p className={`text-xs font-medium ${score === 3 ? "text-teal-600" : score === 2 ? "text-amber-600" : "text-red-500"}`}>
+        <p className={`text-xs font-medium ${score === 3 ? "text-[#3D9E7E]" : score === 2 ? "text-amber-600" : "text-red-500"}`}>
           {labels[score - 1]}
         </p>
       )}
       <div className="flex flex-wrap gap-x-3 gap-y-0.5">
         {checks.map(c => (
-          <span key={c.label} className={`text-[11px] flex items-center gap-1 ${c.ok ? "text-teal-600" : "text-gray-400"}`}>
+          <span key={c.label} className={`text-[11px] flex items-center gap-1 ${c.ok ? "text-[#3D9E7E]" : "text-gray-400"}`}>
             <Check size={10} className={c.ok ? "text-teal-500" : "text-gray-300"} />
             {c.label}
           </span>
@@ -147,7 +147,7 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen flex">
       {/* ── Left panel: perks ── */}
-      <div className="hidden lg:flex lg:w-[44%] flex-col justify-between bg-[#0B1F3A] p-12 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-[44%] flex-col justify-between bg-[#0E1210] p-12 relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-[-100px] right-[-100px] w-[400px] h-[400px] rounded-full bg-teal-500/10 blur-3xl" />
           <div className="absolute bottom-[-80px] left-[-80px] w-[300px] h-[300px] rounded-full bg-blue-500/8 blur-3xl" />
@@ -155,7 +155,7 @@ export default function RegisterPage() {
 
         <div className="relative">
           <Link href="/" className="inline-flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-teal-500 flex items-center justify-center text-[#0B1F3A] font-bold text-lg shadow-lg shadow-teal-500/30">
+            <div className="w-10 h-10 rounded-xl bg-[#C8964A] flex items-center justify-center text-[#0E1210] font-bold text-lg shadow-lg shadow-[#C8964A]/30">
               H
             </div>
             <span className="text-white font-bold text-xl tracking-tight">HAIP</span>
@@ -208,7 +208,7 @@ export default function RegisterPage() {
         <div className="lg:hidden mb-8">
           <Link href="/" className="inline-flex items-center gap-2">
             <img src="/logo.png" alt="HAIP" className="h-11 w-auto object-contain" />
-            <span className="text-[#0B1F3A] font-bold text-xl tracking-tight">HAIP</span>
+            <span className="text-[#0E1210] font-bold text-xl tracking-tight">HAIP</span>
           </Link>
         </div>
 
@@ -329,9 +329,9 @@ export default function RegisterPage() {
                   <span className="text-red-500 font-semibold text-[10px]">required</span>
                   <span className="block text-gray-400 mt-0.5">Account notifications, billing, security alerts. Required to use HAIP.</span>
                   {" "}
-                  <Link href="/terms" target="_blank" className="text-teal-600 hover:underline font-medium">Terms</Link>
+                  <Link href="/terms" target="_blank" className="text-[#3D9E7E] hover:underline font-medium">Terms</Link>
                   {" "}·{" "}
-                  <Link href="/privacy" target="_blank" className="text-teal-600 hover:underline font-medium">Privacy Policy</Link>
+                  <Link href="/privacy" target="_blank" className="text-[#3D9E7E] hover:underline font-medium">Privacy Policy</Link>
                 </label>
               </div>
 
@@ -389,7 +389,7 @@ export default function RegisterPage() {
 
           <div className="mt-6 pt-6 border-t border-gray-100 text-center text-sm text-gray-500">
             Already have an account?{" "}
-            <Link href="/login" className="text-teal-600 font-semibold hover:text-teal-700 transition-colors">
+            <Link href="/login" className="text-[#3D9E7E] font-semibold hover:text-[#4DB893] transition-colors">
               Sign in
             </Link>
           </div>

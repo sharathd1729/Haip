@@ -22,7 +22,7 @@ const rights = [
 
 export default function DpdpPage() {
   return (
-    <div className="bg-[#0B1F3A] text-white min-h-screen">
+    <div className="bg-[#0E1210] text-white min-h-screen">
       <section className="relative pt-32 pb-16 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full bg-green-500/8 blur-[120px]" />
@@ -45,7 +45,7 @@ export default function DpdpPage() {
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {principles.map(p => (
-              <div key={p.title} className="bg-[#0f2744]/60 border border-white/8 rounded-2xl p-5 hover:border-green-500/25 transition-colors">
+              <div key={p.title} className="bg-[#141B15]/60 border border-white/8 rounded-2xl p-5 hover:border-green-500/25 transition-colors">
                 <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center mb-3">{p.icon}</div>
                 <h3 className="text-sm font-bold text-white mb-1.5">{p.title}</h3>
                 <p className="text-xs text-white/50 leading-relaxed">{p.desc}</p>
@@ -55,7 +55,7 @@ export default function DpdpPage() {
         </div>
       </section>
 
-      <section className="px-5 sm:px-8 pb-16 bg-[#0a1b30] py-16">
+      <section className="px-5 sm:px-8 pb-16 bg-[#0E1210] py-16">
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-8">
             <p className="text-xs font-bold text-green-400 uppercase tracking-widest mb-3">Data principal rights</p>
@@ -63,7 +63,7 @@ export default function DpdpPage() {
           </div>
           <div className="space-y-3">
             {rights.map(r => (
-              <div key={r.title} className="bg-[#0f2744] border border-white/8 rounded-2xl p-5">
+              <div key={r.title} className="bg-[#141B15] border border-white/8 rounded-2xl p-5">
                 <h3 className="text-sm font-bold text-white mb-1.5">{r.title}</h3>
                 <p className="text-xs text-white/55 leading-relaxed" dangerouslySetInnerHTML={{ __html: r.desc }} />
               </div>
@@ -73,7 +73,7 @@ export default function DpdpPage() {
       </section>
 
       <section className="px-5 sm:px-8 pb-24">
-        <div className="max-w-4xl mx-auto bg-[#0f2744] border border-white/10 rounded-2xl p-7 sm:p-9">
+        <div className="max-w-4xl mx-auto bg-[#141B15] border border-white/10 rounded-2xl p-7 sm:p-9">
           <div className="flex items-start gap-4 mb-5">
             <div className="w-12 h-12 rounded-xl bg-green-500/15 border border-green-500/25 flex items-center justify-center flex-shrink-0">
               <Mail size={20} className="text-green-400" />

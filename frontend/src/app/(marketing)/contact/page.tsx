@@ -47,7 +47,7 @@ export default function ContactPage() {
   }
 
   return (
-    <div className="bg-[#0B1F3A] text-white min-h-screen">
+    <div className="bg-[#0E1210] text-white min-h-screen">
       <section className="relative pt-32 pb-24 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full bg-teal-500/8 blur-[120px]" />
@@ -97,7 +97,7 @@ export default function ContactPage() {
           {/* Form + info */}
           <div className="grid lg:grid-cols-5 gap-6">
             {/* Form */}
-            <div className="lg:col-span-3 bg-[#0f2744] border border-white/10 rounded-2xl p-7 sm:p-8 shadow-2xl shadow-black/30">
+            <div className="lg:col-span-3 bg-[#141B15] border border-white/10 rounded-2xl p-7 sm:p-8 shadow-2xl shadow-black/30">
               {success ? (
                 <div className="text-center py-10">
                   <div className="w-16 h-16 rounded-2xl bg-teal-500/20 border border-teal-500/30 flex items-center justify-center mx-auto mb-5">
@@ -196,7 +196,7 @@ export default function ContactPage() {
         .haip-input:focus { border-color: rgba(20,184,166,0.55); background: rgba(255,255,255,0.06); }
         .haip-input::placeholder { color: rgba(255,255,255,0.25); }
         select.haip-input { appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px; }
-        select.haip-input option { background: #0f2744; color: white; }
+        select.haip-input option { background: #141B15; color: white; }
       `}</style>
     </div>
   );
@@ -212,7 +212,7 @@ function Channel({ icon, tone, title, subtitle, primary, secondary }: {
 }) {
   const ring = tone === "teal" ? "hover:border-teal-500/30" : tone === "amber" ? "hover:border-amber-500/30" : "hover:border-cyan-500/30";
   return (
-    <div className={`bg-[#0f2744]/70 border border-white/8 ${ring} rounded-2xl p-6 transition-colors`}>
+    <div className={`bg-[#141B15]/70 border border-white/8 ${ring} rounded-2xl p-6 transition-colors`}>
       <div className="w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center mb-4">{icon}</div>
       <h3 className="text-base font-bold text-white mb-1">{title}</h3>
       <p className="text-xs text-white/40 mb-5">{subtitle}</p>
@@ -233,7 +233,7 @@ function InfoCard({ icon, title, lines, children }: {
   children?: React.ReactNode;
 }) {
   return (
-    <div className="bg-[#0f2744]/60 border border-white/8 rounded-2xl p-5">
+    <div className="bg-[#141B15]/60 border border-white/8 rounded-2xl p-5">
       <div className="flex items-center gap-2 mb-3">
         <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center">{icon}</div>
         <h4 className="text-sm font-bold text-white">{title}</h4>

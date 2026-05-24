@@ -37,7 +37,7 @@ const faqs = [
 
 export default function TravelSolutionPage() {
   return (
-    <div className="bg-[#0B1F3A] text-white min-h-screen">
+    <div className="bg-[#0E1210] text-white min-h-screen">
       {/* HERO */}
       <section className="relative pt-32 pb-20 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -59,7 +59,7 @@ export default function TravelSolutionPage() {
               HAIP is the AI-first communication platform for experiential travel operators — luxury caravans, multi-day journeys, DMCs, bespoke trip designers. Capture every enquiry, generate quotes in minutes, and remember every traveller.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 mb-6">
-              <Link href="/register?plan=growth&segment=travel" className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-teal-500 hover:bg-teal-400 text-white font-bold rounded-2xl transition-all shadow-2xl shadow-teal-500/30 hover:-translate-y-0.5">Start 14-day free trial <ArrowRight size={16} /></Link>
+              <Link href="/register?plan=growth&segment=travel" className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-[#C8964A] hover:bg-[#D4A85A] text-[#0E1210] font-bold rounded-2xl transition-all shadow-2xl shadow-teal-500/30 hover:-translate-y-0.5">Start 14-day free trial <ArrowRight size={16} /></Link>
               <Link href="/book-demo?segment=travel" className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-2xl border border-white/10 transition-all">Book a 30-min demo</Link>
             </div>
             <p className="text-xs text-white/30">Built with Ratha · India&apos;s premier luxury caravan operator</p>
@@ -69,7 +69,7 @@ export default function TravelSolutionPage() {
           <div className="lg:col-span-5">
             <div className="relative">
               <div className="absolute -inset-4 bg-gradient-to-br from-cyan-500/20 to-teal-500/10 rounded-3xl blur-2xl" />
-              <div className="relative bg-[#0f2744] rounded-2xl border border-white/10 p-5 shadow-2xl shadow-black/40">
+              <div className="relative bg-[#141B15] rounded-2xl border border-white/10 p-5 shadow-2xl shadow-black/40">
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <p className="text-xs font-semibold text-white">Anjali &amp; Rohan</p>
@@ -108,7 +108,7 @@ export default function TravelSolutionPage() {
       </section>
 
       {/* STATS */}
-      <section className="py-14 border-y border-white/6 bg-gradient-to-r from-[#0a1b30] to-[#0f2744]">
+      <section className="py-14 border-y border-white/6 bg-gradient-to-r from-[#0E1210] to-[#141B15]">
         <div className="max-w-5xl mx-auto px-5 sm:px-8 grid grid-cols-2 md:grid-cols-4 gap-8">
           {stats.map(s => (
             <div key={s.label} className="text-center">
@@ -129,7 +129,7 @@ export default function TravelSolutionPage() {
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
             {painPoints.map(p => (
-              <div key={p.title} className="bg-[#0f2744]/60 border border-white/6 rounded-2xl p-6 hover:border-rose-500/20 transition-colors">
+              <div key={p.title} className="bg-[#141B15]/60 border border-white/6 rounded-2xl p-6 hover:border-rose-500/20 transition-colors">
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center flex-shrink-0">{p.icon}</div>
                   <div>
@@ -144,7 +144,7 @@ export default function TravelSolutionPage() {
       </section>
 
       {/* FEATURES */}
-      <section className="py-24 px-5 sm:px-8 bg-[#0a1b30]">
+      <section className="py-24 px-5 sm:px-8 bg-[#0E1210]">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-14">
             <p className="text-xs font-bold text-cyan-400 uppercase tracking-widest mb-3">Built for experiential travel</p>
@@ -152,7 +152,7 @@ export default function TravelSolutionPage() {
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
             {features.map(f => (
-              <div key={f.title} className="bg-[#0f2744] border border-white/8 rounded-2xl p-6 hover:border-cyan-500/30 transition-all hover:-translate-y-0.5">
+              <div key={f.title} className="bg-[#141B15] border border-white/8 rounded-2xl p-6 hover:border-cyan-500/30 transition-all hover:-translate-y-0.5">
                 <div className={`w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center mb-4 ${f.color}`}>{f.icon}</div>
                 <h3 className="text-base font-bold text-white mb-2">{f.title}</h3>
                 <p className="text-sm text-white/45 leading-relaxed">{f.desc}</p>
@@ -164,7 +164,7 @@ export default function TravelSolutionPage() {
 
       {/* TESTIMONIAL — Ratha */}
       <section className="py-24 px-5 sm:px-8">
-        <div className="max-w-4xl mx-auto bg-gradient-to-br from-[#0f2744] to-[#0a1f3a] border border-white/10 rounded-3xl p-10 sm:p-14">
+        <div className="max-w-4xl mx-auto bg-gradient-to-br from-[#141B15] to-[#0E1210] border border-white/10 rounded-3xl p-10 sm:p-14">
           <div className="flex gap-1 mb-6">{[...Array(5)].map((_, i) => <span key={i} className="text-cyan-400">★</span>)}</div>
           <p className="text-xl sm:text-2xl text-white/80 leading-relaxed font-medium mb-8">
             &ldquo;We design 11-night journeys across Spiti, Ladakh and the Northeast. Every enquiry used to feel like reinventing the wheel. HAIP turned our past 200 itineraries into a knowledge base — and now the first quote draft lands inside 30 minutes. Repeat-client retention is up, and we&apos;ve doubled trip designer capacity without doubling the team.&rdquo;
@@ -183,7 +183,7 @@ export default function TravelSolutionPage() {
       </section>
 
       {/* FAQ */}
-      <section className="py-24 px-5 sm:px-8 bg-[#0a1b30]">
+      <section className="py-24 px-5 sm:px-8 bg-[#0E1210]">
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-12">
             <p className="text-xs font-bold text-cyan-400 uppercase tracking-widest mb-3">FAQ</p>
@@ -191,7 +191,7 @@ export default function TravelSolutionPage() {
           </div>
           <div className="space-y-3">
             {faqs.map(f => (
-              <details key={f.q} className="group bg-[#0f2744]/60 border border-white/8 rounded-2xl px-6 py-5 hover:border-cyan-500/30 transition-colors">
+              <details key={f.q} className="group bg-[#141B15]/60 border border-white/8 rounded-2xl px-6 py-5 hover:border-cyan-500/30 transition-colors">
                 <summary className="flex items-center justify-between cursor-pointer list-none">
                   <h3 className="text-base font-semibold text-white pr-4">{f.q}</h3>
                   <ChevronRight size={18} className="text-cyan-400 group-open:rotate-90 transition-transform flex-shrink-0" />
@@ -213,7 +213,7 @@ export default function TravelSolutionPage() {
           <h2 className="text-3xl sm:text-5xl font-black tracking-tight mb-4">Stop typing itineraries. Start designing journeys.</h2>
           <p className="text-white/50 text-lg mb-10 max-w-xl mx-auto">HAIP gives your trip-designer team a 200-itinerary memory and an AI co-pilot that drafts in minutes.</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link href="/register?plan=growth&segment=travel" className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 bg-teal-500 hover:bg-teal-400 text-white font-bold rounded-2xl transition-all shadow-2xl shadow-teal-500/30 hover:-translate-y-0.5">Start free trial <ArrowRight size={18} /></Link>
+            <Link href="/register?plan=growth&segment=travel" className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 bg-[#C8964A] hover:bg-[#D4A85A] text-[#0E1210] font-bold rounded-2xl transition-all shadow-2xl shadow-teal-500/30 hover:-translate-y-0.5">Start free trial <ArrowRight size={18} /></Link>
             <Link href="/book-demo?segment=travel" className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-2xl border border-white/10 transition-all">Talk to a trip designer</Link>
           </div>
         </div>

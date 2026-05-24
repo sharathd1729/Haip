@@ -70,7 +70,7 @@ function JoinForm() {
         </h1>
         <p className="text-sm text-gray-500 mt-1">
           {invite
-            ? <>You&apos;ve been invited to <strong>{invite.tenant_name ?? "the workspace"}</strong> as <span className="text-teal-600 capitalize font-medium">{invite.role.replace("_", " ")}</span>. Set a password to get started.</>
+            ? <>You&apos;ve been invited to <strong>{invite.tenant_name ?? "the workspace"}</strong> as <span className="text-[#3D9E7E] capitalize font-medium">{invite.role.replace("_", " ")}</span>. Set a password to get started.</>
             : "Set a password to activate your account and start using HAIP."
           }
         </p>
@@ -126,7 +126,7 @@ function JoinForm() {
 
 export default function JoinPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-[#0B1F3A] to-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-[#0E1210] to-slate-900 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
         <Suspense fallback={<div className="text-center text-sm text-gray-400 py-8">Loading…</div>}>
           <JoinForm />

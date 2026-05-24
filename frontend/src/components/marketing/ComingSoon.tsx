@@ -29,7 +29,7 @@ export function ComingSoon({
 }: ComingSoonProps) {
   const a = accentMap[accent];
   return (
-    <div className="bg-[#0B1F3A] text-white min-h-screen">
+    <div className="bg-[#0E1210] text-white min-h-screen">
       <section className="relative pt-32 pb-20 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className={`absolute top-1/3 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full ${a.glow.replace("from-", "bg-").replace("/20", "/8")} blur-[120px]`} />
@@ -46,7 +46,7 @@ export function ComingSoon({
           {highlights.length > 0 && (
             <div className="grid sm:grid-cols-2 gap-3 mb-10 text-left">
               {highlights.map(h => (
-                <div key={h.title} className="bg-[#0f2744]/60 border border-white/8 rounded-2xl p-5">
+                <div key={h.title} className="bg-[#141B15]/60 border border-white/8 rounded-2xl p-5">
                   <h3 className={`text-sm font-bold ${a.text} mb-1.5`}>{h.title}</h3>
                   <p className="text-xs text-white/45 leading-relaxed">{h.desc}</p>
                 </div>
@@ -55,7 +55,7 @@ export function ComingSoon({
           )}
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-8">
-            <Link href={primaryCta.href} className="inline-flex items-center gap-2 px-6 py-3 bg-teal-500 hover:bg-teal-400 text-white font-bold rounded-2xl transition-all shadow-xl shadow-teal-500/30">
+            <Link href={primaryCta.href} className="inline-flex items-center gap-2 px-6 py-3 bg-[#C8964A] hover:bg-[#D4A85A] text-[#0E1210] font-bold rounded-2xl transition-all shadow-xl shadow-[#C8964A]/30">
               {primaryCta.label} <ArrowRight size={16} />
             </Link>
             <Link href={secondaryCta.href} className="inline-flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-2xl border border-white/10 transition-all">
@@ -68,8 +68,8 @@ export function ComingSoon({
               <Mail size={12} /> hello@haip.app
             </a>
             <span className="hidden sm:inline">·</span>
-            <a href="https://wa.me/+919876543210" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 hover:text-white transition-colors">
-              <MessageSquare size={12} /> WhatsApp +91 98765 43210
+            <a href="https://wa.me/918147698153" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 hover:text-white transition-colors">
+              <MessageSquare size={12} /> WhatsApp +91 81476 98153
             </a>
           </div>
         </div>

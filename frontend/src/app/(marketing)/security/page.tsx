@@ -88,7 +88,7 @@ const compliance = [
 
 export default function SecurityPage() {
   return (
-    <div className="bg-[#0B1F3A] text-white min-h-screen">
+    <div className="bg-[#0E1210] text-white min-h-screen">
       {/* HERO */}
       <section className="relative pt-32 pb-20 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -107,7 +107,7 @@ export default function SecurityPage() {
             We store voice recordings, guest PII, and full conversation history for paying clients. Multi-tenancy and encryption have to be airtight from day one — here is exactly how we do it.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <a href="mailto:security@haip.app" className="inline-flex items-center gap-2 px-6 py-3 bg-teal-500 hover:bg-teal-400 text-white font-bold rounded-2xl transition-all shadow-xl shadow-teal-500/25">
+            <a href="mailto:security@haip.app" className="inline-flex items-center gap-2 px-6 py-3 bg-[#C8964A] hover:bg-[#D4A85A] text-[#0E1210] font-bold rounded-2xl transition-all shadow-xl shadow-teal-500/25">
               <Mail size={16} /> Email security@haip.app
             </a>
             <Link href="/dpdp" className="inline-flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-2xl border border-white/10 transition-all">
@@ -125,7 +125,7 @@ export default function SecurityPage() {
             { icon: <BadgeCheck size={18} className="text-green-400" />, title: "DPDP-ready", desc: "Consent · residency · deletion · audit log · sub-processor disclosure." },
             { icon: <KeyRound size={18} className="text-amber-400" />, title: "Per-tenant KMS", desc: "Your recordings encrypted with a key only your tenant can use." },
           ].map(c => (
-            <div key={c.title} className="bg-[#0f2744] border border-white/10 rounded-2xl p-5 flex items-start gap-3">
+            <div key={c.title} className="bg-[#141B15] border border-white/10 rounded-2xl p-5 flex items-start gap-3">
               <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center flex-shrink-0">{c.icon}</div>
               <div>
                 <p className="text-sm font-bold text-white mb-0.5">{c.title}</p>
@@ -140,12 +140,12 @@ export default function SecurityPage() {
       <section className="py-20 px-5 sm:px-8">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
-            <p className="text-xs font-bold text-teal-400 uppercase tracking-widest mb-3">How we protect your data</p>
+            <p className="text-xs font-bold text-[#3D9E7E] uppercase tracking-widest mb-3">How we protect your data</p>
             <h2 className="text-3xl sm:text-4xl font-black tracking-tight">Six pillars · production from day one</h2>
           </div>
           <div className="grid md:grid-cols-2 gap-5">
             {pillars.map(p => (
-              <div key={p.title} className="bg-[#0f2744]/70 border border-white/10 rounded-2xl p-6 hover:border-teal-500/25 transition-colors">
+              <div key={p.title} className="bg-[#141B15]/70 border border-white/10 rounded-2xl p-6 hover:border-teal-500/25 transition-colors">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center">{p.icon}</div>
                   <h3 className="text-lg font-bold text-white">{p.title}</h3>
@@ -165,14 +165,14 @@ export default function SecurityPage() {
       </section>
 
       {/* SUB-PROCESSORS */}
-      <section className="py-20 px-5 sm:px-8 bg-[#0a1b30]">
+      <section className="py-20 px-5 sm:px-8 bg-[#0E1210]">
         <div className="max-w-5xl mx-auto">
           <div className="mb-10">
-            <p className="text-xs font-bold text-teal-400 uppercase tracking-widest mb-3">Sub-processor registry</p>
+            <p className="text-xs font-bold text-[#3D9E7E] uppercase tracking-widest mb-3">Sub-processor registry</p>
             <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-3">Every third party that touches your data</h2>
             <p className="text-white/55 max-w-2xl">Public list. Data Processing Agreements (DPAs) signed with each. We will notify you in advance of any new sub-processor we onboard.</p>
           </div>
-          <div className="bg-[#0f2744] border border-white/10 rounded-2xl overflow-hidden">
+          <div className="bg-[#141B15] border border-white/10 rounded-2xl overflow-hidden">
             <div className="grid grid-cols-12 gap-4 px-5 py-3 border-b border-white/8 text-[11px] font-bold text-white/40 uppercase tracking-widest">
               <div className="col-span-4">Sub-processor</div>
               <div className="col-span-5">Purpose</div>
@@ -193,13 +193,13 @@ export default function SecurityPage() {
       <section className="py-20 px-5 sm:px-8">
         <div className="max-w-5xl mx-auto">
           <div className="mb-10">
-            <p className="text-xs font-bold text-teal-400 uppercase tracking-widest mb-3">Compliance status</p>
+            <p className="text-xs font-bold text-[#3D9E7E] uppercase tracking-widest mb-3">Compliance status</p>
             <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-3">Where we are, and where we&apos;re going</h2>
             <p className="text-white/55 max-w-2xl">We don&apos;t claim certifications we don&apos;t hold. Here is the honest status as of {new Date().toLocaleDateString("en-IN", { month: "short", year: "numeric" })}.</p>
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
             {compliance.map(c => (
-              <div key={c.name} className="bg-[#0f2744]/70 border border-white/8 rounded-2xl p-5">
+              <div key={c.name} className="bg-[#141B15]/70 border border-white/8 rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-base font-bold text-white">{c.name}</h3>
                   <span className={`text-[10px] font-bold px-2 py-1 rounded-md border ${c.color}`}>{c.status}</span>
@@ -212,8 +212,8 @@ export default function SecurityPage() {
       </section>
 
       {/* REPORT VULN */}
-      <section className="py-20 px-5 sm:px-8 bg-[#0a1b30]">
-        <div className="max-w-4xl mx-auto bg-gradient-to-br from-[#0f2744] to-[#0a1f3a] border border-amber-500/20 rounded-3xl p-8 sm:p-12">
+      <section className="py-20 px-5 sm:px-8 bg-[#0E1210]">
+        <div className="max-w-4xl mx-auto bg-gradient-to-br from-[#141B15] to-[#0E1210] border border-amber-500/20 rounded-3xl p-8 sm:p-12">
           <div className="flex items-start gap-4 mb-5">
             <div className="w-12 h-12 rounded-xl bg-amber-500/15 border border-amber-500/25 flex items-center justify-center flex-shrink-0">
               <AlertTriangle size={20} className="text-amber-400" />
@@ -246,7 +246,7 @@ export default function SecurityPage() {
           <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-4">Need our security pack for a vendor review?</h2>
           <p className="text-white/55 mb-8 max-w-xl mx-auto">We&apos;re happy to share our architecture diagram, threat model, DPA, sub-processor registry, and pen-test plan with your compliance team — typically over a 30-minute call.</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link href="/book-demo?topic=security" className="inline-flex items-center gap-2 px-6 py-3 bg-teal-500 hover:bg-teal-400 text-white font-bold rounded-2xl transition-all shadow-xl shadow-teal-500/30">
+            <Link href="/book-demo?topic=security" className="inline-flex items-center gap-2 px-6 py-3 bg-[#C8964A] hover:bg-[#D4A85A] text-[#0E1210] font-bold rounded-2xl transition-all shadow-xl shadow-[#C8964A]/30">
               Schedule security review <ArrowRight size={16} />
             </Link>
             <a href="mailto:dpo@haip.app" className="inline-flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-2xl border border-white/10 transition-all">

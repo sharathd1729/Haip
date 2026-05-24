@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -61,7 +61,7 @@ function ResetPasswordForm() {
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2">
             <img src="/logo.png" alt="HAIP" className="h-11 w-auto object-contain" />
-            <span className="text-[#0B1F3A] font-bold text-xl tracking-tight">HAIP</span>
+            <span className="text-[#0E1210] font-bold text-xl tracking-tight">HAIP</span>
           </Link>
         </div>
 
@@ -75,7 +75,7 @@ function ResetPasswordForm() {
               <p className="text-gray-500 text-sm leading-relaxed mb-4">
                 Your password has been reset successfully. Redirecting you to sign in…
               </p>
-              <Link href="/login" className="text-sm text-teal-600 font-medium hover:underline">
+              <Link href="/login" className="text-sm text-[#3D9E7E] font-medium hover:underline">
                 Go to sign in →
               </Link>
             </div>
@@ -135,7 +135,7 @@ function ResetPasswordForm() {
                 <button
                   type="submit"
                   disabled={loading || !token}
-                  className="w-full py-3 bg-[#0B1F3A] hover:bg-[#163458] disabled:opacity-60 text-white font-semibold rounded-xl text-sm transition-colors"
+                  className="w-full py-3 bg-[#0E1210] hover:bg-[#1B2419] disabled:opacity-60 text-white font-semibold rounded-xl text-sm transition-colors"
                 >
                   {loading ? "Updating…" : "Update password"}
                 </button>
@@ -158,7 +158,7 @@ export default function ResetPasswordPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-[#C8964A] border-t-transparent rounded-full animate-spin" />
       </div>
     }>
       <ResetPasswordForm />

@@ -218,10 +218,10 @@ export default function OnboardingPage() {
   if (status === "unauthenticated") { router.replace("/login"); return null; }
 
   return (
-    <div className="min-h-screen bg-[#0B1F3A] flex flex-col items-center justify-center p-5">
+    <div className="min-h-screen bg-[#0E1210] flex flex-col items-center justify-center p-5">
       {/* Brand */}
       <div className="flex items-center gap-2.5 mb-8">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-[#0a1f3a] font-bold text-sm">H</div>
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-[#0E1210] font-bold text-sm">H</div>
         <span className="text-white font-bold text-xl tracking-tight">HA<span className="text-teal-400">IP</span></span>
       </div>
 
@@ -242,7 +242,7 @@ export default function OnboardingPage() {
         )}
 
         {/* Card */}
-        <div className="bg-[#0f2744] rounded-3xl border border-white/8 shadow-2xl shadow-black/40 overflow-hidden">
+        <div className="bg-[#141B15] rounded-3xl border border-white/8 shadow-2xl shadow-black/40 overflow-hidden">
 
           {/* ── Step 0: Brand basics ───────────────────────────────────────── */}
           {step === 0 && (

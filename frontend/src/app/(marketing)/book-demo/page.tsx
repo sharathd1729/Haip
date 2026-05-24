@@ -67,7 +67,7 @@ export default function BookDemoPage() {
   }
 
   return (
-    <div className="bg-[#0B1F3A] text-white min-h-screen">
+    <div className="bg-[#0E1210] text-white min-h-screen">
       <section className="relative pt-32 pb-24 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/3 left-1/4 w-[700px] h-[500px] rounded-full bg-teal-500/8 blur-[120px]" />
@@ -107,7 +107,7 @@ export default function BookDemoPage() {
             </div>
 
             {/* Quote */}
-            <div className="bg-[#0f2744]/70 border border-white/10 rounded-2xl p-6">
+            <div className="bg-[#141B15]/70 border border-white/10 rounded-2xl p-6">
               <div className="flex gap-1 mb-3">{[...Array(5)].map((_, i) => <span key={i} className="text-teal-400 text-sm">★</span>)}</div>
               <p className="text-sm text-white/70 italic leading-relaxed mb-4">
                 &ldquo;Best 30 minutes I&apos;ve spent in a sales call this year. They demoed HAIP on my actual WhatsApp inbox — I signed up at the end of the meeting.&rdquo;
@@ -124,7 +124,7 @@ export default function BookDemoPage() {
 
           {/* RIGHT: form */}
           <div className="lg:col-span-7">
-            <div className="bg-[#0f2744] border border-white/10 rounded-2xl p-7 sm:p-9 shadow-2xl shadow-black/30">
+            <div className="bg-[#141B15] border border-white/10 rounded-2xl p-7 sm:p-9 shadow-2xl shadow-black/30">
               {success ? (
                 <div className="text-center py-12">
                   <div className="w-16 h-16 rounded-2xl bg-teal-500/20 border border-teal-500/30 flex items-center justify-center mx-auto mb-6">
@@ -211,21 +211,21 @@ export default function BookDemoPage() {
 
             {/* Alt-contact strip */}
             <div className="mt-5 grid sm:grid-cols-3 gap-3">
-              <a href="https://wa.me/+918147698153" target="_blank" rel="noopener noreferrer" className="bg-[#0f2744]/60 hover:bg-[#0f2744] border border-white/8 hover:border-green-500/30 rounded-xl px-4 py-3 flex items-center gap-3 transition-colors">
+              <a href="https://wa.me/+918147698153" target="_blank" rel="noopener noreferrer" className="bg-[#141B15]/60 hover:bg-[#141B15] border border-white/8 hover:border-green-500/30 rounded-xl px-4 py-3 flex items-center gap-3 transition-colors">
                 <MessageSquare size={16} className="text-green-400 flex-shrink-0" />
                 <div className="min-w-0">
                   <p className="text-[11px] text-white/40">WhatsApp us</p>
                   <p className="text-xs font-semibold text-white truncate">+91 81476 98153</p>
                 </div>
               </a>
-              <a href="mailto:gen.haip@gmail.com" className="bg-[#0f2744]/60 hover:bg-[#0f2744] border border-white/8 hover:border-teal-500/30 rounded-xl px-4 py-3 flex items-center gap-3 transition-colors">
+              <a href="mailto:gen.haip@gmail.com" className="bg-[#141B15]/60 hover:bg-[#141B15] border border-white/8 hover:border-teal-500/30 rounded-xl px-4 py-3 flex items-center gap-3 transition-colors">
                 <Building2 size={16} className="text-teal-400 flex-shrink-0" />
                 <div className="min-w-0">
                   <p className="text-[11px] text-white/40">Email sales</p>
                   <p className="text-xs font-semibold text-white truncate">gen.haip@gmail.com</p>
                 </div>
               </a>
-              <div className="bg-[#0f2744]/60 border border-white/8 rounded-xl px-4 py-3 flex items-center gap-3">
+              <div className="bg-[#141B15]/60 border border-white/8 rounded-xl px-4 py-3 flex items-center gap-3">
                 <Clock size={16} className="text-amber-400 flex-shrink-0" />
                 <div className="min-w-0">
                   <p className="text-[11px] text-white/40">Avg. response</p>
@@ -256,7 +256,7 @@ export default function BookDemoPage() {
         }
         .haip-input::placeholder { color: rgba(255,255,255,0.25); }
         select.haip-input { appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px; }
-        select.haip-input option { background: #0f2744; color: white; }
+        select.haip-input option { background: #141B15; color: white; }
       `}</style>
     </div>
   );

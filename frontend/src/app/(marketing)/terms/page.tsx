@@ -1,8 +1,8 @@
 export default function TermsPage() {
   return (
-    <div className="bg-[#0B1F3A] text-white min-h-screen pt-24">
+    <div className="bg-[#0E1210] text-white min-h-screen pt-24">
       <div className="max-w-3xl mx-auto px-5 sm:px-8 py-16">
-        <p className="text-xs font-bold text-teal-400 uppercase tracking-widest mb-4">Legal</p>
+        <p className="text-xs font-bold text-[#3D9E7E] uppercase tracking-widest mb-4">Legal</p>
         <h1 className="text-4xl font-black tracking-tight mb-3">Terms of Service</h1>
         <p className="text-white/30 text-sm mb-10">Last updated: {new Date().toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" })}</p>
         <div className="prose prose-invert max-w-none space-y-6 text-white/60 text-base leading-relaxed">

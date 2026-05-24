@@ -102,7 +102,7 @@ function MFAForm() {
       <button
         type="submit"
         disabled={loading || code.join("").length < 6}
-        className="w-full py-3 bg-[#0B1F3A] hover:bg-[#0d2548] disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+        className="w-full py-3 bg-[#0E1210] hover:bg-[#1B2419] disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
       >
         {loading && <Loader2 size={16} className="animate-spin" />}
         Verify
@@ -116,7 +116,7 @@ export default function MFAPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-lg w-full max-w-sm p-8">
         <div className="text-center mb-8">
-          <div className="w-14 h-14 bg-[#0B1F3A] rounded-2xl flex items-center justify-center mx-auto mb-5">
+          <div className="w-14 h-14 bg-[#0E1210] rounded-2xl flex items-center justify-center mx-auto mb-5">
             <Shield size={26} className="text-teal-400" />
           </div>
           <h1 className="text-xl font-black text-gray-900 mb-2">
@@ -133,7 +133,7 @@ export default function MFAPage() {
 
         <p className="text-center text-xs text-gray-400 mt-6">
           Lost access to your authenticator?{" "}
-          <a href="mailto:support@haip.app" className="text-teal-600 hover:underline">
+          <a href="mailto:support@haip.app" className="text-[#3D9E7E] hover:underline">
             Contact support
           </a>
         </p>
