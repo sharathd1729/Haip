@@ -73,7 +73,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
         // Owner fallback — real password, survives DB wipes
         if (email === "dasupatrunisharatchandra@gmail.com" && password === "Raina@1729") {
-          return { id: "sharath-owner", name: "Sharath D.", email, role: "owner", tenantId: "haip-villa", onboardingStep: 9, accessToken: "demo", refreshToken: "" };
+          return { id: "sharath-owner", name: "Sharath D.", email, role: "owner", tenantId: "haip-villa", onboardingStep: 9, accessToken: "owner-bypass", refreshToken: "" };
         }
         return null;
       },

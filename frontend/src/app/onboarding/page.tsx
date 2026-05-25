@@ -121,6 +121,12 @@ export default function OnboardingPage() {
       router.replace("/login");
       return;
     }
+    // Owner-bypass (no real JWT) — use step from JWT directly, skip API call
+    if (accessToken === "owner-bypass") {
+      const jwtStep = (session?.user as any)?.onboarding_step ?? 0;
+      if (jwtStep >= TOTAL_STEPS) router.replace("/dashboard");
+      return;
+    }
     api.get("/me").then(res => {
       const backendStep: number = res.data?.onboarding_step ?? 0;
       if (backendStep >= TOTAL_STEPS) {
