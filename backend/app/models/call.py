@@ -104,6 +104,14 @@ class Call(Base, TimestampMixin, TenantMixin):
     detected_language = Column(String(10), nullable=True)
     is_code_mixed = Column(Boolean, default=False)
 
+    # ── Layer 2: Intent & Outcome (Call Analysis) ─────────────────────────────
+    occasion = Column(String(50), nullable=True)          # honeymoon|anniversary|birthday|corporate|family|solo
+    budget_signal = Column(String(100), nullable=True)    # "That's high" / "Okay works" / "Can you do better?"
+    decision_stage = Column(String(50), nullable=True)    # first_inquiry|comparing|ready_to_book
+    competitor_mentioned = Column(String(255), nullable=True)  # StayVista, Airbnb, etc.
+    conversion_probability = Column(Integer, nullable=True)    # 0–100
+    lost_reason = Column(String(100), nullable=True)      # price|dates_unavailable|still_comparing|no_response|wrong_property
+
     guest = relationship("Guest", back_populates="calls")
     inquiry = relationship("Inquiry", back_populates="calls")
     agent = relationship("User", foreign_keys=[agent_id])

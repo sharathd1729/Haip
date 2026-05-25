@@ -526,4 +526,16 @@ def _serialize_call_detail(call: Call, db) -> dict:
         "score": score_data,
         "ivr_provider": call.ivr_provider,
         "created_at": call.created_at.isoformat() if call.created_at else None,
+        # ── Layer 2: Intent & Outcome ────────────────────────────────────────
+        "layer2": {
+            "occasion":               call.occasion,
+            "budget_signal":          call.budget_signal,
+            "decision_stage":         call.decision_stage,
+            "competitor_mentioned":   call.competitor_mentioned,
+            "conversion_probability": call.conversion_probability,
+            "lost_reason":            call.lost_reason,
+            "sentiment":              None,   # populated from classify result via score
+            "detected_language":      call.detected_language,
+            "is_code_mixed":          call.is_code_mixed,
+        },
     }

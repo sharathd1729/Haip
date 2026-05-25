@@ -35,18 +35,66 @@ _jinja_env = Environment(loader=FileSystemLoader(str(PROMPTS_DIR)))
 
 CLASSIFY_TOOL = {
     "name": "classify_call",
-    "description": "Return structured classification of the call",
+    "description": "Return structured classification of the call including Layer 2 intent and outcome signals",
     "input_schema": {
         "type": "object",
         "properties": {
-            "sentiment": {"type": "string", "enum": ["positive", "neutral", "negative"]},
-            "intent": {"type": "string"},
-            "language": {"type": "string"},
-            "is_code_mixed": {"type": "boolean"},
-            "themes": {"type": "array", "items": {"type": "string"}},
-            "confidence": {"type": "number"},
+            # ── Layer 1: Basic classification ────────────────────────────────
+            "sentiment": {
+                "type": "string",
+                "enum": ["positive", "neutral", "negative"],
+                "description": "Overall guest sentiment during the call",
+            },
+            "intent": {
+                "type": "string",
+                "description": "Primary intent: booking_inquiry, price_query, availability_query, experience_interest, complaint, cancellation, general",
+            },
+            "language": {
+                "type": "string",
+                "description": "Primary language spoken (en, hi, kn, ta, te, mr, etc.)",
+            },
+            "is_code_mixed": {
+                "type": "boolean",
+                "description": "True if guest mixed languages (e.g. Hinglish)",
+            },
+            "themes": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Key topics discussed: pricing, availability, amenities, location, upsell, objection, etc.",
+            },
+            "confidence": {
+                "type": "number",
+                "description": "Model confidence 0.0–1.0 in the classification",
+            },
+            # ── Layer 2: Intent & Outcome signals ────────────────────────────
+            "occasion": {
+                "type": "string",
+                "description": "Trip occasion if mentioned. One of: honeymoon, anniversary, birthday, corporate, family, solo, wedding, other. Empty string if not mentioned.",
+            },
+            "budget_signal": {
+                "type": "string",
+                "description": "Guest's reaction to price if any price was discussed. E.g. 'That\\'s high', 'Okay works for us', 'Can you do better?', 'Seems reasonable'. Empty string if price not discussed.",
+            },
+            "decision_stage": {
+                "type": "string",
+                "description": "Where the guest is in their decision journey. One of: first_inquiry, comparing, ready_to_book. Empty string if unclear.",
+            },
+            "competitor_mentioned": {
+                "type": "string",
+                "description": "Name of any competitor or alternative property mentioned (e.g. StayVista, Airbnb, another villa name). Empty string if none.",
+            },
+            "conversion_probability": {
+                "type": "number",
+                "description": "Estimated probability (0–100) that this guest will book based on their engagement, intent signals, and decision stage.",
+            },
+            "lost_reason": {
+                "type": "string",
+                "description": "If the call ended without converting, the likely reason. One of: price, dates_unavailable, still_comparing, no_response, wrong_property, other. Empty string if not lost.",
+            },
         },
-        "required": ["sentiment", "intent", "language", "is_code_mixed", "themes", "confidence"],
+        "required": ["sentiment", "intent", "language", "is_code_mixed", "themes", "confidence",
+                     "occasion", "budget_signal", "decision_stage", "competitor_mentioned",
+                     "conversion_probability", "lost_reason"],
     },
 }
 
@@ -94,12 +142,45 @@ def classify(self, call_id: str, tenant_id: str):
 
         classification = result.get("tool_use") or {}
 
-        # Update call with classification results
+        # ── Update call with Layer 1 + Layer 2 classification results ────────
         call.detected_language = classification.get("language", call.detected_language)
         call.is_code_mixed = classification.get("is_code_mixed", False)
+
+        # Layer 2: Intent & Outcome
+        occasion = classification.get("occasion", "")
+        if occasion:
+            call.occasion = occasion
+
+        budget_signal = classification.get("budget_signal", "")
+        if budget_signal:
+            call.budget_signal = budget_signal
+
+        decision_stage = classification.get("decision_stage", "")
+        if decision_stage:
+            call.decision_stage = decision_stage
+
+        competitor = classification.get("competitor_mentioned", "")
+        if competitor:
+            call.competitor_mentioned = competitor
+
+        conv_prob = classification.get("conversion_probability")
+        if conv_prob is not None:
+            call.conversion_probability = int(conv_prob)
+
+        lost_reason = classification.get("lost_reason", "")
+        if lost_reason:
+            call.lost_reason = lost_reason
+
         db.commit()
 
-        log.info("classify_done", call_id=call_id, sentiment=classification.get("sentiment"))
+        log.info(
+            "classify_done",
+            call_id=call_id,
+            sentiment=classification.get("sentiment"),
+            occasion=occasion or None,
+            conversion_probability=conv_prob,
+            decision_stage=decision_stage or None,
+        )
 
         # Chain to judge (best-effort — fails gracefully if broker is down)
         try:

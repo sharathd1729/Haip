@@ -7,6 +7,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Phone, Clock, User, ChevronDown, ChevronRight,
   CheckCircle2, AlertCircle, Save, Loader2, ExternalLink, Play, Copy, Star, BookmarkIcon, MessageSquare, X,
+  Heart, TrendingUp, Target, AlertTriangle, Globe, Layers,
 } from "lucide-react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -34,6 +35,18 @@ interface CriterionScore {
   evidence_spans?: { start: number; end: number; label?: string; sentiment?: "positive" | "negative" | "neutral" }[];
 }
 
+interface Layer2 {
+  occasion?: string | null;
+  budget_signal?: string | null;
+  decision_stage?: string | null;
+  competitor_mentioned?: string | null;
+  conversion_probability?: number | null;
+  lost_reason?: string | null;
+  sentiment?: string | null;
+  detected_language?: string | null;
+  is_code_mixed?: boolean;
+}
+
 interface CallDetail {
   id: string;
   started_at: string;
@@ -48,6 +61,7 @@ interface CallDetail {
   ai_score_status?: string;
   ivr_provider?: string;
   transcript?: { turns: Turn[] } | null;
+  layer2?: Layer2 | null;
   score?: {
     total_score: number;
     max_score: number;
@@ -723,6 +737,11 @@ export default function CallDetailPage() {
             </button>
           </div>
 
+          {/* ── Layer 2: Intent & Outcome panel ──────────────────────────── */}
+          {call.layer2 && (
+            <Layer2Panel layer2={call.layer2} />
+          )}
+
           {/* C8: Bookmarked moments panel */}
           {bookmarks.size > 0 && call.transcript?.turns && (
             <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
@@ -771,6 +790,191 @@ export default function CallDetailPage() {
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Layer 2: Intent & Outcome Panel ──────────────────────────────────────────
+
+const OCCASION_LABELS: Record<string, { label: string; color: string; emoji: string }> = {
+  honeymoon:   { label: "Honeymoon",   color: "bg-pink-500/10 text-pink-400 border-pink-500/20",   emoji: "💑" },
+  anniversary: { label: "Anniversary", color: "bg-rose-500/10 text-rose-400 border-rose-500/20",   emoji: "🥂" },
+  birthday:    { label: "Birthday",    color: "bg-amber-500/10 text-amber-400 border-amber-500/20", emoji: "🎂" },
+  corporate:   { label: "Corporate",   color: "bg-blue-500/10 text-blue-400 border-blue-500/20",    emoji: "💼" },
+  family:      { label: "Family",      color: "bg-teal-500/10 text-teal-400 border-teal-500/20",    emoji: "👨‍👩‍👧" },
+  solo:        { label: "Solo",        color: "bg-purple-500/10 text-purple-400 border-purple-500/20", emoji: "🧘" },
+  wedding:     { label: "Wedding",     color: "bg-pink-500/10 text-pink-400 border-pink-500/20",    emoji: "💒" },
+  other:       { label: "Other",       color: "bg-muted text-muted-foreground border-border",        emoji: "✈️" },
+};
+
+const DECISION_STAGE_LABELS: Record<string, { label: string; color: string }> = {
+  first_inquiry:  { label: "First inquiry",   color: "text-blue-400" },
+  comparing:      { label: "Comparing options", color: "text-amber-400" },
+  ready_to_book:  { label: "Ready to book",   color: "text-teal-400" },
+};
+
+const LOST_REASON_LABELS: Record<string, string> = {
+  price:              "Price too high",
+  dates_unavailable:  "Dates not available",
+  still_comparing:    "Still comparing",
+  no_response:        "No response",
+  wrong_property:     "Wrong property type",
+  other:              "Other reason",
+};
+
+function ConversionRing({ probability }: { probability: number }) {
+  const r = 22;
+  const circ = 2 * Math.PI * r;
+  const fill = (probability / 100) * circ;
+  const color = probability >= 70 ? "#14b8a6" : probability >= 40 ? "#f59e0b" : "#ef4444";
+  return (
+    <div className="relative w-14 h-14 flex items-center justify-center flex-shrink-0">
+      <svg width="56" height="56" viewBox="0 0 56 56" className="-rotate-90">
+        <circle cx="28" cy="28" r={r} fill="none" stroke="currentColor" strokeWidth="4"
+          className="text-border" />
+        <circle cx="28" cy="28" r={r} fill="none" stroke={color} strokeWidth="4"
+          strokeDasharray={`${fill} ${circ}`} strokeLinecap="round" />
+      </svg>
+      <span className="absolute text-xs font-bold" style={{ color }}>{probability}%</span>
+    </div>
+  );
+}
+
+function Layer2Panel({ layer2 }: { layer2: Layer2 }) {
+  const hasAnyData = layer2.occasion || layer2.budget_signal || layer2.decision_stage ||
+    layer2.competitor_mentioned || layer2.conversion_probability != null || layer2.lost_reason;
+
+  if (!hasAnyData) return null;
+
+  const occasion = layer2.occasion ? OCCASION_LABELS[layer2.occasion] : null;
+  const decisionStage = layer2.decision_stage ? DECISION_STAGE_LABELS[layer2.decision_stage] : null;
+
+  return (
+    <div className="bg-card border border-border rounded-2xl shadow-sm p-5">
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-7 h-7 rounded-lg bg-teal-500/10 border border-teal-500/20 flex items-center justify-center flex-shrink-0">
+          <Layers size={14} className="text-teal-400" />
+        </div>
+        <h2 className="text-sm font-semibold text-foreground">Intent & Outcome</h2>
+        <span className="ml-auto text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 bg-muted px-2 py-0.5 rounded-full">
+          Layer 2 AI
+        </span>
+      </div>
+
+      <div className="space-y-3">
+        {/* Conversion probability + occasion on same row */}
+        <div className="flex items-center gap-3">
+          {layer2.conversion_probability != null && (
+            <div className="flex items-center gap-3 flex-1">
+              <ConversionRing probability={layer2.conversion_probability} />
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">
+                  Conversion probability
+                </p>
+                <p className={cn(
+                  "text-sm font-bold",
+                  layer2.conversion_probability >= 70 ? "text-teal-400"
+                  : layer2.conversion_probability >= 40 ? "text-amber-400"
+                  : "text-red-400"
+                )}>
+                  {layer2.conversion_probability >= 70 ? "High chance" :
+                   layer2.conversion_probability >= 40 ? "Medium chance" : "Low chance"}
+                </p>
+              </div>
+            </div>
+          )}
+          {occasion && (
+            <div className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold",
+              occasion.color
+            )}>
+              <span>{occasion.emoji}</span>
+              {occasion.label}
+            </div>
+          )}
+        </div>
+
+        {/* Decision stage */}
+        {decisionStage && (
+          <div className="flex items-center gap-2.5 py-2 border-t border-border">
+            <Target size={13} className="text-muted-foreground flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Decision stage
+              </p>
+              <p className={cn("text-sm font-semibold mt-0.5", decisionStage.color)}>
+                {decisionStage.label}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Budget signal */}
+        {layer2.budget_signal && (
+          <div className="flex items-start gap-2.5 py-2 border-t border-border">
+            <TrendingUp size={13} className="text-muted-foreground flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Budget signal
+              </p>
+              <p className="text-sm text-foreground mt-0.5 italic">
+                &ldquo;{layer2.budget_signal}&rdquo;
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Competitor mentioned */}
+        {layer2.competitor_mentioned && (
+          <div className="flex items-start gap-2.5 py-2 border-t border-border">
+            <AlertTriangle size={13} className="text-amber-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Competitor mentioned
+              </p>
+              <p className="text-sm font-semibold text-amber-400 mt-0.5">
+                {layer2.competitor_mentioned}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Lost reason */}
+        {layer2.lost_reason && (
+          <div className="flex items-start gap-2.5 py-2 border-t border-border">
+            <AlertCircle size={13} className="text-red-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Lost reason
+              </p>
+              <p className="text-sm font-semibold text-red-400 mt-0.5">
+                {LOST_REASON_LABELS[layer2.lost_reason] ?? layer2.lost_reason}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Language */}
+        {layer2.detected_language && (
+          <div className="flex items-center gap-2.5 py-2 border-t border-border">
+            <Globe size={13} className="text-muted-foreground flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Language
+              </p>
+              <p className="text-sm text-foreground mt-0.5">
+                {layer2.detected_language.toUpperCase()}
+                {layer2.is_code_mixed && (
+                  <span className="ml-2 text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
+                    code-mixed
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
