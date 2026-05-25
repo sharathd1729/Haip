@@ -686,18 +686,21 @@ export default function IntegrationsPage() {
     setTimeout(() => setToast(null), 5000);
   }, []);
 
-  // Fetch catalog
+  // Fetch catalog — public endpoint, no auth needed, drives whether cards render
   const { data: catalog = [], isLoading: catalogLoading } = useQuery<CatalogItem[]>({
     queryKey: ["integrations-catalog"],
     queryFn: () => api.get("/integrations/catalog").then(r => r.data),
     staleTime: Infinity,
+    retry: 2,
   });
 
-  // Fetch connected integrations
-  const { data: integrations = [], isLoading: integrationsLoading } = useQuery<Integration[]>({
+  // Fetch connected integrations — auth-required; only affects connection badges,
+  // never blocks the catalog from rendering
+  const { data: integrations = [] } = useQuery<Integration[]>({
     queryKey: ["integrations"],
     queryFn: () => api.get("/integrations").then(r => r.data),
     staleTime: 30_000,
+    retry: false,   // don't retry on 401 — just show cards as disconnected
   });
 
   // Backend returns `kind` (e.g. "whatsapp"), catalog uses `provider` (e.g. "whatsapp_meta").
@@ -791,11 +794,11 @@ export default function IntegrationsPage() {
     verifyMutation.mutate(provider);
   }, [verifyMutation]);
 
-  // Grouping
+  // Grouping — only block on catalogLoading; integrations just fills in connection state
   const categories = ["all", ...Array.from(new Set(catalog.map(c => c.category)))];
   const filtered = activeCategory === "all" ? catalog : catalog.filter(c => c.category === activeCategory);
   const connectedCount = integrations.filter(i => i.status === "active").length;
-  const isLoading = catalogLoading || integrationsLoading;
+  const isLoading = catalogLoading;
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
