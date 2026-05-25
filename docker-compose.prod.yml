@@ -56,7 +56,11 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://genhaip.com/api/v1}
+        # Use a relative path so the browser always calls the same origin it's on.
+        # This eliminates CORS entirely — www.genhaip.com, genhaip.com, or any domain
+        # will work without cross-origin issues. The Next.js proxy rewrites
+        # /api/v1/* → http://haip_api:8000/api/v1/* at runtime.
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-/api/v1}
         - NEXTAUTH_URL=${NEXTAUTH_URL:-https://genhaip.com}
     container_name: haip_frontend
     restart: unless-stopped
