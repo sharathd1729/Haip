@@ -96,8 +96,10 @@ export default function RegisterPage() {
     setFieldError(undefined);
 
     try {
-      // Normalise base URL — NEXT_PUBLIC_API_URL may already end with /api/v1
-      const _rawBase = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
+      // Normalise base URL — NEXT_PUBLIC_API_URL may already end with /api/v1.
+      // Fall back to "" (same-origin) so requests go through the Next.js proxy
+      // rewrite (/api/v1/* → backend) when no explicit URL is configured.
+      const _rawBase = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
       const _apiBase = _rawBase.endsWith("/api/v1") ? _rawBase.slice(0, -7) : _rawBase;
       const res = await fetch(
         `${_apiBase}/api/v1/auth/register`,
@@ -219,12 +221,6 @@ export default function RegisterPage() {
             <h2 className="text-2xl font-bold text-foreground mb-1">Create your account</h2>
             <p className="text-muted-foreground text-sm">Start your 14-day free trial — no card required</p>
           </div>
-
-          {error && !fieldError && (
-            <div className="mb-5 p-3.5 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
-              {error}
-            </div>
-          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -366,6 +362,12 @@ export default function RegisterPage() {
                 </label>
               </div>
             </div>
+
+            {error && !fieldError && (
+              <div className="p-3.5 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
+                {error}
+              </div>
+            )}
 
             <button
               type="submit"
