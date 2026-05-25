@@ -26,7 +26,19 @@ if settings.SENTRY_DSN:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     import app.models  # noqa — registers all models with Base
-    Base.metadata.create_all(bind=engine)
+    import time
+    # Neon serverless wakes on first connection — retry up to 5× with backoff
+    for attempt in range(1, 6):
+        try:
+            Base.metadata.create_all(bind=engine)
+            log.info("db_connected", attempt=attempt)
+            break
+        except Exception as exc:
+            log.warning("db_connect_retry", attempt=attempt, error=str(exc))
+            if attempt == 5:
+                log.error("db_connect_failed_giving_up")
+                raise
+            time.sleep(attempt * 2)  # 2s, 4s, 6s, 8s
     log.info("haip_api_started", environment=settings.ENVIRONMENT)
     yield
     log.info("haip_api_stopped")
