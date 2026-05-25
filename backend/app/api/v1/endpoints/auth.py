@@ -437,7 +437,7 @@ def _dispatch_otp(phone: str, code: str, name: str) -> None:
             wa = db.query(Integration).filter_by(kind="whatsapp_meta", status="active").first()
             if not wa:
                 log.warning("otp_wa_not_configured", phone=phone)
-                log.info("otp_code_fallback", phone=phone, code=code)  # dev only
+                # SECURITY: Never log the actual OTP code — check Redis/logs for debugging
                 return
 
             creds = decrypt_credentials(wa.credentials_kms_blob)
@@ -459,12 +459,10 @@ def _dispatch_otp(phone: str, code: str, name: str) -> None:
             )
             if resp.status_code != 200:
                 log.warning("otp_wa_send_failed", phone=phone, status=resp.status_code, body=resp.text[:200])
-                log.info("otp_code_fallback", phone=phone, code=code)  # dev only
         finally:
             db.close()
     except Exception as exc:
         log.warning("otp_dispatch_error", phone=phone, error=str(exc))
-        log.info("otp_code_fallback", phone=phone, code=code)  # dev only — remove in prod
 
 
 @router.post("/otp/verify", response_model=LoginResponse)

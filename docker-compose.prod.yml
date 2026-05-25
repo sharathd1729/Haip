@@ -42,7 +42,7 @@ services:
       celery -A app.workers.celery_app worker
       --loglevel=info
       --concurrency=2
-      --queues=default
+      --queues=transcription,ai_scoring,whatsapp,call_ingest,default
     volumes:
       - uploads:/app/uploads
     depends_on:
@@ -56,8 +56,8 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://api.haip.app/api/v1}
-        - NEXTAUTH_URL=${NEXTAUTH_URL:-https://haip.app}
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://genhaip.com/api/v1}
+        - NEXTAUTH_URL=${NEXTAUTH_URL:-https://genhaip.com}
     container_name: haip_frontend
     restart: unless-stopped
     env_file: ./frontend/.env.local
@@ -77,6 +77,27 @@ services:
       timeout: 3s
       retries: 10
 
+  beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: haip_beat
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      - ENVIRONMENT=production
+    command: >
+      celery -A app.workers.celery_app beat
+      --loglevel=info
+      --scheduler celery.beat.PersistentScheduler
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+
   flower:
     build:
       context: ./backend
@@ -84,9 +105,14 @@ services:
     container_name: haip_flower
     restart: unless-stopped
     env_file: ./backend/.env
-    command: celery -A app.workers.celery_app flower --port=5555
+    # Bind to localhost only — not exposed to internet without a reverse proxy + auth
+    command: >
+      celery -A app.workers.celery_app flower
+      --port=5555
+      --address=127.0.0.1
+      --basic_auth=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-changeme}
     ports:
-      - "5555:5555"
+      - "127.0.0.1:5555:5555"
     depends_on:
       - redis
 

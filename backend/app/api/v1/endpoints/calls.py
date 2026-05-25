@@ -42,6 +42,12 @@ class DispositionUpdate(BaseModel):
     note: Optional[str] = None
 
 
+class WrapUpRequest(BaseModel):
+    disposition: Optional[str] = None
+    notes: Optional[str] = None
+    next_action: Optional[str] = None
+
+
 @router.get("/")
 def list_calls(
     page: int = 1,
@@ -369,6 +375,44 @@ def update_disposition(
     db.commit()
 
     return {"status": "updated", "disposition": req.disposition}
+
+
+@router.post("/{call_id}/wrap-up")
+def save_wrap_up(
+    call_id: str,
+    req: WrapUpRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Human agent saves call wrap-up: disposition, notes, next action.
+    Human disposition always overrides AI disposition.
+    """
+    call = db.query(Call).filter_by(id=call_id, tenant_id=current_user.tenant_id).first()
+    if not call:
+        raise HTTPException(status_code=404, detail="Call not found")
+
+    if req.disposition:
+        try:
+            call.human_disposition = CallDisposition(req.disposition)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid disposition: {req.disposition}")
+        call.disposition_set_by = current_user.id
+
+    if req.notes is not None:
+        call.ai_summary = req.notes  # human notes stored in summary field (editable)
+
+    if req.next_action is not None:
+        call.ai_next_action = req.next_action
+
+    db.commit()
+    log.info("wrap_up_saved", call_id=call_id, user_id=current_user.id, disposition=req.disposition)
+
+    return {
+        "status": "saved",
+        "call_id": call_id,
+        "disposition": req.disposition or (call.human_disposition.value if call.human_disposition else None),
+    }
 
 
 def _get_recording_url(s3_key: str | None, call_id: str | None = None) -> str | None:
