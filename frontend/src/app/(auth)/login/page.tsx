@@ -67,13 +67,13 @@ function LoginForm() {
       const data = await api.post("/auth/otp/send", { phone }).then(r => r.data);
       setOtpSent(true);
       setOtpExpiry(data.expires_in ?? 300);
-      // Start countdown
       const timer = setInterval(() => setOtpExpiry(t => {
         if (t <= 1) { clearInterval(timer); return 0; }
         return t - 1;
       }), 1000);
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || "Failed to send OTP. Check your phone number.");
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { detail?: string } } };
+      setError(e?.response?.data?.detail || "Failed to send OTP. Check your phone number.");
     } finally {
       setLoading(false);
     }
@@ -85,20 +85,19 @@ function LoginForm() {
     setLoading(true);
     try {
       const data = await api.post("/auth/otp/verify", { phone, code: otp }).then(r => r.data);
-      // Store access token and redirect using NextAuth credentials
       const res = await signIn("credentials", {
         phone,
         otp_token: data.access_token,
         redirect: false,
       });
       if (res?.error) {
-        // Fallback: if NextAuth doesn't support OTP flow, redirect with token
         router.push("/dashboard");
       } else {
         router.push("/dashboard");
       }
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || "Invalid OTP. Please try again.");
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { detail?: string } } };
+      setError(e?.response?.data?.detail || "Invalid OTP. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -107,17 +106,19 @@ function LoginForm() {
   return (
     <div className="w-full max-w-sm">
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-900 mb-1">Welcome back</h2>
-        <p className="text-gray-500 text-sm">Sign in to your workspace</p>
+        <h2 className="text-2xl font-bold text-foreground mb-1">Welcome back</h2>
+        <p className="text-muted-foreground text-sm">Sign in to your workspace</p>
       </div>
 
       {/* Login mode toggle */}
-      <div className="flex gap-1 p-1 bg-gray-100 rounded-xl mb-6">
+      <div className="flex gap-1 p-1 bg-muted rounded-xl mb-6">
         <button
           type="button"
           onClick={() => { setLoginMode("email"); setError(""); setOtpSent(false); }}
           className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-all ${
-            loginMode === "email" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
+            loginMode === "email"
+              ? "bg-card shadow-sm text-foreground"
+              : "text-muted-foreground hover:text-foreground"
           }`}
         >
           <Eye size={13} /> Email
@@ -126,7 +127,9 @@ function LoginForm() {
           type="button"
           onClick={() => { setLoginMode("phone"); setError(""); }}
           className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-all ${
-            loginMode === "phone" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
+            loginMode === "phone"
+              ? "bg-card shadow-sm text-foreground"
+              : "text-muted-foreground hover:text-foreground"
           }`}
         >
           <MessageSquare size={13} /> WhatsApp OTP
@@ -134,8 +137,8 @@ function LoginForm() {
       </div>
 
       {successMsg && (
-        <div className="mb-5 p-3.5 bg-teal-50 border border-teal-200 rounded-xl text-teal-700 text-sm flex items-start gap-2">
-          <svg className="w-4 h-4 mt-0.5 flex-shrink-0 fill-teal-500" viewBox="0 0 20 20">
+        <div className="mb-5 p-3.5 bg-teal-500/10 border border-teal-500/30 rounded-xl text-teal-400 text-sm flex items-start gap-2">
+          <svg className="w-4 h-4 mt-0.5 flex-shrink-0 fill-teal-400" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
           </svg>
           {successMsg}
@@ -143,7 +146,7 @@ function LoginForm() {
       )}
 
       {error && (
-        <div className="mb-5 p-3.5 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+        <div className="mb-5 p-3.5 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
           {error}
         </div>
       )}
@@ -152,7 +155,7 @@ function LoginForm() {
       {loginMode === "email" && (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            <label className="block text-sm font-medium text-foreground mb-1.5">
               Email address
             </label>
             <input
@@ -161,15 +164,15 @@ function LoginForm() {
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
+              className="w-full px-4 py-3 border border-border rounded-xl text-sm bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
               placeholder="you@company.com"
             />
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-sm font-medium text-gray-700">Password</label>
-              <Link href="/forgot-password" className="text-xs text-[#3D9E7E] hover:text-[#4DB893] font-medium">
+              <label className="block text-sm font-medium text-foreground">Password</label>
+              <Link href="/forgot-password" className="text-xs text-teal-500 hover:text-teal-400 font-medium">
                 Forgot password?
               </Link>
             </div>
@@ -180,13 +183,13 @@ function LoginForm() {
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
+                className="w-full px-4 py-3 pr-11 border border-border rounded-xl text-sm bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
                 placeholder="••••••••"
               />
               <button
                 type="button"
                 onClick={() => setShowPw(v => !v)}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
               >
                 {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
@@ -199,9 +202,9 @@ function LoginForm() {
               type="checkbox"
               checked={remember}
               onChange={(e) => setRemember(e.target.checked)}
-              className="w-4 h-4 rounded border-gray-300 text-teal-500 focus:ring-teal-500 cursor-pointer"
+              className="w-4 h-4 rounded border-border text-teal-500 focus:ring-teal-500 cursor-pointer accent-teal-500"
             />
-            <label htmlFor="remember" className="text-sm text-gray-600 cursor-pointer select-none">
+            <label htmlFor="remember" className="text-sm text-muted-foreground cursor-pointer select-none">
               Keep me signed in
             </label>
           </div>
@@ -209,7 +212,7 @@ function LoginForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-[#0E1210] hover:bg-[#1B2419] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
+            className="w-full py-3 bg-teal-600 hover:bg-teal-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
           >
             {loading ? (
               <>
@@ -226,27 +229,27 @@ function LoginForm() {
         </form>
       )}
 
-      {/* ── Phone + OTP form (O7) ── */}
+      {/* ── Phone + OTP form ── */}
       {loginMode === "phone" && (
         <div className="space-y-4">
           {!otpSent ? (
             <form onSubmit={handleSendOtp} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                <label className="block text-sm font-medium text-foreground mb-1.5">
                   WhatsApp number
                 </label>
                 <div className="relative">
-                  <Phone size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Phone size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <input
                     type="tel"
                     required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
+                    className="w-full pl-10 pr-4 py-3 border border-border rounded-xl text-sm bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
                     placeholder="+91 98765 43210"
                   />
                 </div>
-                <p className="text-[11px] text-gray-400 mt-1.5">
+                <p className="text-[11px] text-muted-foreground mt-1.5">
                   Enter your number in international format. OTP will be sent via WhatsApp.
                 </p>
               </div>
@@ -254,7 +257,7 @@ function LoginForm() {
               <button
                 type="submit"
                 disabled={loading || !phone}
-                className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
+                className="w-full py-3 bg-green-600 hover:bg-green-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
               >
                 {loading ? (
                   <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -267,14 +270,18 @@ function LoginForm() {
             </form>
           ) : (
             <form onSubmit={handleVerifyOtp} className="space-y-4">
-              <div className="p-4 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700 text-center">
-                <MessageSquare size={18} className="mx-auto mb-1.5 text-green-500" />
+              <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-xl text-sm text-green-400 text-center">
+                <MessageSquare size={18} className="mx-auto mb-1.5 text-green-400" />
                 OTP sent to <strong>{phone}</strong> via WhatsApp.
-                {otpExpiry > 0 && <span className="block text-xs text-green-600 mt-0.5">Expires in {Math.floor(otpExpiry / 60)}:{String(otpExpiry % 60).padStart(2, "0")}</span>}
+                {otpExpiry > 0 && (
+                  <span className="block text-xs text-green-500/70 mt-0.5">
+                    Expires in {Math.floor(otpExpiry / 60)}:{String(otpExpiry % 60).padStart(2, "0")}
+                  </span>
+                )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                <label className="block text-sm font-medium text-foreground mb-1.5">
                   Enter 6-digit OTP
                 </label>
                 <input
@@ -286,7 +293,7 @@ function LoginForm() {
                   autoFocus
                   value={otp}
                   onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow text-center tracking-widest text-xl font-mono"
+                  className="w-full px-4 py-3 border border-border rounded-xl text-sm bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow text-center tracking-widest text-xl font-mono"
                   placeholder="______"
                 />
               </div>
@@ -294,7 +301,7 @@ function LoginForm() {
               <button
                 type="submit"
                 disabled={loading || otp.length !== 6}
-                className="w-full py-3 bg-[#0E1210] hover:bg-[#1B2419] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
+                className="w-full py-3 bg-teal-600 hover:bg-teal-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
               >
                 {loading ? (
                   <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -309,7 +316,7 @@ function LoginForm() {
                 type="button"
                 disabled={otpExpiry > 0 && loading}
                 onClick={() => { setOtpSent(false); setOtp(""); setError(""); }}
-                className="w-full text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
                 ← Change number or resend OTP
               </button>
@@ -318,9 +325,9 @@ function LoginForm() {
         </div>
       )}
 
-      <div className="mt-6 pt-6 border-t border-gray-100 text-center text-sm text-gray-500">
+      <div className="mt-6 pt-6 border-t border-border text-center text-sm text-muted-foreground">
         Don&apos;t have an account?{" "}
-        <Link href="/register" className="text-[#3D9E7E] font-semibold hover:text-[#4DB893] transition-colors">
+        <Link href="/register" className="text-teal-500 font-semibold hover:text-teal-400 transition-colors">
           Start free trial
         </Link>
       </div>
@@ -331,8 +338,8 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <div className="min-h-screen flex">
-      {/* ── Left panel: marketing ── */}
-      <div className="hidden lg:flex lg:w-[52%] flex-col justify-between bg-[#0E1210] p-12 relative overflow-hidden">
+      {/* ── Left panel: always-dark brand marketing ── */}
+      <div className="hidden lg:flex lg:w-[52%] flex-col justify-between bg-[#0a1422] p-12 relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-[-80px] right-[-80px] w-[360px] h-[360px] rounded-full bg-teal-500/10 blur-3xl" />
           <div className="absolute bottom-[-60px] left-[-60px] w-[280px] h-[280px] rounded-full bg-blue-500/10 blur-3xl" />
@@ -340,7 +347,7 @@ export default function LoginPage() {
 
         <div className="relative">
           <Link href="/" className="inline-flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-[#C8964A] flex items-center justify-center text-[#0E1210] font-bold text-lg shadow-lg shadow-[#C8964A]/30">
+            <div className="w-10 h-10 rounded-xl bg-[#C8964A] flex items-center justify-center text-[#0a1422] font-bold text-lg shadow-lg shadow-[#C8964A]/30">
               H
             </div>
             <span className="text-white font-bold text-xl tracking-tight">HAIP</span>
@@ -395,13 +402,15 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* ── Right panel: form ── */}
-      <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 px-6 py-12">
+      {/* ── Right panel: theme-adaptive form ── */}
+      <div className="flex-1 flex flex-col items-center justify-center bg-background px-6 py-12">
         {/* Mobile logo */}
         <div className="lg:hidden mb-8">
           <Link href="/" className="inline-flex items-center gap-2">
-            <img src="/logo.png" alt="HAIP" className="h-11 w-auto object-contain" />
-            <span className="text-[#0E1210] font-bold text-xl tracking-tight">HAIP</span>
+            <div className="w-10 h-10 rounded-xl bg-[#C8964A] flex items-center justify-center text-[#0a1422] font-bold text-lg">
+              H
+            </div>
+            <span className="text-foreground font-bold text-xl tracking-tight">HAIP</span>
           </Link>
         </div>
 
@@ -409,11 +418,11 @@ export default function LoginPage() {
           <LoginForm />
         </Suspense>
 
-        <p className="mt-auto pt-12 text-xs text-gray-400 text-center">
+        <p className="mt-auto pt-12 text-xs text-muted-foreground text-center">
           © {new Date().getFullYear()} HAIP Technologies Pvt. Ltd. ·{" "}
-          <Link href="/privacy" className="hover:text-gray-600">Privacy</Link>
+          <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
           {" · "}
-          <Link href="/terms" className="hover:text-gray-600">Terms</Link>
+          <Link href="/terms" className="hover:text-foreground transition-colors">Terms</Link>
         </p>
       </div>
     </div>
