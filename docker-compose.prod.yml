@@ -61,6 +61,10 @@ services:
     container_name: haip_frontend
     restart: unless-stopped
     env_file: ./frontend/.env.local
+    environment:
+      # BACKEND_URL is a runtime (server-side) var — Next.js proxy rewrites use it
+      # to forward /api/v1/* to the FastAPI container. Must be the Docker service name.
+      - BACKEND_URL=${BACKEND_URL:-http://haip_api:8000}
     ports:
       - "3000:3000"
     depends_on:
