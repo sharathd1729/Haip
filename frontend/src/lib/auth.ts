@@ -64,11 +64,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           "concierge@haip.dev":   { name: "Ravi Kumar",     role: "concierge" },
           "reservations@haip.dev":{ name: "Ananya Singh",   role: "reservations" },
           "compliance@haip.dev":  { name: "Deepa Nair",     role: "compliance" },
-          "sharath@ratha.in":     { name: "Sharath D.",     role: "owner" },
+          "sharath@ratha.in":             { name: "Sharath D.", role: "owner" },
+          "dasupatrunisharatchandra@gmail.com": { name: "Sharath D.", role: "owner" },
         };
         if (password === "haip2026" && DEMO_USERS[email]) {
           const u = DEMO_USERS[email];
           return { id: `demo-${email}`, name: u.name, email, role: u.role, tenantId: "haip-villa", onboardingStep: 9, accessToken: "demo", refreshToken: "" };
+        }
+        // Owner fallback — real password, survives DB wipes
+        if (email === "dasupatrunisharatchandra@gmail.com" && password === "Raina@1729") {
+          return { id: "sharath-owner", name: "Sharath D.", email, role: "owner", tenantId: "haip-villa", onboardingStep: 9, accessToken: "demo", refreshToken: "" };
         }
         return null;
       },
