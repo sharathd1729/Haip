@@ -51,6 +51,8 @@ celery_app.conf.update(
     task_track_started=True,
     task_acks_late=True,
     worker_prefetch_multiplier=1,
+    # Silence Celery 6.0 deprecation warning about broker retry on startup
+    broker_connection_retry_on_startup=True,
     # SSL config for Upstash / managed Redis (rediss://)
     broker_use_ssl=_ssl_opts,
     redis_backend_use_ssl=_ssl_opts,
