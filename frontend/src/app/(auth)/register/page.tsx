@@ -96,8 +96,11 @@ export default function RegisterPage() {
     setFieldError(undefined);
 
     try {
+      // Normalise base URL — NEXT_PUBLIC_API_URL may already end with /api/v1
+      const _rawBase = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
+      const _apiBase = _rawBase.endsWith("/api/v1") ? _rawBase.slice(0, -7) : _rawBase;
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/register`,
+        `${_apiBase}/api/v1/auth/register`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
