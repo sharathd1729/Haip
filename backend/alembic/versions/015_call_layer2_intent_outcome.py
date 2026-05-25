@@ -12,20 +12,26 @@ down_revision = "014"
 branch_labels = None
 depends_on = None
 
+_LAYER2_COLUMNS = [
+    ("occasion", sa.String(50)),
+    ("budget_signal", sa.String(100)),
+    ("decision_stage", sa.String(50)),
+    ("competitor_mentioned", sa.String(255)),
+    ("conversion_probability", sa.Integer()),
+    ("lost_reason", sa.String(100)),
+]
+
 
 def upgrade():
-    op.add_column("calls", sa.Column("occasion", sa.String(50), nullable=True))
-    op.add_column("calls", sa.Column("budget_signal", sa.String(100), nullable=True))
-    op.add_column("calls", sa.Column("decision_stage", sa.String(50), nullable=True))
-    op.add_column("calls", sa.Column("competitor_mentioned", sa.String(255), nullable=True))
-    op.add_column("calls", sa.Column("conversion_probability", sa.Integer(), nullable=True))
-    op.add_column("calls", sa.Column("lost_reason", sa.String(100), nullable=True))
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing_cols = {c["name"] for c in inspector.get_columns("calls")}
+
+    for col_name, col_type in _LAYER2_COLUMNS:
+        if col_name not in existing_cols:
+            op.add_column("calls", sa.Column(col_name, col_type, nullable=True))
 
 
 def downgrade():
-    op.drop_column("calls", "lost_reason")
-    op.drop_column("calls", "conversion_probability")
-    op.drop_column("calls", "competitor_mentioned")
-    op.drop_column("calls", "decision_stage")
-    op.drop_column("calls", "budget_signal")
-    op.drop_column("calls", "occasion")
+    for col_name, _ in reversed(_LAYER2_COLUMNS):
+        op.drop_column("calls", col_name)
