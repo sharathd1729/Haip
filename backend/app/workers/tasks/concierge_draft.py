@@ -18,14 +18,12 @@ from app.adapters.llm import get_llm_adapter
 
 
 def _run_async(coro):
+    """Run an async coroutine from a sync Celery task safely (Python 3.10+)."""
+    loop = asyncio.new_event_loop()
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_closed():
-            raise RuntimeError
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    return loop.run_until_complete(coro)
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
 from app.services.concierge_service import build_concierge_context, _kb_search
 import structlog
 

@@ -141,14 +141,12 @@ def _do_fetch_recording(task_self, call_id: str, recording_url: str, tenant_id: 
         import asyncio
 
         def _run_async(coro):
+            """Run an async coroutine from a sync Celery task safely (Python 3.10+)."""
+            loop = asyncio.new_event_loop()
             try:
-                loop = asyncio.get_event_loop()
-                if loop.is_closed():
-                    raise RuntimeError
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-            return loop.run_until_complete(coro)
+                return loop.run_until_complete(coro)
+            finally:
+                loop.close()
 
         audio_bytes = _run_async(adapter.fetch_recording(recording_url))
 

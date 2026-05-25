@@ -9,6 +9,8 @@ from app.models.user import User
 from app.models.call import Call, CallDisposition
 from app.models.guest import Guest
 from app.models.score import CallScore
+from app.models.inquiry import Inquiry, InquiryStage
+from app.models.conversation import Conversation
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -71,12 +73,27 @@ def get_dashboard(
             "duration_seconds": c.duration_seconds or 0,
         })
 
+    # ── Active inquiries (non-terminal stages) ───────────────────────────────
+    _terminal_stages = [InquiryStage.BOOKED, InquiryStage.LOST, InquiryStage.GHOSTED]
+    active_inquiries = (
+        db.query(func.count(Inquiry.id))
+        .filter(Inquiry.tenant_id == tid, Inquiry.stage.not_in(_terminal_stages))
+        .scalar() or 0
+    )
+
+    # ── Open conversations ────────────────────────────────────────────────────
+    open_conversations = (
+        db.query(func.count(Conversation.id))
+        .filter(Conversation.tenant_id == tid, Conversation.is_open == True)  # noqa: E712
+        .scalar() or 0
+    )
+
     return {
         "total_calls": total_calls,
         "calls_this_week": calls_this_week,
         "total_guests": total_guests,
-        "active_inquiries": 0,        # placeholder — inquiry module M4
-        "open_conversations": 0,      # placeholder — inbox module M3
+        "active_inquiries": active_inquiries,
+        "open_conversations": open_conversations,
         "scored_calls": scored_calls,
         "avg_qa_score": avg_qa_score,
         "recent_calls": recent_calls,

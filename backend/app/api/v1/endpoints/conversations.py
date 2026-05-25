@@ -138,12 +138,28 @@ def send_message(
     if body.is_internal or body.scheduled_for:
         return msg
 
-    # Transition to QUEUED then dispatch
+    # Transition to QUEUED then dispatch via channel-appropriate task
     msg.delivery_state = MessageDeliveryState.QUEUED
     db.commit()
 
-    from app.workers.tasks.send_whatsapp import send_whatsapp
-    send_whatsapp.delay(message_id=msg.id, tenant_id=current_user.tenant_id)
+    channel = str(conv.channel.value if hasattr(conv.channel, "value") else conv.channel)
+    if channel == "whatsapp":
+        from app.workers.tasks.send_whatsapp import send_whatsapp
+        send_whatsapp.delay(message_id=msg.id, tenant_id=current_user.tenant_id)
+    elif channel == "instagram":
+        from app.workers.tasks.send_instagram_dm import send_instagram_dm
+        send_instagram_dm.delay(message_id=msg.id, tenant_id=current_user.tenant_id)
+    else:
+        log.warning(
+            "send_message_no_dispatcher",
+            message_id=msg.id,
+            channel=channel,
+            detail="No outbound dispatcher registered for this channel.",
+        )
+        msg.delivery_state = MessageDeliveryState.FAILED
+        msg.delivery_error = f"No outbound dispatcher for channel: {channel}"
+        db.commit()
+
     return msg
 
 

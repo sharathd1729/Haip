@@ -57,14 +57,12 @@ def send_whatsapp(self, message_id: str, tenant_id: str):
         adapter = get_wa_adapter(phone_number_id, access_token)
 
         def _run_async(coro):
+            """Run an async coroutine from a sync Celery task safely (Python 3.10+)."""
+            loop = asyncio.new_event_loop()
             try:
-                loop = asyncio.get_event_loop()
-                if loop.is_closed():
-                    raise RuntimeError
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-            return loop.run_until_complete(coro)
+                return loop.run_until_complete(coro)
+            finally:
+                loop.close()
 
         result = _run_async(adapter.send_text(to=guest.phone, body=message.body or ""))
 
