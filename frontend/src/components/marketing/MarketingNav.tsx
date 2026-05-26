@@ -59,11 +59,8 @@ export function MarketingNav() {
     >
       <div className="max-w-7xl mx-auto px-5 sm:px-8 flex items-center h-16 gap-6">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2.5 flex-shrink-0">
-          <img src="/logo.png" alt="HAIP" className="h-9 w-auto object-contain" />
-          <span className="font-bold text-xl tracking-tight" style={{ color: "var(--mkt-text)" }}>
-            HA<span style={{ color: "var(--mkt-gold)" }}>IP</span>
-          </span>
+        <Link href="/" className="flex items-center flex-shrink-0">
+          <img src="/logo.png" alt="HAIP" className="h-10 w-auto object-contain" />
         </Link>
 
         {/* Desktop Nav */}

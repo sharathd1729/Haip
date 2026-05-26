@@ -346,11 +346,8 @@ export default function LoginPage() {
         </div>
 
         <div className="relative">
-          <Link href="/" className="inline-flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-[#C8964A] flex items-center justify-center text-[#0a1422] font-bold text-lg shadow-lg shadow-[#C8964A]/30">
-              H
-            </div>
-            <span className="text-white font-bold text-xl tracking-tight">HAIP</span>
+          <Link href="/" className="inline-flex items-center">
+            <img src="/logo.png" alt="HAIP" className="h-10 w-auto object-contain brightness-0 invert" />
           </Link>
         </div>
 
@@ -406,11 +403,8 @@ export default function LoginPage() {
       <div className="flex-1 flex flex-col items-center justify-center bg-background px-6 py-12">
         {/* Mobile logo */}
         <div className="lg:hidden mb-8">
-          <Link href="/" className="inline-flex items-center gap-2">
-            <div className="w-10 h-10 rounded-xl bg-[#C8964A] flex items-center justify-center text-[#0a1422] font-bold text-lg">
-              H
-            </div>
-            <span className="text-foreground font-bold text-xl tracking-tight">HAIP</span>
+          <Link href="/" className="inline-flex items-center">
+            <img src="/logo.png" alt="HAIP" className="h-10 w-auto object-contain" />
           </Link>
         </div>
 

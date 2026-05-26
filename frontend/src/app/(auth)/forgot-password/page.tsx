@@ -39,11 +39,8 @@ export default function ForgotPasswordPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2">
-            <div className="w-10 h-10 rounded-xl bg-[#C8964A] flex items-center justify-center text-[#0a1422] font-bold text-lg">
-              H
-            </div>
-            <span className="text-foreground font-bold text-xl tracking-tight">HAIP</span>
+          <Link href="/" className="inline-flex items-center">
+            <img src="/logo.png" alt="HAIP" className="h-11 w-auto object-contain" />
           </Link>
         </div>
 
