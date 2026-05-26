@@ -189,7 +189,7 @@ export function GuestJourney() {
                 </p>
                 <p
                   className="text-sm truncate"
-                  style={{ color: "#475569" }}
+                  style={{ color: "#1E293B" }}
                 >
                   {s.source}
                 </p>
@@ -235,7 +235,7 @@ export function GuestJourney() {
               <p className="text-base font-semibold" style={{ color: "var(--mkt-text)" }}>
                 {stage.screen.title}
               </p>
-              <p className="text-sm" style={{ color: "#475569" }}>
+              <p className="text-sm" style={{ color: "#1E293B" }}>
                 {stage.screen.detail}
               </p>
             </div>
@@ -290,7 +290,7 @@ export function GuestJourney() {
                 >
                   <p
                     className="text-sm leading-relaxed"
-                    style={{ color: msg.from === "agent" ? "#1E293B" : "#334155" }}
+                    style={{ color: "#0F172A" }}
                   >
                     {msg.text}
                   </p>
@@ -308,7 +308,7 @@ export function GuestJourney() {
             backgroundColor: "rgba(0,0,0,0.02)",
           }}
         >
-          <p className="text-sm" style={{ color: "#475569" }}>
+          <p className="text-sm" style={{ color: "#1E293B" }}>
             {stage.screen.meta}
           </p>
         </div>

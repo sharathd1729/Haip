@@ -186,7 +186,7 @@ export default function HomePage() {
                   fontWeight: 500,
                   lineHeight: 1.8,
                   maxWidth: "640px",
-                  color: "#334155",
+                  color: "#0F172A",
                   animation: "haipFadeUp 0.7s cubic-bezier(0.16,1,0.3,1) 0.2s both",
                 }}
               >
@@ -348,7 +348,7 @@ export default function HomePage() {
             >
               Hospitality operations
               <br />
-              <em className="font-display italic" style={{ color: "#475569", fontWeight: 400 }}>
+              <em className="font-display italic" style={{ color: "#1E293B", fontWeight: 400 }}>
                 are fragmented.
               </em>
             </h2>
@@ -381,7 +381,7 @@ export default function HomePage() {
                     <X size={12} className="text-rose-400 flex-shrink-0 mt-0.5" />
                     <div>
                       <p className="text-sm font-semibold" style={{ color: "var(--mkt-text)" }}>{item.tool}</p>
-                      <p className="text-sm" style={{ color: "#475569" }}>{item.note}</p>
+                      <p className="text-sm" style={{ color: "#1E293B" }}>{item.note}</p>
                     </div>
                   </div>
                 ))}
@@ -466,7 +466,7 @@ export default function HomePage() {
             >
               Built for how hospitality
               <br />
-              <em className="font-display italic" style={{ color: "#475569", fontWeight: 400 }}>
+              <em className="font-display italic" style={{ color: "#1E293B", fontWeight: 400 }}>
                 teams actually work.
               </em>
             </h2>
@@ -516,7 +516,7 @@ export default function HomePage() {
                   <h3 className="text-base font-bold mb-2" style={{ color: "var(--mkt-text)" }}>
                     {cap.title}
                   </h3>
-                  <p className="text-base leading-relaxed mb-4" style={{ color: "#475569" }}>
+                  <p className="text-base leading-relaxed mb-4" style={{ color: "#1E293B" }}>
                     {cap.desc}
                   </p>
 
@@ -528,7 +528,7 @@ export default function HomePage() {
                     {cap.preview.map((line, i) => (
                       <div key={i} className="flex items-center gap-2">
                         <div className="w-1 h-1 rounded-full flex-shrink-0" style={{ backgroundColor: cap.color }} />
-                        <p className="text-sm truncate" style={{ color: "#475569" }}>
+                        <p className="text-sm truncate" style={{ color: "#1E293B" }}>
                           {line}
                         </p>
                       </div>
@@ -560,7 +560,7 @@ export default function HomePage() {
                 first message to fifth stay.
               </em>
             </h2>
-            <p className="text-base max-w-xl" style={{ color: "#475569", fontWeight: 400 }}>
+            <p className="text-base max-w-xl" style={{ color: "#1E293B", fontWeight: 400 }}>
               Click any stage to see the corresponding screen and data GenHaip captures automatically.
             </p>
           </div>
@@ -588,7 +588,7 @@ export default function HomePage() {
                   every guest.
                 </em>
               </h2>
-              <p className="text-base leading-relaxed mb-8 max-w-md" style={{ color: "#475569", fontWeight: 400 }}>
+              <p className="text-base leading-relaxed mb-8 max-w-md" style={{ color: "#1E293B", fontWeight: 400 }}>
                 One profile that unifies calls, WhatsApp conversations, bookings,
                 stay preferences and lifetime value — automatically built from every
                 interaction across your properties.
@@ -601,7 +601,7 @@ export default function HomePage() {
                   "Lifetime revenue, visit count and acquisition channel",
                   "DPDP-compliant consent tracking built in",
                 ].map((item, i) => (
-                  <li key={i} className="flex items-start gap-3 text-base" style={{ color: "#475569" }}>
+                  <li key={i} className="flex items-start gap-3 text-base" style={{ color: "#1E293B" }}>
                     <CheckCircle2 size={16} className="flex-shrink-0 mt-0.5" style={{ color: "#0F766E" }} />
                     {item}
                   </li>
@@ -744,7 +744,7 @@ export default function HomePage() {
               <br />
               <em className="font-display italic" style={{ color: "var(--mkt-gold)" }}>guest touchpoint.</em>
             </h2>
-            <p className="text-base leading-relaxed mb-8 max-w-md" style={{ color: "#475569", fontWeight: 400 }}>
+            <p className="text-base leading-relaxed mb-8 max-w-md" style={{ color: "#1E293B", fontWeight: 400 }}>
               Your team switches between 4 apps to manage guest communications.
               GenHaip combines WhatsApp, Instagram DMs and phone calls in one clean
               workspace — with full conversation history for every guest.
@@ -903,7 +903,7 @@ export default function HomePage() {
               <br />
               <em className="font-display italic" style={{ color: "var(--mkt-gold)" }}>automatically analyzed.</em>
             </h2>
-            <p className="text-base leading-relaxed mb-8 max-w-md" style={{ color: "#475569", fontWeight: 400 }}>
+            <p className="text-base leading-relaxed mb-8 max-w-md" style={{ color: "#1E293B", fontWeight: 400 }}>
               Stop manually reviewing call recordings. GenHaip transcribes, scores and
               extracts insights from every call — surfacing missed revenue, agent coaching
               moments and guest intent signals automatically.
@@ -1054,7 +1054,7 @@ export default function HomePage() {
                 that drive revenue.
               </em>
             </h2>
-            <p className="text-base max-w-xl" style={{ color: "#475569", fontWeight: 400 }}>
+            <p className="text-base max-w-xl" style={{ color: "#1E293B", fontWeight: 400 }}>
               Select any area to see the metrics and insights GenHaip surfaces automatically
               from your calls, conversations and bookings.
             </p>
@@ -1082,7 +1082,7 @@ export default function HomePage() {
                 GenHaip connects them all.
               </em>
             </h2>
-            <p className="text-base max-w-2xl mx-auto" style={{ color: "#475569", fontWeight: 400 }}>
+            <p className="text-base max-w-2xl mx-auto" style={{ color: "#1E293B", fontWeight: 400 }}>
               Messaging tools manage conversations. PMS software manages bookings.
               Call software stores recordings. CRMs manage contacts.
               None of them talk to each other — so your team never has the full picture.
@@ -1126,7 +1126,7 @@ export default function HomePage() {
                     className="border-t"
                     style={{ borderColor: "var(--mkt-border)" }}
                   >
-                    <td className="py-3 pr-6 text-sm font-medium" style={{ color: "#334155" }}>{row[0]}</td>
+                    <td className="py-3 pr-6 text-sm font-medium" style={{ color: "#0F172A" }}>{row[0]}</td>
                     {row.slice(1).map((cell, j) => (
                       <td
                         key={j}
@@ -1207,7 +1207,7 @@ export default function HomePage() {
               stage of growth.
             </em>
           </h2>
-          <p className="text-base mb-14 max-w-xl mx-auto" style={{ color: "#475569", fontWeight: 400 }}>
+          <p className="text-base mb-14 max-w-xl mx-auto" style={{ color: "#1E293B", fontWeight: 400 }}>
             From boutique villas to multi-property resort groups — GenHaip scales with your portfolio.
           </p>
 
@@ -1272,12 +1272,12 @@ export default function HomePage() {
                 <h3 className="font-display text-2xl font-light mb-3" style={{ color: "var(--mkt-text)" }}>
                   {plan.name}
                 </h3>
-                <p className="text-sm leading-relaxed mb-5" style={{ color: "#475569" }}>
+                <p className="text-sm leading-relaxed mb-5" style={{ color: "#1E293B" }}>
                   {plan.ideal}
                 </p>
                 <ul className="space-y-2 mb-6">
                   {plan.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2 text-sm" style={{ color: "#475569" }}>
+                    <li key={f} className="flex items-start gap-2 text-sm" style={{ color: "#1E293B" }}>
                       <CheckCircle2 size={13} className="flex-shrink-0 mt-0.5" style={{ color: "#0F766E" }} />
                       {f}
                     </li>

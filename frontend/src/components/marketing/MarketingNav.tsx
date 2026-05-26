@@ -72,7 +72,7 @@ export function MarketingNav() {
                   <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 mt-0.5">{f.icon}</div>
                   <div className="min-w-0">
                     <span className="text-sm font-medium group-hover:text-[var(--mkt-gold)] transition-colors block" style={{ color: "#1E293B" }}>{f.label}</span>
-                    <span className="text-xs mt-0.5 block" style={{ color: "#64748B" }}>{f.desc}</span>
+                    <span className="text-xs mt-0.5 block" style={{ color: "#334155" }}>{f.desc}</span>
                   </div>
                 </Link>
               ))}
@@ -86,7 +86,7 @@ export function MarketingNav() {
                   <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 mt-0.5">{s.icon}</div>
                   <div className="min-w-0">
                     <span className="text-sm font-medium group-hover:text-[var(--mkt-jade)] transition-colors block" style={{ color: "#1E293B" }}>{s.label}</span>
-                    <span className="text-xs mt-0.5 block" style={{ color: "#64748B" }}>{s.desc}</span>
+                    <span className="text-xs mt-0.5 block" style={{ color: "#334155" }}>{s.desc}</span>
                   </div>
                 </Link>
               ))}
@@ -107,7 +107,7 @@ export function MarketingNav() {
                   <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 mt-0.5">{r.icon}</div>
                   <div className="min-w-0">
                     <span className="text-sm font-medium group-hover:text-[var(--mkt-jade)] transition-colors block" style={{ color: "#1E293B" }}>{r.label}</span>
-                    <span className="text-xs mt-0.5 block" style={{ color: "#64748B" }}>{r.desc}</span>
+                    <span className="text-xs mt-0.5 block" style={{ color: "#334155" }}>{r.desc}</span>
                   </div>
                 </Link>
               ))}

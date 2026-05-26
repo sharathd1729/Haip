@@ -162,7 +162,7 @@ export function AnalyticsTabs() {
             >
               {m.value}
             </p>
-            <p className="text-xs" style={{ color: "#64748B" }}>
+            <p className="text-xs" style={{ color: "#1E293B" }}>
               {m.sub}
             </p>
           </div>
@@ -188,10 +188,10 @@ export function AnalyticsTabs() {
               style={{ backgroundColor: row.color }}
             />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold truncate" style={{ color: "#1E293B" }}>
+              <p className="text-sm font-semibold truncate" style={{ color: "#0F172A" }}>
                 {row.label}
               </p>
-              <p className="text-sm truncate" style={{ color: "#475569" }}>
+              <p className="text-sm truncate" style={{ color: "#1E293B" }}>
                 {row.detail}
               </p>
             </div>
