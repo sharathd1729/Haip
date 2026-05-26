@@ -134,7 +134,7 @@ export default function HomePage() {
           style={{ background: "linear-gradient(transparent, var(--mkt-bg))" }}
         />
 
-        <div className="relative max-w-7xl mx-auto px-5 sm:px-8 py-24 lg:py-32 w-full">
+        <div className="relative max-w-7xl mx-auto px-5 sm:px-8 py-10 lg:py-14 w-full">
           <div className="grid lg:grid-cols-2 gap-16 lg:gap-20 items-center">
 
             {/* Left: copy */}
