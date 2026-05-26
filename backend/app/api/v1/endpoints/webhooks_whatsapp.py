@@ -1,5 +1,6 @@
 """Meta WhatsApp Cloud API webhook."""
 import json
+from secrets import compare_digest
 from fastapi import APIRouter, Request, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.core.database import get_db
@@ -18,7 +19,12 @@ async def whatsapp_verify(
     hub_challenge: str = Query(alias="hub.challenge", default=""),
     hub_verify_token: str = Query(alias="hub.verify_token", default=""),
 ):
-    if hub_mode == "subscribe" and hub_verify_token == settings.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN:
+    verify_token = settings.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN
+    if (
+        hub_mode == "subscribe"
+        and verify_token  # must be configured — empty token always rejects
+        and compare_digest(hub_verify_token, verify_token)
+    ):
         return int(hub_challenge)
     raise HTTPException(status_code=403, detail="Verification failed")
 

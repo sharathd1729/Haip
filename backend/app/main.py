@@ -58,9 +58,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Request-ID", "Idempotency-Key"],
+    expose_headers=["Content-Length", "X-Request-ID", "Retry-After", "X-RateLimit-Reset"],
 )
 
 # Middleware execution order (last-registered runs first for requests):

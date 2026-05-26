@@ -1,11 +1,12 @@
 """
-B8 — Per-tenant + per-IP token-bucket rate limiting.
+Per-tenant + per-IP token-bucket rate limiting.
 
 Default limits:
-  Authenticated routes:  600 req/min per tenant
-  Unauthenticated routes: 60 req/min per IP
-  Auth endpoints (/auth/login, /auth/register): 10 req/min per IP
-  Send endpoints (/messages, /otp): 30 req/min per tenant
+  Webhook endpoints:      300 req/min per IP  (fail-open on Redis outage)
+  Auth endpoints:          10 req/min per IP  (fail-CLOSED on Redis outage)
+  Authenticated routes:   600 req/min per tenant
+  Unauthenticated routes:  60 req/min per IP
+  Send endpoints:          30 req/min per tenant
 
 Implementation: Redis sliding-window counter (INCR + EXPIRE).
 Returns 429 with Retry-After header when limit exceeded.
@@ -13,7 +14,7 @@ Returns 429 with Retry-After header when limit exceeded.
 
 import time
 import json
-from typing import Optional, Dict, Tuple
+from typing import Optional, Tuple
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
@@ -28,8 +29,9 @@ _DEFAULT_AUTH   : Tuple[int, int] = (600, 60)   # 600/min per tenant
 _DEFAULT_IP     : Tuple[int, int] = (60, 60)    # 60/min per IP (unauth)
 _STRICT_AUTH    : Tuple[int, int] = (10, 60)    # 10/min per IP — login/register
 _SEND_LIMIT     : Tuple[int, int] = (30, 60)    # 30/min per tenant — send endpoints
+_WEBHOOK_LIMIT  : Tuple[int, int] = (300, 60)   # 300/min per IP — webhook endpoints
 
-# Routes with tighter per-IP limits
+# Routes with tighter per-IP limits (fail-CLOSED: Redis outage blocks these)
 _STRICT_PREFIXES = (
     "/api/v1/auth/login",
     "/api/v1/auth/register",
@@ -44,9 +46,8 @@ _SEND_PREFIXES = (
     "/api/v1/messaging/",       # broadcasts
 )
 
-# Routes to skip entirely (webhooks use their own shared-secret auth)
+# Routes to skip entirely (health checks and API docs only)
 _SKIP_PREFIXES = (
-    "/api/v1/webhooks/",
     "/api/v1/health",
     "/docs",
     "/openapi.json",
@@ -54,21 +55,24 @@ _SKIP_PREFIXES = (
 
 
 def _get_redis():
-    """Lazy Redis connection. Returns None if Redis unavailable (fail-open)."""
+    """Lazy Redis connection. Returns None if Redis unavailable."""
     try:
         import redis
         from app.core.config import settings
         r = redis.Redis.from_url(settings.REDIS_URL, decode_responses=True, socket_connect_timeout=1)
         r.ping()
         return r
-    except Exception:
+    except Exception as e:
+        log.error("rate_limit_redis_connect_failed", error=str(e))
         return None
 
 
-def _check_limit(r, key: str, limit: int, window: int) -> Tuple[bool, int]:
+def _check_limit(r, key: str, limit: int, window: int, strict: bool = False) -> Tuple[bool, int]:
     """
     Sliding-window counter. Returns (allowed, retry_after_seconds).
-    Uses Redis INCR + EXPIRE atomically via pipeline.
+
+    strict=True: Redis errors return (False, 60) — fail-closed for auth endpoints.
+    strict=False: Redis errors return (True, 0)  — fail-open for everything else.
     """
     try:
         pipe = r.pipeline()
@@ -83,8 +87,11 @@ def _check_limit(r, key: str, limit: int, window: int) -> Tuple[bool, int]:
         if count > limit:
             return False, max(ttl, 1)
         return True, 0
-    except Exception:
-        return True, 0   # fail-open: Redis error → allow request
+    except Exception as e:
+        log.error("rate_limit_redis_error", key=key, error=str(e))
+        if strict:
+            return False, 60   # fail-closed: protect auth endpoints
+        return True, 0         # fail-open: don't block normal traffic on Redis blip
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -100,29 +107,45 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         path = request.url.path
 
-        # Skip rate-limited paths
+        # Skip health checks and docs entirely
         for prefix in _SKIP_PREFIXES:
             if path.startswith(prefix):
                 return await call_next(request)
-
-        r = self._r()
-        if r is None:
-            # Redis unavailable — fail-open
-            return await call_next(request)
 
         # Client IP
         forwarded = request.headers.get("X-Forwarded-For")
         ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
 
+        r = self._r()
+
+        # ── Webhook endpoints: separate looser per-IP limit ───────────────────
+        if path.startswith("/api/v1/webhooks/"):
+            if r is not None:
+                limit, window = _WEBHOOK_LIMIT
+                key = f"rl:ip:{ip}:webhook"
+                allowed, retry_after = _check_limit(r, key, limit, window, strict=False)
+                if not allowed:
+                    log.warning("rate_limit_exceeded", path=path, ip=ip, key=key)
+                    return _rate_limit_response(retry_after)
+            return await call_next(request)
+
+        if r is None:
+            # Redis unavailable — check if this is a strict path before allowing
+            for prefix in _STRICT_PREFIXES:
+                if path.startswith(prefix):
+                    log.error("rate_limit_redis_unavailable_blocking_auth", path=path)
+                    return _rate_limit_response(60)
+            return await call_next(request)
+
         # Tenant ID from request state (set by tenant_context_middleware)
         tenant_id: Optional[str] = getattr(request.state, "tenant_id", None)
 
-        # ── Strict IP limit (auth endpoints) ─────────────────────────────────
+        # ── Strict IP limit (auth endpoints) — fail-CLOSED ───────────────────
         for prefix in _STRICT_PREFIXES:
             if path.startswith(prefix):
                 limit, window = _STRICT_AUTH
                 key = f"rl:ip:{ip}:{path}"
-                allowed, retry_after = _check_limit(r, key, limit, window)
+                allowed, retry_after = _check_limit(r, key, limit, window, strict=True)
                 if not allowed:
                     log.warning("rate_limit_exceeded", path=path, ip=ip, key=key)
                     return _rate_limit_response(retry_after)
@@ -138,7 +161,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     if not allowed:
                         log.warning("rate_limit_exceeded", path=path, tenant_id=tenant_id, key=key)
                         return _rate_limit_response(retry_after)
-                    break   # only apply one rule
+                    break
 
         # ── Authenticated per-tenant limit ────────────────────────────────────
         if tenant_id:

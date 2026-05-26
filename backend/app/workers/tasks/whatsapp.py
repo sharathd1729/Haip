@@ -1,5 +1,7 @@
 """WhatsApp Cloud API message processing."""
+import hashlib
 import uuid
+from sqlalchemy.exc import IntegrityError
 from app.workers.celery_app import celery_app
 from app.core.database import SessionLocal
 from app.models.conversation import (
@@ -10,6 +12,11 @@ from app.models.tenant import Tenant
 import structlog
 
 log = structlog.get_logger()
+
+
+def _phone_token(phone: str) -> str:
+    """One-way hash for log correlation without exposing PII phone numbers."""
+    return hashlib.sha256(phone.encode()).hexdigest()[:12]
 
 # Map Meta status strings → our delivery states
 _META_STATUS_MAP = {
@@ -50,14 +57,6 @@ def _process_value(value: dict):
             return
 
         messages = value.get("messages", [])
-        if messages:
-            # O2: auto-wipe sample data on first real inbound message
-            try:
-                from app.services.sample_data import auto_wipe_on_real_inbound
-                auto_wipe_on_real_inbound(db, tenant.id)
-            except Exception as wipe_exc:
-                log.warning("sample_auto_wipe_failed", error=str(wipe_exc))
-
         for msg in messages:
             _handle_inbound_message(db, tenant, msg, value.get("contacts", []))
 
@@ -75,7 +74,7 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
     wa_msg_id = msg.get("id", "")
     msg_type = msg.get("type", "text")
 
-    # Dedup check
+    # Fast-path dedup check (application level)
     existing = db.query(Message).filter_by(channel_message_id=wa_msg_id).first()
     if existing:
         return
@@ -139,10 +138,15 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
         channel_status="received",
     )
     db.add(message)
+    try:
+        db.flush()  # ensure message.id is assigned; unique constraint enforces no-duplicate
+    except IntegrityError:
+        # DB-level unique constraint on channel_message_id caught a race condition.
+        db.rollback()
+        log.info("wa_message_duplicate_skipped", wa_msg_id=wa_msg_id)
+        return
 
-    db.flush()  # ensure message.id is assigned before we pass it
-
-    log.info("wa_message_stored", guest=from_number, conversation=conversation.id)
+    log.info("wa_message_stored", guest_token=_phone_token(from_number), conversation=conversation.id)
 
     # ── D1: Opt-out / opt-in detection ───────────────────────────────────────
     if body and body.strip():

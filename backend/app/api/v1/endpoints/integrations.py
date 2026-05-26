@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from sqlalchemy.orm import Session
 from typing import List
 from app.core.database import get_db
+from app.core.config import settings
 from app.core.encryption import encrypt_credentials, decrypt_credentials, get_credential
 from app.api.v1.deps import get_current_user, require_roles
 from app.models.user import User, UserRole
@@ -251,7 +252,7 @@ def get_whatsapp_webhook_info(
 ):
     """Return the webhook URL and verify token to paste into the client's Meta App."""
     base = str(request.base_url).rstrip("/")
-    verify_token = os.getenv("META_WEBHOOK_VERIFY_TOKEN", "haip-webhook-verify-token")
+    verify_token = settings.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN or "⚠ META_WEBHOOK_VERIFY_TOKEN not set"
     return {
         "webhook_url": f"{base}/webhooks/whatsapp",
         "verify_token": verify_token,
@@ -334,7 +335,7 @@ def get_instagram_webhook_info(
     current_user: User = Depends(get_current_user),
 ):
     base = str(request.base_url).rstrip("/")
-    verify_token = os.getenv("META_WEBHOOK_VERIFY_TOKEN", "haip-webhook-verify-token")
+    verify_token = settings.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN or "⚠ META_WEBHOOK_VERIFY_TOKEN not set"
     return {
         "webhook_url": f"{base}/webhooks/instagram",
         "verify_token": verify_token,
@@ -445,16 +446,34 @@ def connect_via_api_key(
     current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
     db: Session = Depends(get_db),
 ):
-    """Fallback handler for providers that only need a single API key (CallerDesk, Acefone, STAAH, Cloudbeds)."""
+    """
+    Fallback handler for providers that only need a single API key (CallerDesk, Acefone, STAAH, Cloudbeds).
+    For IVR providers (callerdesk, acefone), webhook_secret is required to enable per-tenant
+    webhook signature verification. Set the same value in the provider's dashboard → Webhooks → Secret.
+    """
     api_key = (body.get("api_key") or "").strip()
     api_secret = (body.get("api_secret") or "").strip()
+    webhook_secret = (body.get("webhook_secret") or "").strip()
     if not api_key:
         raise HTTPException(status_code=400, detail="api_key is required")
+
+    _IVR_KINDS = {"callerdesk", "acefone"}
+    if kind in _IVR_KINDS and not webhook_secret:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"webhook_secret is required for {kind}. "
+                "Generate any random string, set it here, and paste the same value into "
+                f"the {kind.title()} dashboard → Webhooks → Secret."
+            ),
+        )
 
     row = _upsert_integration(db, current_user.tenant_id, kind)
     creds: dict = {"api_key": api_key}
     if api_secret:
         creds["api_secret"] = api_secret
+    if webhook_secret:
+        creds["webhook_secret"] = webhook_secret
     row.credentials_kms_blob = encrypt_credentials(creds)
     row.status = "active"
     row.installed_at = _now()

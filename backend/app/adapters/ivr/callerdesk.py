@@ -1,8 +1,17 @@
 import hashlib
-import hmac
+import hmac  # stdlib — NOT a third-party package
 import httpx
+from urllib.parse import urlparse
 from app.adapters.ivr.base import IVRAdapter, CallWebhookPayload
 from app.core.config import settings
+
+# Only fetch recordings from known CallerDesk CDN domains over HTTPS.
+_ALLOWED_RECORDING_HOSTS = frozenset({
+    "cdn.callerdesk.io",
+    "recordings.callerdesk.io",
+    "api.callerdesk.io",
+    "storage.callerdesk.io",
+})
 
 
 class CallerDeskAdapter(IVRAdapter):
@@ -10,13 +19,17 @@ class CallerDeskAdapter(IVRAdapter):
 
     BASE_URL = "https://api.callerdesk.io/v1"
 
-    def verify_webhook_signature(self, payload: bytes, headers: dict) -> bool:
-        """CallerDesk sends X-CallerDesk-Signature as HMAC-SHA256."""
-        secret = settings.CALLERDESK_WEBHOOK_SECRET
+    def verify_webhook_signature(self, payload: bytes, headers: dict, secret: str = "") -> bool:
+        """
+        Verify X-CallerDesk-Signature using a per-tenant secret.
+        Callers MUST supply the tenant's own webhook_secret — never the global env var.
+        Returns False (not True) when secret is empty to enforce configuration.
+        """
         if not secret:
-            return True  # Skip verification in dev if secret not set
-
+            return False
         signature = headers.get("x-callerdesk-signature", "")
+        if not signature:
+            return False
         expected = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
         return hmac.compare_digest(signature, expected)
 
@@ -77,13 +90,19 @@ class CallerDeskAdapter(IVRAdapter):
             return resp.json().get("call_id", "")
 
     async def fetch_recording(self, recording_url: str) -> bytes:
-        """Download recording from CallerDesk CDN."""
+        """Download recording from CallerDesk CDN. Only HTTPS from known domains is allowed."""
+        parsed = urlparse(recording_url)
+        if parsed.scheme != "https" or parsed.netloc not in _ALLOWED_RECORDING_HOSTS:
+            raise ValueError(
+                f"Recording URL rejected (scheme={parsed.scheme!r}, host={parsed.netloc!r}). "
+                "Only HTTPS from known CallerDesk domains is permitted."
+            )
         async with httpx.AsyncClient() as client:
             resp = await client.get(
                 recording_url,
                 headers={"Authorization": f"Bearer {settings.CALLERDESK_API_KEY}"},
                 timeout=60,
-                follow_redirects=True,
+                follow_redirects=False,
             )
             resp.raise_for_status()
             return resp.content

@@ -10,7 +10,6 @@ Generate one with:
 
 import json
 import os
-import base64
 from cryptography.fernet import Fernet, InvalidToken
 
 _KEY_ENV = "ENCRYPTION_KEY"
@@ -19,9 +18,13 @@ _KEY_ENV = "ENCRYPTION_KEY"
 def _get_fernet() -> Fernet:
     key = os.environ.get(_KEY_ENV, "")
     if not key:
-        # Dev fallback — deterministic but insecure; must be overridden in production.
-        # Exactly 32 bytes → valid Fernet key.
-        key = base64.urlsafe_b64encode(b"haip-dev-key-insecure-32bytes!!!").decode()
+        raise RuntimeError(
+            f"'{_KEY_ENV}' environment variable is not set.\n"
+            "Integration credentials cannot be stored safely without it.\n"
+            "Generate one with:\n"
+            "  python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"\n"
+            "Then set it in your .env file."
+        )
     return Fernet(key.encode() if isinstance(key, str) else key)
 
 

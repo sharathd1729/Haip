@@ -30,6 +30,7 @@ def list_conversations(
     db: Session = Depends(get_db),
 ):
     from sqlalchemy import case, func
+    from sqlalchemy.orm import joinedload
     q = db.query(Conversation).filter_by(tenant_id=current_user.tenant_id)
     if channel:
         q = q.filter_by(channel=channel)
@@ -47,6 +48,12 @@ def list_conversations(
         q = q.order_by(unread_first, Conversation.last_message_at.desc().nullslast())
     else:
         q = q.order_by(Conversation.last_message_at.desc().nullslast())
+
+    # Eager-load related objects to eliminate N+1 queries on serialization.
+    q = q.options(
+        joinedload(Conversation.guest),
+        joinedload(Conversation.inquiry),
+    )
 
     return q.limit(limit).all()
 

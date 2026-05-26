@@ -2,9 +2,10 @@
 Call ingestion pipeline:
   IVR webhook → fetch recording → store S3 → queue transcription
 """
+import asyncio
 import boto3
+import hashlib
 import phonenumbers
-from celery import shared_task
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 from app.core.config import settings
@@ -17,6 +18,11 @@ from app.workers.celery_app import celery_app
 import structlog
 import uuid
 from datetime import datetime, timezone
+
+
+def _phone_token(phone: str) -> str:
+    """One-way hash for log correlation without exposing PII phone numbers."""
+    return hashlib.sha256(phone.encode()).hexdigest()[:12]
 
 log = structlog.get_logger()
 
@@ -70,7 +76,7 @@ def ingest_call(self, payload: dict, tenant_id: str, ivr_provider: str):
             db.commit()
             db.refresh(call)
 
-            log.info("call_created", call_id=call.id, guest_id=guest.id)
+            log.info("call_created", call_id=call.id, guest_token=_phone_token(normalized.from_number))
 
             # Queue recording fetch + transcription
             fetch_and_store_recording.delay(
@@ -137,18 +143,7 @@ def _do_fetch_recording(task_self, call_id: str, recording_url: str, tenant_id: 
         db.commit()
 
         adapter = get_ivr_adapter(ivr_provider)
-
-        import asyncio
-
-        def _run_async(coro):
-            """Run an async coroutine from a sync Celery task safely (Python 3.10+)."""
-            loop = asyncio.new_event_loop()
-            try:
-                return loop.run_until_complete(coro)
-            finally:
-                loop.close()
-
-        audio_bytes = _run_async(adapter.fetch_recording(recording_url))
+        audio_bytes = asyncio.run(adapter.fetch_recording(recording_url))
 
         s3_key = f"{tenant_id}/calls/{call_id}/recording.mp3"
         s3_kwargs = dict(
