@@ -112,7 +112,7 @@ export default function HomePage() {
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* HERO — teal dot grid + workflow card                               */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative min-h-screen flex items-center overflow-hidden pt-16" style={{ backgroundColor: "var(--mkt-bg)" }}>
+      <section className="relative min-h-screen flex items-center overflow-hidden pt-20" style={{ backgroundColor: "var(--mkt-bg)" }}>
         {/* Teal dot grid */}
         <div
           className="absolute inset-0 pointer-events-none"

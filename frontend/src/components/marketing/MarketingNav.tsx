@@ -57,10 +57,10 @@ export function MarketingNav() {
       )}
       style={scrolled ? { backgroundColor: "color-mix(in srgb, var(--mkt-bg) 95%, transparent)", borderColor: "var(--mkt-border)" } : undefined}
     >
-      <div className="max-w-7xl mx-auto px-5 sm:px-8 flex items-center h-16 gap-6">
+      <div className="max-w-7xl mx-auto px-5 sm:px-8 flex items-center h-20 gap-8">
         {/* Logo */}
         <Link href="/" className="flex items-center flex-shrink-0">
-          <img src="/logo.png" alt="HAIP" className="h-10 w-auto object-contain" />
+          <img src="/logo.png" alt="HAIP" className="h-12 w-auto object-contain" />
         </Link>
 
         {/* Desktop Nav */}
@@ -93,10 +93,10 @@ export function MarketingNav() {
             </div>
           </Dropdown>
 
-          <Link href="/integrations" className="px-3 py-2 text-sm transition-colors rounded-lg hover:bg-white/5" style={{ color: "color-mix(in srgb, var(--mkt-text) 70%, transparent)" }}>
+          <Link href="/integrations" className="px-4 py-2 text-base transition-colors rounded-lg hover:bg-white/5" style={{ color: "color-mix(in srgb, var(--mkt-text) 70%, transparent)" }}>
             Integrations
           </Link>
-          <Link href="/pricing" className="px-3 py-2 text-sm transition-colors rounded-lg hover:bg-white/5" style={{ color: "color-mix(in srgb, var(--mkt-text) 70%, transparent)" }}>
+          <Link href="/pricing" className="px-4 py-2 text-base transition-colors rounded-lg hover:bg-white/5" style={{ color: "color-mix(in srgb, var(--mkt-text) 70%, transparent)" }}>
             Pricing
           </Link>
 
@@ -124,19 +124,19 @@ export function MarketingNav() {
           >
             {isDark ? <Sun size={16} /> : <Moon size={16} />}
           </button>
-          <Link href="/login" className="text-sm transition-colors px-3 py-2" style={{ color: "color-mix(in srgb, var(--mkt-text) 70%, transparent)" }}>
+          <Link href="/login" className="text-base transition-colors px-4 py-2" style={{ color: "color-mix(in srgb, var(--mkt-text) 70%, transparent)" }}>
             Sign in
           </Link>
           <Link
             href="/book-demo"
-            className="px-3.5 py-2 text-sm font-semibold rounded-xl transition-all border"
+            className="px-5 py-2.5 text-base font-semibold rounded-xl transition-all border"
             style={{ color: "color-mix(in srgb, var(--mkt-text) 85%, transparent)", borderColor: "var(--mkt-border)" }}
           >
             Book demo
           </Link>
           <Link
             href="/register"
-            className="px-4 py-2 text-sm font-semibold rounded-xl transition-all"
+            className="px-5 py-2.5 text-base font-semibold rounded-xl transition-all"
             style={{ backgroundColor: "var(--mkt-gold)", color: "var(--mkt-bg)" }}
           >
             Start free trial
@@ -155,7 +155,7 @@ export function MarketingNav() {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="lg:hidden border-t px-5 py-4 space-y-1 max-h-[calc(100vh-64px)] overflow-y-auto" style={{ backgroundColor: "var(--mkt-bg)", borderColor: "var(--mkt-border)" }}>
+        <div className="lg:hidden border-t px-5 py-4 space-y-1 max-h-[calc(100vh-80px)] overflow-y-auto" style={{ backgroundColor: "var(--mkt-bg)", borderColor: "var(--mkt-border)" }}>
           <MobileSection title="Features" items={features} onClose={() => setMobileOpen(false)} />
           <MobileSection title="Solutions" items={solutions} onClose={() => setMobileOpen(false)} />
           <div className="h-px bg-white/8 my-2" />
@@ -202,7 +202,7 @@ function Dropdown({ label, open, onEnter, onLeave, children }: {
 }) {
   return (
     <div className="relative" onMouseEnter={onEnter} onMouseLeave={onLeave}>
-      <button className="flex items-center gap-1 px-3 py-2 text-sm transition-colors rounded-lg hover:bg-white/5" style={{ color: "color-mix(in srgb, var(--mkt-text) 70%, transparent)" }}>
+      <button className="flex items-center gap-1 px-4 py-2 text-base transition-colors rounded-lg hover:bg-white/5" style={{ color: "color-mix(in srgb, var(--mkt-text) 70%, transparent)" }}>
         {label} <ChevronDown size={14} className={cn("transition-transform", open && "rotate-180")} />
       </button>
       {open && <div className="absolute top-full left-0 pt-2">{children}</div>}
