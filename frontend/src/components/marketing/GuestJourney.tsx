@@ -10,7 +10,7 @@ const stages = [
     id: "inquiry",
     label: "Inquiry",
     icon: MessageCircle,
-    color: "#3D9E7E",
+    color: "#0F766E",
     source: "via WhatsApp",
     screen: {
       title: "Lead captured",
@@ -28,7 +28,7 @@ const stages = [
     id: "conversation",
     label: "Conversation",
     icon: Phone,
-    color: "#A6732A",
+    color: "#14B8A6",
     source: "Call + WhatsApp",
     screen: {
       title: "Communication history",
@@ -47,7 +47,7 @@ const stages = [
     id: "booking",
     label: "Booking",
     icon: CalendarCheck,
-    color: "#2D8A6A",
+    color: "#0F766E",
     source: "Reservation confirmed",
     screen: {
       title: "Booking confirmed",
@@ -66,7 +66,7 @@ const stages = [
     id: "stay",
     label: "Stay",
     icon: UserCheck,
-    color: "#A6732A",
+    color: "#14B8A6",
     source: "Checked in",
     screen: {
       title: "Guest in-stay",
@@ -85,7 +85,7 @@ const stages = [
     id: "review",
     label: "Review",
     icon: Star,
-    color: "#C8964A",
+    color: "#14B8A6",
     source: "5-star review",
     screen: {
       title: "Post-stay feedback",
@@ -104,7 +104,7 @@ const stages = [
     id: "repeat",
     label: "Repeat Guest",
     icon: RefreshCw,
-    color: "#2D8A6A",
+    color: "#0F766E",
     source: "Returns in 4 months",
     screen: {
       title: "Returning guest",

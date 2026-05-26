@@ -12,15 +12,15 @@ import {
 } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Static data
+// Static data — updated to teal palette
 // ─────────────────────────────────────────────────────────────────────────────
 
 const workflowSteps = [
-  { label: "WhatsApp Inquiry", sub: "Lead arrives via Meta Cloud API", color: "#3D9E7E", dot: "#3D9E7E" },
-  { label: "Call Received", sub: "Auto-transcribed · AI scored", color: "#A6732A", dot: "#A6732A" },
-  { label: "Guest Profile Created", sub: "Unified history · All channels", color: "#2D8A6A", dot: "#2D8A6A" },
-  { label: "Booking Confirmed", sub: "Revenue tracked · Inquiry closed", color: "#A6732A", dot: "#A6732A" },
-  { label: "Revenue Tracked", sub: "Attribution · Lifetime value", color: "#C8964A", dot: "#C8964A" },
+  { label: "WhatsApp Inquiry", sub: "Lead arrives via Meta Cloud API", color: "#0F766E" },
+  { label: "Call Received", sub: "Auto-transcribed · AI scored", color: "#14B8A6" },
+  { label: "Guest Profile Created", sub: "Unified history · All channels", color: "#0F766E" },
+  { label: "Booking Confirmed", sub: "Revenue tracked · Inquiry closed", color: "#14B8A6" },
+  { label: "Revenue Tracked", sub: "Attribution · Lifetime value", color: "#0F766E" },
 ];
 
 const capabilities = [
@@ -28,7 +28,7 @@ const capabilities = [
     icon: Users,
     title: "Guest Intelligence",
     desc: "Know every guest before answering the phone. Full history of calls, messages, stays and preferences — instantly accessible.",
-    color: "#3D9E7E",
+    color: "#0F766E",
     highlight: "Guest 360°",
     preview: ["Last stay: Sunset Villa · Dec 2024", "Total visits: 3 · LTV: ₹2.4L", "Preferred: Early check-in · Private chef"],
   },
@@ -36,7 +36,7 @@ const capabilities = [
     icon: MessageSquare,
     title: "Communication Hub",
     desc: "Manage WhatsApp, Instagram DMs and calls from one workspace. Full conversation history. Team handoffs. AI suggestions.",
-    color: "#A6732A",
+    color: "#14B8A6",
     highlight: "Omnichannel",
     preview: ["WhatsApp · 3 unread from Priya", "Instagram · New inquiry: anniversary", "Call · 4m 32s · AI: Booking intent"],
   },
@@ -44,7 +44,7 @@ const capabilities = [
     icon: Calendar,
     title: "Booking Intelligence",
     desc: "Track every inquiry through the pipeline. Know which conversations become bookings and why leads are lost.",
-    color: "#2D8A6A",
+    color: "#0F766E",
     highlight: "CRM Pipeline",
     preview: ["12 open inquiries · ₹8.4L pipeline", "Conversion: 34% this month", "Avg response: 8 minutes"],
   },
@@ -52,7 +52,7 @@ const capabilities = [
     icon: BarChart2,
     title: "Revenue Intelligence",
     desc: "Measure booking performance by property, channel and agent. Surface missed upsell opportunities automatically.",
-    color: "#C8964A",
+    color: "#14B8A6",
     highlight: "AI-powered",
     preview: ["Revenue this month: ₹28.4L", "Top channel: WhatsApp (52%)", "Upsells identified: ₹3.2L"],
   },
@@ -60,7 +60,7 @@ const capabilities = [
     icon: Zap,
     title: "Hospitality Automations",
     desc: "Automate follow-ups, booking confirmations and pre-arrival checklists. AI drafts replies for agent approval.",
-    color: "#3D9E7E",
+    color: "#0F766E",
     highlight: "AI Concierge",
     preview: ["Auto follow-up sent: 18 guests", "AI drafts approved: 94%", "Pre-arrival checklist triggered"],
   },
@@ -68,22 +68,22 @@ const capabilities = [
     icon: LineChart,
     title: "Operational Insights",
     desc: "Monitor agent performance, QA scores and team response times. Every call and conversation is scored automatically.",
-    color: "#A6732A",
+    color: "#14B8A6",
     highlight: "QA Scoring",
     preview: ["Avg QA score: 87/100", "Fastest response: 2 minutes", "Team leaderboard updated"],
   },
 ];
 
 const integrations = [
-  { name: "WhatsApp Business", angle: 0, color: "#25D366", category: "Messaging" },
-  { name: "Instagram", angle: 40, color: "#E1306C", category: "Messaging" },
-  { name: "CallerDesk", angle: 80, color: "#3B82F6", category: "Telephony" },
-  { name: "Acefone", angle: 120, color: "#8B5CF6", category: "Telephony" },
-  { name: "RentalWise", angle: 160, color: "#F59E0B", category: "PMS" },
-  { name: "Hostaway", angle: 200, color: "#EF4444", category: "PMS" },
-  { name: "Razorpay", angle: 240, color: "#3B82F6", category: "Payments" },
-  { name: "Google Sheets", angle: 280, color: "#34A853", category: "Data" },
-  { name: "Meta Ads", angle: 320, color: "#0066FF", category: "Marketing" },
+  { name: "WhatsApp Business", color: "#25D366", category: "Messaging" },
+  { name: "Instagram", color: "#E1306C", category: "Messaging" },
+  { name: "CallerDesk", color: "#3B82F6", category: "Telephony" },
+  { name: "Acefone", color: "#8B5CF6", category: "Telephony" },
+  { name: "RentalWise", color: "#F59E0B", category: "PMS" },
+  { name: "Hostaway", color: "#EF4444", category: "PMS" },
+  { name: "Razorpay", color: "#3B82F6", category: "Payments" },
+  { name: "Google Sheets", color: "#34A853", category: "Data" },
+  { name: "Meta Ads", color: "#0066FF", category: "Marketing" },
 ];
 
 const testimonials = [
@@ -110,24 +110,25 @@ export default function HomePage() {
       <MarketingNav />
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* MOD 1 — HERO: Updated copy + workflow visualization                */}
+      {/* HERO — teal dot grid + workflow card                               */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative min-h-screen flex items-center overflow-hidden pt-16">
-        {/* Coordinate-grid background */}
+      <section className="relative min-h-screen flex items-center overflow-hidden pt-16" style={{ backgroundColor: "var(--mkt-bg)" }}>
+        {/* Teal dot grid */}
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            backgroundImage:
-              "linear-gradient(rgba(166,115,42,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(166,115,42,0.06) 1px, transparent 1px)",
-            backgroundSize: "64px 64px",
+            backgroundImage: "radial-gradient(circle, rgba(15,118,110,0.12) 1px, transparent 1px)",
+            backgroundSize: "28px 28px",
           }}
         />
+        {/* Teal ambient glow — left */}
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            background: "radial-gradient(ellipse 80% 80% at 65% 45%, transparent 25%, var(--mkt-bg) 80%)",
+            background: "radial-gradient(ellipse 55% 65% at 0% 65%, rgba(15,118,110,0.07) 0%, transparent 65%)",
           }}
         />
+        {/* Fade to bg */}
         <div
           className="absolute bottom-0 left-0 right-0 h-40 pointer-events-none"
           style={{ background: "linear-gradient(transparent, var(--mkt-bg))" }}
@@ -141,7 +142,8 @@ export default function HomePage() {
               <div
                 className="inline-flex items-center gap-2.5 border rounded-full px-4 py-1.5 mb-10"
                 style={{
-                  borderColor: "rgba(166,115,42,0.35)",
+                  borderColor: "rgba(15,118,110,0.30)",
+                  backgroundColor: "rgba(15,118,110,0.05)",
                   animation: "haipFadeUp 0.7s cubic-bezier(0.16,1,0.3,1) both",
                 }}
               >
@@ -180,8 +182,7 @@ export default function HomePage() {
               <p
                 className="text-lg leading-relaxed max-w-lg mb-10"
                 style={{
-                  color: "var(--mkt-text)",
-                  opacity: 0.55,
+                  color: "var(--mkt-muted)",
                   animation: "haipFadeUp 0.7s cubic-bezier(0.16,1,0.3,1) 0.2s both",
                 }}
               >
@@ -197,9 +198,9 @@ export default function HomePage() {
                   href="/book-demo"
                   className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-bold text-base transition-all hover:-translate-y-0.5"
                   style={{
-                    backgroundColor: "var(--mkt-gold)",
+                    backgroundColor: "#0F766E",
                     color: "#fff",
-                    boxShadow: "0 8px 32px rgba(166,115,42,0.28)",
+                    boxShadow: "0 8px 32px rgba(15,118,110,0.30)",
                   }}
                 >
                   Book a Demo <ArrowRight size={18} />
@@ -208,9 +209,8 @@ export default function HomePage() {
                   href="/features"
                   className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-semibold text-base transition-all"
                   style={{
-                    border: "1px solid rgba(0,0,0,0.12)",
+                    border: "1px solid var(--mkt-border)",
                     color: "var(--mkt-text)",
-                    opacity: 0.7,
                   }}
                 >
                   Watch Product Tour
@@ -220,8 +220,7 @@ export default function HomePage() {
               <p
                 className="text-xs"
                 style={{
-                  color: "var(--mkt-text)",
-                  opacity: 0.28,
+                  color: "var(--mkt-muted)",
                   animation: "haipFadeUp 0.7s cubic-bezier(0.16,1,0.3,1) 0.4s both",
                 }}
               >
@@ -229,31 +228,31 @@ export default function HomePage() {
               </p>
             </div>
 
-            {/* Right: Workflow visualization */}
+            {/* Right: Workflow card */}
             <div
               className="hidden lg:block"
               style={{ animation: "haipFadeUp 0.9s cubic-bezier(0.16,1,0.3,1) 0.25s both" }}
             >
               <div style={{ animation: "haipFloat 7s ease-in-out 1.2s infinite" }}>
                 <div
-                  className="rounded-2xl border p-6 shadow-2xl"
+                  className="rounded-2xl border p-6"
                   style={{
-                    backgroundColor: "var(--mkt-panel)",
-                    borderColor: "rgba(0,0,0,0.08)",
-                    boxShadow: "0 32px 80px rgba(0,0,0,0.14)",
+                    backgroundColor: "var(--mkt-bg)",
+                    borderColor: "var(--mkt-border)",
+                    boxShadow: "0 32px 80px rgba(15,118,110,0.10), 0 4px 24px rgba(0,0,0,0.06)",
                   }}
                 >
                   {/* Header */}
-                  <div className="flex items-center gap-3 mb-6 pb-4 border-b" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
+                  <div className="flex items-center gap-3 mb-6 pb-4 border-b" style={{ borderColor: "var(--mkt-border)" }}>
                     <div
                       className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black"
-                      style={{ backgroundColor: "var(--mkt-gold)", color: "#fff" }}
+                      style={{ backgroundColor: "#0F766E", color: "#fff" }}
                     >
                       G
                     </div>
                     <div>
                       <p className="text-sm font-bold" style={{ color: "var(--mkt-text)" }}>GenHaip — Guest Journey</p>
-                      <p className="text-xs" style={{ color: "var(--mkt-text)", opacity: 0.4 }}>Live pipeline view</p>
+                      <p className="text-xs" style={{ color: "var(--mkt-muted)" }}>Live pipeline view</p>
                     </div>
                     <div className="ml-auto flex items-center gap-1.5">
                       <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" style={{ animation: "haipShimmer 2s infinite" }} />
@@ -270,14 +269,14 @@ export default function HomePage() {
                             className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-black text-white"
                             style={{
                               backgroundColor: step.color,
-                              boxShadow: `0 4px 12px ${step.color}40`,
+                              boxShadow: `0 4px 12px ${step.color}30`,
                               animation: `haipFadeUp 0.5s cubic-bezier(0.16,1,0.3,1) ${i * 0.1 + 0.5}s both`,
                             }}
                           >
                             {i + 1}
                           </div>
                           {i < workflowSteps.length - 1 && (
-                            <div className="w-px h-8 mt-1" style={{ backgroundColor: `${step.color}25` }} />
+                            <div className="w-px h-8 mt-1" style={{ backgroundColor: `${step.color}20` }} />
                           )}
                         </div>
                         <div
@@ -289,29 +288,29 @@ export default function HomePage() {
                           <p className="text-sm font-semibold mb-0.5" style={{ color: "var(--mkt-text)" }}>
                             {step.label}
                           </p>
-                          <p className="text-xs" style={{ color: "var(--mkt-text)", opacity: 0.42 }}>
+                          <p className="text-xs" style={{ color: "var(--mkt-muted)" }}>
                             {step.sub}
                           </p>
                         </div>
                         <div
                           className="mt-2 w-2 h-2 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: `${step.color}50` }}
+                          style={{ backgroundColor: `${step.color}40` }}
                         />
                       </div>
                     ))}
                   </div>
 
-                  {/* Footer summary */}
+                  {/* Footer */}
                   <div
                     className="mt-4 pt-4 border-t rounded-xl px-3 py-2.5"
                     style={{
-                      borderColor: "rgba(0,0,0,0.06)",
-                      backgroundColor: "rgba(166,115,42,0.06)",
+                      borderColor: "var(--mkt-border)",
+                      backgroundColor: "rgba(15,118,110,0.06)",
                     }}
                   >
                     <div className="flex items-center gap-2">
-                      <Sparkles size={12} style={{ color: "var(--mkt-gold)" }} />
-                      <p className="text-xs font-medium" style={{ color: "var(--mkt-gold)" }}>
+                      <Sparkles size={12} style={{ color: "#0F766E" }} />
+                      <p className="text-xs font-medium" style={{ color: "#0F766E" }}>
                         Every guest interaction, tracked in one timeline
                       </p>
                     </div>
@@ -325,7 +324,7 @@ export default function HomePage() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* MOD 3 — FRAGMENTATION PROBLEM                                      */}
+      {/* FRAGMENTATION PROBLEM — #F8FAFC                                   */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <section
         className="py-24 px-5 sm:px-8"
@@ -345,7 +344,7 @@ export default function HomePage() {
             >
               Hospitality operations
               <br />
-              <em className="font-display italic" style={{ color: "var(--mkt-text)", opacity: 0.4, fontWeight: 300 }}>
+              <em className="font-display italic" style={{ color: "var(--mkt-muted)", fontWeight: 300 }}>
                 are fragmented.
               </em>
             </h2>
@@ -356,7 +355,7 @@ export default function HomePage() {
             {/* Left: Disconnected */}
             <div
               className="rounded-2xl border p-6"
-              style={{ backgroundColor: "var(--mkt-bg)", borderColor: "rgba(225,29,72,0.2)" }}
+              style={{ backgroundColor: "var(--mkt-bg)", borderColor: "rgba(225,29,72,0.18)" }}
             >
               <div className="flex items-center gap-2 mb-5">
                 <X size={14} className="text-rose-500" />
@@ -373,19 +372,19 @@ export default function HomePage() {
                   <div
                     key={item.tool}
                     className="flex items-start gap-3 p-3 rounded-xl border"
-                    style={{ backgroundColor: "rgba(225,29,72,0.04)", borderColor: "rgba(225,29,72,0.1)" }}
+                    style={{ backgroundColor: "rgba(225,29,72,0.03)", borderColor: "rgba(225,29,72,0.08)" }}
                   >
                     <X size={12} className="text-rose-400 flex-shrink-0 mt-0.5" />
                     <div>
                       <p className="text-xs font-semibold" style={{ color: "var(--mkt-text)" }}>{item.tool}</p>
-                      <p className="text-[11px]" style={{ color: "var(--mkt-text)", opacity: 0.45 }}>{item.note}</p>
+                      <p className="text-[11px]" style={{ color: "var(--mkt-muted)" }}>{item.note}</p>
                     </div>
                   </div>
                 ))}
               </div>
               <div
                 className="mt-4 p-3 rounded-xl text-center"
-                style={{ backgroundColor: "rgba(225,29,72,0.08)", border: "1px solid rgba(225,29,72,0.15)" }}
+                style={{ backgroundColor: "rgba(225,29,72,0.06)", border: "1px solid rgba(225,29,72,0.12)" }}
               >
                 <p className="text-xs font-semibold text-rose-500">
                   Teams never see the complete guest journey
@@ -397,11 +396,11 @@ export default function HomePage() {
             <div className="flex flex-col items-center justify-center gap-3 py-4">
               <div
                 className="w-10 h-10 rounded-full flex items-center justify-center"
-                style={{ backgroundColor: "var(--mkt-gold)", boxShadow: "0 4px 16px rgba(166,115,42,0.3)" }}
+                style={{ backgroundColor: "#0F766E", boxShadow: "0 4px 16px rgba(15,118,110,0.25)" }}
               >
                 <ArrowRight size={18} color="#fff" />
               </div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-center" style={{ color: "var(--mkt-gold)", opacity: 0.7 }}>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-center" style={{ color: "var(--mkt-gold)" }}>
                 vs
               </p>
             </div>
@@ -409,11 +408,11 @@ export default function HomePage() {
             {/* Right: Unified */}
             <div
               className="rounded-2xl border p-6"
-              style={{ backgroundColor: "var(--mkt-bg)", borderColor: "rgba(45,138,106,0.25)" }}
+              style={{ backgroundColor: "var(--mkt-bg)", borderColor: "rgba(15,118,110,0.22)" }}
             >
               <div className="flex items-center gap-2 mb-5">
-                <CheckCircle2 size={14} className="text-emerald-600" />
-                <p className="text-sm font-bold text-emerald-700">With GenHaip</p>
+                <CheckCircle2 size={14} style={{ color: "#0F766E" }} />
+                <p className="text-sm font-bold" style={{ color: "#0F766E" }}>With GenHaip</p>
               </div>
               <div className="space-y-3">
                 {[
@@ -424,22 +423,22 @@ export default function HomePage() {
                   { event: "Booking confirmed · Revenue tracked", time: "09:45" },
                 ].map((item, i) => (
                   <div key={i} className="flex items-center gap-3">
-                    <span className="text-[10px] font-mono flex-shrink-0 w-10" style={{ color: "var(--mkt-text)", opacity: 0.3 }}>
+                    <span className="text-[10px] font-mono flex-shrink-0 w-10" style={{ color: "var(--mkt-muted)" }}>
                       {item.time}
                     </span>
                     <div
                       className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: "var(--mkt-jade)" }}
+                      style={{ backgroundColor: "#14B8A6" }}
                     />
-                    <p className="text-xs" style={{ color: "var(--mkt-text)", opacity: 0.75 }}>{item.event}</p>
+                    <p className="text-xs" style={{ color: "var(--mkt-text)" }}>{item.event}</p>
                   </div>
                 ))}
               </div>
               <div
                 className="mt-4 p-3 rounded-xl text-center"
-                style={{ backgroundColor: "rgba(45,138,106,0.08)", border: "1px solid rgba(45,138,106,0.2)" }}
+                style={{ backgroundColor: "rgba(15,118,110,0.07)", border: "1px solid rgba(15,118,110,0.18)" }}
               >
-                <p className="text-xs font-semibold" style={{ color: "var(--mkt-jade)" }}>
+                <p className="text-xs font-semibold" style={{ color: "#0F766E" }}>
                   GenHaip connects every interaction into one timeline
                 </p>
               </div>
@@ -449,9 +448,9 @@ export default function HomePage() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* MOD 5 — PLATFORM CAPABILITIES: 6 product cards                     */}
+      {/* PLATFORM CAPABILITIES — white                                      */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <section className="py-28 px-5 sm:px-8" id="features">
+      <section className="py-28 px-5 sm:px-8" id="features" style={{ backgroundColor: "var(--mkt-bg)" }}>
         <div className="max-w-7xl mx-auto">
           <div className="mb-16">
             <p className="text-xs font-bold uppercase tracking-widest mb-5" style={{ color: "var(--mkt-gold)" }}>
@@ -463,7 +462,7 @@ export default function HomePage() {
             >
               Built for how hospitality
               <br />
-              <em className="font-display italic" style={{ color: "var(--mkt-text)", opacity: 0.35, fontWeight: 300 }}>
+              <em className="font-display italic" style={{ color: "var(--mkt-muted)", fontWeight: 300 }}>
                 teams actually work.
               </em>
             </h2>
@@ -477,24 +476,24 @@ export default function HomePage() {
                   key={cap.title}
                   className="group rounded-2xl border p-6 transition-all duration-300 cursor-default hover:-translate-y-1"
                   style={{
-                    backgroundColor: "var(--mkt-panel)",
-                    borderColor: "rgba(0,0,0,0.07)",
-                    boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
+                    backgroundColor: "var(--mkt-bg)",
+                    borderColor: "var(--mkt-border)",
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
                   }}
                   onMouseEnter={(e) => {
                     (e.currentTarget as HTMLDivElement).style.borderColor = `${cap.color}35`;
-                    (e.currentTarget as HTMLDivElement).style.boxShadow = `0 16px 40px ${cap.color}15`;
+                    (e.currentTarget as HTMLDivElement).style.boxShadow = `0 16px 40px ${cap.color}12`;
                   }}
                   onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(0,0,0,0.07)";
-                    (e.currentTarget as HTMLDivElement).style.boxShadow = "0 2px 12px rgba(0,0,0,0.04)";
+                    (e.currentTarget as HTMLDivElement).style.borderColor = "var(--mkt-border)";
+                    (e.currentTarget as HTMLDivElement).style.boxShadow = "0 1px 4px rgba(0,0,0,0.04)";
                   }}
                 >
                   {/* Icon + badge */}
                   <div className="flex items-start justify-between mb-4">
                     <div
                       className="w-10 h-10 rounded-xl flex items-center justify-center"
-                      style={{ backgroundColor: `${cap.color}15` }}
+                      style={{ backgroundColor: `${cap.color}12` }}
                     >
                       <Icon size={20} style={{ color: cap.color }} />
                     </div>
@@ -503,30 +502,29 @@ export default function HomePage() {
                       style={{
                         backgroundColor: `${cap.color}10`,
                         color: cap.color,
-                        border: `1px solid ${cap.color}25`,
+                        border: `1px solid ${cap.color}22`,
                       }}
                     >
                       {cap.highlight}
                     </span>
                   </div>
 
-                  {/* Text */}
                   <h3 className="text-base font-bold mb-2" style={{ color: "var(--mkt-text)" }}>
                     {cap.title}
                   </h3>
-                  <p className="text-sm leading-relaxed mb-4" style={{ color: "var(--mkt-text)", opacity: 0.5 }}>
+                  <p className="text-sm leading-relaxed mb-4" style={{ color: "var(--mkt-muted)" }}>
                     {cap.desc}
                   </p>
 
                   {/* Mini preview */}
                   <div
                     className="rounded-xl p-3 space-y-1.5"
-                    style={{ backgroundColor: "var(--mkt-surface)", border: `1px solid ${cap.color}12` }}
+                    style={{ backgroundColor: "var(--mkt-panel)", border: `1px solid ${cap.color}10` }}
                   >
                     {cap.preview.map((line, i) => (
                       <div key={i} className="flex items-center gap-2">
-                        <div className="w-1 h-1 rounded-full flex-shrink-0" style={{ backgroundColor: cap.color, opacity: 0.6 }} />
-                        <p className="text-[11px] truncate" style={{ color: "var(--mkt-text)", opacity: 0.55 }}>
+                        <div className="w-1 h-1 rounded-full flex-shrink-0" style={{ backgroundColor: cap.color }} />
+                        <p className="text-[11px] truncate" style={{ color: "var(--mkt-muted)" }}>
                           {line}
                         </p>
                       </div>
@@ -540,7 +538,7 @@ export default function HomePage() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* MOD 4 — CONNECTED GUEST JOURNEY: Interactive                       */}
+      {/* CONNECTED GUEST JOURNEY — #F8FAFC                                 */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <section className="py-28 px-5 sm:px-8" style={{ backgroundColor: "var(--mkt-panel)" }} id="guest-journey">
         <div className="max-w-6xl mx-auto">
@@ -558,7 +556,7 @@ export default function HomePage() {
                 first message to fifth stay.
               </em>
             </h2>
-            <p className="text-base max-w-xl" style={{ color: "var(--mkt-text)", opacity: 0.5 }}>
+            <p className="text-base max-w-xl" style={{ color: "var(--mkt-muted)" }}>
               Click any stage to see the corresponding screen and data GenHaip captures automatically.
             </p>
           </div>
@@ -567,9 +565,9 @@ export default function HomePage() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* MOD 6 — GUEST 360 SHOWCASE                                         */}
+      {/* GUEST 360 SHOWCASE — white                                         */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <section className="py-28 px-5 sm:px-8">
+      <section className="py-28 px-5 sm:px-8" style={{ backgroundColor: "var(--mkt-bg)" }}>
         <div className="max-w-7xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             <div>
@@ -586,7 +584,7 @@ export default function HomePage() {
                   every guest.
                 </em>
               </h2>
-              <p className="text-base leading-relaxed mb-8 max-w-md" style={{ color: "var(--mkt-text)", opacity: 0.5 }}>
+              <p className="text-base leading-relaxed mb-8 max-w-md" style={{ color: "var(--mkt-muted)" }}>
                 One profile that unifies calls, WhatsApp conversations, bookings,
                 stay preferences and lifetime value — automatically built from every
                 interaction across your properties.
@@ -599,8 +597,8 @@ export default function HomePage() {
                   "Lifetime revenue, visit count and acquisition channel",
                   "DPDP-compliant consent tracking built in",
                 ].map((item, i) => (
-                  <li key={i} className="flex items-start gap-3 text-sm" style={{ color: "var(--mkt-text)", opacity: 0.6 }}>
-                    <CheckCircle2 size={16} className="flex-shrink-0 mt-0.5" style={{ color: "var(--mkt-jade)" }} />
+                  <li key={i} className="flex items-start gap-3 text-sm" style={{ color: "var(--mkt-muted)" }}>
+                    <CheckCircle2 size={16} className="flex-shrink-0 mt-0.5" style={{ color: "#0F766E" }} />
                     {item}
                   </li>
                 ))}
@@ -617,40 +615,40 @@ export default function HomePage() {
 
             {/* Guest 360 profile mockup */}
             <div
-              className="rounded-2xl border shadow-2xl overflow-hidden"
+              className="rounded-2xl border overflow-hidden"
               style={{
-                backgroundColor: "var(--mkt-panel)",
-                borderColor: "rgba(0,0,0,0.08)",
-                boxShadow: "0 32px 80px rgba(0,0,0,0.12)",
+                backgroundColor: "var(--mkt-bg)",
+                borderColor: "var(--mkt-border)",
+                boxShadow: "0 24px 64px rgba(15,118,110,0.08), 0 4px 16px rgba(0,0,0,0.05)",
               }}
             >
               {/* Profile header */}
               <div
                 className="px-6 py-5 border-b"
-                style={{ borderColor: "rgba(0,0,0,0.06)", backgroundColor: "var(--mkt-surface)" }}
+                style={{ borderColor: "var(--mkt-border)", backgroundColor: "var(--mkt-panel)" }}
               >
                 <div className="flex items-center gap-4">
                   <div
                     className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-black text-white"
-                    style={{ backgroundColor: "#3D9E7E" }}
+                    style={{ backgroundColor: "#0F766E" }}
                   >
                     P
                   </div>
                   <div className="flex-1">
                     <p className="text-base font-bold" style={{ color: "var(--mkt-text)" }}>Priya Sharma</p>
-                    <p className="text-xs" style={{ color: "var(--mkt-text)", opacity: 0.45 }}>
+                    <p className="text-xs" style={{ color: "var(--mkt-muted)" }}>
                       +91 98765 43210 · priya@example.com
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs font-bold" style={{ color: "var(--mkt-gold)" }}>VIP Guest</p>
-                    <p className="text-[10px]" style={{ color: "var(--mkt-text)", opacity: 0.35 }}>3 stays · ₹2.4L LTV</p>
+                    <p className="text-xs font-bold" style={{ color: "#0F766E" }}>VIP Guest</p>
+                    <p className="text-[10px]" style={{ color: "var(--mkt-muted)" }}>3 stays · ₹2.4L LTV</p>
                   </div>
                 </div>
               </div>
 
               {/* Stats row */}
-              <div className="grid grid-cols-4 border-b" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
+              <div className="grid grid-cols-4 border-b" style={{ borderColor: "var(--mkt-border)" }}>
                 {[
                   { label: "Calls", value: "8" },
                   { label: "Messages", value: "47" },
@@ -660,12 +658,12 @@ export default function HomePage() {
                   <div
                     key={stat.label}
                     className="text-center py-4 border-r last:border-0"
-                    style={{ borderColor: "rgba(0,0,0,0.06)" }}
+                    style={{ borderColor: "var(--mkt-border)" }}
                   >
-                    <p className="font-display text-xl font-light" style={{ color: "var(--mkt-gold)" }}>
+                    <p className="font-display text-xl font-light" style={{ color: "#0F766E" }}>
                       {stat.value}
                     </p>
-                    <p className="text-[10px]" style={{ color: "var(--mkt-text)", opacity: 0.38 }}>
+                    <p className="text-[10px]" style={{ color: "var(--mkt-muted)" }}>
                       {stat.label}
                     </p>
                   </div>
@@ -673,8 +671,8 @@ export default function HomePage() {
               </div>
 
               {/* Preferences */}
-              <div className="px-6 py-4 border-b" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
-                <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: "var(--mkt-text)", opacity: 0.35 }}>
+              <div className="px-6 py-4 border-b" style={{ borderColor: "var(--mkt-border)" }}>
+                <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: "var(--mkt-muted)" }}>
                   Preferences · Auto-captured
                 </p>
                 <div className="flex flex-wrap gap-2">
@@ -683,9 +681,9 @@ export default function HomePage() {
                       key={pref}
                       className="text-[11px] font-medium px-2.5 py-1 rounded-full border"
                       style={{
-                        backgroundColor: "rgba(45,138,106,0.08)",
-                        borderColor: "rgba(45,138,106,0.2)",
-                        color: "var(--mkt-jade)",
+                        backgroundColor: "rgba(15,118,110,0.07)",
+                        borderColor: "rgba(15,118,110,0.18)",
+                        color: "#0F766E",
                       }}
                     >
                       {pref}
@@ -696,21 +694,21 @@ export default function HomePage() {
 
               {/* Timeline */}
               <div className="px-6 py-4">
-                <p className="text-[10px] font-bold uppercase tracking-widest mb-4" style={{ color: "var(--mkt-text)", opacity: 0.35 }}>
+                <p className="text-[10px] font-bold uppercase tracking-widest mb-4" style={{ color: "var(--mkt-muted)" }}>
                   Recent timeline
                 </p>
                 <div className="space-y-3">
                   {[
-                    { icon: "📞", event: "Inbound call · 8m 12s · AI Score: 91", time: "Today 11:24 AM", color: "#A6732A" },
-                    { icon: "💬", event: "WhatsApp · Booking inquiry · Sunset Villa", time: "Today 09:14 AM", color: "#3D9E7E" },
-                    { icon: "✅", event: "Booking confirmed · Dec 20–26 · ₹84,000", time: "Yesterday", color: "#2D8A6A" },
-                    { icon: "⭐", event: "5-star review submitted on Google", time: "Jan 2025", color: "#C8964A" },
+                    { icon: "📞", event: "Inbound call · 8m 12s · AI Score: 91", time: "Today 11:24 AM", color: "#0F766E" },
+                    { icon: "💬", event: "WhatsApp · Booking inquiry · Sunset Villa", time: "Today 09:14 AM", color: "#14B8A6" },
+                    { icon: "✅", event: "Booking confirmed · Dec 20–26 · ₹84,000", time: "Yesterday", color: "#0F766E" },
+                    { icon: "⭐", event: "5-star review submitted on Google", time: "Jan 2025", color: "#14B8A6" },
                   ].map((item, i) => (
                     <div key={i} className="flex items-start gap-3">
                       <span className="text-sm flex-shrink-0 mt-0.5">{item.icon}</span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs truncate" style={{ color: "var(--mkt-text)", opacity: 0.7 }}>{item.event}</p>
-                        <p className="text-[10px]" style={{ color: "var(--mkt-text)", opacity: 0.3 }}>{item.time}</p>
+                        <p className="text-xs truncate" style={{ color: "var(--mkt-text)" }}>{item.event}</p>
+                        <p className="text-[10px]" style={{ color: "var(--mkt-muted)" }}>{item.time}</p>
                       </div>
                     </div>
                   ))}
@@ -722,17 +720,17 @@ export default function HomePage() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* Communication Hub spotlight (existing — kept)                      */}
+      {/* COMMUNICATION HUB — #F8FAFC                                       */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <section className="py-28 px-5 sm:px-8" style={{ backgroundColor: "var(--mkt-panel)" }}>
         <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
           <div>
             <div
               className="inline-flex items-center gap-2 border rounded-full px-3 py-1.5 mb-8"
-              style={{ backgroundColor: "rgba(45,138,106,0.08)", borderColor: "rgba(45,138,106,0.25)" }}
+              style={{ backgroundColor: "rgba(15,118,110,0.07)", borderColor: "rgba(15,118,110,0.22)" }}
             >
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
-              <span className="text-xs font-semibold text-emerald-700">Communication Hub</span>
+              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "#0F766E" }} />
+              <span className="text-xs font-semibold" style={{ color: "#0F766E" }}>Communication Hub</span>
             </div>
             <h2
               className="font-display leading-[1.05] tracking-tight mb-5"
@@ -742,7 +740,7 @@ export default function HomePage() {
               <br />
               <em className="font-display italic" style={{ color: "var(--mkt-gold)" }}>guest touchpoint.</em>
             </h2>
-            <p className="text-base leading-relaxed mb-8 max-w-md" style={{ color: "var(--mkt-text)", opacity: 0.5 }}>
+            <p className="text-base leading-relaxed mb-8 max-w-md" style={{ color: "var(--mkt-muted)" }}>
               Your team switches between 4 apps to manage guest communications.
               GenHaip combines WhatsApp, Instagram DMs and phone calls in one clean
               workspace — with full conversation history for every guest.
@@ -755,8 +753,8 @@ export default function HomePage() {
                 "AI-suggested replies based on guest history",
                 "Real-time team collaboration and handoffs",
               ].map((item, i) => (
-                <li key={i} className="flex items-start gap-3 text-sm" style={{ color: "var(--mkt-text)", opacity: 0.55 }}>
-                  <CheckCircle2 size={16} className="flex-shrink-0 mt-0.5" style={{ color: "var(--mkt-jade)" }} />
+                <li key={i} className="flex items-start gap-3 text-sm" style={{ color: "var(--mkt-muted)" }}>
+                  <CheckCircle2 size={16} className="flex-shrink-0 mt-0.5" style={{ color: "#0F766E" }} />
                   {item}
                 </li>
               ))}
@@ -772,12 +770,12 @@ export default function HomePage() {
 
           {/* Inbox mockup */}
           <div
-            className="rounded-2xl border p-5 shadow-2xl"
-            style={{ backgroundColor: "var(--mkt-surface)", borderColor: "rgba(0,0,0,0.07)", boxShadow: "0 24px 64px rgba(0,0,0,0.09)" }}
+            className="rounded-2xl border p-5"
+            style={{ backgroundColor: "var(--mkt-bg)", borderColor: "var(--mkt-border)", boxShadow: "0 8px 32px rgba(0,0,0,0.05)" }}
           >
             <div className="flex items-center gap-2 mb-5">
-              <div className="text-xs font-semibold" style={{ color: "var(--mkt-text)", opacity: 0.3 }}>INBOX</div>
-              <div className="px-2 py-0.5 text-[10px] font-bold rounded-full" style={{ backgroundColor: "var(--mkt-gold)", color: "#fff" }}>
+              <div className="text-xs font-semibold" style={{ color: "var(--mkt-muted)" }}>INBOX</div>
+              <div className="px-2 py-0.5 text-[10px] font-bold rounded-full text-white" style={{ backgroundColor: "#0F766E" }}>
                 12 new
               </div>
             </div>
@@ -789,8 +787,8 @@ export default function HomePage() {
             ].map((item, i) => (
               <div
                 key={i}
-                className="flex items-center gap-3 p-3 rounded-xl border-b last:border-0 transition-colors"
-                style={{ borderColor: "rgba(0,0,0,0.04)" }}
+                className="flex items-center gap-3 p-3 rounded-xl border-b last:border-0"
+                style={{ borderColor: "var(--mkt-border)" }}
               >
                 <div
                   className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
@@ -805,16 +803,16 @@ export default function HomePage() {
                       className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
                       style={
                         item.tag === "Inquiry"
-                          ? { backgroundColor: "rgba(166,115,42,0.12)", color: "var(--mkt-gold)" }
-                          : { backgroundColor: "rgba(0,0,0,0.05)", color: "var(--mkt-text)", opacity: 0.5 }
+                          ? { backgroundColor: "rgba(15,118,110,0.10)", color: "#0F766E" }
+                          : { backgroundColor: "var(--mkt-panel)", color: "var(--mkt-muted)" }
                       }
                     >
                       {item.tag}
                     </span>
                   </div>
-                  <p className="text-xs truncate" style={{ color: "var(--mkt-text)", opacity: 0.38 }}>{item.msg}</p>
+                  <p className="text-xs truncate" style={{ color: "var(--mkt-muted)" }}>{item.msg}</p>
                 </div>
-                <span className="text-[10px] flex-shrink-0" style={{ color: "var(--mkt-text)", opacity: 0.22 }}>{item.time}</span>
+                <span className="text-[10px] flex-shrink-0" style={{ color: "var(--mkt-muted)" }}>{item.time}</span>
               </div>
             ))}
           </div>
@@ -822,43 +820,43 @@ export default function HomePage() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* AI Call Intelligence spotlight (existing — kept + refreshed)       */}
+      {/* AI CALL INTELLIGENCE — white                                       */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <section className="py-28 px-5 sm:px-8">
+      <section className="py-28 px-5 sm:px-8" style={{ backgroundColor: "var(--mkt-bg)" }}>
         <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
-          {/* Visual */}
+          {/* Call analysis visual */}
           <div
-            className="order-2 lg:order-1 rounded-2xl border p-5 shadow-2xl"
-            style={{ backgroundColor: "var(--mkt-panel)", borderColor: "rgba(0,0,0,0.08)", boxShadow: "0 24px 64px rgba(0,0,0,0.08)" }}
+            className="order-2 lg:order-1 rounded-2xl border p-5"
+            style={{ backgroundColor: "var(--mkt-bg)", borderColor: "var(--mkt-border)", boxShadow: "0 8px 32px rgba(0,0,0,0.05)" }}
           >
             <div className="flex items-center justify-between mb-5">
-              <span className="text-xs font-semibold" style={{ color: "var(--mkt-text)", opacity: 0.35 }}>
+              <span className="text-xs font-semibold" style={{ color: "var(--mkt-muted)" }}>
                 CALL ANALYSIS — Priya Sharma
               </span>
-              <span className="text-xs" style={{ color: "var(--mkt-text)", opacity: 0.25 }}>Today, 11:24 AM · 8m 12s</span>
+              <span className="text-xs" style={{ color: "var(--mkt-muted)" }}>Today, 11:24 AM · 8m 12s</span>
             </div>
             <div className="grid grid-cols-3 gap-3 mb-5">
               {[
-                { label: "QA Score", value: "91", color: "#2D8A6A" },
-                { label: "Sentiment", value: "Positive", color: "#2D8A6A" },
-                { label: "Outcome", value: "Booked", color: "#A6732A" },
+                { label: "QA Score", value: "91", color: "#0F766E" },
+                { label: "Sentiment", value: "Positive", color: "#0F766E" },
+                { label: "Outcome", value: "Booked", color: "#14B8A6" },
               ].map((card) => (
-                <div key={card.label} className="rounded-xl p-3 text-center" style={{ backgroundColor: "var(--mkt-surface)" }}>
+                <div key={card.label} className="rounded-xl p-3 text-center" style={{ backgroundColor: "var(--mkt-panel)" }}>
                   <div className="text-lg font-black mb-0.5" style={{ color: card.color }}>{card.value}</div>
-                  <div className="text-[10px]" style={{ color: "var(--mkt-text)", opacity: 0.35 }}>{card.label}</div>
+                  <div className="text-[10px]" style={{ color: "var(--mkt-muted)" }}>{card.label}</div>
                 </div>
               ))}
             </div>
-            <div className="rounded-xl p-3 mb-3 space-y-2.5" style={{ backgroundColor: "var(--mkt-surface)" }}>
+            <div className="rounded-xl p-3 mb-3 space-y-2.5" style={{ backgroundColor: "var(--mkt-panel)" }}>
               <div className="flex gap-2">
-                <span className="text-[10px] font-bold flex-shrink-0" style={{ color: "var(--mkt-gold)" }}>AGENT</span>
-                <p className="text-xs" style={{ color: "var(--mkt-text)", opacity: 0.55 }}>
+                <span className="text-[10px] font-bold flex-shrink-0" style={{ color: "#0F766E" }}>AGENT</span>
+                <p className="text-xs" style={{ color: "var(--mkt-muted)" }}>
                   Good morning! Thank you for calling. How may I assist you today?
                 </p>
               </div>
               <div className="flex gap-2">
-                <span className="text-[10px] font-bold flex-shrink-0" style={{ color: "var(--mkt-text)", opacity: 0.35 }}>GUEST</span>
-                <p className="text-xs" style={{ color: "var(--mkt-text)", opacity: 0.55 }}>
+                <span className="text-[10px] font-bold flex-shrink-0" style={{ color: "var(--mkt-muted)" }}>GUEST</span>
+                <p className="text-xs" style={{ color: "var(--mkt-muted)" }}>
                   I&apos;d like to book the pool villa for New Year&apos;s week. What&apos;s the availability?
                 </p>
               </div>
@@ -866,19 +864,19 @@ export default function HomePage() {
             <div className="space-y-2">
               <div
                 className="flex items-center gap-2 border rounded-lg px-3 py-2"
-                style={{ backgroundColor: "rgba(166,115,42,0.07)", borderColor: "rgba(166,115,42,0.2)" }}
+                style={{ backgroundColor: "rgba(15,118,110,0.06)", borderColor: "rgba(15,118,110,0.18)" }}
               >
-                <Sparkles size={11} style={{ color: "var(--mkt-gold)" }} />
-                <span className="text-xs" style={{ color: "var(--mkt-gold)", opacity: 0.9 }}>
+                <Sparkles size={11} style={{ color: "#0F766E" }} />
+                <span className="text-xs" style={{ color: "#0F766E" }}>
                   Missed upsell: Private chef not offered (₹8,000 opportunity)
                 </span>
               </div>
               <div
                 className="flex items-center gap-2 border rounded-lg px-3 py-2"
-                style={{ backgroundColor: "rgba(45,138,106,0.07)", borderColor: "rgba(45,138,106,0.2)" }}
+                style={{ backgroundColor: "rgba(20,184,166,0.06)", borderColor: "rgba(20,184,166,0.18)" }}
               >
-                <CheckCircle2 size={11} style={{ color: "var(--mkt-jade)" }} />
-                <span className="text-xs" style={{ color: "var(--mkt-jade)", opacity: 0.9 }}>
+                <CheckCircle2 size={11} style={{ color: "#14B8A6" }} />
+                <span className="text-xs" style={{ color: "#14B8A6" }}>
                   Agent handled pricing objection well — closing rate maintained
                 </span>
               </div>
@@ -888,10 +886,10 @@ export default function HomePage() {
           <div className="order-1 lg:order-2">
             <div
               className="inline-flex items-center gap-2 border rounded-full px-3 py-1.5 mb-8"
-              style={{ backgroundColor: "rgba(166,115,42,0.08)", borderColor: "rgba(166,115,42,0.25)" }}
+              style={{ backgroundColor: "rgba(15,118,110,0.07)", borderColor: "rgba(15,118,110,0.22)" }}
             >
-              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "var(--mkt-gold)" }} />
-              <span className="text-xs font-semibold" style={{ color: "var(--mkt-gold)" }}>AI Call Intelligence</span>
+              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "#0F766E" }} />
+              <span className="text-xs font-semibold" style={{ color: "#0F766E" }}>AI Call Intelligence</span>
             </div>
             <h2
               className="font-display leading-[1.05] tracking-tight mb-5"
@@ -901,7 +899,7 @@ export default function HomePage() {
               <br />
               <em className="font-display italic" style={{ color: "var(--mkt-gold)" }}>automatically analyzed.</em>
             </h2>
-            <p className="text-base leading-relaxed mb-8 max-w-md" style={{ color: "var(--mkt-text)", opacity: 0.5 }}>
+            <p className="text-base leading-relaxed mb-8 max-w-md" style={{ color: "var(--mkt-muted)" }}>
               Stop manually reviewing call recordings. GenHaip transcribes, scores and
               extracts insights from every call — surfacing missed revenue, agent coaching
               moments and guest intent signals automatically.
@@ -914,8 +912,8 @@ export default function HomePage() {
                 "Sentiment analysis per call",
                 "Works with CallerDesk, Acefone and all major IVR providers",
               ].map((item, i) => (
-                <li key={i} className="flex items-start gap-3 text-sm" style={{ color: "var(--mkt-text)", opacity: 0.55 }}>
-                  <CheckCircle2 size={16} className="flex-shrink-0 mt-0.5" style={{ color: "var(--mkt-jade)" }} />
+                <li key={i} className="flex items-start gap-3 text-sm" style={{ color: "var(--mkt-muted)" }}>
+                  <CheckCircle2 size={16} className="flex-shrink-0 mt-0.5" style={{ color: "#0F766E" }} />
                   {item}
                 </li>
               ))}
@@ -932,24 +930,40 @@ export default function HomePage() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* MOD 7 — INTEGRATIONS ECOSYSTEM                                     */}
+      {/* INTEGRATIONS — PREMIUM DARK #041C1A                               */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <section className="py-24 px-5 sm:px-8" style={{ backgroundColor: "var(--mkt-panel)" }}>
-        <div className="max-w-5xl mx-auto text-center">
-          <p className="text-xs font-bold uppercase tracking-widest mb-5" style={{ color: "var(--mkt-gold)" }}>
+      <section className="py-24 px-5 sm:px-8 relative overflow-hidden" style={{ backgroundColor: "#041C1A" }}>
+        {/* Dot grid */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage: "radial-gradient(circle, rgba(20,184,166,0.10) 1px, transparent 1px)",
+            backgroundSize: "28px 28px",
+          }}
+        />
+        {/* Teal glow */}
+        <div
+          className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] pointer-events-none"
+          style={{
+            background: "radial-gradient(ellipse at center bottom, rgba(15,118,110,0.25) 0%, transparent 70%)",
+          }}
+        />
+
+        <div className="max-w-5xl mx-auto text-center relative">
+          <p className="text-xs font-bold uppercase tracking-widest mb-5" style={{ color: "#14B8A6" }}>
             Integrations ecosystem
           </p>
           <h2
             className="font-display leading-[1.0] tracking-tight mb-5"
-            style={{ fontSize: "clamp(30px, 4vw, 48px)", fontWeight: 400, color: "var(--mkt-text)" }}
+            style={{ fontSize: "clamp(30px, 4vw, 48px)", fontWeight: 400, color: "#FFFFFF" }}
           >
             Works with the tools
             <br />
-            <em className="font-display italic" style={{ color: "var(--mkt-text)", opacity: 0.4, fontWeight: 300 }}>
+            <em className="font-display italic" style={{ color: "#14B8A6", fontWeight: 400 }}>
               your team already uses.
             </em>
           </h2>
-          <p className="text-sm mb-14 max-w-xl mx-auto" style={{ color: "var(--mkt-text)", opacity: 0.45 }}>
+          <p className="text-sm mb-14 max-w-xl mx-auto" style={{ color: "rgba(255,255,255,0.50)" }}>
             Connect your IVR, PMS, messaging and marketing tools. GenHaip unifies data from
             every system into one guest intelligence platform — no manual data entry.
           </p>
@@ -959,17 +973,19 @@ export default function HomePage() {
             {integrations.map((int) => (
               <div
                 key={int.name}
-                className="group rounded-2xl border p-4 transition-all duration-200 hover:-translate-y-1 cursor-default"
+                className="group rounded-2xl p-4 transition-all duration-200 hover:-translate-y-1 cursor-default"
                 style={{
-                  backgroundColor: "var(--mkt-bg)",
-                  borderColor: "rgba(0,0,0,0.07)",
+                  backgroundColor: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.08)",
                 }}
                 onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLDivElement).style.borderColor = `${int.color}40`;
-                  (e.currentTarget as HTMLDivElement).style.boxShadow = `0 8px 24px ${int.color}15`;
+                  (e.currentTarget as HTMLDivElement).style.backgroundColor = "rgba(255,255,255,0.08)";
+                  (e.currentTarget as HTMLDivElement).style.borderColor = `${int.color}50`;
+                  (e.currentTarget as HTMLDivElement).style.boxShadow = `0 8px 24px ${int.color}20`;
                 }}
                 onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(0,0,0,0.07)";
+                  (e.currentTarget as HTMLDivElement).style.backgroundColor = "rgba(255,255,255,0.05)";
+                  (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,255,255,0.08)";
                   (e.currentTarget as HTMLDivElement).style.boxShadow = "none";
                 }}
               >
@@ -979,20 +995,20 @@ export default function HomePage() {
                 >
                   {int.name[0]}
                 </div>
-                <p className="text-xs font-semibold leading-tight" style={{ color: "var(--mkt-text)" }}>
+                <p className="text-xs font-semibold leading-tight" style={{ color: "rgba(255,255,255,0.85)" }}>
                   {int.name}
                 </p>
-                <p className="text-[10px] mt-0.5" style={{ color: "var(--mkt-text)", opacity: 0.35 }}>
+                <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
                   {int.category}
                 </p>
               </div>
             ))}
             <div
-              className="rounded-2xl border p-4 flex flex-col items-center justify-center"
-              style={{ backgroundColor: "var(--mkt-bg)", borderColor: "rgba(0,0,0,0.05)", borderStyle: "dashed" }}
+              className="rounded-2xl p-4 flex flex-col items-center justify-center"
+              style={{ backgroundColor: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.10)" }}
             >
-              <p className="text-xs font-semibold" style={{ color: "var(--mkt-text)", opacity: 0.3 }}>More</p>
-              <p className="text-[10px]" style={{ color: "var(--mkt-text)", opacity: 0.2 }}>Coming soon</p>
+              <p className="text-xs font-semibold" style={{ color: "rgba(255,255,255,0.25)" }}>More</p>
+              <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.15)" }}>Coming soon</p>
             </div>
           </div>
 
@@ -1001,11 +1017,11 @@ export default function HomePage() {
             {["Messaging", "Telephony", "PMS", "Payments", "Marketing", "Data"].map((cat) => (
               <span
                 key={cat}
-                className="text-xs font-semibold px-3 py-1.5 rounded-full border"
+                className="text-xs font-semibold px-3 py-1.5 rounded-full"
                 style={{
-                  backgroundColor: "rgba(166,115,42,0.07)",
-                  borderColor: "rgba(166,115,42,0.2)",
-                  color: "var(--mkt-gold)",
+                  backgroundColor: "rgba(20,184,166,0.12)",
+                  border: "1px solid rgba(20,184,166,0.25)",
+                  color: "#14B8A6",
                 }}
               >
                 {cat}
@@ -1016,9 +1032,9 @@ export default function HomePage() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* MOD 8 — ANALYTICS SECTION: Interactive tabs                        */}
+      {/* ANALYTICS — white                                                  */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <section className="py-28 px-5 sm:px-8">
+      <section className="py-28 px-5 sm:px-8" style={{ backgroundColor: "var(--mkt-bg)" }}>
         <div className="max-w-5xl mx-auto">
           <div className="mb-14">
             <p className="text-xs font-bold uppercase tracking-widest mb-5" style={{ color: "var(--mkt-gold)" }}>
@@ -1034,7 +1050,7 @@ export default function HomePage() {
                 that drive revenue.
               </em>
             </h2>
-            <p className="text-base max-w-xl" style={{ color: "var(--mkt-text)", opacity: 0.5 }}>
+            <p className="text-base max-w-xl" style={{ color: "var(--mkt-muted)" }}>
               Select any area to see the metrics and insights GenHaip surfaces automatically
               from your calls, conversations and bookings.
             </p>
@@ -1044,7 +1060,7 @@ export default function HomePage() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* MOD 9 — WHY GENHAIP: Comparison                                   */}
+      {/* WHY GENHAIP — #F8FAFC                                              */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <section className="py-28 px-5 sm:px-8" style={{ backgroundColor: "var(--mkt-panel)" }}>
         <div className="max-w-5xl mx-auto">
@@ -1062,7 +1078,7 @@ export default function HomePage() {
                 GenHaip connects them all.
               </em>
             </h2>
-            <p className="text-base max-w-2xl mx-auto" style={{ color: "var(--mkt-text)", opacity: 0.5 }}>
+            <p className="text-base max-w-2xl mx-auto" style={{ color: "var(--mkt-muted)" }}>
               Messaging tools manage conversations. PMS software manages bookings.
               Call software stores recordings. CRMs manage contacts.
               None of them talk to each other — so your team never has the full picture.
@@ -1074,7 +1090,7 @@ export default function HomePage() {
             <table className="w-full text-sm">
               <thead>
                 <tr>
-                  <th className="text-left py-3 pr-6 font-semibold" style={{ color: "var(--mkt-text)", opacity: 0.5, width: "30%" }}>
+                  <th className="text-left py-3 pr-6 font-semibold" style={{ color: "var(--mkt-muted)", width: "30%" }}>
                     Capability
                   </th>
                   {["Messaging App", "IVR / Call Tool", "PMS Software", "CRM Tool", "GenHaip"].map((col) => (
@@ -1082,9 +1098,8 @@ export default function HomePage() {
                       key={col}
                       className="py-3 px-4 text-center text-xs font-bold rounded-t-lg"
                       style={{
-                        color: col === "GenHaip" ? "#fff" : "var(--mkt-text)",
-                        backgroundColor: col === "GenHaip" ? "var(--mkt-gold)" : "var(--mkt-surface)",
-                        opacity: col === "GenHaip" ? 1 : 0.7,
+                        color: col === "GenHaip" ? "#fff" : "var(--mkt-muted)",
+                        backgroundColor: col === "GenHaip" ? "#0F766E" : "var(--mkt-bg)",
                       }}
                     >
                       {col}
@@ -1105,23 +1120,21 @@ export default function HomePage() {
                   <tr
                     key={i}
                     className="border-t"
-                    style={{ borderColor: "rgba(0,0,0,0.05)" }}
+                    style={{ borderColor: "var(--mkt-border)" }}
                   >
-                    <td className="py-3 pr-6 text-xs" style={{ color: "var(--mkt-text)", opacity: 0.65 }}>{row[0]}</td>
+                    <td className="py-3 pr-6 text-xs" style={{ color: "var(--mkt-muted)" }}>{row[0]}</td>
                     {row.slice(1).map((cell, j) => (
                       <td
                         key={j}
                         className="py-3 px-4 text-center text-xs"
                         style={{
                           backgroundColor: j === 4
-                            ? i % 2 === 0 ? "rgba(166,115,42,0.08)" : "rgba(166,115,42,0.04)"
+                            ? i % 2 === 0 ? "rgba(15,118,110,0.07)" : "rgba(15,118,110,0.04)"
                             : "transparent",
                           color: cell === "✓"
-                            ? j === 4 ? "var(--mkt-gold)" : "var(--mkt-jade)"
-                            : cell === "partial"
-                            ? "var(--mkt-text)"
-                            : "var(--mkt-text)",
-                          opacity: cell === "✓" ? 1 : cell === "partial" ? 0.4 : 0.2,
+                            ? j === 4 ? "#0F766E" : "#14B8A6"
+                            : "var(--mkt-muted)",
+                          opacity: cell === "✓" ? 1 : cell === "partial" ? 0.5 : 0.25,
                           fontWeight: cell === "✓" ? "700" : "400",
                         }}
                       >
@@ -1137,13 +1150,13 @@ export default function HomePage() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* TESTIMONIALS — kept, refreshed brand name                         */}
+      {/* TESTIMONIALS — white                                               */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <section className="py-28 px-5 sm:px-8">
+      <section className="py-28 px-5 sm:px-8" style={{ backgroundColor: "var(--mkt-bg)" }}>
         <div className="max-w-5xl mx-auto">
           <p
             className="text-xs font-bold uppercase tracking-widest mb-16 text-center"
-            style={{ color: "var(--mkt-text)", opacity: 0.25 }}
+            style={{ color: "var(--mkt-muted)" }}
           >
             Trusted by hospitality teams
           </p>
@@ -1152,17 +1165,17 @@ export default function HomePage() {
               <div key={i}>
                 <div
                   className="font-display leading-none select-none mb-4"
-                  style={{ fontSize: "96px", color: "var(--mkt-gold)", opacity: 0.18, lineHeight: 0.8, fontWeight: 300 }}
+                  style={{ fontSize: "96px", color: "#0F766E", opacity: 0.15, lineHeight: 0.8, fontWeight: 300 }}
                 >
                   &ldquo;
                 </div>
-                <p className="text-xl leading-relaxed mb-7 font-display italic" style={{ color: "var(--mkt-text)", opacity: 0.75, fontWeight: 400 }}>
+                <p className="text-xl leading-relaxed mb-7 font-display italic" style={{ color: "var(--mkt-text)", fontWeight: 400 }}>
                   {t.quote}
                 </p>
-                <div className="h-px mb-6" style={{ backgroundColor: "var(--mkt-gold)", opacity: 0.15 }} />
+                <div className="h-px mb-6" style={{ backgroundColor: "#0F766E", opacity: 0.15 }} />
                 <div>
                   <div className="text-sm font-semibold" style={{ color: "var(--mkt-text)" }}>{t.author}</div>
-                  <div className="text-xs mt-0.5" style={{ color: "var(--mkt-text)", opacity: 0.38 }}>
+                  <div className="text-xs mt-0.5" style={{ color: "var(--mkt-muted)" }}>
                     {t.role} · {t.company}
                   </div>
                 </div>
@@ -1173,7 +1186,7 @@ export default function HomePage() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* MOD 10 — PRICING: Starter / Growth / Enterprise                    */}
+      {/* PRICING — #F8FAFC                                                  */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <section className="py-28 px-5 sm:px-8" id="pricing" style={{ backgroundColor: "var(--mkt-panel)" }}>
         <div className="max-w-5xl mx-auto text-center">
@@ -1190,7 +1203,7 @@ export default function HomePage() {
               stage of growth.
             </em>
           </h2>
-          <p className="text-base mb-14 max-w-xl mx-auto" style={{ color: "var(--mkt-text)", opacity: 0.5 }}>
+          <p className="text-base mb-14 max-w-xl mx-auto" style={{ color: "var(--mkt-muted)" }}>
             From boutique villas to multi-property resort groups — GenHaip scales with your portfolio.
           </p>
 
@@ -1243,25 +1256,25 @@ export default function HomePage() {
                 className="rounded-2xl border p-6 text-left transition-all"
                 style={
                   plan.popular
-                    ? { backgroundColor: "var(--mkt-bg)", borderColor: "rgba(166,115,42,0.4)", boxShadow: "0 8px 32px rgba(166,115,42,0.12)" }
-                    : { backgroundColor: "var(--mkt-bg)", borderColor: "rgba(0,0,0,0.08)" }
+                    ? { backgroundColor: "var(--mkt-bg)", borderColor: "rgba(15,118,110,0.35)", boxShadow: "0 8px 32px rgba(15,118,110,0.10)" }
+                    : { backgroundColor: "var(--mkt-bg)", borderColor: "var(--mkt-border)" }
                 }
               >
                 {plan.popular && (
-                  <div className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: "var(--mkt-gold)" }}>
+                  <div className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: "#0F766E" }}>
                     Most Popular
                   </div>
                 )}
                 <h3 className="font-display text-2xl font-light mb-3" style={{ color: "var(--mkt-text)" }}>
                   {plan.name}
                 </h3>
-                <p className="text-xs leading-relaxed mb-5" style={{ color: "var(--mkt-text)", opacity: 0.5 }}>
+                <p className="text-xs leading-relaxed mb-5" style={{ color: "var(--mkt-muted)" }}>
                   {plan.ideal}
                 </p>
                 <ul className="space-y-2 mb-6">
                   {plan.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2 text-xs" style={{ color: "var(--mkt-text)", opacity: 0.65 }}>
-                      <CheckCircle2 size={13} className="flex-shrink-0 mt-0.5" style={{ color: "var(--mkt-jade)" }} />
+                    <li key={f} className="flex items-start gap-2 text-xs" style={{ color: "var(--mkt-muted)" }}>
+                      <CheckCircle2 size={13} className="flex-shrink-0 mt-0.5" style={{ color: "#0F766E" }} />
                       {f}
                     </li>
                   ))}
@@ -1271,8 +1284,8 @@ export default function HomePage() {
                   className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-bold transition-all"
                   style={
                     plan.popular
-                      ? { backgroundColor: "var(--mkt-gold)", color: "#fff" }
-                      : { backgroundColor: "var(--mkt-surface)", color: "var(--mkt-text)", border: "1px solid rgba(0,0,0,0.1)" }
+                      ? { backgroundColor: "#0F766E", color: "#fff" }
+                      : { backgroundColor: "var(--mkt-panel)", color: "var(--mkt-text)", border: "1px solid var(--mkt-border)" }
                   }
                 >
                   {plan.cta} <ChevronRight size={14} />
@@ -1280,43 +1293,55 @@ export default function HomePage() {
               </div>
             ))}
           </div>
-          <p className="text-xs" style={{ color: "var(--mkt-text)", opacity: 0.25 }}>
+          <p className="text-xs" style={{ color: "var(--mkt-muted)" }}>
             GST (18%) applicable · Annual plans available · No credit card to start
           </p>
         </div>
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* MOD 11 — FINAL CTA: Updated copy                                   */}
+      {/* FINAL CTA — PREMIUM DARK #041C1A                                  */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <section className="py-28 px-5 sm:px-8 relative overflow-hidden">
+      <section className="py-28 px-5 sm:px-8 relative overflow-hidden" style={{ backgroundColor: "#041C1A" }}>
+        {/* Teal dot grid */}
         <div
           className="absolute inset-0 pointer-events-none"
-          style={{ background: "radial-gradient(ellipse 70% 60% at 50% 50%, rgba(166,115,42,0.08) 0%, transparent 70%)" }}
+          style={{
+            backgroundImage: "radial-gradient(circle, rgba(20,184,166,0.08) 1px, transparent 1px)",
+            backgroundSize: "28px 28px",
+          }}
         />
+        {/* Center glow */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: "radial-gradient(ellipse 70% 60% at 50% 50%, rgba(15,118,110,0.18) 0%, transparent 70%)",
+          }}
+        />
+        {/* Top line accent */}
         <div
           className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-px"
-          style={{ background: "linear-gradient(90deg, transparent, rgba(166,115,42,0.5), transparent)" }}
+          style={{ background: "linear-gradient(90deg, transparent, rgba(20,184,166,0.6), transparent)" }}
         />
 
         <div className="max-w-3xl mx-auto text-center relative">
           <div
             className="w-14 h-14 rounded-2xl border flex items-center justify-center mx-auto mb-8"
-            style={{ backgroundColor: "rgba(166,115,42,0.1)", borderColor: "rgba(166,115,42,0.25)" }}
+            style={{ backgroundColor: "rgba(20,184,166,0.12)", borderColor: "rgba(20,184,166,0.25)" }}
           >
-            <ArrowDown size={24} style={{ color: "var(--mkt-gold)" }} />
+            <ArrowDown size={24} style={{ color: "#14B8A6" }} />
           </div>
           <h2
             className="font-display leading-[1.0] tracking-tight mb-5"
-            style={{ fontSize: "clamp(38px, 5.5vw, 64px)", fontWeight: 400, color: "var(--mkt-text)" }}
+            style={{ fontSize: "clamp(38px, 5.5vw, 64px)", fontWeight: 400, color: "#FFFFFF" }}
           >
             Turn guest conversations
             <br />
-            <em className="font-display italic" style={{ color: "var(--mkt-gold)", fontWeight: 600 }}>
+            <em className="font-display italic" style={{ color: "#14B8A6", fontWeight: 500 }}>
               into revenue.
             </em>
           </h2>
-          <p className="text-base leading-relaxed mb-12 max-w-xl mx-auto" style={{ color: "var(--mkt-text)", opacity: 0.5 }}>
+          <p className="text-base leading-relaxed mb-12 max-w-xl mx-auto" style={{ color: "rgba(255,255,255,0.50)" }}>
             See every guest interaction, booking opportunity and operational insight
             in one platform built for hospitality teams.
           </p>
@@ -1325,9 +1350,9 @@ export default function HomePage() {
               href="/book-demo"
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-bold text-base transition-all hover:-translate-y-0.5"
               style={{
-                backgroundColor: "var(--mkt-gold)",
-                color: "#fff",
-                boxShadow: "0 8px 32px rgba(166,115,42,0.3)",
+                backgroundColor: "#14B8A6",
+                color: "#041C1A",
+                boxShadow: "0 8px 32px rgba(20,184,166,0.30)",
               }}
             >
               Book a Demo <ArrowRight size={18} />
@@ -1335,12 +1360,12 @@ export default function HomePage() {
             <Link
               href="/features"
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-semibold text-base transition-all"
-              style={{ border: "1px solid rgba(0,0,0,0.12)", color: "var(--mkt-text)", opacity: 0.7 }}
+              style={{ border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.75)" }}
             >
               Watch Product Tour
             </Link>
           </div>
-          <p className="text-xs mt-7" style={{ color: "var(--mkt-text)", opacity: 0.22 }}>
+          <p className="text-xs mt-7" style={{ color: "rgba(255,255,255,0.25)" }}>
             No credit card required · Setup in under 10 minutes · Cancel anytime
           </p>
         </div>

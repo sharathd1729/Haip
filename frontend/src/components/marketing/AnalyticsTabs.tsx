@@ -15,9 +15,9 @@ const tabs = [
       { label: "Missed Revenue", value: "₹1.8L", sub: "identified by AI", trend: "down" },
     ],
     rows: [
-      { label: "Priya Sharma", detail: "Sunset Villa · 8m 12s", tag: "Booked", score: "94", color: "#2D8A6A" },
-      { label: "+91 98210 44392", detail: "Pool Villa · 3m 08s", tag: "Follow-up", score: "71", color: "#A6732A" },
-      { label: "Arjun Mehta", detail: "Garden Suite · 6m 44s", tag: "Booked", score: "88", color: "#2D8A6A" },
+      { label: "Priya Sharma", detail: "Sunset Villa · 8m 12s", tag: "Booked", score: "94", color: "#0F766E" },
+      { label: "+91 98210 44392", detail: "Pool Villa · 3m 08s", tag: "Follow-up", score: "71", color: "#14B8A6" },
+      { label: "Arjun Mehta", detail: "Garden Suite · 6m 44s", tag: "Booked", score: "88", color: "#0F766E" },
       { label: "+91 77001 29384", detail: "Pricing inquiry · 1m 22s", tag: "Lost", score: "34", color: "#e11d48" },
     ],
     insight: "Top missed upsell: Private chef not offered in 43% of booking calls",
@@ -33,10 +33,10 @@ const tabs = [
       { label: "DPDP Compliant", value: "100%", sub: "consent captured", trend: "neutral" },
     ],
     rows: [
-      { label: "Priya & Rajesh Sharma", detail: "3 stays · ₹2.4L lifetime", tag: "VIP", score: "98", color: "#2D8A6A" },
-      { label: "Arjun Mehta", detail: "2 stays · ₹98K lifetime", tag: "Regular", score: "82", color: "#A6732A" },
+      { label: "Priya & Rajesh Sharma", detail: "3 stays · ₹2.4L lifetime", tag: "VIP", score: "98", color: "#0F766E" },
+      { label: "Arjun Mehta", detail: "2 stays · ₹98K lifetime", tag: "Regular", score: "82", color: "#14B8A6" },
       { label: "Kavya & Dev Nair", detail: "First inquiry · WhatsApp", tag: "New Lead", score: "—", color: "#6366f1" },
-      { label: "Sunita Krishnan", detail: "1 stay · Anniversary group", tag: "Return likely", score: "77", color: "#A6732A" },
+      { label: "Sunita Krishnan", detail: "1 stay · Anniversary group", tag: "Return likely", score: "77", color: "#14B8A6" },
     ],
     insight: "Guests who receive a follow-up within 2 hours convert at 3.2× the rate",
   },
@@ -51,8 +51,8 @@ const tabs = [
       { label: "Lost Inquiries", value: "12", sub: "reason captured", trend: "down" },
     ],
     rows: [
-      { label: "WhatsApp Inbound", detail: "18 bookings · 52% share", tag: "Top channel", score: "52%", color: "#2D8A6A" },
-      { label: "Phone Inquiry", detail: "11 bookings · 32% share", tag: "Strong", score: "32%", color: "#A6732A" },
+      { label: "WhatsApp Inbound", detail: "18 bookings · 52% share", tag: "Top channel", score: "52%", color: "#0F766E" },
+      { label: "Phone Inquiry", detail: "11 bookings · 32% share", tag: "Strong", score: "32%", color: "#14B8A6" },
       { label: "Instagram DM", detail: "5 bookings · 15% share", tag: "Growing", score: "15%", color: "#6366f1" },
       { label: "Lost: Price concern", detail: "8 inquiries lost", tag: "Review pricing", score: "—", color: "#e11d48" },
     ],
@@ -69,10 +69,10 @@ const tabs = [
       { label: "Avg Booking Value", value: "₹83K", sub: "per confirmed stay", trend: "up" },
     ],
     rows: [
-      { label: "Sunset Villa", detail: "12 bookings · ₹9.8L", tag: "Top property", score: "₹9.8L", color: "#2D8A6A" },
-      { label: "Pool Villa", detail: "9 bookings · ₹7.2L", tag: "Strong", score: "₹7.2L", color: "#A6732A" },
+      { label: "Sunset Villa", detail: "12 bookings · ₹9.8L", tag: "Top property", score: "₹9.8L", color: "#0F766E" },
+      { label: "Pool Villa", detail: "9 bookings · ₹7.2L", tag: "Strong", score: "₹7.2L", color: "#14B8A6" },
       { label: "Garden Suite (3)", detail: "13 bookings · ₹6.1L", tag: "Volume", score: "₹6.1L", color: "#6366f1" },
-      { label: "Add-ons & Upsells", detail: "Chef, spa, transfers", tag: "Growing", score: "₹3.2L", color: "#2D8A6A" },
+      { label: "Add-ons & Upsells", detail: "Chef, spa, transfers", tag: "Growing", score: "₹3.2L", color: "#0F766E" },
     ],
     insight: "Properties with WhatsApp integration show 2.1× higher average booking values",
   },
@@ -87,10 +87,10 @@ const tabs = [
       { label: "Promoters", value: "78%", sub: "NPS score", trend: "up" },
     ],
     rows: [
-      { label: "Sunset Villa", detail: "4.9 avg · 18 reviews", tag: "Excellent", score: "4.9", color: "#2D8A6A" },
-      { label: "Pool Villa", detail: "4.8 avg · 14 reviews", tag: "Excellent", score: "4.8", color: "#2D8A6A" },
-      { label: "Garden Suite", detail: "4.6 avg · 15 reviews", tag: "Good", score: "4.6", color: "#A6732A" },
-      { label: "Priya Sharma", detail: "Repeat guest · Promoter", tag: "Referral sent", score: "★5", color: "#C8964A" },
+      { label: "Sunset Villa", detail: "4.9 avg · 18 reviews", tag: "Excellent", score: "4.9", color: "#0F766E" },
+      { label: "Pool Villa", detail: "4.8 avg · 14 reviews", tag: "Excellent", score: "4.8", color: "#0F766E" },
+      { label: "Garden Suite", detail: "4.6 avg · 15 reviews", tag: "Good", score: "4.6", color: "#14B8A6" },
+      { label: "Priya Sharma", detail: "Repeat guest · Promoter", tag: "Referral sent", score: "★5", color: "#14B8A6" },
     ],
     insight: "Guests who receive a personalised post-stay message leave reviews at 4× the rate",
   },
@@ -147,7 +147,7 @@ export function AnalyticsTabs() {
             className="rounded-xl p-4 border"
             style={{
               backgroundColor: "var(--mkt-panel)",
-              borderColor: "rgba(0,0,0,0.06)",
+              borderColor: "var(--mkt-border)",
             }}
           >
             <div className="flex items-start justify-between mb-1">
@@ -219,8 +219,8 @@ export function AnalyticsTabs() {
       <div
         className="rounded-xl px-4 py-3 border"
         style={{
-          backgroundColor: "rgba(166,115,42,0.07)",
-          borderColor: "rgba(166,115,42,0.2)",
+          backgroundColor: "rgba(15,118,110,0.07)",
+          borderColor: "rgba(15,118,110,0.18)",
         }}
       >
         <p className="text-xs" style={{ color: "var(--mkt-gold)" }}>

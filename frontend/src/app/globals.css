@@ -83,15 +83,17 @@
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
 
-  /* Marketing palette — LIGHT mode (warm ivory + gold) */
-  --mkt-bg:          #FAF9F6;
-  --mkt-panel:       #F4F1EB;
-  --mkt-surface:     #EDE9DF;
-  --mkt-text:        #1C1C14;
-  --mkt-gold:        #A6732A;
-  --mkt-jade:        #2D8A6A;
-  --mkt-border:      rgba(0, 0, 0, 0.08);
-  --mkt-border-gold: rgba(166, 115, 42, 0.22);
+  /* Marketing palette — LIGHT mode (clean white + teal) */
+  --mkt-bg:          #FFFFFF;
+  --mkt-panel:       #F8FAFC;
+  --mkt-surface:     #F0FDFA;
+  --mkt-text:        #111827;
+  --mkt-gold:        #0F766E;
+  --mkt-jade:        #14B8A6;
+  --mkt-dark:        #041C1A;
+  --mkt-muted:       #64748B;
+  --mkt-border:      #E2E8F0;
+  --mkt-border-gold: rgba(15, 118, 110, 0.20);
 }
 
 .dark {
@@ -128,15 +130,17 @@
   --sidebar-border:             rgba(255,255,255,0.06);
   --sidebar-ring:               rgba(79,142,247,0.4);
 
-  /* Marketing palette — DARK mode (forest green + gold) */
-  --mkt-bg:          #0E1210;
-  --mkt-panel:       #141B15;
-  --mkt-surface:     #1B2419;
-  --mkt-text:        #F0E8D0;
-  --mkt-gold:        #C8964A;
-  --mkt-jade:        #3D9E7E;
-  --mkt-border:      rgba(240, 232, 208, 0.08);
-  --mkt-border-gold: rgba(200, 150, 74, 0.18);
+  /* Marketing palette — DARK mode (deep teal) */
+  --mkt-bg:          #041C1A;
+  --mkt-panel:       #071F1D;
+  --mkt-surface:     #0C2622;
+  --mkt-text:        #F0FFFE;
+  --mkt-gold:        #14B8A6;
+  --mkt-jade:        #2DD4BF;
+  --mkt-dark:        #020F0E;
+  --mkt-muted:       #94A3B8;
+  --mkt-border:      rgba(20, 184, 166, 0.15);
+  --mkt-border-gold: rgba(20, 184, 166, 0.18);
 }
 
 /* ── Adaptive CSS variables (used by pages instead of hardcoded #hex) ─────────
