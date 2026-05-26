@@ -117,7 +117,7 @@ export default function HomePage() {
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            backgroundImage: "radial-gradient(circle, rgba(15,118,110,0.12) 1px, transparent 1px)",
+            backgroundImage: "radial-gradient(circle, rgba(15,118,110,0.06) 1px, transparent 1px)",
             backgroundSize: "28px 28px",
           }}
         />
@@ -142,19 +142,19 @@ export default function HomePage() {
               <div
                 className="inline-flex items-center gap-2.5 border rounded-full px-4 py-1.5 mb-10"
                 style={{
-                  borderColor: "rgba(15,118,110,0.30)",
-                  backgroundColor: "rgba(15,118,110,0.05)",
+                  borderColor: "rgba(15,118,110,0.45)",
+                  backgroundColor: "rgba(15,118,110,0.08)",
                   animation: "haipFadeUp 0.7s cubic-bezier(0.16,1,0.3,1) both",
                 }}
               >
                 <div
                   className="w-1.5 h-1.5 rounded-full"
                   style={{
-                    backgroundColor: "var(--mkt-gold)",
+                    backgroundColor: "#0F766E",
                     animation: "haipShimmer 2s ease-in-out infinite",
                   }}
                 />
-                <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--mkt-gold)" }}>
+                <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "#0D6B64" }}>
                   Hospitality intelligence platform
                 </span>
               </div>
@@ -180,10 +180,13 @@ export default function HomePage() {
               </h1>
 
               <p
-                className="text-lg leading-relaxed max-w-lg mb-10"
+                className="mb-10"
                 style={{
-                  color: "var(--mkt-muted)",
-                  fontWeight: 300,
+                  fontSize: "20px",
+                  fontWeight: 500,
+                  lineHeight: 1.8,
+                  maxWidth: "640px",
+                  color: "#334155",
                   animation: "haipFadeUp 0.7s cubic-bezier(0.16,1,0.3,1) 0.2s both",
                 }}
               >
@@ -345,7 +348,7 @@ export default function HomePage() {
             >
               Hospitality operations
               <br />
-              <em className="font-display italic" style={{ color: "var(--mkt-muted)", fontWeight: 300 }}>
+              <em className="font-display italic" style={{ color: "#475569", fontWeight: 400 }}>
                 are fragmented.
               </em>
             </h2>
@@ -463,7 +466,7 @@ export default function HomePage() {
             >
               Built for how hospitality
               <br />
-              <em className="font-display italic" style={{ color: "var(--mkt-muted)", fontWeight: 300 }}>
+              <em className="font-display italic" style={{ color: "#475569", fontWeight: 400 }}>
                 teams actually work.
               </em>
             </h2>
@@ -557,7 +560,7 @@ export default function HomePage() {
                 first message to fifth stay.
               </em>
             </h2>
-            <p className="text-base max-w-xl" style={{ color: "var(--mkt-muted)" }}>
+            <p className="text-base max-w-xl" style={{ color: "#475569", fontWeight: 400 }}>
               Click any stage to see the corresponding screen and data GenHaip captures automatically.
             </p>
           </div>
@@ -585,7 +588,7 @@ export default function HomePage() {
                   every guest.
                 </em>
               </h2>
-              <p className="text-base leading-relaxed mb-8 max-w-md" style={{ color: "var(--mkt-muted)", fontWeight: 300 }}>
+              <p className="text-base leading-relaxed mb-8 max-w-md" style={{ color: "#475569", fontWeight: 400 }}>
                 One profile that unifies calls, WhatsApp conversations, bookings,
                 stay preferences and lifetime value — automatically built from every
                 interaction across your properties.
@@ -741,7 +744,7 @@ export default function HomePage() {
               <br />
               <em className="font-display italic" style={{ color: "var(--mkt-gold)" }}>guest touchpoint.</em>
             </h2>
-            <p className="text-base leading-relaxed mb-8 max-w-md" style={{ color: "var(--mkt-muted)", fontWeight: 300 }}>
+            <p className="text-base leading-relaxed mb-8 max-w-md" style={{ color: "#475569", fontWeight: 400 }}>
               Your team switches between 4 apps to manage guest communications.
               GenHaip combines WhatsApp, Instagram DMs and phone calls in one clean
               workspace — with full conversation history for every guest.
@@ -900,7 +903,7 @@ export default function HomePage() {
               <br />
               <em className="font-display italic" style={{ color: "var(--mkt-gold)" }}>automatically analyzed.</em>
             </h2>
-            <p className="text-base leading-relaxed mb-8 max-w-md" style={{ color: "var(--mkt-muted)", fontWeight: 300 }}>
+            <p className="text-base leading-relaxed mb-8 max-w-md" style={{ color: "#475569", fontWeight: 400 }}>
               Stop manually reviewing call recordings. GenHaip transcribes, scores and
               extracts insights from every call — surfacing missed revenue, agent coaching
               moments and guest intent signals automatically.
@@ -938,7 +941,7 @@ export default function HomePage() {
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            backgroundImage: "radial-gradient(circle, rgba(20,184,166,0.10) 1px, transparent 1px)",
+            backgroundImage: "radial-gradient(circle, rgba(20,184,166,0.05) 1px, transparent 1px)",
             backgroundSize: "28px 28px",
           }}
         />
@@ -964,7 +967,7 @@ export default function HomePage() {
               your team already uses.
             </em>
           </h2>
-          <p className="text-sm mb-14 max-w-xl mx-auto" style={{ color: "rgba(255,255,255,0.50)" }}>
+          <p className="text-sm mb-14 max-w-xl mx-auto" style={{ color: "rgba(255,255,255,0.72)" }}>
             Connect your IVR, PMS, messaging and marketing tools. GenHaip unifies data from
             every system into one guest intelligence platform — no manual data entry.
           </p>
@@ -1051,7 +1054,7 @@ export default function HomePage() {
                 that drive revenue.
               </em>
             </h2>
-            <p className="text-base max-w-xl" style={{ color: "var(--mkt-muted)" }}>
+            <p className="text-base max-w-xl" style={{ color: "#475569", fontWeight: 400 }}>
               Select any area to see the metrics and insights GenHaip surfaces automatically
               from your calls, conversations and bookings.
             </p>
@@ -1079,7 +1082,7 @@ export default function HomePage() {
                 GenHaip connects them all.
               </em>
             </h2>
-            <p className="text-base max-w-2xl mx-auto" style={{ color: "var(--mkt-muted)" }}>
+            <p className="text-base max-w-2xl mx-auto" style={{ color: "#475569", fontWeight: 400 }}>
               Messaging tools manage conversations. PMS software manages bookings.
               Call software stores recordings. CRMs manage contacts.
               None of them talk to each other — so your team never has the full picture.
@@ -1204,7 +1207,7 @@ export default function HomePage() {
               stage of growth.
             </em>
           </h2>
-          <p className="text-base mb-14 max-w-xl mx-auto" style={{ color: "var(--mkt-muted)" }}>
+          <p className="text-base mb-14 max-w-xl mx-auto" style={{ color: "#475569", fontWeight: 400 }}>
             From boutique villas to multi-property resort groups — GenHaip scales with your portfolio.
           </p>
 
@@ -1308,7 +1311,7 @@ export default function HomePage() {
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            backgroundImage: "radial-gradient(circle, rgba(20,184,166,0.08) 1px, transparent 1px)",
+            backgroundImage: "radial-gradient(circle, rgba(20,184,166,0.04) 1px, transparent 1px)",
             backgroundSize: "28px 28px",
           }}
         />
@@ -1342,7 +1345,7 @@ export default function HomePage() {
               into revenue.
             </em>
           </h2>
-          <p className="text-base leading-relaxed mb-12 max-w-xl mx-auto" style={{ color: "rgba(255,255,255,0.50)", fontWeight: 300 }}>
+          <p className="text-base leading-relaxed mb-12 max-w-xl mx-auto" style={{ color: "rgba(255,255,255,0.75)", fontWeight: 400 }}>
             See every guest interaction, booking opportunity and operational insight
             in one platform built for hospitality teams.
           </p>

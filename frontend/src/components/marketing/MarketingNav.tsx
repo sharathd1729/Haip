@@ -71,8 +71,8 @@ export function MarketingNav() {
                 <Link key={f.href} href={f.href} className="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors group">
                   <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 mt-0.5">{f.icon}</div>
                   <div className="min-w-0">
-                    <span className="text-sm font-medium group-hover:text-[var(--mkt-gold)] transition-colors block" style={{ color: "var(--mkt-text)" }}>{f.label}</span>
-                    <span className="text-xs mt-0.5 block" style={{ color: "color-mix(in srgb, var(--mkt-text) 45%, transparent)" }}>{f.desc}</span>
+                    <span className="text-sm font-medium group-hover:text-[var(--mkt-gold)] transition-colors block" style={{ color: "#1E293B" }}>{f.label}</span>
+                    <span className="text-xs mt-0.5 block" style={{ color: "#64748B" }}>{f.desc}</span>
                   </div>
                 </Link>
               ))}
@@ -85,18 +85,18 @@ export function MarketingNav() {
                 <Link key={s.href} href={s.href} className="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors group">
                   <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 mt-0.5">{s.icon}</div>
                   <div className="min-w-0">
-                    <span className="text-sm font-medium group-hover:text-[var(--mkt-jade)] transition-colors block" style={{ color: "var(--mkt-text)" }}>{s.label}</span>
-                    <span className="text-xs mt-0.5 block" style={{ color: "color-mix(in srgb, var(--mkt-text) 45%, transparent)" }}>{s.desc}</span>
+                    <span className="text-sm font-medium group-hover:text-[var(--mkt-jade)] transition-colors block" style={{ color: "#1E293B" }}>{s.label}</span>
+                    <span className="text-xs mt-0.5 block" style={{ color: "#64748B" }}>{s.desc}</span>
                   </div>
                 </Link>
               ))}
             </div>
           </Dropdown>
 
-          <Link href="/integrations" className="px-4 py-2 text-base transition-colors rounded-lg hover:bg-white/5" style={{ color: "color-mix(in srgb, var(--mkt-text) 70%, transparent)" }}>
+          <Link href="/integrations" className="px-4 py-2 text-base font-medium transition-colors rounded-lg hover:bg-black/5" style={{ color: "#334155" }}>
             Integrations
           </Link>
-          <Link href="/pricing" className="px-4 py-2 text-base transition-colors rounded-lg hover:bg-white/5" style={{ color: "color-mix(in srgb, var(--mkt-text) 70%, transparent)" }}>
+          <Link href="/pricing" className="px-4 py-2 text-base font-medium transition-colors rounded-lg hover:bg-black/5" style={{ color: "#334155" }}>
             Pricing
           </Link>
 
@@ -106,8 +106,8 @@ export function MarketingNav() {
                 <Link key={r.href} href={r.href} className="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors group">
                   <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 mt-0.5">{r.icon}</div>
                   <div className="min-w-0">
-                    <span className="text-sm font-medium group-hover:text-[var(--mkt-jade)] transition-colors block" style={{ color: "var(--mkt-text)" }}>{r.label}</span>
-                    <span className="text-xs mt-0.5 block" style={{ color: "color-mix(in srgb, var(--mkt-text) 45%, transparent)" }}>{r.desc}</span>
+                    <span className="text-sm font-medium group-hover:text-[var(--mkt-jade)] transition-colors block" style={{ color: "#1E293B" }}>{r.label}</span>
+                    <span className="text-xs mt-0.5 block" style={{ color: "#64748B" }}>{r.desc}</span>
                   </div>
                 </Link>
               ))}
@@ -124,13 +124,13 @@ export function MarketingNav() {
           >
             {isDark ? <Sun size={16} /> : <Moon size={16} />}
           </button>
-          <Link href="/login" className="text-base transition-colors px-4 py-2" style={{ color: "color-mix(in srgb, var(--mkt-text) 70%, transparent)" }}>
+          <Link href="/login" className="text-base font-medium transition-colors px-4 py-2" style={{ color: "#334155" }}>
             Sign in
           </Link>
           <Link
             href="/book-demo"
             className="px-5 py-2.5 text-base font-semibold rounded-xl transition-all border"
-            style={{ color: "color-mix(in srgb, var(--mkt-text) 85%, transparent)", borderColor: "var(--mkt-border)" }}
+            style={{ color: "#1E293B", borderColor: "#CBD5E1" }}
           >
             Book demo
           </Link>
@@ -202,7 +202,7 @@ function Dropdown({ label, open, onEnter, onLeave, children }: {
 }) {
   return (
     <div className="relative" onMouseEnter={onEnter} onMouseLeave={onLeave}>
-      <button className="flex items-center gap-1 px-4 py-2 text-base transition-colors rounded-lg hover:bg-white/5" style={{ color: "color-mix(in srgb, var(--mkt-text) 70%, transparent)" }}>
+      <button className="flex items-center gap-1 px-4 py-2 text-base font-medium transition-colors rounded-lg hover:bg-black/5" style={{ color: "#334155" }}>
         {label} <ChevronDown size={14} className={cn("transition-transform", open && "rotate-180")} />
       </button>
       {open && <div className="absolute top-full left-0 pt-2">{children}</div>}
