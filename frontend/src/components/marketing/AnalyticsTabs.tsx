@@ -151,7 +151,7 @@ export function AnalyticsTabs() {
             }}
           >
             <div className="flex items-start justify-between mb-1">
-              <p className="text-xs" style={{ color: "var(--mkt-text)", opacity: 0.45 }}>
+              <p className="text-sm font-medium" style={{ color: "#475569" }}>
                 {m.label}
               </p>
               {trendIcon(m.trend)}
@@ -162,7 +162,7 @@ export function AnalyticsTabs() {
             >
               {m.value}
             </p>
-            <p className="text-[11px]" style={{ color: "var(--mkt-text)", opacity: 0.35 }}>
+            <p className="text-xs" style={{ color: "#64748B" }}>
               {m.sub}
             </p>
           </div>
@@ -188,10 +188,10 @@ export function AnalyticsTabs() {
               style={{ backgroundColor: row.color }}
             />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold truncate" style={{ color: "var(--mkt-text)" }}>
+              <p className="text-sm font-semibold truncate" style={{ color: "#1E293B" }}>
                 {row.label}
               </p>
-              <p className="text-xs truncate" style={{ color: "var(--mkt-text)", opacity: 0.4 }}>
+              <p className="text-sm truncate" style={{ color: "#475569" }}>
                 {row.detail}
               </p>
             </div>
@@ -223,7 +223,7 @@ export function AnalyticsTabs() {
           borderColor: "rgba(15,118,110,0.18)",
         }}
       >
-        <p className="text-xs" style={{ color: "var(--mkt-gold)" }}>
+        <p className="text-sm" style={{ color: "var(--mkt-gold)" }}>
           <span className="font-bold">AI Insight: </span>{tab.insight}
         </p>
       </div>

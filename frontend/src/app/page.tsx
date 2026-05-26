@@ -380,8 +380,8 @@ export default function HomePage() {
                   >
                     <X size={12} className="text-rose-400 flex-shrink-0 mt-0.5" />
                     <div>
-                      <p className="text-xs font-semibold" style={{ color: "var(--mkt-text)" }}>{item.tool}</p>
-                      <p className="text-[11px]" style={{ color: "var(--mkt-muted)" }}>{item.note}</p>
+                      <p className="text-sm font-semibold" style={{ color: "var(--mkt-text)" }}>{item.tool}</p>
+                      <p className="text-sm" style={{ color: "#475569" }}>{item.note}</p>
                     </div>
                   </div>
                 ))}
@@ -390,7 +390,7 @@ export default function HomePage() {
                 className="mt-4 p-3 rounded-xl text-center"
                 style={{ backgroundColor: "rgba(225,29,72,0.06)", border: "1px solid rgba(225,29,72,0.12)" }}
               >
-                <p className="text-xs font-semibold text-rose-500">
+                <p className="text-sm font-semibold text-rose-500">
                   Teams never see the complete guest journey
                 </p>
               </div>
@@ -442,7 +442,7 @@ export default function HomePage() {
                 className="mt-4 p-3 rounded-xl text-center"
                 style={{ backgroundColor: "rgba(15,118,110,0.07)", border: "1px solid rgba(15,118,110,0.18)" }}
               >
-                <p className="text-xs font-semibold" style={{ color: "#0F766E" }}>
+                <p className="text-sm font-semibold" style={{ color: "#0F766E" }}>
                   GenHaip connects every interaction into one timeline
                 </p>
               </div>
@@ -516,7 +516,7 @@ export default function HomePage() {
                   <h3 className="text-base font-bold mb-2" style={{ color: "var(--mkt-text)" }}>
                     {cap.title}
                   </h3>
-                  <p className="text-sm leading-relaxed mb-4" style={{ color: "var(--mkt-muted)" }}>
+                  <p className="text-base leading-relaxed mb-4" style={{ color: "#475569" }}>
                     {cap.desc}
                   </p>
 
@@ -528,7 +528,7 @@ export default function HomePage() {
                     {cap.preview.map((line, i) => (
                       <div key={i} className="flex items-center gap-2">
                         <div className="w-1 h-1 rounded-full flex-shrink-0" style={{ backgroundColor: cap.color }} />
-                        <p className="text-[11px] truncate" style={{ color: "var(--mkt-muted)" }}>
+                        <p className="text-sm truncate" style={{ color: "#475569" }}>
                           {line}
                         </p>
                       </div>
@@ -601,7 +601,7 @@ export default function HomePage() {
                   "Lifetime revenue, visit count and acquisition channel",
                   "DPDP-compliant consent tracking built in",
                 ].map((item, i) => (
-                  <li key={i} className="flex items-start gap-3 text-sm" style={{ color: "var(--mkt-muted)" }}>
+                  <li key={i} className="flex items-start gap-3 text-base" style={{ color: "#475569" }}>
                     <CheckCircle2 size={16} className="flex-shrink-0 mt-0.5" style={{ color: "#0F766E" }} />
                     {item}
                   </li>
@@ -1100,7 +1100,7 @@ export default function HomePage() {
                   {["Messaging App", "IVR / Call Tool", "PMS Software", "CRM Tool", "GenHaip"].map((col) => (
                     <th
                       key={col}
-                      className="py-3 px-4 text-center text-xs font-bold rounded-t-lg"
+                      className="py-3 px-4 text-center text-sm font-bold rounded-t-lg"
                       style={{
                         color: col === "GenHaip" ? "#fff" : "var(--mkt-muted)",
                         backgroundColor: col === "GenHaip" ? "#0F766E" : "var(--mkt-bg)",
@@ -1126,11 +1126,11 @@ export default function HomePage() {
                     className="border-t"
                     style={{ borderColor: "var(--mkt-border)" }}
                   >
-                    <td className="py-3 pr-6 text-xs" style={{ color: "var(--mkt-muted)" }}>{row[0]}</td>
+                    <td className="py-3 pr-6 text-sm font-medium" style={{ color: "#334155" }}>{row[0]}</td>
                     {row.slice(1).map((cell, j) => (
                       <td
                         key={j}
-                        className="py-3 px-4 text-center text-xs"
+                        className="py-3 px-4 text-center text-sm"
                         style={{
                           backgroundColor: j === 4
                             ? i % 2 === 0 ? "rgba(15,118,110,0.07)" : "rgba(15,118,110,0.04)"
@@ -1173,7 +1173,7 @@ export default function HomePage() {
                 >
                   &ldquo;
                 </div>
-                <p className="text-xl leading-relaxed mb-7 font-display italic" style={{ color: "var(--mkt-text)", fontWeight: 400 }}>
+                <p className="text-2xl leading-relaxed mb-7 font-display italic" style={{ color: "var(--mkt-text)", fontWeight: 400 }}>
                   {t.quote}
                 </p>
                 <div className="h-px mb-6" style={{ backgroundColor: "#0F766E", opacity: 0.15 }} />
@@ -1272,12 +1272,12 @@ export default function HomePage() {
                 <h3 className="font-display text-2xl font-light mb-3" style={{ color: "var(--mkt-text)" }}>
                   {plan.name}
                 </h3>
-                <p className="text-xs leading-relaxed mb-5" style={{ color: "var(--mkt-muted)" }}>
+                <p className="text-sm leading-relaxed mb-5" style={{ color: "#475569" }}>
                   {plan.ideal}
                 </p>
                 <ul className="space-y-2 mb-6">
                   {plan.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2 text-xs" style={{ color: "var(--mkt-muted)" }}>
+                    <li key={f} className="flex items-start gap-2 text-sm" style={{ color: "#475569" }}>
                       <CheckCircle2 size={13} className="flex-shrink-0 mt-0.5" style={{ color: "#0F766E" }} />
                       {f}
                     </li>

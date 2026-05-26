@@ -177,19 +177,19 @@ export function GuestJourney() {
               </div>
               <div className="flex-1 min-w-0">
                 <p
-                  className="text-sm font-semibold leading-none mb-0.5"
+                  className="text-base font-semibold leading-none mb-0.5"
                   style={{
                     color: isActive
                       ? s.color
                       : "var(--mkt-text)",
-                    opacity: isActive ? 1 : 0.6,
+                    opacity: isActive ? 1 : 0.7,
                   }}
                 >
                   {s.label}
                 </p>
                 <p
-                  className="text-xs truncate"
-                  style={{ color: "var(--mkt-text)", opacity: 0.35 }}
+                  className="text-sm truncate"
+                  style={{ color: "#475569" }}
                 >
                   {s.source}
                 </p>
@@ -232,10 +232,10 @@ export function GuestJourney() {
               <Icon size={15} color="#fff" />
             </div>
             <div>
-              <p className="text-sm font-semibold" style={{ color: "var(--mkt-text)" }}>
+              <p className="text-base font-semibold" style={{ color: "var(--mkt-text)" }}>
                 {stage.screen.title}
               </p>
-              <p className="text-xs" style={{ color: "var(--mkt-text)", opacity: 0.45 }}>
+              <p className="text-sm" style={{ color: "#475569" }}>
                 {stage.screen.detail}
               </p>
             </div>
@@ -266,7 +266,7 @@ export function GuestJourney() {
             >
               {msg.from === "meta" ? (
                 <div
-                  className="w-full text-center text-[11px] py-1.5 px-3 rounded-lg"
+                  className="w-full text-center text-sm py-1.5 px-3 rounded-lg"
                   style={{
                     backgroundColor: `${stage.color}08`,
                     color: stage.color,
@@ -289,8 +289,8 @@ export function GuestJourney() {
                   }}
                 >
                   <p
-                    className="text-xs leading-relaxed"
-                    style={{ color: "var(--mkt-text)", opacity: msg.from === "agent" ? 0.85 : 0.65 }}
+                    className="text-sm leading-relaxed"
+                    style={{ color: msg.from === "agent" ? "#1E293B" : "#334155" }}
                   >
                     {msg.text}
                   </p>
@@ -308,7 +308,7 @@ export function GuestJourney() {
             backgroundColor: "rgba(0,0,0,0.02)",
           }}
         >
-          <p className="text-[11px]" style={{ color: "var(--mkt-text)", opacity: 0.4 }}>
+          <p className="text-sm" style={{ color: "#475569" }}>
             {stage.screen.meta}
           </p>
         </div>
