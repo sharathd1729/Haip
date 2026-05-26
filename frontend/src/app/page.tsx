@@ -163,7 +163,7 @@ export default function HomePage() {
                 className="font-display leading-[1.0] tracking-tight mb-8"
                 style={{
                   fontSize: "clamp(48px, 6.5vw, 82px)",
-                  fontWeight: 400,
+                  fontWeight: 800,
                   animation: "haipFadeUp 0.7s cubic-bezier(0.16,1,0.3,1) 0.1s both",
                   color: "var(--mkt-text)",
                 }}
@@ -173,7 +173,7 @@ export default function HomePage() {
                 <br />
                 <em
                   className="font-display italic"
-                  style={{ color: "var(--mkt-gold)", fontWeight: 600 }}
+                  style={{ color: "var(--mkt-gold)", fontWeight: 800 }}
                 >
                   Hospitality.
                 </em>
@@ -183,6 +183,7 @@ export default function HomePage() {
                 className="text-lg leading-relaxed max-w-lg mb-10"
                 style={{
                   color: "var(--mkt-muted)",
+                  fontWeight: 300,
                   animation: "haipFadeUp 0.7s cubic-bezier(0.16,1,0.3,1) 0.2s both",
                 }}
               >
@@ -340,7 +341,7 @@ export default function HomePage() {
             </p>
             <h2
               className="font-display leading-[1.05] tracking-tight mb-5"
-              style={{ fontSize: "clamp(34px, 4.5vw, 54px)", fontWeight: 400, color: "var(--mkt-text)" }}
+              style={{ fontSize: "clamp(34px, 4.5vw, 54px)", fontWeight: 800, color: "var(--mkt-text)" }}
             >
               Hospitality operations
               <br />
@@ -458,7 +459,7 @@ export default function HomePage() {
             </p>
             <h2
               className="font-display leading-[1.0] tracking-tight"
-              style={{ fontSize: "clamp(36px, 5vw, 58px)", fontWeight: 400, color: "var(--mkt-text)" }}
+              style={{ fontSize: "clamp(36px, 5vw, 58px)", fontWeight: 800, color: "var(--mkt-text)" }}
             >
               Built for how hospitality
               <br />
@@ -548,7 +549,7 @@ export default function HomePage() {
             </p>
             <h2
               className="font-display leading-[1.0] tracking-tight mb-5"
-              style={{ fontSize: "clamp(34px, 4.5vw, 54px)", fontWeight: 400, color: "var(--mkt-text)" }}
+              style={{ fontSize: "clamp(34px, 4.5vw, 54px)", fontWeight: 800, color: "var(--mkt-text)" }}
             >
               Follow every guest from
               <br />
@@ -576,7 +577,7 @@ export default function HomePage() {
               </p>
               <h2
                 className="font-display leading-[1.0] tracking-tight mb-6"
-                style={{ fontSize: "clamp(34px, 4.5vw, 54px)", fontWeight: 400, color: "var(--mkt-text)" }}
+                style={{ fontSize: "clamp(34px, 4.5vw, 54px)", fontWeight: 800, color: "var(--mkt-text)" }}
               >
                 Everything about
                 <br />
@@ -584,7 +585,7 @@ export default function HomePage() {
                   every guest.
                 </em>
               </h2>
-              <p className="text-base leading-relaxed mb-8 max-w-md" style={{ color: "var(--mkt-muted)" }}>
+              <p className="text-base leading-relaxed mb-8 max-w-md" style={{ color: "var(--mkt-muted)", fontWeight: 300 }}>
                 One profile that unifies calls, WhatsApp conversations, bookings,
                 stay preferences and lifetime value — automatically built from every
                 interaction across your properties.
@@ -734,13 +735,13 @@ export default function HomePage() {
             </div>
             <h2
               className="font-display leading-[1.05] tracking-tight mb-5"
-              style={{ fontSize: "clamp(30px, 4vw, 50px)", fontWeight: 400, color: "var(--mkt-text)" }}
+              style={{ fontSize: "clamp(30px, 4vw, 50px)", fontWeight: 800, color: "var(--mkt-text)" }}
             >
               One inbox for every
               <br />
               <em className="font-display italic" style={{ color: "var(--mkt-gold)" }}>guest touchpoint.</em>
             </h2>
-            <p className="text-base leading-relaxed mb-8 max-w-md" style={{ color: "var(--mkt-muted)" }}>
+            <p className="text-base leading-relaxed mb-8 max-w-md" style={{ color: "var(--mkt-muted)", fontWeight: 300 }}>
               Your team switches between 4 apps to manage guest communications.
               GenHaip combines WhatsApp, Instagram DMs and phone calls in one clean
               workspace — with full conversation history for every guest.
@@ -893,13 +894,13 @@ export default function HomePage() {
             </div>
             <h2
               className="font-display leading-[1.05] tracking-tight mb-5"
-              style={{ fontSize: "clamp(30px, 4vw, 50px)", fontWeight: 400, color: "var(--mkt-text)" }}
+              style={{ fontSize: "clamp(30px, 4vw, 50px)", fontWeight: 800, color: "var(--mkt-text)" }}
             >
               Every call,
               <br />
               <em className="font-display italic" style={{ color: "var(--mkt-gold)" }}>automatically analyzed.</em>
             </h2>
-            <p className="text-base leading-relaxed mb-8 max-w-md" style={{ color: "var(--mkt-muted)" }}>
+            <p className="text-base leading-relaxed mb-8 max-w-md" style={{ color: "var(--mkt-muted)", fontWeight: 300 }}>
               Stop manually reviewing call recordings. GenHaip transcribes, scores and
               extracts insights from every call — surfacing missed revenue, agent coaching
               moments and guest intent signals automatically.
@@ -955,11 +956,11 @@ export default function HomePage() {
           </p>
           <h2
             className="font-display leading-[1.0] tracking-tight mb-5"
-            style={{ fontSize: "clamp(30px, 4vw, 48px)", fontWeight: 400, color: "#FFFFFF" }}
+            style={{ fontSize: "clamp(30px, 4vw, 48px)", fontWeight: 800, color: "#FFFFFF" }}
           >
             Works with the tools
             <br />
-            <em className="font-display italic" style={{ color: "#14B8A6", fontWeight: 400 }}>
+            <em className="font-display italic" style={{ color: "#14B8A6", fontWeight: 600 }}>
               your team already uses.
             </em>
           </h2>
@@ -1042,7 +1043,7 @@ export default function HomePage() {
             </p>
             <h2
               className="font-display leading-[1.0] tracking-tight mb-5"
-              style={{ fontSize: "clamp(34px, 4.5vw, 54px)", fontWeight: 400, color: "var(--mkt-text)" }}
+              style={{ fontSize: "clamp(34px, 4.5vw, 54px)", fontWeight: 800, color: "var(--mkt-text)" }}
             >
               Answers to the questions
               <br />
@@ -1070,7 +1071,7 @@ export default function HomePage() {
             </p>
             <h2
               className="font-display leading-[1.0] tracking-tight mb-5"
-              style={{ fontSize: "clamp(34px, 4.5vw, 54px)", fontWeight: 400, color: "var(--mkt-text)" }}
+              style={{ fontSize: "clamp(34px, 4.5vw, 54px)", fontWeight: 800, color: "var(--mkt-text)" }}
             >
               Every tool does one thing.
               <br />
@@ -1195,7 +1196,7 @@ export default function HomePage() {
           </p>
           <h2
             className="font-display leading-[1.0] tracking-tight mb-4"
-            style={{ fontSize: "clamp(34px, 4.5vw, 54px)", fontWeight: 400, color: "var(--mkt-text)" }}
+            style={{ fontSize: "clamp(34px, 4.5vw, 54px)", fontWeight: 800, color: "var(--mkt-text)" }}
           >
             Simple plans for every
             <br />
@@ -1333,7 +1334,7 @@ export default function HomePage() {
           </div>
           <h2
             className="font-display leading-[1.0] tracking-tight mb-5"
-            style={{ fontSize: "clamp(38px, 5.5vw, 64px)", fontWeight: 400, color: "#FFFFFF" }}
+            style={{ fontSize: "clamp(38px, 5.5vw, 64px)", fontWeight: 800, color: "#FFFFFF" }}
           >
             Turn guest conversations
             <br />
@@ -1341,7 +1342,7 @@ export default function HomePage() {
               into revenue.
             </em>
           </h2>
-          <p className="text-base leading-relaxed mb-12 max-w-xl mx-auto" style={{ color: "rgba(255,255,255,0.50)" }}>
+          <p className="text-base leading-relaxed mb-12 max-w-xl mx-auto" style={{ color: "rgba(255,255,255,0.50)", fontWeight: 300 }}>
             See every guest interaction, booking opportunity and operational insight
             in one platform built for hospitality teams.
           </p>

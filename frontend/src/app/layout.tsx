@@ -1,19 +1,21 @@
 import type { Metadata, Viewport } from "next";
-import { Cormorant_Garamond, Syne } from "next/font/google";
+import { Bricolage_Grotesque, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { PWARegister } from "@/components/PWARegister";
 
-const displayFont = Cormorant_Garamond({
+// Display font: Bricolage Grotesque — variable, expressive at 800–900, premium startup
+const displayFont = Bricolage_Grotesque({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700", "800"],
   variable: "--font-display",
   display: "swap",
 });
 
-const sansFont = Syne({
+// Body / UI font: Space Grotesk — technical-geometric, 300–700, intelligence-platform feel
+const sansFont = Space_Grotesk({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
+  weight: ["300", "400", "500", "600", "700"],
   variable: "--font-sans",
   display: "swap",
 });
