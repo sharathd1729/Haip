@@ -60,7 +60,7 @@ export function MarketingNav() {
       <div className="max-w-7xl mx-auto px-5 sm:px-8 flex items-center h-20 gap-8">
         {/* Logo */}
         <Link href="/" className="flex items-center flex-shrink-0">
-          <img src="/logo.png" alt="HAIP" className="h-12 w-auto object-contain" />
+          <img src="/logo.png" alt="HAIP" className="h-16 w-auto object-contain" />
         </Link>
 
         {/* Desktop Nav */}
