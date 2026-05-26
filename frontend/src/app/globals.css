@@ -82,6 +82,16 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Marketing palette — LIGHT mode (warm ivory + gold) */
+  --mkt-bg:          #FAF9F6;
+  --mkt-panel:       #F4F1EB;
+  --mkt-surface:     #EDE9DF;
+  --mkt-text:        #1C1C14;
+  --mkt-gold:        #A6732A;
+  --mkt-jade:        #2D8A6A;
+  --mkt-border:      rgba(0, 0, 0, 0.08);
+  --mkt-border-gold: rgba(166, 115, 42, 0.22);
 }
 
 .dark {
@@ -117,6 +127,16 @@
   --sidebar-accent-foreground:  #ffffff;
   --sidebar-border:             rgba(255,255,255,0.06);
   --sidebar-ring:               rgba(79,142,247,0.4);
+
+  /* Marketing palette — DARK mode (forest green + gold) */
+  --mkt-bg:          #0E1210;
+  --mkt-panel:       #141B15;
+  --mkt-surface:     #1B2419;
+  --mkt-text:        #F0E8D0;
+  --mkt-gold:        #C8964A;
+  --mkt-jade:        #3D9E7E;
+  --mkt-border:      rgba(240, 232, 208, 0.08);
+  --mkt-border-gold: rgba(200, 150, 74, 0.18);
 }
 
 /* ── Adaptive CSS variables (used by pages instead of hardcoded #hex) ─────────
@@ -213,23 +233,45 @@
     [class*="bg-pink"]
   ) { color: var(--foreground) !important; }
 
-  /* text-white opacity variants — remap in light main */
+  /* text-white opacity variants — remap in light (main + footer) */
+  :root:not(.dark) footer .text-white    { color: var(--mkt-text) !important; }
+  :root:not(.dark) footer .text-white\/50 { color: color-mix(in srgb, var(--mkt-text) 50%, transparent) !important; }
+  :root:not(.dark) footer .text-white\/40 { color: color-mix(in srgb, var(--mkt-text) 40%, transparent) !important; }
+  :root:not(.dark) footer .text-white\/30 { color: color-mix(in srgb, var(--mkt-text) 30%, transparent) !important; }
+  :root:not(.dark) footer .text-white\/25 { color: color-mix(in srgb, var(--mkt-text) 25%, transparent) !important; }
+  :root:not(.dark) footer .text-white\/20 { color: color-mix(in srgb, var(--mkt-text) 20%, transparent) !important; }
+  :root:not(.dark) footer .hover\:text-white:hover { color: var(--mkt-text) !important; }
+  :root:not(.dark) footer .bg-white\/5  { background-color: rgba(0,0,0,0.04) !important; }
+  :root:not(.dark) footer .bg-white\/10 { background-color: rgba(0,0,0,0.06) !important; }
+  :root:not(.dark) footer .hover\:bg-white\/10:hover { background-color: rgba(0,0,0,0.06) !important; }
+  :root:not(.dark) footer .border-white\/5  { border-color: rgba(0,0,0,0.06) !important; }
+  :root:not(.dark) footer .border-white\/10 { border-color: rgba(0,0,0,0.08) !important; }
+
   :root:not(.dark) main .text-white\/80 { color: color-mix(in srgb, var(--foreground) 80%, transparent) !important; }
   :root:not(.dark) main .text-white\/70 { color: color-mix(in srgb, var(--foreground) 70%, transparent) !important; }
   :root:not(.dark) main .text-white\/60 { color: color-mix(in srgb, var(--foreground) 60%, transparent) !important; }
+  :root:not(.dark) main .text-white\/55 { color: color-mix(in srgb, var(--foreground) 55%, transparent) !important; }
   :root:not(.dark) main .text-white\/50 { color: color-mix(in srgb, var(--foreground) 50%, transparent) !important; }
+  :root:not(.dark) main .text-white\/45 { color: color-mix(in srgb, var(--foreground) 45%, transparent) !important; }
   :root:not(.dark) main .text-white\/40 { color: color-mix(in srgb, var(--foreground) 40%, transparent) !important; }
   :root:not(.dark) main .text-white\/35 { color: color-mix(in srgb, var(--foreground) 35%, transparent) !important; }
   :root:not(.dark) main .text-white\/30 { color: color-mix(in srgb, var(--foreground) 30%, transparent) !important; }
   :root:not(.dark) main .text-white\/25 { color: color-mix(in srgb, var(--foreground) 25%, transparent) !important; }
   :root:not(.dark) main .text-white\/20 { color: color-mix(in srgb, var(--foreground) 20%, transparent) !important; }
+  :root:not(.dark) main .text-white\/15 { color: color-mix(in srgb, var(--foreground) 15%, transparent) !important; }
+  :root:not(.dark) main .text-white\/10 { color: color-mix(in srgb, var(--foreground) 10%, transparent) !important; }
 
-  /* Light mode: hardcoded dark-navy backgrounds in main content → use token */
+  /* Light mode: hardcoded dark backgrounds in main content → mkt-panel token */
   :root:not(.dark) main [class*="bg-\\[\\#0f"],
   :root:not(.dark) main [class*="bg-\\[\\#0b"],
+  :root:not(.dark) main [class*="bg-\\[\\#0e"],
+  :root:not(.dark) main [class*="bg-\\[\\#0E"],
+  :root:not(.dark) main [class*="bg-\\[\\#14"],
+  :root:not(.dark) main [class*="bg-\\[\\#1b"],
+  :root:not(.dark) main [class*="bg-\\[\\#1B"],
   :root:not(.dark) main [class*="bg-\\[\\#16"],
   :root:not(.dark) main [class*="bg-\\[\\#1a"],
-  :root:not(.dark) main [class*="bg-\\[\\#12"] { background-color: var(--card) !important; }
+  :root:not(.dark) main [class*="bg-\\[\\#12"] { background-color: var(--mkt-panel) !important; }
 
   /* Light mode: white/5, white/3 etc. bg overlays → dark/5 etc. */
   :root:not(.dark) main .bg-white\/\[0\.03\]  { background-color: rgba(0,0,0,0.03) !important; }
@@ -241,18 +283,6 @@
   :root:not(.dark) main .border-white\/\[0\.07\] { border-color: rgba(0,0,0,0.07) !important; }
   :root:not(.dark) main .border-white\/\[0\.08\] { border-color: rgba(0,0,0,0.08) !important; }
   :root:not(.dark) main .border-white\/10      { border-color: rgba(0,0,0,0.08) !important; }
-}
-
-/* ── Marketing page palette ──────────────────────────────────────────────── */
-:root {
-  --mkt-bg:         #0E1210;
-  --mkt-panel:      #141B15;
-  --mkt-surface:    #1B2419;
-  --mkt-text:       #F0E8D0;
-  --mkt-gold:       #C8964A;
-  --mkt-jade:       #3D9E7E;
-  --mkt-border:     rgba(240, 232, 208, 0.08);
-  --mkt-border-gold:rgba(200, 150, 74, 0.18);
 }
 
 /* ── Marketing animations ────────────────────────────────────────────────── */

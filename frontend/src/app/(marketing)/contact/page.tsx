@@ -47,7 +47,7 @@ export default function ContactPage() {
   }
 
   return (
-    <div className="bg-[#0E1210] text-white min-h-screen">
+    <div className="bg-[var(--mkt-bg)] text-white min-h-screen">
       <section className="relative pt-32 pb-24 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full bg-teal-500/8 blur-[120px]" />
@@ -97,7 +97,7 @@ export default function ContactPage() {
           {/* Form + info */}
           <div className="grid lg:grid-cols-5 gap-6">
             {/* Form */}
-            <div className="lg:col-span-3 bg-[#141B15] border border-white/10 rounded-2xl p-7 sm:p-8 shadow-2xl shadow-black/30">
+            <div className="lg:col-span-3 bg-[var(--mkt-panel)] border border-white/10 rounded-2xl p-7 sm:p-8 shadow-2xl shadow-black/30">
               {success ? (
                 <div className="text-center py-10">
                   <div className="w-16 h-16 rounded-2xl bg-teal-500/20 border border-teal-500/30 flex items-center justify-center mx-auto mb-5">
@@ -212,7 +212,7 @@ function Channel({ icon, tone, title, subtitle, primary, secondary }: {
 }) {
   const ring = tone === "teal" ? "hover:border-teal-500/30" : tone === "amber" ? "hover:border-amber-500/30" : "hover:border-cyan-500/30";
   return (
-    <div className={`bg-[#141B15]/70 border border-white/8 ${ring} rounded-2xl p-6 transition-colors`}>
+    <div className={`bg-[var(--mkt-panel)]/70 border border-white/8 ${ring} rounded-2xl p-6 transition-colors`}>
       <div className="w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center mb-4">{icon}</div>
       <h3 className="text-base font-bold text-white mb-1">{title}</h3>
       <p className="text-xs text-white/40 mb-5">{subtitle}</p>
@@ -233,7 +233,7 @@ function InfoCard({ icon, title, lines, children }: {
   children?: React.ReactNode;
 }) {
   return (
-    <div className="bg-[#141B15]/60 border border-white/8 rounded-2xl p-5">
+    <div className="bg-[var(--mkt-panel)]/60 border border-white/8 rounded-2xl p-5">
       <div className="flex items-center gap-2 mb-3">
         <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center">{icon}</div>
         <h4 className="text-sm font-bold text-white">{title}</h4>

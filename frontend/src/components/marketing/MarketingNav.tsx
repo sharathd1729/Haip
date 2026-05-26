@@ -3,9 +3,11 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { useThemeMode } from "@/hooks/useThemeMode";
 import {
   Menu, X, ChevronDown, Inbox, Phone, Users, MessageSquare, Star, BarChart2,
   Building2, Hotel, Trees, Plane, FileText, Shield, BookOpen, Activity, Sparkles,
+  Sun, Moon,
 } from "lucide-react";
 
 const features = [
@@ -36,6 +38,7 @@ export function MarketingNav() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openMenu, setOpenMenu] = useState<"features" | "solutions" | "resources" | null>(null);
+  const { isDark, toggle: toggleTheme } = useThemeMode();
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 12);
@@ -45,19 +48,20 @@ export function MarketingNav() {
 
   return (
     <header
+      data-mkt-nav
       className={cn(
         "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
         scrolled
           ? "backdrop-blur-xl border-b shadow-xl shadow-black/30"
           : "bg-transparent"
       )}
-      style={scrolled ? { backgroundColor: "rgba(14,18,16,0.95)", borderColor: "rgba(240,232,208,0.07)" } : undefined}
+      style={scrolled ? { backgroundColor: "color-mix(in srgb, var(--mkt-bg) 95%, transparent)", borderColor: "var(--mkt-border)" } : undefined}
     >
       <div className="max-w-7xl mx-auto px-5 sm:px-8 flex items-center h-16 gap-6">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2.5 flex-shrink-0">
           <img src="/logo.png" alt="HAIP" className="h-9 w-auto object-contain" />
-          <span className="text-white font-bold text-xl tracking-tight">
+          <span className="font-bold text-xl tracking-tight" style={{ color: "var(--mkt-text)" }}>
             HA<span style={{ color: "var(--mkt-gold)" }}>IP</span>
           </span>
         </Link>
@@ -65,13 +69,13 @@ export function MarketingNav() {
         {/* Desktop Nav */}
         <nav className="hidden lg:flex items-center gap-1 flex-1">
           <Dropdown label="Features" open={openMenu === "features"} onEnter={() => setOpenMenu("features")} onLeave={() => setOpenMenu(null)}>
-            <div className="rounded-xl shadow-2xl shadow-black/50 p-2 w-80" style={{ backgroundColor: "var(--mkt-panel)", border: "1px solid rgba(240,232,208,0.08)" }}>
+            <div className="rounded-xl shadow-2xl shadow-black/50 p-2 w-80" style={{ backgroundColor: "var(--mkt-panel)", border: "1px solid var(--mkt-border)" }}>
               {features.map(f => (
                 <Link key={f.href} href={f.href} className="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors group">
                   <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 mt-0.5">{f.icon}</div>
                   <div className="min-w-0">
-                    <span className="text-sm font-medium text-white group-hover:text-[#C8964A] transition-colors block">{f.label}</span>
-                    <span className="text-xs text-white/40 mt-0.5 block">{f.desc}</span>
+                    <span className="text-sm font-medium group-hover:text-[var(--mkt-gold)] transition-colors block" style={{ color: "var(--mkt-text)" }}>{f.label}</span>
+                    <span className="text-xs mt-0.5 block" style={{ color: "color-mix(in srgb, var(--mkt-text) 45%, transparent)" }}>{f.desc}</span>
                   </div>
                 </Link>
               ))}
@@ -79,34 +83,34 @@ export function MarketingNav() {
           </Dropdown>
 
           <Dropdown label="Solutions" open={openMenu === "solutions"} onEnter={() => setOpenMenu("solutions")} onLeave={() => setOpenMenu(null)}>
-            <div className="rounded-xl shadow-2xl shadow-black/50 p-2 w-80" style={{ backgroundColor: "var(--mkt-panel)", border: "1px solid rgba(240,232,208,0.08)" }}>
+            <div className="rounded-xl shadow-2xl shadow-black/50 p-2 w-80" style={{ backgroundColor: "var(--mkt-panel)", border: "1px solid var(--mkt-border)" }}>
               {solutions.map(s => (
                 <Link key={s.href} href={s.href} className="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors group">
                   <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 mt-0.5">{s.icon}</div>
                   <div className="min-w-0">
-                    <span className="text-sm font-medium text-white group-hover:text-teal-400 transition-colors block">{s.label}</span>
-                    <span className="text-xs text-white/40 mt-0.5 block">{s.desc}</span>
+                    <span className="text-sm font-medium group-hover:text-[var(--mkt-jade)] transition-colors block" style={{ color: "var(--mkt-text)" }}>{s.label}</span>
+                    <span className="text-xs mt-0.5 block" style={{ color: "color-mix(in srgb, var(--mkt-text) 45%, transparent)" }}>{s.desc}</span>
                   </div>
                 </Link>
               ))}
             </div>
           </Dropdown>
 
-          <Link href="/integrations" className="px-3 py-2 text-sm text-white/70 hover:text-white transition-colors rounded-lg hover:bg-white/5">
+          <Link href="/integrations" className="px-3 py-2 text-sm transition-colors rounded-lg hover:bg-white/5" style={{ color: "color-mix(in srgb, var(--mkt-text) 70%, transparent)" }}>
             Integrations
           </Link>
-          <Link href="/pricing" className="px-3 py-2 text-sm text-white/70 hover:text-white transition-colors rounded-lg hover:bg-white/5">
+          <Link href="/pricing" className="px-3 py-2 text-sm transition-colors rounded-lg hover:bg-white/5" style={{ color: "color-mix(in srgb, var(--mkt-text) 70%, transparent)" }}>
             Pricing
           </Link>
 
           <Dropdown label="Resources" open={openMenu === "resources"} onEnter={() => setOpenMenu("resources")} onLeave={() => setOpenMenu(null)}>
-            <div className="rounded-xl shadow-2xl shadow-black/50 p-2 w-80" style={{ backgroundColor: "var(--mkt-panel)", border: "1px solid rgba(240,232,208,0.08)" }}>
+            <div className="rounded-xl shadow-2xl shadow-black/50 p-2 w-80" style={{ backgroundColor: "var(--mkt-panel)", border: "1px solid var(--mkt-border)" }}>
               {resources.map(r => (
                 <Link key={r.href} href={r.href} className="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors group">
                   <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 mt-0.5">{r.icon}</div>
                   <div className="min-w-0">
-                    <span className="text-sm font-medium text-white group-hover:text-teal-400 transition-colors block">{r.label}</span>
-                    <span className="text-xs text-white/40 mt-0.5 block">{r.desc}</span>
+                    <span className="text-sm font-medium group-hover:text-[var(--mkt-jade)] transition-colors block" style={{ color: "var(--mkt-text)" }}>{r.label}</span>
+                    <span className="text-xs mt-0.5 block" style={{ color: "color-mix(in srgb, var(--mkt-text) 45%, transparent)" }}>{r.desc}</span>
                   </div>
                 </Link>
               ))}
@@ -116,12 +120,20 @@ export function MarketingNav() {
 
         {/* Right actions */}
         <div className="hidden lg:flex items-center gap-2 ml-auto">
-          <Link href="/login" className="text-sm text-white/70 hover:text-white transition-colors px-3 py-2">
+          <button
+            onClick={toggleTheme}
+            aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            className="w-9 h-9 flex items-center justify-center rounded-lg text-white/50 hover:text-white hover:bg-white/8 transition-colors"
+          >
+            {isDark ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+          <Link href="/login" className="text-sm transition-colors px-3 py-2" style={{ color: "color-mix(in srgb, var(--mkt-text) 70%, transparent)" }}>
             Sign in
           </Link>
           <Link
             href="/book-demo"
-            className="px-3.5 py-2 text-sm font-semibold text-white/85 hover:text-white border border-white/15 hover:border-white/30 rounded-xl transition-all"
+            className="px-3.5 py-2 text-sm font-semibold rounded-xl transition-all border"
+            style={{ color: "color-mix(in srgb, var(--mkt-text) 85%, transparent)", borderColor: "var(--mkt-border)" }}
           >
             Book demo
           </Link>
@@ -146,7 +158,7 @@ export function MarketingNav() {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="lg:hidden border-t px-5 py-4 space-y-1 max-h-[calc(100vh-64px)] overflow-y-auto" style={{ backgroundColor: "var(--mkt-bg)", borderColor: "rgba(240,232,208,0.08)" }}>
+        <div className="lg:hidden border-t px-5 py-4 space-y-1 max-h-[calc(100vh-64px)] overflow-y-auto" style={{ backgroundColor: "var(--mkt-bg)", borderColor: "var(--mkt-border)" }}>
           <MobileSection title="Features" items={features} onClose={() => setMobileOpen(false)} />
           <MobileSection title="Solutions" items={solutions} onClose={() => setMobileOpen(false)} />
           <div className="h-px bg-white/8 my-2" />
@@ -155,6 +167,13 @@ export function MarketingNav() {
           <MobileSection title="Resources" items={resources} onClose={() => setMobileOpen(false)} />
           <MobileLink href="/contact" onClose={() => setMobileOpen(false)}>Contact</MobileLink>
           <div className="h-px bg-white/8 my-2" />
+          <button
+            onClick={() => { toggleTheme(); }}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+          >
+            {isDark ? <Sun size={15} /> : <Moon size={15} />}
+            {isDark ? "Switch to light mode" : "Switch to dark mode"}
+          </button>
           <MobileLink href="/login" onClose={() => setMobileOpen(false)}>Sign in</MobileLink>
           <Link
             href="/book-demo"
@@ -186,7 +205,7 @@ function Dropdown({ label, open, onEnter, onLeave, children }: {
 }) {
   return (
     <div className="relative" onMouseEnter={onEnter} onMouseLeave={onLeave}>
-      <button className="flex items-center gap-1 px-3 py-2 text-sm text-white/70 hover:text-white transition-colors rounded-lg hover:bg-white/5">
+      <button className="flex items-center gap-1 px-3 py-2 text-sm transition-colors rounded-lg hover:bg-white/5" style={{ color: "color-mix(in srgb, var(--mkt-text) 70%, transparent)" }}>
         {label} <ChevronDown size={14} className={cn("transition-transform", open && "rotate-180")} />
       </button>
       {open && <div className="absolute top-full left-0 pt-2">{children}</div>}

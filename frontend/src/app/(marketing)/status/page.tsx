@@ -30,7 +30,7 @@ const colors: Record<string, { dot: string; label: string; cell: string }> = {
 
 export default function StatusPage() {
   return (
-    <div className="bg-[#0E1210] text-white min-h-screen">
+    <div className="bg-[var(--mkt-bg)] text-white min-h-screen">
       <section className="pt-32 pb-10 px-5 sm:px-8">
         <div className="max-w-4xl mx-auto">
           <div className="inline-flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-full px-4 py-1.5 mb-5">
@@ -43,7 +43,7 @@ export default function StatusPage() {
       </section>
 
       <section className="px-5 sm:px-8 pb-12">
-        <div className="max-w-4xl mx-auto bg-[#141B15] border border-white/10 rounded-2xl overflow-hidden">
+        <div className="max-w-4xl mx-auto bg-[var(--mkt-panel)] border border-white/10 rounded-2xl overflow-hidden">
           {services.map(s => (
             <div key={s.name} className="flex items-center justify-between px-5 py-4 border-b border-white/5 last:border-b-0">
               <span className="text-sm font-medium text-white">{s.name}</span>
@@ -86,7 +86,7 @@ export default function StatusPage() {
           <h2 className="text-base font-bold mb-4">Recent incidents</h2>
           <div className="space-y-3">
             {incidents.map(i => (
-              <div key={i.title} className="bg-[#141B15]/70 border border-white/8 rounded-2xl p-5">
+              <div key={i.title} className="bg-[var(--mkt-panel)]/70 border border-white/8 rounded-2xl p-5">
                 <div className="flex items-start justify-between gap-3 mb-2">
                   <h3 className="text-sm font-bold text-white">{i.title}</h3>
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest border border-green-500/30 bg-green-500/10 text-green-300 px-2 py-0.5 rounded-md flex-shrink-0">

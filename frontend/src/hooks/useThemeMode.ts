@@ -5,16 +5,30 @@ export type ColorScheme = "light" | "dark";
 
 const LS_KEY = "haip_color_scheme";
 
+function getSystemScheme(): ColorScheme {
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
 export function useThemeMode() {
-  // Default dark — matches the server-rendered inline script in layout.tsx
-  // Only "light" in localStorage opts into light mode
   const [mode, setMode] = useState<ColorScheme>("dark");
 
-  // On mount, read saved preference (defaults to dark if not set)
   useEffect(() => {
-    const saved = (localStorage.getItem(LS_KEY) as ColorScheme) ?? "dark";
-    setMode(saved);
-    applyClass(saved);
+    const saved = localStorage.getItem(LS_KEY) as ColorScheme | null;
+    const resolved: ColorScheme = saved ?? getSystemScheme();
+    setMode(resolved);
+    applyClass(resolved);
+
+    // Track system changes when no explicit preference is saved
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = (e: MediaQueryListEvent) => {
+      if (!localStorage.getItem(LS_KEY)) {
+        const next: ColorScheme = e.matches ? "dark" : "light";
+        setMode(next);
+        applyClass(next);
+      }
+    };
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
   }, []);
 
   const toggle = useCallback(() => {

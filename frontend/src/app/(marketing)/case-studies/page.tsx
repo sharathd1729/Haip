@@ -73,7 +73,7 @@ const themes = [
 
 export default function CaseStudiesPage() {
   return (
-    <div className="bg-[#0E1210] text-white min-h-screen">
+    <div className="bg-[var(--mkt-bg)] text-white min-h-screen">
       {/* HERO */}
       <section className="relative pt-32 pb-16 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -106,7 +106,7 @@ export default function CaseStudiesPage() {
       {/* FEATURED CASE STUDY */}
       <section className="py-16 px-5 sm:px-8">
         <div className="max-w-6xl mx-auto">
-          <Link href={featured.href} className="block group bg-[#141B15] hover:bg-[#102a4a] border border-white/10 hover:border-cyan-500/30 rounded-3xl overflow-hidden transition-all">
+          <Link href={featured.href} className="block group bg-[var(--mkt-panel)] hover:bg-[#102a4a] border border-white/10 hover:border-cyan-500/30 rounded-3xl overflow-hidden transition-all">
             <div className="grid lg:grid-cols-12">
               {/* Left: copy */}
               <div className="lg:col-span-7 p-8 sm:p-12">
@@ -151,7 +151,7 @@ export default function CaseStudiesPage() {
       <section className="px-5 sm:px-8 pb-20">
         <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-5">
           {cases.map(c => (
-            <Link key={c.brand} href={c.href} className="group bg-[#141B15]/70 hover:bg-[#141B15] border border-white/8 hover:border-teal-500/25 rounded-2xl p-6 transition-all hover:-translate-y-0.5">
+            <Link key={c.brand} href={c.href} className="group bg-[var(--mkt-panel)]/70 hover:bg-[var(--mkt-panel)] border border-white/8 hover:border-teal-500/25 rounded-2xl p-6 transition-all hover:-translate-y-0.5">
               <div className="flex items-center justify-between mb-5">
                 <div className={`inline-flex items-center gap-2 ${c.color} border rounded-full px-3 py-1`}>
                   {c.icon}

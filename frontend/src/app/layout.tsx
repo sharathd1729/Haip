@@ -65,10 +65,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: `
           try {
             var s = localStorage.getItem('haip_color_scheme');
-            if (s !== 'light') document.documentElement.classList.add('dark');
-          } catch(e) {
-            document.documentElement.classList.add('dark');
-          }
+            var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (s === 'dark' || (s === null && prefersDark)) {
+              document.documentElement.classList.add('dark');
+            }
+          } catch(e) {}
         `}} />
       </head>
       <body className={`${displayFont.variable} ${sansFont.variable} min-h-full bg-background`}>

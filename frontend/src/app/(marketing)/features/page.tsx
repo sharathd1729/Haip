@@ -12,7 +12,7 @@ const features = [
 
 export default function FeaturesPage() {
   return (
-    <div className="bg-[#0E1210] text-white pt-24 min-h-screen">
+    <div className="bg-[var(--mkt-bg)] text-white pt-24 min-h-screen">
       <div className="max-w-7xl mx-auto px-5 sm:px-8 py-16">
         <div className="text-center mb-16">
           <p className="text-xs font-bold text-[#3D9E7E] uppercase tracking-widest mb-3">Features</p>
@@ -37,7 +37,7 @@ export default function FeaturesPage() {
                   Try free for 14 days <ArrowRight size={14} />
                 </Link>
               </div>
-              <div className={`bg-[#141B15] rounded-2xl border border-white/8 p-8 flex items-center justify-center min-h-[240px] ${i % 2 === 1 ? "lg:col-start-1 lg:row-start-1" : ""}`}>
+              <div className={`bg-[var(--mkt-panel)] rounded-2xl border border-white/8 p-8 flex items-center justify-center min-h-[240px] ${i % 2 === 1 ? "lg:col-start-1 lg:row-start-1" : ""}`}>
                 <div className={`text-center ${f.color}`}>
                   {f.icon}
                   <p className="text-xs text-white/30 mt-3">{f.title} visualization</p>

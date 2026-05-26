@@ -39,7 +39,7 @@ const links = {
 
 export function MarketingFooter() {
   return (
-    <footer className="border-t" style={{ backgroundColor: "#090C0A", borderColor: "rgba(240,232,208,0.06)" }}>
+    <footer className="border-t" style={{ backgroundColor: "var(--mkt-bg)", borderColor: "var(--mkt-border)" }}>
       {/* Main footer */}
       <div className="max-w-7xl mx-auto px-5 sm:px-8 pt-16 pb-12">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-8 lg:gap-10">
@@ -94,7 +94,7 @@ export function MarketingFooter() {
       </div>
 
       {/* Bottom bar */}
-      <div className="border-t border-white/5">
+      <div className="border-t" style={{ borderColor: "var(--mkt-border)" }}>
         <div className="max-w-7xl mx-auto px-5 sm:px-8 h-14 flex items-center justify-between">
           <p className="text-xs text-white/25">
             © {new Date().getFullYear()} HAIP Technologies Pvt. Ltd. All rights reserved.

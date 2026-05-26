@@ -53,7 +53,7 @@ const faqs = [
 
 export default function HotelsSolutionPage() {
   return (
-    <div className="bg-[#0E1210] text-white min-h-screen">
+    <div className="bg-[var(--mkt-bg)] text-white min-h-screen">
       {/* HERO */}
       <section className="relative pt-32 pb-20 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -85,7 +85,7 @@ export default function HotelsSolutionPage() {
           <div className="lg:col-span-5">
             <div className="relative">
               <div className="absolute -inset-4 bg-gradient-to-br from-amber-500/20 to-teal-500/10 rounded-3xl blur-2xl" />
-              <div className="relative bg-[#141B15] rounded-2xl border border-white/10 p-5 shadow-2xl shadow-black/40">
+              <div className="relative bg-[var(--mkt-panel)] rounded-2xl border border-white/10 p-5 shadow-2xl shadow-black/40">
                 <div className="flex items-center justify-between mb-4">
                   <p className="text-xs font-semibold text-white/40 uppercase tracking-wider">Booking mix · Last 30 days</p>
                   <span className="text-[10px] px-2 py-1 rounded-md bg-teal-500/20 text-teal-300 font-semibold">+14% direct</span>
@@ -120,7 +120,7 @@ export default function HotelsSolutionPage() {
       </section>
 
       {/* STATS */}
-      <section className="py-14 border-y border-white/6 bg-gradient-to-r from-[#0E1210] to-[#141B15]">
+      <section className="py-14 border-y border-white/6 bg-gradient-to-r from-[var(--mkt-bg)] to-[var(--mkt-panel)]">
         <div className="max-w-5xl mx-auto px-5 sm:px-8 grid grid-cols-2 md:grid-cols-4 gap-8">
           {stats.map(s => (
             <div key={s.label} className="text-center">
@@ -141,7 +141,7 @@ export default function HotelsSolutionPage() {
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
             {painPoints.map(p => (
-              <div key={p.title} className="bg-[#141B15]/60 border border-white/6 rounded-2xl p-6 hover:border-rose-500/20 transition-colors">
+              <div key={p.title} className="bg-[var(--mkt-panel)]/60 border border-white/6 rounded-2xl p-6 hover:border-rose-500/20 transition-colors">
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center flex-shrink-0">{p.icon}</div>
                   <div>
@@ -164,7 +164,7 @@ export default function HotelsSolutionPage() {
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
             {features.map(f => (
-              <div key={f.title} className="bg-[#141B15] border border-white/8 rounded-2xl p-6 hover:border-amber-500/30 transition-all hover:-translate-y-0.5">
+              <div key={f.title} className="bg-[var(--mkt-panel)] border border-white/8 rounded-2xl p-6 hover:border-amber-500/30 transition-all hover:-translate-y-0.5">
                 <div className={`w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center mb-4 ${f.color}`}>{f.icon}</div>
                 <h3 className="text-base font-bold text-white mb-2">{f.title}</h3>
                 <p className="text-sm text-white/45 leading-relaxed">{f.desc}</p>
@@ -200,7 +200,7 @@ export default function HotelsSolutionPage() {
               ))}
             </ul>
           </div>
-          <div className="bg-[#141B15] rounded-2xl border border-white/10 p-6 shadow-2xl shadow-black/40">
+          <div className="bg-[var(--mkt-panel)] rounded-2xl border border-white/10 p-6 shadow-2xl shadow-black/40">
             <div className="space-y-3">
               {[
                 { step: "Guest dials", detail: "Calls your published CallerDesk/Acefone number", color: "bg-blue-500/15 text-blue-300" },
@@ -225,7 +225,7 @@ export default function HotelsSolutionPage() {
 
       {/* TESTIMONIAL */}
       <section className="py-24 px-5 sm:px-8 bg-[#0E1210]">
-        <div className="max-w-4xl mx-auto bg-gradient-to-br from-[#141B15] to-[#0E1210] border border-white/10 rounded-3xl p-10 sm:p-14">
+        <div className="max-w-4xl mx-auto bg-gradient-to-br from-[var(--mkt-panel)] to-[#0E1210] border border-white/10 rounded-3xl p-10 sm:p-14">
           <div className="flex gap-1 mb-6">
             {[...Array(5)].map((_, i) => <span key={i} className="text-amber-400">★</span>)}
           </div>
@@ -251,7 +251,7 @@ export default function HotelsSolutionPage() {
           </div>
           <div className="space-y-3">
             {faqs.map(f => (
-              <details key={f.q} className="group bg-[#141B15]/60 border border-white/8 rounded-2xl px-6 py-5 hover:border-amber-500/30 transition-colors">
+              <details key={f.q} className="group bg-[var(--mkt-panel)]/60 border border-white/8 rounded-2xl px-6 py-5 hover:border-amber-500/30 transition-colors">
                 <summary className="flex items-center justify-between cursor-pointer list-none">
                   <h3 className="text-base font-semibold text-white pr-4">{f.q}</h3>
                   <ChevronRight size={18} className="text-amber-400 group-open:rotate-90 transition-transform flex-shrink-0" />

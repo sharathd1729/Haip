@@ -48,7 +48,7 @@ const lanes = [
 
 export default function RoadmapPage() {
   return (
-    <div className="bg-[#0E1210] text-white min-h-screen">
+    <div className="bg-[var(--mkt-bg)] text-white min-h-screen">
       <section className="relative pt-32 pb-12 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full bg-teal-500/8 blur-[120px]" />
@@ -66,7 +66,7 @@ export default function RoadmapPage() {
       <section className="px-5 sm:px-8 pb-20">
         <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-5">
           {lanes.map(l => (
-            <div key={l.quarter} className="bg-[#141B15]/60 border border-white/8 rounded-2xl p-6">
+            <div key={l.quarter} className="bg-[var(--mkt-panel)]/60 border border-white/8 rounded-2xl p-6">
               <span className={`inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest border rounded-full px-3 py-1 mb-5 ${l.color}`}>
                 {l.quarter.startsWith("Shipping") ? <Sparkles size={10} /> : l.quarter.startsWith("Next") ? <Calendar size={10} /> : <Clock size={10} />}
                 {l.quarter}
@@ -88,7 +88,7 @@ export default function RoadmapPage() {
       </section>
 
       <section className="px-5 sm:px-8 pb-24">
-        <div className="max-w-3xl mx-auto bg-[#141B15] border border-white/10 rounded-2xl p-7 text-center">
+        <div className="max-w-3xl mx-auto bg-[var(--mkt-panel)] border border-white/10 rounded-2xl p-7 text-center">
           <h2 className="text-2xl font-black mb-3">Got something you need?</h2>
           <p className="text-white/55 text-sm max-w-md mx-auto mb-6">If a customer asks for it twice, it goes on the board. Tell us what would unlock value for your team — we&apos;ll prioritise transparently.</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
