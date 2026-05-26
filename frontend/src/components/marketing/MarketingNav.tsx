@@ -3,11 +3,9 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { useThemeMode } from "@/hooks/useThemeMode";
 import {
   Menu, X, ChevronDown, Inbox, Phone, Users, MessageSquare, Star, BarChart2,
   Building2, Hotel, Trees, Plane, FileText, Shield, BookOpen, Activity, Sparkles,
-  Sun, Moon,
 } from "lucide-react";
 
 const features = [
@@ -38,7 +36,11 @@ export function MarketingNav() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openMenu, setOpenMenu] = useState<"features" | "solutions" | "resources" | null>(null);
-  const { isDark, toggle: toggleTheme } = useThemeMode();
+
+  useEffect(() => {
+    // Force light mode on marketing pages
+    document.documentElement.classList.remove("dark");
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 12);
@@ -68,7 +70,7 @@ export function MarketingNav() {
           <Dropdown label="Features" open={openMenu === "features"} onEnter={() => setOpenMenu("features")} onLeave={() => setOpenMenu(null)}>
             <div className="rounded-xl shadow-2xl shadow-black/50 p-2 w-80" style={{ backgroundColor: "var(--mkt-panel)", border: "1px solid var(--mkt-border)" }}>
               {features.map(f => (
-                <Link key={f.href} href={f.href} className="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors group">
+                <Link key={f.href} href={f.href} className="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 transition-colors group">
                   <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 mt-0.5">{f.icon}</div>
                   <div className="min-w-0">
                     <span className="text-sm font-medium group-hover:text-[var(--mkt-gold)] transition-colors block" style={{ color: "#1E293B" }}>{f.label}</span>
@@ -82,7 +84,7 @@ export function MarketingNav() {
           <Dropdown label="Solutions" open={openMenu === "solutions"} onEnter={() => setOpenMenu("solutions")} onLeave={() => setOpenMenu(null)}>
             <div className="rounded-xl shadow-2xl shadow-black/50 p-2 w-80" style={{ backgroundColor: "var(--mkt-panel)", border: "1px solid var(--mkt-border)" }}>
               {solutions.map(s => (
-                <Link key={s.href} href={s.href} className="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors group">
+                <Link key={s.href} href={s.href} className="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 transition-colors group">
                   <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 mt-0.5">{s.icon}</div>
                   <div className="min-w-0">
                     <span className="text-sm font-medium group-hover:text-[var(--mkt-jade)] transition-colors block" style={{ color: "#1E293B" }}>{s.label}</span>
@@ -103,7 +105,7 @@ export function MarketingNav() {
           <Dropdown label="Resources" open={openMenu === "resources"} onEnter={() => setOpenMenu("resources")} onLeave={() => setOpenMenu(null)}>
             <div className="rounded-xl shadow-2xl shadow-black/50 p-2 w-80" style={{ backgroundColor: "var(--mkt-panel)", border: "1px solid var(--mkt-border)" }}>
               {resources.map(r => (
-                <Link key={r.href} href={r.href} className="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors group">
+                <Link key={r.href} href={r.href} className="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 transition-colors group">
                   <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 mt-0.5">{r.icon}</div>
                   <div className="min-w-0">
                     <span className="text-sm font-medium group-hover:text-[var(--mkt-jade)] transition-colors block" style={{ color: "#1E293B" }}>{r.label}</span>
@@ -117,14 +119,7 @@ export function MarketingNav() {
 
         {/* Right actions */}
         <div className="hidden lg:flex items-center gap-2 ml-auto">
-          <button
-            onClick={toggleTheme}
-            aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-            className="w-9 h-9 flex items-center justify-center rounded-lg text-white/50 hover:text-white hover:bg-white/8 transition-colors"
-          >
-            {isDark ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
-          <Link href="/login" className="text-base font-medium transition-colors px-4 py-2" style={{ color: "#334155" }}>
+          <Link href="/login" className="text-base font-medium transition-colors px-4 py-2" style={{ color: "#0F172A" }}>
             Sign in
           </Link>
           <Link
@@ -145,7 +140,7 @@ export function MarketingNav() {
 
         {/* Mobile toggle */}
         <button
-          className="lg:hidden ml-auto p-3 text-white/70 hover:text-white"
+          className="lg:hidden ml-auto p-3 text-slate-700 hover:text-slate-900 transition-colors"
           onClick={() => setMobileOpen(!mobileOpen)}
           aria-label="Toggle menu"
         >
@@ -155,27 +150,21 @@ export function MarketingNav() {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="lg:hidden border-t px-5 py-4 space-y-1 max-h-[calc(100vh-80px)] overflow-y-auto" style={{ backgroundColor: "var(--mkt-bg)", borderColor: "var(--mkt-border)" }}>
+        <div className="lg:hidden border-t px-5 py-4 space-y-1 max-h-[calc(100vh-80px)] overflow-y-auto" style={{ backgroundColor: "#FFFFFF", borderColor: "#E2E8F0" }}>
           <MobileSection title="Features" items={features} onClose={() => setMobileOpen(false)} />
           <MobileSection title="Solutions" items={solutions} onClose={() => setMobileOpen(false)} />
-          <div className="h-px bg-white/8 my-2" />
+          <div className="h-px my-2" style={{ backgroundColor: "#E2E8F0" }} />
           <MobileLink href="/integrations" onClose={() => setMobileOpen(false)}>Integrations</MobileLink>
           <MobileLink href="/pricing" onClose={() => setMobileOpen(false)}>Pricing</MobileLink>
           <MobileSection title="Resources" items={resources} onClose={() => setMobileOpen(false)} />
           <MobileLink href="/contact" onClose={() => setMobileOpen(false)}>Contact</MobileLink>
-          <div className="h-px bg-white/8 my-2" />
-          <button
-            onClick={() => { toggleTheme(); }}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
-          >
-            {isDark ? <Sun size={15} /> : <Moon size={15} />}
-            {isDark ? "Switch to light mode" : "Switch to dark mode"}
-          </button>
+          <div className="h-px my-2" style={{ backgroundColor: "#E2E8F0" }} />
           <MobileLink href="/login" onClose={() => setMobileOpen(false)}>Sign in</MobileLink>
           <Link
             href="/book-demo"
             onClick={() => setMobileOpen(false)}
-            className="block px-4 py-2.5 bg-white/5 hover:bg-white/10 text-white text-sm font-semibold rounded-xl text-center border border-white/10 mt-2"
+            className="block px-4 py-2.5 text-sm font-semibold rounded-xl text-center border mt-2"
+            style={{ backgroundColor: "#F8FAFC", color: "#0F172A", borderColor: "#CBD5E1" }}
           >
             Book demo
           </Link>
@@ -183,7 +172,7 @@ export function MarketingNav() {
             href="/register"
             onClick={() => setMobileOpen(false)}
             className="block px-4 py-2.5 text-sm font-semibold rounded-xl text-center"
-            style={{ backgroundColor: "var(--mkt-gold)", color: "var(--mkt-bg)" }}
+            style={{ backgroundColor: "var(--mkt-gold)", color: "#FFFFFF" }}
           >
             Start free trial
           </Link>
@@ -217,14 +206,15 @@ function MobileSection({ title, items, onClose }: {
 }) {
   return (
     <details className="group">
-      <summary className="flex items-center justify-between px-3 py-2.5 text-sm font-semibold text-white/80 cursor-pointer list-none">
+      <summary className="flex items-center justify-between px-3 py-2.5 text-sm font-semibold cursor-pointer list-none" style={{ color: "#0F172A" }}>
         {title}
-        <ChevronDown size={14} className="group-open:rotate-180 transition-transform" />
+        <ChevronDown size={14} className="group-open:rotate-180 transition-transform" style={{ color: "#64748B" }} />
       </summary>
       <div className="pl-3 pb-1">
         {items.map(it => (
           <Link key={it.href} href={it.href} onClick={onClose}
-            className="block px-3 py-2 text-sm text-white/60 hover:text-white hover:bg-white/5 rounded-lg transition-colors">
+            className="block px-3 py-2 text-sm rounded-lg transition-colors hover:bg-slate-100"
+            style={{ color: "#334155" }}>
             {it.label}
           </Link>
         ))}
@@ -236,7 +226,8 @@ function MobileSection({ title, items, onClose }: {
 function MobileLink({ href, children, onClose }: { href: string; children: React.ReactNode; onClose: () => void }) {
   return (
     <Link href={href} onClick={onClose}
-      className="block px-3 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 rounded-lg transition-colors">
+      className="block px-3 py-2.5 text-sm rounded-lg transition-colors hover:bg-slate-100"
+      style={{ color: "#0F172A" }}>
       {children}
     </Link>
   );

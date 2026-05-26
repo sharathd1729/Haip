@@ -66,10 +66,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: `
           try {
-            var s = localStorage.getItem('haip_color_scheme');
-            var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (s === 'dark' || (s === null && prefersDark)) {
-              document.documentElement.classList.add('dark');
+            var p = window.location.pathname;
+            var isApp = p.startsWith('/dashboard') || p.startsWith('/onboarding') || p.startsWith('/login') || p.startsWith('/register');
+            if (isApp) {
+              var s = localStorage.getItem('haip_color_scheme');
+              var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+              if (s === 'dark' || (s === null && prefersDark)) {
+                document.documentElement.classList.add('dark');
+              }
             }
           } catch(e) {}
         `}} />
