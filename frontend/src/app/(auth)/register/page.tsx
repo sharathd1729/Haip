@@ -157,7 +157,9 @@ export default function RegisterPage() {
 
         <div className="relative">
           <Link href="/" className="inline-flex items-center">
-            <img src="/logo.png" alt="HAIP" className="h-10 w-auto object-contain brightness-0 invert" />
+            <div className="bg-white rounded-xl px-2.5 py-1 inline-flex items-center">
+              <img src="/logo.png" alt="HAIP" className="h-7 w-auto object-contain" />
+            </div>
           </Link>
         </div>
 

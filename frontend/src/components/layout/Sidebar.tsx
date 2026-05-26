@@ -111,18 +111,22 @@ export function Sidebar({ user }: SidebarProps) {
         style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}
       >
         {theme.logoDarkUrl ? (
-          // Custom logo (dark-bg variant)
-          <img
-            src={theme.logoDarkUrl}
-            alt={theme.companyName}
-            className="h-10 w-auto object-contain"
-          />
+          // Custom logo (dark-bg variant) — white pill so logo bg blends on dark sidebar
+          <div className="bg-white rounded-xl px-2.5 py-1 inline-flex items-center flex-shrink-0">
+            <img
+              src={theme.logoDarkUrl}
+              alt={theme.companyName}
+              className="h-7 w-auto object-contain"
+            />
+          </div>
         ) : theme.logoUrl ? (
-          <img
-            src={theme.logoUrl}
-            alt={theme.companyName}
-            className="h-10 w-auto object-contain"
-          />
+          <div className="bg-white rounded-xl px-2.5 py-1 inline-flex items-center flex-shrink-0">
+            <img
+              src={theme.logoUrl}
+              alt={theme.companyName}
+              className="h-7 w-auto object-contain"
+            />
+          </div>
         ) : (
           <>
             {/* Default text mark with brand primary */}
