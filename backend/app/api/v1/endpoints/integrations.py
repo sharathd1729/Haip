@@ -521,7 +521,7 @@ def disconnect_integration(
     row = db.query(Integration).filter_by(tenant_id=current_user.tenant_id, kind=kind).first()
     if not row:
         raise HTTPException(status_code=404, detail="Integration not found")
-    row.status = "inactive"
+    row.status = "disconnected"
     row.credentials_kms_blob = None
     row.config = {}
     db.commit()
@@ -623,7 +623,7 @@ def test_integration(
 
     creds = decrypt_credentials(row.credentials_kms_blob) if row.credentials_kms_blob else {}
 
-    status = "connected"
+    status = "active"
     message = "Connection verified successfully."
 
     try:
