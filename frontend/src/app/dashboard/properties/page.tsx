@@ -125,13 +125,18 @@ export default function PropertiesPage() {
                     <Edit2 size={14} />
                   </button>
                 </div>
-                <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2 leading-snug">{p.name}</h3>
+                <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2 leading-snug">
+                  {p.name || <span className="text-gray-400 italic">Unnamed property</span>}
+                </h3>
                 <div className="flex items-center gap-2 flex-wrap">
                   {(p.city || p.address) && (
                     <span className="text-xs text-gray-500 truncate max-w-[120px]">{p.city || p.address}</span>
                   )}
                   {(p.type || p.property_type) && (
                     <Badge variant="ghost" className="capitalize text-xs">{p.type || p.property_type}</Badge>
+                  )}
+                  {p.channel_source && (
+                    <Badge variant="secondary" className="text-xs capitalize">{p.channel_source}</Badge>
                   )}
                   {p.is_active === false && (
                     <Badge variant="secondary" className="text-xs">Inactive</Badge>
