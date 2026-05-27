@@ -75,7 +75,7 @@ export default function GuestsPage() {
               <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-4">
                 <div className="flex items-start gap-4">
                   <div className="w-14 h-14 rounded-full bg-teal-100 flex items-center justify-center text-xl font-bold text-teal-700 flex-shrink-0">
-                    {profile.full_name[0]}
+                    {profile.full_name?.[0] ?? "?"}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -287,7 +287,7 @@ export default function GuestsPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-xs font-bold text-teal-700 flex-shrink-0">
-                          {guest.full_name[0]}
+                          {guest.full_name?.[0] ?? "?"}
                         </div>
                         <div>
                           <div className="font-medium text-gray-900 flex items-center gap-1">
