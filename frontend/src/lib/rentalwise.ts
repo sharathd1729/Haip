@@ -377,6 +377,23 @@ export const rentalwiseService = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * Extract a plain string from a value that may be a localized object.
+ * RentalWise returns some fields as { en: "...", fr: "..." } instead of strings.
+ * Prefers English, falls back to first available language, then empty string.
+ */
+export function localStr(val: unknown, fallback = ""): string {
+  if (!val && val !== 0) return fallback;
+  if (typeof val === "string") return val;
+  if (typeof val === "number") return String(val);
+  if (typeof val === "object" && val !== null) {
+    const obj = val as Record<string, unknown>;
+    const v = obj.en ?? obj.fr ?? obj.es ?? obj.de ?? Object.values(obj)[0];
+    return v != null ? String(v) : fallback;
+  }
+  return String(val) || fallback;
+}
+
 /** Extract a display-safe channel name from the booking's `channel` field (which can be any shape) */
 export function getChannelName(booking: RWBooking): string | null {
   const c = booking.channel;

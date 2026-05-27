@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRWThreads, useRWThreadMessages, useSendRWMessage } from "@/hooks/useRentalWise";
-import { type RWThread, type RWMessage, type RWProvider } from "@/lib/rentalwise";
+import { type RWThread, type RWMessage, type RWProvider, localStr } from "@/lib/rentalwise";
 import { Skeleton } from "@/components/ui/skeleton";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -100,7 +100,7 @@ function formatTime(iso: string | null): string {
 
 function ThreadRow({ thread, active, onClick }: { thread: RWThread; active: boolean; onClick: () => void }) {
   const { first_name, last_name, email } = thread.account ?? {};
-  const name     = [first_name, last_name].filter(Boolean).join(" ") || email || "Unknown";
+  const name     = [localStr(first_name), localStr(last_name)].filter(Boolean).join(" ") || localStr(email) || "Unknown";
   const initials = name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase();
 
   return (
@@ -138,7 +138,7 @@ function ThreadRow({ thread, active, onClick }: { thread: RWThread; active: bool
 
           {thread.last_message_excerpt && (
             <p className="text-[11px] truncate mb-1.5" style={{ color: "#9CA3AF" }}>
-              {thread.last_message_excerpt}
+              {localStr(thread.last_message_excerpt)}
             </p>
           )}
 
@@ -170,9 +170,10 @@ function RWMessageBubble({ msg }: { msg: RWMessage }) {
   const time = new Date(msg.sent_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 
   // Strip basic HTML tags for display when content_type is text/html
+  const rawContent = localStr(msg.content);
   const displayContent = msg.content_type === "text/html"
-    ? msg.content.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ").trim()
-    : msg.content;
+    ? rawContent.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ").trim()
+    : rawContent;
 
   return (
     <div className={cn("flex gap-2 mb-3", isOutbound ? "justify-end" : "justify-start")}>
@@ -190,8 +191,8 @@ function RWMessageBubble({ msg }: { msg: RWMessage }) {
         {(msg.sent_by_name || msg.sent_by_workflow?.name) && (
           <p className="text-[10px] font-medium px-1" style={{ color: "#9CA3AF" }}>
             {msg.sent_by_workflow?.name
-              ? `🤖 ${msg.sent_by_workflow.name}`
-              : msg.sent_by_name}
+              ? `🤖 ${localStr(msg.sent_by_workflow.name)}`
+              : localStr(msg.sent_by_name)}
           </p>
         )}
 
@@ -207,7 +208,7 @@ function RWMessageBubble({ msg }: { msg: RWMessage }) {
           <p className="whitespace-pre-wrap break-words">{displayContent}</p>
 
           {/* Translation */}
-          {msg.translated_content && msg.translated_content !== displayContent && (
+          {msg.translated_content && localStr(msg.translated_content) !== displayContent && (
             <div
               className={cn(
                 "mt-2 pt-2 text-[11px] italic border-t",
@@ -215,7 +216,7 @@ function RWMessageBubble({ msg }: { msg: RWMessage }) {
               )}
             >
               <span className="font-medium not-italic">Translated: </span>
-              {msg.translated_content}
+              {localStr(msg.translated_content)}
             </div>
           )}
 
@@ -271,7 +272,7 @@ function ThreadPanel({ thread, onBack }: { thread: RWThread; onBack: () => void 
   }, [thread.id, thread.default_message_provider]);
 
   const { first_name, last_name, email } = thread.account ?? {};
-  const guestName = [first_name, last_name].filter(Boolean).join(" ") || email || "Unknown";
+  const guestName = [localStr(first_name), localStr(last_name)].filter(Boolean).join(" ") || localStr(email) || "Unknown";
 
   const providers = thread.available_message_providers?.length
     ? thread.available_message_providers
@@ -327,7 +328,7 @@ function ThreadPanel({ thread, onBack }: { thread: RWThread; onBack: () => void 
           </p>
           <div className="flex items-center gap-2 mt-0.5">
             {thread.subject && (
-              <p className="text-[11px] truncate" style={{ color: "#6B7280" }}>{thread.subject}</p>
+              <p className="text-[11px] truncate" style={{ color: "#6B7280" }}>{localStr(thread.subject)}</p>
             )}
             <ProviderBadge provider={thread.default_message_provider} size="sm" />
           </div>
@@ -470,7 +471,7 @@ function ThreadPanel({ thread, onBack }: { thread: RWThread; onBack: () => void 
 
 function GuestContextPanel({ thread }: { thread: RWThread }) {
   const { first_name, last_name, email, phone, company } = thread.account ?? {};
-  const guestName = [first_name, last_name].filter(Boolean).join(" ") || "Unknown";
+  const guestName = [localStr(first_name), localStr(last_name)].filter(Boolean).join(" ") || "Unknown";
   const initials  = guestName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase();
 
   return (
@@ -506,7 +507,7 @@ function GuestContextPanel({ thread }: { thread: RWThread }) {
             <AtSign size={13} className="flex-shrink-0 mt-0.5" style={{ color: "#9CA3AF" }} />
             <div className="min-w-0">
               <p className="text-[9.5px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "#9CA3AF" }}>Email</p>
-              <p className="text-[11.5px] font-medium truncate" style={{ color: "#374151" }}>{email}</p>
+              <p className="text-[11.5px] font-medium truncate" style={{ color: "#374151" }}>{localStr(email)}</p>
             </div>
           </div>
         )}
@@ -515,7 +516,7 @@ function GuestContextPanel({ thread }: { thread: RWThread }) {
             <Phone size={13} className="flex-shrink-0 mt-0.5" style={{ color: "#9CA3AF" }} />
             <div className="min-w-0">
               <p className="text-[9.5px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "#9CA3AF" }}>Phone</p>
-              <p className="text-[11.5px] font-medium" style={{ color: "#374151" }}>{phone}</p>
+              <p className="text-[11.5px] font-medium" style={{ color: "#374151" }}>{localStr(phone)}</p>
             </div>
           </div>
         )}
@@ -524,7 +525,7 @@ function GuestContextPanel({ thread }: { thread: RWThread }) {
             <Globe size={13} className="flex-shrink-0 mt-0.5" style={{ color: "#9CA3AF" }} />
             <div className="min-w-0">
               <p className="text-[9.5px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "#9CA3AF" }}>Company</p>
-              <p className="text-[11.5px] font-medium truncate" style={{ color: "#374151" }}>{company}</p>
+              <p className="text-[11.5px] font-medium truncate" style={{ color: "#374151" }}>{localStr(company)}</p>
             </div>
           </div>
         )}

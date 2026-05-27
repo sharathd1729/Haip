@@ -17,7 +17,7 @@ import { useRWBookings } from "@/hooks/useRentalWise";
 import {
   type RWBooking, type RWBookingStatus, type RWPaymentStatus,
   type RWBookingFilters,
-  getChannelName, getCurrencySymbol,
+  getChannelName, getCurrencySymbol, localStr,
 } from "@/lib/rentalwise";
 
 interface GuestItem {
@@ -375,8 +375,8 @@ function exportToCsv(bookings: RWBooking[]) {
   const rows = bookings.map(b => [
     String(b.id),
     b.external_id ?? "",
-    b.main_guest ? `${b.main_guest.first_name} ${b.main_guest.last_name}` : "",
-    b.property?.name ?? "",
+    b.main_guest ? `${localStr(b.main_guest.first_name)} ${localStr(b.main_guest.last_name)}`.trim() : "",
+    b.property ? localStr(b.property.name) : "",
     b.checkin,
     b.checkout,
     b.adults,
@@ -588,7 +588,7 @@ function BookingsTable() {
             <tbody>
               {bookings.map((b, idx) => {
                 const guestName = b.main_guest
-                  ? `${b.main_guest.first_name} ${b.main_guest.last_name}`.trim()
+                  ? `${localStr(b.main_guest.first_name)} ${localStr(b.main_guest.last_name)}`.trim() || "Unknown"
                   : "Unknown";
                 const nights = Math.ceil(
                   (new Date(b.checkout).getTime() - new Date(b.checkin).getTime()) / 86400000
@@ -622,8 +622,8 @@ function BookingsTable() {
                           <p className="text-[13px] font-semibold truncate" style={{ color: "#111827" }}>{guestName}</p>
                           {b.property && (
                             <p className="text-[11px] truncate" style={{ color: "#6B7280" }}>
-                              {b.property.name}
-                              {b.property.type && <span className="ml-1 text-gray-400">· {b.property.type}</span>}
+                              {localStr(b.property.name)}
+                              {b.property.type && <span className="ml-1 text-gray-400">· {localStr(b.property.type)}</span>}
                             </p>
                           )}
                         </div>
