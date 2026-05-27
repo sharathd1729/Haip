@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional, List, Any
 
@@ -21,8 +22,8 @@ class CallOut(BaseModel):
     from_number: str
     to_number: str
     duration_seconds: int = 0
-    started_at: Optional[str] = None
-    ended_at: Optional[str] = None
+    started_at: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
     transcription_status: str = "pending"
     ai_score_status: str = "pending"
     ai_summary: Optional[str] = None

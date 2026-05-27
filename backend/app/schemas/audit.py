@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional, Any
 
@@ -11,7 +12,7 @@ class AuditEventOut(BaseModel):
     target_id: Optional[str] = None
     payload: Optional[Any] = None
     hash: str
-    created_at: Optional[str] = None
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

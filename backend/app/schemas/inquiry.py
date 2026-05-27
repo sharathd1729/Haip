@@ -26,7 +26,7 @@ class InquiryOut(BaseModel):
     ai_summary: Optional[str] = None
     ai_next_action: Optional[str] = None
     tags: List[Any] = []
-    first_response_at: Optional[str] = None
+    first_response_at: Optional[datetime] = None
 
     # K5 — stage age
     current_stage_entered_at: Optional[datetime] = None

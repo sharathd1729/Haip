@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional, List, Any
+from datetime import datetime
 
 
 # ─── Room ─────────────────────────────────────────────────────────────────────
@@ -72,8 +73,8 @@ class PropertyOut(BaseModel):
     channel_manager_listing_id: Optional[str] = None
 
     # Timestamps
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

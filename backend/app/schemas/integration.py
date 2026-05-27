@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional, Any
 
@@ -8,8 +9,8 @@ class IntegrationOut(BaseModel):
     kind: str
     status: str
     config: Optional[dict] = {}
-    installed_at: Optional[str] = None
-    last_health_at: Optional[str] = None
+    installed_at: Optional[datetime] = None
+    last_health_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
