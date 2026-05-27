@@ -317,7 +317,7 @@ function BookingStatusBadge({ status: statusRaw }: { status: RWBookingStatus }) 
     typeof statusRaw === "string"
       ? statusRaw
       : typeof statusRaw === "object" && statusRaw !== null
-        ? String((statusRaw as any).id ?? (statusRaw as any).code ?? (statusRaw as any).name ?? "unknown")
+        ? String((statusRaw as any).id ?? (statusRaw as any).code ?? (statusRaw as any).en ?? (statusRaw as any).name ?? "unknown")
         : String(statusRaw ?? "unknown");
   const cfg = (BOOKING_STATUS_CFG as Record<string, { label: string; cls: string }>)[status]
     ?? { label: status.replace(/_/g, " "), cls: "bg-gray-50 text-gray-600 border-gray-200" };
@@ -334,7 +334,7 @@ function PaymentBadge({ status: statusRaw }: { status: RWPaymentStatus }) {
     typeof statusRaw === "string"
       ? statusRaw
       : typeof statusRaw === "object" && statusRaw !== null
-        ? String((statusRaw as any).id ?? (statusRaw as any).code ?? (statusRaw as any).name ?? "unknown")
+        ? String((statusRaw as any).id ?? (statusRaw as any).code ?? (statusRaw as any).en ?? (statusRaw as any).name ?? "unknown")
         : String(statusRaw ?? "unknown");
   const cfg = (PAYMENT_STATUS_CFG as Record<string, { label: string; cls: string }>)[status]
     ?? { label: status.replace(/_/g, " "), cls: "bg-gray-50 text-gray-600 border-gray-200" };
