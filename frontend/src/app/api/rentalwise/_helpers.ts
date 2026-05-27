@@ -1,28 +1,26 @@
 /**
  * Shared helper for RentalWise proxy routes.
  *
- * Credential resolution order (first match wins):
- *   1. RENTALWISE_TOKEN env var — fastest path, single-tenant / dev mode
- *   2. HAIP backend integrations table — multi-tenant production path
- *      (calls GET /v1/integrations with the tenant's JWT, cached 60s)
+ * Calls GET /api/v1/integrations/retalwise/credentials on the HAIP backend,
+ * which decrypts and returns the tenant's RentalWise credentials server-to-server.
+ * Credentials are NEVER exposed to the browser — this runs only in Next.js API routes.
  *
- * Set RENTALWISE_TOKEN + RENTALWISE_URL in frontend/.env.local (or VPS env)
- * to bypass the backend lookup entirely during development or when running
- * a single-tenant setup.
+ * Fallback: if RENTALWISE_TOKEN env var is set (dev / single-tenant mode),
+ * it is used directly without hitting the backend.
  */
 
-const BACKEND     = (process.env.BACKEND_URL   || "http://localhost:8000").replace(/\/$/, "");
-const ENV_RW_URL  = (process.env.RENTALWISE_URL || "").replace(/\/$/, "");
+const BACKEND      = (process.env.BACKEND_URL   || "http://localhost:8000").replace(/\/$/, "");
+const ENV_RW_URL   = (process.env.RENTALWISE_URL || "").replace(/\/$/, "");
 const ENV_RW_TOKEN = process.env.RENTALWISE_TOKEN || "";
 const DEFAULT_RW_URL = "https://app.rentalwise.io";
 
 export interface RWCredentials {
   rwUrl:  string;
-  rwAuth: string;   // value to put in the Authorization header
+  rwAuth: string;
 }
 
 export async function getRWCredentials(authHeader: string | null): Promise<RWCredentials> {
-  // ── Path 1: env var fast-path (dev / single-tenant) ────────────────────────
+  // ── Fast-path: env var override (dev / single-tenant) ──────────────────────
   if (ENV_RW_TOKEN) {
     return {
       rwUrl:  ENV_RW_URL || DEFAULT_RW_URL,
@@ -30,55 +28,51 @@ export async function getRWCredentials(authHeader: string | null): Promise<RWCre
     };
   }
 
-  // ── Path 2: per-tenant lookup from HAIP integrations table ─────────────────
+  // ── Require a real JWT ──────────────────────────────────────────────────────
   if (!authHeader) {
-    throw new Error("RentalWise not configured — add RENTALWISE_TOKEN to env or connect in Settings → Integrations");
+    throw new Error("RentalWise not configured — not authenticated");
   }
 
-  // Skip backend lookup for demo/bypass tokens (they aren't real JWTs)
+  // Demo/bypass tokens are not real JWTs — skip the backend call
   const tokenValue = authHeader.replace(/^Bearer\s+/i, "");
   if (tokenValue === "demo" || tokenValue === "owner-bypass" || !tokenValue.includes(".")) {
     throw new Error("RentalWise not connected — add it in Settings → Integrations");
   }
 
-  let integrations: Array<{ kind: string; status: string; config: Record<string, string> }>;
+  // ── Fetch decrypted credentials from HAIP backend ──────────────────────────
+  let creds: { api_token?: string | null; username?: string | null; password?: string | null; base_url?: string };
 
   try {
-    const res = await fetch(`${BACKEND}/api/v1/integrations`, {
+    const res = await fetch(`${BACKEND}/api/v1/integrations/retalwise/credentials`, {
       headers: {
         Authorization: authHeader,
         Accept: "application/json",
       },
-      // Cache for 60 s to avoid a DB hit on every message
+      // Cache for 60 s — avoids a DB hit on every message
       next: { revalidate: 60 },
     });
 
+    if (res.status === 404) {
+      throw new Error("RentalWise integration not connected — add it in Settings → Integrations");
+    }
     if (!res.ok) {
       throw new Error(`Backend returned ${res.status}`);
     }
 
-    integrations = await res.json();
+    creds = await res.json();
   } catch (err: any) {
-    throw new Error(`Could not fetch integrations: ${err.message} — add RENTALWISE_TOKEN to env or connect in Settings → Integrations`);
+    // Re-throw "not connected" messages as-is (they become 503)
+    if (err.message?.includes("not connected")) throw err;
+    throw new Error(`Could not fetch RentalWise credentials: ${err.message}`);
   }
 
-  // Accept "rentalwise" or legacy typo "retalwise"
-  const rw = integrations.find(
-    i => i.kind === "rentalwise" || i.kind === "retalwise"
-  );
-
-  if (!rw) {
-    throw new Error("RentalWise integration not connected — add it in Settings → Integrations");
-  }
-
-  const cfg   = rw.config ?? {};
-  const rwUrl = (cfg.base_url || DEFAULT_RW_URL).replace(/\/$/, "");
+  const rwUrl = (creds.base_url || DEFAULT_RW_URL).replace(/\/$/, "");
 
   let rwAuth: string;
-  if (cfg.api_token) {
-    rwAuth = `Bearer ${cfg.api_token}`;
-  } else if (cfg.username && cfg.password) {
-    const encoded = Buffer.from(`${cfg.username}:${cfg.password}`).toString("base64");
+  if (creds.api_token) {
+    rwAuth = `Bearer ${creds.api_token}`;
+  } else if (creds.username && creds.password) {
+    const encoded = Buffer.from(`${creds.username}:${creds.password}`).toString("base64");
     rwAuth = `Basic ${encoded}`;
   } else {
     throw new Error("RentalWise credentials missing — reconnect in Settings → Integrations");

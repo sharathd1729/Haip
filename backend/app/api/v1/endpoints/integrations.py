@@ -351,6 +351,46 @@ def get_instagram_webhook_info(
 
 # ─── Retalwise ───────────────────────────────────────────────────────────────
 
+@router.get("/retalwise/credentials")
+def get_retalwise_credentials(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Server-to-server credential retrieval used by the Next.js proxy layer
+    (src/app/api/rentalwise/_helpers.ts).
+
+    Returns the decrypted RentalWise credentials so the Next.js API routes
+    can make authenticated calls to the RentalWise API on behalf of the tenant.
+
+    ⚠ Never call this endpoint from client-side (browser) code — it is only
+    intended for server-side Next.js API routes where the response is never
+    forwarded to the browser.
+    """
+    # Accept both "retalwise" (legacy typo) and "rentalwise"
+    row = (
+        db.query(Integration)
+        .filter(
+            Integration.tenant_id == current_user.tenant_id,
+            Integration.kind.in_(["retalwise", "rentalwise"]),
+        )
+        .first()
+    )
+
+    if not row or row.status != "active":
+        raise HTTPException(status_code=404, detail="RentalWise integration not connected")
+
+    creds = decrypt_credentials(row.credentials_kms_blob) if row.credentials_kms_blob else {}
+    cfg   = row.config or {}
+
+    return {
+        "api_token": creds.get("api_token") or None,
+        "username":  creds.get("username")  or None,
+        "password":  creds.get("password")  or None,
+        "base_url":  cfg.get("base_url", "https://app.rentalwise.io"),
+    }
+
+
 @router.post("/retalwise/connect-key")
 def connect_retalwise(
     body: dict,
