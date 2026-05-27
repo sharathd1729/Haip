@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
-  Bell, Search, Sparkles, Plus, User,
+  Bell, Search, User,
   Settings, CreditCard, HelpCircle, LogOut,
   ChevronDown, X,
 } from "lucide-react";
@@ -258,39 +258,6 @@ export function TopBar({ user, workspaceName }: TopBarProps) {
 
       {/* Right: Actions */}
       <div className="flex items-center gap-2 flex-shrink-0">
-        {/* AI Assistant */}
-        <button
-          className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-all"
-          style={{
-            border: "1.5px solid #0F766E",
-            color: "#0F766E",
-            background: "transparent",
-          }}
-          onMouseEnter={e => {
-            (e.currentTarget as HTMLElement).style.background = "rgba(15,118,110,0.06)";
-          }}
-          onMouseLeave={e => {
-            (e.currentTarget as HTMLElement).style.background = "transparent";
-          }}
-          onClick={() => {
-            window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }));
-          }}
-        >
-          <Sparkles size={14} />
-          AI Assistant
-        </button>
-
-        {/* Quick Create */}
-        <button
-          className="hidden md:flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[13px] font-semibold text-white transition-all"
-          style={{ background: "#0F766E" }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#0d6660"; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#0F766E"; }}
-        >
-          <Plus size={14} />
-          Quick Create
-        </button>
-
         {/* Notification bell */}
         <NotificationBell />
 

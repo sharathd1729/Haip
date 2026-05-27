@@ -750,13 +750,27 @@ export default function IntegrationsPage() {
     setTimeout(() => setToast(null), 5000);
   }, []);
 
+  // Static fallback catalog — shown when API is down or returns empty
+  const STATIC_CATALOG: CatalogItem[] = [
+    { provider: "whatsapp_meta", name: "WhatsApp",      description: "Connect WhatsApp Business via Meta Cloud API to send & receive messages.", category: "messaging",  auth_type: "whatsapp_meta", logo: "whatsapp", popular: true },
+    { provider: "instagram",     name: "Instagram DM",  description: "Receive and reply to Instagram Direct Messages from your hospitality page.", category: "messaging",  auth_type: "instagram",     logo: "instagram", popular: true },
+    { provider: "callerdesk",    name: "CallerDesk",    description: "Inbound & outbound IVR calls with auto-transcription and QA scoring.", category: "telephony",   auth_type: "api_key",       logo: "phone",  popular: true },
+    { provider: "acefone",       name: "Acefone",       description: "Cloud telephony for inbound call handling, call routing, and recordings.", category: "telephony",   auth_type: "api_key",       logo: "phone",  popular: false },
+    { provider: "exotel",        name: "Exotel",        description: "Indian cloud telephony platform for voice calls and SMS automation.", category: "telephony",   auth_type: "api_key",       logo: "phone",  popular: false },
+    { provider: "hostaway",      name: "Hostaway PMS",  description: "Sync property listings, guest reservations, and stay data from Hostaway.", category: "pms",         auth_type: "hostaway",      logo: "hotel",  popular: true },
+    { provider: "deepgram",      name: "Deepgram",      description: "Fast, accurate call transcription with speaker diarisation.", category: "ai",          auth_type: "api_key",       logo: "phone",  popular: false },
+  ];
+
   // Fetch catalog — public endpoint, no auth needed, drives whether cards render
-  const { data: catalog = [], isLoading: catalogLoading } = useQuery<CatalogItem[]>({
+  const { data: catalogRaw = [], isLoading: catalogLoading } = useQuery<CatalogItem[]>({
     queryKey: ["integrations-catalog"],
     queryFn: () => api.get("/integrations/catalog").then(r => r.data),
     staleTime: Infinity,
     retry: 2,
   });
+
+  // Use API catalog when available, fall back to static catalog
+  const catalog: CatalogItem[] = catalogRaw.length > 0 ? catalogRaw : STATIC_CATALOG;
 
   // Fetch connected integrations — auth-required; only affects connection badges,
   // never blocks the catalog from rendering

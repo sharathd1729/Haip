@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import {
-  Home, Inbox, Phone, Users, Building2, DollarSign,
+  Home, Inbox, Phone, Users, Building2,
   Sparkles, BarChart2, Zap, Link2, Settings,
   HelpCircle, User, LogOut, ChevronDown, ChevronRight,
   MessageSquare, AtSign, Bot,
@@ -65,12 +65,6 @@ const NAV_ITEMS: NavItem[] = [
     href: "/dashboard/properties",
     icon: Building2,
     resource: "properties",
-  },
-  {
-    label: "Revenue",
-    href: "/dashboard/analytics?tab=revenue",
-    icon: DollarSign,
-    resource: "analytics",
   },
   {
     label: "AI Intelligence",
@@ -265,18 +259,6 @@ export function Sidebar({ user }: SidebarProps) {
         className="px-3 pb-3 pt-2 space-y-0.5"
         style={{ borderTop: "1px solid var(--haip-border)" }}
       >
-        {/* Quick Insight CTA */}
-        <Link
-          href="/dashboard"
-          className="flex items-center gap-2 w-full px-3 py-2.5 rounded-xl mb-2 font-semibold text-[13px] text-white transition-all"
-          style={{ background: "linear-gradient(135deg, #0F766E, #0d6660)" }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "linear-gradient(135deg, #0d6660, #0b5c55)"; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "linear-gradient(135deg, #0F766E, #0d6660)"; }}
-        >
-          <Sparkles size={14} />
-          Quick Insight
-        </Link>
-
         {BOTTOM_ITEMS.map(item => {
           const Icon = item.icon;
           const active = isActive(item.href);
