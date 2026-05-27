@@ -1,14 +1,23 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 import {
   Search, ArrowLeft, Phone, MessageSquare, Star,
   Shield, AlertTriangle, Plus, ChevronRight,
   Calendar, TrendingUp, Users, Sparkles,
+  BookOpen, X, ChevronLeft as ChevronLeftIcon,
+  ChevronRight as ChevronRightIcon, Download,
+  SlidersHorizontal, ExternalLink, Bed, CreditCard,
+  RefreshCw,
 } from "lucide-react";
 import { timeAgo, cn } from "@/lib/utils";
 import { EmptyGuests } from "@/components/empty-states/EmptyGuests";
+import { useRWBookings } from "@/hooks/useRentalWise";
+import {
+  type RWBooking, type RWBookingStatus, type RWPaymentStatus,
+  type RWBookingFilters,
+} from "@/lib/rentalwise";
 
 interface GuestItem {
   phone: string;
@@ -270,17 +279,448 @@ function Guest360({ profile, onBack }: { profile: GuestProfile; onBack: () => vo
   );
 }
 
+// ─── Booking status + payment badges ─────────────────────────────────────────
+
+const BOOKING_STATUS_CFG: Record<RWBookingStatus, { label: string; cls: string }> = {
+  confirmed: { label: "Confirmed", cls: "bg-green-50  text-green-700  border-green-200"  },
+  pending:   { label: "Pending",   cls: "bg-amber-50  text-amber-700  border-amber-200"  },
+  cancelled: { label: "Cancelled", cls: "bg-red-50    text-red-700    border-red-200"    },
+  completed: { label: "Completed", cls: "bg-blue-50   text-blue-700   border-blue-200"   },
+  rejected:  { label: "Rejected",  cls: "bg-red-50    text-red-600    border-red-200"    },
+  hold:      { label: "On Hold",   cls: "bg-purple-50 text-purple-700 border-purple-200" },
+};
+
+const PAYMENT_STATUS_CFG: Record<RWPaymentStatus, { label: string; cls: string }> = {
+  paid:         { label: "Paid",         cls: "bg-green-50  text-green-700  border-green-200"  },
+  partial_paid: { label: "Partial",      cls: "bg-amber-50  text-amber-700  border-amber-200"  },
+  unpaid:       { label: "Unpaid",       cls: "bg-red-50    text-red-700    border-red-200"    },
+  refunded:     { label: "Refunded",     cls: "bg-gray-50   text-gray-600   border-gray-200"   },
+};
+
+const CHANNEL_COLORS: Record<string, string> = {
+  airbnb:      "#FF5A5F",
+  "booking-com": "#003580",
+  homeaway:    "#1D5AA1",
+  direct:      "#0F766E",
+  email:       "#6B7280",
+};
+
+function BookingStatusBadge({ status }: { status: RWBookingStatus }) {
+  const cfg = BOOKING_STATUS_CFG[status] ?? { label: status, cls: "bg-gray-50 text-gray-600 border-gray-200" };
+  return (
+    <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border", cfg.cls)}>
+      {cfg.label}
+    </span>
+  );
+}
+
+function PaymentBadge({ status }: { status: RWPaymentStatus }) {
+  const cfg = PAYMENT_STATUS_CFG[status] ?? { label: status, cls: "bg-gray-50 text-gray-600 border-gray-200" };
+  return (
+    <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border", cfg.cls)}>
+      {cfg.label}
+    </span>
+  );
+}
+
+function ChannelPill({ channel }: { channel: string | null }) {
+  if (!channel) return <span className="text-xs text-gray-400">—</span>;
+  const color = CHANNEL_COLORS[channel.toLowerCase()] ?? "#6B7280";
+  const label = channel.charAt(0).toUpperCase() + channel.slice(1).replace("-", ".");
+  return (
+    <span
+      className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold"
+      style={{ background: `${color}15`, color }}
+    >
+      {label}
+    </span>
+  );
+}
+
+// ─── CSV export helper ────────────────────────────────────────────────────────
+
+function exportToCsv(bookings: RWBooking[]) {
+  const headers = ["Booking ID","Guest","Property","Check In","Check Out","Adults","Children","Status","Payment","Channel","Total","Created"];
+  const rows = bookings.map(b => [
+    b.booking_id,
+    b.main_guest ? `${b.main_guest.first_name} ${b.main_guest.last_name}` : "",
+    b.property?.name ?? "",
+    b.check_in,
+    b.check_out,
+    b.adults,
+    b.children,
+    b.status,
+    b.payment_status,
+    b.channel ?? "",
+    b.total,
+    b.created_at,
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `bookings_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── Bookings table ────────────────────────────────────────────────────────────
+
+function BookingsTable() {
+  const [search, setSearch]               = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [statusFilter, setStatusFilter]   = useState<RWBookingStatus | "">("");
+  const [paymentFilter, setPaymentFilter] = useState<RWPaymentStatus | "">("");
+  const [channelFilter, setChannelFilter] = useState("");
+  const [sort, setSort]                   = useState<RWBookingFilters["sort"]>("newest");
+  const [page, setPage]                   = useState(1);
+  const [showFilters, setShowFilters]     = useState(false);
+
+  // Debounce search
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 400);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Reset page on filter changes
+  useEffect(() => { setPage(1); }, [statusFilter, paymentFilter, channelFilter, sort]);
+
+  const filters: RWBookingFilters = {
+    search:         debouncedSearch || undefined,
+    status:         statusFilter    || undefined,
+    payment_status: paymentFilter   || undefined,
+    channel:        channelFilter   || undefined,
+    sort,
+    page,
+    per_page: 25,
+  };
+
+  const { data, isLoading, isError, refetch, isFetching } = useRWBookings(filters);
+  const bookings: RWBooking[] = data?.data ?? [];
+  const meta = data?.meta;
+
+  function clearFilters() {
+    setSearch(""); setDebouncedSearch(""); setStatusFilter(""); setPaymentFilter(""); setChannelFilter(""); setSort("newest"); setPage(1);
+  }
+  const hasFilters = !!(statusFilter || paymentFilter || channelFilter || debouncedSearch);
+
+  return (
+    <div className="flex flex-col h-full">
+
+      {/* ── Filter bar ──────────────────────────────────────────────────── */}
+      <div
+        className="flex-shrink-0 px-5 py-3 border-b flex flex-wrap items-center gap-2"
+        style={{ background: "#FFFFFF", borderColor: "#E5E7EB" }}
+      >
+        {/* Search */}
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: "#9CA3AF" }} />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Booking ID, guest, property…"
+            className="w-full pl-8 pr-8 py-1.5 text-[12.5px] rounded-xl focus:outline-none"
+            style={{ background: "#F8FAFC", border: "1px solid #E5E7EB", color: "#374151" }}
+            onFocus={e => { (e.currentTarget as HTMLElement).style.borderColor = "#0F766E"; }}
+            onBlur={e => { (e.currentTarget as HTMLElement).style.borderColor = "#E5E7EB"; }}
+          />
+          {search && (
+            <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: "#9CA3AF" }}>
+              <X size={12} />
+            </button>
+          )}
+        </div>
+
+        {/* Status */}
+        <select
+          value={statusFilter}
+          onChange={e => setStatusFilter(e.target.value as RWBookingStatus | "")}
+          className="py-1.5 px-2.5 rounded-xl text-[12px] font-medium focus:outline-none"
+          style={{ background: "#F8FAFC", border: "1px solid #E5E7EB", color: "#374151" }}
+        >
+          <option value="">All statuses</option>
+          {(Object.keys(BOOKING_STATUS_CFG) as RWBookingStatus[]).map(s => (
+            <option key={s} value={s}>{BOOKING_STATUS_CFG[s].label}</option>
+          ))}
+        </select>
+
+        {/* Payment */}
+        <select
+          value={paymentFilter}
+          onChange={e => setPaymentFilter(e.target.value as RWPaymentStatus | "")}
+          className="py-1.5 px-2.5 rounded-xl text-[12px] font-medium focus:outline-none"
+          style={{ background: "#F8FAFC", border: "1px solid #E5E7EB", color: "#374151" }}
+        >
+          <option value="">All payments</option>
+          {(Object.keys(PAYMENT_STATUS_CFG) as RWPaymentStatus[]).map(s => (
+            <option key={s} value={s}>{PAYMENT_STATUS_CFG[s].label}</option>
+          ))}
+        </select>
+
+        {/* Channel */}
+        <select
+          value={channelFilter}
+          onChange={e => setChannelFilter(e.target.value)}
+          className="py-1.5 px-2.5 rounded-xl text-[12px] font-medium focus:outline-none"
+          style={{ background: "#F8FAFC", border: "1px solid #E5E7EB", color: "#374151" }}
+        >
+          <option value="">All channels</option>
+          {["airbnb", "booking-com", "homeaway", "direct", "email"].map(c => (
+            <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1).replace("-",".")}</option>
+          ))}
+        </select>
+
+        {/* Sort */}
+        <select
+          value={sort}
+          onChange={e => setSort(e.target.value as RWBookingFilters["sort"])}
+          className="py-1.5 px-2.5 rounded-xl text-[12px] font-medium focus:outline-none"
+          style={{ background: "#F8FAFC", border: "1px solid #E5E7EB", color: "#374151" }}
+        >
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="check_in">Check-in date</option>
+          <option value="check_out">Check-out date</option>
+          <option value="total_desc">Highest revenue</option>
+          <option value="total_asc">Lowest revenue</option>
+        </select>
+
+        <div className="flex items-center gap-1.5 ml-auto">
+          {hasFilters && (
+            <button
+              onClick={clearFilters}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-medium text-gray-500 hover:bg-gray-100 transition-colors"
+            >
+              <X size={11} /> Clear
+            </button>
+          )}
+          <button
+            onClick={() => refetch()}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            <RefreshCw size={11} className={isFetching ? "animate-spin" : ""} />
+          </button>
+          <button
+            onClick={() => exportToCsv(bookings)}
+            disabled={bookings.length === 0}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11.5px] font-semibold transition-colors disabled:opacity-40"
+            style={{ background: "#0F766E", color: "#fff" }}
+            onMouseEnter={e => { if (!bookings.length) return; (e.currentTarget as HTMLElement).style.background = "#0d6660"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#0F766E"; }}
+          >
+            <Download size={12} /> Export CSV
+          </button>
+        </div>
+      </div>
+
+      {/* ── Table ───────────────────────────────────────────────────────── */}
+      <div className="flex-1 overflow-auto haip-scrollbar">
+        {isLoading ? (
+          <div className="p-5 space-y-3">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="h-14 bg-white rounded-xl border border-gray-100 animate-pulse" />
+            ))}
+          </div>
+        ) : isError ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-3">
+            <AlertTriangle size={28} className="text-red-400" />
+            <p className="text-sm text-gray-500">Failed to load bookings</p>
+            <button
+              onClick={() => refetch()}
+              className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#0F766E] text-white hover:bg-[#0d6660] transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        ) : bookings.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-2">
+            <BookOpen size={32} className="text-gray-300" />
+            <p className="text-sm font-medium text-gray-400">No bookings found</p>
+            {hasFilters && (
+              <button onClick={clearFilters} className="text-xs text-teal-600 font-medium hover:underline">Clear filters</button>
+            )}
+          </div>
+        ) : (
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E5E7EB" }}>
+                {["Booking", "Guest / Property", "Status", "Dates", "Guests", "Total", "Payment", "Channel", ""].map(h => (
+                  <th key={h} className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: "#6B7280" }}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {bookings.map((b, idx) => {
+                const guestName = b.main_guest
+                  ? `${b.main_guest.first_name} ${b.main_guest.last_name}`.trim()
+                  : "Unknown";
+                const nights = Math.ceil(
+                  (new Date(b.check_out).getTime() - new Date(b.check_in).getTime()) / 86400000
+                );
+                return (
+                  <tr
+                    key={b.id}
+                    className="border-b transition-colors hover:bg-gray-50"
+                    style={{ borderColor: "#F3F4F6", background: idx % 2 === 0 ? "#FFFFFF" : "#FAFAFA" }}
+                  >
+                    {/* Booking ID */}
+                    <td className="px-4 py-3.5">
+                      <span className="text-[12px] font-mono font-semibold" style={{ color: "#0F766E" }}>
+                        #{b.booking_id}
+                      </span>
+                    </td>
+
+                    {/* Guest + Property */}
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center gap-3">
+                        {b.property?.image ? (
+                          <img src={b.property.image} alt="" className="w-9 h-9 rounded-lg object-cover flex-shrink-0 border border-gray-100" />
+                        ) : (
+                          <div className="w-9 h-9 rounded-lg flex-shrink-0 flex items-center justify-center" style={{ background: "rgba(15,118,110,0.08)" }}>
+                            <Bed size={14} style={{ color: "#0F766E" }} />
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-semibold truncate" style={{ color: "#111827" }}>{guestName}</p>
+                          {b.property && (
+                            <p className="text-[11px] truncate" style={{ color: "#6B7280" }}>
+                              {b.property.name}
+                              {b.property.type && <span className="ml-1 text-gray-400">· {b.property.type}</span>}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Status */}
+                    <td className="px-4 py-3.5">
+                      <BookingStatusBadge status={b.status} />
+                    </td>
+
+                    {/* Dates */}
+                    <td className="px-4 py-3.5">
+                      <p className="text-[12px] font-medium" style={{ color: "#374151" }}>
+                        {new Date(b.check_in).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" })}
+                      </p>
+                      <p className="text-[11px]" style={{ color: "#9CA3AF" }}>
+                        → {new Date(b.check_out).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" })}
+                      </p>
+                      <p className="text-[10px] mt-0.5" style={{ color: "#9CA3AF" }}>{nights}n</p>
+                    </td>
+
+                    {/* Guests */}
+                    <td className="px-4 py-3.5">
+                      <p className="text-[12px]" style={{ color: "#374151" }}>
+                        {b.adults} adult{b.adults !== 1 ? "s" : ""}
+                      </p>
+                      {b.children > 0 && (
+                        <p className="text-[11px]" style={{ color: "#9CA3AF" }}>{b.children} child{b.children !== 1 ? "ren" : ""}</p>
+                      )}
+                    </td>
+
+                    {/* Total */}
+                    <td className="px-4 py-3.5">
+                      <p className="text-[13px] font-bold" style={{ color: "#111827", fontFamily: "var(--font-display), sans-serif" }}>
+                        ₹{b.total.toLocaleString("en-IN")}
+                      </p>
+                    </td>
+
+                    {/* Payment */}
+                    <td className="px-4 py-3.5">
+                      <PaymentBadge status={b.payment_status} />
+                    </td>
+
+                    {/* Channel */}
+                    <td className="px-4 py-3.5">
+                      <ChannelPill channel={b.channel} />
+                      {b.source && (
+                        <p className="text-[10px] mt-0.5" style={{ color: "#9CA3AF" }}>{b.source}</p>
+                      )}
+                    </td>
+
+                    {/* Actions */}
+                    <td className="px-4 py-3.5">
+                      <button
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium hover:bg-gray-100 transition-colors"
+                        style={{ color: "#6B7280" }}
+                        title="View in RentalWise"
+                      >
+                        <ExternalLink size={11} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* ── Pagination ──────────────────────────────────────────────────── */}
+      {meta && meta.last_page > 1 && (
+        <div
+          className="flex-shrink-0 flex items-center justify-between px-5 py-3 border-t"
+          style={{ background: "#FFFFFF", borderColor: "#E5E7EB" }}
+        >
+          <p className="text-[12px]" style={{ color: "#6B7280" }}>
+            Page {meta.current_page} of {meta.last_page} · {meta.total} bookings
+          </p>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page <= 1 || isFetching}
+              className="w-8 h-8 rounded-lg flex items-center justify-center border disabled:opacity-40 hover:bg-gray-50 transition-colors"
+              style={{ borderColor: "#E5E7EB", color: "#6B7280" }}
+            >
+              <ChevronLeftIcon size={14} />
+            </button>
+            {[...Array(Math.min(5, meta.last_page))].map((_, i) => {
+              const pg = Math.max(1, Math.min(meta.last_page - 4, page - 2)) + i;
+              return (
+                <button
+                  key={pg}
+                  onClick={() => setPage(pg)}
+                  className={cn(
+                    "w-8 h-8 rounded-lg text-[12px] font-medium transition-colors",
+                    pg === page ? "bg-[#0F766E] text-white" : "hover:bg-gray-50 border text-gray-600"
+                  )}
+                  style={pg !== page ? { borderColor: "#E5E7EB" } : {}}
+                >
+                  {pg}
+                </button>
+              );
+            })}
+            <button
+              onClick={() => setPage(p => Math.min(meta.last_page, p + 1))}
+              disabled={page >= meta.last_page || isFetching}
+              className="w-8 h-8 rounded-lg flex items-center justify-center border disabled:opacity-40 hover:bg-gray-50 transition-colors"
+              style={{ borderColor: "#E5E7EB", color: "#6B7280" }}
+            >
+              <ChevronRightIcon size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Guest list ───────────────────────────────────────────────────────────────
 
 export default function GuestsPage() {
   const [search, setSearch] = useState("");
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [activeTab, setActiveTab] = useState<"bookings" | "guests">("bookings");
 
   const { data: guests = [], isLoading } = useQuery<GuestItem[]>({
     queryKey: ["guests", debouncedSearch],
     queryFn: () => api.get("/guests", { params: debouncedSearch ? { q: debouncedSearch } : {} }).then(r => r.data),
     staleTime: 30_000,
+    enabled: activeTab === "guests",
   });
 
   const { data: profile, isLoading: profileLoading } = useQuery<GuestProfile>({
@@ -318,101 +758,113 @@ export default function GuestsPage() {
     return <Guest360 profile={profile} onBack={() => setSelectedPhone(null)} />;
   }
 
-  // Guest card grid
-  const returning = guests.filter(g => !g.tags.includes("new")).length;
-
   return (
     <div className="flex flex-col h-full bg-[#F8FAFC]">
-      {/* Header */}
+      {/* Header + Tabs */}
       <div
-        className="flex-shrink-0 px-6 py-4 flex items-center justify-between gap-4"
+        className="flex-shrink-0 px-6 py-4"
         style={{ background: "#FFFFFF", borderBottom: "1px solid #E5E7EB" }}
       >
-        <div>
-          <h1
-            className="text-xl font-bold"
-            style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}
-          >
-            Guests
-          </h1>
-          <p className="text-xs mt-0.5" style={{ color: "#6B7280" }}>
-            {guests.length} total · {returning} returning
-          </p>
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <div>
+            <h1
+              className="text-xl font-bold"
+              style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}
+            >
+              Guests &amp; Bookings
+            </h1>
+            <p className="text-xs mt-0.5" style={{ color: "#6B7280" }}>
+              Manage guest profiles and RentalWise bookings
+            </p>
+          </div>
         </div>
-        <div className="relative max-w-xs w-full">
-          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#9CA3AF" }} />
-          <input
-            value={search}
-            onChange={e => handleSearch(e.target.value)}
-            placeholder="Search name, phone, email…"
-            className="w-full pl-8 pr-3 py-2 text-sm rounded-xl focus:outline-none"
-            style={{
-              background: "#F8FAFC",
-              border: "1px solid #E5E7EB",
-              color: "#111827",
-            }}
-            onFocus={e => { (e.currentTarget as HTMLElement).style.borderColor = "#0F766E"; }}
-            onBlur={e => { (e.currentTarget as HTMLElement).style.borderColor = "#E5E7EB"; }}
-          />
-        </div>
-      </div>
 
-      {/* KPI strip */}
-      {guests.length > 0 && (
-        <div
-          className="flex-shrink-0 flex items-center gap-6 px-6 py-3 border-b"
-          style={{ background: "#F8FAFC", borderColor: "#E2E8F0" }}
-        >
+        {/* Tab switcher */}
+        <div className="flex gap-1 p-1 rounded-xl w-fit" style={{ background: "#F3F4F6" }}>
           {[
-            { icon: <Users size={12} className="text-teal-600" />, label: "Total guests", value: guests.length },
-            { icon: <TrendingUp size={12} className="text-blue-600" />, label: "VIP guests", value: guests.filter(g => g.tags.includes("VIP")).length },
-            { icon: <Shield size={12} className="text-green-600" />, label: "Consented", value: guests.filter(g => g.gdpr_consent).length },
-          ].map(s => (
-            <div key={s.label} className="flex items-center gap-2">
-              {s.icon}
-              <span className="text-xs text-gray-500">{s.label}:</span>
-              <span className="text-xs font-semibold text-gray-900">{s.value}</span>
-            </div>
+            { id: "bookings" as const, label: "Bookings", icon: <BookOpen size={13} /> },
+            { id: "guests"   as const, label: "Guest Profiles", icon: <Users size={13} /> },
+          ].map(t => (
+            <button
+              key={t.id}
+              onClick={() => setActiveTab(t.id)}
+              className={cn(
+                "flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[12.5px] font-semibold transition-all",
+                activeTab === t.id ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
+              )}
+            >
+              {t.icon}
+              {t.label}
+            </button>
           ))}
         </div>
-      )}
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-5">
-        {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {[...Array(8)].map((_, i) => (
-              <div key={i} className="haip-card p-5 animate-pulse">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-gray-200" />
-                  <div className="space-y-1.5 flex-1">
-                    <div className="h-3 bg-gray-200 rounded w-24" />
-                    <div className="h-2.5 bg-gray-200 rounded w-16" />
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <div className="h-2.5 bg-gray-100 rounded w-full" />
-                  <div className="h-2.5 bg-gray-100 rounded w-2/3" />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : guests.length === 0 ? (
-          <div className="flex items-center justify-center py-20">
-            <EmptyGuests />
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {guests.map(guest => (
-              <GuestCard
-                key={guest.phone}
-                guest={guest}
-                onClick={() => setSelectedPhone(guest.phone)}
-              />
-            ))}
-          </div>
-        )}
       </div>
+
+      {/* Tab content */}
+      {activeTab === "bookings" ? (
+        <BookingsTable />
+      ) : (
+        /* Guest card grid (existing) */
+        <div className="flex flex-col flex-1 overflow-hidden">
+          {/* Guest search bar */}
+          <div
+            className="flex-shrink-0 px-6 py-3 border-b flex items-center justify-between gap-4"
+            style={{ background: "#FFFFFF", borderColor: "#E5E7EB" }}
+          >
+            <p className="text-xs" style={{ color: "#6B7280" }}>
+              {guests.length} guests
+            </p>
+            <div className="relative max-w-xs w-full">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#9CA3AF" }} />
+              <input
+                value={search}
+                onChange={e => handleSearch(e.target.value)}
+                placeholder="Search name, phone, email…"
+                className="w-full pl-8 pr-3 py-2 text-sm rounded-xl focus:outline-none"
+                style={{ background: "#F8FAFC", border: "1px solid #E5E7EB", color: "#111827" }}
+                onFocus={e => { (e.currentTarget as HTMLElement).style.borderColor = "#0F766E"; }}
+                onBlur={e => { (e.currentTarget as HTMLElement).style.borderColor = "#E5E7EB"; }}
+              />
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-5">
+            {isLoading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                {[...Array(8)].map((_, i) => (
+                  <div key={i} className="haip-card p-5 animate-pulse">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-xl bg-gray-200" />
+                      <div className="space-y-1.5 flex-1">
+                        <div className="h-3 bg-gray-200 rounded w-24" />
+                        <div className="h-2.5 bg-gray-200 rounded w-16" />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="h-2.5 bg-gray-100 rounded w-full" />
+                      <div className="h-2.5 bg-gray-100 rounded w-2/3" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : guests.length === 0 ? (
+              <div className="flex items-center justify-center py-20">
+                <EmptyGuests />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                {guests.map(guest => (
+                  <GuestCard
+                    key={guest.phone}
+                    guest={guest}
+                    onClick={() => setSelectedPhone(guest.phone)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

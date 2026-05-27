@@ -40,7 +40,8 @@ const NAV_ITEMS: NavItem[] = [
       { label: "Conversations", href: "/dashboard/inbox",             icon: MessageSquare },
       { label: "WhatsApp",      href: "/dashboard/inbox?ch=whatsapp", icon: MessageSquare },
       { label: "Instagram",     href: "/dashboard/inbox?ch=instagram", icon: AtSign },
-      { label: "AI Concierge",  href: "/dashboard/inbox?ch=ai",       icon: Bot },
+      { label: "AI Concierge",   href: "/dashboard/inbox?ch=ai",                    icon: Bot },
+      { label: "Channel Manager", href: "/dashboard/inbox/channel-manager",          icon: Building2 },
     ],
   },
   {
