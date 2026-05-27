@@ -1,8 +1,9 @@
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import {
   rentalwiseService,
   type RWThreadFilters,
   type RWBookingFilters,
+  type RWSendMessagePayload,
 } from "@/lib/rentalwise";
 
 // ─── Threads ──────────────────────────────────────────────────────────────────
@@ -26,6 +27,23 @@ export function useRWThreadMessages(threadId: number | null) {
     enabled:  !!threadId,
     staleTime: 15_000,
     retry:     1,
+  });
+}
+
+// ─── Send message mutation ────────────────────────────────────────────────────
+
+export function useSendRWMessage(threadId: number | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: RWSendMessagePayload) => rentalwiseService.sendMessage(payload),
+    onSuccess: () => {
+      // Invalidate the messages cache so the new message appears immediately
+      if (threadId) {
+        qc.invalidateQueries({ queryKey: ["rw-thread-messages", threadId] });
+      }
+      // Also refresh the thread list so the last_message_excerpt updates
+      qc.invalidateQueries({ queryKey: ["rw-threads"] });
+    },
   });
 }
 

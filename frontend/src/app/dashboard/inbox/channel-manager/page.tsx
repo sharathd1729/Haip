@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Search, X, RefreshCw, AlertCircle, Inbox,
   Mail, Home, Globe, ChevronLeft, Clock, MessageSquare,
-  User, Phone, AtSign, Calendar, Hash, AlertTriangle,
-  CheckCircle2, Loader2,
+  Phone, AtSign, Hash, AlertTriangle,
+  CheckCircle2, Loader2, Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useRWThreads, useRWThreadMessages } from "@/hooks/useRentalWise";
+import { useRWThreads, useRWThreadMessages, useSendRWMessage } from "@/hooks/useRentalWise";
 import { type RWThread, type RWMessage, type RWProvider } from "@/lib/rentalwise";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -34,36 +34,35 @@ const THREAD_FILTERS: ThreadFilter[] = [
 ];
 
 const PROVIDER_COLORS: Record<string, string> = {
-  airbnb:      "#FF5A5F",
+  airbnb:        "#FF5A5F",
   "booking-com": "#003580",
-  homeaway:    "#1D5AA1",
-  email:       "#6B7280",
+  homeaway:      "#1D5AA1",
+  email:         "#6B7280",
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
-  airbnb:      "Airbnb",
+  airbnb:        "Airbnb",
   "booking-com": "Booking.com",
-  homeaway:    "HomeAway",
-  email:       "Email",
+  homeaway:      "HomeAway",
+  email:         "Email",
 };
 
-// ─── Provider icon ─────────────────────────────────────────────────────────────
+// ─── Provider badge ────────────────────────────────────────────────────────────
 
 function ProviderBadge({ provider, size = "sm" }: { provider: RWProvider; size?: "sm" | "md" }) {
   const color = PROVIDER_COLORS[provider] ?? "#6B7280";
   const label = PROVIDER_LABELS[provider] ?? provider;
   const pad   = size === "sm" ? "px-1.5 py-0.5 text-[9px]" : "px-2 py-1 text-[11px]";
 
-  const icon = provider === "airbnb" ? (
-    <svg width={size === "sm" ? 9 : 11} height={size === "sm" ? 9 : 11} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" />
-    </svg>
-  ) : provider === "booking-com" ? (
+  const icon = provider === "booking-com" ? (
     <Globe size={size === "sm" ? 9 : 11} />
   ) : provider === "homeaway" ? (
     <Home size={size === "sm" ? 9 : 11} />
-  ) : (
+  ) : provider === "email" ? (
     <Mail size={size === "sm" ? 9 : 11} />
+  ) : (
+    // Airbnb — simple circle-A icon
+    <span className="font-black leading-none" style={{ fontSize: size === "sm" ? 9 : 11 }}>A</span>
   );
 
   return (
@@ -81,31 +80,19 @@ function ProviderBadge({ provider, size = "sm" }: { provider: RWProvider; size?:
 
 function formatTime(iso: string | null): string {
   if (!iso) return "";
-  const d = new Date(iso);
-  const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffHrs = diffMs / 3600000;
-  if (diffHrs < 24) {
-    return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
-  }
-  if (diffHrs < 48 * 24) {
-    return `${Math.floor(diffHrs / 24)}d ago`;
-  }
+  const d    = new Date(iso);
+  const now  = new Date();
+  const hrs  = (now.getTime() - d.getTime()) / 3600000;
+  if (hrs < 24)    return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+  if (hrs < 48*24) return `${Math.floor(hrs / 24)}d ago`;
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
-// ─── Thread List Item ─────────────────────────────────────────────────────────
+// ─── Thread list item ──────────────────────────────────────────────────────────
 
-function ThreadRow({
-  thread,
-  active,
-  onClick,
-}: {
-  thread: RWThread;
-  active: boolean;
-  onClick: () => void;
-}) {
-  const name = [thread.first_name, thread.last_name].filter(Boolean).join(" ") || thread.email || "Unknown";
+function ThreadRow({ thread, active, onClick }: { thread: RWThread; active: boolean; onClick: () => void }) {
+  const { first_name, last_name, email } = thread.account ?? {};
+  const name     = [first_name, last_name].filter(Boolean).join(" ") || email || "Unknown";
   const initials = name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase();
 
   return (
@@ -120,7 +107,6 @@ function ThreadRow({
       )}
     >
       <div className="flex items-start gap-3">
-        {/* Avatar */}
         <div
           className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 mt-0.5"
           style={{
@@ -133,7 +119,6 @@ function ThreadRow({
         </div>
 
         <div className="flex-1 min-w-0">
-          {/* Name + time */}
           <div className="flex items-center justify-between gap-2 mb-0.5">
             <p className="text-[13px] font-semibold truncate" style={{ color: "#111827" }}>
               {name}
@@ -143,21 +128,12 @@ function ThreadRow({
             </span>
           </div>
 
-          {/* Subject */}
-          {thread.subject && (
-            <p className="text-[11.5px] font-medium truncate mb-1" style={{ color: "#374151" }}>
-              {thread.subject}
-            </p>
-          )}
-
-          {/* Preview */}
           {thread.last_message_excerpt && (
             <p className="text-[11px] truncate mb-1.5" style={{ color: "#9CA3AF" }}>
               {thread.last_message_excerpt}
             </p>
           )}
 
-          {/* Badges row */}
           <div className="flex items-center gap-1.5 flex-wrap">
             <ProviderBadge provider={thread.default_message_provider} size="sm" />
             {thread.requires_attention && (
@@ -177,11 +153,16 @@ function ThreadRow({
   );
 }
 
-// ─── Message Bubble ────────────────────────────────────────────────────────────
+// ─── Message bubble ────────────────────────────────────────────────────────────
 
 function RWMessageBubble({ msg }: { msg: RWMessage }) {
   const isOutbound = msg.direction === "outbound";
   const time = new Date(msg.sent_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+
+  // Strip basic HTML tags for display when content_type is text/html
+  const displayContent = msg.content_type === "text/html"
+    ? msg.content.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ").trim()
+    : msg.content;
 
   return (
     <div className={cn("flex gap-2 mb-3", isOutbound ? "justify-end" : "justify-start")}>
@@ -194,11 +175,13 @@ function RWMessageBubble({ msg }: { msg: RWMessage }) {
         </div>
       )}
 
-      <div className={cn("max-w-[72%] space-y-1", isOutbound && "items-end")}>
-        {/* Sender name */}
-        {msg.sent_by_name && (
+      <div className={cn("max-w-[72%] space-y-1", isOutbound && "items-end flex flex-col")}>
+        {/* Sender */}
+        {(msg.sent_by_name || msg.sent_by_workflow?.name) && (
           <p className="text-[10px] font-medium px-1" style={{ color: "#9CA3AF" }}>
-            {msg.sent_by_name}
+            {msg.sent_by_workflow?.name
+              ? `🤖 ${msg.sent_by_workflow.name}`
+              : msg.sent_by_name}
           </p>
         )}
 
@@ -211,10 +194,10 @@ function RWMessageBubble({ msg }: { msg: RWMessage }) {
               : "bg-white border border-gray-100 shadow-sm text-gray-800 rounded-bl-sm"
           )}
         >
-          <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+          <p className="whitespace-pre-wrap break-words">{displayContent}</p>
 
-          {/* Translated content */}
-          {msg.translated_content && msg.translated_content !== msg.content && (
+          {/* Translation */}
+          {msg.translated_content && msg.translated_content !== displayContent && (
             <div
               className={cn(
                 "mt-2 pt-2 text-[11px] italic border-t",
@@ -225,15 +208,21 @@ function RWMessageBubble({ msg }: { msg: RWMessage }) {
               {msg.translated_content}
             </div>
           )}
+
+          {/* Error */}
+          {msg.error_message && (
+            <p className="mt-1 text-[10px] text-red-300 flex items-center gap-1">
+              <AlertTriangle size={9} /> {msg.error_message}
+            </p>
+          )}
         </div>
 
-        {/* Time + channel */}
-        <div className={cn("flex items-center gap-1.5 px-1", isOutbound && "justify-end")}>
+        {/* Footer row */}
+        <div className={cn("flex items-center gap-1.5 px-1", isOutbound ? "justify-end" : "justify-start")}>
           <ProviderBadge provider={msg.provider} size="sm" />
           <span className="text-[10px]" style={{ color: "#9CA3AF" }}>{time}</span>
-          {isOutbound && msg.is_sent && (
-            <CheckCircle2 size={10} className="text-teal-400" />
-          )}
+          {isOutbound && msg.is_sent && <CheckCircle2 size={10} className="text-teal-400" />}
+          {isOutbound && !msg.is_sent && !msg.error_message && <Loader2 size={10} className="text-gray-300 animate-spin" />}
         </div>
       </div>
 
@@ -249,18 +238,56 @@ function RWMessageBubble({ msg }: { msg: RWMessage }) {
   );
 }
 
-// ─── Thread Panel (messages) ──────────────────────────────────────────────────
+// ─── Thread panel (messages + reply) ──────────────────────────────────────────
 
 function ThreadPanel({ thread, onBack }: { thread: RWThread; onBack: () => void }) {
   const { data, isLoading, isError, refetch } = useRWThreadMessages(thread.id);
   const messages: RWMessage[] = data?.data ?? [];
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  // Reply state
+  const [replyText, setReplyText]         = useState("");
+  const [selectedProvider, setSelectedProvider] = useState<RWProvider>(thread.default_message_provider);
+  const sendMutation = useSendRWMessage(thread.id);
+
+  // Auto-scroll on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
-  const guestName = [thread.first_name, thread.last_name].filter(Boolean).join(" ") || thread.email;
+  // Sync provider when thread changes
+  useEffect(() => {
+    setSelectedProvider(thread.default_message_provider);
+  }, [thread.id, thread.default_message_provider]);
+
+  const { first_name, last_name, email } = thread.account ?? {};
+  const guestName = [first_name, last_name].filter(Boolean).join(" ") || email || "Unknown";
+
+  const providers = thread.available_message_providers?.length
+    ? thread.available_message_providers
+    : [{ id: thread.default_message_provider, name: PROVIDER_LABELS[thread.default_message_provider] ?? thread.default_message_provider, icon_url: "" }];
+
+  async function handleSend() {
+    const text = replyText.trim();
+    if (!text || sendMutation.isPending) return;
+    try {
+      await sendMutation.mutateAsync({
+        thread:   thread.thread_identifier,
+        provider: selectedProvider,
+        content:  text,
+      });
+      setReplyText("");
+    } catch {
+      // error shown via sendMutation.error
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      handleSend();
+    }
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -277,7 +304,6 @@ function ThreadPanel({ thread, onBack }: { thread: RWThread; onBack: () => void 
           <ChevronLeft size={18} />
         </button>
 
-        {/* Avatar */}
         <div
           className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
           style={{ background: "linear-gradient(135deg, #14B8A6, #0F766E)" }}
@@ -314,7 +340,7 @@ function ThreadPanel({ thread, onBack }: { thread: RWThread; onBack: () => void 
         </div>
       </div>
 
-      {/* Messages */}
+      {/* Messages area */}
       <div className="flex-1 overflow-y-auto px-4 py-4 haip-scrollbar" style={{ background: "#F8FAFC" }}>
         {isLoading ? (
           <div className="space-y-4">
@@ -351,14 +377,80 @@ function ThreadPanel({ thread, onBack }: { thread: RWThread; onBack: () => void 
         )}
       </div>
 
-      {/* Read-only footer */}
+      {/* Reply composer */}
       <div
-        className="px-4 py-3 flex-shrink-0 text-center"
+        className="flex-shrink-0 px-4 pt-3 pb-3"
         style={{ borderTop: "1px solid #E5E7EB", background: "#FFFFFF" }}
       >
-        <p className="text-[11px]" style={{ color: "#9CA3AF" }}>
-          Read-only view — reply via your channel manager
-        </p>
+        {/* Provider selector (only show if multiple providers available) */}
+        {providers.length > 1 && (
+          <div className="flex gap-1 mb-2">
+            {providers.map(p => (
+              <button
+                key={p.id}
+                onClick={() => setSelectedProvider(p.id)}
+                className={cn(
+                  "px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors border",
+                  selectedProvider === p.id
+                    ? "border-[#0F766E] bg-[#0F766E]/5 text-[#0F766E]"
+                    : "border-gray-200 text-gray-500 hover:bg-gray-50"
+                )}
+              >
+                {PROVIDER_LABELS[p.id] ?? p.id}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Text area + send button */}
+        <div className="flex gap-2 items-end">
+          <div className="flex-1 relative">
+            <textarea
+              value={replyText}
+              onChange={e => setReplyText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={`Reply via ${PROVIDER_LABELS[selectedProvider] ?? selectedProvider}…`}
+              rows={2}
+              className="w-full px-3 py-2.5 rounded-xl text-[13px] resize-none focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20"
+              style={{
+                background: "#F8FAFC",
+                border: "1px solid #E5E7EB",
+                color: "#111827",
+                maxHeight: 120,
+              }}
+              onFocus={e => { (e.currentTarget as HTMLElement).style.borderColor = "#0F766E"; }}
+              onBlur={e => { (e.currentTarget as HTMLElement).style.borderColor = "#E5E7EB"; }}
+            />
+            <span className="absolute right-2 bottom-2 text-[10px]" style={{ color: "#D1D5DB" }}>
+              ⌘↵
+            </span>
+          </div>
+          <button
+            onClick={handleSend}
+            disabled={!replyText.trim() || sendMutation.isPending}
+            className={cn(
+              "flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all",
+              "disabled:opacity-40"
+            )}
+            style={{ background: "#0F766E", color: "#fff" }}
+            onMouseEnter={e => { if (!replyText.trim()) return; (e.currentTarget as HTMLElement).style.background = "#0d6660"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#0F766E"; }}
+            title="Send (⌘+Enter)"
+          >
+            {sendMutation.isPending
+              ? <Loader2 size={16} className="animate-spin" />
+              : <Send size={16} />
+            }
+          </button>
+        </div>
+
+        {/* Send error */}
+        {sendMutation.isError && (
+          <p className="mt-1.5 text-[11px] text-red-500 flex items-center gap-1">
+            <AlertTriangle size={10} />
+            {(sendMutation.error as any)?.message ?? "Failed to send — check your RentalWise connection"}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -367,7 +459,8 @@ function ThreadPanel({ thread, onBack }: { thread: RWThread; onBack: () => void 
 // ─── Guest context panel ──────────────────────────────────────────────────────
 
 function GuestContextPanel({ thread }: { thread: RWThread }) {
-  const guestName = [thread.first_name, thread.last_name].filter(Boolean).join(" ") || "Unknown";
+  const { first_name, last_name, email, phone, company } = thread.account ?? {};
+  const guestName = [first_name, last_name].filter(Boolean).join(" ") || "Unknown";
   const initials  = guestName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase();
 
   return (
@@ -398,21 +491,30 @@ function GuestContextPanel({ thread }: { thread: RWThread }) {
 
       {/* Details */}
       <div className="flex-1 px-4 py-4 space-y-3.5">
-        {thread.email && (
+        {email && (
           <div className="flex items-start gap-2.5">
             <AtSign size={13} className="flex-shrink-0 mt-0.5" style={{ color: "#9CA3AF" }} />
             <div className="min-w-0">
               <p className="text-[9.5px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "#9CA3AF" }}>Email</p>
-              <p className="text-[11.5px] font-medium truncate" style={{ color: "#374151" }}>{thread.email}</p>
+              <p className="text-[11.5px] font-medium truncate" style={{ color: "#374151" }}>{email}</p>
             </div>
           </div>
         )}
-        {thread.phone && (
+        {phone && (
           <div className="flex items-start gap-2.5">
             <Phone size={13} className="flex-shrink-0 mt-0.5" style={{ color: "#9CA3AF" }} />
             <div className="min-w-0">
               <p className="text-[9.5px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "#9CA3AF" }}>Phone</p>
-              <p className="text-[11.5px] font-medium" style={{ color: "#374151" }}>{thread.phone}</p>
+              <p className="text-[11.5px] font-medium" style={{ color: "#374151" }}>{phone}</p>
+            </div>
+          </div>
+        )}
+        {company && (
+          <div className="flex items-start gap-2.5">
+            <Globe size={13} className="flex-shrink-0 mt-0.5" style={{ color: "#9CA3AF" }} />
+            <div className="min-w-0">
+              <p className="text-[9.5px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "#9CA3AF" }}>Company</p>
+              <p className="text-[11.5px] font-medium truncate" style={{ color: "#374151" }}>{company}</p>
             </div>
           </div>
         )}
@@ -423,13 +525,15 @@ function GuestContextPanel({ thread }: { thread: RWThread }) {
             <p className="text-[11px] font-mono truncate" style={{ color: "#374151" }}>{thread.thread_identifier}</p>
           </div>
         </div>
-        <div className="flex items-start gap-2.5">
-          <Globe size={13} className="flex-shrink-0 mt-0.5" style={{ color: "#9CA3AF" }} />
-          <div className="min-w-0">
-            <p className="text-[9.5px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "#9CA3AF" }}>Channel</p>
-            <ProviderBadge provider={thread.default_message_provider} size="sm" />
+        {thread.thread_external_id && (
+          <div className="flex items-start gap-2.5">
+            <Hash size={13} className="flex-shrink-0 mt-0.5" style={{ color: "#9CA3AF" }} />
+            <div className="min-w-0">
+              <p className="text-[9.5px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "#9CA3AF" }}>External ID</p>
+              <p className="text-[11px] font-mono truncate" style={{ color: "#374151" }}>{thread.thread_external_id}</p>
+            </div>
           </div>
-        </div>
+        )}
         <div className="flex items-start gap-2.5">
           <MessageSquare size={13} className="flex-shrink-0 mt-0.5" style={{ color: "#9CA3AF" }} />
           <div className="min-w-0">
@@ -450,6 +554,19 @@ function GuestContextPanel({ thread }: { thread: RWThread }) {
             </div>
           </div>
         )}
+
+        {/* Available providers */}
+        {(thread.available_message_providers?.length ?? 0) > 1 && (
+          <div>
+            <p className="text-[9.5px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: "#9CA3AF" }}>Channels</p>
+            <div className="flex flex-wrap gap-1">
+              {thread.available_message_providers.map(p => (
+                <ProviderBadge key={p.id} provider={p.id} size="sm" />
+              ))}
+            </div>
+          </div>
+        )}
+
         {thread.requires_attention && (
           <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-amber-200 bg-amber-50">
             <AlertTriangle size={13} className="text-amber-600 flex-shrink-0" />
@@ -463,13 +580,7 @@ function GuestContextPanel({ thread }: { thread: RWThread }) {
 
 // ─── Channel filter row ────────────────────────────────────────────────────────
 
-function FilterRow({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-}) {
+function FilterRow({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div className="flex gap-1 overflow-x-auto scrollbar-hide px-4 py-2.5 border-b" style={{ borderColor: "#E5E7EB" }}>
       {THREAD_FILTERS.map(f => (
@@ -493,34 +604,31 @@ function FilterRow({
   );
 }
 
-// ─── Main Page ─────────────────────────────────────────────────────────────────
+// ─── Main page ─────────────────────────────────────────────────────────────────
 
 export default function ChannelManagerPage() {
-  const queryClient = useQueryClient();
-  const [activeFilter, setActiveFilter] = useState("all");
-  const [search, setSearch]             = useState("");
+  const queryClient                        = useQueryClient();
+  const [activeFilter, setActiveFilter]   = useState("all");
+  const [search, setSearch]               = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [activeThreadId, setActiveThreadId]   = useState<number | null>(null);
-  const [mobileView, setMobileView] = useState<"list" | "thread">("list");
+  const [mobileView, setMobileView]       = useState<"list" | "thread">("list");
 
-  // Debounce search
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400);
     return () => clearTimeout(t);
   }, [search]);
 
-  // Build query filters
   const filterConfig = THREAD_FILTERS.find(f => f.value === activeFilter);
-  const queryFilters = {
-    search:              debouncedSearch || undefined,
-    provider:            filterConfig?.provider,
-    requires_attention:  filterConfig?.attention,
-    per_page:            40,
+  const queryFilters: Parameters<typeof useRWThreads>[0] = {
+    search:             debouncedSearch || undefined,
+    provider:           filterConfig?.provider,
+    requires_attention: filterConfig?.attention,
+    per_page:           40,
   };
 
   const { data, isLoading, isError, refetch, isFetching } = useRWThreads(queryFilters);
   const threads: RWThread[] = data?.data ?? [];
-
   const activeThread = threads.find(t => t.id === activeThreadId) ?? null;
 
   function handleSelectThread(thread: RWThread) {
@@ -536,7 +644,7 @@ export default function ChannelManagerPage() {
   return (
     <div className="h-full flex flex-col" style={{ background: "#F8FAFC" }}>
 
-      {/* ── Page header ─────────────────────────────────────────────────── */}
+      {/* Page header */}
       <div
         className="flex-shrink-0 px-6 py-4"
         style={{ background: "#FFFFFF", borderBottom: "1px solid #E5E7EB" }}
@@ -555,10 +663,7 @@ export default function ChannelManagerPage() {
           </div>
           <button
             onClick={() => { queryClient.invalidateQueries({ queryKey: ["rw-threads"] }); }}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-semibold transition-colors",
-              "border border-gray-200 text-gray-600 hover:bg-gray-50"
-            )}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-semibold transition-colors border border-gray-200 text-gray-600 hover:bg-gray-50"
           >
             <RefreshCw size={13} className={isFetching ? "animate-spin" : ""} />
             Refresh
@@ -566,7 +671,7 @@ export default function ChannelManagerPage() {
         </div>
       </div>
 
-      {/* ── Three-panel layout ───────────────────────────────────────────── */}
+      {/* Three-panel layout */}
       <div className="flex flex-1 overflow-hidden">
 
         {/* LEFT: Thread list */}
@@ -585,20 +690,14 @@ export default function ChannelManagerPage() {
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Search guests, email, thread…"
-                className="w-full pl-8 pr-8 py-2 rounded-xl text-[12.5px] focus:outline-none focus:ring-2 focus:ring-[#0F766E]/20"
-                style={{
-                  background: "#F8FAFC",
-                  border: "1px solid #E5E7EB",
-                  color: "#374151",
-                }}
+                placeholder="Search guests, email…"
+                className="w-full pl-8 pr-8 py-2 rounded-xl text-[12.5px] focus:outline-none"
+                style={{ background: "#F8FAFC", border: "1px solid #E5E7EB", color: "#374151" }}
+                onFocus={e => { (e.currentTarget as HTMLElement).style.borderColor = "#0F766E"; }}
+                onBlur={e => { (e.currentTarget as HTMLElement).style.borderColor = "#E5E7EB"; }}
               />
               {search && (
-                <button
-                  onClick={() => setSearch("")}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2"
-                  style={{ color: "#9CA3AF" }}
-                >
+                <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: "#9CA3AF" }}>
                   <X size={12} />
                 </button>
               )}
@@ -611,7 +710,7 @@ export default function ChannelManagerPage() {
           {/* Thread list */}
           <div className="flex-1 overflow-y-auto haip-scrollbar">
             {isLoading ? (
-              <div className="space-y-0">
+              <div>
                 {[1, 2, 3, 4, 5].map(i => (
                   <div key={i} className="px-4 py-3 border-b border-gray-50">
                     <div className="flex items-start gap-3">
@@ -640,9 +739,7 @@ export default function ChannelManagerPage() {
               <div className="flex flex-col items-center justify-center py-16 px-4 gap-2">
                 <Inbox size={28} className="text-gray-300" />
                 <p className="text-sm font-medium text-gray-400">No conversations found</p>
-                {debouncedSearch && (
-                  <p className="text-xs text-gray-400">Try a different search term</p>
-                )}
+                {debouncedSearch && <p className="text-xs text-gray-400">Try a different search term</p>}
               </div>
             ) : (
               threads.map(t => (
@@ -658,12 +755,11 @@ export default function ChannelManagerPage() {
 
           {/* Total count */}
           {!isLoading && !isError && threads.length > 0 && (
-            <div
-              className="px-4 py-2 text-center flex-shrink-0"
-              style={{ borderTop: "1px solid #E5E7EB" }}
-            >
+            <div className="px-4 py-2 text-center flex-shrink-0" style={{ borderTop: "1px solid #E5E7EB" }}>
               <p className="text-[10px]" style={{ color: "#9CA3AF" }}>
-                {data?.meta?.total ? `${data.meta.total} total · showing ${threads.length}` : `${threads.length} conversations`}
+                {data?.meta?.total
+                  ? `${data.meta.total} total · showing ${threads.length}`
+                  : `${threads.length} conversations`}
               </p>
             </div>
           )}
@@ -678,16 +774,12 @@ export default function ChannelManagerPage() {
         >
           {activeThread ? (
             <>
-              {/* Messages panel */}
               <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
                 <ThreadPanel thread={activeThread} onBack={handleBack} />
               </div>
-
-              {/* Guest context */}
               <GuestContextPanel thread={activeThread} />
             </>
           ) : (
-            /* Empty state — no thread selected */
             <div className="flex-1 flex flex-col items-center justify-center gap-3" style={{ background: "#F8FAFC" }}>
               <div
                 className="w-14 h-14 rounded-2xl flex items-center justify-center"
@@ -695,15 +787,12 @@ export default function ChannelManagerPage() {
               >
                 <MessageSquare size={24} style={{ color: "#0F766E" }} />
               </div>
-              <p className="text-[15px] font-semibold" style={{ color: "#374151" }}>
-                Select a conversation
-              </p>
-              <p className="text-[13px]" style={{ color: "#9CA3AF" }}>
-                Choose a thread from the left to view messages
-              </p>
+              <p className="text-[15px] font-semibold" style={{ color: "#374151" }}>Select a conversation</p>
+              <p className="text-[13px]" style={{ color: "#9CA3AF" }}>Choose a thread from the left to view messages</p>
             </div>
           )}
         </div>
+
       </div>
     </div>
   );

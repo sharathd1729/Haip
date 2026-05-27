@@ -2,32 +2,61 @@
 
 export type RWProvider = "email" | "airbnb" | "booking-com" | "homeaway";
 
-export interface RWThread {
-  id: number;
-  thread_identifier: string;
-  subject: string;
-  account: string;
+/** Guest account attached to a thread */
+export interface RWAccount {
+  id:         number;
   first_name: string;
   last_name:  string;
   email:      string;
   phone:      string | null;
-  last_message_excerpt: string | null;
-  last_message_at:      string | null;
-  requires_attention:   boolean;
-  messages_count:       number;
-  default_message_provider: RWProvider;
+  company?:   string | null;
+  address?:   string | null;
 }
 
+/** Available message provider on a thread */
+export interface RWMessageProvider {
+  id:       RWProvider;
+  name:     string;
+  icon_url: string;
+}
+
+export interface RWThread {
+  id:                         number;
+  thread_identifier:          string;
+  thread_external_id?:        string | null;
+  default_message_provider:   RWProvider;
+  available_message_providers: RWMessageProvider[];
+  /** Email subject — only populated for email provider */
+  subject?:                   string | null;
+  account:                    RWAccount;
+  last_message_excerpt:       string | null;
+  last_message_at:            string | null;
+  requires_attention:         boolean;
+  messages_count:             number;
+}
+
+/** Message (id is a string in the RentalWise API) */
 export interface RWMessage {
-  id:                 number;
-  direction:          "inbound" | "outbound";
-  provider:           RWProvider;
-  sent_at:            string;
-  content:            string;
-  subject:            string | null;
-  translated_content: string | null;
-  sent_by_name:       string | null;
-  is_sent:            boolean;
+  id:              string;
+  direction:       "inbound" | "outbound";
+  provider:        RWProvider;
+  provider_info?:  RWMessageProvider;
+  provider_message_id?: string | null;
+  sent_at:         string;
+  content:         string;
+  subject?:        string | null;
+  language?:       string | null;
+  translated_subject?:  string | null;
+  translated_content?:  string | null;
+  translated_language?: string | null;
+  sent_by_name?:   string | null;
+  sent_by_workflow?: { id: number; name: string } | null;
+  is_sent:         boolean;
+  message_type:    "message" | "special_offer";
+  content_type:    "text/plain" | "text/html";
+  error_message?:  string | null;
+  /** The full thread object returned on message queries */
+  thread?:         RWThread;
 }
 
 // All status values from the RentalWise API
@@ -144,8 +173,19 @@ export interface RWThreadFilters {
   search?:             string;
   provider?:           RWProvider | "";
   requires_attention?: boolean;
+  resource_type?:      "booking" | "inquiry" | "property";
+  resource_id?:        number;
   page?:               number;
   per_page?:           number;
+}
+
+export interface RWSendMessagePayload {
+  /** thread_identifier (string) of the target thread */
+  thread:        string;
+  provider:      RWProvider;
+  content:       string;
+  content_type?: "text/plain" | "text/html";
+  subject?:      string;
 }
 
 export interface RWBookingFilters {
@@ -232,20 +272,73 @@ function buildConditions(filters: RWBookingFilters): Array<{ field: string; oper
 }
 
 export const rentalwiseService = {
-  /** List conversation threads */
+  /**
+   * List conversation threads using the proper RentalWise query format:
+   * {
+   *   paginate: { page, perpage },
+   *   sort: [{ field: "last_message_at", direction: "desc" }],
+   *   where: { conditions: [...] },
+   *   with: ["account"],
+   *   resource_type?: [...],
+   *   resource_id?: number,
+   *   search?: string
+   * }
+   */
   getThreads(filters: RWThreadFilters = {}): Promise<RWThreadsResponse> {
-    const body: Record<string, unknown> = {};
-    if (filters.search)             body.search             = filters.search;
-    if (filters.provider)           body.provider           = filters.provider;
-    if (filters.requires_attention) body.requires_attention = true;
-    if (filters.page)               body.page               = filters.page;
-    if (filters.per_page)           body.per_page           = filters.per_page ?? 30;
+    const body: Record<string, unknown> = {
+      paginate: {
+        page:    filters.page    ?? 1,
+        perpage: filters.per_page ?? 40,
+      },
+      sort: [{ field: "last_message_at", direction: "desc" }],
+      with: ["account"],
+    };
+
+    // Build where conditions
+    const conditions: Array<{ field: string; operator: string; value: unknown }> = [];
+    if (filters.provider) {
+      conditions.push({ field: "default_message_provider", operator: "=", value: filters.provider });
+    }
+    if (filters.requires_attention) {
+      conditions.push({ field: "requires_attention", operator: "=", value: true });
+    }
+    if (conditions.length > 0) {
+      body.where = { conditions };
+    }
+
+    // Resource scoping
+    if (filters.resource_type) body.resource_type = [filters.resource_type];
+    if (filters.resource_id)   body.resource_id   = filters.resource_id;
+
+    // Full-text search (top-level per some RentalWise versions)
+    if (filters.search) body.search = filters.search;
+
     return rwFetch<RWThreadsResponse>("/api/rentalwise/threads", body);
   },
 
-  /** Fetch all messages for a thread */
+  /**
+   * Fetch all messages for a thread using paginate + sort format
+   */
   getThreadMessages(threadId: number): Promise<RWMessagesResponse> {
-    return rwFetch<RWMessagesResponse>("/api/rentalwise/thread-messages", { thread: threadId });
+    return rwFetch<RWMessagesResponse>("/api/rentalwise/thread-messages", {
+      thread:  threadId,
+      paginate: { page: 1, perpage: 100 },
+      sort:     [{ field: "sent_at", direction: "asc" }],
+    });
+  },
+
+  /**
+   * Send a reply message in a thread
+   * POST /rest/thread-message/send
+   */
+  sendMessage(payload: RWSendMessagePayload): Promise<RWMessage> {
+    return rwFetch<RWMessage>("/api/rentalwise/send-message", {
+      thread:       payload.thread,
+      provider:     payload.provider,
+      content:      payload.content,
+      content_type: payload.content_type ?? "text/plain",
+      ...(payload.subject ? { subject: payload.subject } : {}),
+    });
   },
 
   /**
