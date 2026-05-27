@@ -49,7 +49,15 @@ const PROVIDER_LABELS: Record<string, string> = {
 
 // ─── Provider badge ────────────────────────────────────────────────────────────
 
-function ProviderBadge({ provider, size = "sm" }: { provider: RWProvider; size?: "sm" | "md" }) {
+function ProviderBadge({ provider: providerRaw, size = "sm" }: { provider: RWProvider; size?: "sm" | "md" }) {
+  // Guard: API may return an object instead of a string
+  const provider: string = (
+    typeof providerRaw === "string"
+      ? providerRaw
+      : typeof providerRaw === "object" && providerRaw !== null
+        ? String((providerRaw as any).id ?? (providerRaw as any).slug ?? (providerRaw as any).name ?? "")
+        : String(providerRaw ?? "")
+  );
   const color = PROVIDER_COLORS[provider] ?? "#6B7280";
   const label = PROVIDER_LABELS[provider] ?? provider;
   const pad   = size === "sm" ? "px-1.5 py-0.5 text-[9px]" : "px-2 py-1 text-[11px]";
@@ -157,6 +165,8 @@ function ThreadRow({ thread, active, onClick }: { thread: RWThread; active: bool
 
 function RWMessageBubble({ msg }: { msg: RWMessage }) {
   const isOutbound = msg.direction === "outbound";
+  // Guard: content must be a string for safe rendering
+  if (!msg || typeof msg !== "object") return null;
   const time = new Date(msg.sent_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 
   // Strip basic HTML tags for display when content_type is text/html
@@ -210,7 +220,7 @@ function RWMessageBubble({ msg }: { msg: RWMessage }) {
           )}
 
           {/* Error */}
-          {msg.error_message && (
+          {msg.error_message && typeof msg.error_message === "string" && (
             <p className="mt-1 text-[10px] text-red-300 flex items-center gap-1">
               <AlertTriangle size={9} /> {msg.error_message}
             </p>
@@ -448,7 +458,7 @@ function ThreadPanel({ thread, onBack }: { thread: RWThread; onBack: () => void 
         {sendMutation.isError && (
           <p className="mt-1.5 text-[11px] text-red-500 flex items-center gap-1">
             <AlertTriangle size={10} />
-            {(sendMutation.error as any)?.message ?? "Failed to send — check your RentalWise connection"}
+            {String((sendMutation.error as any)?.message ?? "Failed to send — check your RentalWise connection")}
           </p>
         )}
       </div>

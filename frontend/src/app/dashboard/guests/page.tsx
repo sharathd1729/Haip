@@ -311,8 +311,16 @@ const CHANNEL_COLORS: Record<string, string> = {
   email:       "#6B7280",
 };
 
-function BookingStatusBadge({ status }: { status: RWBookingStatus }) {
-  const cfg = BOOKING_STATUS_CFG[status] ?? { label: status, cls: "bg-gray-50 text-gray-600 border-gray-200" };
+function BookingStatusBadge({ status: statusRaw }: { status: RWBookingStatus }) {
+  // Guard: API may return an object or unexpected type
+  const status: string =
+    typeof statusRaw === "string"
+      ? statusRaw
+      : typeof statusRaw === "object" && statusRaw !== null
+        ? String((statusRaw as any).id ?? (statusRaw as any).code ?? (statusRaw as any).name ?? "unknown")
+        : String(statusRaw ?? "unknown");
+  const cfg = (BOOKING_STATUS_CFG as Record<string, { label: string; cls: string }>)[status]
+    ?? { label: status.replace(/_/g, " "), cls: "bg-gray-50 text-gray-600 border-gray-200" };
   return (
     <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border", cfg.cls)}>
       {cfg.label}
@@ -320,8 +328,16 @@ function BookingStatusBadge({ status }: { status: RWBookingStatus }) {
   );
 }
 
-function PaymentBadge({ status }: { status: RWPaymentStatus }) {
-  const cfg = PAYMENT_STATUS_CFG[status] ?? { label: status, cls: "bg-gray-50 text-gray-600 border-gray-200" };
+function PaymentBadge({ status: statusRaw }: { status: RWPaymentStatus }) {
+  // Guard: API may return an object or unexpected type
+  const status: string =
+    typeof statusRaw === "string"
+      ? statusRaw
+      : typeof statusRaw === "object" && statusRaw !== null
+        ? String((statusRaw as any).id ?? (statusRaw as any).code ?? (statusRaw as any).name ?? "unknown")
+        : String(statusRaw ?? "unknown");
+  const cfg = (PAYMENT_STATUS_CFG as Record<string, { label: string; cls: string }>)[status]
+    ?? { label: status.replace(/_/g, " "), cls: "bg-gray-50 text-gray-600 border-gray-200" };
   return (
     <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border", cfg.cls)}>
       {cfg.label}
@@ -329,7 +345,16 @@ function PaymentBadge({ status }: { status: RWPaymentStatus }) {
   );
 }
 
-function ChannelPill({ channel }: { channel: string | null }) {
+function ChannelPill({ channel: channelRaw }: { channel: string | null }) {
+  // Guard: API may return an object for the channel field
+  const channel: string | null =
+    channelRaw === null || channelRaw === undefined
+      ? null
+      : typeof channelRaw === "string"
+        ? channelRaw
+        : typeof channelRaw === "object"
+          ? String((channelRaw as any).name ?? (channelRaw as any).slug ?? (channelRaw as any).id ?? "") || null
+          : String(channelRaw);
   if (!channel) return <span className="text-xs text-gray-400">—</span>;
   const color = CHANNEL_COLORS[channel.toLowerCase()] ?? "#6B7280";
   const label = channel.charAt(0).toUpperCase() + channel.slice(1).replace("-", ".");
@@ -624,17 +649,17 @@ function BookingsTable() {
                     {/* Guests */}
                     <td className="px-4 py-3.5">
                       <p className="text-[12px]" style={{ color: "#374151" }}>
-                        {b.adults} adult{b.adults !== 1 ? "s" : ""}
+                        {Number(b.adults) || 0} adult{Number(b.adults) !== 1 ? "s" : ""}
                       </p>
-                      {(b.children ?? 0) > 0 && (
-                        <p className="text-[11px]" style={{ color: "#9CA3AF" }}>{b.children} child{b.children !== 1 ? "ren" : ""}</p>
+                      {(Number(b.children) || 0) > 0 && (
+                        <p className="text-[11px]" style={{ color: "#9CA3AF" }}>{b.children} child{Number(b.children) !== 1 ? "ren" : ""}</p>
                       )}
                     </td>
 
                     {/* Total */}
                     <td className="px-4 py-3.5">
                       <p className="text-[13px] font-bold" style={{ color: "#111827", fontFamily: "var(--font-display), sans-serif" }}>
-                        {currencySymbol}{b.total.toLocaleString("en-IN")}
+                        {currencySymbol}{(Number(b.total) || 0).toLocaleString("en-IN")}
                       </p>
                     </td>
 
@@ -646,7 +671,7 @@ function BookingsTable() {
                     {/* Channel */}
                     <td className="px-4 py-3.5">
                       <ChannelPill channel={channelName} />
-                      {b.source_name && (
+                      {b.source_name && typeof b.source_name === "string" && (
                         <p className="text-[10px] mt-0.5" style={{ color: "#9CA3AF" }}>{b.source_name}</p>
                       )}
                     </td>
