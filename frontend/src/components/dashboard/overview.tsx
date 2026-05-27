@@ -245,7 +245,7 @@ function RevenueChart({ calls_week }: { calls_week: DashboardData["recent_calls"
           tickFormatter={v => `₹${(v/1000).toFixed(0)}k`} />
         <Tooltip
           contentStyle={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 10, fontSize: 12 }}
-          formatter={(val: number) => [`₹${(val/1000).toFixed(0)}k`, ""]}
+          formatter={(val: unknown) => [`₹${((val as number)/1000).toFixed(0)}k`, ""]}
         />
         <Bar dataKey="actual" fill="#0F766E" radius={[4, 4, 0, 0]} name="Actual" />
         <Bar dataKey="projected" fill="#5EEAD4" radius={[4, 4, 0, 0]} name="Projected" opacity={0.65} />

@@ -7,7 +7,7 @@ import {
   Home, Inbox, Phone, Users, Building2, DollarSign,
   Sparkles, BarChart2, Zap, Link2, Settings,
   HelpCircle, User, LogOut, ChevronDown, ChevronRight,
-  MessageSquare, Instagram, Bot,
+  MessageSquare, AtSign, Bot,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canSeeNav, type Resource } from "@/lib/permissions";
@@ -39,7 +39,7 @@ const NAV_ITEMS: NavItem[] = [
     children: [
       { label: "Conversations", href: "/dashboard/inbox",             icon: MessageSquare },
       { label: "WhatsApp",      href: "/dashboard/inbox?ch=whatsapp", icon: MessageSquare },
-      { label: "Instagram",     href: "/dashboard/inbox?ch=instagram", icon: Instagram },
+      { label: "Instagram",     href: "/dashboard/inbox?ch=instagram", icon: AtSign },
       { label: "AI Concierge",  href: "/dashboard/inbox?ch=ai",       icon: Bot },
     ],
   },
@@ -210,11 +210,9 @@ export function Sidebar({ user }: SidebarProps) {
                   className={cn("haip-nav-item flex-1", active && "active")}
                   onClick={() => hasChildren && setExpanded(e => e === item.label ? null : item.label)}
                 >
-                  <Icon
-                    size={15}
-                    className="flex-shrink-0"
-                    style={{ color: active ? "#0F766E" : "#9CA3AF" }}
-                  />
+                  <span className="flex-shrink-0" style={{ color: active ? "#0F766E" : "#9CA3AF" }}>
+                    <Icon size={15} />
+                  </span>
                   <span className="flex-1 truncate">{item.label}</span>
                   {isInbox && unreadCount > 0 && (
                     <span
@@ -247,10 +245,9 @@ export function Sidebar({ user }: SidebarProps) {
                         className={cn("haip-nav-sub", childActive && "active")}
                       >
                         {ChildIcon && (
-                          <ChildIcon
-                            size={12}
-                            style={{ color: childActive ? "#0F766E" : "#9CA3AF" }}
-                          />
+                          <span style={{ color: childActive ? "#0F766E" : "#9CA3AF" }}>
+                            <ChildIcon size={12} />
+                          </span>
                         )}
                         {child.label}
                       </Link>
@@ -289,7 +286,7 @@ export function Sidebar({ user }: SidebarProps) {
               href={item.href}
               className={cn("haip-nav-item", active && "active")}
             >
-              <Icon size={14} style={{ color: active ? "#0F766E" : "#9CA3AF" }} />
+              <span style={{ color: active ? "#0F766E" : "#9CA3AF" }}><Icon size={14} /></span>
               <span>{item.label}</span>
             </Link>
           );

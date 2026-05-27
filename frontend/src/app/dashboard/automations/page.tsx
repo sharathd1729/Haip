@@ -185,8 +185,8 @@ export default function AutomationsPage() {
           <div className="flex items-center gap-6 mt-4">
             <div>
               <p className="text-[11px]" style={{ color: "#9CA3AF" }}>Total runs</p>
-              <p className="text-[22px] font-bold leading-none mt-0.5" style={{ color: "#111827" }}
-                style={{ fontFamily: "var(--font-display), sans-serif" }}>
+              <p className="text-[22px] font-bold leading-none mt-0.5"
+                style={{ color: "#111827", fontFamily: "var(--font-display), sans-serif" }}>
                 {runs.length}
               </p>
             </div>
