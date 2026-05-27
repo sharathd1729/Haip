@@ -114,10 +114,31 @@ export interface RWBookingFilters {
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
+/**
+ * Fetch the HAIP JWT from the NextAuth session so the proxy routes can
+ * look up the tenant's RentalWise credentials.
+ */
+async function getAuthHeader(): Promise<string | null> {
+  try {
+    // Dynamic import keeps this tree-shakable on the server side
+    const { getSession } = await import("next-auth/react");
+    const session = await getSession();
+    const token   = (session as any)?.accessToken as string | undefined;
+    return token ? `Bearer ${token}` : null;
+  } catch {
+    return null;
+  }
+}
+
 async function rwFetch<T>(path: string, body: object): Promise<T> {
+  const authHeader = await getAuthHeader();
+
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (authHeader) headers["Authorization"] = authHeader;
+
   const res = await fetch(path, {
     method:  "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body:    JSON.stringify(body),
   });
 

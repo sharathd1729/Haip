@@ -1,20 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const RW_URL   = (process.env.RENTALWISE_URL   || "").replace(/\/$/, "");
-const RW_TOKEN = process.env.RENTALWISE_TOKEN  || "";
+import { getRWCredentials } from "../_helpers";
 
 export async function POST(req: NextRequest) {
-  if (!RW_URL) {
-    return NextResponse.json({ error: "RENTALWISE_URL not configured" }, { status: 503 });
-  }
-
   try {
+    const { rwUrl, rwAuth } = await getRWCredentials(req.headers.get("Authorization"));
     const body = await req.json().catch(() => ({}));
-    const res  = await fetch(`${RW_URL}/rest/thread-message/query`, {
+
+    const res = await fetch(`${rwUrl}/rest/thread-message/query`, {
       method:  "POST",
       headers: {
         "Content-Type":  "application/json",
-        "Authorization": `Bearer ${RW_TOKEN}`,
+        "Authorization": rwAuth,
         "Accept":        "application/json",
       },
       body: JSON.stringify(body),
@@ -22,8 +18,12 @@ export async function POST(req: NextRequest) {
 
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
-  } catch (err) {
+  } catch (err: any) {
     console.error("[rentalwise/thread-messages]", err);
-    return NextResponse.json({ error: "Failed to reach RentalWise" }, { status: 502 });
+    const is503 = err.message?.includes("not connected") ||
+                  err.message?.includes("not configured") ||
+                  err.message?.includes("credentials missing") ||
+                  err.message?.includes("not authenticated");
+    return NextResponse.json({ error: err.message ?? "Failed to reach RentalWise" }, { status: is503 ? 503 : 502 });
   }
 }
