@@ -411,7 +411,7 @@ function ConnectModal({
                 <label className="text-xs font-semibold text-gray-700 block mb-1.5">API Base URL <span className="text-gray-400 font-normal">(optional)</span></label>
                 <div className="relative">
                   <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input type="text" value={fields.base_url ?? ""} onChange={e => set("base_url", e.target.value)} placeholder="https://partners-api.rentalwise.com" className={inputCls} />
+                  <input type="text" value={fields.base_url ?? ""} onChange={e => set("base_url", e.target.value)} placeholder="https://app.rentalwise.io" className={inputCls} />
                 </div>
                 <p className="text-[11px] text-gray-400 mt-1">Leave blank to use the default production URL.</p>
               </div>

@@ -394,7 +394,7 @@ def connect_retalwise(
             api_token=api_token,
             username=username,
             password=password,
-            base_url=base_url or "https://partners-api.rentalwise.com",
+            base_url=base_url or "https://app.rentalwise.io",
         )
         if not adapter.ping():
             ping_warning = "Could not reach RentalWise API — credentials saved. Use 'Test Connection' to verify once the API is accessible."
@@ -415,7 +415,7 @@ def connect_retalwise(
     row = _upsert_integration(db, current_user.tenant_id, "retalwise")
     row.credentials_kms_blob = creds_blob
     row.config = {
-        "base_url": base_url or "https://partners-api.rentalwise.com",
+        "base_url": base_url or "https://app.rentalwise.io",
         "auth_mode": "bearer" if api_token else "basic",
         "sync_properties": True,
         "sync_reservations": True,

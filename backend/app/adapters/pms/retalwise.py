@@ -24,8 +24,8 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# Default production base — override per tenant via integration.config["base_url"]
-DEFAULT_BASE = "https://partners-api.rentalwise.com"
+# Default production base — https://app.rentalwise.io (REST API prefix: /rest/)
+DEFAULT_BASE = "https://app.rentalwise.io"
 
 
 class RentalwiseAdapter:
@@ -77,16 +77,16 @@ class RentalwiseAdapter:
     # ── Content endpoints ─────────────────────────────────────────────────────
 
     def get_properties(self) -> list[dict]:
-        """POST /property/query — list all properties."""
+        """POST /rest/property/query — list all properties."""
         payload = {"paginate": {"page": 1, "perpage": 200}, "sort": [], "where": {}, "with": []}
-        data = self._post("/property/query", payload)
+        data = self._post("/rest/property/query", payload)
         items = data if isinstance(data, list) else data.get("data", data.get("properties", data.get("items", [])))
         return [self._normalise_property(p) for p in items]
 
     def get_property(self, property_id: str) -> dict:
-        """POST /property/query filtered by id."""
+        """POST /rest/property/query filtered by id."""
         payload = {"paginate": {"page": 1, "perpage": 1}, "where": {"conditions": [{"field": "id", "value": property_id, "__condition__": "="}]}}
-        data = self._post("/property/query", payload)
+        data = self._post("/rest/property/query", payload)
         items = data if isinstance(data, list) else data.get("data", data.get("properties", []))
         return self._normalise_property(items[0]) if items else {}
 
@@ -150,7 +150,7 @@ class RentalwiseAdapter:
         Returns per-night availability + rates for a property.
         date_from / date_to: YYYY-MM-DD
         """
-        return self._post("/property/get-rates-availability", {
+        return self._post("/rest/property/get-rates-availability", {
             "property": int(property_id),
             "daterange": {"start": date_from, "end": date_to},
             "fill_default_values": True,
@@ -162,7 +162,7 @@ class RentalwiseAdapter:
         """
         POST /property/rates-with-ranges — rates grouped by date range.
         """
-        return self._post("/property/rates-with-ranges", {
+        return self._post("/rest/property/rates-with-ranges", {
             "property": int(property_id),
             "daterange": {"start": date_from, "end": date_to},
             "fill_default_values": True,
@@ -173,7 +173,7 @@ class RentalwiseAdapter:
         POST /property/fetch — full property details including images and amenities.
         """
         try:
-            data = self._post("/property/fetch", {"id": int(property_id), "with": ["images", "amenities", "location", "property_type"]})
+            data = self._post("/rest/property/fetch", {"id": int(property_id), "with": ["images", "amenities", "location", "property_type"]})
             return self._normalise_property(data) if data else {}
         except Exception as exc:
             logger.warning("RentalWise fetch_property %s failed: %s", property_id, exc)
@@ -191,29 +191,29 @@ class RentalwiseAdapter:
             "with": ["main_guest", "property", "currency"],
         }
         try:
-            data = self._post("/booking/query", payload)
+            data = self._post("/rest/booking/query", payload)
         except Exception:
             return []
         items = data if isinstance(data, list) else data.get("data", data.get("bookings", data.get("items", [])))
         return [self._normalise_reservation(r) for r in items]
 
     def get_reservation(self, reservation_id: str) -> dict:
-        """POST /booking/query filtered by id."""
+        """POST /rest/booking/query filtered by id."""
         payload = {
             "paginate": {"page": 1, "perpage": 1},
             "where": {"conditions": [{"field": "id", "value": reservation_id, "__condition__": "="}]},
             "with": ["main_guest", "property", "currency"],
         }
         try:
-            data = self._post("/booking/query", payload)
+            data = self._post("/rest/booking/query", payload)
         except Exception:
             return {}
         items = data if isinstance(data, list) else data.get("data", [])
         return self._normalise_reservation(items[0]) if items else {}
 
     def create_reservation(self, payload: dict) -> dict:
-        """POST /booking — create a booking."""
-        return self._post("/booking", payload)
+        """POST /rest/booking — create a booking."""
+        return self._post("/rest/booking", payload)
 
     def _normalise_reservation(self, r: dict) -> dict:
         # main_guest is the GuestAccount object
@@ -292,7 +292,7 @@ class RentalwiseAdapter:
     def ping(self) -> bool:
         """Verify credentials are valid. Returns True on success."""
         try:
-            self._post("/property/query", {"paginate": {"page": 1, "perpage": 1}})
+            self._post("/rest/property/query", {"paginate": {"page": 1, "perpage": 1}})
             return True
         except Exception:
             return False
