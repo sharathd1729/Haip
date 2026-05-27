@@ -227,16 +227,21 @@ function ConnectModal({
 
   const set = (k: string, v: string) => setFields(prev => ({ ...prev, [k]: v }));
 
-  const isWhatsApp  = provider === "whatsapp_meta";
-  const isInstagram = provider === "instagram";
-  const isBasicAuth = authType === "basic_auth" && !isWhatsApp && !isInstagram;
-  const isHostaway  = provider === "hostaway";
+  const isWhatsApp    = provider === "whatsapp_meta";
+  const isInstagram   = provider === "instagram";
+  const isRentalWise  = provider === "retalwise";
+  const isBasicAuth   = authType === "basic_auth" && !isWhatsApp && !isInstagram && !isRentalWise;
+  const isHostaway    = provider === "hostaway";
+
+  // RentalWise: user can choose between API token (Bearer) or username/password (Basic)
+  const [rwAuthMode, setRwAuthMode] = useState<"token" | "basic">("token");
 
   const canSubmit = (() => {
-    if (isWhatsApp)  return !!(fields.phone_number_id?.trim() && fields.waba_id?.trim() && fields.access_token?.trim());
-    if (isInstagram) return !!(fields.instagram_business_account_id?.trim() && fields.access_token?.trim());
-    if (isBasicAuth) return !!(fields.username?.trim() && fields.password?.trim());
-    if (isHostaway)  return !!(fields.account_id?.trim() && fields.api_secret?.trim());
+    if (isWhatsApp)    return !!(fields.phone_number_id?.trim() && fields.waba_id?.trim() && fields.access_token?.trim());
+    if (isInstagram)   return !!(fields.instagram_business_account_id?.trim() && fields.access_token?.trim());
+    if (isRentalWise)  return rwAuthMode === "token" ? !!fields.api_token?.trim() : !!(fields.username?.trim() && fields.password?.trim());
+    if (isBasicAuth)   return !!(fields.username?.trim() && fields.password?.trim());
+    if (isHostaway)    return !!(fields.account_id?.trim() && fields.api_secret?.trim());
     return !!fields.api_key?.trim();
   })();
 
@@ -249,10 +254,11 @@ function ConnectModal({
   const inputCls = "w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white";
 
   const subtitle = (() => {
-    if (isWhatsApp)  return "Paste your WhatsApp Cloud API credentials from Meta Business Suite";
-    if (isInstagram) return "Paste your Instagram Graph API credentials from Meta Business Suite";
-    if (isBasicAuth) return `Enter your ${providerName} username and password`;
-    if (isHostaway)  return "Enter your Hostaway Account ID and API Secret";
+    if (isWhatsApp)   return "Paste your WhatsApp Cloud API credentials from Meta Business Suite";
+    if (isInstagram)  return "Paste your Instagram Graph API credentials from Meta Business Suite";
+    if (isRentalWise) return "Paste your RentalWise API token (provided by your Engagement Manager)";
+    if (isBasicAuth)  return `Enter your ${providerName} username and password`;
+    if (isHostaway)   return "Enter your Hostaway Account ID and API Secret";
     return `Enter your API key from the ${providerName} dashboard`;
   })();
 
@@ -344,22 +350,63 @@ function ConnectModal({
                 </div>
               </div>
             </>
-          ) : isBasicAuth ? (
+          ) : isRentalWise ? (
             <>
-              <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1.5">Username <span className="text-red-500">*</span></label>
-                <div className="relative">
-                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input autoFocus type="text" value={fields.username ?? ""} onChange={e => set("username", e.target.value)} placeholder="Your RentalWise username" className={inputCls} />
-                </div>
+              {/* Auth mode toggle */}
+              <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setRwAuthMode("token")}
+                  className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${rwAuthMode === "token" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                >
+                  API Token
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRwAuthMode("basic")}
+                  className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${rwAuthMode === "basic" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                >
+                  Username / Password
+                </button>
               </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1.5">Password <span className="text-red-500">*</span></label>
-                <div className="relative">
-                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input type="password" value={fields.password ?? ""} onChange={e => set("password", e.target.value)} placeholder="Your RentalWise password" className={inputCls} />
+
+              {rwAuthMode === "token" ? (
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 block mb-1.5">
+                    API Token <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      autoFocus
+                      type="password"
+                      value={fields.api_token ?? ""}
+                      onChange={e => set("api_token", e.target.value)}
+                      placeholder="e.g. 14079|rw_production_..."
+                      className={inputCls}
+                    />
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-1">Provided by your RentalWise Engagement Manager during onboarding.</p>
                 </div>
-              </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-700 block mb-1.5">Username <span className="text-red-500">*</span></label>
+                    <div className="relative">
+                      <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input autoFocus type="text" value={fields.username ?? ""} onChange={e => set("username", e.target.value)} placeholder="Your RentalWise username" className={inputCls} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-700 block mb-1.5">Password <span className="text-red-500">*</span></label>
+                    <div className="relative">
+                      <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input type="password" value={fields.password ?? ""} onChange={e => set("password", e.target.value)} placeholder="Your RentalWise password" className={inputCls} />
+                    </div>
+                  </div>
+                </>
+              )}
+
               <div>
                 <label className="text-xs font-semibold text-gray-700 block mb-1.5">API Base URL <span className="text-gray-400 font-normal">(optional)</span></label>
                 <div className="relative">
@@ -367,6 +414,23 @@ function ConnectModal({
                   <input type="text" value={fields.base_url ?? ""} onChange={e => set("base_url", e.target.value)} placeholder="https://partners-api.rentalwise.com" className={inputCls} />
                 </div>
                 <p className="text-[11px] text-gray-400 mt-1">Leave blank to use the default production URL.</p>
+              </div>
+            </>
+          ) : isBasicAuth ? (
+            <>
+              <div>
+                <label className="text-xs font-semibold text-gray-700 block mb-1.5">Username <span className="text-red-500">*</span></label>
+                <div className="relative">
+                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input autoFocus type="text" value={fields.username ?? ""} onChange={e => set("username", e.target.value)} placeholder="Username" className={inputCls} />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-700 block mb-1.5">Password <span className="text-red-500">*</span></label>
+                <div className="relative">
+                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input type="password" value={fields.password ?? ""} onChange={e => set("password", e.target.value)} placeholder="Password" className={inputCls} />
+                </div>
               </div>
             </>
           ) : isHostaway ? (

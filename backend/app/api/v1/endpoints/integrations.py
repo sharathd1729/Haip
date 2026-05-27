@@ -359,24 +359,39 @@ def connect_retalwise(
     db: Session = Depends(get_db),
 ):
     """
-    RentalWise uses HTTP Basic Auth.
-    Pass: { "username": "...", "password": "...", "base_url": "https://..." }
-    Legacy single api_key also accepted for backward compat.
+    RentalWise supports two auth modes:
+      1. Bearer token (preferred): { "api_token": "14079|rw_production_..." }
+      2. Basic auth (legacy):       { "username": "...", "password": "..." }
+    Optional: { "base_url": "https://partners-api.rentalwise.com" }
     """
-    username = (body.get("username") or body.get("api_key") or "").strip()
-    password = (body.get("password") or body.get("api_secret") or "").strip()
-    base_url = (body.get("base_url") or "").strip()
+    # Prefer api_token (Bearer); fall back to username/password (Basic)
+    api_token = (body.get("api_token") or "").strip()
+    username  = (body.get("username") or body.get("api_key") or "").strip()
+    password  = (body.get("password") or body.get("api_secret") or "").strip()
+    base_url  = (body.get("base_url") or "").strip()
 
-    if not username:
-        raise HTTPException(status_code=400, detail="username is required")
-    if not password:
-        raise HTTPException(status_code=400, detail="password is required")
+    # Validate base_url is actually a URL (not accidentally an API token)
+    if base_url and not base_url.startswith(("http://", "https://")):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "API Base URL must start with https:// (e.g. https://partners-api.rentalwise.com). "
+                "Leave it blank to use the default production URL. "
+                "If you have an API token, paste it into the 'API Token' field instead."
+            ),
+        )
+
+    if not api_token and not username:
+        raise HTTPException(status_code=400, detail="Either an API token or a username is required")
+    if not api_token and not password:
+        raise HTTPException(status_code=400, detail="password is required when using username/password auth")
 
     # Soft ping — save credentials regardless; user can Test Connection afterward
     ping_warning = None
     try:
         from app.adapters.pms.retalwise import RentalwiseAdapter
         adapter = RentalwiseAdapter(
+            api_token=api_token,
             username=username,
             password=password,
             base_url=base_url or "https://partners-api.rentalwise.com",
@@ -386,10 +401,22 @@ def connect_retalwise(
     except Exception:
         ping_warning = "RentalWise API unreachable — credentials saved. Use 'Test Connection' to verify."
 
+    # Guard: give a clear 503 if ENCRYPTION_KEY is not configured, rather than a bare 500
+    try:
+        creds_blob = encrypt_credentials(
+            {"api_token": api_token} if api_token else {"username": username, "password": password}
+        )
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Server configuration error: ENCRYPTION_KEY is not set. Contact your administrator.",
+        ) from exc
+
     row = _upsert_integration(db, current_user.tenant_id, "retalwise")
-    row.credentials_kms_blob = encrypt_credentials({"username": username, "password": password})
+    row.credentials_kms_blob = creds_blob
     row.config = {
         "base_url": base_url or "https://partners-api.rentalwise.com",
+        "auth_mode": "bearer" if api_token else "basic",
         "sync_properties": True,
         "sync_reservations": True,
         "sync_guests": True,
@@ -399,8 +426,11 @@ def connect_retalwise(
     db.commit()
 
     # Trigger initial sync in background
-    from app.workers.tasks.sync_retalwise import sync_retalwise
-    background_tasks.add_task(lambda: sync_retalwise.delay(current_user.tenant_id))
+    try:
+        from app.workers.tasks.sync_retalwise import sync_retalwise
+        background_tasks.add_task(lambda: sync_retalwise.delay(current_user.tenant_id))
+    except Exception:
+        pass  # Celery not running — sync will happen on next beat tick
 
     return {"status": "connected", "provider": "retalwise", "warning": ping_warning}
 
