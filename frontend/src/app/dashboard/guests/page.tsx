@@ -2,7 +2,11 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
-import { Search, ArrowLeft, Phone, MessageSquare, Star, Shield, AlertTriangle } from "lucide-react";
+import {
+  Search, ArrowLeft, Phone, MessageSquare, Star,
+  Shield, AlertTriangle, Plus, ChevronRight,
+  Calendar, TrendingUp, Users, Sparkles,
+} from "lucide-react";
 import { timeAgo, cn } from "@/lib/utils";
 import { EmptyGuests } from "@/components/empty-states/EmptyGuests";
 
@@ -29,8 +33,244 @@ interface GuestProfile extends GuestItem {
 
 const SOURCE_LABELS: Record<string, string> = {
   airbnb: "Airbnb", booking: "Booking.com", direct: "Direct", referral: "Referral",
-  whatsapp: "WhatsApp", instagram: "Instagram",
+  whatsapp: "WhatsApp", instagram: "Instagram", retalwise: "RentalWise",
 };
+
+// ─── Guest 360 Profile View ───────────────────────────────────────────────────
+
+function Guest360({ profile, onBack }: { profile: GuestProfile; onBack: () => void }) {
+  const ltv = profile.stays.reduce((s, st) => s + parseFloat(st.total_amount ?? "0"), 0);
+  const currency = profile.stays[0]?.currency ?? "₹";
+
+  const timeline: Array<{ icon: React.ReactNode; label: string; sub: string; date: string; color: string }> = [
+    ...profile.stays.map(s => ({
+      icon: <Calendar size={11} />,
+      label: `Stay: ${s.check_in} → ${s.check_out}`,
+      sub: s.total_amount ? `${s.currency} ${Number(s.total_amount).toLocaleString()}` : "Amount TBD",
+      date: s.check_in,
+      color: "bg-teal-50 text-teal-600",
+    })),
+    ...profile.recent_calls.map(c => ({
+      icon: <Phone size={11} />,
+      label: `Call with ${c.agent_name ?? "team"}`,
+      sub: c.qa_score ? `QA ${(parseFloat(c.qa_score) * 10).toFixed(0)}%` : "Unscored",
+      date: c.call_date,
+      color: "bg-blue-50 text-blue-600",
+    })),
+    ...profile.recent_messages.slice(0, 3).map(m => ({
+      icon: <MessageSquare size={11} />,
+      label: m.direction === "inbound" ? "Guest messaged" : "Team replied",
+      sub: m.content.slice(0, 60) + (m.content.length > 60 ? "…" : ""),
+      date: m.created_at,
+      color: "bg-purple-50 text-purple-600",
+    })),
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 12);
+
+  return (
+    <div className="flex flex-col h-full bg-[#F8FAFC]">
+      {/* Header */}
+      <div
+        className="flex-shrink-0 px-6 py-4 flex items-center gap-4"
+        style={{ background: "#FFFFFF", borderBottom: "1px solid #E5E7EB" }}
+      >
+        <button
+          onClick={onBack}
+          className="flex items-center gap-2 text-sm font-medium transition-colors"
+          style={{ color: "#6B7280" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#111827"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#6B7280"; }}
+        >
+          <ArrowLeft size={15} /> Guests
+        </button>
+        <span style={{ color: "#D1D5DB" }}>/</span>
+        <span className="text-sm font-semibold" style={{ color: "#111827" }}>{profile.full_name}</span>
+      </div>
+
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-3xl mx-auto px-6 py-6 space-y-4">
+
+          {/* Identity card */}
+          <div className="haip-card p-6">
+            <div className="flex items-start gap-5">
+              {/* Avatar */}
+              <div className="relative flex-shrink-0">
+                <div
+                  className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold text-white"
+                  style={{ background: "linear-gradient(135deg, #14B8A6, #0F766E)" }}
+                >
+                  {profile.full_name?.[0]?.toUpperCase() ?? "?"}
+                </div>
+                {profile.tags.includes("VIP") && (
+                  <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-amber-400 flex items-center justify-center">
+                    <Star size={9} className="text-white fill-white" />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2 flex-wrap">
+                  <div>
+                    <h2
+                      className="text-xl font-bold leading-tight"
+                      style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--haip-text)" }}
+                    >
+                      {profile.full_name}
+                    </h2>
+                    <p className="text-sm mt-0.5" style={{ color: "var(--haip-text-muted)" }}>
+                      {profile.phone}
+                      {profile.email && <span className="ml-2 text-gray-400">· {profile.email}</span>}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {profile.tags.includes("VIP") && (
+                      <span className="haip-badge-amber flex items-center gap-1">
+                        <Star size={9} className="fill-current" /> VIP
+                      </span>
+                    )}
+                    {profile.blacklisted && (
+                      <span className="haip-badge-red flex items-center gap-1">
+                        <AlertTriangle size={9} /> Blocked
+                      </span>
+                    )}
+                    {profile.gdpr_consent && (
+                      <span className="haip-badge-teal flex items-center gap-1">
+                        <Shield size={9} /> Consented
+                      </span>
+                    )}
+                    {profile.source && (
+                      <span className="haip-badge-teal">
+                        {SOURCE_LABELS[profile.source] ?? profile.source}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* LTV stats */}
+                <div className="grid grid-cols-3 gap-3 mt-4">
+                  {[
+                    { label: "Total stays",    value: profile.stays.length.toString() },
+                    { label: "Lifetime value", value: ltv > 0 ? `${currency} ${ltv.toLocaleString()}` : "—" },
+                    { label: "Inquiries",      value: profile.inquiries.length.toString() },
+                  ].map(s => (
+                    <div key={s.label} className="bg-gray-50 rounded-xl p-3 text-center">
+                      <div
+                        className="text-lg font-bold"
+                        style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--haip-text)" }}
+                      >
+                        {s.value}
+                      </div>
+                      <div className="haip-label mt-0.5">{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 2-column layout */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            {/* Timeline */}
+            <div className="md:col-span-3 haip-card overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-gray-100 flex items-center gap-2">
+                <Sparkles size={13} style={{ color: "#14B8A6" }} />
+                <span className="text-sm font-semibold" style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--haip-text)" }}>
+                  Timeline
+                </span>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {timeline.length === 0 ? (
+                  <p className="px-5 py-6 text-sm text-gray-400 text-center">No activity yet</p>
+                ) : (
+                  timeline.map((item, i) => (
+                    <div key={i} className="flex items-start gap-3 px-5 py-3">
+                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${item.color}`}>
+                        {item.icon}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-medium text-gray-800 truncate">{item.label}</p>
+                        <p className="text-xs text-gray-500 mt-0.5 truncate">{item.sub}</p>
+                      </div>
+                      <span className="text-[11px] text-gray-400 flex-shrink-0 mt-0.5">{timeAgo(item.date)}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Stay history */}
+            <div className="md:col-span-2 space-y-3">
+              {profile.stays.length > 0 && (
+                <div className="haip-card overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <span className="text-sm font-semibold" style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--haip-text)" }}>
+                      Stays
+                    </span>
+                  </div>
+                  <div className="divide-y divide-gray-50">
+                    {profile.stays.slice(0, 4).map(stay => (
+                      <div key={stay.id} className="px-4 py-3">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="text-[12.5px] font-medium text-gray-800">{stay.check_in}</p>
+                            <p className="text-xs text-gray-400">→ {stay.check_out}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[12.5px] font-semibold text-gray-900">
+                              {stay.total_amount ? `${stay.currency} ${Number(stay.total_amount).toLocaleString()}` : "—"}
+                            </p>
+                            <span className={cn(
+                              "text-[10px] font-medium px-1.5 py-0.5 rounded",
+                              stay.payment_status === "fully_paid" ? "bg-teal-50 text-teal-700" :
+                              stay.payment_status === "deposit_paid" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-500"
+                            )}>
+                              {stay.payment_status.replace(/_/g, " ")}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {profile.inquiries.length > 0 && (
+                <div className="haip-card overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <span className="text-sm font-semibold" style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--haip-text)" }}>
+                      Inquiries
+                    </span>
+                  </div>
+                  <div className="divide-y divide-gray-50">
+                    {profile.inquiries.slice(0, 4).map(inq => (
+                      <div key={inq.id} className="px-4 py-3 flex items-center justify-between">
+                        <div>
+                          <p className="text-[12.5px] font-medium text-gray-800">
+                            {inq.check_in && inq.check_out ? `${inq.check_in} → ${inq.check_out}` : "Dates TBD"}
+                          </p>
+                          <p className="text-xs text-gray-400">{inq.source ?? "—"}</p>
+                        </div>
+                        <span className={cn(
+                          "text-[10px] font-semibold px-2 py-0.5 rounded capitalize",
+                          inq.status === "confirmed" ? "haip-badge-teal" :
+                          inq.status === "lost" ? "haip-badge-red" :
+                          inq.status === "new" ? "haip-badge-amber" : "bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px]"
+                        )}>
+                          {inq.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Guest list ───────────────────────────────────────────────────────────────
 
 export default function GuestsPage() {
   const [search, setSearch] = useState("");
@@ -55,299 +295,209 @@ export default function GuestsPage() {
     (window as any).__guestSearchTimer = setTimeout(() => setDebouncedSearch(v), 300);
   };
 
-  const totalRevenue = guests.reduce((acc, _) => acc, 0); // computed from stays in profile
-
-  // ── Guest 360 detail ──────────────────────────────────────
+  // Guest 360 detail view
   if (selectedPhone) {
-    return (
-      <div className="h-full bg-gray-50 overflow-y-auto">
-        <div className="max-w-2xl mx-auto p-5">
-          <button onClick={() => setSelectedPhone(null)}
-            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-800 mb-5 transition-colors">
-            <ArrowLeft size={16} /> Back to guests
-          </button>
-
-          {profileLoading || !profile ? (
-            <div className="bg-white rounded-xl border p-8 text-center text-sm text-gray-400">Loading guest profile…</div>
-          ) : (
-            <>
-              {/* Identity card */}
-              <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-4">
-                <div className="flex items-start gap-4">
-                  <div className="w-14 h-14 rounded-full bg-teal-100 flex items-center justify-center text-xl font-bold text-teal-700 flex-shrink-0">
-                    {profile.full_name?.[0] ?? "?"}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h2 className="text-lg font-bold text-gray-900">{profile.full_name}</h2>
-                      {profile.tags.includes("VIP") && (
-                        <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold flex items-center gap-1">
-                          <Star size={9} className="fill-amber-500 text-amber-500" /> VIP
-                        </span>
-                      )}
-                      {profile.blacklisted && (
-                        <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold flex items-center gap-1">
-                          <AlertTriangle size={9} /> Blacklisted
-                        </span>
-                      )}
-                      {profile.gdpr_consent && (
-                        <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold flex items-center gap-1">
-                          <Shield size={9} /> GDPR ✓
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-sm text-gray-500 mt-0.5">{profile.phone}</div>
-                    {profile.email && <div className="text-xs text-gray-400">{profile.email}</div>}
-                    <div className="flex items-center gap-3 mt-2 flex-wrap">
-                      {profile.nationality && <Pill>{profile.nationality}</Pill>}
-                      {profile.source && <Pill>{SOURCE_LABELS[profile.source] ?? profile.source}</Pill>}
-                      {profile.language && <Pill>Lang: {profile.language.toUpperCase()}</Pill>}
-                      {profile.tags.filter(t => t !== "VIP").map(t => <Pill key={t}>{t}</Pill>)}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Quick stats */}
-                <div className="grid grid-cols-3 gap-3 mt-4">
-                  <Stat label="Stays" value={String(profile.stays.length)} />
-                  <Stat label="Inquiries" value={String(profile.inquiries.length)} />
-                  <Stat label="Revenue" value={
-                    profile.stays.length > 0
-                      ? `€${profile.stays.reduce((s, st) => s + parseFloat(st.total_amount ?? "0"), 0).toLocaleString()}`
-                      : "—"
-                  } />
-                </div>
-              </div>
-
-              {/* Stays */}
-              {profile.stays.length > 0 && (
-                <Section title="Stay History" count={profile.stays.length}>
-                  {profile.stays.map(stay => (
-                    <div key={stay.id} className="flex items-center justify-between py-2.5 border-b border-gray-50 last:border-0">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">{stay.check_in} → {stay.check_out}</div>
-                        <div className="text-xs text-gray-400">{stay.channel ?? "—"} · {stay.booking_ref ?? "no ref"}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-semibold text-gray-900">
-                          {stay.total_amount ? `${stay.currency} ${Number(stay.total_amount).toLocaleString()}` : "—"}
-                        </div>
-                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium",
-                          stay.payment_status === "fully_paid" ? "bg-green-100 text-green-700" :
-                          stay.payment_status === "deposit_paid" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500"
-                        )}>
-                          {stay.payment_status.replace("_", " ")}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </Section>
-              )}
-
-              {/* Inquiries */}
-              {profile.inquiries.length > 0 && (
-                <Section title="Inquiries" count={profile.inquiries.length}>
-                  {profile.inquiries.map(inq => (
-                    <div key={inq.id} className="flex items-center justify-between py-2.5 border-b border-gray-50 last:border-0">
-                      <div>
-                        <div className="text-sm text-gray-700">
-                          {inq.check_in && inq.check_out ? `${inq.check_in} → ${inq.check_out}` : "Dates TBD"}
-                        </div>
-                        <div className="text-xs text-gray-400">{inq.source ?? "—"}</div>
-                      </div>
-                      <span className={cn("text-[10px] px-2 py-0.5 rounded font-medium capitalize",
-                        inq.status === "confirmed" ? "bg-green-100 text-green-700" :
-                        inq.status === "lost" ? "bg-red-100 text-red-700" :
-                        inq.status === "new" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"
-                      )}>
-                        {inq.status}
-                      </span>
-                    </div>
-                  ))}
-                </Section>
-              )}
-
-              {/* Recent calls */}
-              {profile.recent_calls.length > 0 && (
-                <Section title="Recent Calls" count={profile.recent_calls.length}>
-                  {profile.recent_calls.map(call => (
-                    <div key={call.id} className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
-                      <div className="w-7 h-7 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
-                        <Phone size={12} className="text-blue-600" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="text-sm text-gray-700">{call.agent_name ?? "Unknown Agent"}</div>
-                        <div className="text-xs text-gray-400">{call.call_date}</div>
-                      </div>
-                      {call.qa_score && (
-                        <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded",
-                          parseFloat(call.qa_score) >= 8 ? "bg-green-100 text-green-700" :
-                          parseFloat(call.qa_score) >= 6 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
-                        )}>
-                          QA {(parseFloat(call.qa_score) * 10).toFixed(0)}%
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </Section>
-              )}
-
-              {/* Recent messages */}
-              {profile.recent_messages.length > 0 && (
-                <Section title="Recent Messages" count={profile.recent_messages.length}>
-                  {profile.recent_messages.map(msg => (
-                    <div key={msg.id} className={cn("flex gap-2 py-2", msg.direction === "outbound" ? "flex-row-reverse" : "")}>
-                      <div className={cn("flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center",
-                        msg.direction === "inbound" ? "bg-gray-100" : "bg-teal-100"
-                      )}>
-                        <MessageSquare size={11} className={msg.direction === "inbound" ? "text-gray-500" : "text-teal-600"} />
-                      </div>
-                      <div className={cn("flex-1 max-w-[80%]", msg.direction === "outbound" && "text-right")}>
-                        <div className={cn("text-xs px-3 py-2 rounded-xl inline-block",
-                          msg.direction === "inbound" ? "bg-gray-100 text-gray-800" : "bg-teal-500 text-white"
-                        )}>
-                          {msg.content}
-                        </div>
-                        <div className="text-[10px] text-gray-400 mt-0.5">{timeAgo(msg.created_at)}</div>
-                      </div>
-                    </div>
-                  ))}
-                </Section>
-              )}
-
-              {/* Activities */}
-              {profile.activities.length > 0 && (
-                <Section title="Activity Log" count={profile.activities.length}>
-                  {profile.activities.map(act => (
-                    <div key={act.id} className="flex gap-3 py-2.5 border-b border-gray-50 last:border-0">
-                      <div className={cn("w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs",
-                        act.type === "call" ? "bg-blue-100 text-blue-600" :
-                        act.type === "email" ? "bg-amber-100 text-amber-600" : "bg-gray-100 text-gray-500"
-                      )}>
-                        {act.type === "call" ? "📞" : act.type === "email" ? "✉" : "📝"}
-                      </div>
-                      <div className="flex-1">
-                        <div className="text-xs text-gray-700 leading-snug">{act.content}</div>
-                        <div className="text-[10px] text-gray-400 mt-0.5">{timeAgo(act.created_at)}</div>
-                      </div>
-                    </div>
-                  ))}
-                </Section>
-              )}
-            </>
-          )}
+    if (profileLoading || !profile) {
+      return (
+        <div className="flex flex-col h-full bg-[#F8FAFC]">
+          <div className="px-6 py-4 flex-shrink-0" style={{ background: "#FFFFFF", borderBottom: "1px solid #E5E7EB" }}>
+            <button
+              onClick={() => setSelectedPhone(null)}
+              className="flex items-center gap-2 text-sm font-medium"
+              style={{ color: "#6B7280" }}
+            >
+              <ArrowLeft size={15} /> Guests
+            </button>
+          </div>
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-sm text-gray-400">Loading guest profile…</div>
+          </div>
         </div>
-      </div>
-    );
+      );
+    }
+    return <Guest360 profile={profile} onBack={() => setSelectedPhone(null)} />;
   }
 
-  // ── Guest list ────────────────────────────────────────────
+  // Guest card grid
+  const returning = guests.filter(g => !g.tags.includes("new")).length;
+
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-[#F8FAFC]">
       {/* Header */}
-      <div className="px-5 py-4 border-b border-gray-100 bg-white flex items-center justify-between flex-shrink-0 gap-3">
+      <div
+        className="flex-shrink-0 px-6 py-4 flex items-center justify-between gap-4"
+        style={{ background: "#FFFFFF", borderBottom: "1px solid #E5E7EB" }}
+      >
         <div>
-          <h1 className="text-lg font-bold text-gray-900">Guests</h1>
-          <p className="text-xs text-gray-400 mt-0.5">{guests.length} guests</p>
+          <h1
+            className="text-xl font-bold"
+            style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}
+          >
+            Guests
+          </h1>
+          <p className="text-xs mt-0.5" style={{ color: "#6B7280" }}>
+            {guests.length} total · {returning} returning
+          </p>
         </div>
-        <div className="relative flex-1 max-w-xs">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <div className="relative max-w-xs w-full">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#9CA3AF" }} />
           <input
             value={search}
             onChange={e => handleSearch(e.target.value)}
             placeholder="Search name, phone, email…"
-            className="w-full pl-8 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+            className="w-full pl-8 pr-3 py-2 text-sm rounded-xl focus:outline-none"
+            style={{
+              background: "#F8FAFC",
+              border: "1px solid #E5E7EB",
+              color: "#111827",
+            }}
+            onFocus={e => { (e.currentTarget as HTMLElement).style.borderColor = "#0F766E"; }}
+            onBlur={e => { (e.currentTarget as HTMLElement).style.borderColor = "#E5E7EB"; }}
           />
         </div>
       </div>
 
-      {/* Table */}
-      <div className="flex-1 overflow-auto p-4">
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          {isLoading ? (
-            <div className="p-8 text-center text-sm text-gray-400">Loading guests…</div>
-          ) : guests.length === 0 ? (
-            <EmptyGuests />
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100">
-                <tr>
-                  {["Guest", "Phone", "Source", "Tags", "Consent", "Since", ""].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {guests.map(guest => (
-                  <tr
-                    key={guest.phone}
-                    className="hover:bg-gray-50 cursor-pointer transition-colors"
-                    onClick={() => setSelectedPhone(guest.phone)}
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-xs font-bold text-teal-700 flex-shrink-0">
-                          {guest.full_name?.[0] ?? "?"}
-                        </div>
-                        <div>
-                          <div className="font-medium text-gray-900 flex items-center gap-1">
-                            {guest.full_name}
-                            {guest.tags.includes("VIP") && <Star size={10} className="text-amber-500 fill-amber-500" />}
-                            {guest.blacklisted && <AlertTriangle size={10} className="text-red-500" />}
-                          </div>
-                          <div className="text-xs text-gray-400">{guest.email ?? "—"}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 font-mono text-xs">{guest.phone}</td>
-                    <td className="px-4 py-3 text-gray-500 text-xs capitalize">{SOURCE_LABELS[guest.source ?? ""] ?? guest.source ?? "—"}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {guest.tags.map(t => <span key={t} className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded-full">{t}</span>)}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      {guest.gdpr_consent
-                        ? <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">✓ Given</span>
-                        : <span className="text-[10px] bg-red-50 text-red-400 px-1.5 py-0.5 rounded">Pending</span>
-                      }
-                    </td>
-                    <td className="px-4 py-3 text-gray-400 text-xs">{timeAgo(guest.created_at)}</td>
-                    <td className="px-4 py-3">
-                      <span className="text-xs text-teal-600 hover:underline">360 →</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+      {/* KPI strip */}
+      {guests.length > 0 && (
+        <div
+          className="flex-shrink-0 flex items-center gap-6 px-6 py-3 border-b"
+          style={{ background: "#F8FAFC", borderColor: "#E2E8F0" }}
+        >
+          {[
+            { icon: <Users size={12} className="text-teal-600" />, label: "Total guests", value: guests.length },
+            { icon: <TrendingUp size={12} className="text-blue-600" />, label: "VIP guests", value: guests.filter(g => g.tags.includes("VIP")).length },
+            { icon: <Shield size={12} className="text-green-600" />, label: "Consented", value: guests.filter(g => g.gdpr_consent).length },
+          ].map(s => (
+            <div key={s.label} className="flex items-center gap-2">
+              {s.icon}
+              <span className="text-xs text-gray-500">{s.label}:</span>
+              <span className="text-xs font-semibold text-gray-900">{s.value}</span>
+            </div>
+          ))}
         </div>
+      )}
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-5">
+        {isLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="haip-card p-5 animate-pulse">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-gray-200" />
+                  <div className="space-y-1.5 flex-1">
+                    <div className="h-3 bg-gray-200 rounded w-24" />
+                    <div className="h-2.5 bg-gray-200 rounded w-16" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <div className="h-2.5 bg-gray-100 rounded w-full" />
+                  <div className="h-2.5 bg-gray-100 rounded w-2/3" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : guests.length === 0 ? (
+          <div className="flex items-center justify-center py-20">
+            <EmptyGuests />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {guests.map(guest => (
+              <GuestCard
+                key={guest.phone}
+                guest={guest}
+                onClick={() => setSelectedPhone(guest.phone)}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function Section({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
+// ─── Guest Card ───────────────────────────────────────────────────────────────
+
+function GuestCard({ guest, onClick }: { guest: GuestItem; onClick: () => void }) {
+  const initials = (guest.full_name ?? "?").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
+
+  // Derive a relationship signal from tags
+  const isVip       = guest.tags.includes("VIP");
+  const isBlocked   = guest.blacklisted;
+  const hasConsent  = guest.gdpr_consent;
+  const sourceName  = SOURCE_LABELS[guest.source ?? ""] ?? guest.source;
+
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
-        <span className="text-xs text-gray-400">{count}</span>
+    <button
+      onClick={onClick}
+      className="haip-card p-4 text-left hover:shadow-md hover:border-teal-200 transition-all group w-full"
+    >
+      {/* Avatar + name */}
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
+            style={{ background: isVip ? "linear-gradient(135deg, #F59E0B, #D97706)" : "linear-gradient(135deg, #14B8A6, #0F766E)" }}
+          >
+            {initials}
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <p
+                className="text-[13.5px] font-semibold truncate"
+                style={{ color: "var(--haip-text)" }}
+              >
+                {guest.full_name || "Unknown"}
+              </p>
+              {isVip && <Star size={10} className="text-amber-500 fill-amber-500 flex-shrink-0" />}
+              {isBlocked && <AlertTriangle size={10} className="text-red-400 flex-shrink-0" />}
+            </div>
+            <p className="text-[11px] font-mono" style={{ color: "var(--haip-text-subtle)" }}>
+              {guest.phone}
+            </p>
+          </div>
+        </div>
+        <ChevronRight
+          size={13}
+          className="text-gray-300 group-hover:text-teal-500 transition-colors flex-shrink-0 mt-1"
+        />
       </div>
-      {children}
-    </div>
-  );
-}
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="bg-gray-50 rounded-lg p-3 text-center">
-      <div className="text-xs text-gray-500 mb-0.5">{label}</div>
-      <div className="text-sm font-bold text-gray-900">{value}</div>
-    </div>
-  );
-}
+      {/* Metadata row */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {sourceName && (
+          <span
+            className="text-[10px] font-medium px-1.5 py-0.5 rounded-md"
+            style={{ background: "rgba(20,184,166,0.08)", color: "#0F766E" }}
+          >
+            {sourceName}
+          </span>
+        )}
+        {guest.tags.filter(t => t !== "VIP").slice(0, 2).map(t => (
+          <span key={t} className="text-[10px] px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-600 font-medium">
+            {t}
+          </span>
+        ))}
+        {hasConsent && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-green-50 text-green-600 font-medium flex items-center gap-0.5">
+            <Shield size={8} /> GDPR
+          </span>
+        )}
+      </div>
 
-function Pill({ children }: { children: React.ReactNode }) {
-  return <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{children}</span>;
+      {/* Footer */}
+      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-50">
+        <span className="text-[11px]" style={{ color: "var(--haip-text-subtle)" }}>
+          Since {timeAgo(guest.created_at)}
+        </span>
+        <span
+          className="text-[11px] font-medium"
+          style={{ color: "#0F766E" }}
+        >
+          View 360 →
+        </span>
+      </div>
+    </button>
+  );
 }

@@ -175,7 +175,7 @@ export function ChangelogGiftButton({ onClick, hasUnread }: { onClick: () => voi
     >
       <Gift size={15} />
       {hasUnread && (
-        <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-teal-400 ring-2 ring-[#0B1F3A]" />
+        <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-teal-400 ring-2 ring-white" />
       )}
     </button>
   );

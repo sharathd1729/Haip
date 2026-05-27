@@ -36,7 +36,7 @@ function PageTitle() {
   const segments = pathname.split("/").filter(Boolean);
   const last = segments[segments.length - 1] ?? "dashboard";
   return (
-    <span className="font-semibold text-white/85 text-sm">
+    <span className="font-semibold text-gray-800 text-sm">
       {ROUTE_LABELS[last] ?? last.charAt(0).toUpperCase() + last.slice(1)}
     </span>
   );
@@ -62,8 +62,8 @@ export function MobileHeader({ user }: MobileHeaderProps) {
     <header
       className="h-14 flex items-center justify-between px-4 flex-shrink-0"
       style={{
-        backgroundColor: "var(--brand-topbar-bg, #0B1F3A)",
-        borderBottom: "1px solid rgba(255,255,255,0.05)",
+        backgroundColor: "var(--brand-topbar-bg, #FFFFFF)",
+        borderBottom: "1px solid #E5E7EB",
         paddingTop: "env(safe-area-inset-top)",
       }}
     >
@@ -97,7 +97,7 @@ export function MobileHeader({ user }: MobileHeaderProps) {
         <div className="relative">
           <button
             onClick={() => setBellOpen(!bellOpen)}
-            className="relative w-9 h-9 rounded-xl flex items-center justify-center text-white/40 hover:text-white/70 active:bg-white/5 transition-colors"
+            className="relative w-9 h-9 rounded-xl flex items-center justify-center text-gray-500 hover:text-gray-700 active:bg-gray-100 transition-colors"
           >
             <Bell size={18} />
             {unread > 0 && (
@@ -111,11 +111,11 @@ export function MobileHeader({ user }: MobileHeaderProps) {
           {bellOpen && (
             <>
               <div className="fixed inset-0 z-30" onClick={() => setBellOpen(false)} />
-              <div className="absolute right-0 top-full mt-2 z-40 w-80 max-w-[calc(100vw-2rem)] bg-[#0f2744] border border-white/10 rounded-2xl shadow-2xl shadow-black/40 overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-white/6">
-                  <span className="text-xs font-bold text-white/60 uppercase tracking-wider">Notifications</span>
+              <div className="absolute right-0 top-full mt-2 z-40 w-80 max-w-[calc(100vw-2rem)] bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Notifications</span>
                   {unread > 0 && (
-                    <span className="text-[10px] bg-teal-500/20 text-teal-400 px-2 py-0.5 rounded-full font-bold">
+                    <span className="text-[10px] bg-teal-50 text-teal-600 px-2 py-0.5 rounded-full font-bold">
                       {unread} new
                     </span>
                   )}
@@ -123,14 +123,14 @@ export function MobileHeader({ user }: MobileHeaderProps) {
                 {notifications.map((n) => (
                   <div
                     key={n.id}
-                    className={`px-4 py-3 border-b border-white/4 last:border-0 ${!n.read ? "bg-teal-500/4" : ""}`}
+                    className={`px-4 py-3 border-b border-gray-50 last:border-0 ${!n.read ? "bg-teal-50/50" : ""}`}
                   >
-                    <p className="text-xs text-white/70 leading-relaxed mb-1">{n.text}</p>
-                    <p className="text-[10px] text-white/25">{n.time}</p>
+                    <p className="text-xs text-gray-700 leading-relaxed mb-1">{n.text}</p>
+                    <p className="text-[10px] text-gray-400">{n.time}</p>
                   </div>
                 ))}
                 <div className="px-4 py-3 text-center">
-                  <button className="text-xs text-teal-400 font-semibold">Mark all read</button>
+                  <button className="text-xs text-teal-600 font-semibold">Mark all read</button>
                 </div>
               </div>
             </>
@@ -141,7 +141,7 @@ export function MobileHeader({ user }: MobileHeaderProps) {
         <Link
           href="/dashboard/profile"
           className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ml-1"
-          style={{ backgroundColor: primary, color: "#0a1b30" }}
+          style={{ backgroundColor: primary, color: "#ffffff" }}
         >
           {user?.name?.[0]?.toUpperCase() ?? "U"}
         </Link>

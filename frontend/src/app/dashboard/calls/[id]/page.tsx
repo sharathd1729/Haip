@@ -287,7 +287,7 @@ export default function CallDetailPage() {
             <button
               onClick={() => processMutation.mutate()}
               disabled={processing}
-              className="flex items-center gap-2 px-4 py-2 bg-[#0B1F3A] text-white text-xs font-semibold rounded-xl hover:bg-[#163458] disabled:opacity-50 transition-colors flex-shrink-0"
+              className="flex items-center gap-2 px-4 py-2 bg-[#0F766E] text-white text-xs font-semibold rounded-xl hover:bg-[#0d6660] disabled:opacity-50 transition-colors flex-shrink-0"
             >
               {processing
                 ? <><Loader2 size={13} className="animate-spin" /> Processing…</>
@@ -336,7 +336,7 @@ export default function CallDetailPage() {
             <button
               onClick={() => processMutation.mutate()}
               disabled={processing}
-              className="flex items-center gap-2 px-4 py-2 bg-[#0B1F3A] text-white text-xs font-semibold rounded-xl hover:bg-[#163458] disabled:opacity-50 transition-colors flex-shrink-0"
+              className="flex items-center gap-2 px-4 py-2 bg-[#0F766E] text-white text-xs font-semibold rounded-xl hover:bg-[#0d6660] disabled:opacity-50 transition-colors flex-shrink-0"
             >
               {processing
                 ? <><Loader2 size={13} className="animate-spin" /> Running…</>
@@ -727,7 +727,7 @@ export default function CallDetailPage() {
             <button
               onClick={() => saveMutation.mutate()}
               disabled={saveMutation.isPending}
-              className="w-full py-2.5 bg-[#0B1F3A] hover:bg-[#163458] disabled:opacity-60 text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
+              className="w-full py-2.5 bg-[#0F766E] hover:bg-[#0d6660] disabled:opacity-60 text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
             >
               {saveMutation.isPending ? (
                 <><Loader2 size={14} className="animate-spin" /> Saving…</>

@@ -1,78 +1,115 @@
 "use client";
+import { useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import {
-  LayoutDashboard, Phone, MessageSquare, Users,
-  BarChart2, Star, Settings, LogOut, Inbox,
-  Home, Shield, Plug2, Zap, Megaphone,
-  UserCheck, GitBranch, FileDown, CreditCard,
-  HelpCircle, UserCircle, Palette, Calculator, Building2,
-  CalendarDays,
+  Home, Inbox, Phone, Users, Building2, DollarSign,
+  Sparkles, BarChart2, Zap, Link2, Settings,
+  HelpCircle, User, LogOut, ChevronDown, ChevronRight,
+  MessageSquare, Instagram, Bot,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canSeeNav, type Resource } from "@/lib/permissions";
 import { useBrandTheme } from "@/components/providers/BrandThemeProvider";
-import { brightness } from "@/lib/brandTheme";
+import { useInboxStore } from "@/store/inbox";
+
+// ─── Nav structure ────────────────────────────────────────────────────────────
 
 interface NavItem {
   label: string;
   href: string;
-  icon: React.ReactNode;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
   resource: Resource;
-  badge?: string | number;
+  children?: { label: string; href: string; icon?: React.ComponentType<{ size?: number; className?: string }> }[];
 }
 
-const navSections: { label: string; items: NavItem[] }[] = [
+const NAV_ITEMS: NavItem[] = [
   {
-    label: "Workspace",
-    items: [
-      { label: "Dashboard",  href: "/dashboard",           icon: <LayoutDashboard size={16} />, resource: "dashboard" },
-      { label: "Inbox",      href: "/dashboard/inbox",     icon: <Inbox size={16} />,           resource: "inbox" },
-      { label: "Calls",      href: "/dashboard/calls",     icon: <Phone size={16} />,           resource: "calls" },
+    label: "Home",
+    href: "/dashboard",
+    icon: Home,
+    resource: "dashboard",
+  },
+  {
+    label: "Inbox",
+    href: "/dashboard/inbox",
+    icon: Inbox,
+    resource: "inbox",
+    children: [
+      { label: "Conversations", href: "/dashboard/inbox",             icon: MessageSquare },
+      { label: "WhatsApp",      href: "/dashboard/inbox?ch=whatsapp", icon: MessageSquare },
+      { label: "Instagram",     href: "/dashboard/inbox?ch=instagram", icon: Instagram },
+      { label: "AI Concierge",  href: "/dashboard/inbox?ch=ai",       icon: Bot },
     ],
   },
   {
-    label: "CRM",
-    items: [
-      { label: "Inquiries",  href: "/dashboard/inquiries",  icon: <Zap size={16} />,        resource: "inquiries" },
-      { label: "Guests",     href: "/dashboard/guests",     icon: <Users size={16} />,       resource: "guests" },
-      { label: "Portfolio",   href: "/dashboard/properties",          icon: <Building2 size={16} />,    resource: "properties" },
-      { label: "Calendar",    href: "/dashboard/properties/calendar", icon: <CalendarDays size={16} />, resource: "properties" },
-      { label: "Calculator",  href: "/dashboard/calculator",          icon: <Calculator size={16} />,   resource: "properties" },
+    label: "Calls",
+    href: "/dashboard/calls",
+    icon: Phone,
+    resource: "calls",
+  },
+  {
+    label: "Guests",
+    href: "/dashboard/guests",
+    icon: Users,
+    resource: "guests",
+    children: [
+      { label: "Guest 360",   href: "/dashboard/guests" },
+      { label: "Segments",    href: "/dashboard/guests?view=segments" },
+      { label: "VIP Guests",  href: "/dashboard/guests?view=vip" },
     ],
   },
   {
-    label: "Messaging",
-    items: [
-      { label: "Templates",    href: "/dashboard/messaging/templates",   icon: <MessageSquare size={16} />, resource: "templates" },
-      { label: "Campaigns",    href: "/dashboard/messaging/campaigns",   icon: <Megaphone size={16} />,     resource: "campaigns" },
-      { label: "Subscribers",  href: "/dashboard/messaging/subscribers", icon: <UserCheck size={16} />,     resource: "subscribers" },
-      { label: "Flow Builder", href: "/dashboard/messaging/flows",       icon: <GitBranch size={16} />,     resource: "flows" },
-    ],
+    label: "Portfolio",
+    href: "/dashboard/properties",
+    icon: Building2,
+    resource: "properties",
   },
   {
-    label: "Intelligence",
-    items: [
-      { label: "Analytics",   href: "/dashboard/analytics",   icon: <BarChart2 size={16} />, resource: "analytics" },
-      { label: "Reports",     href: "/dashboard/reports",     icon: <FileDown size={16} />,  resource: "reports" },
-      { label: "QA & Scores", href: "/dashboard/qa",          icon: <Star size={16} />,      resource: "qa" },
-      { label: "Compliance",  href: "/dashboard/compliance",  icon: <Shield size={16} />,    resource: "compliance" },
-    ],
+    label: "Revenue",
+    href: "/dashboard/analytics?tab=revenue",
+    icon: DollarSign,
+    resource: "analytics",
   },
   {
-    label: "Account",
-    items: [
-      { label: "Settings",      href: "/dashboard/settings",              icon: <Settings size={16} />,    resource: "settings" },
-      { label: "Integrations",  href: "/dashboard/settings/integrations", icon: <Plug2 size={16} />,       resource: "integrations" },
-      { label: "Team",          href: "/dashboard/settings/team",         icon: <Users size={16} />,       resource: "users" },
-      { label: "Branding",      href: "/dashboard/settings/branding",     icon: <Palette size={16} />,     resource: "branding" as Resource },
-      { label: "Billing",       href: "/dashboard/billing",               icon: <CreditCard size={16} />,  resource: "billing" },
-      { label: "Profile",       href: "/dashboard/profile",               icon: <UserCircle size={16} />,  resource: "profile" },
-      { label: "Help & Support",href: "/dashboard/help",                  icon: <HelpCircle size={16} />,  resource: "help" },
-    ],
+    label: "AI Intelligence",
+    href: "/dashboard/qa",
+    icon: Sparkles,
+    resource: "analytics",
+  },
+  {
+    label: "Analytics",
+    href: "/dashboard/analytics",
+    icon: BarChart2,
+    resource: "analytics",
+  },
+  {
+    label: "Automations",
+    href: "/dashboard/automations",
+    icon: Zap,
+    resource: "settings",
+  },
+  {
+    label: "Integrations",
+    href: "/dashboard/settings/integrations",
+    icon: Link2,
+    resource: "settings",
+  },
+  {
+    label: "Settings",
+    href: "/dashboard/settings",
+    icon: Settings,
+    resource: "settings",
   },
 ];
+
+const BOTTOM_ITEMS = [
+  { label: "Support", href: "/dashboard/help",    icon: HelpCircle },
+  { label: "Account", href: "/dashboard/profile", icon: User },
+];
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 interface SidebarProps {
   user?: { name?: string | null; email?: string | null; role?: string };
@@ -82,205 +119,210 @@ export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
   const role = user?.role ?? "";
   const { theme } = useBrandTheme();
+  const { conversations } = useInboxStore();
+  const [expanded, setExpanded] = useState<string | null>(null);
 
-  // Derived colors from CSS variables (already applied to :root)
-  const sidebarBg   = "var(--brand-sidebar-bg)";
-  const primary     = "var(--brand-primary)";
-  const primaryBg   = "rgba(var(--brand-primary-rgb), 0.12)";
-  const primaryText = "var(--brand-sidebar-active)";
-  const sidebarText = "var(--brand-sidebar-text)";
-  const dimText     = "rgba(var(--brand-primary-rgb), 0.25)";
+  const unreadCount = conversations.filter(c => (c as any).unread_count > 0).length;
 
-  // Logo area: if logoUrl provided show img, else show text mark
-  const logoInitials = (theme.companyName ?? "HAIP").slice(0, 2).toUpperCase();
-  const hasBrightPrimary = brightness(theme.primaryColor) > 160;
+  function isActive(href: string) {
+    if (href === "/dashboard") return pathname === "/dashboard";
+    // strip query for path matching
+    const hrefPath = href.split("?")[0];
+    return pathname === hrefPath || pathname.startsWith(hrefPath + "/");
+  }
+
+  function toggleExpand(label: string) {
+    setExpanded(e => e === label ? null : label);
+  }
+
+  const companyName = theme.companyName ?? "HAIP";
 
   return (
     <aside
-      className="w-60 flex flex-col h-full flex-shrink-0"
+      className="w-[220px] flex flex-col h-full flex-shrink-0 select-none"
       style={{
-        backgroundColor: sidebarBg,
-        borderRight: "1px solid rgba(255,255,255,0.05)",
-        fontFamily: "var(--brand-font)",
+        background: "var(--haip-sidebar)",
+        borderRight: "1px solid var(--haip-sidebar-border)",
       }}
     >
-      {/* Brand */}
+      {/* ── Logo / brand ─────────────────────────────────────────────────── */}
       <Link
         href="/dashboard"
-        className="px-5 py-4 flex items-center gap-3 flex-shrink-0 hover:opacity-80 transition-opacity"
-        style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}
+        className="px-4 py-4 flex items-center gap-3 flex-shrink-0 transition-opacity hover:opacity-80"
+        style={{ borderBottom: "1px solid var(--haip-border)" }}
       >
-        {theme.logoDarkUrl ? (
-          // Custom logo (dark-bg variant) — white pill so logo bg blends on dark sidebar
-          <div className="bg-white rounded-xl px-2.5 py-1 inline-flex items-center flex-shrink-0">
-            <img
-              src={theme.logoDarkUrl}
-              alt={theme.companyName}
-              className="h-7 w-auto object-contain"
-            />
-          </div>
-        ) : theme.logoUrl ? (
-          <div className="bg-white rounded-xl px-2.5 py-1 inline-flex items-center flex-shrink-0">
-            <img
-              src={theme.logoUrl}
-              alt={theme.companyName}
-              className="h-7 w-auto object-contain"
-            />
-          </div>
+        {theme.logoUrl ? (
+          <img
+            src={theme.logoUrl}
+            alt={companyName}
+            className="h-7 w-auto object-contain"
+          />
         ) : (
           <>
-            {/* Default text mark with brand primary */}
             <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shadow-lg flex-shrink-0"
+              className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{
-                background: `linear-gradient(135deg, ${theme.primaryColor}, var(--brand-primary-dark))`,
-                color: hasBrightPrimary ? "#1a1a1a" : "#ffffff",
-                boxShadow: `0 4px 12px rgba(var(--brand-primary-rgb), 0.35)`,
+                background: "linear-gradient(135deg, #0F766E, #059669)",
+                boxShadow: "0 2px 8px rgba(15,118,110,0.25)",
               }}
             >
-              {logoInitials}
+              {/* Grid icon matching Stitch logo */}
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <rect x="1" y="1" width="6" height="6" rx="1.5" fill="white" fillOpacity="0.9" />
+                <rect x="9" y="1" width="6" height="6" rx="1.5" fill="white" fillOpacity="0.6" />
+                <rect x="1" y="9" width="6" height="6" rx="1.5" fill="white" fillOpacity="0.6" />
+                <rect x="9" y="9" width="6" height="6" rx="1.5" fill="white" fillOpacity="0.9" />
+              </svg>
             </div>
-            <div>
-              <span
-                className="font-bold text-base tracking-tight"
-                style={{ color: "#ffffff" }}
+            <div className="min-w-0">
+              <div
+                className="font-bold text-[14px] tracking-tight leading-tight"
+                style={{
+                  fontFamily: "var(--font-display), sans-serif",
+                  color: "var(--haip-fg)",
+                }}
               >
-                {theme.companyName ?? "HAIP"}
-              </span>
-              {theme.tagline && (
-                <div
-                  className="text-[10px] uppercase tracking-widest leading-none mt-0.5"
-                  style={{ color: "rgba(255,255,255,0.35)" }}
-                >
-                  {theme.tagline}
-                </div>
-              )}
+                {companyName}
+              </div>
+              <div className="text-[10px] leading-tight mt-0.5" style={{ color: "var(--haip-fg-subtle)" }}>
+                Hospitality AI
+              </div>
             </div>
           </>
         )}
       </Link>
 
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto py-2">
-        {navSections.map((section) => {
-          const visible = section.items.filter(item => canSeeNav(role, item.resource));
-          if (visible.length === 0) return null;
+      {/* ── Navigation ───────────────────────────────────────────────────── */}
+      <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-0.5 haip-scrollbar">
+        {NAV_ITEMS.filter(item => canSeeNav(role, item.resource)).map(item => {
+          const active = isActive(item.href);
+          const Icon = item.icon;
+          const isInbox = item.href === "/dashboard/inbox";
+          const hasChildren = (item.children?.length ?? 0) > 0;
+          const isExpanded = expanded === item.label || active;
 
           return (
-            <div key={section.label} className="px-3 py-1">
-              <div
-                className="text-[10px] uppercase tracking-widest font-bold px-2 py-2"
-                style={{ color: "rgba(255,255,255,0.25)" }}
-              >
-                {section.label}
+            <div key={item.href}>
+              {/* Main nav item */}
+              <div className="flex items-center">
+                <Link
+                  href={item.href}
+                  className={cn("haip-nav-item flex-1", active && "active")}
+                  onClick={() => hasChildren && setExpanded(e => e === item.label ? null : item.label)}
+                >
+                  <Icon
+                    size={15}
+                    className="flex-shrink-0"
+                    style={{ color: active ? "#0F766E" : "#9CA3AF" }}
+                  />
+                  <span className="flex-1 truncate">{item.label}</span>
+                  {isInbox && unreadCount > 0 && (
+                    <span
+                      className="flex-shrink-0 min-w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10px] font-bold"
+                      style={{ background: "#0F766E", color: "#fff", padding: "0 4px" }}
+                    >
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  )}
+                  {hasChildren && (
+                    <span style={{ color: "#9CA3AF" }}>
+                      {isExpanded
+                        ? <ChevronDown size={12} />
+                        : <ChevronRight size={12} />}
+                    </span>
+                  )}
+                </Link>
               </div>
 
-              {visible.map((item) => {
-                const isActive =
-                  pathname === item.href ||
-                  (item.href !== "/dashboard" && pathname.startsWith(item.href + "/"));
-
-                return (
-                  <Link
-                    key={item.href + item.label}
-                    href={item.href}
-                    className={cn(
-                      "flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm font-medium transition-all duration-100 mb-0.5 group"
-                    )}
-                    style={{
-                      backgroundColor: isActive ? primaryBg : "transparent",
-                      color: isActive ? "#ffffff" : sidebarText,
-                      borderRadius: "var(--brand-radius-btn)",
-                    }}
-                    onMouseEnter={e => {
-                      if (!isActive) {
-                        (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.05)";
-                        (e.currentTarget as HTMLElement).style.color = "#ffffff";
-                      }
-                    }}
-                    onMouseLeave={e => {
-                      if (!isActive) {
-                        (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
-                        (e.currentTarget as HTMLElement).style.color = sidebarText;
-                      }
-                    }}
-                  >
-                    <span style={{ color: isActive ? primary : "rgba(255,255,255,0.35)" }}>
-                      {item.icon}
-                    </span>
-                    <span className="flex-1">{item.label}</span>
-                    {item.badge && (
-                      <span
-                        className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
-                        style={{
-                          backgroundColor: `rgba(var(--brand-primary-rgb), 0.20)`,
-                          color: primary,
-                        }}
+              {/* Sub-items */}
+              {hasChildren && isExpanded && (
+                <div className="mt-0.5 space-y-0.5 pl-1">
+                  {item.children!.map(child => {
+                    const childActive = pathname === child.href.split("?")[0];
+                    const ChildIcon = child.icon;
+                    return (
+                      <Link
+                        key={child.href}
+                        href={child.href}
+                        className={cn("haip-nav-sub", childActive && "active")}
                       >
-                        {item.badge}
-                      </span>
-                    )}
-                  </Link>
-                );
-              })}
+                        {ChildIcon && (
+                          <ChildIcon
+                            size={12}
+                            style={{ color: childActive ? "#0F766E" : "#9CA3AF" }}
+                          />
+                        )}
+                        {child.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}
       </nav>
 
-      {/* D6: Grievance / Privacy micro-link */}
-      <div className="px-4 pb-1">
-        <Link
-          href="/grievance"
-          className="block text-[10px] text-center py-1 rounded transition-colors"
-          style={{ color: "rgba(255,255,255,0.25)" }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.6)"; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.25)"; }}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Privacy &amp; Grievances
-        </Link>
-      </div>
-
-      {/* User footer */}
+      {/* ── Bottom section ────────────────────────────────────────────────── */}
       <div
-        className="p-3 flex-shrink-0"
-        style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}
+        className="px-3 pb-3 pt-2 space-y-0.5"
+        style={{ borderTop: "1px solid var(--haip-border)" }}
       >
+        {/* Quick Insight CTA */}
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-2 w-full px-3 py-2.5 rounded-xl mb-2 font-semibold text-[13px] text-white transition-all"
+          style={{ background: "linear-gradient(135deg, #0F766E, #0d6660)" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "linear-gradient(135deg, #0d6660, #0b5c55)"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "linear-gradient(135deg, #0F766E, #0d6660)"; }}
+        >
+          <Sparkles size={14} />
+          Quick Insight
+        </Link>
+
+        {BOTTOM_ITEMS.map(item => {
+          const Icon = item.icon;
+          const active = isActive(item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn("haip-nav-item", active && "active")}
+            >
+              <Icon size={14} style={{ color: active ? "#0F766E" : "#9CA3AF" }} />
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
+
+        {/* User row with sign out */}
         <div
-          className="flex items-center gap-3 px-2 py-2 rounded-lg cursor-pointer group transition-colors"
-          style={{ borderRadius: "var(--brand-radius-btn)" }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.05)"; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+          className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg mt-1 cursor-default"
+          style={{ color: "var(--haip-fg-muted)" }}
         >
           <div
-            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-            style={{
-              backgroundColor: theme.primaryColor,
-              color: hasBrightPrimary ? "#1a1a1a" : "#ffffff",
-            }}
+            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 text-white"
+            style={{ background: "#0F766E" }}
           >
             {user?.name?.[0]?.toUpperCase() ?? "U"}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-white text-xs font-semibold truncate">{user?.name ?? "User"}</div>
-            <div
-              className="text-[10px] capitalize"
-              style={{ color: "rgba(255,255,255,0.35)" }}
-            >
+            <div className="text-[12.5px] font-semibold truncate" style={{ color: "var(--haip-fg)" }}>
+              {user?.name ?? "User"}
+            </div>
+            <div className="text-[10px] capitalize" style={{ color: "var(--haip-fg-subtle)" }}>
               {user?.role ?? "concierge"}
             </div>
           </div>
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
-            className="transition-colors"
-            style={{ color: "rgba(255,255,255,0.25)" }}
+            className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded transition-colors"
+            style={{ color: "#9CA3AF" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "var(--haip-fg)"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#9CA3AF"; }}
             title="Sign out"
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.7)"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.25)"; }}
           >
-            <LogOut size={14} />
+            <LogOut size={13} />
           </button>
         </div>
       </div>

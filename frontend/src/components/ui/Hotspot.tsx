@@ -138,24 +138,24 @@ export function Hotspot({
         <div
           ref={tooltipRef}
           className={cn(
-            "absolute z-30 w-64 bg-[#0f2744] border border-white/10 rounded-2xl shadow-2xl p-4",
+            "absolute z-30 w-64 bg-white border border-gray-200 rounded-2xl shadow-xl p-4",
             TOOLTIP_POSITIONS[position]
           )}
         >
           <div className="flex items-start justify-between gap-2 mb-2">
-            <p className="text-sm font-bold text-white">{title}</p>
-            <button onClick={handleDismiss} className="text-white/30 hover:text-white/70 flex-shrink-0 transition-colors">
+            <p className="text-sm font-bold text-gray-900">{title}</p>
+            <button onClick={handleDismiss} className="text-gray-400 hover:text-gray-600 flex-shrink-0 transition-colors">
               <X size={13} />
             </button>
           </div>
-          <p className="text-xs text-white/60 leading-relaxed mb-3">{description}</p>
+          <p className="text-xs text-gray-500 leading-relaxed mb-3">{description}</p>
           <div className="flex items-center justify-between">
             {learnMoreUrl ? (
               <a
                 href={learnMoreUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-teal-400 hover:text-teal-300 font-medium"
+                className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 font-medium"
               >
                 <ExternalLink size={11} />
                 Watch demo
@@ -163,7 +163,7 @@ export function Hotspot({
             ) : <span />}
             <button
               onClick={handleDismiss}
-              className="text-[11px] text-white/30 hover:text-white/60 transition-colors"
+              className="text-[11px] text-gray-400 hover:text-gray-600 transition-colors"
             >
               Got it
             </button>

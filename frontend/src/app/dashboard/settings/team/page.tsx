@@ -286,7 +286,7 @@ function InvitationLinkModal({ invitation, onClose }: { invitation: Invitation; 
           </div>
         </div>
         <div className="px-6 pb-5">
-          <button onClick={onClose} className="w-full py-2.5 bg-[#0B1F3A] text-white rounded-xl text-sm font-semibold hover:bg-[#163458] transition-colors">
+          <button onClick={onClose} className="w-full py-2.5 bg-[#0F766E] text-white rounded-xl text-sm font-semibold hover:bg-[#0d6660] transition-colors">
             Done
           </button>
         </div>
@@ -445,7 +445,7 @@ export default function TeamPage() {
               onClick={() => setTab(t)}
               className={cn(
                 "px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors",
-                tab === t ? "bg-[#0B1F3A] text-white" : "text-gray-500 hover:bg-gray-100"
+                tab === t ? "bg-[#0F766E] text-white" : "text-gray-500 hover:bg-gray-100"
               )}
             >
               {t === "invitations" ? `Pending Invites ${pendingInvitations.length > 0 ? `(${pendingInvitations.length})` : ""}` : "Members"}

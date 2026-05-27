@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { Send, Sparkles, User, Loader2, BellOff, Search, X, StickyNote, Reply, Clock, ChevronDown, ChevronLeft, CalendarClock, Timer, AlertTriangle, LayoutTemplate } from "lucide-react";
+import { Send, Sparkles, User, Loader2, BellOff, Search, X, StickyNote, Reply, Clock, ChevronDown, ChevronLeft, CalendarClock, Timer, AlertTriangle, LayoutTemplate, Star, PhoneCall, MessageSquare, TrendingUp, Bed, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { ConversationList } from "@/components/inbox/ConversationList";
@@ -128,6 +128,228 @@ function ChannelFilterRow({
             {f.label}
           </button>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Guest 360 mini-panel ─────────────────────────────────────────────────────
+
+interface GuestSummary {
+  id?: string;
+  name?: string;
+  phone: string;
+  tags?: string[];
+  consent_status?: string;
+  is_vip?: boolean;
+  lifetime_value?: number;
+  total_stays?: number;
+  total_inquiries?: number;
+  recent_stays?: { property_name?: string; check_in?: string; check_out?: string }[];
+}
+
+function GuestPanel({ detail }: { detail: ConversationDetail }) {
+  const { data: guest, isLoading } = useQuery<GuestSummary>({
+    queryKey: ["guest-by-phone", detail.guest_phone],
+    queryFn: () =>
+      api.get(`/guests?phone=${encodeURIComponent(detail.guest_phone)}&limit=1`)
+         .then(r => Array.isArray(r.data) ? r.data[0] : r.data),
+    enabled: !!detail.guest_phone,
+    staleTime: 60_000,
+  });
+
+  const initial = (detail.guest_name ?? detail.guest_phone)?.[0]?.toUpperCase() ?? "?";
+  const isVip = guest?.is_vip;
+
+  return (
+    <div
+      className="hidden md:flex md:flex-col w-64 flex-shrink-0 overflow-y-auto haip-scrollbar"
+      style={{
+        borderLeft: "1px solid var(--haip-border)",
+        background: "#fff",
+      }}
+    >
+      {/* Header */}
+      <div
+        className="px-4 py-4 flex-shrink-0"
+        style={{
+          background: "#FFFFFF",
+          borderBottom: "1px solid #E5E7EB",
+        }}
+      >
+        <p className="text-[10px] font-bold uppercase tracking-widest mb-3"
+          style={{ color: "#9CA3AF" }}>
+          Guest 360
+        </p>
+        <div className="flex items-center gap-3">
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+            style={{
+              background: isVip
+                ? "linear-gradient(135deg, #F59E0B, #D97706)"
+                : "linear-gradient(135deg, #14B8A6, #0F766E)",
+            }}
+          >
+            {initial}
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <p className="text-[13.5px] font-bold truncate"
+                style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}>
+                {detail.guest_name || "Unknown"}
+              </p>
+              {isVip && <Star size={11} className="flex-shrink-0" style={{ color: "#F59E0B" }} fill="#F59E0B" />}
+            </div>
+            <p className="text-[11px] truncate" style={{ color: "#6B7280" }}>
+              {detail.guest_phone}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="flex-1 px-4 py-4 space-y-4">
+        {isLoading ? (
+          <div className="space-y-3 animate-pulse">
+            {[60, 80, 50].map((w, i) => (
+              <div key={i} className="h-3 rounded" style={{ width: `${w}%`, background: "var(--haip-border)" }} />
+            ))}
+          </div>
+        ) : (
+          <>
+            {/* LTV stats */}
+            {(guest?.lifetime_value != null || guest?.total_stays != null || guest?.total_inquiries != null) && (
+              <div className="grid grid-cols-3 gap-2">
+                {guest?.total_stays != null && (
+                  <div className="text-center p-2 rounded-xl"
+                    style={{ background: "rgba(20,184,166,0.07)" }}>
+                    <p className="text-[16px] font-bold leading-none"
+                      style={{ fontFamily: "var(--font-display), sans-serif", color: "#0F766E" }}>
+                      {guest.total_stays}
+                    </p>
+                    <p className="text-[9px] mt-1" style={{ color: "var(--haip-fg-muted)" }}>Stays</p>
+                  </div>
+                )}
+                {guest?.total_inquiries != null && (
+                  <div className="text-center p-2 rounded-xl"
+                    style={{ background: "rgba(15,118,110,0.06)" }}>
+                    <p className="text-[16px] font-bold leading-none"
+                      style={{ fontFamily: "var(--font-display), sans-serif", color: "#0F766E" }}>
+                      {guest.total_inquiries}
+                    </p>
+                    <p className="text-[9px] mt-1" style={{ color: "var(--haip-fg-muted)" }}>Inquiries</p>
+                  </div>
+                )}
+                {guest?.lifetime_value != null && (
+                  <div className="text-center p-2 rounded-xl"
+                    style={{ background: "rgba(245,158,11,0.08)" }}>
+                    <p className="text-[13px] font-bold leading-none"
+                      style={{ fontFamily: "var(--font-display), sans-serif", color: "#B45309" }}>
+                      ₹{guest.lifetime_value >= 1000
+                          ? `${(guest.lifetime_value / 1000).toFixed(0)}k`
+                          : guest.lifetime_value}
+                    </p>
+                    <p className="text-[9px] mt-1" style={{ color: "var(--haip-fg-muted)" }}>LTV</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Tags */}
+            {(guest?.tags ?? []).length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {(guest!.tags!).slice(0, 4).map(tag => (
+                  <span
+                    key={tag}
+                    className="px-2 py-0.5 rounded-full text-[10px] font-medium capitalize"
+                    style={{ background: "rgba(20,184,166,0.10)", color: "#0F766E" }}
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Channel + status row */}
+            <div className="flex items-center justify-between pt-1">
+              <div className="flex items-center gap-1.5">
+                <ChannelIcon channel={detail.channel} className="w-3.5 h-3.5" />
+                <span className="text-[11px] capitalize" style={{ color: "var(--haip-fg-muted)" }}>{detail.channel}</span>
+              </div>
+              <span
+                className="px-2 py-0.5 rounded-full text-[10px] font-medium capitalize"
+                style={{
+                  background: detail.status === "open"
+                    ? "rgba(20,184,166,0.10)"
+                    : "rgba(148,163,184,0.12)",
+                  color: detail.status === "open" ? "#0F766E" : "#64748b",
+                }}
+              >
+                {detail.status}
+              </span>
+            </div>
+
+            {/* Recent stays */}
+            {(guest?.recent_stays ?? []).length > 0 && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider mb-2"
+                  style={{ color: "var(--haip-fg-muted)" }}>
+                  Recent stays
+                </p>
+                <div className="space-y-1.5">
+                  {(guest!.recent_stays!).slice(0, 3).map((s, i) => (
+                    <div key={i} className="flex items-start gap-2">
+                      <Bed size={10} className="mt-0.5 flex-shrink-0" style={{ color: "#14B8A6" }} />
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-medium truncate" style={{ color: "var(--haip-fg)" }}>
+                          {s.property_name || "Property"}
+                        </p>
+                        {s.check_in && (
+                          <p className="text-[10px]" style={{ color: "var(--haip-fg-muted)" }}>
+                            {new Date(s.check_in).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                            {s.check_out && ` → ${new Date(s.check_out).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Consent */}
+            {guest?.consent_status && (
+              <div className="flex items-center gap-1.5">
+                <div
+                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                  style={{
+                    background: guest.consent_status === "granted" ? "#10b981" : "#f59e0b",
+                  }}
+                />
+                <span className="text-[10.5px] capitalize" style={{ color: "var(--haip-fg-muted)" }}>
+                  Consent {guest.consent_status}
+                </span>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Footer link */}
+      <div
+        className="px-4 py-3 flex-shrink-0"
+        style={{ borderTop: "1px solid var(--haip-border)" }}
+      >
+        <a
+          href={`/dashboard/guests?phone=${encodeURIComponent(detail.guest_phone)}`}
+          className="flex items-center gap-1.5 text-[11.5px] font-semibold transition-colors"
+          style={{ color: "#0F766E" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#14B8A6"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#0F766E"; }}
+        >
+          <ExternalLink size={11} />
+          View full Guest 360
+        </a>
       </div>
     </div>
   );
@@ -426,15 +648,18 @@ export default function InboxPage() {
     : [];
 
   return (
-    <div className="h-full flex overflow-hidden bg-white">
+    <div className="h-full flex overflow-hidden" style={{ background: "var(--haip-surface)" }}>
       {/* Left: conversation list — full-width on mobile when mobileView==="list", sidebar on md+ */}
       <div className={cn(
-        "flex-col border-r border-gray-100",
+        "flex-col bg-white",
+        "border-r",
         // mobile: full width on list view, hidden on thread view
         mobileView === "list" ? "flex w-full" : "hidden",
         // desktop: always visible, fixed width
         "md:flex md:w-72 md:flex-shrink-0",
-      )}>
+      )}
+        style={{ borderColor: "var(--haip-border)" }}
+      >
         {/* W18: online agents indicator */}
         {onlineUsers.length > 0 && (
           <div className="px-3 py-1.5 border-b border-gray-50 flex items-center gap-1.5">
@@ -929,7 +1154,7 @@ export default function InboxPage() {
                         ? "bg-amber-500 hover:bg-amber-600"
                         : scheduledFor
                         ? "bg-blue-600 hover:bg-blue-700"
-                        : "bg-[#0B1F3A] hover:bg-[#163458]"
+                        : "bg-[#0F766E] hover:bg-[#0d6660]"
                     )}
                     aria-label="Send message"
                   >
@@ -946,7 +1171,7 @@ export default function InboxPage() {
                         "h-10 w-6 rounded-r-xl text-white flex items-center justify-center transition-colors border-l border-white/20",
                         isEmpty ? "bg-gray-300 cursor-not-allowed"
                         : scheduledFor ? "bg-blue-600 hover:bg-blue-700"
-                        : "bg-[#0B1F3A] hover:bg-[#163458]"
+                        : "bg-[#0F766E] hover:bg-[#0d6660]"
                       )}
                     >
                       <ChevronDown size={11} />
@@ -967,41 +1192,9 @@ export default function InboxPage() {
         )}
       </div>
 
-      {/* Right: guest mini-card — hidden on mobile */}
+      {/* Right: Guest 360 mini-card — hidden on mobile */}
       {detail && (
-        <div className="hidden md:flex md:flex-col w-64 flex-shrink-0 border-l border-gray-100 overflow-y-auto p-4 space-y-4">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Guest</p>
-            <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-400 to-blue-500 flex items-center justify-center text-white font-bold flex-shrink-0">
-                {detail.guest_name?.[0]?.toUpperCase() ?? "?"}
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-900">{detail.guest_name || "Unknown"}</p>
-                <p className="text-xs text-gray-500">{detail.guest_phone}</p>
-              </div>
-            </div>
-          </div>
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Channel</p>
-            <div className="flex items-center gap-2">
-              <ChannelIcon channel={detail.channel} />
-              <span className="text-sm text-gray-700 capitalize">{detail.channel}</span>
-            </div>
-          </div>
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Status</p>
-            <Badge variant={detail.status === "open" ? "success" : "ghost"} className="capitalize">{detail.status}</Badge>
-          </div>
-          <div className="pt-2 border-t border-gray-100">
-            <a
-              href={`/dashboard/guests?phone=${encodeURIComponent(detail.guest_phone)}`}
-              className="text-xs text-teal-600 hover:text-teal-700 font-medium flex items-center gap-1"
-            >
-              <User size={12} /> View guest profile →
-            </a>
-          </div>
-        </div>
+        <GuestPanel detail={detail} />
       )}
     </div>
   );

@@ -27,7 +27,7 @@ function formatTime(s: number) {
 
 const SPEAKER_STYLES = {
   agent: {
-    avatar: "bg-[#0B1F3A] text-teal-300",
+    avatar: "bg-[#0F766E] text-white",
     label: "Agent",
     bubble: "bg-white border border-gray-100",
   },

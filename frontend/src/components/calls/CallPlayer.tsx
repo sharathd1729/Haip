@@ -170,7 +170,7 @@ export function CallPlayer({
         <button
           onClick={toggle}
           disabled={loading || error}
-          className="w-9 h-9 rounded-xl bg-[#0B1F3A] hover:bg-[#163458] disabled:opacity-50 text-white flex items-center justify-center transition-colors flex-shrink-0"
+          className="w-9 h-9 rounded-xl bg-[#0F766E] hover:bg-[#0d6660] disabled:opacity-50 text-white flex items-center justify-center transition-colors flex-shrink-0"
         >
           {loading ? (
             <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">

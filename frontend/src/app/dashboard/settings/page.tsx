@@ -540,7 +540,7 @@ function MFACard() {
           <p className="text-sm text-gray-500">Add an extra layer of security. You'll be prompted for a 6-digit code from your authenticator app on each sign-in.</p>
           {error && <p className="text-xs text-red-500">{error}</p>}
           <button onClick={startSetup} disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-[#0B1F3A] text-white text-sm font-semibold rounded-lg hover:bg-[#0d2548] disabled:opacity-50 transition-colors">
+            className="flex items-center gap-2 px-4 py-2 bg-[#0F766E] text-white text-sm font-semibold rounded-lg hover:bg-[#0d6660] disabled:opacity-50 transition-colors">
             {loading ? <Loader2 size={14} className="animate-spin" /> : <QrCode size={14} />}
             Set up authenticator app
           </button>
@@ -569,7 +569,7 @@ function MFACard() {
           />
           {error && <p className="text-xs text-red-500">{error}</p>}
           <button onClick={verifyCode} disabled={loading || code.length < 6}
-            className="w-full py-2.5 bg-[#0B1F3A] text-white font-semibold rounded-xl text-sm disabled:opacity-50 flex items-center justify-center gap-2 hover:bg-[#0d2548]">
+            className="w-full py-2.5 bg-[#0F766E] text-white font-semibold rounded-xl text-sm disabled:opacity-50 flex items-center justify-center gap-2 hover:bg-[#0d6660]">
             {loading && <Loader2 size={14} className="animate-spin" />}
             Verify & enable MFA
           </button>

@@ -379,7 +379,7 @@ export default function TemplatesPage() {
           {(["all", "draft", "pending", "approved", "rejected"] as const).map(f => (
             <button key={f} onClick={() => setFilter(f)}
               className={cn("px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors",
-                filter === f ? "bg-[#0B1F3A] text-white" : "text-gray-500 hover:bg-gray-100"
+                filter === f ? "bg-[#0F766E] text-white" : "text-gray-500 hover:bg-gray-100"
               )}>
               {f} {f !== "all" && `(${templates.filter(t => t.status === f).length})`}
             </button>

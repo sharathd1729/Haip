@@ -1,12 +1,13 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Home, Plus, X, Edit2, Building2, Loader2, ChevronRight } from "lucide-react";
+import {
+  Building2, Plus, X, Edit2, Loader2,
+  MapPin, BedDouble, Bath, Users, Wifi,
+  TrendingUp, CheckCircle2, AlertCircle,
+} from "lucide-react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/components/ui/toast";
 
 interface Property {
   id: string;
@@ -14,7 +15,7 @@ interface Property {
   city?: string;
   address?: string;
   type?: string;
-  property_type?: string;  // alias — some endpoints return this
+  property_type?: string;
   is_active?: boolean;
   bedrooms?: number;
   bathrooms?: number;
@@ -25,12 +26,193 @@ interface Property {
 
 const PROPERTY_TYPES = ["villa", "resort", "hotel", "apartment", "hostel", "camp", "other"];
 
+const TYPE_ICON: Record<string, string> = {
+  villa: "🏡",
+  resort: "🌴",
+  hotel: "🏨",
+  apartment: "🏢",
+  hostel: "🛏",
+  camp: "⛺",
+  other: "🏠",
+};
+
+const SOURCE_COLOR: Record<string, { bg: string; text: string }> = {
+  rentalwise: { bg: "rgba(20,184,166,0.12)", text: "#0F766E" },
+  airbnb:     { bg: "rgba(255,90,95,0.12)",  text: "#e11d48" },
+  booking:    { bg: "rgba(0,99,191,0.12)",   text: "#0057a8" },
+  manual:     { bg: "rgba(148,163,184,0.12)", text: "#64748b" },
+};
+
+function sourceStyle(s?: string) {
+  if (!s) return SOURCE_COLOR.manual;
+  return SOURCE_COLOR[s.toLowerCase()] ?? SOURCE_COLOR.manual;
+}
+
+function PropertySkeleton() {
+  return (
+    <div className="haip-card p-5 rounded-2xl animate-pulse">
+      <div className="flex items-start justify-between mb-4">
+        <div className="w-11 h-11 rounded-xl bg-gray-100" />
+        <div className="w-16 h-5 rounded-full bg-gray-100" />
+      </div>
+      <div className="h-4 bg-gray-100 rounded w-3/4 mb-2" />
+      <div className="h-3 bg-gray-100 rounded w-1/2 mb-4" />
+      <div className="flex gap-2">
+        <div className="h-3 bg-gray-100 rounded w-12" />
+        <div className="h-3 bg-gray-100 rounded w-12" />
+        <div className="h-3 bg-gray-100 rounded w-12" />
+      </div>
+    </div>
+  );
+}
+
+function PropertyCard({ p, onEdit }: { p: Property; onEdit: (p: Property) => void }) {
+  const typeKey = (p.type ?? p.property_type ?? "other").toLowerCase();
+  const emoji = TYPE_ICON[typeKey] ?? "🏠";
+  const sc = sourceStyle(p.channel_source);
+  const active = p.is_active !== false;
+
+  return (
+    <div
+      className="haip-card rounded-2xl p-5 flex flex-col gap-4 group relative overflow-hidden transition-all duration-200"
+      style={{ border: "1px solid var(--haip-border)" }}
+      onMouseEnter={e => {
+        (e.currentTarget as HTMLElement).style.borderColor = "#14B8A6";
+        (e.currentTarget as HTMLElement).style.boxShadow = "0 0 0 1px #14B8A6, 0 4px 20px rgba(20,184,166,0.10)";
+      }}
+      onMouseLeave={e => {
+        (e.currentTarget as HTMLElement).style.borderColor = "var(--haip-border)";
+        (e.currentTarget as HTMLElement).style.boxShadow = "";
+      }}
+    >
+      {/* header row */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-11 h-11 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+            style={{ background: "rgba(15,118,110,0.08)" }}
+          >
+            {emoji}
+          </div>
+          <div className="min-w-0">
+            <h3
+              className="font-semibold text-[14.5px] leading-snug line-clamp-2"
+              style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--haip-fg)" }}
+            >
+              {p.name || <span className="text-gray-400 italic text-sm">Unnamed property</span>}
+            </h3>
+            {(p.city || p.address) && (
+              <div className="flex items-center gap-1 mt-0.5">
+                <MapPin size={10} style={{ color: "var(--haip-fg-muted)" }} />
+                <span className="text-[11px] truncate max-w-[140px]" style={{ color: "var(--haip-fg-muted)" }}>
+                  {p.city || p.address}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* edit button */}
+        <button
+          onClick={() => onEdit(p)}
+          className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg"
+          style={{ color: "var(--haip-fg-muted)" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(0,0,0,0.05)"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ""; }}
+          title="Edit property"
+        >
+          <Edit2 size={13} />
+        </button>
+      </div>
+
+      {/* badges row */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {/* type badge */}
+        <span
+          className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-medium capitalize"
+          style={{ background: "rgba(15,118,110,0.08)", color: "#0F766E" }}
+        >
+          {typeKey}
+        </span>
+
+        {/* source badge */}
+        {p.channel_source && (
+          <span
+            className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-medium capitalize"
+            style={{ background: sc.bg, color: sc.text }}
+          >
+            {p.channel_source}
+          </span>
+        )}
+
+        {/* active/inactive */}
+        {active ? (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium"
+            style={{ background: "rgba(20,184,166,0.10)", color: "#0F766E" }}>
+            <CheckCircle2 size={9} /> Active
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium"
+            style={{ background: "rgba(248,113,113,0.10)", color: "#dc2626" }}>
+            <AlertCircle size={9} /> Inactive
+          </span>
+        )}
+      </div>
+
+      {/* capacity row */}
+      {(p.bedrooms != null || p.bathrooms != null || p.max_adults != null) && (
+        <div
+          className="flex items-center gap-4 pt-3"
+          style={{ borderTop: "1px solid var(--haip-border)" }}
+        >
+          {p.bedrooms != null && (
+            <div className="flex items-center gap-1.5">
+              <BedDouble size={12} style={{ color: "var(--haip-fg-muted)" }} />
+              <span className="text-[11px]" style={{ color: "var(--haip-fg-muted)" }}>
+                {p.bedrooms} bed{p.bedrooms !== 1 ? "s" : ""}
+              </span>
+            </div>
+          )}
+          {p.bathrooms != null && (
+            <div className="flex items-center gap-1.5">
+              <Bath size={12} style={{ color: "var(--haip-fg-muted)" }} />
+              <span className="text-[11px]" style={{ color: "var(--haip-fg-muted)" }}>
+                {p.bathrooms} bath{p.bathrooms !== 1 ? "s" : ""}
+              </span>
+            </div>
+          )}
+          {p.max_adults != null && (
+            <div className="flex items-center gap-1.5">
+              <Users size={12} style={{ color: "var(--haip-fg-muted)" }} />
+              <span className="text-[11px]" style={{ color: "var(--haip-fg-muted)" }}>
+                {p.max_adults} guests
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* added date */}
+      {p.created_at && (
+        <p className="text-[10.5px] -mt-1" style={{ color: "rgba(100,116,139,0.6)" }}>
+          Added {new Date(p.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function PropertiesPage() {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Property | null>(null);
   const [form, setForm] = useState({ name: "", city: "", property_type: "villa" });
+  const [toastMsg, setToastMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  function showToast(type: "success" | "error", text: string) {
+    setToastMsg({ type, text });
+    setTimeout(() => setToastMsg(null), 3500);
+  }
 
   const { data: properties = [], isLoading } = useQuery<Property[]>({
     queryKey: ["properties"],
@@ -42,26 +224,33 @@ export default function PropertiesPage() {
     mutationFn: () => api.post("/properties", form),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["properties"] });
-      toast({ variant: "success", title: "Property created" });
+      showToast("success", "Property created");
       setShowForm(false);
       setForm({ name: "", city: "", property_type: "villa" });
     },
-    onError: () => toast({ variant: "error", title: "Create failed" }),
+    onError: () => showToast("error", "Create failed"),
   });
 
   const updateMutation = useMutation({
     mutationFn: () => api.patch(`/properties/${editing!.id}`, form),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["properties"] });
-      toast({ variant: "success", title: "Property updated" });
+      showToast("success", "Property updated");
       setEditing(null);
+      setShowForm(false);
     },
-    onError: () => toast({ variant: "error", title: "Update failed" }),
+    onError: () => showToast("error", "Update failed"),
   });
 
   const openEdit = (p: Property) => {
     setEditing(p);
     setForm({ name: p.name, city: p.city ?? "", property_type: p.type ?? p.property_type ?? "villa" });
+    setShowForm(true);
+  };
+
+  const openCreate = () => {
+    setEditing(null);
+    setForm({ name: "", city: "", property_type: "villa" });
     setShowForm(true);
   };
 
@@ -72,145 +261,228 @@ export default function PropertiesPage() {
   };
 
   const isPending = createMutation.isPending || updateMutation.isPending;
+  const activeCount = properties.filter(p => p.is_active !== false).length;
+  const inactiveCount = properties.length - activeCount;
 
   return (
-    <div className="h-full flex flex-col bg-white">
-      <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
-        <div>
-          <h1 className="text-lg font-bold text-gray-900">Properties</h1>
-          <p className="text-xs text-gray-400 mt-0.5">{properties.length} properties</p>
+    <div className="h-full flex flex-col" style={{ background: "var(--haip-surface)" }}>
+
+      {/* ── Page header ─────────────────────────────────────────────────────── */}
+      <div
+        className="flex-shrink-0 px-6 py-5"
+        style={{
+          background: "#FFFFFF",
+          borderBottom: "1px solid #E5E7EB",
+        }}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1
+              className="text-[22px] font-bold leading-tight"
+              style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}
+            >
+              Portfolio
+            </h1>
+            <p className="text-[13px] mt-0.5" style={{ color: "#6B7280" }}>
+              {isLoading ? "Loading…" : `${properties.length} ${properties.length === 1 ? "property" : "properties"}`}
+              {!isLoading && inactiveCount > 0 && (
+                <span style={{ color: "#EF4444" }}> · {inactiveCount} inactive</span>
+              )}
+            </p>
+          </div>
+
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-semibold transition-all text-white"
+            style={{ background: "#0F766E" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#0d6660"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#0F766E"; }}
+          >
+            <Plus size={14} />
+            Add property
+          </button>
         </div>
-        <button
-          onClick={() => { setEditing(null); setForm({ name: "", city: "", property_type: "villa" }); setShowForm(true); }}
-          className="flex items-center gap-1.5 text-xs bg-teal-500 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-teal-600 transition-colors"
-        >
-          <Plus size={13} /> Add property
-        </button>
+
+        {/* KPI strip */}
+        {!isLoading && properties.length > 0 && (
+          <div className="flex items-center gap-6 mt-4">
+            <div>
+              <p className="text-[11px]" style={{ color: "#9CA3AF" }}>Total</p>
+              <p className="text-[22px] font-bold leading-none mt-0.5"
+                style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}>
+                {properties.length}
+              </p>
+            </div>
+            <div className="w-px h-8" style={{ background: "#E5E7EB" }} />
+            <div>
+              <p className="text-[11px]" style={{ color: "#9CA3AF" }}>Active</p>
+              <p className="text-[22px] font-bold leading-none mt-0.5"
+                style={{ fontFamily: "var(--font-display), sans-serif", color: "#0F766E" }}>
+                {activeCount}
+              </p>
+            </div>
+            {inactiveCount > 0 && (
+              <>
+                <div className="w-px h-8" style={{ background: "#E5E7EB" }} />
+                <div>
+                  <p className="text-[11px]" style={{ color: "#9CA3AF" }}>Inactive</p>
+                  <p className="text-[22px] font-bold leading-none mt-0.5"
+                    style={{ fontFamily: "var(--font-display), sans-serif", color: "#EF4444" }}>
+                    {inactiveCount}
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-5">
+      {/* ── Content area ───────────────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto p-6 haip-scrollbar">
         {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-2xl" />)}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => <PropertySkeleton key={i} />)}
           </div>
         ) : properties.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
-              <Building2 size={28} className="text-gray-400" />
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <div
+              className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
+              style={{ background: "rgba(15,118,110,0.08)" }}
+            >
+              <Building2 size={28} style={{ color: "#0F766E" }} />
             </div>
-            <p className="text-gray-600 font-medium">No properties yet</p>
-            <p className="text-gray-400 text-sm mt-1 mb-4">Add your first property to get started</p>
+            <p className="font-semibold" style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}>
+              No properties yet
+            </p>
+            <p className="text-sm mt-1 mb-5" style={{ color: "var(--haip-fg-muted)" }}>
+              Add your first property to start tracking inquiries and revenue
+            </p>
             <button
-              onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 text-sm bg-teal-500 text-white px-4 py-2 rounded-xl font-medium hover:bg-teal-600 transition-colors"
+              onClick={openCreate}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
+              style={{ background: "#14B8A6", color: "#fff" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#0F766E"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#14B8A6"; }}
             >
               <Plus size={15} /> Add property
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {properties.map(p => (
-              <div
-                key={p.id}
-                className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow group"
-              >
-                <div className="flex items-start justify-between gap-2 mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
-                    <Home size={18} className="text-purple-600" />
-                  </div>
-                  <button
-                    onClick={() => openEdit(p)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-gray-600"
-                  >
-                    <Edit2 size={14} />
-                  </button>
-                </div>
-                <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2 leading-snug">
-                  {p.name || <span className="text-gray-400 italic">Unnamed property</span>}
-                </h3>
-                <div className="flex items-center gap-2 flex-wrap">
-                  {(p.city || p.address) && (
-                    <span className="text-xs text-gray-500 truncate max-w-[120px]">{p.city || p.address}</span>
-                  )}
-                  {(p.type || p.property_type) && (
-                    <Badge variant="ghost" className="capitalize text-xs">{p.type || p.property_type}</Badge>
-                  )}
-                  {p.channel_source && (
-                    <Badge variant="secondary" className="text-xs capitalize">{p.channel_source}</Badge>
-                  )}
-                  {p.is_active === false && (
-                    <Badge variant="secondary" className="text-xs">Inactive</Badge>
-                  )}
-                </div>
-                <div className="flex items-center gap-3 mt-3 text-[11px] text-gray-400">
-                  {p.bedrooms != null && <span>{p.bedrooms} bed</span>}
-                  {p.bathrooms != null && <span>{p.bathrooms} bath</span>}
-                  {p.max_adults != null && <span>up to {p.max_adults} guests</span>}
-                </div>
-                {p.created_at && (
-                  <p className="text-[11px] text-gray-400 mt-1">
-                    Added {new Date(p.created_at).toLocaleDateString("en-IN")}
-                  </p>
-                )}
-              </div>
+              <PropertyCard key={p.id} p={p} onEdit={openEdit} />
             ))}
           </div>
         )}
       </div>
 
-      {/* Create/Edit modal */}
+      {/* ── Create / Edit modal ─────────────────────────────────────────────── */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="font-bold text-gray-900">{editing ? "Edit property" : "Add property"}</h3>
-              <button onClick={() => setShowForm(false)}><X size={16} className="text-gray-400" /></button>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+            style={{ border: "1px solid var(--haip-border)" }}
+          >
+            {/* modal header */}
+            <div
+              className="flex items-center justify-between px-6 py-4"
+              style={{ background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}
+            >
+              <h3
+                className="font-bold text-[15px]"
+                style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}
+              >
+                {editing ? "Edit property" : "Add property"}
+              </h3>
+              <button
+                onClick={() => { setShowForm(false); setEditing(null); }}
+                className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+                style={{ color: "#9CA3AF" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#374151"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#9CA3AF"; }}
+              >
+                <X size={15} />
+              </button>
             </div>
-            <form onSubmit={handleSubmit} className="space-y-4">
+
+            {/* form */}
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Property name *</label>
+                <label className="block text-[12.5px] font-semibold mb-1.5" style={{ color: "var(--haip-fg)" }}>
+                  Property name *
+                </label>
                 <input
                   required
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   placeholder="Jade Beach Villa"
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors"
+                  style={{
+                    border: "1px solid var(--haip-border)",
+                    background: "var(--haip-surface)",
+                    color: "var(--haip-fg)",
+                  }}
+                  onFocus={e => { (e.currentTarget as HTMLElement).style.borderColor = "#14B8A6"; (e.currentTarget as HTMLElement).style.boxShadow = "0 0 0 2px rgba(20,184,166,0.15)"; }}
+                  onBlur={e => { (e.currentTarget as HTMLElement).style.borderColor = "var(--haip-border)"; (e.currentTarget as HTMLElement).style.boxShadow = ""; }}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">City *</label>
+                <label className="block text-[12.5px] font-semibold mb-1.5" style={{ color: "var(--haip-fg)" }}>
+                  City *
+                </label>
                 <input
                   required
                   value={form.city}
                   onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
                   placeholder="Goa"
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors"
+                  style={{
+                    border: "1px solid var(--haip-border)",
+                    background: "var(--haip-surface)",
+                    color: "var(--haip-fg)",
+                  }}
+                  onFocus={e => { (e.currentTarget as HTMLElement).style.borderColor = "#14B8A6"; (e.currentTarget as HTMLElement).style.boxShadow = "0 0 0 2px rgba(20,184,166,0.15)"; }}
+                  onBlur={e => { (e.currentTarget as HTMLElement).style.borderColor = "var(--haip-border)"; (e.currentTarget as HTMLElement).style.boxShadow = ""; }}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Type</label>
+                <label className="block text-[12.5px] font-semibold mb-1.5" style={{ color: "var(--haip-fg)" }}>
+                  Type
+                </label>
                 <select
                   value={form.property_type}
                   onChange={e => setForm(f => ({ ...f, property_type: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
+                  className="w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors appearance-none cursor-pointer"
+                  style={{
+                    border: "1px solid var(--haip-border)",
+                    background: "var(--haip-surface)",
+                    color: "var(--haip-fg)",
+                  }}
                 >
                   {PROPERTY_TYPES.map(t => (
-                    <option key={t} value={t} className="capitalize">{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+                    <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
                   ))}
                 </select>
               </div>
-              <div className="flex gap-2 pt-2">
+
+              <div className="flex gap-2.5 pt-1">
                 <button
                   type="button"
-                  onClick={() => setShowForm(false)}
-                  className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                  onClick={() => { setShowForm(false); setEditing(null); }}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors"
+                  style={{ border: "1px solid var(--haip-border)", color: "var(--haip-fg-muted)", background: "transparent" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(0,0,0,0.04)"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isPending}
-                  className="flex-1 py-2.5 bg-teal-500 hover:bg-teal-600 disabled:opacity-50 text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                  style={{ background: "#14B8A6" }}
+                  onMouseEnter={e => { if (!isPending) (e.currentTarget as HTMLElement).style.background = "#0F766E"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#14B8A6"; }}
                 >
                   {isPending && <Loader2 size={14} className="animate-spin" />}
                   {editing ? "Save changes" : "Create property"}
@@ -218,6 +490,19 @@ export default function PropertiesPage() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* ── Toast ──────────────────────────────────────────────────────────── */}
+      {toastMsg && (
+        <div
+          className="fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg transition-all"
+          style={{
+            background: toastMsg.type === "success" ? "#0F766E" : "#dc2626",
+            color: "#fff",
+          }}
+        >
+          {toastMsg.text}
         </div>
       )}
     </div>

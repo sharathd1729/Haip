@@ -114,7 +114,7 @@ export function MessageBubble({
                 ? "bg-teal-50 border border-teal-200 text-gray-800 rounded-br-sm"
                 : isFailed
                 ? "bg-red-50 border border-red-200 text-gray-800 rounded-br-sm"
-                : "bg-[#0B1F3A] text-white rounded-br-sm"
+                : "bg-[#0F766E] text-white rounded-br-sm"
               : "bg-white border border-gray-100 shadow-sm text-gray-800 rounded-bl-sm"
           )}>
             {isAiDraft && (

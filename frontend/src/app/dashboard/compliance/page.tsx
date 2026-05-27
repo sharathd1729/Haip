@@ -204,7 +204,7 @@ export default function CompliancePage() {
               onClick={() => setTab(t.id)}
               className={cn(
                 "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                tab === t.id ? "bg-[#0B1F3A] text-white" : "text-gray-500 hover:bg-gray-100"
+                tab === t.id ? "bg-[#0F766E] text-white" : "text-gray-500 hover:bg-gray-100"
               )}
             >
               {t.label}

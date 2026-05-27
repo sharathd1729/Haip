@@ -25,7 +25,7 @@ export function EmptyCalls() {
       </div>
       <Link
         href="/dashboard/settings/integrations"
-        className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0B1F3A] hover:bg-[#163458] text-white text-sm font-semibold rounded-xl transition-colors"
+        className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0F766E] hover:bg-[#0d6660] text-white text-sm font-semibold rounded-xl transition-colors"
       >
         <Plug2 size={15} /> Connect IVR provider
       </Link>

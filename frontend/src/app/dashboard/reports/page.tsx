@@ -206,7 +206,7 @@ function StepBadge({ step, current }: { step: number; current: number }) {
   return (
     <div className={cn(
       "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all flex-shrink-0",
-      done ? "bg-teal-500 text-white" : active ? "bg-[#0B1F3A] text-white" : "bg-gray-200 text-gray-400"
+      done ? "bg-teal-500 text-white" : active ? "bg-[#0F766E] text-white" : "bg-gray-200 text-gray-400"
     )}>
       {done ? <Check size={13} /> : step}
     </div>
@@ -513,7 +513,7 @@ export default function ReportsPage() {
                   <button
                     onClick={() => downloadMutation.mutate("json")}
                     disabled={downloadMutation.isPending}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-[#0B1F3A] text-white rounded-xl text-xs font-semibold hover:bg-[#0d2548] transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-4 py-2 bg-[#0F766E] text-white rounded-xl text-xs font-semibold hover:bg-[#0d6660] transition-colors disabled:opacity-50"
                   >
                     {downloadMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
                     JSON

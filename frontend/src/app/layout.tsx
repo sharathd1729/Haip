@@ -1,19 +1,19 @@
 import type { Metadata, Viewport } from "next";
-import { Bricolage_Grotesque, Space_Grotesk } from "next/font/google";
+import { Manrope, Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { PWARegister } from "@/components/PWARegister";
 
-// Display font: Bricolage Grotesque — variable, expressive at 800–900, premium startup
-const displayFont = Bricolage_Grotesque({
+// Display / heading font: Manrope — premium geometric, outstanding at 600–800
+const displayFont = Manrope({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
   variable: "--font-display",
   display: "swap",
 });
 
-// Body / UI font: Space Grotesk — technical-geometric, 300–700, intelligence-platform feel
-const sansFont = Space_Grotesk({
+// Body / UI font: Inter — industry-standard, maximal legibility at all sizes
+const sansFont = Inter({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
   variable: "--font-sans",
@@ -25,7 +25,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#0a1b30",
+  themeColor: "#041C1A",
   viewportFit: "cover",
 };
 
@@ -62,7 +62,6 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="h-full antialiased" suppressHydrationWarning>
-      {/* Inline script runs before paint — prevents dark/light flash */}
       <head>
         <script dangerouslySetInnerHTML={{ __html: `
           try {

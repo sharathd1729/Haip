@@ -182,41 +182,70 @@ function KPICard({ label, value, subtext, trend, icon, variant = "default", delt
     trend === "down" ? TrendingDown :
     Minus;
   const trendColor =
-    trend === "up" ? "text-teal-500" :
-    trend === "down" ? "text-red-400" :
-    "text-gray-400";
+    trend === "up" ? "#14B8A6" :
+    trend === "down" ? "#f87171" :
+    "#94a3b8";
+
+  const iconBg =
+    variant === "warning" ? "rgba(245,158,11,0.12)" :
+    variant === "danger"  ? "rgba(248,113,113,0.12)" :
+    "rgba(20,184,166,0.10)";
+  const iconColor =
+    variant === "warning" ? "#D97706" :
+    variant === "danger"  ? "#ef4444" :
+    "#0F766E";
 
   return (
     <div
-      className={cn(
-        "bg-white border rounded-2xl p-5 shadow-sm transition-all",
-        variant === "warning" ? "border-amber-200 bg-amber-50/30" :
-        variant === "danger" ? "border-red-200 bg-red-50/30" :
-        "border-gray-100",
-        onClick && "cursor-pointer hover:shadow-md hover:border-teal-200 active:scale-[0.99]"
-      )}
+      className="haip-card rounded-2xl p-5 transition-all"
+      style={{
+        border: variant === "warning"
+          ? "1px solid rgba(245,158,11,0.3)"
+          : variant === "danger"
+          ? "1px solid rgba(248,113,113,0.3)"
+          : "1px solid var(--haip-border)",
+        cursor: onClick ? "pointer" : "default",
+      }}
       onClick={onClick}
+      onMouseEnter={e => {
+        if (onClick) {
+          (e.currentTarget as HTMLElement).style.borderColor = "#14B8A6";
+          (e.currentTarget as HTMLElement).style.boxShadow = "0 0 0 1px #14B8A6";
+        }
+      }}
+      onMouseLeave={e => {
+        if (onClick) {
+          (e.currentTarget as HTMLElement).style.borderColor =
+            variant === "warning" ? "rgba(245,158,11,0.3)"
+            : variant === "danger" ? "rgba(248,113,113,0.3)"
+            : "var(--haip-border)";
+          (e.currentTarget as HTMLElement).style.boxShadow = "";
+        }
+      }}
       title={onClick ? "Click to drill down" : undefined}
     >
       <div className="flex items-start justify-between mb-3">
-        <div className={cn(
-          "w-9 h-9 rounded-xl flex items-center justify-center",
-          variant === "warning" ? "bg-amber-100 text-amber-600" :
-          variant === "danger" ? "bg-red-100 text-red-500" :
-          "bg-teal-50 text-teal-600"
-        )}>
+        <div
+          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ background: iconBg, color: iconColor }}
+        >
           {icon}
         </div>
         <div className="flex items-center gap-1.5">
           {delta && <DeltaChip delta={delta} invertColor={invertDeltaColor} />}
-          {trend && <TrendIcon size={16} className={trendColor} />}
+          {trend && <TrendIcon size={16} style={{ color: trendColor }} />}
         </div>
       </div>
-      <p className="text-2xl font-black text-gray-900">{value}</p>
-      <p className="text-xs text-gray-500 mt-0.5">{label}</p>
-      {subtext && <p className="text-[11px] text-gray-400 mt-1">{subtext}</p>}
+      <p
+        className="text-2xl font-black leading-none"
+        style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--haip-fg)" }}
+      >
+        {value}
+      </p>
+      <p className="text-[12px] mt-1" style={{ color: "var(--haip-fg-muted)" }}>{label}</p>
+      {subtext && <p className="text-[11px] mt-0.5" style={{ color: "rgba(100,116,139,0.6)" }}>{subtext}</p>}
       {onClick && (
-        <p className="text-[10px] text-teal-500 mt-2 font-medium">Click to drill down →</p>
+        <p className="text-[10px] mt-2 font-medium" style={{ color: "#14B8A6" }}>Drill down →</p>
       )}
     </div>
   );
@@ -376,53 +405,74 @@ export default function AnalyticsPage() {
   const anomalyDots = anomalies.filter(a => a.is_anomaly);
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      {/* Header + filters */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Owner dashboard</h1>
-          <p className="text-sm text-gray-400 mt-0.5">
-            {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
-          </p>
-        </div>
-
-        {/* Filter controls (A2 + A3) */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Range selector */}
-          <div className="relative">
-            <select
-              value={rangeDays}
-              onChange={e => setParam("range_days", e.target.value)}
-              className="appearance-none text-sm bg-white border border-gray-200 text-gray-700 px-3 py-2 pr-7 rounded-xl font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-500"
+    <div className="h-full flex flex-col" style={{ background: "var(--haip-surface)" }}>
+      {/* ── Dark page header ─────────────────────────────────────────────── */}
+      <div
+        className="flex-shrink-0 px-6 py-5"
+        style={{
+          background: "#FFFFFF",
+          borderBottom: "1px solid #E5E7EB",
+        }}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1
+              className="text-[22px] font-bold leading-tight"
+              style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}
             >
-              <option value="7">Last 7 days</option>
-              <option value="14">Last 14 days</option>
-              <option value="30">Last 30 days</option>
-              <option value="90">Last 90 days</option>
-            </select>
-            <ChevronDown size={11} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              Analytics
+            </h1>
+            <p className="text-[13px] mt-0.5" style={{ color: "#6B7280" }}>
+              {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
+            </p>
           </div>
 
-          {/* Property filter (A3) */}
-          <PropertyFilter
-            value={propertyIds}
-            onChange={ids => setParam("property_ids", ids.join(","))}
-          />
+          {/* Filter controls (A2 + A3) */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Range selector */}
+            <div className="relative">
+              <select
+                value={rangeDays}
+                onChange={e => setParam("range_days", e.target.value)}
+                className="appearance-none text-[13px] px-3 py-2 pr-7 rounded-xl font-medium cursor-pointer focus:outline-none"
+                style={{
+                  background: "#F9FAFB",
+                  border: "1px solid #E5E7EB",
+                  color: "#374151",
+                }}
+              >
+                <option value="7">Last 7 days</option>
+                <option value="14">Last 14 days</option>
+                <option value="30">Last 30 days</option>
+                <option value="90">Last 90 days</option>
+              </select>
+              <ChevronDown size={11} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: "#9CA3AF" }} />
+            </div>
 
-          {/* Compare toggle (A2) */}
-          <button
-            onClick={() => setParam("compare_to", compareTo === "none" ? "previous_period" : "none")}
-            className={cn(
-              "text-sm px-3 py-2 rounded-xl font-medium border transition-colors",
-              compareTo !== "none"
-                ? "bg-teal-500 text-white border-teal-500"
-                : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
-            )}
-          >
-            {compareTo !== "none" ? "✓ Comparing" : "Compare period"}
-          </button>
+            {/* Property filter (A3) */}
+            <PropertyFilter
+              value={propertyIds}
+              onChange={ids => setParam("property_ids", ids.join(","))}
+            />
+
+            {/* Compare toggle (A2) */}
+            <button
+              onClick={() => setParam("compare_to", compareTo === "none" ? "previous_period" : "none")}
+              className="text-[13px] px-3 py-2 rounded-xl font-semibold border transition-colors"
+              style={
+                compareTo !== "none"
+                  ? { background: "#14B8A6", color: "#fff", border: "1px solid #14B8A6" }
+                  : { background: "#F9FAFB", color: "#374151", border: "1px solid #E5E7EB" }
+              }
+            >
+              {compareTo !== "none" ? "✓ Comparing" : "Compare period"}
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* ── Scrollable content ───────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto haip-scrollbar p-6 space-y-6 max-w-7xl mx-auto w-full">
 
       {/* KPI grid (A1: click to drill, A2: delta chips) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -484,10 +534,12 @@ export default function AnalyticsPage() {
 
       <div className="grid grid-cols-12 gap-5">
         {/* Calls chart (A2: comparison overlay, A5: CSV export) */}
-        <div className="col-span-12 lg:col-span-8 bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+        <div className="col-span-12 lg:col-span-8 haip-card rounded-2xl p-5"
+          style={{ border: "1px solid var(--haip-border)" }}
+        >
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold text-gray-900">
+              <h2 className="text-[13px] font-semibold" style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}>
                 Calls — last {rangeDays} days
                 {compareTo !== "none" && (
                   <span className="ml-2 text-[11px] font-normal text-gray-400">(vs. previous period)</span>
@@ -566,9 +618,10 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Top objections */}
-        <div className="col-span-12 lg:col-span-4 bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+        <div className="col-span-12 lg:col-span-4 haip-card rounded-2xl p-5"
+          style={{ border: "1px solid var(--haip-border)" }}>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-gray-900">Top objections</h2>
+            <h2 className="text-[13px] font-semibold" style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}>Top objections</h2>
           </div>
           {(s.top_objections?.length ?? 0) > 0 ? (
             <div className="space-y-2.5">
@@ -577,29 +630,29 @@ export default function AnalyticsPage() {
                 const pct = (obj.count / maxCount) * 100;
                 return (
                   <div key={i}>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-gray-700 truncate">{obj.text}</span>
-                      <span className="text-gray-400 font-mono ml-2">{obj.count}</span>
+                    <div className="flex justify-between text-[12px] mb-1">
+                      <span className="truncate" style={{ color: "var(--haip-fg)" }}>{obj.text}</span>
+                      <span className="font-mono ml-2" style={{ color: "var(--haip-fg-muted)" }}>{obj.count}</span>
                     </div>
-                    <div className="h-1.5 bg-gray-100 rounded-full">
-                      <div className="h-full bg-amber-400 rounded-full" style={{ width: `${pct}%` }} />
+                    <div className="h-1.5 rounded-full" style={{ background: "var(--haip-border)" }}>
+                      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "#F59E0B" }} />
                     </div>
                   </div>
                 );
               })}
             </div>
           ) : (
-            <p className="text-xs text-gray-400 py-6 text-center">No objection data yet</p>
+            <p className="text-[12px] py-6 text-center" style={{ color: "var(--haip-fg-muted)" }}>No objection data yet</p>
           )}
         </div>
       </div>
 
       {/* Lost reason themes (A4: clickable) */}
       {(s.lost_reason_themes?.length ?? 0) > 0 && (
-        <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+        <div className="haip-card rounded-2xl p-5" style={{ border: "1px solid var(--haip-border)" }}>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-gray-900">Lost inquiry themes</h2>
-            <p className="text-xs text-gray-400">Click a theme to see inquiries</p>
+            <h2 className="text-[13px] font-semibold" style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}>Lost inquiry themes</h2>
+            <p className="text-[11px]" style={{ color: "var(--haip-fg-muted)" }}>Click a theme to see inquiries</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {s.lost_reason_themes.map((t, i) => (
@@ -644,6 +697,7 @@ export default function AnalyticsPage() {
           onClose={() => setLostTheme(null)}
         />
       )}
+      </div> {/* end scrollable content */}
     </div>
   );
 }

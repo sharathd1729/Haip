@@ -126,7 +126,7 @@ export default function CallsPage() {
             </button>
             <button
               onClick={() => setShowUpload(true)}
-              className="flex items-center gap-1.5 text-xs bg-[#0B1F3A] text-white px-3 py-1.5 rounded-lg font-medium hover:bg-[#163458] transition-colors"
+              className="flex items-center gap-1.5 text-xs bg-[#0F766E] text-white px-3 py-1.5 rounded-lg font-medium hover:bg-[#0d6660] transition-colors"
             >
               <Upload size={13} /> Upload
             </button>
@@ -576,7 +576,7 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
             <button
               type="submit"
               disabled={!file || uploading}
-              className="w-full py-2.5 bg-[#0B1F3A] text-white font-semibold rounded-xl text-sm hover:bg-[#163458] disabled:opacity-40 transition-colors"
+              className="w-full py-2.5 bg-[#0F766E] text-white font-semibold rounded-xl text-sm hover:bg-[#0d6660] disabled:opacity-40 transition-colors"
             >
               {uploading ? "Uploading…" : "Upload & analyze →"}
             </button>

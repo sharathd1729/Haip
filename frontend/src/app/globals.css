@@ -314,12 +314,168 @@
   }
 }
 
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   HAIP INTELLIGENCE PLATFORM — STITCH DESIGN SYSTEM
+   Primary #0F766E · Accent #5EEAD4 · White sidebar · Light surfaces
+   Manrope headings · Inter body · 12px radius · Soft borders
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+:root {
+  /* Layout */
+  --haip-sidebar:       #FFFFFF;
+  --haip-sidebar-border:#E5E7EB;
+  --haip-sidebar-hover: rgba(15,118,110,0.06);
+
+  /* Brand */
+  --haip-primary:       #0F766E;
+  --haip-primary-hover: #0d6660;
+  --haip-accent:        #5EEAD4;
+  --haip-accent-light:  rgba(94,234,212,0.15);
+
+  /* Surfaces */
+  --haip-surface:       #F8FAFC;
+  --haip-card:          #FFFFFF;
+  --haip-border:        #E5E7EB;
+  --haip-border-strong: #D1D5DB;
+
+  /* Typography */
+  --haip-fg:            #111827;
+  --haip-fg-2:          #374151;
+  --haip-fg-muted:      #475569;
+  --haip-fg-subtle:     #64748B;
+
+  /* Legacy aliases (keep for pages not yet migrated) */
+  --haip-text:          #111827;
+  --haip-text-2:        #374151;
+  --haip-text-muted:    #64748B;
+  --haip-text-subtle:   #94A3B8;
+
+  /* Status */
+  --haip-green:         #10B981;
+  --haip-amber:         #F59E0B;
+  --haip-red:           #EF4444;
+
+  /* Shadows — minimal, Stitch style */
+  --haip-shadow-sm:     0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --haip-shadow-md:     0 4px 6px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
+  --haip-shadow-lg:     0 10px 15px rgba(0,0,0,0.08), 0 4px 6px rgba(0,0,0,0.04);
+}
+
+/* ── HAIP Stitch utility classes ─────────────────────────────────────────── */
+.haip-heading {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--haip-fg);
+}
+.haip-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--haip-fg-subtle);
+}
+.haip-card {
+  background: var(--haip-card);
+  border: 1px solid var(--haip-border);
+  border-radius: 12px;
+  box-shadow: var(--haip-shadow-sm);
+}
+/* Status badges */
+.haip-badge-teal {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(15,118,110,0.08);
+  color: #0F766E;
+  border: 1px solid rgba(15,118,110,0.15);
+}
+.haip-badge-amber {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(245,158,11,0.08);
+  color: #B45309;
+  border: 1px solid rgba(245,158,11,0.18);
+}
+.haip-badge-red {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(239,68,68,0.07);
+  color: #B91C1C;
+  border: 1px solid rgba(239,68,68,0.14);
+}
+/* Stitch sidebar nav item — dark text on white background */
+.haip-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #475569;
+  transition: background 120ms ease, color 120ms ease;
+  cursor: pointer;
+  text-decoration: none;
+  position: relative;
+  white-space: nowrap;
+}
+.haip-nav-item:hover {
+  background: rgba(15,118,110,0.06);
+  color: #111827;
+}
+.haip-nav-item.active {
+  background: rgba(15,118,110,0.10);
+  color: #0F766E;
+  font-weight: 600;
+}
+/* Sub-items (indented) */
+.haip-nav-sub {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 10px 5px 30px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #64748B;
+  transition: background 120ms ease, color 120ms ease;
+  cursor: pointer;
+  text-decoration: none;
+}
+.haip-nav-sub:hover { background: rgba(15,118,110,0.05); color: #111827; }
+.haip-nav-sub.active { color: #0F766E; font-weight: 600; }
+
+/* Scrollbar styling */
+.haip-scrollbar::-webkit-scrollbar { width: 4px; }
+.haip-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.haip-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 4px; }
+.haip-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.22); }
+
+/* Hide scrollbar but keep scrolling */
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
     /* Prevent iOS callout on long press */
     -webkit-touch-callout: none;
   }
