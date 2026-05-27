@@ -11,7 +11,7 @@
  */
 
 const BACKEND = (process.env.BACKEND_URL || "http://localhost:8000").replace(/\/$/, "");
-const DEFAULT_RW_URL = "https://app.rentalwise.in";
+const DEFAULT_RW_URL = "https://app.rentalwise.io";
 
 export interface RWCredentials {
   rwUrl:  string;

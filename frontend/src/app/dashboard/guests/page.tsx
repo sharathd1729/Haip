@@ -17,6 +17,7 @@ import { useRWBookings } from "@/hooks/useRentalWise";
 import {
   type RWBooking, type RWBookingStatus, type RWPaymentStatus,
   type RWBookingFilters,
+  getChannelName, getCurrencySymbol,
 } from "@/lib/rentalwise";
 
 interface GuestItem {
@@ -282,12 +283,17 @@ function Guest360({ profile, onBack }: { profile: GuestProfile; onBack: () => vo
 // ─── Booking status + payment badges ─────────────────────────────────────────
 
 const BOOKING_STATUS_CFG: Record<RWBookingStatus, { label: string; cls: string }> = {
-  confirmed: { label: "Confirmed", cls: "bg-green-50  text-green-700  border-green-200"  },
-  pending:   { label: "Pending",   cls: "bg-amber-50  text-amber-700  border-amber-200"  },
-  cancelled: { label: "Cancelled", cls: "bg-red-50    text-red-700    border-red-200"    },
-  completed: { label: "Completed", cls: "bg-blue-50   text-blue-700   border-blue-200"   },
-  rejected:  { label: "Rejected",  cls: "bg-red-50    text-red-600    border-red-200"    },
-  hold:      { label: "On Hold",   cls: "bg-purple-50 text-purple-700 border-purple-200" },
+  confirmed:                   { label: "Confirmed",        cls: "bg-green-50  text-green-700  border-green-200"  },
+  completed:                   { label: "Completed",        cls: "bg-blue-50   text-blue-700   border-blue-200"   },
+  cancelled:                   { label: "Cancelled",        cls: "bg-red-50    text-red-700    border-red-200"    },
+  hold:                        { label: "On Hold",          cls: "bg-purple-50 text-purple-700 border-purple-200" },
+  pending_payment:             { label: "Pending Payment",  cls: "bg-amber-50  text-amber-700  border-amber-200"  },
+  pending_host_confirmation:   { label: "Pending Confirm",  cls: "bg-amber-50  text-amber-600  border-amber-200"  },
+  expired_hold:                { label: "Expired Hold",     cls: "bg-gray-50   text-gray-500   border-gray-200"   },
+  expired_host_confirmation:   { label: "Expired Confirm",  cls: "bg-gray-50   text-gray-500   border-gray-200"   },
+  rejected_by_host:            { label: "Rejected",         cls: "bg-red-50    text-red-600    border-red-200"    },
+  voided_by_customer:          { label: "Voided",           cls: "bg-gray-50   text-gray-500   border-gray-200"   },
+  relocated:                   { label: "Relocated",        cls: "bg-indigo-50 text-indigo-700 border-indigo-200" },
 };
 
 const PAYMENT_STATUS_CFG: Record<RWPaymentStatus, { label: string; cls: string }> = {
@@ -340,18 +346,20 @@ function ChannelPill({ channel }: { channel: string | null }) {
 // ─── CSV export helper ────────────────────────────────────────────────────────
 
 function exportToCsv(bookings: RWBooking[]) {
-  const headers = ["Booking ID","Guest","Property","Check In","Check Out","Adults","Children","Status","Payment","Channel","Total","Created"];
+  const headers = ["Booking ID","External ID","Guest","Property","Check In","Check Out","Adults","Children","Status","Payment","Channel","Source","Total","Created"];
   const rows = bookings.map(b => [
-    b.booking_id,
+    String(b.id),
+    b.external_id ?? "",
     b.main_guest ? `${b.main_guest.first_name} ${b.main_guest.last_name}` : "",
     b.property?.name ?? "",
-    b.check_in,
-    b.check_out,
+    b.checkin,
+    b.checkout,
     b.adults,
-    b.children,
+    b.children ?? 0,
     b.status,
     b.payment_status,
-    b.channel ?? "",
+    getChannelName(b) ?? "",
+    b.source_name ?? "",
     b.total,
     b.created_at,
   ]);
@@ -558,8 +566,10 @@ function BookingsTable() {
                   ? `${b.main_guest.first_name} ${b.main_guest.last_name}`.trim()
                   : "Unknown";
                 const nights = Math.ceil(
-                  (new Date(b.check_out).getTime() - new Date(b.check_in).getTime()) / 86400000
+                  (new Date(b.checkout).getTime() - new Date(b.checkin).getTime()) / 86400000
                 );
+                const channelName = getChannelName(b);
+                const currencySymbol = getCurrencySymbol(b);
                 return (
                   <tr
                     key={b.id}
@@ -569,7 +579,7 @@ function BookingsTable() {
                     {/* Booking ID */}
                     <td className="px-4 py-3.5">
                       <span className="text-[12px] font-mono font-semibold" style={{ color: "#0F766E" }}>
-                        #{b.booking_id}
+                        #{b.external_id ?? b.id}
                       </span>
                     </td>
 
@@ -603,10 +613,10 @@ function BookingsTable() {
                     {/* Dates */}
                     <td className="px-4 py-3.5">
                       <p className="text-[12px] font-medium" style={{ color: "#374151" }}>
-                        {new Date(b.check_in).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" })}
+                        {new Date(b.checkin).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" })}
                       </p>
                       <p className="text-[11px]" style={{ color: "#9CA3AF" }}>
-                        → {new Date(b.check_out).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" })}
+                        → {new Date(b.checkout).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" })}
                       </p>
                       <p className="text-[10px] mt-0.5" style={{ color: "#9CA3AF" }}>{nights}n</p>
                     </td>
@@ -616,7 +626,7 @@ function BookingsTable() {
                       <p className="text-[12px]" style={{ color: "#374151" }}>
                         {b.adults} adult{b.adults !== 1 ? "s" : ""}
                       </p>
-                      {b.children > 0 && (
+                      {(b.children ?? 0) > 0 && (
                         <p className="text-[11px]" style={{ color: "#9CA3AF" }}>{b.children} child{b.children !== 1 ? "ren" : ""}</p>
                       )}
                     </td>
@@ -624,7 +634,7 @@ function BookingsTable() {
                     {/* Total */}
                     <td className="px-4 py-3.5">
                       <p className="text-[13px] font-bold" style={{ color: "#111827", fontFamily: "var(--font-display), sans-serif" }}>
-                        ₹{b.total.toLocaleString("en-IN")}
+                        {currencySymbol}{b.total.toLocaleString("en-IN")}
                       </p>
                     </td>
 
@@ -635,9 +645,9 @@ function BookingsTable() {
 
                     {/* Channel */}
                     <td className="px-4 py-3.5">
-                      <ChannelPill channel={b.channel} />
-                      {b.source && (
-                        <p className="text-[10px] mt-0.5" style={{ color: "#9CA3AF" }}>{b.source}</p>
+                      <ChannelPill channel={channelName} />
+                      {b.source_name && (
+                        <p className="text-[10px] mt-0.5" style={{ color: "#9CA3AF" }}>{b.source_name}</p>
                       )}
                     </td>
 
