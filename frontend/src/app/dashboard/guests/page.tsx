@@ -11,7 +11,7 @@ import {
   SlidersHorizontal, ExternalLink, Bed, CreditCard,
   RefreshCw,
 } from "lucide-react";
-import { timeAgo, cn } from "@/lib/utils";
+import { timeAgo, cn, formatPhone } from "@/lib/utils";
 import { EmptyGuests } from "@/components/empty-states/EmptyGuests";
 import { useRWBookings } from "@/hooks/useRentalWise";
 import {
@@ -882,9 +882,13 @@ export default function GuestsPage() {
 // ─── Guest Card ───────────────────────────────────────────────────────────────
 
 function GuestCard({ guest, onClick }: { guest: GuestItem; onClick: () => void }) {
-  const initials = (guest.full_name ?? "?").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
+  // When RentalWise-synced guests have no name, fall back to formatted phone
+  const hasName    = !!(guest.full_name && guest.full_name.trim());
+  const displayName = hasName ? guest.full_name : formatPhone(guest.phone);
+  const initials   = hasName
+    ? guest.full_name!.split(" ").map(n => n[0]).filter(Boolean).join("").slice(0, 2).toUpperCase()
+    : guest.phone.replace(/\D/g, "").slice(-2); // last 2 digits when no name
 
-  // Derive a relationship signal from tags
   const isVip       = guest.tags.includes("VIP");
   const isBlocked   = guest.blacklisted;
   const hasConsent  = guest.gdpr_consent;
@@ -910,14 +914,17 @@ function GuestCard({ guest, onClick }: { guest: GuestItem; onClick: () => void }
                 className="text-[13.5px] font-semibold truncate"
                 style={{ color: "var(--haip-text)" }}
               >
-                {guest.full_name || "Unknown"}
+                {displayName}
               </p>
               {isVip && <Star size={10} className="text-amber-500 fill-amber-500 flex-shrink-0" />}
               {isBlocked && <AlertTriangle size={10} className="text-red-400 flex-shrink-0" />}
             </div>
-            <p className="text-[11px] font-mono" style={{ color: "var(--haip-text-subtle)" }}>
-              {guest.phone}
-            </p>
+            {/* Show phone only if we're already using it as the display name — avoid duplication */}
+            {hasName && (
+              <p className="text-[11px] font-mono" style={{ color: "var(--haip-text-subtle)" }}>
+                {formatPhone(guest.phone)}
+              </p>
+            )}
           </div>
         </div>
         <ChevronRight
@@ -951,7 +958,7 @@ function GuestCard({ guest, onClick }: { guest: GuestItem; onClick: () => void }
       {/* Footer */}
       <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-50">
         <span className="text-[11px]" style={{ color: "var(--haip-text-subtle)" }}>
-          Since {timeAgo(guest.created_at)}
+          {guest.created_at ? `Since ${timeAgo(guest.created_at)}` : guest.email ?? ""}
         </span>
         <span
           className="text-[11px] font-medium"

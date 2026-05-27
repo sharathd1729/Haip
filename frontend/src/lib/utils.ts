@@ -28,15 +28,21 @@ export function formatINR(amount: number): string {
   }).format(amount);
 }
 
-export function timeAgo(dateStr: string): string {
+export function timeAgo(dateStr: string | null | undefined): string {
+  if (!dateStr) return "—";
   const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return "—";
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
+  if (diffMs < 0) return "just now";
   const diffMin = Math.floor(diffMs / 60000);
   if (diffMin < 1) return "just now";
   if (diffMin < 60) return `${diffMin}m ago`;
   if (diffMin < 1440) return `${Math.floor(diffMin / 60)}h ago`;
-  return `${Math.floor(diffMin / 1440)}d ago`;
+  const diffDays = Math.floor(diffMin / 1440);
+  if (diffDays < 30) return `${diffDays}d ago`;
+  if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo ago`;
+  return `${Math.floor(diffDays / 365)}y ago`;
 }
 
 export const DISPOSITION_COLORS: Record<string, string> = {
