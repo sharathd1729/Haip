@@ -46,11 +46,14 @@ _SEND_PREFIXES = (
     "/api/v1/messaging/",       # broadcasts
 )
 
-# Routes to skip entirely (health checks and API docs only)
+# Routes to skip entirely (health checks, docs, and high-frequency polling)
 _SKIP_PREFIXES = (
     "/api/v1/health",
     "/docs",
     "/openapi.json",
+    "/api/v1/users/me/heartbeat",
+    "/api/v1/users/presence",
+    "/api/v1/sse/",
 )
 
 
