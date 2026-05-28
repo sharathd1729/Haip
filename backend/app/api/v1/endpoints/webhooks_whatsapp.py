@@ -2,6 +2,7 @@
 import json
 from secrets import compare_digest
 from fastapi import APIRouter, Request, HTTPException, Query
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.config import settings
@@ -25,7 +26,7 @@ async def whatsapp_verify(
         and verify_token  # must be configured — empty token always rejects
         and compare_digest(hub_verify_token, verify_token)
     ):
-        return int(hub_challenge)
+        return PlainTextResponse(hub_challenge)
     raise HTTPException(status_code=403, detail="Verification failed")
 
 

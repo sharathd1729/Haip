@@ -10,6 +10,7 @@ Inbound DMs:   POST /webhooks/instagram  (X-Hub-Signature-256 header)
 
 import json
 from fastapi import APIRouter, Request, HTTPException, Query
+from fastapi.responses import PlainTextResponse
 from app.core.config import settings
 from app.core.webhook_security import verify_meta_signature
 import structlog
@@ -26,9 +27,14 @@ def verify_instagram_webhook(
     hub_verify_token: str = Query(None, alias="hub.verify_token"),
     hub_challenge: str = Query(None, alias="hub.challenge"),
 ):
-    if hub_mode == "subscribe" and hub_verify_token == settings.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN:
+    verify_token = settings.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN
+    if (
+        hub_mode == "subscribe"
+        and verify_token
+        and hub_verify_token == verify_token
+    ):
         log.info("instagram_webhook_verified")
-        return int(hub_challenge)
+        return PlainTextResponse(hub_challenge)
     raise HTTPException(status_code=403, detail="Webhook verification failed")
 
 
