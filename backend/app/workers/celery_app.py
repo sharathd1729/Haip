@@ -58,6 +58,7 @@ celery_app.conf.update(
     redis_backend_use_ssl=_ssl_opts,
     task_routes={
         # Use full module paths — short names like "tasks.X" don't match registered names
+        "app.workers.tasks.whatsapp.*":             {"queue": "whatsapp"},
         "app.workers.tasks.transcribe.*":           {"queue": "transcription"},
         "app.workers.tasks.classify.*":             {"queue": "ai_scoring"},
         "app.workers.tasks.judge.*":                {"queue": "ai_scoring"},
