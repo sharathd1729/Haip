@@ -45,12 +45,30 @@ async def receive_instagram_webhook(request: Request):
     body = await request.body()
     sig = request.headers.get("X-Hub-Signature-256", "")
 
+    # Resolve app_secret: prefer env var, fall back to active Instagram integration credentials
+    app_secret = settings.META_APP_SECRET
+    if not app_secret:
+        try:
+            from app.core.database import SessionLocal
+            from app.models.integration import Integration
+            from app.core.encryption import decrypt_credentials
+            _db = SessionLocal()
+            try:
+                _ig = _db.query(Integration).filter_by(kind="instagram", status="active").first()
+                if _ig:
+                    _creds = decrypt_credentials(_ig.credentials_kms_blob)
+                    app_secret = _creds.get("app_secret", "")
+            finally:
+                _db.close()
+        except Exception as _e:
+            log.warning("instagram_webhook_secret_lookup_failed", error=str(_e))
+
     # Raises 401 on failure; in dev with no secret logs a warning and continues
     verify_meta_signature(
         body=body,
         signature_header=sig,
         env=settings.ENVIRONMENT,
-        secret=settings.META_APP_SECRET,
+        secret=app_secret,
     )
 
     try:
