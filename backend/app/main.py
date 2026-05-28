@@ -1,6 +1,8 @@
+import asyncio
 import sentry_sdk
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.core.database import engine, Base
@@ -71,6 +73,21 @@ app.middleware("http")(tenant_context_middleware)     # sets tenant_id on reques
 app.add_middleware(RateLimitMiddleware)               # outermost: rate limit after CORS
 
 app.include_router(api_router)
+
+
+@app.exception_handler(Exception)
+async def suppress_sse_disconnect_noise(request: Request, exc: Exception) -> Response:
+    """
+    Starlette's ServerErrorMiddleware predates Python 3.11 ExceptionGroups.
+    When SSE clients disconnect, anyio's TaskGroup cancels both tasks simultaneously
+    and raises an ExceptionGroup containing only CancelledError — a normal disconnect,
+    not an application error.  Suppress those; re-raise everything else.
+    """
+    if type(exc).__name__ in ("ExceptionGroup", "BaseExceptionGroup"):
+        sub_exceptions = getattr(exc, "exceptions", [])
+        if sub_exceptions and all(isinstance(e, asyncio.CancelledError) for e in sub_exceptions):
+            return Response(status_code=200)
+    raise exc
 
 
 @app.get("/health")
