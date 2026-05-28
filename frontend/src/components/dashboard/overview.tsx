@@ -661,7 +661,7 @@ export function DashboardOverview({ user }: Props) {
 
   const { data: dash, isLoading } = useQuery<DashboardData>({
     queryKey: ["dashboard-overview"],
-    queryFn: () => api.get("/dashboard/overview").then(r => r.data),
+    queryFn: () => api.get("/dashboard").then(r => r.data),
     staleTime: 60_000,
     refetchInterval: 5 * 60_000,
   });
