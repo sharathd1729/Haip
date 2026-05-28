@@ -256,7 +256,7 @@ def get_whatsapp_webhook_info(
     base = base.replace("http://", "https://", 1) if base.startswith("http://") else base
     verify_token = settings.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN or "⚠ META_WEBHOOK_VERIFY_TOKEN not set"
     return {
-        "webhook_url": f"{base}/webhooks/whatsapp",
+        "webhook_url": f"{base}/api/v1/webhooks/whatsapp",
         "verify_token": verify_token,
         "instructions": [
             "Go to Meta Business Suite → Your App → WhatsApp → Configuration → Webhooks",
@@ -341,7 +341,7 @@ def get_instagram_webhook_info(
     base = base.replace("http://", "https://", 1) if base.startswith("http://") else base
     verify_token = settings.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN or "⚠ META_WEBHOOK_VERIFY_TOKEN not set"
     return {
-        "webhook_url": f"{base}/webhooks/instagram",
+        "webhook_url": f"{base}/api/v1/webhooks/instagram",
         "verify_token": verify_token,
         "instructions": [
             "Go to Meta Business Suite → Your App → Webhooks → instagram",
