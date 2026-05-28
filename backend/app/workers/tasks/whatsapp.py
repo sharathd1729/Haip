@@ -50,8 +50,28 @@ def _process_value(value: dict):
     try:
         phone_number_id = value.get("metadata", {}).get("phone_number_id", "")
 
-        # Find tenant by WhatsApp phone number ID
+        # Primary: find tenant by phone_number_id stored on Tenant row
         tenant = db.query(Tenant).filter_by(whatsapp_phone_number_id=phone_number_id).first()
+
+        # Fallback: look up via active WhatsApp Integration credentials
+        # (the connect flow may have stored phone_number_id only in Integration)
+        if not tenant and phone_number_id:
+            from app.models.integration import Integration
+            from app.core.encryption import decrypt_credentials
+            integrations = db.query(Integration).filter_by(kind="whatsapp", status="active").all()
+            for intg in integrations:
+                try:
+                    creds = decrypt_credentials(intg.credentials_kms_blob)
+                    if creds.get("phone_number_id") == phone_number_id:
+                        tenant = db.query(Tenant).filter_by(id=intg.tenant_id).first()
+                        # Back-fill tenant row so future lookups are fast
+                        if tenant:
+                            tenant.whatsapp_phone_number_id = phone_number_id
+                            db.flush()
+                        break
+                except Exception:
+                    continue
+
         if not tenant:
             log.warning("tenant_not_found_for_wa_number", phone_number_id=phone_number_id)
             return
