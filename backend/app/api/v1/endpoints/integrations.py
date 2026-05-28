@@ -251,7 +251,9 @@ def get_whatsapp_webhook_info(
     current_user: User = Depends(get_current_user),
 ):
     """Return the webhook URL and verify token to paste into the client's Meta App."""
-    base = str(request.base_url).rstrip("/")
+    base = (settings.API_BASE_URL or str(request.base_url).rstrip("/")).rstrip("/")
+    # Force HTTPS for publicly displayed URLs
+    base = base.replace("http://", "https://", 1) if base.startswith("http://") else base
     verify_token = settings.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN or "⚠ META_WEBHOOK_VERIFY_TOKEN not set"
     return {
         "webhook_url": f"{base}/webhooks/whatsapp",
@@ -334,7 +336,9 @@ def get_instagram_webhook_info(
     request: Request,
     current_user: User = Depends(get_current_user),
 ):
-    base = str(request.base_url).rstrip("/")
+    base = (settings.API_BASE_URL or str(request.base_url).rstrip("/")).rstrip("/")
+    # Force HTTPS for publicly displayed URLs
+    base = base.replace("http://", "https://", 1) if base.startswith("http://") else base
     verify_token = settings.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN or "⚠ META_WEBHOOK_VERIFY_TOKEN not set"
     return {
         "webhook_url": f"{base}/webhooks/instagram",
