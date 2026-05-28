@@ -29,7 +29,7 @@ async def inbox_stream(
 
         # Try to connect to Redis for real-time events; if unavailable, fall back to heartbeat
         try:
-            r = aioredis.from_url(settings.REDIS_URL, socket_connect_timeout=3, socket_timeout=3)
+            r = aioredis.from_url(settings.REDIS_URL, socket_connect_timeout=5)
             pubsub = r.pubsub()
             await pubsub.subscribe(f"sse:{tenant_id}")
             try:
