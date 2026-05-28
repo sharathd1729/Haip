@@ -58,7 +58,10 @@ def _process_value(value: dict):
         if not tenant and phone_number_id:
             from app.models.integration import Integration
             from app.core.encryption import decrypt_credentials
-            integrations = db.query(Integration).filter_by(kind="whatsapp", status="active").all()
+            integrations = db.query(Integration).filter(
+                Integration.kind.in_(["whatsapp", "whatsapp_meta"]),
+                Integration.status == "active",
+            ).all()
             for intg in integrations:
                 try:
                     creds = decrypt_credentials(intg.credentials_kms_blob)
