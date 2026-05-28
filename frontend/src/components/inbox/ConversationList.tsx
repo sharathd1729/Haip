@@ -38,7 +38,7 @@ interface ConversationListProps {
 }
 
 // Deterministic color from a string (for guest avatar backgrounds)
-function nameColor(name: string): string {
+function nameColor(name: string | null | undefined): string {
   const colors = [
     "from-teal-400 to-emerald-500",
     "from-blue-400 to-indigo-500",
@@ -47,6 +47,7 @@ function nameColor(name: string): string {
     "from-amber-400 to-orange-500",
     "from-cyan-400 to-sky-500",
   ];
+  if (!name) return colors[0];   // ← guard: undefined/null/empty → teal default
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) & 0xffff;
   return colors[hash % colors.length];
@@ -203,8 +204,9 @@ export function ConversationList({
       {sorted.map(conv => {
         const isActive = conv.id === activeId;
         const isChecked = selected.has(conv.id);
-        const initial = (conv.guest_name || conv.guest_phone)?.[0]?.toUpperCase() ?? "?";
-        const gradient = nameColor(conv.guest_name || conv.guest_phone);
+        const displayName = conv.guest_name || conv.guest_phone || "";
+        const initial = displayName?.[0]?.toUpperCase() ?? "?";
+        const gradient = nameColor(displayName);
         const channelBorder = CHANNEL_BORDER[conv.channel] ?? "";
 
         return (

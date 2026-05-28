@@ -123,12 +123,19 @@ def get_calendar(
             )
             .all()
         )
-        # Build a lightweight guest-name lookup for this property's stays
-        guest_ids = [s.guest_id for s in stays_raw if s.guest_id]
+        # Build a lightweight guest-name lookup (best-effort; fails gracefully)
         guest_names: dict[str, str] = {}
-        if guest_ids:
-            guests_q = db.query(Guest.id, Guest.name).filter(Guest.id.in_(guest_ids)).all()
-            guest_names = {str(g.id): (g.name or "") for g in guests_q}
+        try:
+            guest_ids = list({str(s.guest_id) for s in stays_raw if s.guest_id})
+            if guest_ids:
+                guests_q = (
+                    db.query(Guest)
+                    .filter(Guest.id.in_(guest_ids))
+                    .all()
+                )
+                guest_names = {str(g.id): (g.name or "") for g in guests_q}
+        except Exception:
+            pass  # guest names are enrichment; a lookup failure must not break calendar
 
         stays = [
             {
