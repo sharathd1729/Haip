@@ -65,7 +65,7 @@ def dashboard_health(
     ).first()
     if wa:
         status = "red" if wa.status == "error" else (
-            _sync_status(wa.last_health_at.isoformat() if wa.last_health_at else None)
+            _sync_status(wa.last_health_at if wa.last_health_at else None)
             if wa.status == "connected"
             else "unknown"
         )
@@ -73,7 +73,7 @@ def dashboard_health(
             "name": "whatsapp",
             "label": "WhatsApp",
             "status": status,
-            "last_sync": wa.last_health_at.isoformat() if wa.last_health_at else None,
+            "last_sync": wa.last_health_at if wa.last_health_at else None,
             "message": (wa.config or {}).get("last_error") if wa.status == "error" else None,
             "reconnect_href": "/dashboard/settings/integrations",
         })
@@ -85,7 +85,7 @@ def dashboard_health(
         ).first()
         if ivr:
             status = "red" if ivr.status == "error" else (
-                _sync_status(ivr.last_health_at.isoformat() if ivr.last_health_at else None)
+                _sync_status(ivr.last_health_at if ivr.last_health_at else None)
                 if ivr.status == "connected"
                 else "unknown"
             )
@@ -93,7 +93,7 @@ def dashboard_health(
                 "name": kind,
                 "label": "IVR" if kind == "callerdesk" else "IVR (Acefone)",
                 "status": status,
-                "last_sync": ivr.last_health_at.isoformat() if ivr.last_health_at else None,
+                "last_sync": ivr.last_health_at if ivr.last_health_at else None,
                 "message": (ivr.config or {}).get("last_error") if ivr.status == "error" else None,
                 "reconnect_href": "/dashboard/settings/integrations",
             })
@@ -127,7 +127,7 @@ def dashboard_health(
     ).first()
     if ig:
         status = "red" if ig.status == "error" else (
-            _sync_status(ig.last_health_at.isoformat() if ig.last_health_at else None)
+            _sync_status(ig.last_health_at if ig.last_health_at else None)
             if ig.status == "connected"
             else "unknown"
         )
@@ -135,7 +135,7 @@ def dashboard_health(
             "name": "instagram",
             "label": "Instagram",
             "status": status,
-            "last_sync": ig.last_health_at.isoformat() if ig.last_health_at else None,
+            "last_sync": ig.last_health_at if ig.last_health_at else None,
             "message": (ig.config or {}).get("last_error") if ig.status == "error" else None,
             "reconnect_href": "/dashboard/settings/integrations",
         })

@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.api.v1.deps import get_current_user
 from app.models.property import Property, Stay, BlockedDate, SeasonalRate, RatePlan
-from app.models.guest import Guest
+# Guest is imported lazily inside the handler to avoid any startup mapper issues
 
 router = APIRouter(prefix="/calendar", tags=["calendar"])
 
@@ -123,19 +123,16 @@ def get_calendar(
             )
             .all()
         )
-        # Build a lightweight guest-name lookup (best-effort; fails gracefully)
+        # Best-effort guest-name enrichment — failure MUST NOT break calendar response
         guest_names: dict[str, str] = {}
         try:
+            from app.models.guest import Guest as _Guest  # lazy import avoids mapper startup issues
             guest_ids = list({str(s.guest_id) for s in stays_raw if s.guest_id})
             if guest_ids:
-                guests_q = (
-                    db.query(Guest)
-                    .filter(Guest.id.in_(guest_ids))
-                    .all()
-                )
+                guests_q = db.query(_Guest).filter(_Guest.id.in_(guest_ids)).all()
                 guest_names = {str(g.id): (g.name or "") for g in guests_q}
         except Exception:
-            pass  # guest names are enrichment; a lookup failure must not break calendar
+            pass
 
         stays = [
             {
@@ -145,9 +142,10 @@ def get_calendar(
                 "status": s.status,
                 "guest_id": str(s.guest_id) if s.guest_id else None,
                 "guest_name": guest_names.get(str(s.guest_id), "") if s.guest_id else "",
-                "adults": s.adults or 1,
+                # getattr guards for columns that may not exist in older DB schemas
+                "adults": getattr(s, "adults", None) or 1,
                 "total_amount": float(s.total_amount) if s.total_amount else None,
-                "channel_source": s.channel_source or "direct",
+                "channel_source": getattr(s, "channel_source", None) or "direct",
             }
             for s in stays_raw
         ]
