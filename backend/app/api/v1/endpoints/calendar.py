@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.api.v1.deps import get_current_user
 from app.models.property import Property, Stay, BlockedDate, SeasonalRate, RatePlan
+from app.models.guest import Guest
 
 router = APIRouter(prefix="/calendar", tags=["calendar"])
 
@@ -122,6 +123,13 @@ def get_calendar(
             )
             .all()
         )
+        # Build a lightweight guest-name lookup for this property's stays
+        guest_ids = [s.guest_id for s in stays_raw if s.guest_id]
+        guest_names: dict[str, str] = {}
+        if guest_ids:
+            guests_q = db.query(Guest.id, Guest.name).filter(Guest.id.in_(guest_ids)).all()
+            guest_names = {str(g.id): (g.name or "") for g in guests_q}
+
         stays = [
             {
                 "id": str(s.id),
@@ -129,7 +137,10 @@ def get_calendar(
                 "check_out": s.check_out,
                 "status": s.status,
                 "guest_id": str(s.guest_id) if s.guest_id else None,
+                "guest_name": guest_names.get(str(s.guest_id), "") if s.guest_id else "",
+                "adults": s.adults or 1,
                 "total_amount": float(s.total_amount) if s.total_amount else None,
+                "channel_source": s.channel_source or "direct",
             }
             for s in stays_raw
         ]

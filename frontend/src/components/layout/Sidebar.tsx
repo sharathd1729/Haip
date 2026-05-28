@@ -66,6 +66,11 @@ const NAV_ITEMS: NavItem[] = [
     href: "/dashboard/properties",
     icon: Building2,
     resource: "properties",
+    children: [
+      { label: "Properties",        href: "/dashboard/properties" },
+      { label: "Calendar",          href: "/dashboard/portfolio/calendar" },
+      { label: "Rate Calculator",   href: "/dashboard/calculator" },
+    ],
   },
   {
     label: "AI Intelligence",

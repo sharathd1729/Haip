@@ -144,6 +144,29 @@ class SeasonalRateOut(BaseModel):
         from_attributes = True
 
 
+class DynamicPriceRequest(BaseModel):
+    property_id: str
+    checkin: str                          # YYYY-MM-DD
+    checkout: str                         # YYYY-MM-DD
+    # Optional override — if omitted, pulled from the property's rate plan
+    base_rate_override: Optional[float] = None
+    # Portfolio occupancy — client can pass current value from /calendar stats
+    portfolio_occupancy_pct: float = 60.0
+
+
+class DynamicPriceResponse(BaseModel):
+    property_id: str
+    base_rate: float
+    final_rate: float
+    total_price: float
+    nights: int
+    aggregate_multiplier: float
+    factors: dict
+    insights: list
+    suggested_floor: float
+    suggested_ceiling: float
+
+
 # ── Search ────────────────────────────────────────────────────────────────────
 
 @router.post("/calculator/search")
@@ -257,6 +280,82 @@ def share_quote_whatsapp(
             "reason": str(exc),
             "message": message,
         }
+
+
+# ── Dynamic Pricing ───────────────────────────────────────────────────────────
+
+@router.post("/calculator/dynamic-price", response_model=DynamicPriceResponse)
+def get_dynamic_price(
+    body: DynamicPriceRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Calculate a dynamically priced rate for a property + date range.
+
+    Uses lead-time, weekend, portfolio occupancy, and duration factors.
+    The base rate is pulled from the property's active seasonal rate plan
+    (or overridden via body.base_rate_override).
+    """
+    from datetime import date as _date
+    from app.services.dynamic_pricing_service import calculate_dynamic_price
+
+    prop = _check_property(db, body.property_id, current_user.tenant_id)
+
+    checkin  = _date.fromisoformat(body.checkin)
+    checkout = _date.fromisoformat(body.checkout)
+
+    if body.base_rate_override:
+        base = float(body.base_rate_override)
+    else:
+        # Find the best matching seasonal rate
+        rates = (
+            db.query(SeasonalRate)
+            .filter(
+                SeasonalRate.property_id == body.property_id,
+                SeasonalRate.tenant_id == current_user.tenant_id,
+                SeasonalRate.is_active == True,
+                SeasonalRate.date_from <= body.checkin,
+                SeasonalRate.date_to   >= body.checkout,
+            )
+            .order_by(SeasonalRate.priority.desc())
+            .first()
+        )
+        if rates:
+            base = float(rates.price_per_night)
+        elif prop.base_price_per_night:
+            base = float(prop.base_price_per_night)
+        else:
+            raise HTTPException(
+                status_code=422,
+                detail="No active rate plan found for this property and date range. "
+                       "Please set a seasonal rate or provide base_rate_override."
+            )
+
+    result = calculate_dynamic_price(
+        base_rate_per_night=base,
+        checkin=checkin,
+        checkout=checkout,
+        portfolio_occupancy_pct=body.portfolio_occupancy_pct,
+    )
+
+    return DynamicPriceResponse(
+        property_id=body.property_id,
+        base_rate=result.base_rate,
+        final_rate=result.final_rate,
+        total_price=result.total_price,
+        nights=result.nights,
+        aggregate_multiplier=result.aggregate_multiplier,
+        factors={
+            "lead_time": result.lead_time_factor,
+            "weekend":   result.weekend_factor,
+            "occupancy": result.occupancy_factor,
+            "duration":  result.duration_factor,
+        },
+        insights=result.insights,
+        suggested_floor=result.suggested_floor,
+        suggested_ceiling=result.suggested_ceiling,
+    )
 
 
 # ── Add-ons CRUD ──────────────────────────────────────────────────────────────

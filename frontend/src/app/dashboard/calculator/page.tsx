@@ -3,7 +3,8 @@ import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Calendar, Users, MapPin, Search, ChevronDown, ChevronUp,
-  Send, Copy, Check, Home, Loader2, Plus, Minus, BedDouble, Bath
+  Send, Copy, Check, Home, Loader2, Plus, Minus, BedDouble, Bath,
+  Zap, TrendingUp, TrendingDown, AlertTriangle, Info,
 } from "lucide-react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -42,6 +43,24 @@ interface PropertyResult {
   addons: AddOn[];
   is_caravan: boolean;
   vehicle_name: string;
+}
+
+interface DynamicPriceResult {
+  property_id: string;
+  base_rate: number;
+  final_rate: number;
+  total_price: number;
+  nights: number;
+  aggregate_multiplier: number;
+  factors: {
+    lead_time: number;
+    weekend: number;
+    occupancy: number;
+    duration: number;
+  };
+  insights: string[];
+  suggested_floor: number;
+  suggested_ceiling: number;
 }
 
 interface QuoteBreakdown {
@@ -95,6 +114,11 @@ export default function CalculatorPage() {
   const [quote, setQuote] = useState<QuoteBreakdown | null>(null);
   const [guestPhone, setGuestPhone] = useState("");
   const [guestName, setGuestName] = useState("");
+
+  // Dynamic pricing
+  const [dynamicPrice, setDynamicPrice] = useState<DynamicPriceResult | null>(null);
+  const [showDynamic, setShowDynamic] = useState(false);
+  const [occupancyOverride, setOccupancyOverride] = useState(60);
   const [copied, setCopied] = useState(false);
 
   const nights = checkin && checkout
@@ -125,6 +149,17 @@ export default function CalculatorPage() {
     }).then(r => r.data),
     onSuccess: (data) => setQuote(data),
     onError: () => toast({ variant: "error", title: "Could not build quote" }),
+  });
+
+  // Dynamic price mutation
+  const dynamicMutation = useMutation({
+    mutationFn: () => api.post("/calculator/dynamic-price", {
+      property_id: selectedProperty!.property_id,
+      checkin, checkout,
+      portfolio_occupancy_pct: occupancyOverride,
+    }).then(r => r.data as DynamicPriceResult),
+    onSuccess: (data) => { setDynamicPrice(data); setShowDynamic(true); },
+    onError: () => toast({ variant: "error", title: "Dynamic pricing unavailable" }),
   });
 
   // Share mutation
@@ -363,6 +398,106 @@ export default function CalculatorPage() {
                   </div>
                 </div>
               )}
+
+              {/* Dynamic Pricing panel */}
+              <div className="bg-gradient-to-br from-teal-50 to-blue-50 rounded-2xl border border-teal-100 p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Zap size={14} className="text-teal-500" />
+                  <span className="text-sm font-semibold text-gray-900">Dynamic Pricing</span>
+                  <span className="text-[10px] bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded-full font-medium ml-auto">AI-powered</span>
+                </div>
+
+                {/* Occupancy slider */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs text-gray-500">Portfolio occupancy</label>
+                    <span className="text-xs font-bold text-teal-600 tabular-nums">{occupancyOverride}%</span>
+                  </div>
+                  <input
+                    type="range" min={0} max={100} step={5}
+                    value={occupancyOverride}
+                    onChange={e => { setOccupancyOverride(+e.target.value); setDynamicPrice(null); }}
+                    className="w-full accent-teal-500 h-1.5"
+                  />
+                  <div className="flex justify-between text-[10px] text-gray-300 mt-0.5">
+                    <span>Low demand</span><span>High demand</span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => dynamicMutation.mutate()}
+                  disabled={!selectedProperty || !checkin || !checkout || dynamicMutation.isPending}
+                  className="w-full py-2 bg-teal-500 hover:bg-teal-600 disabled:opacity-40 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2 transition-colors"
+                >
+                  {dynamicMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <TrendingUp size={13} />}
+                  Get Smart Rate
+                </button>
+
+                {/* Results */}
+                {showDynamic && dynamicPrice && (
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500">Base rate / night</span>
+                      <span className="text-xs text-gray-700 font-medium">{fmt(dynamicPrice.base_rate)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500">Smart rate / night</span>
+                      <div className="flex items-center gap-1">
+                        {dynamicPrice.final_rate > dynamicPrice.base_rate
+                          ? <TrendingUp size={11} className="text-green-500" />
+                          : <TrendingDown size={11} className="text-rose-400" />
+                        }
+                        <span className={cn(
+                          "text-sm font-bold",
+                          dynamicPrice.final_rate > dynamicPrice.base_rate ? "text-green-600" : "text-rose-500"
+                        )}>
+                          {fmt(dynamicPrice.final_rate)}
+                        </span>
+                        <span className="text-[10px] text-gray-400">
+                          ({dynamicPrice.aggregate_multiplier >= 1 ? "+" : ""}{Math.round((dynamicPrice.aggregate_multiplier - 1) * 100)}%)
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-teal-100 pt-2">
+                      <span className="text-xs font-semibold text-gray-700">Total ({dynamicPrice.nights}n)</span>
+                      <span className="text-base font-bold text-teal-600">{fmt(dynamicPrice.total_price)}</span>
+                    </div>
+
+                    {/* Factors breakdown */}
+                    <div className="bg-white/70 rounded-xl p-2.5 space-y-1.5">
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Pricing factors</p>
+                      {Object.entries(dynamicPrice.factors).map(([k, v]) => (
+                        <div key={k} className="flex items-center justify-between">
+                          <span className="text-[11px] text-gray-500 capitalize">{k.replace("_", " ")}</span>
+                          <span className={cn(
+                            "text-[11px] font-semibold tabular-nums",
+                            v > 1 ? "text-green-600" : v < 1 ? "text-rose-500" : "text-gray-400"
+                          )}>
+                            {v > 1 ? "+" : ""}{Math.round((v - 1) * 100)}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Insights */}
+                    <div className="space-y-1">
+                      {dynamicPrice.insights.map((insight, i) => (
+                        <div key={i} className="flex gap-1.5 items-start">
+                          <Info size={10} className="text-teal-400 flex-shrink-0 mt-0.5" />
+                          <p className="text-[11px] text-gray-600 leading-snug">{insight}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Floor / ceiling */}
+                    <div className="flex gap-2 text-[10px] text-gray-400">
+                      <span>Floor: <span className="font-medium text-gray-500">{fmt(dynamicPrice.suggested_floor)}</span></span>
+                      <span>·</span>
+                      <span>Ceiling: <span className="font-medium text-gray-500">{fmt(dynamicPrice.suggested_ceiling)}</span></span>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Build Quote button */}
               <button onClick={handleBuildQuote} disabled={quoteMutation.isPending}

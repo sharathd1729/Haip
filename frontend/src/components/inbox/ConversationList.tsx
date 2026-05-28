@@ -2,7 +2,10 @@
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { ChannelIcon } from "./ChannelIcon";
-import { Sparkles, ArrowUpDown, CheckSquare, Square, CheckCheck, Archive, Trash2, X } from "lucide-react";
+import {
+  Sparkles, ArrowUpDown, CheckSquare, Square, CheckCheck,
+  Archive, X, Star, Bed, Phone,
+} from "lucide-react";
 import type { ConversationSummary } from "@/store/inbox";
 
 type SortMode = "smart" | "recent" | "unread";
@@ -13,17 +16,40 @@ const SORT_LABELS: Record<SortMode, string> = {
   unread: "Unread first",
 };
 
+// Extended summary with optional enrichment fields
+export interface ConversationSummaryExt extends ConversationSummary {
+  is_vip?: boolean;
+  has_active_booking?: boolean;
+  needs_attention?: boolean;
+  assigned_to?: string;
+  property_name?: string;
+}
+
 interface ConversationListProps {
-  conversations: ConversationSummary[];
+  conversations: ConversationSummaryExt[];
   activeId: string | null;
   onSelect: (id: string) => void;
   onSortChange?: (mode: SortMode) => void;
   channelFilter?: string;
   className?: string;
-  // W13: bulk actions
   onBulkResolve?: (ids: string[]) => void;
   onBulkMarkRead?: (ids: string[]) => void;
   onBulkAssign?: (ids: string[]) => void;
+}
+
+// Deterministic color from a string (for guest avatar backgrounds)
+function nameColor(name: string): string {
+  const colors = [
+    "from-teal-400 to-emerald-500",
+    "from-blue-400 to-indigo-500",
+    "from-violet-400 to-purple-500",
+    "from-rose-400 to-pink-500",
+    "from-amber-400 to-orange-500",
+    "from-cyan-400 to-sky-500",
+  ];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) & 0xffff;
+  return colors[hash % colors.length];
 }
 
 function timeAgo(iso: string) {
@@ -33,8 +59,18 @@ function timeAgo(iso: string) {
   if (m < 60) return `${m}m`;
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h`;
-  return `${Math.floor(h / 24)}d`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d`;
+  return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
+
+// Channel accent color for left border
+const CHANNEL_BORDER: Record<string, string> = {
+  whatsapp:  "border-l-2 border-l-green-400",
+  instagram: "border-l-2 border-l-pink-400",
+  web:       "border-l-2 border-l-blue-400",
+  sms:       "border-l-2 border-l-amber-400",
+};
 
 export function ConversationList({
   conversations,
@@ -54,7 +90,6 @@ export function ConversationList({
     return "smart";
   });
   const [showSortMenu, setShowSortMenu] = useState(false);
-  // W13: multi-select state
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const isSelecting = selected.size > 0;
 
@@ -79,12 +114,14 @@ export function ConversationList({
     ? conversations.filter(c => c.channel === channelFilter)
     : conversations;
 
-  // Client-side sort (mirrors backend smart/recent/unread)
   const sorted = [...filtered].sort((a, b) => {
     if (sort === "unread") {
       const diff = (b.unread_count ?? 0) - (a.unread_count ?? 0);
       if (diff !== 0) return diff;
     } else if (sort === "smart") {
+      // VIP first, then unread, then attention-needed, then recent
+      if (a.is_vip !== b.is_vip) return a.is_vip ? -1 : 1;
+      if (a.needs_attention !== b.needs_attention) return a.needs_attention ? -1 : 1;
       const aUnread = (a.unread_count ?? 0) > 0 ? 0 : 1;
       const bUnread = (b.unread_count ?? 0) > 0 ? 0 : 1;
       if (aUnread !== bUnread) return aUnread - bUnread;
@@ -93,8 +130,8 @@ export function ConversationList({
   });
 
   return (
-    <div className={cn("flex flex-col overflow-y-auto", className)}>
-      {/* W13: bulk action toolbar */}
+    <div className={cn("flex flex-col overflow-y-auto haip-scrollbar", className)}>
+      {/* Bulk action toolbar */}
       {isSelecting && (
         <div className="px-3 py-2 border-b border-teal-100 bg-teal-50 flex items-center gap-2 flex-shrink-0">
           <span className="text-xs font-semibold text-teal-700">{selected.size} selected</span>
@@ -103,7 +140,6 @@ export function ConversationList({
           {onBulkMarkRead && (
             <button
               onClick={() => { onBulkMarkRead(Array.from(selected)); clearSelection(); }}
-              title="Mark as read"
               className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg bg-white border border-teal-200 text-teal-600 hover:bg-teal-100"
             >
               <CheckCheck size={11} /> Read
@@ -112,7 +148,6 @@ export function ConversationList({
           {onBulkResolve && (
             <button
               onClick={() => { onBulkResolve(Array.from(selected)); clearSelection(); }}
-              title="Resolve conversations"
               className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg bg-white border border-teal-200 text-teal-600 hover:bg-teal-100"
             >
               <Archive size={11} /> Resolve
@@ -123,9 +158,15 @@ export function ConversationList({
           </button>
         </div>
       )}
-      {/* W11: sort indicator */}
-      <div className="px-4 py-1.5 border-b border-gray-50 flex items-center justify-between relative">
-        <span className="text-[10px] text-gray-400">Sort: <span className="font-medium text-gray-600">{SORT_LABELS[sort]}</span></span>
+
+      {/* Sort bar */}
+      <div className="px-4 py-1.5 border-b border-gray-50 flex items-center justify-between relative flex-shrink-0">
+        <span className="text-[10px] text-gray-400">
+          Sort: <span className="font-medium text-gray-600">{SORT_LABELS[sort]}</span>
+          {filtered.length > 0 && (
+            <span className="ml-1.5 text-gray-300">· {filtered.length}</span>
+          )}
+        </span>
         <button
           onClick={() => setShowSortMenu(v => !v)}
           className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -134,7 +175,7 @@ export function ConversationList({
           <ArrowUpDown size={12} />
         </button>
         {showSortMenu && (
-          <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-10 overflow-hidden">
+          <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
             {(Object.keys(SORT_LABELS) as SortMode[]).map(m => (
               <button
                 key={m}
@@ -150,86 +191,132 @@ export function ConversationList({
           </div>
         )}
       </div>
+
       {sorted.length === 0 && (
-        <div className="py-16 text-center text-sm text-gray-400">
-          No conversations yet
+        <div className="py-16 text-center">
+          <div className="text-3xl mb-2">💬</div>
+          <p className="text-sm text-gray-400">No conversations yet</p>
+          <p className="text-xs text-gray-300 mt-1">Messages will appear here</p>
         </div>
       )}
+
       {sorted.map(conv => {
         const isActive = conv.id === activeId;
         const isChecked = selected.has(conv.id);
+        const initial = (conv.guest_name || conv.guest_phone)?.[0]?.toUpperCase() ?? "?";
+        const gradient = nameColor(conv.guest_name || conv.guest_phone);
+        const channelBorder = CHANNEL_BORDER[conv.channel] ?? "";
+
         return (
           <button
             key={conv.id}
-            onClick={() => isSelecting ? toggleSelect(conv.id, { stopPropagation: () => {} } as any) : onSelect(conv.id)}
+            onClick={() => isSelecting
+              ? toggleSelect(conv.id, { stopPropagation: () => {} } as React.MouseEvent)
+              : onSelect(conv.id)
+            }
             className={cn(
-              "w-full text-left px-4 py-3.5 border-b border-gray-50 transition-colors group",
-              isActive ? "bg-teal-50/70" : "hover:bg-gray-50",
-              isChecked && "bg-teal-50"
+              "w-full text-left px-3 py-3 border-b border-gray-50 transition-all group",
+              channelBorder,
+              isActive
+                ? "bg-teal-50/80"
+                : "hover:bg-gray-50/80",
+              isChecked && "bg-teal-50",
+              conv.needs_attention && !isActive && "bg-amber-50/40"
             )}
           >
-            <div className="flex items-start gap-3">
-              {/* W13: checkbox (shows on hover or when selecting) */}
-              <div
-                className={cn("flex-shrink-0 mt-0.5", isSelecting || isChecked ? "block" : "hidden group-hover:block")}
-                onClick={e => toggleSelect(conv.id, e)}
-              >
-                {isChecked
-                  ? <CheckSquare size={16} className="text-teal-500" />
-                  : <Square size={16} className="text-gray-300" />
-                }
-              </div>
-              {/* Avatar — hide when checkbox visible */}
-              <div className={cn(
-                "w-9 h-9 rounded-full bg-gradient-to-br from-teal-400 to-blue-500 flex items-center justify-center text-white text-sm font-bold flex-shrink-0",
-                (isSelecting || isChecked) ? "hidden" : "group-hover:hidden block"
-              )}>
-                {conv.guest_name?.[0]?.toUpperCase() ?? "?"}
+            <div className="flex items-start gap-2.5">
+              {/* Checkbox / Avatar */}
+              <div className="flex-shrink-0 relative mt-0.5">
+                {(isSelecting || isChecked) ? (
+                  <div onClick={e => toggleSelect(conv.id, e)}>
+                    {isChecked
+                      ? <CheckSquare size={32} className="text-teal-500" />
+                      : <Square size={32} className="text-gray-300" />
+                    }
+                  </div>
+                ) : (
+                  <div className={cn(
+                    "w-9 h-9 rounded-full bg-gradient-to-br flex items-center justify-center text-white text-sm font-bold",
+                    gradient,
+                    "group-hover:ring-2 group-hover:ring-teal-200 transition-all"
+                  )}>
+                    {initial}
+                  </div>
+                )}
+
+                {/* Channel badge — bottom-right of avatar */}
+                {!isSelecting && !isChecked && (
+                  <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-white flex items-center justify-center">
+                    <ChannelIcon channel={conv.channel} className="w-3 h-3" />
+                  </div>
+                )}
               </div>
 
               <div className="flex-1 min-w-0">
-                {/* Name + time */}
+                {/* Row 1: Name + time */}
                 <div className="flex items-center justify-between gap-1 mb-0.5">
-                  <span className={cn(
-                    "text-sm font-semibold truncate",
-                    isActive ? "text-teal-700" : "text-gray-900"
-                  )}>
-                    {conv.guest_name || conv.guest_phone}
-                  </span>
-                  <span className="text-[10px] text-gray-400 flex-shrink-0">
+                  <div className="flex items-center gap-1 min-w-0">
+                    {conv.is_vip && (
+                      <Star size={10} className="flex-shrink-0 text-amber-400 fill-amber-400" />
+                    )}
+                    <span className={cn(
+                      "text-sm font-semibold truncate",
+                      isActive ? "text-teal-700" : "text-gray-900"
+                    )}>
+                      {conv.guest_name || conv.guest_phone}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-gray-400 flex-shrink-0 tabular-nums">
                     {timeAgo(conv.last_message_at)}
                   </span>
                 </div>
 
-                {/* Last message */}
-                <div className="flex items-center gap-1.5 mb-1">
-                  <ChannelIcon channel={conv.channel} className="w-4 h-4 rounded" />
-                  <p className={cn(
-                    "text-xs truncate",
-                    conv.unread_count > 0 ? "text-gray-800 font-medium" : "text-gray-500"
-                  )}>
-                    {conv.last_message}
-                  </p>
-                </div>
+                {/* Row 2: Property name (if available) */}
+                {conv.property_name && (
+                  <div className="flex items-center gap-1 mb-0.5">
+                    <Bed size={9} className="text-gray-300 flex-shrink-0" />
+                    <span className="text-[10px] text-gray-400 truncate">{conv.property_name}</span>
+                  </div>
+                )}
 
-                {/* Badges */}
-                <div className="flex items-center gap-1.5">
-                  {conv.status !== "open" && (
-                    <span className={cn(
-                      "text-[10px] font-medium px-1.5 py-0.5 rounded capitalize",
-                      conv.status === "resolved" ? "bg-gray-100 text-gray-500" : "bg-amber-100 text-amber-600"
-                    )}>
-                      {conv.status}
+                {/* Row 3: Last message preview */}
+                <p className={cn(
+                  "text-xs truncate mb-1",
+                  conv.unread_count > 0 ? "text-gray-800 font-medium" : "text-gray-500"
+                )}>
+                  {conv.last_message || "No messages yet"}
+                </p>
+
+                {/* Row 4: Status badges + unread pill */}
+                <div className="flex items-center gap-1">
+                  {conv.has_active_booking && (
+                    <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 flex items-center gap-0.5 flex-shrink-0">
+                      <Bed size={7} />Booked
+                    </span>
+                  )}
+                  {conv.needs_attention && (
+                    <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-600 flex-shrink-0">
+                      ⚠ Needs reply
+                    </span>
+                  )}
+                  {conv.status === "snoozed" && (
+                    <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 flex-shrink-0">
+                      Snoozed
+                    </span>
+                  )}
+                  {conv.status === "resolved" && (
+                    <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400 flex-shrink-0">
+                      Resolved
                     </span>
                   )}
                   {conv.has_ai_draft && (
-                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-teal-100 text-teal-600 flex items-center gap-1">
-                      <Sparkles size={9} /> AI draft
+                    <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-teal-100 text-teal-600 flex items-center gap-0.5 flex-shrink-0">
+                      <Sparkles size={8} />Draft
                     </span>
                   )}
                   {conv.unread_count > 0 && (
-                    <span className="ml-auto bg-teal-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center flex-shrink-0">
-                      {conv.unread_count > 9 ? "9+" : conv.unread_count}
+                    <span className="ml-auto bg-teal-500 text-white text-[9px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 flex-shrink-0">
+                      {conv.unread_count > 99 ? "99+" : conv.unread_count}
                     </span>
                   )}
                 </div>
@@ -238,6 +325,9 @@ export function ConversationList({
           </button>
         );
       })}
+
+      {/* Bottom padding for mobile nav */}
+      <div className="h-4 flex-shrink-0" />
     </div>
   );
 }
