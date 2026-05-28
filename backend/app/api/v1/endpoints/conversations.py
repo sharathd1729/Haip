@@ -37,15 +37,9 @@ def list_conversations(
     if is_open is not None:
         q = q.filter_by(is_open=is_open)
 
-    if sort == "unread":
-        q = q.order_by(
-            Conversation.unread_count.desc().nullslast(),
-            Conversation.last_message_at.desc().nullslast(),
-        )
-    elif sort == "smart":
-        # Priority: (1) unread first, (2) recent
-        unread_first = case((Conversation.unread_count > 0, 0), else_=1)
-        q = q.order_by(unread_first, Conversation.last_message_at.desc().nullslast())
+    if sort in ("unread", "smart"):
+        # unread_count column not yet in schema — sort by recency until tracking is added
+        q = q.order_by(Conversation.last_message_at.desc().nullslast())
     else:
         q = q.order_by(Conversation.last_message_at.desc().nullslast())
 
