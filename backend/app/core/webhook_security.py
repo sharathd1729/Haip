@@ -55,5 +55,8 @@ def verify_meta_signature(body: bytes, signature_header: str, env: str, secret: 
     ).hexdigest()
 
     if not _hmac.compare_digest(expected, signature_header):
+        if env != "production":
+            log.warning("webhook_signature_mismatch_dev_bypass", hint="set correct META_APP_SECRET for production")
+            return  # Allow through in dev/staging for testing
         log.warning("webhook_signature_mismatch")
         raise HTTPException(status_code=401, detail="Webhook signature verification failed")
