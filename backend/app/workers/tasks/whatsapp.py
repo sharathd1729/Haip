@@ -171,6 +171,21 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
 
     log.info("wa_message_stored", guest_token=_phone_token(from_number), conversation=conversation.id)
 
+    # Notify SSE subscribers so the inbox updates without a page refresh
+    try:
+        import redis as _redis
+        from app.core.config import settings as _settings
+        _r = _redis.Redis.from_url(_settings.REDIS_URL, decode_responses=True, socket_connect_timeout=2)
+        import json as _json
+        _r.publish(f"sse:{tenant.id}", _json.dumps({
+            "event": "new_message",
+            "conversation_id": conversation.id,
+            "channel": "whatsapp",
+        }))
+        _r.close()
+    except Exception as _sse_exc:
+        log.warning("sse_publish_failed", error=str(_sse_exc))
+
     # ── D1: Opt-out / opt-in detection ───────────────────────────────────────
     if body and body.strip():
         try:
