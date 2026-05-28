@@ -178,7 +178,7 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
         _r = _redis.Redis.from_url(_settings.REDIS_URL, decode_responses=True, socket_connect_timeout=2)
         import json as _json
         _r.publish(f"sse:{tenant.id}", _json.dumps({
-            "event": "new_message",
+            "event": "message_received",
             "conversation_id": conversation.id,
             "channel": "whatsapp",
         }))
