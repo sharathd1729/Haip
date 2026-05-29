@@ -537,10 +537,24 @@ export default function InboxPage() {
   });
 
   // W1: pulse animation on empty send attempt
-  const triggerEmptyPulse = () => {
+  const triggerEmptyPulse = useCallback(() => {
     setEmptyPulse(true);
     setTimeout(() => setEmptyPulse(false), 800);
-  };
+  }, []);
+
+  // Stable message action handlers — useCallback prevents MessageBubble React.memo invalidation
+  const handleApprove = useCallback((id: string) => approveMutation.mutate(id), [approveMutation]);
+  const handleRetry = useCallback((id: string) => {
+    if (!activeConversationId) return;
+    retryMutation.mutate({ conversationId: activeConversationId, messageId: id });
+  }, [retryMutation, activeConversationId]);
+  const handleReject = useCallback((id: string) => {
+    if (!activeConversationId || !detail) return;
+    const draftMsg = detail.messages.find(m => m.id === id);
+    if (draftMsg) setRejectedDrafts(p => [...p.slice(-2), draftMsg.text]);
+    api.post(`/conversations/${activeConversationId}/messages/${id}/reject`, {}).catch(() => {});
+    queryClient.invalidateQueries({ queryKey: ["conversation", activeConversationId] });
+  }, [activeConversationId, detail, queryClient]);
 
   const handleSend = (overrideScheduled?: string | null) => {
     if (isEmpty) { triggerEmptyPulse(); return; }
@@ -932,16 +946,10 @@ export default function InboxPage() {
                       isInternal={msg.is_internal}
                       aiConfidence={msg.ai_confidence}
                       senderName={msg.direction === "outbound" ? msg.sender_name : (detail.guest_name || detail.guest_phone)}
-                      onApprove={(id) => approveMutation.mutate(id)}
+                      onApprove={handleApprove}
                       onEdit={(id, text) => { setEditingDraftId(id); setEditText(text); }}
-                      onReject={(id) => {
-                        // W7: stash up to last 3 rejected drafts for recall
-                        const draftMsg = detail?.messages.find(m => m.id === id);
-                        if (draftMsg) setRejectedDrafts(p => [...p.slice(-2), draftMsg.text]);
-                        api.post(`/conversations/${activeConversationId}/messages/${id}/reject`, {}).catch(() => {});
-                        queryClient.invalidateQueries({ queryKey: ["conversation", activeConversationId] });
-                      }}
-                      onRetry={(id) => retryMutation.mutate({ conversationId: activeConversationId!, messageId: id })}
+                      onReject={handleReject}
+                      onRetry={handleRetry}
                       onReply={(id) => {
                         setReplyToMsg(msg);
                         textareaRef.current?.focus();

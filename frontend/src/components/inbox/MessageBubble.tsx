@@ -1,7 +1,7 @@
 "use client";
 import { CheckCheck, Check, Clock, RotateCw, Sparkles, ThumbsUp, ThumbsDown, Edit2, Reply, StickyNote } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { memo, useState } from "react";
 
 export type MessageDirection = "inbound" | "outbound";
 export type MessageStatus = "pending" | "queued" | "sent" | "delivered" | "read" | "failed";
@@ -54,7 +54,7 @@ function formatTime(iso: string) {
   return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 }
 
-export function MessageBubble({
+export const MessageBubble = memo(function MessageBubble({
   id,
   text,
   direction,
@@ -75,6 +75,7 @@ export function MessageBubble({
   const isOut    = direction === "outbound";
   const isFailed = status === "failed";
   const [hovered, setHovered] = useState(false);
+  // Note: this component is wrapped in React.memo — it only re-renders when props change.
 
   // W24: Internal notes always centered with amber styling
   if (isInternal) {
@@ -188,4 +189,4 @@ export function MessageBubble({
       </div>
     </div>
   );
-}
+});

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { cn } from "@/lib/utils";
 
 interface GuestAvatarProps {
@@ -28,7 +29,7 @@ function avatarColor(seed: string) {
   return colors[h % colors.length];
 }
 
-export function GuestAvatar({ name, phone, size = "md", className }: GuestAvatarProps) {
+export const GuestAvatar = memo(function GuestAvatar({ name, phone, size = "md", className }: GuestAvatarProps) {
   const seed = name || phone || "?";
   const initial = seed[0]?.toUpperCase() ?? "?";
   const color = avatarColor(seed);
@@ -41,4 +42,4 @@ export function GuestAvatar({ name, phone, size = "md", className }: GuestAvatar
       {initial}
     </div>
   );
-}
+});

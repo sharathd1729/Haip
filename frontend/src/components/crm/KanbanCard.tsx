@@ -1,4 +1,5 @@
 "use client";
+import { memo } from "react";
 import { Phone, MessageSquare, Calendar, MoreHorizontal, AlertTriangle, Clock, StickyNote } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GuestAvatar } from "./GuestAvatar";
@@ -91,7 +92,7 @@ function formatDate(iso?: string) {
   return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
-export function KanbanCard({ card, onClick, onAssign, onNoteClick, draggable, className }: KanbanCardProps) {
+export const KanbanCard = memo(function KanbanCard({ card, onClick, onAssign, onNoteClick, draggable, className }: KanbanCardProps) {
   const stripe = ageStripeColor(card.current_stage_entered_at);
   const ageTip  = ageLabel(card.current_stage_entered_at);
 
@@ -197,4 +198,4 @@ export function KanbanCard({ card, onClick, onAssign, onNoteClick, draggable, cl
       </div>
     </div>
   );
-}
+});

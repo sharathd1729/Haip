@@ -1,4 +1,5 @@
 "use client";
+import { memo } from "react";
 import { cn } from "@/lib/utils";
 import { EvidenceHighlight } from "./EvidenceHighlight";
 
@@ -38,7 +39,7 @@ const SPEAKER_STYLES = {
   },
 } as const;
 
-export function TranscriptTurn({
+export const TranscriptTurn = memo(function TranscriptTurn({
   speaker,
   text,
   t0,
@@ -89,4 +90,4 @@ export function TranscriptTurn({
       </div>
     </div>
   );
-}
+});

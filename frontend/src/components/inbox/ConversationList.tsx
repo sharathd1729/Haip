@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { ChannelIcon } from "./ChannelIcon";
 import {
@@ -111,11 +111,14 @@ export function ConversationList({
     onSortChange?.(sort);
   }, [sort, onSortChange]);
 
-  const filtered = channelFilter
-    ? conversations.filter(c => c.channel === channelFilter)
-    : conversations;
+  const filtered = useMemo(
+    () => channelFilter
+      ? conversations.filter(c => c.channel === channelFilter)
+      : conversations,
+    [conversations, channelFilter]
+  );
 
-  const sorted = [...filtered].sort((a, b) => {
+  const sorted = useMemo(() => [...filtered].sort((a, b) => {
     if (sort === "unread") {
       const diff = (b.unread_count ?? 0) - (a.unread_count ?? 0);
       if (diff !== 0) return diff;
@@ -128,7 +131,7 @@ export function ConversationList({
       if (aUnread !== bUnread) return aUnread - bUnread;
     }
     return new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime();
-  });
+  }), [filtered, sort]);
 
   return (
     <div className={cn("flex flex-col overflow-y-auto haip-scrollbar", className)}>
