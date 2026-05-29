@@ -90,7 +90,7 @@ def get_calendar(
     """
     Return full calendar grid: properties × dates with status + stats.
     """
-    tenant_id = current_user["tenant_id"]
+    tenant_id = current_user.tenant_id
     start = date.fromisoformat(from_date)
     end   = date.fromisoformat(to_date)
     days  = _date_range(start, end)
@@ -264,7 +264,7 @@ def create_block(
 ):
     """Create a manual date block for a property."""
     from app.models.base import gen_uuid
-    tenant_id = current_user["tenant_id"]
+    tenant_id = current_user.tenant_id
 
     # Verify property belongs to tenant
     prop = db.query(Property).filter_by(id=payload.property_id, tenant_id=tenant_id).first()
@@ -294,7 +294,7 @@ def update_block(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    tenant_id = current_user["tenant_id"]
+    tenant_id = current_user.tenant_id
     block = db.query(BlockedDate).filter_by(id=block_id, tenant_id=tenant_id).first()
     if not block:
         raise HTTPException(404, "Block not found")
@@ -311,7 +311,7 @@ def delete_block(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    tenant_id = current_user["tenant_id"]
+    tenant_id = current_user.tenant_id
     block = db.query(BlockedDate).filter_by(id=block_id, tenant_id=tenant_id).first()
     if not block:
         raise HTTPException(404, "Block not found")
@@ -329,7 +329,7 @@ def trigger_rentalwise_sync(
     Trigger an on-demand RentalWise sync for the current tenant.
     Queues a Celery task (non-blocking) and returns immediately.
     """
-    tenant_id = current_user["tenant_id"]
+    tenant_id = current_user.tenant_id
 
     # Verify they have an active RentalWise integration
     from app.models.integration import Integration
@@ -368,7 +368,7 @@ def get_rentalwise_availability(
     Fetch live availability-status records from RentalWise for a property.
     Proxies POST /rest/availability-status/query.
     """
-    tenant_id = current_user["tenant_id"]
+    tenant_id = current_user.tenant_id
 
     # Verify property belongs to tenant
     prop = db.query(Property).filter_by(id=property_id, tenant_id=tenant_id).first()
@@ -415,7 +415,7 @@ def list_blocks(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    tenant_id = current_user["tenant_id"]
+    tenant_id = current_user.tenant_id
     q = db.query(BlockedDate).filter_by(tenant_id=tenant_id, is_active=True)
     if property_id:
         q = q.filter_by(property_id=property_id)
