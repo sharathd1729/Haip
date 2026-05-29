@@ -15,11 +15,12 @@ from datetime import datetime, timezone
 from celery import shared_task
 from sqlalchemy.orm import Session
 
-from app.core.database import SessionLocal
+from app.core.database import SessionLocal, set_tenant_context
 from app.core.encryption import decrypt_credentials
 from app.models.integration import Integration
-from app.models.property import Property, Stay
+from app.models.property import Property, Stay, BlockedDate
 from app.models.guest import Guest
+from app.models.base import gen_uuid
 from app.services.guest_service import upsert_by_phone
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,9 @@ logger = logging.getLogger(__name__)
 def sync_retalwise(self, tenant_id: str) -> dict:
     db: Session = SessionLocal()
     try:
+        # Must set tenant context BEFORE any tenant-scoped queries (RLS enforcement)
+        set_tenant_context(db, tenant_id)
+
         integration = db.query(Integration).filter_by(
             tenant_id=tenant_id, kind="retalwise"
         ).first()
@@ -46,7 +50,7 @@ def sync_retalwise(self, tenant_id: str) -> dict:
             return {"status": "error", "reason": "missing credentials"}
 
         config = integration.config or {}
-        base_url = config.get("base_url", "https://partners-api.rentalwise.com")
+        base_url = config.get("base_url", "https://app.rentalwise.io")
 
         from app.adapters.pms.retalwise import RentalwiseAdapter
         adapter = RentalwiseAdapter(
@@ -54,7 +58,7 @@ def sync_retalwise(self, tenant_id: str) -> dict:
             base_url=base_url, api_token=api_token,
         )
 
-        stats = {"properties": 0, "reservations": 0, "guests": 0, "errors": []}
+        stats = {"properties": 0, "reservations": 0, "guests": 0, "availability_records": 0, "ical_events": 0, "errors": []}
 
         # ── Sync properties ───────────────────────────────────────────────────
         if config.get("sync_properties", True):
@@ -100,6 +104,63 @@ def sync_retalwise(self, tenant_id: str) -> dict:
             except Exception as exc:
                 logger.error("RentalWise reservation sync failed: %s", exc)
                 stats["errors"].append(f"reservations: {exc}")
+
+        # ── Sync availability statuses → BlockedDate records ─────────────────
+        if config.get("sync_availability", True):
+            try:
+                # Sync next 90 days of availability statuses
+                from datetime import date
+                av_from = date.today().isoformat()
+                av_to   = (date.today() + __import__("datetime").timedelta(days=90)).isoformat()
+                avail_records = adapter.get_all_availability_statuses_paginated(
+                    date_from=av_from, date_to=av_to,
+                )
+                for av in avail_records:
+                    if av.get("status") and av["status"] not in ("available", "booked"):
+                        # Only create blocks for non-available, non-booked days
+                        # (booked days are already covered by stays)
+                        _upsert_availability_block(db, tenant_id, av)
+                        stats["availability_records"] += 1
+                db.commit()
+                logger.info(
+                    "RentalWise: synced %d availability blocks for tenant %s",
+                    stats["availability_records"], tenant_id
+                )
+            except Exception as exc:
+                logger.error("RentalWise availability sync failed: %s", exc)
+                stats["errors"].append(f"availability: {exc}")
+
+        # ── Sync iCal feeds → BlockedDate records ────────────────────────────
+        if config.get("sync_ical", False):
+            try:
+                # Load all RentalWise properties for this tenant
+                rw_props = db.query(Property).filter(
+                    Property.tenant_id == tenant_id,
+                    Property.channel_source == "retalwise",
+                ).all()
+                for prop in rw_props:
+                    rw_id = (prop.hostaway_listing_id or "").replace("rw_", "")
+                    if not rw_id:
+                        continue
+                    try:
+                        ical_text = adapter.fetch_property_ical(rw_id)
+                        events = adapter.parse_ical_blocks(ical_text, rw_id)
+                        for ev in events:
+                            _upsert_ical_block(db, tenant_id, prop.id, ev)
+                            stats["ical_events"] += 1
+                        db.commit()
+                    except Exception as exc:
+                        logger.warning(
+                            "RentalWise iCal sync failed for property %s: %s", rw_id, exc
+                        )
+                        stats["errors"].append(f"ical_prop_{rw_id}: {exc}")
+                logger.info(
+                    "RentalWise: synced %d iCal events for tenant %s",
+                    stats["ical_events"], tenant_id
+                )
+            except Exception as exc:
+                logger.error("RentalWise iCal sync failed: %s", exc)
+                stats["errors"].append(f"ical: {exc}")
 
         integration.last_health_at = datetime.now(timezone.utc).isoformat()
         if stats["errors"]:
@@ -260,3 +321,125 @@ def _upsert_stay(db: Session, tenant_id: str, r: dict):
     row.channel_source = r.get("channel", "rentalwise")
     row.total_amount = r.get("total_amount", 0)
     row.currency = r.get("currency", "INR")
+
+
+# ── Availability-status block upsert ─────────────────────────────────────────
+
+# Map Rentalwise availability-status slugs → BlockedDate reason values
+_STATUS_TO_REASON: dict[str, str] = {
+    "blocked":             "other",
+    "maintenance":         "maintenance",
+    "owner_use":           "owner_use",
+    "owner":               "owner_use",
+    "personal":            "personal",
+    "hold":                "other",
+    "offline_booking":     "offline_booking",
+    "unavailable":         "other",
+}
+
+
+def _upsert_availability_block(db: Session, tenant_id: str, av: dict):
+    """
+    Create or update a single-day BlockedDate from a Rentalwise availability-status record.
+    Rentalwise returns one record per day, so each block spans [date, date+1).
+    """
+    av_date = av.get("date", "")
+    if not av_date or len(av_date) < 10:
+        return
+
+    status = (av.get("status") or "").lower()
+    reason = _STATUS_TO_REASON.get(status, "other")
+    prop_rw_id = av.get("property_id", "")
+    if not prop_rw_id:
+        return
+
+    # Look up the HAIP Property by its RentalWise ID tag
+    prop = (
+        db.query(Property)
+        .filter_by(tenant_id=tenant_id)
+        .filter(Property.hostaway_listing_id == f"rw_{prop_rw_id}")
+        .first()
+    )
+    if not prop:
+        return
+
+    # External ID: "rw_avail_{property_rw_id}_{date}" — one block per day
+    external_marker = f"rw_avail_{prop_rw_id}_{av_date}"
+    block_end = _next_day(av_date)
+
+    existing = (
+        db.query(BlockedDate)
+        .filter_by(tenant_id=tenant_id, property_id=prop.id)
+        .filter(BlockedDate.notes == external_marker)
+        .first()
+    )
+    if existing:
+        existing.blocked_from = av_date
+        existing.blocked_to   = block_end
+        existing.reason       = reason
+        existing.is_active    = True
+    else:
+        db.add(BlockedDate(
+            id           = gen_uuid(),
+            tenant_id    = tenant_id,
+            property_id  = prop.id,
+            blocked_from = av_date,
+            blocked_to   = block_end,
+            reason       = reason,
+            notes        = external_marker,
+            is_active    = True,
+        ))
+
+
+def _upsert_ical_block(db: Session, tenant_id: str, property_id: str, ev: dict):
+    """Create or update a BlockedDate from a parsed iCal VEVENT."""
+    external_uid = ev.get("uid") or ev.get("external_id", "")
+    if not external_uid:
+        return
+
+    dtstart = ev.get("dtstart", "")
+    dtend   = ev.get("dtend", "")
+    if not dtstart or not dtend:
+        return
+
+    existing = (
+        db.query(BlockedDate)
+        .filter_by(tenant_id=tenant_id, property_id=property_id)
+        .filter(BlockedDate.notes == f"ical:{external_uid}")
+        .first()
+    )
+    if existing:
+        existing.blocked_from = dtstart
+        existing.blocked_to   = dtend
+        existing.is_active    = True
+    else:
+        summary = ev.get("summary", "")
+        reason = "other"
+        sl = summary.lower()
+        if "maintenance" in sl:
+            reason = "maintenance"
+        elif "owner" in sl or "personal" in sl:
+            reason = "personal"
+        elif "booking" in sl or "reservation" in sl:
+            reason = "offline_booking"
+
+        db.add(BlockedDate(
+            id           = gen_uuid(),
+            tenant_id    = tenant_id,
+            property_id  = property_id,
+            blocked_from = dtstart,
+            blocked_to   = dtend,
+            reason       = reason,
+            notes        = f"ical:{external_uid}",
+            is_active    = True,
+        ))
+
+
+def _next_day(date_str: str) -> str:
+    """Return the YYYY-MM-DD string for date_str + 1 day."""
+    from datetime import date, timedelta
+    try:
+        d = date.fromisoformat(date_str)
+        return (d + timedelta(days=1)).isoformat()
+    except ValueError:
+        return date_str

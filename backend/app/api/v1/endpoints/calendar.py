@@ -320,6 +320,95 @@ def delete_block(
     return {"message": "Deleted"}
 
 
+@router.post("/sync-rentalwise")
+def trigger_rentalwise_sync(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    Trigger an on-demand RentalWise sync for the current tenant.
+    Queues a Celery task (non-blocking) and returns immediately.
+    """
+    tenant_id = current_user["tenant_id"]
+
+    # Verify they have an active RentalWise integration
+    from app.models.integration import Integration
+    integration = db.query(Integration).filter_by(
+        tenant_id=tenant_id, kind="retalwise", status="active"
+    ).first()
+    if not integration:
+        raise HTTPException(
+            status_code=400,
+            detail="No active RentalWise integration found. Connect RentalWise in Settings → Integrations first.",
+        )
+
+    try:
+        from app.workers.tasks.sync_retalwise import sync_retalwise
+        task = sync_retalwise.delay(tenant_id)
+        return {"status": "queued", "task_id": task.id, "message": "RentalWise sync started"}
+    except Exception as exc:
+        # If Celery is unavailable, run synchronously (dev/staging convenience)
+        try:
+            from app.workers.tasks.sync_retalwise import sync_retalwise
+            result = sync_retalwise(tenant_id)
+            return {"status": "ok", "message": "RentalWise sync completed synchronously", **result}
+        except Exception as sync_exc:
+            raise HTTPException(status_code=500, detail=f"Sync failed: {sync_exc}") from sync_exc
+
+
+@router.get("/rentalwise-availability")
+def get_rentalwise_availability(
+    property_id: str = Query(..., description="HAIP property UUID"),
+    from_date: str = Query(..., description="YYYY-MM-DD"),
+    to_date: str = Query(..., description="YYYY-MM-DD"),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    Fetch live availability-status records from RentalWise for a property.
+    Proxies POST /rest/availability-status/query.
+    """
+    tenant_id = current_user["tenant_id"]
+
+    # Verify property belongs to tenant
+    prop = db.query(Property).filter_by(id=property_id, tenant_id=tenant_id).first()
+    if not prop:
+        raise HTTPException(404, "Property not found")
+
+    rw_id = (getattr(prop, "hostaway_listing_id", None) or "").replace("rw_", "")
+    if not rw_id:
+        return {"availability": [], "source": "none", "reason": "property not linked to RentalWise"}
+
+    from app.models.integration import Integration
+    from app.core.encryption import decrypt_credentials
+    integration = db.query(Integration).filter_by(
+        tenant_id=tenant_id, kind="retalwise", status="active"
+    ).first()
+    if not integration:
+        return {"availability": [], "source": "none", "reason": "no active RentalWise integration"}
+
+    creds = decrypt_credentials(integration.credentials_kms_blob)
+    config = integration.config or {}
+
+    from app.adapters.pms.retalwise import RentalwiseAdapter
+    adapter = RentalwiseAdapter(
+        username=creds.get("username", creds.get("api_key", "")),
+        password=creds.get("password", creds.get("api_secret", "")),
+        base_url=config.get("base_url", "https://app.rentalwise.io"),
+        api_token=creds.get("api_token", ""),
+    )
+
+    try:
+        records = adapter.get_all_availability_statuses_paginated(
+            property_id=rw_id,
+            date_from=from_date,
+            date_to=to_date,
+        )
+        return {"availability": records, "source": "rentalwise", "property_rw_id": rw_id}
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"RentalWise API error: {exc}") from exc
+
+
 @router.get("/blocked-dates")
 def list_blocks(
     property_id: Optional[str] = None,

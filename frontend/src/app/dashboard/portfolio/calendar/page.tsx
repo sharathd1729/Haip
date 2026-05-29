@@ -8,14 +8,14 @@
  * Channel source drives the bar color (direct=teal, airbnb=rose, booking=blue, etc.)
  */
 
-import { useState, useMemo, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useMemo, useRef, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   addDays, format, parseISO, isToday,
 } from "date-fns";
 import {
   ChevronLeft, ChevronRight, Calendar,
-  Bed, Zap, TrendingUp, RefreshCw, Users,
+  Bed, Zap, TrendingUp, RefreshCw, Users, CloudDownload, CheckCircle2, AlertCircle,
 } from "lucide-react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -133,11 +133,12 @@ function OccupancyBadge({ pct }: { pct: number }) {
 
 function ChannelLegend() {
   const entries = [
-    { label: "Direct",     color: CHANNEL_COLOR.direct.bg },
-    { label: "Airbnb",     color: CHANNEL_COLOR.airbnb.bg },
-    { label: "Booking.com",color: CHANNEL_COLOR["booking.com"].bg },
-    { label: "VRBO",       color: CHANNEL_COLOR.vrbo.bg },
-    { label: "MakeMyTrip", color: CHANNEL_COLOR.makemytrip.bg },
+    { label: "Direct",       color: CHANNEL_COLOR.direct.bg },
+    { label: "Airbnb",       color: CHANNEL_COLOR.airbnb.bg },
+    { label: "Booking.com",  color: CHANNEL_COLOR["booking.com"].bg },
+    { label: "VRBO",         color: CHANNEL_COLOR.vrbo.bg },
+    { label: "MakeMyTrip",   color: CHANNEL_COLOR.makemytrip.bg },
+    { label: "RentalWise",   color: CHANNEL_COLOR.retalwise.bg },
   ];
   return (
     <div className="flex items-center gap-3 flex-wrap">
@@ -321,6 +322,38 @@ function PropertyRow({
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
+// ── Channel filter options ─────────────────────────────────────────────────
+
+const CHANNEL_FILTERS = [
+  { value: "",           label: "All channels" },
+  { value: "rentalwise", label: "RentalWise" },
+  { value: "airbnb",     label: "Airbnb" },
+  { value: "booking.com",label: "Booking.com" },
+  { value: "vrbo",       label: "VRBO" },
+  { value: "direct",     label: "Direct" },
+] as const;
+
+// ── RentalWise sync status toast ───────────────────────────────────────────
+
+function SyncStatusBadge({ status }: { status: "idle" | "loading" | "success" | "error" }) {
+  if (status === "idle") return null;
+  if (status === "loading") return (
+    <span className="flex items-center gap-1 text-xs text-indigo-600 bg-indigo-50 px-2 py-1 rounded-xl animate-pulse">
+      <CloudDownload size={11} className="animate-bounce" /> Syncing RentalWise…
+    </span>
+  );
+  if (status === "success") return (
+    <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-xl">
+      <CheckCircle2 size={11} /> RentalWise synced
+    </span>
+  );
+  return (
+    <span className="flex items-center gap-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded-xl">
+      <AlertCircle size={11} /> Sync failed
+    </span>
+  );
+}
+
 export default function PortfolioCalendarPage() {
   const [startDate, setStartDate] = useState<Date>(() => {
     const d = new Date();
@@ -329,7 +362,9 @@ export default function PortfolioCalendarPage() {
   });
   const [viewWindow, setViewWindow] = useState<ViewWindow>("30");
   const [search, setSearch] = useState("");
+  const [channelFilter, setChannelFilter] = useState("");
   const gridRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
 
   const numDays = VIEW_DAYS[viewWindow];
   const fromDate = format(startDate, "yyyy-MM-dd");
@@ -343,17 +378,37 @@ export default function PortfolioCalendarPage() {
     staleTime: 2 * 60_000,
   });
 
+  // RentalWise on-demand sync mutation
+  const syncMutation = useMutation({
+    mutationFn: () => api.post("/calendar/sync-rentalwise", {}).then(r => r.data),
+    onSuccess: () => {
+      // Invalidate calendar after a short delay to let Celery process
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["portfolio-calendar"] });
+      }, 3000);
+    },
+  });
+
   const days  = data?.days ?? [];
   const stats = data?.stats;
 
   const properties = useMemo(() => {
     if (!data?.properties) return [];
-    if (!search) return data.properties;
-    const q = search.toLowerCase();
-    return data.properties.filter(p =>
-      p.property_name.toLowerCase().includes(q)
-    );
-  }, [data?.properties, search]);
+    let list = data.properties;
+    if (search) {
+      const q = search.toLowerCase();
+      list = list.filter(p => p.property_name.toLowerCase().includes(q));
+    }
+    if (channelFilter) {
+      // Show properties that have at least one stay from the selected channel,
+      // OR whose channel_source matches.
+      list = list.filter(p =>
+        p.channel_source?.toLowerCase() === channelFilter ||
+        p.stays.some(s => s.channel_source?.toLowerCase() === channelFilter)
+      );
+    }
+    return list;
+  }, [data?.properties, search, channelFilter]);
 
   // Scroll "today" into view on first load
   const scrollToToday = () => {
@@ -442,13 +497,24 @@ export default function PortfolioCalendarPage() {
             ))}
           </div>
 
+          {/* Channel filter */}
+          <select
+            value={channelFilter}
+            onChange={e => setChannelFilter(e.target.value)}
+            className="text-xs border border-gray-200 rounded-xl px-2 py-1.5 outline-none focus:ring-2 focus:ring-teal-300 bg-white text-gray-700 cursor-pointer"
+          >
+            {CHANNEL_FILTERS.map(f => (
+              <option key={f.value} value={f.value}>{f.label}</option>
+            ))}
+          </select>
+
           {/* Property search */}
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Filter properties…"
-            className="text-xs border border-gray-200 rounded-xl px-3 py-1.5 outline-none focus:ring-2 focus:ring-teal-300 w-40"
+            className="text-xs border border-gray-200 rounded-xl px-3 py-1.5 outline-none focus:ring-2 focus:ring-teal-300 w-36"
           />
 
           <div className="flex-1" />
@@ -471,6 +537,32 @@ export default function PortfolioCalendarPage() {
               )}
             </div>
           )}
+
+          {/* Sync status badge */}
+          <SyncStatusBadge
+            status={
+              syncMutation.isPending ? "loading"
+              : syncMutation.isSuccess ? "success"
+              : syncMutation.isError ? "error"
+              : "idle"
+            }
+          />
+
+          {/* RentalWise sync button */}
+          <button
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors",
+              syncMutation.isPending
+                ? "bg-indigo-100 text-indigo-400 cursor-not-allowed"
+                : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
+            )}
+            title="Sync bookings and availability from RentalWise"
+          >
+            <CloudDownload size={12} className={syncMutation.isPending ? "animate-pulse" : ""} />
+            RentalWise Sync
+          </button>
 
           {/* Refresh */}
           <button

@@ -287,6 +287,178 @@ class RentalwiseAdapter:
         except Exception:
             return []
 
+    # ── Availability statuses ─────────────────────────────────────────────────
+
+    def get_availability_statuses(
+        self,
+        property_id: str | int | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        page: int = 1,
+        per_page: int = 500,
+    ) -> list[dict]:
+        """
+        POST /rest/availability-status/query
+        Returns per-day availability status records (available / booked / blocked /
+        maintenance / owner_use / hold / etc.) for one or all properties.
+
+        Each record shape (normalised):
+            {
+                "id":          str,
+                "property_id": str,
+                "date":        "YYYY-MM-DD",
+                "status":      "available" | "booked" | "blocked" | "maintenance" | "owner_use" | ...,
+                "note":        str | None,
+                "raw":         dict,
+            }
+        """
+        payload: dict = {
+            "paginate": {"page": page, "perpage": per_page},
+            "sort": [{"field": "date", "direction": "asc"}],
+            "where": {},
+        }
+        conditions: list[dict] = []
+        if property_id is not None:
+            conditions.append({
+                "field": "property_id",
+                "value": int(property_id),
+                "__condition__": "=",
+            })
+        if date_from:
+            conditions.append({"field": "date", "value": date_from, "__condition__": ">="})
+        if date_to:
+            conditions.append({"field": "date", "value": date_to, "__condition__": "<="})
+        if conditions:
+            payload["where"] = {"conditions": conditions}
+
+        try:
+            data = self._post("/rest/availability-status/query", payload)
+        except Exception as exc:
+            logger.warning("RentalWise availability-status/query failed: %s", exc)
+            return []
+
+        items = (
+            data if isinstance(data, list)
+            else data.get("data", data.get("items", data.get("availability_statuses", [])))
+        )
+        return [self._normalise_availability_status(item) for item in items]
+
+    def get_all_availability_statuses_paginated(
+        self,
+        property_id: str | int | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        per_page: int = 500,
+    ) -> list[dict]:
+        """Fetch all pages of availability-status records."""
+        results: list[dict] = []
+        page = 1
+        while True:
+            batch = self.get_availability_statuses(
+                property_id=property_id,
+                date_from=date_from,
+                date_to=date_to,
+                page=page,
+                per_page=per_page,
+            )
+            results.extend(batch)
+            if len(batch) < per_page:
+                break
+            page += 1
+        return results
+
+    @staticmethod
+    def _normalise_availability_status(item: dict) -> dict:
+        """Normalise a raw availability-status record to a flat dict."""
+        raw_status = item.get("status", "available")
+        # status may be an object: {id, name, slug} or a plain string/slug
+        if isinstance(raw_status, dict):
+            status = str(
+                raw_status.get("slug")
+                or raw_status.get("name")
+                or raw_status.get("id")
+                or "available"
+            ).lower()
+        else:
+            status = str(raw_status or "available").lower()
+
+        prop_raw = item.get("property_id") or item.get("property", {})
+        if isinstance(prop_raw, dict):
+            property_id = str(prop_raw.get("id", ""))
+        else:
+            property_id = str(prop_raw or "")
+
+        return {
+            "id":          str(item.get("id", "")),
+            "property_id": property_id,
+            "date":        str(item.get("date", "")),
+            "status":      status,
+            "note":        item.get("note") or item.get("notes") or item.get("description"),
+            "raw":         item,
+        }
+
+    # ── iCal feeds ───────────────────────────────────────────────────────────
+
+    def fetch_property_ical(self, property_id: str | int) -> str:
+        """
+        GET /rest/property-ical/fetch?property_id={id}
+        Returns the raw iCal text for a property.
+        Raises on error.
+        """
+        url = f"{self._base}/rest/property-ical/fetch"
+        try:
+            import httpx as _httpx
+            resp = _httpx.get(
+                url,
+                auth=self._auth,
+                headers={**self._headers, "Accept": "text/calendar, text/plain, */*"},
+                params={"property_id": int(property_id)},
+                timeout=30,
+                follow_redirects=True,
+            )
+            resp.raise_for_status()
+            return resp.text
+        except Exception as exc:
+            logger.error("RentalWise property-ical/fetch %s failed: %s", property_id, exc)
+            raise
+
+    def parse_ical_blocks(self, ical_text: str, property_id: str) -> list[dict]:
+        """
+        Parse a VCALENDAR / VEVENT text into normalised block/stay records.
+        Returns list of dicts with keys: external_id, property_id, dtstart, dtend,
+        summary, status, uid.
+
+        Uses built-in Python only — no icalendar library required.
+        """
+        events: list[dict] = []
+        current: dict | None = None
+        for raw_line in ical_text.splitlines():
+            line = raw_line.strip()
+            if line == "BEGIN:VEVENT":
+                current = {}
+            elif line == "END:VEVENT" and current is not None:
+                uid     = current.get("UID", "")
+                summary = current.get("SUMMARY", "")
+                dtstart = current.get("DTSTART", "")
+                dtend   = current.get("DTEND", "")
+                if dtstart and dtend:
+                    events.append({
+                        "external_id": uid or f"ical-{property_id}-{dtstart}",
+                        "property_id": property_id,
+                        "dtstart":     dtstart[:10],  # keep YYYY-MM-DD portion
+                        "dtend":       dtend[:10],
+                        "summary":     summary,
+                        "status":      "blocked",
+                        "uid":         uid,
+                    })
+                current = None
+            elif current is not None and ":" in line:
+                # Handle param-folded lines: DTSTART;VALUE=DATE:20250601
+                key, _, value = line.partition(":")
+                key = key.split(";")[0]  # strip params
+                current[key] = value
+        return events
+
     # ── Health check ──────────────────────────────────────────────────────────
 
     def ping(self) -> bool:
