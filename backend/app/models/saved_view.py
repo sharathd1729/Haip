@@ -1,10 +1,12 @@
 """
 SavedView — W15: saved inbox filters / K11: saved inquiry filters
 """
-from sqlalchemy import Column, String, Boolean, Text, ForeignKey
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Column, String, Boolean, Text, ForeignKey, JSON
 from app.core.database import Base
 from app.models.base import TimestampMixin, gen_uuid
+
+# Use generic JSON instead of postgresql.JSONB so the model works with SQLite
+# in test environments. PostgreSQL stores JSON columns efficiently regardless.
 
 
 class SavedView(Base, TimestampMixin):
@@ -15,6 +17,6 @@ class SavedView(Base, TimestampMixin):
     user_id    = Column(String, ForeignKey("users.id"), nullable=True)  # None = tenant-shared
     name       = Column(String(100), nullable=False)
     scope      = Column(String(20), nullable=False)   # "inbox" | "inquiries"
-    filter_json = Column(JSONB, default=dict)
+    filter_json = Column(JSON, default=dict)
     sort        = Column(String(50), nullable=True)
     is_shared   = Column(Boolean, default=False)      # tenant-wide vs personal
