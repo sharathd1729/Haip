@@ -123,27 +123,32 @@ def get_calendar(
             )
             .all()
         )
-        # Best-effort guest-name enrichment — failure MUST NOT break calendar response
+        # Best-effort guest enrichment (name + phone) — failure MUST NOT break response
         guest_names: dict[str, str] = {}
+        guest_phones: dict[str, str] = {}
         try:
             from app.models.guest import Guest as _Guest  # lazy import avoids mapper startup issues
             guest_ids = list({str(s.guest_id) for s in stays_raw if s.guest_id})
             if guest_ids:
                 guests_q = db.query(_Guest).filter(_Guest.id.in_(guest_ids)).all()
-                guest_names = {str(g.id): (g.name or "") for g in guests_q}
+                guest_names  = {str(g.id): (g.name or "")  for g in guests_q}
+                guest_phones = {str(g.id): (g.phone or "") for g in guests_q}
         except Exception:
             pass
 
         stays = [
             {
-                "id": str(s.id),
-                "check_in": s.check_in,
-                "check_out": s.check_out,
-                "status": s.status,
-                "guest_id": str(s.guest_id) if s.guest_id else None,
-                "guest_name": guest_names.get(str(s.guest_id), "") if s.guest_id else "",
+                "id":           str(s.id),
+                "external_id":  (getattr(s, "hostaway_booking_id", None) or
+                                 f"BK-{str(s.id)[:8].upper()}"),
+                "check_in":     s.check_in,
+                "check_out":    s.check_out,
+                "status":       s.status,
+                "guest_id":     str(s.guest_id) if s.guest_id else None,
+                "guest_name":   guest_names.get(str(s.guest_id), "")  if s.guest_id else "",
+                "guest_phone":  guest_phones.get(str(s.guest_id), "") if s.guest_id else "",
                 # getattr guards for columns that may not exist in older DB schemas
-                "adults": getattr(s, "adults", None) or 1,
+                "adults":       getattr(s, "adults", None) or 1,
                 "total_amount": float(s.total_amount) if s.total_amount else None,
                 "channel_source": getattr(s, "channel_source", None) or "direct",
             }
@@ -188,22 +193,93 @@ def get_calendar(
             elif s.status == "quoted" and s.total_amount:
                 revenue_quoted += s.total_amount
 
+        # Property thumbnail (first photo)
+        image_url: Optional[str] = None
+        try:
+            photos = prop.photos or []
+            if photos and isinstance(photos, list):
+                first = photos[0]
+                image_url = first if isinstance(first, str) else (
+                    first.get("url") or first.get("large") or first.get("original")
+                )
+        except Exception:
+            pass
+
+        # Nightly rates from SeasonalRate → RatePlan fallback
+        rates: dict[str, float] = {}
+        try:
+            base_rate: Optional[float] = None
+            base_plan = (
+                db.query(RatePlan)
+                .filter_by(property_id=prop.id, is_active=True)
+                .order_by(RatePlan.base_price_per_night)
+                .first()
+            )
+            if base_plan:
+                base_rate = float(base_plan.base_price_per_night)
+
+            seasonal = (
+                db.query(SeasonalRate)
+                .filter(
+                    SeasonalRate.property_id == prop.id,
+                    SeasonalRate.is_active == True,
+                    SeasonalRate.date_to >= from_date,
+                    SeasonalRate.date_from <= to_date,
+                )
+                .order_by(SeasonalRate.priority.desc(), SeasonalRate.date_from)
+                .all()
+            )
+            for day in days:
+                matched: Optional[float] = None
+                for sr in seasonal:
+                    if sr.date_from <= day <= sr.date_to:
+                        matched = float(sr.price_per_night)
+                        break
+                rate_val = matched if matched is not None else base_rate
+                if rate_val:
+                    rates[day] = rate_val
+        except Exception:
+            pass
+
+        # Monthly revenue for this property in the window
+        monthly_revenue = sum(
+            float(s.total_amount)
+            for s in stays_raw
+            if s.status in ("confirmed", "checked_in") and s.total_amount
+        )
+
         rows.append({
-            "property_id":   str(prop.id),
-            "property_name": prop.name,
-            "property_type": prop.type or "villa",
-            "bedrooms":      prop.bedrooms or 0,
-            "max_adults":    prop.max_adults or 2,
-            "channel_source": prop.channel_source,
-            "cells":         cells,
-            "stays":         stays,
-            "blocks":        blocks,
+            "property_id":      str(prop.id),
+            "property_name":    prop.name,
+            "property_type":    prop.type or "villa",
+            "bedrooms":         prop.bedrooms or 0,
+            "max_adults":       prop.max_adults or 2,
+            "image_url":        image_url,
+            "channel_source":   prop.channel_source,
+            "cells":            cells,
+            "stays":            stays,
+            "blocks":           blocks,
+            "rates":            rates,
+            "monthly_revenue":  monthly_revenue,
         })
 
     # Occupancy %
     occupancy_pct = (
         round(total_confirmed_nights / total_possible_nights * 100, 1)
         if total_possible_nights > 0 else 0
+    )
+
+    # Today's check-in / check-out counts (across all properties in window)
+    today_str = date.today().isoformat()
+    check_ins_today  = sum(1 for r in rows for s in r["stays"] if s["check_in"]  == today_str)
+    check_outs_today = sum(1 for r in rows for s in r["stays"] if s["check_out"] == today_str)
+    vacant_today     = sum(
+        1 for r in rows
+        if not any(
+            s["check_in"] <= today_str < s["check_out"]
+            and s["status"] in ("confirmed", "checked_in")
+            for s in r["stays"]
+        )
     )
 
     # Simple AI suggestions based on data patterns
@@ -215,11 +291,14 @@ def get_calendar(
         "days":           days,
         "properties":     rows,
         "stats": {
-            "occupancy_pct":    occupancy_pct,
-            "revenue_locked":   float(revenue_locked),
-            "revenue_quoted":   float(revenue_quoted),
-            "total_properties": len(rows),
-            "window_days":      total_days,
+            "occupancy_pct":      occupancy_pct,
+            "revenue_locked":     float(revenue_locked),
+            "revenue_quoted":     float(revenue_quoted),
+            "total_properties":   len(rows),
+            "window_days":        total_days,
+            "check_ins_today":    check_ins_today,
+            "check_outs_today":   check_outs_today,
+            "vacant_today":       vacant_today,
         },
         "suggestions": suggestions,
     }
