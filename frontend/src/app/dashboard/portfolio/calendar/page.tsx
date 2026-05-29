@@ -177,7 +177,7 @@ const fmtRate = (r?: number) =>
 // ── Custom hook: virtual rows ─────────────────────────────────────────────────
 
 function useVirtualRows(
-  scrollRef: React.RefObject<HTMLDivElement>,
+  scrollRef: React.RefObject<HTMLDivElement | null>,
   totalRows: number,
   rowH: number,
   overscan = 4,
@@ -718,7 +718,7 @@ const PropertyCalendarRow = memo(function PropertyCalendarRow({
 const CalendarHeader = memo(function CalendarHeader({
   days, headerRef, mode,
 }: {
-  days: string[]; headerRef: React.RefObject<HTMLDivElement>; mode: CalendarMode;
+  days: string[]; headerRef: React.RefObject<HTMLDivElement | null>; mode: CalendarMode;
 }) {
   const monthGroups = useMemo(() => {
     const groups: { label: string; count: number }[] = [];
