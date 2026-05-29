@@ -101,8 +101,10 @@ CLASSIFY_TOOL = {
 def classify(self, call_id: str, tenant_id: str):
     from app.workers.tasks.judge import judge
 
+    from app.core.database import set_tenant_context
     db = SessionLocal()
     try:
+        set_tenant_context(db, tenant_id)
         call = db.query(Call).filter_by(id=call_id, tenant_id=tenant_id).first()
         transcript = db.query(Transcript).filter_by(call_id=call_id, tenant_id=tenant_id).first()
 

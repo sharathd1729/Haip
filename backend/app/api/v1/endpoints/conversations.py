@@ -63,7 +63,8 @@ def get_messages(
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
     return (
-        db.query(Message).filter_by(conversation_id=conversation_id)
+        db.query(Message)
+        .filter_by(conversation_id=conversation_id, tenant_id=current_user.tenant_id)
         .order_by(Message.created_at.asc())
         .limit(limit).all()
     )

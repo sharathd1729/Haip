@@ -46,6 +46,7 @@ def process_whatsapp_message(self, payload: dict):
 
 def _process_value(value: dict):
     """Process a single WhatsApp webhook value object."""
+    from app.core.database import set_tenant_context
     db = SessionLocal()
     try:
         phone_number_id = value.get("metadata", {}).get("phone_number_id", "")
@@ -78,6 +79,9 @@ def _process_value(value: dict):
         if not tenant:
             log.warning("tenant_not_found_for_wa_number", phone_number_id=phone_number_id)
             return
+
+        # Set RLS context so all subsequent queries are scoped to this tenant
+        set_tenant_context(db, str(tenant.id))
 
         messages = value.get("messages", [])
         for msg in messages:

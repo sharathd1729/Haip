@@ -37,8 +37,10 @@ DEFAULT_RUBRIC = {
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=30, name="ai_scoring.score_call")
 def score_call(self, call_id: str, tenant_id: str):
     """Score call transcript using Claude Haiku (escalate to Sonnet if needed)."""
+    from app.core.database import set_tenant_context
     db: Session = SessionLocal()
     try:
+        set_tenant_context(db, tenant_id)
         call = db.query(Call).filter_by(id=call_id, tenant_id=tenant_id).first()
         if not call:
             log.error("call_not_found", call_id=call_id)

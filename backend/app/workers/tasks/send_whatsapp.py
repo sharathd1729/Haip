@@ -19,8 +19,10 @@ log = structlog.get_logger()
 
 @celery_app.task(bind=True, max_retries=5, default_retry_delay=30, name="tasks.send_whatsapp")
 def send_whatsapp(self, message_id: str, tenant_id: str):
+    from app.core.database import set_tenant_context
     db = SessionLocal()
     try:
+        set_tenant_context(db, tenant_id)
         message = db.query(Message).filter_by(id=message_id, tenant_id=tenant_id).first()
         if not message:
             log.error("send_whatsapp_message_not_found", message_id=message_id)

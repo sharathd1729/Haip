@@ -37,6 +37,7 @@ def process_instagram_dm(self, payload: dict) -> dict:
       attachments    — list of attachment objects
       timestamp      — Unix ms timestamp
     """
+    from app.core.database import set_tenant_context
     db: Session = SessionLocal()
     try:
         ig_account_id = payload.get("ig_account_id", "")
@@ -57,6 +58,7 @@ def process_instagram_dm(self, payload: dict) -> dict:
             return {"status": "skipped", "reason": "no integration"}
 
         tenant_id = integration.tenant_id
+        set_tenant_context(db, tenant_id)
 
         # ── Dedup by message_id ────────────────────────────────────────────
         if mid:

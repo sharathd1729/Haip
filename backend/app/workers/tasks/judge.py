@@ -89,8 +89,10 @@ DEFAULT_RUBRIC_CRITERIA = [
 def judge(self, call_id: str, tenant_id: str, classification: dict = None):
     from app.workers.tasks.wrap_up import wrap_up
 
+    from app.core.database import set_tenant_context
     db = SessionLocal()
     try:
+        set_tenant_context(db, tenant_id)
         call = db.query(Call).filter_by(id=call_id, tenant_id=tenant_id).first()
         transcript = db.query(Transcript).filter_by(call_id=call_id, tenant_id=tenant_id).first()
         if not call or not transcript:

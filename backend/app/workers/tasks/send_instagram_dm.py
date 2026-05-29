@@ -22,8 +22,10 @@ logger = logging.getLogger(__name__)
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60, name="send_instagram_dm")
 def send_instagram_dm(self, message_id: str, tenant_id: str) -> dict:
+    from app.core.database import set_tenant_context
     db: Session = SessionLocal()
     try:
+        set_tenant_context(db, tenant_id)
         message = db.query(Message).filter_by(id=message_id, tenant_id=tenant_id).first()
         if not message:
             return {"status": "error", "reason": "message not found"}

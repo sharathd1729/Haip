@@ -56,8 +56,10 @@ DISPOSITION_MAP = {
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=15, name="tasks.wrap_up")
 def wrap_up(self, call_id: str, tenant_id: str, classification: dict = None, judge_result: dict = None):
+    from app.core.database import set_tenant_context
     db = SessionLocal()
     try:
+        set_tenant_context(db, tenant_id)
         call = db.query(Call).filter_by(id=call_id, tenant_id=tenant_id).first()
         if not call:
             return

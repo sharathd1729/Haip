@@ -63,19 +63,20 @@ def _calls_week_series(db: Session, tid: str, start: datetime, end: datetime,
 
 def _p95_seconds(db: Session, tid: str, start: datetime, end: datetime,
                   property_ids: Optional[List[str]] = None) -> float:
-    """Approximate p95 response time (seconds) from call duration or fallback 0."""
-    q = db.query(Call.duration_seconds).filter(
+    """p95 response time (seconds) — computed in Postgres to avoid OOM on large datasets."""
+    q = db.query(
+        func.percentile_cont(0.95).within_group(
+            cast(Call.duration_seconds, Float).asc()
+        )
+    ).filter(
         Call.tenant_id == tid,
         Call.started_at >= start,
         Call.duration_seconds.isnot(None),
     )
     if property_ids:
         q = q.filter(Call.property_id.in_(property_ids))
-    vals = sorted([r[0] for r in q.all()])
-    if not vals:
-        return 0.0
-    idx = max(0, int(len(vals) * 0.95) - 1)
-    return float(vals[idx])
+    result = q.scalar()
+    return float(result) if result is not None else 0.0
 
 
 def _revenue_at_risk(db: Session, tid: str) -> Optional[float]:
@@ -379,10 +380,16 @@ def lost_reason_inquiries(
     total = q.count()
     rows = q.order_by(Inquiry.created_at.desc()).offset(offset).limit(per_page).all()
 
+    # Batch-load guests and properties to avoid N+1 queries
+    guest_ids = [inq.guest_id for inq in rows if inq.guest_id]
+    prop_ids_batch = [inq.property_id for inq in rows if inq.property_id]
+    guests_map = {str(g.id): g for g in db.query(Guest).filter(Guest.id.in_(guest_ids)).all()} if guest_ids else {}
+    props_map = {str(p.id): p for p in db.query(Property).filter(Property.id.in_(prop_ids_batch)).all()} if prop_ids_batch else {}
+
     items = []
     for inq in rows:
-        guest = db.query(Guest).filter_by(id=inq.guest_id).first() if inq.guest_id else None
-        prop = db.query(Property).filter_by(id=inq.property_id).first() if inq.property_id else None
+        guest = guests_map.get(str(inq.guest_id)) if inq.guest_id else None
+        prop = props_map.get(str(inq.property_id)) if inq.property_id else None
         items.append(LostInquiryRow(
             id=inq.id,
             guest_name=guest.name if guest else None,

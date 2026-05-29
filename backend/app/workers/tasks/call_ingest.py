@@ -37,8 +37,10 @@ def ingest_call(self, payload: dict, tenant_id: str, ivr_provider: str):
         adapter = get_ivr_adapter(ivr_provider)
         normalized = adapter.parse_call_webhook(payload)
 
+        from app.core.database import set_tenant_context
         db: Session = SessionLocal()
         try:
+            set_tenant_context(db, tenant_id)
             # Idempotency check
             existing = db.query(Call).filter_by(
                 ivr_call_id=normalized.ivr_call_id,

@@ -25,7 +25,10 @@ def _run_async(coro):
     finally:
         loop.close()
 from app.services.concierge_service import build_concierge_context, _kb_search
+from app.core.database import set_tenant_context
 import structlog
+
+MODEL_HAIKU = "claude-haiku-4-5"
 
 log = structlog.get_logger()
 
@@ -57,6 +60,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str)
 
     db = SessionLocal()
     try:
+        set_tenant_context(db, tenant_id)
         conversation = db.query(Conversation).filter_by(id=conversation_id, tenant_id=tenant_id).first()
         if not conversation:
             log.error("concierge_draft_conversation_not_found", conversation_id=conversation_id)
