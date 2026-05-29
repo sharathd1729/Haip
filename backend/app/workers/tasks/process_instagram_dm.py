@@ -67,13 +67,14 @@ def process_instagram_dm(self, payload: dict) -> dict:
                 return {"status": "duplicate", "message_id": mid}
 
         # ── Upsert guest by instagram_id (stored in preferences) ──────────
-        # Look for an existing guest with this Instagram sender_id
-        guest = None
-        all_guests = db.query(Guest).filter_by(tenant_id=tenant_id, is_deleted=False).all()
-        for g in all_guests:
-            if (g.preferences or {}).get("instagram_id") == sender_id:
-                guest = g
-                break
+        # Use a JSONB containment query instead of loading all guests (N+1 fix)
+        from sqlalchemy import cast
+        from sqlalchemy.dialects.postgresql import JSONB
+        guest = db.query(Guest).filter(
+            Guest.tenant_id == tenant_id,
+            Guest.is_deleted == False,
+            Guest.preferences.op("@>")(cast({"instagram_id": sender_id}, JSONB)),
+        ).first()
 
         if not guest:
             # Try to fetch name from Instagram Graph API

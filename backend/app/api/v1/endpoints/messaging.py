@@ -9,7 +9,7 @@ import uuid
 import os
 import httpx
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import Column, String, Boolean, JSON, Enum as SAEnum
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -206,10 +206,17 @@ class FlowSaveRequest(BaseModel):
 
 @router.get("/templates", response_model=List[TemplateOut])
 def list_templates(
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return db.query(WATemplate).filter_by(tenant_id=current_user.tenant_id).order_by(WATemplate.created_at.desc()).all()
+    return (
+        db.query(WATemplate)
+        .filter_by(tenant_id=current_user.tenant_id)
+        .order_by(WATemplate.created_at.desc())
+        .offset(offset).limit(limit).all()
+    )
 
 
 @router.post("/templates", response_model=TemplateOut, status_code=status.HTTP_201_CREATED)
@@ -331,10 +338,17 @@ def delete_template(
 
 @router.get("/campaigns", response_model=List[CampaignOut])
 def list_campaigns(
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return db.query(WACampaign).filter_by(tenant_id=current_user.tenant_id).order_by(WACampaign.created_at.desc()).all()
+    return (
+        db.query(WACampaign)
+        .filter_by(tenant_id=current_user.tenant_id)
+        .order_by(WACampaign.created_at.desc())
+        .offset(offset).limit(limit).all()
+    )
 
 
 @router.post("/campaigns", response_model=CampaignOut, status_code=status.HTTP_201_CREATED)
@@ -398,13 +412,21 @@ def launch_campaign(
 @router.get("/subscribers", response_model=List[SubscriberOut])
 def list_subscribers(
     opted_in: Optional[bool] = None,
+    search: Optional[str] = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     q = db.query(WASubscriber).filter_by(tenant_id=current_user.tenant_id)
     if opted_in is not None:
         q = q.filter_by(opted_in=opted_in)
-    return q.order_by(WASubscriber.created_at.desc()).all()
+    if search:
+        q = q.filter(
+            (WASubscriber.phone.ilike(f"%{search}%")) |
+            (WASubscriber.name.ilike(f"%{search}%"))
+        )
+    return q.order_by(WASubscriber.created_at.desc()).offset(offset).limit(limit).all()
 
 
 @router.post("/subscribers", response_model=SubscriberOut, status_code=status.HTTP_201_CREATED)
@@ -480,10 +502,17 @@ def opt_in(
 
 @router.get("/flows", response_model=List[FlowOut])
 def list_flows(
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return db.query(WAFlow).filter_by(tenant_id=current_user.tenant_id).order_by(WAFlow.created_at.desc()).all()
+    return (
+        db.query(WAFlow)
+        .filter_by(tenant_id=current_user.tenant_id)
+        .order_by(WAFlow.created_at.desc())
+        .offset(offset).limit(limit).all()
+    )
 
 
 @router.post("/flows", response_model=FlowOut, status_code=status.HTTP_201_CREATED)

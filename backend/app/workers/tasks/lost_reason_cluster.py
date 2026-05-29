@@ -58,6 +58,9 @@ def lost_reason_cluster_full(self, tenant_id: str):
 
 
 def _process_tenant_incremental(db, tenant: Tenant, now: datetime, force_full: bool = False):
+    # Set RLS context before touching any tenant-scoped tables
+    from app.core.database import set_tenant_context
+    set_tenant_context(db, str(tenant.id))
     config = tenant.brand_config or {}
     cluster_state = config.get("cluster_state") or {}
 

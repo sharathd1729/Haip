@@ -47,10 +47,17 @@ def update_me(
 
 @router.get("", response_model=List[UserOut])
 def list_users(
+    limit: int = 200,
     current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
     db: Session = Depends(get_db),
 ):
-    return db.query(User).filter_by(tenant_id=current_user.tenant_id, is_deleted=False).all()
+    return (
+        db.query(User)
+        .filter_by(tenant_id=current_user.tenant_id, is_deleted=False)
+        .order_by(User.name)
+        .limit(min(limit, 200))
+        .all()
+    )
 
 
 @router.post("", response_model=UserOut, status_code=status.HTTP_201_CREATED)

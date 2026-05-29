@@ -10,7 +10,7 @@ from app.core.security import (
 )
 from app.models.user import User, RefreshToken, UserInvitation, UserRole
 from app.models.tenant import Tenant
-import uuid, hashlib, secrets, random
+import uuid, hashlib, secrets
 from datetime import datetime, timezone, timedelta
 import structlog
 
@@ -404,7 +404,7 @@ def otp_send(req: OtpSendRequest, db: Session = Depends(get_db)):
         )
 
     # Generate and store OTP
-    code = f"{random.randint(100000, 999999)}"
+    code = f"{secrets.randbelow(900000) + 100000}"
     code_hash = hashlib.sha256(code.encode()).hexdigest()
     otp_key = f"otp:code:{phone}"
 

@@ -18,10 +18,17 @@ router = APIRouter(prefix="/properties", tags=["properties"])
 
 @router.get("", response_model=List[PropertyOut])
 def list_properties(
+    limit: int = 500,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return db.query(Property).filter_by(tenant_id=current_user.tenant_id, is_active=True).all()
+    return (
+        db.query(Property)
+        .filter_by(tenant_id=current_user.tenant_id, is_active=True)
+        .order_by(Property.name)
+        .limit(min(limit, 500))
+        .all()
+    )
 
 
 @router.post("", response_model=PropertyOut, status_code=status.HTTP_201_CREATED)

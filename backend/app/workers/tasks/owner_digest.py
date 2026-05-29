@@ -38,8 +38,10 @@ def send_owner_digest(self, tenant_id: str):
     from app.models.conversation import Message
     from sqlalchemy import func
 
+    from app.core.database import set_tenant_context
     db = SessionLocal()
     try:
+        set_tenant_context(db, tenant_id)
         tenant = db.query(Tenant).filter_by(id=tenant_id).first()
         if not tenant:
             return

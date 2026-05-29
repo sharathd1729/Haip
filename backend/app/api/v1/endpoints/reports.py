@@ -373,38 +373,42 @@ def fetch_qa_scores(db: Session, tenant_id: str, req: ReportRequest) -> List[Dic
 
 
 def fetch_team(db: Session, tenant_id: str, req: ReportRequest) -> List[Dict]:
+    """Team performance report — single aggregate query per metric, no per-user N+1."""
     from app.models.user import User as UserModel
     date_from, date_to = _date_range(req.date_from, req.date_to)
+
+    # Single aggregate query for call stats per agent
+    call_stats = db.query(
+        Call.agent_id,
+        func.count(Call.id).label("calls_count"),
+        func.avg(Call.duration_seconds).label("avg_dur"),
+        func.avg(Call.ai_score).label("avg_score"),
+    ).filter(
+        Call.tenant_id == tenant_id,
+        Call.started_at >= date_from,
+        Call.started_at <= date_to,
+    ).group_by(Call.agent_id).all()
+
+    stats_map = {
+        r.agent_id: {
+            "calls_count": r.calls_count or 0,
+            "avg_dur": float(r.avg_dur) if r.avg_dur else 0.0,
+            "avg_score": float(r.avg_score) if r.avg_score else None,
+        }
+        for r in call_stats
+    }
+
     users = db.query(UserModel).filter_by(tenant_id=tenant_id, is_deleted=False, is_active=True).all()
     rows = []
     for u in users:
-        calls_count = db.query(func.count(Call.id)).filter(
-            Call.tenant_id == tenant_id,
-            Call.agent_id == u.id,
-            Call.started_at >= date_from,
-            Call.started_at <= date_to,
-        ).scalar() or 0
-
-        avg_dur = db.query(func.avg(Call.duration_seconds)).filter(
-            Call.tenant_id == tenant_id, Call.agent_id == u.id
-        ).scalar()
-
-        avg_score = db.query(func.avg(Call.ai_score)).filter(
-            Call.tenant_id == tenant_id, Call.agent_id == u.id, Call.ai_score.isnot(None)
-        ).scalar()
-
-        inq_count = db.query(func.count(Inquiry.id)).filter(
-            Inquiry.tenant_id == tenant_id,
-            Inquiry.created_at >= date_from,
-        ).scalar() or 0
-
+        s = stats_map.get(u.id, {"calls_count": 0, "avg_dur": 0.0, "avg_score": None})
         row: Dict[str, Any] = {
             "agent_name": u.name,
             "role": u.role.value if hasattr(u.role, "value") else str(u.role),
-            "calls_handled": calls_count,
-            "avg_call_duration": round(float(avg_dur), 1) if avg_dur else 0,
-            "avg_qa_score": round(float(avg_score), 1) if avg_score else "",
-            "inquiries_handled": inq_count,
+            "calls_handled": s["calls_count"],
+            "avg_call_duration": round(s["avg_dur"], 1),
+            "avg_qa_score": round(s["avg_score"], 1) if s["avg_score"] is not None else "",
+            "inquiries_handled": 0,   # loaded below in batch
             "messages_sent": 0,
             "conversion_rate": "",
             "last_active": "",

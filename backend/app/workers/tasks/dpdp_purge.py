@@ -25,34 +25,51 @@ def dpdp_purge():
       1. Hard-delete soft-deleted guests older than GRACE_DAYS.
       2. Hard-delete revoked refresh tokens older than TOKEN_PURGE_DAYS.
     """
+    from app.core.database import set_tenant_context
+    from app.models.tenant import Tenant
+    from sqlalchemy import text
+
     db = SessionLocal()
     try:
-        stats: dict = {}
-
-        # ── 1. Hard-delete tombstoned guests ─────────────────────────────────
+        stats: dict = {"guests_purged": 0, "tokens_purged": 0}
         guest_cutoff = (datetime.now(timezone.utc) - timedelta(days=GRACE_DAYS)).isoformat()
-        to_purge = (
-            db.query(Guest)
-            .filter(Guest.is_deleted == True)
-            .filter(Guest.deleted_at <= guest_cutoff)
-            .all()
-        )
 
-        for guest in to_purge:
-            _purge_s3(guest.tenant_id, guest.id)
-            append_audit(
-                db,
-                tenant_id=guest.tenant_id,
-                action="dpdp.purge_complete",
-                target_type="guest",
-                target_id=guest.id,
-                payload={"phone_prefix": guest.phone[:8] if guest.phone else None},
+        # ── 1. Hard-delete tombstoned guests (process per-tenant for RLS) ─────
+        # First discover which tenants have guests to purge using a raw query
+        # (bypasses ORM-level RLS, safe because this is a superuser maintenance task
+        # and we immediately validate with per-tenant context below)
+        tenant_rows = db.execute(
+            text(
+                "SELECT DISTINCT tenant_id FROM guests "
+                "WHERE is_deleted = TRUE AND deleted_at <= :cutoff"
+            ),
+            {"cutoff": guest_cutoff},
+        ).fetchall()
+
+        for (tenant_id_val,) in tenant_rows:
+            set_tenant_context(db, str(tenant_id_val))
+            to_purge = (
+                db.query(Guest)
+                .filter(
+                    Guest.is_deleted == True,
+                    Guest.deleted_at <= guest_cutoff,
+                )
+                .all()
             )
-            db.delete(guest)
+            for guest in to_purge:
+                _purge_s3(guest.tenant_id, guest.id)
+                append_audit(
+                    db,
+                    tenant_id=guest.tenant_id,
+                    action="dpdp.purge_complete",
+                    target_type="guest",
+                    target_id=guest.id,
+                    payload={"phone_prefix": guest.phone[:8] if guest.phone else None},
+                )
+                db.delete(guest)
+                stats["guests_purged"] += 1
 
-        stats["guests_purged"] = len(to_purge)
-
-        # ── 2. Hard-delete revoked refresh tokens ─────────────────────────────
+        # ── 2. Hard-delete revoked refresh tokens (not tenant-scoped) ────────
         token_cutoff = datetime.now(timezone.utc) - timedelta(days=TOKEN_PURGE_DAYS)
         deleted_tokens = (
             db.query(RefreshToken)
