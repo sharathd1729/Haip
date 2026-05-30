@@ -100,7 +100,7 @@ export default function CohortsPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
               <XAxis dataKey="cohort" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
               <YAxis tickFormatter={v => `${v}%`} tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} domain={[0, 100]} />
-              <Tooltip formatter={(v: number) => `${v?.toFixed(1)}%`} />
+              <Tooltip formatter={(v: any) => `${Number(v)?.toFixed(1)}%`} />
               <Bar dataKey="returned" radius={[4, 4, 0, 0]} name="Returned %">
                 {retentionChart.map((r, i) => <Cell key={i} fill={r.fill} />)}
               </Bar>

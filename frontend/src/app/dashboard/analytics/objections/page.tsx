@@ -11,7 +11,7 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, AreaChart, Area, Legend,
+  ResponsiveContainer, BarChart, AreaChart, Area, Legend, Cell,
 } from "recharts";
 import { AlertTriangle, DollarSign, Swords, TrendingDown } from "lucide-react";
 import { KpiCard } from "@/components/analytics/KpiCard";

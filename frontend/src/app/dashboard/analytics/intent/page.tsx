@@ -158,7 +158,7 @@ export default function IntentAnalyticsPage() {
                         <Cell key={i} fill={INTENT_CONFIG[b.intent]?.color ?? "#9ca3af"} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(v: number, n: string) => [v, INTENT_CONFIG[n]?.label ?? n]} />
+                    <Tooltip formatter={(v: any, n: any) => [v, INTENT_CONFIG[n]?.label ?? n]} />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="flex-1 space-y-1.5 mt-1">
@@ -235,7 +235,7 @@ export default function IntentAnalyticsPage() {
                   <XAxis type="number" tick={{ fontSize: 10, fill: "#9ca3af" }} tickLine={false} axisLine={false}
                     tickFormatter={v => fmt_inr(v)} />
                   <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} width={100} />
-                  <Tooltip formatter={(v: number) => [fmt_inr(v), "Revenue"]} />
+                  <Tooltip formatter={(v: any) => [fmt_inr(Number(v)), "Revenue"]} />
                   <Bar dataKey="revenue" radius={[0,4,4,0]}>
                     {dist.filter(b => b.revenue > 0).map((b, i) => (
                       <Cell key={i} fill={INTENT_CONFIG[b.intent]?.color ?? "#14b8a6"} />

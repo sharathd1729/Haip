@@ -138,7 +138,7 @@ export default function OccupancyForecastPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} interval={6} />
               <YAxis tickFormatter={v => `${v}%`} tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} domain={[0, 100]} />
-              <Tooltip formatter={(v: number) => `${v?.toFixed(0)}%`} />
+              <Tooltip formatter={(v: any) => `${Number(v)?.toFixed(0)}%`} />
               <ReferenceLine x={today.slice(5)} stroke="#6366f1" strokeDasharray="4 2" label={{ value: "Today", fontSize: 10, fill: "#6366f1" }} />
               <Area type="monotone" dataKey="actual" stroke="#14b8a6" fill="#ccfbf1" strokeWidth={2} name="Actual" connectNulls />
               <Line type="monotone" dataKey="forecast" stroke="#6366f1" strokeWidth={2} strokeDasharray="5 3" dot={false} name="Forecast" connectNulls />

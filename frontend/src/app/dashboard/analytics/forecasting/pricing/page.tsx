@@ -97,7 +97,7 @@ export default function PricingPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
               <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
               <YAxis tickFormatter={v => fmt(v)} tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} width={60} />
-              <Tooltip formatter={(v: number) => fmt(v)} />
+              <Tooltip formatter={(v: any) => fmt(Number(v))} />
               <Bar dataKey="current" fill="#e5e7eb" radius={[4, 4, 0, 0]} name="Current" />
               <Bar dataKey="suggested" radius={[4, 4, 0, 0]} name="Suggested">
                 {chartData.map((r, i) => (

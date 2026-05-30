@@ -95,7 +95,7 @@ export default function RevenueForecastPage() {
             <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
             <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
             <YAxis tickFormatter={v => fmt(v)} tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} width={64} />
-            <Tooltip formatter={(v: number) => fmt(v)} />
+            <Tooltip formatter={(v: any) => fmt(Number(v))} />
             <ReferenceLine x={currentMonth.slice(2)} stroke="#6366f1" strokeDasharray="4 2" />
             <Bar dataKey="actual" fill="#14b8a6" radius={[4, 4, 0, 0]} name="Actual" />
             <Area type="monotone" dataKey="forecast" stroke="#6366f1" fill="#ede9fe" strokeWidth={2}
