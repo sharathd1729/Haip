@@ -105,7 +105,8 @@ class Call(Base, TimestampMixin, TenantMixin):
     is_code_mixed = Column(Boolean, default=False)
 
     # ── Layer 2: Intent & Outcome (Call Analysis) ─────────────────────────────
-    occasion = Column(String(50), nullable=True)          # honeymoon|anniversary|birthday|corporate|family|solo
+    occasion   = Column(String(50),  nullable=True)          # honeymoon|anniversary|birthday|corporate|family|solo
+    intent_tag = Column(String(30),  nullable=True, index=True)  # Phase 3: normalized bucket
     budget_signal = Column(String(100), nullable=True)    # "That's high" / "Okay works" / "Can you do better?"
     decision_stage = Column(String(50), nullable=True)    # first_inquiry|comparing|ready_to_book
     competitor_mentioned = Column(String(255), nullable=True)  # StayVista, Airbnb, etc.
