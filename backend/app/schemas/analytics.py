@@ -100,3 +100,69 @@ class LostInquiryPage(BaseModel):
     page: int
     per_page: int
     items: List[LostInquiryRow] = []
+
+
+# ── Executive Dashboard ───────────────────────────────────────────────────────
+
+class RevenueChartPoint(BaseModel):
+    date: str           # YYYY-MM-DD
+    confirmed: float = 0.0   # revenue from confirmed+checked_in stays
+    quoted: float = 0.0      # revenue from quoted stays/inquiries
+
+
+class FunnelStage(BaseModel):
+    stage: str          # NEW | RESPONDING | QUOTED | SITE_VISIT | BOOKED | LOST | GHOSTED
+    count: int
+    pct: float = 0.0    # % of total inquiries this period
+
+
+class ChannelMixPoint(BaseModel):
+    source: str         # WHATSAPP | WEBSITE | GOOGLE | etc.
+    count: int
+    pct: float = 0.0
+
+
+class OccupancyHeatPoint(BaseModel):
+    property_id: str
+    property_name: str
+    pct: float          # 0–100
+
+
+class ExecutiveDashboardStats(BaseModel):
+    # 6 KPI cards
+    revenue_mtd: float = 0.0
+    revenue_mtd_prev: float = 0.0
+    occupancy_pct: float = 0.0
+    occupancy_prev: float = 0.0
+    active_inquiries: int = 0
+    active_inquiries_prev: int = 0
+    qa_avg_score: float = 0.0
+    qa_prev: float = 0.0
+    sla_compliance_pct: float = 0.0
+    sla_prev: float = 0.0
+    ai_draft_rate_pct: float = 0.0
+    ai_draft_prev: float = 0.0
+    # Chart datasets
+    revenue_chart: List[RevenueChartPoint] = []
+    funnel: List[FunnelStage] = []
+    channel_mix: List[ChannelMixPoint] = []
+    occupancy_heatmap: List[OccupancyHeatPoint] = []
+
+
+# ── Insights Panel ────────────────────────────────────────────────────────────
+
+class InsightItem(BaseModel):
+    id: str
+    category_code: str      # "A1", "B2", etc.
+    category: str           # "urgency" | "occupancy" | "revenue" | "quality"
+    severity: str           # "critical" | "high" | "medium" | "low" | "info"
+    title: str
+    body: Optional[str] = None
+    cta_label: Optional[str] = None
+    cta_href: Optional[str] = None
+    detected_at: str        # ISO datetime
+
+
+class InsightList(BaseModel):
+    items: List[InsightItem] = []
+    total: int = 0

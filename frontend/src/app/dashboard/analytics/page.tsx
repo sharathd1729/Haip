@@ -1,25 +1,31 @@
 "use client";
 
 /**
- * Analytics page — Owner dashboard
+ * /dashboard/analytics — Executive Dashboard
  *
- * A1: KPI card click → MetricDrillDown side panel
- * A2: "Compare to previous period" toggle → delta chips + overlay line
- * A3: Property filter → multi-select, persisted in URL
- * A4: Lost-reason theme click → LostReasonModal
- * A5: Per-chart CSV export button
+ * Phase 1:
+ *  - 6 KPI cards (Revenue MTD, Occupancy, Active Inquiries, QA Score, SLA, AI Draft Rate)
+ *  - Revenue bar chart (confirmed vs quoted, daily)
+ *  - Inquiry funnel chart
+ *  - Channel mix donut
+ *  - Occupancy heatmap (per property)
+ *  - AI Insights Panel (right rail)
+ *
+ * Existing QA/calls analytics are preserved below as a secondary section.
  */
 
-import { useState } from "react";
+import { useState, useMemo, useCallback, memo } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend, ReferenceDot,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Legend, Cell, PieChart, Pie,
+  ReferenceDot, LineChart, Line,
 } from "recharts";
 import {
   TrendingUp, TrendingDown, Minus, Phone, Star, Clock,
   AlertCircle, Download, ChevronDown, ArrowUpRight, ArrowDownRight,
+  DollarSign, Home, Users, ShieldCheck, Bot, Calendar,
 } from "lucide-react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -27,202 +33,122 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { MetricDrillDown } from "@/components/analytics/MetricDrillDown";
 import { LostReasonModal } from "@/components/analytics/LostReasonModal";
+import { AIInsightsPanel } from "@/components/analytics/AIInsightsPanel";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Design tokens ────────────────────────────────────────────────────────────
 
-const TEAL_500 = "#14b8a6";
-const TEAL_200 = "#99f6e4";
-const AMBER_400 = "#fbbf24";
-const RED_400 = "#f87171";
-const GRAY_200 = "#e5e7eb";
+const TEAL    = "#14b8a6";
+const TEAL_D  = "#0f766e";
+const TEAL_L  = "#99f6e4";
+const AMBER   = "#fbbf24";
+const RED     = "#f87171";
+const GRAY    = "#e5e7eb";
+const GRAY_D  = "#9ca3af";
+
+// Channel donut colors
+const CHANNEL_COLORS = [
+  "#14b8a6","#0ea5e9","#f59e0b","#8b5cf6","#ef4444","#10b981","#f97316","#6366f1",
+];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface Objection { text: string; count: number; }
-interface LostTheme { theme: string; count: number; root_cause?: string; }
-interface CallsWeekPoint { date: string; count: number; avg_score: number; }
 interface KPIDelta { pct: number; direction: "up" | "down" | "neutral"; }
 
-// A8: anomaly shape returned by /analytics/anomalies
-interface AnomalyPoint {
-  date: string;
-  count: number;
-  z_score: number;
-  is_anomaly: boolean;
-  direction: "high" | "low" | null;
-  rolling_mean: number;
-  rolling_std: number;
+interface ExecutiveStats {
+  revenue_mtd: number;       revenue_mtd_prev: number;
+  occupancy_pct: number;     occupancy_prev: number;
+  active_inquiries: number;  active_inquiries_prev: number;
+  qa_avg_score: number;      qa_prev: number;
+  sla_compliance_pct: number; sla_prev: number;
+  ai_draft_rate_pct: number; ai_draft_prev: number;
+  revenue_chart: { date: string; confirmed: number; quoted: number }[];
+  funnel: { stage: string; count: number; pct: number }[];
+  channel_mix: { source: string; count: number; pct: number }[];
+  occupancy_heatmap: { property_id: string; property_name: string; pct: number }[];
 }
 
 interface OwnerStats {
-  today_queue: number;
-  calls_today: number;
-  p95_response_time_seconds: number;
-  qa_avg_score: number;
-  calls_week: CallsWeekPoint[];
-  top_objections: Objection[];
-  lost_reason_themes: LostTheme[];
-  occupancy_rate?: number;
-  revenue_at_risk?: number;
+  today_queue: number; calls_today: number;
+  p95_response_time_seconds: number; qa_avg_score: number;
+  calls_week: { date: string; count: number; avg_score: number }[];
+  top_objections: { text: string; count: number }[];
+  lost_reason_themes: { theme: string; count: number; root_cause?: string }[];
+  occupancy_rate?: number; revenue_at_risk?: number;
   deltas?: Record<string, KPIDelta>;
-  calls_week_prev?: CallsWeekPoint[];
+  calls_week_prev?: { date: string; count: number; avg_score: number }[];
 }
+
+interface AnomalyPoint {
+  date: string; count: number; z_score: number;
+  is_anomaly: boolean; direction: "high" | "low" | null;
+  rolling_mean: number; rolling_std: number;
+}
+
+interface Property { id: string; name: string; }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function exportChartCSV(data: CallsWeekPoint[], chartName: string) {
-  const header = `# Chart: ${chartName}\n# Generated: ${new Date().toISOString()}\n`;
-  const cols = "Date,Calls,Avg QA Score\n";
-  const body = data.map(d => `${d.date},${d.count},${d.avg_score}`).join("\n");
-  const blob = new Blob([header + cols + body], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `haip_${chartName.toLowerCase().replace(/ /g, "_")}_${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+function fmt_inr(n: number): string {
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
+  if (n >= 100000)   return `₹${(n / 100000).toFixed(1)}L`;
+  if (n >= 1000)     return `₹${(n / 1000).toFixed(0)}k`;
+  return `₹${n.toFixed(0)}`;
+}
+
+function delta_from(curr: number, prev: number): KPIDelta {
+  if (prev === 0) return { pct: 0, direction: "neutral" };
+  const pct = Math.round((curr - prev) / prev * 100 * 10) / 10;
+  return { pct, direction: pct > 0 ? "up" : pct < 0 ? "down" : "neutral" };
 }
 
 // ─── Delta chip ───────────────────────────────────────────────────────────────
 
-function DeltaChip({ delta, invertColor = false }: { delta: KPIDelta; invertColor?: boolean }) {
-  const isUp = delta.direction === "up";
-  const isDown = delta.direction === "down";
-  // For metrics like response time, "up" is bad, so invert
-  const positive = invertColor ? isDown : isUp;
-  const negative = invertColor ? isUp : isDown;
-
+function DeltaChip({ delta, invert = false }: { delta: KPIDelta; invert?: boolean }) {
+  const positive = invert ? delta.direction === "down" : delta.direction === "up";
+  const negative = invert ? delta.direction === "up"  : delta.direction === "down";
   return (
     <span className={cn(
       "inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full",
       positive ? "bg-teal-100 text-teal-700" :
-      negative ? "bg-red-100 text-red-600" :
-      "bg-gray-100 text-gray-500"
+      negative ? "bg-red-100 text-red-600"   : "bg-gray-100 text-gray-500",
     )}>
-      {isUp ? <ArrowUpRight size={9} /> : isDown ? <ArrowDownRight size={9} /> : <Minus size={8} />}
+      {delta.direction === "up"   ? <ArrowUpRight size={9}   /> :
+       delta.direction === "down" ? <ArrowDownRight size={9} /> : <Minus size={8} />}
       {Math.abs(delta.pct)}%
     </span>
   );
 }
 
-// ─── Anomaly tooltip (A8) ─────────────────────────────────────────────────────
-
-interface AnomalyTooltipProps {
-  active?: boolean;
-  // recharts TooltipPayloadEntry.value is ValueType | undefined — keep loose
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  payload?: readonly any[];
-  label?: string | number;
-  anomalyMap?: Record<string, AnomalyPoint>;
-}
-
-function AnomalyTooltip({ active, payload, label, anomalyMap = {} }: AnomalyTooltipProps) {
-  if (!active || !payload?.length) return null;
-  const labelStr = label != null ? String(label) : undefined;
-  const anomaly = labelStr ? anomalyMap[labelStr] : null;
-  return (
-    <div
-      className="bg-white border border-gray-200 rounded-xl p-3 shadow-md text-xs"
-      style={{ minWidth: 152 }}
-    >
-      <p className="font-semibold text-gray-900 mb-1.5">
-        {labelStr
-          ? new Date(labelStr).toLocaleDateString("en-IN", {
-              weekday: "short",
-              day: "numeric",
-              month: "short",
-            })
-          : labelStr}
-      </p>
-      {payload.map((p, i) => (
-        <p key={i} style={{ color: p.color }} className="mb-0.5">
-          {p.name}:{" "}
-          <span className="font-mono font-bold">{p.value ?? "—"}</span>
-        </p>
-      ))}
-      {anomaly?.is_anomaly && (
-        <div
-          className={cn(
-            "mt-2 pt-2 border-t flex items-center gap-1.5 font-semibold",
-            anomaly.direction === "high"
-              ? "border-red-100 text-red-600"
-              : "border-amber-100 text-amber-600",
-          )}
-        >
-          <AlertCircle size={10} />
-          <span>
-            {anomaly.direction === "high" ? "Unusually high" : "Unusually low"}
-            {" "}
-            ({Math.abs(anomaly.z_score).toFixed(1)}σ)
-          </span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── KPI card ─────────────────────────────────────────────────────────────────
+// ─── KPI Card ─────────────────────────────────────────────────────────────────
 
 interface KPICardProps {
   label: string;
   value: string | number;
   subtext?: string;
-  trend?: "up" | "down" | "neutral";
   icon: React.ReactNode;
   variant?: "default" | "warning" | "danger";
-  metricKey?: string;
   delta?: KPIDelta;
-  invertDeltaColor?: boolean;
+  invertDelta?: boolean;
   onClick?: () => void;
 }
 
-function KPICard({ label, value, subtext, trend, icon, variant = "default", delta, invertDeltaColor, onClick }: KPICardProps) {
-  const TrendIcon =
-    trend === "up" ? TrendingUp :
-    trend === "down" ? TrendingDown :
-    Minus;
-  const trendColor =
-    trend === "up" ? "#14B8A6" :
-    trend === "down" ? "#f87171" :
-    "#94a3b8";
-
-  const iconBg =
-    variant === "warning" ? "rgba(245,158,11,0.12)" :
-    variant === "danger"  ? "rgba(248,113,113,0.12)" :
-    "rgba(20,184,166,0.10)";
-  const iconColor =
-    variant === "warning" ? "#D97706" :
-    variant === "danger"  ? "#ef4444" :
-    "#0F766E";
-
+const KPICard = memo(function KPICard({
+  label, value, subtext, icon, variant = "default", delta, invertDelta, onClick,
+}: KPICardProps) {
+  const iconBg    = variant === "warning" ? "rgba(245,158,11,0.12)"
+                  : variant === "danger"  ? "rgba(248,113,113,0.12)"
+                  : "rgba(20,184,166,0.10)";
+  const iconColor = variant === "warning" ? "#D97706"
+                  : variant === "danger"  ? "#ef4444"
+                  : "#0F766E";
   return (
     <div
-      className="haip-card rounded-2xl p-5 transition-all"
-      style={{
-        border: variant === "warning"
-          ? "1px solid rgba(245,158,11,0.3)"
-          : variant === "danger"
-          ? "1px solid rgba(248,113,113,0.3)"
-          : "1px solid var(--haip-border)",
-        cursor: onClick ? "pointer" : "default",
-      }}
       onClick={onClick}
-      onMouseEnter={e => {
-        if (onClick) {
-          (e.currentTarget as HTMLElement).style.borderColor = "#14B8A6";
-          (e.currentTarget as HTMLElement).style.boxShadow = "0 0 0 1px #14B8A6";
-        }
-      }}
-      onMouseLeave={e => {
-        if (onClick) {
-          (e.currentTarget as HTMLElement).style.borderColor =
-            variant === "warning" ? "rgba(245,158,11,0.3)"
-            : variant === "danger" ? "rgba(248,113,113,0.3)"
-            : "var(--haip-border)";
-          (e.currentTarget as HTMLElement).style.boxShadow = "";
-        }
-      }}
-      title={onClick ? "Click to drill down" : undefined}
+      className={cn(
+        "haip-card rounded-2xl p-5 transition-all",
+        onClick && "cursor-pointer hover:shadow-md",
+      )}
+      style={{ border: "1px solid var(--haip-border)" }}
     >
       <div className="flex items-start justify-between mb-3">
         <div
@@ -231,10 +157,7 @@ function KPICard({ label, value, subtext, trend, icon, variant = "default", delt
         >
           {icon}
         </div>
-        <div className="flex items-center gap-1.5">
-          {delta && <DeltaChip delta={delta} invertColor={invertDeltaColor} />}
-          {trend && <TrendIcon size={16} style={{ color: trendColor }} />}
-        </div>
+        {delta && <DeltaChip delta={delta} invert={invertDelta} />}
       </div>
       <p
         className="text-2xl font-black leading-none"
@@ -243,443 +166,682 @@ function KPICard({ label, value, subtext, trend, icon, variant = "default", delt
         {value}
       </p>
       <p className="text-[12px] mt-1" style={{ color: "var(--haip-fg-muted)" }}>{label}</p>
-      {subtext && <p className="text-[11px] mt-0.5" style={{ color: "rgba(100,116,139,0.6)" }}>{subtext}</p>}
-      {onClick && (
-        <p className="text-[10px] mt-2 font-medium" style={{ color: "#14B8A6" }}>Drill down →</p>
+      {subtext && (
+        <p className="text-[11px] mt-0.5" style={{ color: "rgba(100,116,139,0.55)" }}>{subtext}</p>
       )}
+      {onClick && (
+        <p className="text-[10px] mt-2 font-medium" style={{ color: TEAL }}>Drill down →</p>
+      )}
+    </div>
+  );
+});
+
+// ─── Custom tooltip for Revenue chart ─────────────────────────────────────────
+
+function RevTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-white border border-gray-100 rounded-xl shadow-md p-3 text-xs min-w-[140px]">
+      <p className="font-semibold text-gray-800 mb-1.5">
+        {label ? new Date(label).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : label}
+      </p>
+      {payload.map((p, i) => (
+        <p key={i} style={{ color: p.color }} className="mb-0.5">
+          {p.name}: <span className="font-mono font-bold">{fmt_inr(p.value)}</span>
+        </p>
+      ))}
     </div>
   );
 }
 
-// ─── Property filter dropdown ─────────────────────────────────────────────────
+// ─── Funnel chart (horizontal bars) ──────────────────────────────────────────
 
-interface Property { id: string; name: string; }
+const FUNNEL_COLORS: Record<string, string> = {
+  NEW: "#3b82f6", RESPONDING: "#8b5cf6", QUOTED: "#f59e0b",
+  SITE_VISIT: "#06b6d4", BOOKED: "#10b981", LOST: "#ef4444", GHOSTED: "#9ca3af",
+};
 
-function PropertyFilter({
-  value,
-  onChange,
-}: {
-  value: string[];
-  onChange: (ids: string[]) => void;
-}) {
+function FunnelChart({ data }: { data: { stage: string; count: number; pct: number }[] }) {
+  if (!data.length) return (
+    <div className="h-[200px] flex items-center justify-center text-sm text-gray-400">
+      No inquiry data yet
+    </div>
+  );
+  const max = Math.max(...data.map(d => d.count), 1);
+  return (
+    <div className="space-y-2 mt-2">
+      {data.map(row => (
+        <div key={row.stage} className="flex items-center gap-3">
+          <span className="w-20 text-[11px] font-medium text-gray-500 flex-shrink-0 capitalize">
+            {row.stage.toLowerCase().replace("_", " ")}
+          </span>
+          <div className="flex-1 h-5 rounded-full overflow-hidden" style={{ background: GRAY }}>
+            <div
+              className="h-full rounded-full transition-all duration-500"
+              style={{
+                width: `${(row.count / max) * 100}%`,
+                background: FUNNEL_COLORS[row.stage] ?? TEAL,
+              }}
+            />
+          </div>
+          <span className="w-10 text-right text-[11px] font-mono font-bold text-gray-700">
+            {row.count}
+          </span>
+          <span className="w-10 text-right text-[10px] text-gray-400">
+            {row.pct}%
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Occupancy heatmap ────────────────────────────────────────────────────────
+
+function OccupancyHeatmap({ data }: { data: { property_id: string; property_name: string; pct: number }[] }) {
+  if (!data.length) return (
+    <div className="h-[120px] flex items-center justify-center text-sm text-gray-400">
+      No property data yet
+    </div>
+  );
+  function color(pct: number) {
+    if (pct >= 80) return "bg-teal-500 text-white";
+    if (pct >= 60) return "bg-teal-300 text-teal-900";
+    if (pct >= 40) return "bg-amber-200 text-amber-900";
+    if (pct >= 20) return "bg-orange-200 text-orange-900";
+    return "bg-red-100 text-red-700";
+  }
+  return (
+    <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+      {data.slice(0, 12).map(p => (
+        <div
+          key={p.property_id}
+          className={cn("rounded-xl p-2.5 text-center", color(p.pct))}
+          title={`${p.property_name}: ${p.pct}%`}
+        >
+          <p className="text-[18px] font-black leading-none">{p.pct}%</p>
+          <p className="text-[10px] mt-1 truncate font-medium opacity-80">{p.property_name}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Property filter ──────────────────────────────────────────────────────────
+
+function PropertyFilter({ value, onChange }: { value: string[]; onChange: (ids: string[]) => void }) {
   const [open, setOpen] = useState(false);
   const { data: props = [] } = useQuery<Property[]>({
     queryKey: ["properties-list-analytics"],
     queryFn: () => api.get("/properties").then(r => r.data),
     staleTime: 5 * 60_000,
   });
-
-  const label = value.length === 0
-    ? "All properties"
-    : value.length === 1
-    ? (props.find(p => p.id === value[0])?.name ?? "1 property")
-    : `${value.length} properties`;
-
-  function toggle(id: string) {
-    onChange(value.includes(id) ? value.filter(v => v !== id) : [...value, id]);
-  }
+  const allSelected = value.length === 0;
+  const label = allSelected ? "All properties" : `${value.length} selected`;
 
   return (
     <div className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2 text-sm bg-white border border-gray-200 text-gray-700 px-3 py-2 rounded-xl font-medium hover:border-gray-300 transition-colors"
+        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-medium
+                   border transition-colors"
+        style={{
+          background: "white", borderColor: "var(--haip-border)",
+          color: "var(--haip-fg)",
+        }}
       >
+        <Home size={13} />
         {label}
-        <ChevronDown size={13} className="text-gray-400" />
+        <ChevronDown size={12} className={cn("transition-transform", open && "rotate-180")} />
       </button>
       {open && (
-        <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-full mt-1 z-40 w-52 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
-            <div
+        <div
+          className="absolute right-0 top-full mt-1 z-50 w-56 rounded-xl border
+                     shadow-xl overflow-hidden"
+          style={{ background: "white", borderColor: "var(--haip-border)" }}
+        >
+          <button
+            onClick={() => { onChange([]); setOpen(false); }}
+            className={cn(
+              "w-full text-left px-3 py-2.5 text-[12px] hover:bg-gray-50 transition-colors",
+              allSelected && "text-teal-600 font-semibold",
+            )}
+          >
+            All properties
+          </button>
+          {props.map(p => (
+            <button
+              key={p.id}
+              onClick={() => {
+                onChange(
+                  value.includes(p.id) ? value.filter(id => id !== p.id) : [...value, p.id]
+                );
+              }}
               className={cn(
-                "flex items-center gap-2 px-3 py-2.5 text-sm cursor-pointer hover:bg-gray-50 transition-colors",
-                value.length === 0 && "bg-teal-50 text-teal-700"
+                "w-full text-left px-3 py-2.5 text-[12px] hover:bg-gray-50 transition-colors",
+                value.includes(p.id) && "text-teal-600 font-semibold",
               )}
-              onClick={() => { onChange([]); setOpen(false); }}
             >
-              <span className="flex-1 font-medium">All properties</span>
-              {value.length === 0 && <span className="text-teal-500 text-xs">✓</span>}
-            </div>
-            {props.map(p => (
-              <div
-                key={p.id}
-                className={cn(
-                  "flex items-center gap-2 px-3 py-2.5 text-sm cursor-pointer hover:bg-gray-50 transition-colors",
-                  value.includes(p.id) && "bg-teal-50 text-teal-700"
-                )}
-                onClick={() => toggle(p.id)}
-              >
-                <input
-                  type="checkbox"
-                  checked={value.includes(p.id)}
-                  readOnly
-                  className="w-3.5 h-3.5 accent-teal-500"
-                />
-                <span className="flex-1 truncate">{p.name}</span>
-              </div>
-            ))}
-          </div>
-        </>
+              {p.name}
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── Anomaly tooltip (preserved from existing page) ───────────────────────────
+
+function AnomalyTooltip({ active, payload, label, anomalyMap = {} }: {
+  active?: boolean;
+  payload?: { name: string; value: number; color: string }[];
+  label?: string;
+  anomalyMap?: Record<string, AnomalyPoint>;
+}) {
+  if (!active || !payload?.length) return null;
+  const anomaly = label ? anomalyMap[label] : null;
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl p-3 shadow-md text-xs" style={{ minWidth: 152 }}>
+      <p className="font-semibold text-gray-900 mb-1.5">
+        {label ? new Date(label).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }) : label}
+      </p>
+      {payload.map((p, i) => (
+        <p key={i} style={{ color: p.color }} className="mb-0.5">
+          {p.name}: <span className="font-mono font-bold">{p.value ?? "—"}</span>
+        </p>
+      ))}
+      {anomaly?.is_anomaly && (
+        <div className={cn("mt-2 pt-2 border-t flex items-center gap-1.5 font-semibold",
+          anomaly.direction === "high" ? "border-red-100 text-red-600" : "border-amber-100 text-amber-600",
+        )}>
+          <AlertCircle size={10} />
+          <span>{anomaly.direction === "high" ? "Unusually high" : "Unusually low"} ({Math.abs(anomaly.z_score).toFixed(1)}σ)</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+
+function PageSkeleton() {
+  return (
+    <div className="p-6 space-y-5">
+      <div className="flex justify-between">
+        <Skeleton className="h-7 w-44 rounded-xl" />
+        <div className="flex gap-2">
+          {[1,2,3].map(i => <Skeleton key={i} className="h-9 w-28 rounded-xl" />)}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        {Array.from({length:6}).map((_,i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}
+      </div>
+      <div className="grid grid-cols-12 gap-5">
+        <Skeleton className="col-span-12 lg:col-span-8 h-64 rounded-2xl" />
+        <Skeleton className="col-span-12 lg:col-span-4 h-64 rounded-2xl" />
+      </div>
+      <div className="grid grid-cols-12 gap-5">
+        {[8,4].map((c,i) => <Skeleton key={i} className={`col-span-${c} h-52 rounded-2xl`} />)}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function AnalyticsPage() {
-  const router = useRouter();
-  const pathname = usePathname();
+  const router      = useRouter();
+  const pathname    = usePathname();
   const searchParams = useSearchParams();
 
-  // URL-persisted filter state (A2, A3)
-  const compareTo = searchParams.get("compare_to") ?? "none";
-  const propertyIdsParam = searchParams.get("property_ids") ?? "";
-  const propertyIds = propertyIdsParam ? propertyIdsParam.split(",").filter(Boolean) : [];
-  const rangeDays = searchParams.get("range_days") ?? "7";
+  // ── URL-persisted filters ───────────────────────────────────────────────────
+  const rangeDays  = parseInt(searchParams.get("range_days") ?? "30");
+  const compareTo  = searchParams.get("compare_to") ?? "none";
+  const propFilter = searchParams.get("property_ids") ?? "";
 
-  function setParam(key: string, value: string) {
-    const params = new URLSearchParams(searchParams.toString());
-    if (value === "" || value === "none") params.delete(key);
-    else params.set(key, value);
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-  }
-
-  // A1 drill-down state
+  const [selectedProps, setSelectedProps] = useState<string[]>(
+    propFilter ? propFilter.split(",").filter(Boolean) : []
+  );
   const [drillMetric, setDrillMetric] = useState<{ key: string; label: string } | null>(null);
+  const [lostTheme,   setLostTheme]   = useState<{ theme: string; label: string; count: number } | null>(null);
 
-  // A4 lost-reason modal state
-  const [lostTheme, setLostTheme] = useState<{ theme: string; label: string; count: number } | null>(null);
+  const propIdsParam = selectedProps.join(",") || undefined;
 
-  const queryString = [
-    `range_days=${rangeDays}`,
-    compareTo !== "none" ? `compare_to=${compareTo}` : "",
-    propertyIds.length > 0 ? `property_ids=${propertyIds.join(",")}` : "",
-  ].filter(Boolean).join("&");
+  const updateParams = useCallback((updates: Record<string, string>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    Object.entries(updates).forEach(([k, v]) => v ? params.set(k, v) : params.delete(k));
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [searchParams, pathname, router]);
 
-  const { data: stats, isLoading } = useQuery<OwnerStats>({
-    queryKey: ["analytics", "owner-daily", queryString],
-    queryFn: () => api.get(`/analytics/owner-daily?${queryString}`).then(r => r.data),
-    staleTime: 60_000,
-    refetchInterval: 5 * 60_000,
+  // ── Data fetching ───────────────────────────────────────────────────────────
+
+  const { data: exec, isLoading: execLoading } = useQuery<ExecutiveStats>({
+    queryKey: ["analytics", "executive", rangeDays, propIdsParam],
+    queryFn: () => api.get("/analytics/executive", {
+      params: { range_days: rangeDays, ...(propIdsParam && { property_ids: propIdsParam }) },
+    }).then(r => r.data),
+    staleTime: 5 * 60_000,
+    placeholderData: undefined,
   });
 
-  // A8: anomaly detection data — fetched in parallel, not blocking
-  const { data: anomalies = [] } = useQuery<AnomalyPoint[]>({
-    queryKey: ["analytics", "anomalies", rangeDays, propertyIdsParam],
-    queryFn: () =>
-      api
-        .get(`/analytics/anomalies?range_days=${rangeDays}${propertyIdsParam ? `&property_ids=${propertyIdsParam}` : ""}`)
-        .then(r => r.data),
+  // Legacy owner-daily for the QA/calls section below
+  const { data: ownerStats } = useQuery<OwnerStats>({
+    queryKey: ["analytics", "owner-daily", rangeDays, compareTo, propIdsParam],
+    queryFn: () => api.get("/analytics/owner-daily", {
+      params: { range_days: rangeDays, compare_to: compareTo, ...(propIdsParam && { property_ids: propIdsParam }) },
+    }).then(r => r.data),
     staleTime: 5 * 60_000,
   });
 
-  if (isLoading) return <AnalyticsSkeleton />;
+  const { data: anomalies = [] } = useQuery<AnomalyPoint[]>({
+    queryKey: ["analytics", "anomalies", rangeDays, propIdsParam],
+    queryFn: () => api.get("/analytics/anomalies", { params: { range_days: rangeDays } }).then(r => r.data),
+    staleTime: 5 * 60_000,
+  });
 
-  const s = stats ?? {} as OwnerStats;
-  const p95Mins = Math.round((s.p95_response_time_seconds ?? 0) / 60);
-  const p95Ok = p95Mins <= 3;
+  // ── Derived values ──────────────────────────────────────────────────────────
 
-  // Merge current + previous series for comparison overlay
-  const mergedCalls = (s.calls_week ?? []).map(d => ({
+  const e = exec;
+  const s = ownerStats ?? {} as OwnerStats;
+
+  const revDelta     = e ? delta_from(e.revenue_mtd,        e.revenue_mtd_prev)        : null;
+  const occDelta     = e ? delta_from(e.occupancy_pct,      e.occupancy_prev)          : null;
+  const inqDelta     = e ? delta_from(e.active_inquiries,   e.active_inquiries_prev)   : null;
+  const qaDelta      = e ? delta_from(e.qa_avg_score,       e.qa_prev)                 : null;
+  const slaDelta     = e ? delta_from(e.sla_compliance_pct, e.sla_prev)                : null;
+  const aiDelta      = e ? delta_from(e.ai_draft_rate_pct,  e.ai_draft_prev)           : null;
+
+  const anomalyMap   = useMemo(() => Object.fromEntries(anomalies.map(a => [a.date, a])), [anomalies]);
+  const anomalyDots  = useMemo(() => anomalies.filter(a => a.is_anomaly), [anomalies]);
+
+  const zippedCalls  = useMemo(() => (s.calls_week ?? []).map((d, i) => ({
     ...d,
-    count_prev: s.calls_week_prev?.find(p => {
-      // align by day offset rather than absolute date
-      return true; // simplified — just zip by index
-    })?.count ?? null,
-  }));
-  // Zip by index for overlay
-  const zippedCalls = (s.calls_week ?? []).map((d, i) => ({
-    date: d.date,
-    count: d.count,
-    avg_score: d.avg_score,
     count_prev: s.calls_week_prev?.[i]?.count ?? null,
-  }));
+  })), [s.calls_week, s.calls_week_prev]);
 
-  // A8: build a date → AnomalyPoint lookup for O(1) tooltip + dot access
-  const anomalyMap: Record<string, AnomalyPoint> = Object.fromEntries(
-    anomalies.map(a => [a.date, a]),
-  );
-  const anomalyDots = anomalies.filter(a => a.is_anomaly);
+  if (execLoading) return <PageSkeleton />;
 
   return (
-    <div className="h-full flex flex-col" style={{ background: "var(--haip-surface)" }}>
-      {/* ── Dark page header ─────────────────────────────────────────────── */}
+    <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--haip-surface)" }}>
+
+      {/* ── Top bar ────────────────────────────────────────────────────────── */}
       <div
-        className="flex-shrink-0 px-6 py-5"
-        style={{
-          background: "#FFFFFF",
-          borderBottom: "1px solid #E5E7EB",
-        }}
+        className="flex-shrink-0 px-6 py-4 border-b"
+        style={{ background: "white", borderColor: "var(--haip-border)" }}
       >
-        <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1
-              className="text-[22px] font-bold leading-tight"
+              className="text-[20px] font-bold"
               style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}
             >
-              Analytics
+              Executive Dashboard
             </h1>
-            <p className="text-[13px] mt-0.5" style={{ color: "#6B7280" }}>
+            <p className="text-[12px] mt-0.5 text-gray-400">
               {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
             </p>
           </div>
 
-          {/* Filter controls (A2 + A3) */}
           <div className="flex flex-wrap items-center gap-2">
             {/* Range selector */}
-            <div className="relative">
-              <select
-                value={rangeDays}
-                onChange={e => setParam("range_days", e.target.value)}
-                className="appearance-none text-[13px] px-3 py-2 pr-7 rounded-xl font-medium cursor-pointer focus:outline-none"
-                style={{
-                  background: "#F9FAFB",
-                  border: "1px solid #E5E7EB",
-                  color: "#374151",
-                }}
-              >
-                <option value="7">Last 7 days</option>
-                <option value="14">Last 14 days</option>
-                <option value="30">Last 30 days</option>
-                <option value="90">Last 90 days</option>
-              </select>
-              <ChevronDown size={11} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: "#9CA3AF" }} />
-            </div>
-
-            {/* Property filter (A3) */}
-            <PropertyFilter
-              value={propertyIds}
-              onChange={ids => setParam("property_ids", ids.join(","))}
-            />
-
-            {/* Compare toggle (A2) */}
-            <button
-              onClick={() => setParam("compare_to", compareTo === "none" ? "previous_period" : "none")}
-              className="text-[13px] px-3 py-2 rounded-xl font-semibold border transition-colors"
-              style={
-                compareTo !== "none"
-                  ? { background: "#14B8A6", color: "#fff", border: "1px solid #14B8A6" }
-                  : { background: "#F9FAFB", color: "#374151", border: "1px solid #E5E7EB" }
-              }
-            >
-              {compareTo !== "none" ? "✓ Comparing" : "Compare period"}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Scrollable content ───────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto haip-scrollbar p-6 space-y-6 max-w-7xl mx-auto w-full">
-
-      {/* KPI grid (A1: click to drill, A2: delta chips) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard
-          label="Today's queue"
-          value={s.today_queue ?? 0}
-          subtext="Unanswered inquiries"
-          icon={<Phone size={18} />}
-          variant={(s.today_queue ?? 0) > 10 ? "warning" : "default"}
-          delta={s.deltas?.today_queue}
-          metricKey="today_queue"
-          onClick={() => setDrillMetric({ key: "today_queue", label: "Today's queue" })}
-        />
-        <KPICard
-          label="QA avg score"
-          value={`${Math.round(s.qa_avg_score ?? 0)}`}
-          subtext="This period · out of 100"
-          trend={(s.qa_avg_score ?? 0) >= 75 ? "up" : "down"}
-          icon={<Star size={18} />}
-          variant={(s.qa_avg_score ?? 0) < 60 ? "danger" : "default"}
-          delta={s.deltas?.qa_avg_score}
-          metricKey="qa_avg_score"
-          onClick={() => setDrillMetric({ key: "qa_avg_score", label: "QA avg score" })}
-        />
-        <KPICard
-          label="p95 response time"
-          value={`${p95Mins}m`}
-          subtext="95th percentile · target ≤3m"
-          trend={p95Ok ? "up" : "down"}
-          icon={<Clock size={18} />}
-          variant={!p95Ok ? "warning" : "default"}
-          delta={s.deltas?.p95_response_time_seconds}
-          invertDeltaColor
-          metricKey="p95_response_time_seconds"
-          onClick={() => setDrillMetric({ key: "p95_response_time_seconds", label: "p95 response time" })}
-        />
-        {s.revenue_at_risk != null ? (
-          <KPICard
-            label="Revenue at risk"
-            value={`₹${((s.revenue_at_risk ?? 0) / 1000).toFixed(0)}k`}
-            subtext="From unscored lost calls"
-            icon={<AlertCircle size={18} />}
-            variant={(s.revenue_at_risk ?? 0) > 100000 ? "danger" : "warning"}
-            metricKey="revenue_at_risk"
-            onClick={() => setDrillMetric({ key: "revenue_at_risk", label: "Revenue at risk" })}
-          />
-        ) : (
-          <KPICard
-            label="Occupancy rate"
-            value={s.occupancy_rate != null ? `${Math.round(s.occupancy_rate * 100)}%` : "—"}
-            subtext="This period"
-            trend={s.occupancy_rate != null && s.occupancy_rate >= 0.7 ? "up" : "neutral"}
-            icon={<TrendingUp size={18} />}
-            metricKey="occupancy_rate"
-            onClick={() => setDrillMetric({ key: "occupancy_rate", label: "Occupancy rate" })}
-          />
-        )}
-      </div>
-
-      <div className="grid grid-cols-12 gap-5">
-        {/* Calls chart (A2: comparison overlay, A5: CSV export) */}
-        <div className="col-span-12 lg:col-span-8 haip-card rounded-2xl p-5"
-          style={{ border: "1px solid var(--haip-border)" }}
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <h2 className="text-[13px] font-semibold" style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}>
-                Calls — last {rangeDays} days
-                {compareTo !== "none" && (
-                  <span className="ml-2 text-[11px] font-normal text-gray-400">(vs. previous period)</span>
-                )}
-              </h2>
-              {/* A8: anomaly badge */}
-              {anomalyDots.length > 0 && (
-                <span
-                  title={`${anomalyDots.length} day${anomalyDots.length > 1 ? "s" : ""} with unusual call volume detected`}
-                  className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-500 border border-red-100 cursor-default select-none"
-                >
-                  <AlertCircle size={9} />
-                  {anomalyDots.length} anomal{anomalyDots.length > 1 ? "ies" : "y"}
-                </span>
-              )}
-            </div>
-            {/* A5: CSV export */}
-            {(s.calls_week?.length ?? 0) > 0 && (
+            {([7, 14, 30, 90] as const).map(d => (
               <button
-                onClick={() => exportChartCSV(s.calls_week, "Calls this period")}
-                title="Export CSV"
-                className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 hover:bg-gray-100 px-2 py-1 rounded-lg transition-colors"
-              >
-                <Download size={12} /> CSV
-              </button>
-            )}
-          </div>
-          {(s.calls_week?.length ?? 0) > 0 ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={zippedCalls} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={GRAY_200} />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 11, fill: "#9ca3af" }}
-                  tickLine={false} axisLine={false}
-                  tickFormatter={d => new Date(d).toLocaleDateString("en-IN", { weekday: "short" })}
-                />
-                <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} tickLine={false} axisLine={false} />
-                {/* A8: custom tooltip shows anomaly info on hover */}
-                <Tooltip
-                  content={(props) => (
-                    <AnomalyTooltip
-                      {...props}
-                      anomalyMap={anomalyMap}
-                    />
-                  )}
-                />
-                <Bar dataKey="count" name="Calls" fill={TEAL_500} radius={[6, 6, 0, 0]} />
-                {compareTo !== "none" && (
-                  <Bar dataKey="count_prev" name="Prev. period" fill={TEAL_200} radius={[6, 6, 0, 0]} opacity={0.6} />
+                key={d}
+                onClick={() => updateParams({ range_days: String(d) })}
+                className={cn(
+                  "px-3 py-1.5 rounded-xl text-[12px] font-medium border transition-colors",
+                  rangeDays === d
+                    ? "bg-teal-600 text-white border-teal-600"
+                    : "bg-white text-gray-600 border-gray-200 hover:border-teal-300",
                 )}
-                {compareTo !== "none" && <Legend wrapperStyle={{ fontSize: "11px" }} />}
-                {/* A8: anomaly marker dots — pulsing red (high) or amber (low) */}
-                {anomalyDots.map((a) => (
-                  <ReferenceDot
-                    key={a.date}
-                    x={a.date}
-                    y={a.count}
-                    r={6}
-                    fill={a.direction === "high" ? RED_400 : AMBER_400}
-                    stroke="white"
-                    strokeWidth={2}
-                    label={{
-                      value: a.direction === "high" ? "▲" : "▼",
-                      position: a.direction === "high" ? "top" : "bottom" as const,
-                      fontSize: 9,
-                      fill: a.direction === "high" ? RED_400 : AMBER_400,
-                    }}
-                  />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-[220px] flex items-center justify-center text-sm text-gray-400">No data yet</div>
-          )}
-        </div>
-
-        {/* Top objections */}
-        <div className="col-span-12 lg:col-span-4 haip-card rounded-2xl p-5"
-          style={{ border: "1px solid var(--haip-border)" }}>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[13px] font-semibold" style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}>Top objections</h2>
-          </div>
-          {(s.top_objections?.length ?? 0) > 0 ? (
-            <div className="space-y-2.5">
-              {s.top_objections.slice(0, 5).map((obj, i) => {
-                const maxCount = s.top_objections[0].count;
-                const pct = (obj.count / maxCount) * 100;
-                return (
-                  <div key={i}>
-                    <div className="flex justify-between text-[12px] mb-1">
-                      <span className="truncate" style={{ color: "var(--haip-fg)" }}>{obj.text}</span>
-                      <span className="font-mono ml-2" style={{ color: "var(--haip-fg-muted)" }}>{obj.count}</span>
-                    </div>
-                    <div className="h-1.5 rounded-full" style={{ background: "var(--haip-border)" }}>
-                      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "#F59E0B" }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="text-[12px] py-6 text-center" style={{ color: "var(--haip-fg-muted)" }}>No objection data yet</p>
-          )}
-        </div>
-      </div>
-
-      {/* Lost reason themes (A4: clickable) */}
-      {(s.lost_reason_themes?.length ?? 0) > 0 && (
-        <div className="haip-card rounded-2xl p-5" style={{ border: "1px solid var(--haip-border)" }}>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[13px] font-semibold" style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}>Lost inquiry themes</h2>
-            <p className="text-[11px]" style={{ color: "var(--haip-fg-muted)" }}>Click a theme to see inquiries</p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {s.lost_reason_themes.map((t, i) => (
-              <button
-                key={i}
-                onClick={() => setLostTheme({ theme: t.theme, label: t.theme.replace(/_/g, " "), count: t.count })}
-                className="bg-red-50 border border-red-100 rounded-xl p-4 text-left hover:bg-red-100/60 hover:border-red-200 transition-colors group"
               >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-semibold text-red-800 capitalize">
-                    {t.theme.replace(/_/g, " ")}
-                  </span>
-                  <Badge variant="destructive" className="text-[10px]">{t.count}</Badge>
-                </div>
-                {t.root_cause && (
-                  <p className="text-xs text-red-600">{t.root_cause}</p>
-                )}
-                <p className="text-[10px] text-red-400 mt-2 group-hover:text-red-600 transition-colors font-medium">
-                  View inquiries →
-                </p>
+                {d}d
               </button>
             ))}
+            <PropertyFilter value={selectedProps} onChange={ids => {
+              setSelectedProps(ids);
+              updateParams({ property_ids: ids.join(",") });
+            }} />
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Drill-down panel (A1) */}
+      {/* ── Scrollable content ─────────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto haip-scrollbar px-6 py-5 space-y-5">
+
+        {/* ── 6 KPI cards ──────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
+          <KPICard
+            label="Revenue MTD"
+            value={e ? fmt_inr(e.revenue_mtd) : "—"}
+            subtext={e ? `Prev: ${fmt_inr(e.revenue_mtd_prev)}` : undefined}
+            icon={<DollarSign size={18} />}
+            delta={revDelta ?? undefined}
+          />
+          <KPICard
+            label="Occupancy %"
+            value={e ? `${e.occupancy_pct}%` : "—"}
+            subtext={e ? `Prev: ${e.occupancy_prev}%` : undefined}
+            icon={<Calendar size={18} />}
+            variant={e && e.occupancy_pct < 40 ? "warning" : "default"}
+            delta={occDelta ?? undefined}
+            onClick={() => setDrillMetric({ key: "occupancy_rate", label: "Occupancy" })}
+          />
+          <KPICard
+            label="Active Inquiries"
+            value={e?.active_inquiries ?? "—"}
+            subtext={e ? `Prev: ${e.active_inquiries_prev}` : undefined}
+            icon={<Users size={18} />}
+            delta={inqDelta ?? undefined}
+            onClick={() => setDrillMetric({ key: "today_queue", label: "Active inquiries" })}
+          />
+          <KPICard
+            label="Avg QA Score"
+            value={e ? `${e.qa_avg_score}` : "—"}
+            subtext={e ? `Prev: ${e.qa_prev}` : undefined}
+            icon={<Star size={18} />}
+            variant={e && e.qa_avg_score < 60 ? "danger" : e && e.qa_avg_score < 75 ? "warning" : "default"}
+            delta={qaDelta ?? undefined}
+            onClick={() => setDrillMetric({ key: "qa_avg_score", label: "QA Score" })}
+          />
+          <KPICard
+            label="SLA Compliance"
+            value={e ? `${e.sla_compliance_pct}%` : "—"}
+            subtext={e ? `Prev: ${e.sla_prev}%` : undefined}
+            icon={<ShieldCheck size={18} />}
+            variant={e && e.sla_compliance_pct < 80 ? "danger" : e && e.sla_compliance_pct < 90 ? "warning" : "default"}
+            delta={slaDelta ?? undefined}
+          />
+          <KPICard
+            label="AI Draft Rate"
+            value={e ? `${e.ai_draft_rate_pct}%` : "—"}
+            subtext={e ? `Prev: ${e.ai_draft_prev}%` : undefined}
+            icon={<Bot size={18} />}
+            delta={aiDelta ?? undefined}
+          />
+        </div>
+
+        {/* ── Revenue chart + AI Insights Panel ────────────────────────────── */}
+        <div className="grid grid-cols-12 gap-5">
+
+          {/* Revenue chart */}
+          <div
+            className="col-span-12 lg:col-span-8 haip-card rounded-2xl p-5"
+            style={{ border: "1px solid var(--haip-border)" }}
+          >
+            <h2
+              className="text-[13px] font-semibold mb-4"
+              style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}
+            >
+              Revenue — last {rangeDays} days
+            </h2>
+            {(e?.revenue_chart?.length ?? 0) > 0 ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={e!.revenue_chart} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={GRAY} />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 11, fill: GRAY_D }}
+                    tickLine={false} axisLine={false}
+                    tickFormatter={d => new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                    interval={Math.floor((e!.revenue_chart.length - 1) / 5)}
+                  />
+                  <YAxis tick={{ fontSize: 11, fill: GRAY_D }} tickLine={false} axisLine={false}
+                    tickFormatter={v => fmt_inr(v)} />
+                  <Tooltip content={<RevTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: "11px" }} />
+                  <Bar dataKey="confirmed" name="Confirmed" fill={TEAL}    radius={[4,4,0,0]} />
+                  <Bar dataKey="quoted"    name="Quoted"    fill={TEAL_L}  radius={[4,4,0,0]} opacity={0.75} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-[220px] flex items-center justify-center text-sm text-gray-400">
+                No revenue data for this period
+              </div>
+            )}
+          </div>
+
+          {/* AI Insights Panel */}
+          <div
+            className="col-span-12 lg:col-span-4 haip-card rounded-2xl p-5"
+            style={{ border: "1px solid var(--haip-border)" }}
+          >
+            <AIInsightsPanel />
+          </div>
+        </div>
+
+        {/* ── Inquiry funnel + Channel mix ──────────────────────────────────── */}
+        <div className="grid grid-cols-12 gap-5">
+
+          {/* Inquiry funnel */}
+          <div
+            className="col-span-12 lg:col-span-7 haip-card rounded-2xl p-5"
+            style={{ border: "1px solid var(--haip-border)" }}
+          >
+            <h2
+              className="text-[13px] font-semibold"
+              style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}
+            >
+              Inquiry Funnel
+            </h2>
+            <FunnelChart data={e?.funnel ?? []} />
+          </div>
+
+          {/* Channel mix donut */}
+          <div
+            className="col-span-12 lg:col-span-5 haip-card rounded-2xl p-5"
+            style={{ border: "1px solid var(--haip-border)" }}
+          >
+            <h2
+              className="text-[13px] font-semibold mb-2"
+              style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}
+            >
+              Channel Mix
+            </h2>
+            {(e?.channel_mix?.length ?? 0) > 0 ? (
+              <div className="flex items-center gap-4">
+                <ResponsiveContainer width={130} height={130}>
+                  <PieChart>
+                    <Pie
+                      data={e!.channel_mix}
+                      dataKey="count"
+                      nameKey="source"
+                      cx="50%" cy="50%"
+                      innerRadius={36}
+                      outerRadius={60}
+                      paddingAngle={2}
+                    >
+                      {e!.channel_mix.map((_, i) => (
+                        <Cell key={i} fill={CHANNEL_COLORS[i % CHANNEL_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="flex-1 space-y-1.5">
+                  {e!.channel_mix.slice(0, 6).map((c, i) => (
+                    <div key={c.source} className="flex items-center gap-2">
+                      <span
+                        className="w-2 h-2 rounded-full flex-shrink-0"
+                        style={{ background: CHANNEL_COLORS[i % CHANNEL_COLORS.length] }}
+                      />
+                      <span className="text-[11px] truncate flex-1 text-gray-600 capitalize">
+                        {c.source.replace(/_/g, " ").toLowerCase()}
+                      </span>
+                      <span className="text-[11px] font-mono font-bold text-gray-700">{c.pct}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="h-[130px] flex items-center justify-center text-sm text-gray-400">
+                No channel data yet
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Occupancy heatmap ─────────────────────────────────────────────── */}
+        <div
+          className="haip-card rounded-2xl p-5"
+          style={{ border: "1px solid var(--haip-border)" }}
+        >
+          <h2
+            className="text-[13px] font-semibold"
+            style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}
+          >
+            Property Occupancy — MTD
+          </h2>
+          <OccupancyHeatmap data={e?.occupancy_heatmap ?? []} />
+        </div>
+
+        {/* ── QA / Calls section (preserved from original analytics page) ──── */}
+        <div className="pt-2">
+          <h2
+            className="text-[14px] font-semibold mb-4"
+            style={{ color: "var(--haip-fg-muted)", fontFamily: "var(--font-display), sans-serif" }}
+          >
+            Calls & QA Intelligence
+          </h2>
+        </div>
+
+        {/* Calls chart */}
+        <div className="grid grid-cols-12 gap-5">
+          <div
+            className="col-span-12 lg:col-span-8 haip-card rounded-2xl p-5"
+            style={{ border: "1px solid var(--haip-border)" }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <h2
+                  className="text-[13px] font-semibold"
+                  style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}
+                >
+                  Calls — last {rangeDays} days
+                </h2>
+                {anomalyDots.length > 0 && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-500 border border-red-100">
+                    <AlertCircle size={9} />
+                    {anomalyDots.length} anomal{anomalyDots.length > 1 ? "ies" : "y"}
+                  </span>
+                )}
+              </div>
+              {/* Compare toggle */}
+              <button
+                onClick={() => updateParams({ compare_to: compareTo === "none" ? "previous_period" : "none" })}
+                className={cn(
+                  "text-[11px] px-2.5 py-1 rounded-lg border transition-colors",
+                  compareTo !== "none"
+                    ? "bg-teal-600 text-white border-teal-600"
+                    : "bg-white text-gray-500 border-gray-200 hover:border-teal-300",
+                )}
+              >
+                Compare
+              </button>
+            </div>
+            {zippedCalls.length > 0 ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={zippedCalls} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={GRAY} />
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: GRAY_D }} tickLine={false} axisLine={false}
+                    tickFormatter={d => new Date(d).toLocaleDateString("en-IN", { weekday: "short" })} />
+                  <YAxis tick={{ fontSize: 11, fill: GRAY_D }} tickLine={false} axisLine={false} />
+                  <Tooltip content={(p) => <AnomalyTooltip {...(p as any)} anomalyMap={anomalyMap} />} />
+                  <Bar dataKey="count" name="Calls" fill={TEAL} radius={[6,6,0,0]} />
+                  {compareTo !== "none" && (
+                    <Bar dataKey="count_prev" name="Prev. period" fill={TEAL_L} radius={[6,6,0,0]} opacity={0.6} />
+                  )}
+                  {compareTo !== "none" && <Legend wrapperStyle={{ fontSize: "11px" }} />}
+                  {anomalyDots.map(a => (
+                    <ReferenceDot key={a.date} x={a.date} y={a.count} r={6}
+                      fill={a.direction === "high" ? RED : AMBER} stroke="white" strokeWidth={2}
+                      label={{ value: a.direction === "high" ? "▲" : "▼",
+                        position: a.direction === "high" ? "top" : "bottom" as const,
+                        fontSize: 9, fill: a.direction === "high" ? RED : AMBER }}
+                    />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-[220px] flex items-center justify-center text-sm text-gray-400">No call data yet</div>
+            )}
+          </div>
+
+          {/* Top objections */}
+          <div
+            className="col-span-12 lg:col-span-4 haip-card rounded-2xl p-5"
+            style={{ border: "1px solid var(--haip-border)" }}
+          >
+            <h2 className="text-[13px] font-semibold mb-4"
+              style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}>
+              Top objections
+            </h2>
+            {(s.top_objections?.length ?? 0) > 0 ? (
+              <div className="space-y-2.5">
+                {s.top_objections.slice(0, 5).map((obj, i) => {
+                  const max = s.top_objections[0].count;
+                  const pct = (obj.count / max) * 100;
+                  return (
+                    <div key={i}>
+                      <div className="flex justify-between text-[12px] mb-1">
+                        <span className="truncate" style={{ color: "var(--haip-fg)" }}>{obj.text}</span>
+                        <span className="font-mono ml-2" style={{ color: "var(--haip-fg-muted)" }}>{obj.count}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full" style={{ background: "var(--haip-border)" }}>
+                        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: AMBER }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-[12px] py-6 text-center" style={{ color: "var(--haip-fg-muted)" }}>
+                No objection data yet
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Lost reason themes */}
+        {(s.lost_reason_themes?.length ?? 0) > 0 && (
+          <div className="haip-card rounded-2xl p-5" style={{ border: "1px solid var(--haip-border)" }}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-[13px] font-semibold"
+                style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}>
+                Lost inquiry themes
+              </h2>
+              <p className="text-[11px]" style={{ color: "var(--haip-fg-muted)" }}>
+                Click a theme to see inquiries
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {s.lost_reason_themes.map((t, i) => (
+                <button
+                  key={i}
+                  onClick={() => setLostTheme({ theme: t.theme, label: t.theme.replace(/_/g, " "), count: t.count })}
+                  className="bg-red-50 border border-red-100 rounded-xl p-4 text-left
+                             hover:bg-red-100/60 hover:border-red-200 transition-colors group"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-semibold text-red-800 capitalize">
+                      {t.theme.replace(/_/g, " ")}
+                    </span>
+                    <Badge variant="destructive" className="text-[10px]">{t.count}</Badge>
+                  </div>
+                  {t.root_cause && <p className="text-xs text-red-600">{t.root_cause}</p>}
+                  <p className="text-[10px] text-red-400 mt-2 group-hover:text-red-600 transition-colors font-medium">
+                    View inquiries →
+                  </p>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+      </div>{/* end scrollable */}
+
+      {/* ── Panels ─────────────────────────────────────────────────────────── */}
       {drillMetric && (
         <MetricDrillDown
           metricKey={drillMetric.key}
@@ -687,8 +849,6 @@ export default function AnalyticsPage() {
           onClose={() => setDrillMetric(null)}
         />
       )}
-
-      {/* Lost-reason modal (A4) */}
       {lostTheme && (
         <LostReasonModal
           theme={lostTheme.theme}
@@ -697,30 +857,6 @@ export default function AnalyticsPage() {
           onClose={() => setLostTheme(null)}
         />
       )}
-      </div> {/* end scrollable content */}
-    </div>
-  );
-}
-
-function AnalyticsSkeleton() {
-  return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between">
-        <div className="space-y-2">
-          <Skeleton className="h-6 w-40 rounded-xl" />
-          <Skeleton className="h-4 w-28 rounded-xl" />
-        </div>
-        <div className="flex gap-2">
-          {[1, 2, 3].map(i => <Skeleton key={i} className="h-10 w-28 rounded-xl" />)}
-        </div>
-      </div>
-      <div className="grid grid-cols-4 gap-4">
-        {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}
-      </div>
-      <div className="grid grid-cols-12 gap-5">
-        <Skeleton className="col-span-8 h-64 rounded-2xl" />
-        <Skeleton className="col-span-4 h-64 rounded-2xl" />
-      </div>
     </div>
   );
 }

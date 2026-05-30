@@ -39,6 +39,8 @@ celery_app = Celery(
         "app.workers.tasks.meta_quality_poll",
         # A7: owner daily digest
         "app.workers.tasks.owner_digest",
+        # Phase 1: AI Insights Engine
+        "app.workers.tasks.run_insights",
     ],
 )
 
@@ -108,5 +110,10 @@ celery_app.conf.beat_schedule = {
     "owner-digest-hourly": {
         "task": "app.workers.tasks.owner_digest.orchestrate",
         "schedule": crontab(minute=0),
+    },
+    # Phase 1: AI Insights — run every 15 min (urgent detectors: A1, A2, D3)
+    "run-insights-every-15min": {
+        "task": "app.workers.tasks.run_insights.run_all_tenants",
+        "schedule": crontab(minute="*/15"),
     },
 }

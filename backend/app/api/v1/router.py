@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     auth, calls, dashboard,
     tenants, users, guests, inquiries, conversations, properties,
-    qa, integrations, analytics, audit, sse, messaging, reports, saved_replies, saved_views,
+    qa, integrations, analytics, analytics_executive, audit, sse, messaging, reports, saved_replies, saved_views,
     webhooks_callerdesk, webhooks_acefone, webhooks_whatsapp, webhooks_instagram,
     grievance, incidents, health, changelog, sample_data, admin_dlq,
     calculator, calendar,
@@ -33,6 +33,7 @@ api_router.include_router(calls.router)
 api_router.include_router(qa.router)
 api_router.include_router(analytics.router)
 api_router.include_router(reports.router)
+api_router.include_router(analytics_executive.router)
 
 # Integrations & compliance
 api_router.include_router(integrations.router)
