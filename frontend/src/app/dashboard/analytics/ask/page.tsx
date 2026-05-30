@@ -7,8 +7,8 @@
  * NOT a chatbot. A structured intelligence analyst.
  */
 
-import { useState, useRef, useEffect, useCallback } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useState, useRef, useEffect } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Sparkles, ChevronRight, AlertCircle,
   Send, Loader2, RotateCcw, ExternalLink, Info,
@@ -68,9 +68,26 @@ interface AgentOutput {
 interface Finding {
   title: string;
   evidence: string[];
-  impact: { revenue_loss: number; currency: string; severity: string };
+  impact: { revenue_loss: number; currency: string; severity: string; description?: string };
   root_cause: string;
   recommendations: Recommendation[];
+}
+
+interface Signal {
+  message: string;
+  severity: "critical" | "warning" | "info" | "positive";
+  domains: string[];
+}
+
+interface HistoryItem {
+  id: string;
+  summary: string;
+  confidence: number;
+  confidence_label: string;
+  findings_count: number;
+  top_finding: string;
+  created_at: string;
+  range_days: number;
 }
 
 interface AskHaipResponse {
@@ -79,11 +96,16 @@ interface AskHaipResponse {
   intent: { domains: string[]; type: string };
   paths: InvestigationPath[];
   correlations: string[];
+  structured_signals: Signal[];       // Phase 4
   findings: Finding[];
   summary: string;
+  root_cause_chain: string;           // Phase 4
   confidence: number;
+  confidence_label: string;           // Phase 4: high | medium | low
   data_completeness: string;
+  missing_domains: string[];          // Phase 4
   investigation_paths_used: string[];
+  compare_mode: boolean;              // Phase 4
   agents: Record<string, AgentOutput>;
 }
 
@@ -408,6 +430,134 @@ function AgentPanel({ agents }: { agents: Record<string, AgentOutput> }) {
   );
 }
 
+// ─── Phase 4: Signal Panel ───────────────────────────────────────────────────
+
+const SIGNAL_CFG: Record<string, { icon: string; bg: string; text: string; border: string }> = {
+  critical: { icon: "🔴", bg: "bg-red-50",    text: "text-red-800",    border: "border-red-200" },
+  warning:  { icon: "🟡", bg: "bg-amber-50",  text: "text-amber-800",  border: "border-amber-200" },
+  info:     { icon: "🔵", bg: "bg-blue-50",   text: "text-blue-800",   border: "border-blue-100" },
+  positive: { icon: "🟢", bg: "bg-green-50",  text: "text-green-800",  border: "border-green-200" },
+};
+
+function SignalPanel({ signals }: { signals: Signal[] }) {
+  if (signals.length === 0) return null;
+  const critical = signals.filter(s => s.severity === "critical");
+  const warnings = signals.filter(s => s.severity === "warning");
+  const positives= signals.filter(s => s.severity === "positive");
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-gray-800">Cross-Agent Signals</p>
+        <div className="flex gap-2 text-[10px]">
+          {critical.length > 0  && <span className="text-red-600 font-semibold">{critical.length} critical</span>}
+          {warnings.length > 0  && <span className="text-amber-600 font-semibold">{warnings.length} warning</span>}
+          {positives.length > 0 && <span className="text-green-600 font-semibold">{positives.length} positive</span>}
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        {signals.map((sig, i) => {
+          const cfg = SIGNAL_CFG[sig.severity] ?? SIGNAL_CFG.info;
+          return (
+            <div key={i} className={cn("flex items-start gap-2 px-3 py-2 rounded-xl border text-xs", cfg.bg, cfg.border)}>
+              <span className="shrink-0 text-[12px]">{cfg.icon}</span>
+              <span className={cfg.text}>{sig.message}</span>
+              {sig.domains.length > 0 && (
+                <div className="ml-auto flex gap-1 shrink-0">
+                  {sig.domains.slice(0,2).map(d => (
+                    <span key={d} className="text-[9px] text-gray-400 bg-white px-1.5 py-0.5 rounded-full border border-gray-100 capitalize">{d}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Phase 4: Confidence Badge ───────────────────────────────────────────────
+
+function ConfidenceBadge({ score, label, missing }: { score: number; label: string; missing: string[] }) {
+  const color = label === "high" ? "text-green-600 bg-green-50 border-green-200"
+              : label === "medium" ? "text-amber-600 bg-amber-50 border-amber-200"
+              : "text-red-600 bg-red-50 border-red-200";
+  return (
+    <div className={cn("flex items-center gap-1.5 text-[10px] font-semibold px-2 py-1 rounded-full border", color)}>
+      <span className="w-1.5 h-1.5 rounded-full bg-current opacity-80" />
+      {(score * 100).toFixed(0)}% confidence
+      {missing.length > 0 && (
+        <span className="font-normal opacity-70">· {missing.length} domain{missing.length>1?"s":""} missing</span>
+      )}
+    </div>
+  );
+}
+
+// ─── Phase 4: Root Cause Chain ───────────────────────────────────────────────
+
+function RootCauseChain({ chain }: { chain: string }) {
+  if (!chain) return null;
+  // "Signal: X → Cause: Y → Impact: ₹Z → Action: W"
+  const parts = chain.split("→").map(p => p.trim());
+  return (
+    <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
+      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Root Cause Chain</p>
+      <div className="flex flex-wrap items-center gap-1">
+        {parts.map((part, i) => (
+          <span key={i} className="flex items-center gap-1">
+            <span className="text-xs text-gray-700 bg-white border border-gray-200 rounded-lg px-2 py-1">{part}</span>
+            {i < parts.length - 1 && <span className="text-gray-300 text-sm">→</span>}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Phase 4: History Panel ──────────────────────────────────────────────────
+
+function HistoryPanel({ onSelect }: { onSelect: (q: string) => void }) {
+  const { data, isLoading } = useQuery<{ history: HistoryItem[] }>({
+    queryKey: ["ask-history"],
+    queryFn: () => api.get("/analytics/ask/history", { params: { limit: 8 } }).then(r => r.data),
+    staleTime: 60_000,
+  });
+
+  if (isLoading || !data?.history.length) return null;
+
+  return (
+    <div>
+      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Recent Analyses</p>
+      <div className="space-y-1.5">
+        {data.history.map(item => (
+          <div key={item.id}
+            className="bg-white border border-gray-100 rounded-xl px-4 py-2.5 hover:border-teal-200 cursor-pointer group transition-all"
+            onClick={() => onSelect(item.summary)}>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-gray-700 group-hover:text-teal-700 truncate flex-1">{item.summary}</p>
+              <div className="flex items-center gap-2 ml-2 shrink-0">
+                <span className={cn("text-[9px] font-medium px-1.5 py-0.5 rounded-full",
+                  item.confidence_label === "high" ? "bg-green-50 text-green-600" :
+                  item.confidence_label === "medium" ? "bg-amber-50 text-amber-600" :
+                  "bg-gray-50 text-gray-400")}>
+                  {(item.confidence * 100).toFixed(0)}%
+                </span>
+                <span className="text-[9px] text-gray-400">
+                  {item.created_at ? new Date(item.created_at).toLocaleDateString() : ""}
+                </span>
+              </div>
+            </div>
+            {item.top_finding && (
+              <p className="text-[10px] text-gray-400 mt-0.5 truncate">{item.top_finding}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function FindingCard({ finding }: { finding: Finding }) {
   const router = useRouter();
   const sev = finding.impact?.severity ?? "medium";
@@ -585,6 +735,9 @@ export default function AskHaipPage() {
               </div>
             </div>
 
+            {/* Phase 4: History panel */}
+            <HistoryPanel onSelect={(summary) => { setQuestion(summary); }} />
+
             {/* Suggested questions */}
             <div>
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Try asking</p>
@@ -633,40 +786,53 @@ export default function AskHaipPage() {
                 <div className="w-6 h-6 rounded-lg bg-teal-50 flex items-center justify-center shrink-0 mt-0.5">
                   <Sparkles size={12} className="text-teal-500" />
                 </div>
-                <div>
+                <div className="flex-1">
                   <p className="text-xs text-gray-400 mb-1">{result.question}</p>
                   {result.summary && (
                     <p className="text-sm font-semibold text-gray-800">{result.summary}</p>
                   )}
-                  <div className="flex flex-wrap gap-2 mt-2">
+                  {/* Phase 4: comparative mode badge */}
+                  {result.compare_mode && (
+                    <span className="inline-block mt-1.5 text-[10px] font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+                      ↔ Comparative Analysis
+                    </span>
+                  )}
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
                     {result.intent?.domains?.map(d => (
                       <span key={d} className="text-[10px] font-medium text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-100 capitalize">
                         {d}
                       </span>
                     ))}
-                    <span className="text-[10px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full border border-gray-100">
-                      {(result.confidence * 100).toFixed(0)}% confidence
-                    </span>
+                    {/* Phase 4: rich confidence badge */}
+                    <ConfidenceBadge
+                      score={result.confidence}
+                      label={result.confidence_label || "low"}
+                      missing={result.missing_domains || []}
+                    />
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Correlation signals */}
-            {result.correlations.length > 0 && (
-              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
-                <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide mb-2">
-                  Correlation Signals Detected
-                </p>
-                <ul className="space-y-1">
-                  {result.correlations.map((c, i) => (
-                    <li key={i} className="text-xs text-amber-800 flex items-start gap-2">
-                      <span className="shrink-0 mt-0.5">⚡</span> {c}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            {/* Phase 4: Root cause chain */}
+            {result.root_cause_chain && <RootCauseChain chain={result.root_cause_chain} />}
+
+            {/* Phase 4: Structured signal panel (replaces plain correlations) */}
+            {result.structured_signals?.length > 0
+              ? <SignalPanel signals={result.structured_signals} />
+              : result.correlations.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+                  <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide mb-2">Signals</p>
+                  <ul className="space-y-1">
+                    {result.correlations.map((c, i) => (
+                      <li key={i} className="text-xs text-amber-800 flex items-start gap-2">
+                        <span className="shrink-0 mt-0.5">⚡</span> {c}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )
+            }
 
             {/* Phase 2: Agent Intelligence Panels */}
             {result.agents && Object.keys(result.agents).length > 0 && (

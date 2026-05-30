@@ -26,6 +26,10 @@ from app.core.cache import cache_key, get_cached, set_cached
 from app.models.ask_haip import AskHaipSession, AskHaipFinding
 from app.models.base import gen_uuid
 from app.services.ask_haip_agents import process_agents, agents_to_llm_context
+from app.services.ask_haip_rca import (
+    build_correlations, correlations_to_strings,
+    calculate_confidence, run_enhanced_rca, is_comparative_question,
+)
 
 log = logging.getLogger(__name__)
 
@@ -583,17 +587,30 @@ async def ask_haip(
     # 3. Generate investigation paths (enriched with agent snapshot data)
     paths = generate_paths(intent.get("domains", []), raw_data)
 
-    # 4. Detect correlations (Phase 2: uses structured outputs for better signals)
-    correlations = detect_correlations(
-        intent.get("domains", []), raw_data, agent_outputs
+    # 4. Phase 4: Enhanced correlation engine (20+ rules, structured signals)
+    domains = intent.get("domains", [])
+    structured_signals = build_correlations(domains, raw_data, agent_outputs)
+    correlations = correlations_to_strings(structured_signals)
+
+    # Phase 4: Confidence scoring
+    confidence = calculate_confidence(domains, agent_outputs, correlations)
+
+    # Phase 4: Detect comparative question
+    compare_mode = is_comparative_question(question)
+
+    # 5. Phase 4: Enhanced Root Cause Engine (20+ correlations + confidence + chain)
+    rca = await run_enhanced_rca(
+        question=question,
+        intent=intent,
+        raw_data=raw_data,
+        agent_outputs=agent_outputs,
+        structured_correlations=structured_signals,
+        confidence=confidence,
+        range_days=range_days,
+        compare_mode=compare_mode,
     )
 
-    # 5. Root cause analysis (Phase 2: structured agent context for richer findings)
-    rca = await run_rca(
-        question, intent, raw_data, correlations, range_days, agent_outputs
-    )
-
-    # 6. Build response — include agent outputs for frontend display
+    # 6. Build response — Phase 4 adds confidence detail, signals, root_cause_chain
     session_id = gen_uuid()
     response = {
         "session_id": session_id,
@@ -601,12 +618,16 @@ async def ask_haip(
         "intent": intent,
         "paths": paths,
         "correlations": correlations,
+        "structured_signals": structured_signals,   # Phase 4: severity-tagged
         "findings": rca.get("findings", []),
         "summary": rca.get("summary", ""),
-        "confidence": float(rca.get("confidence", 0)),
-        "data_completeness": rca.get("data_completeness", "partial"),
-        "investigation_paths_used": rca.get("investigation_paths_used", []),
-        # Phase 2: structured agent data for frontend KPI display
+        "root_cause_chain": rca.get("root_cause_chain", ""),
+        "confidence": float(rca.get("confidence", confidence.score)),
+        "confidence_label": confidence.label,
+        "data_completeness": rca.get("data_completeness", confidence.data_completeness),
+        "missing_domains": confidence.missing_domains,
+        "investigation_paths_used": rca.get("investigation_paths_used", domains),
+        "compare_mode": compare_mode,
         "agents": agent_outputs,
     }
 

@@ -19,6 +19,7 @@ from app.api.v1.deps import get_current_user
 from app.models.user import User
 from app.services.ask_haip_service import ask_haip, run_agents, detect_intent
 from app.services.ask_haip_steps import execute_step, execute_all_paths
+from app.services.ask_haip_rca import get_finding_history
 from app.core.cache import cache_key, get_cached, set_cached
 
 router = APIRouter(prefix="/analytics", tags=["ask-haip"])
@@ -98,17 +99,28 @@ class AgentOutputModel(BaseModel):
     metadata: dict = {}
 
 
+class SignalModel(BaseModel):
+    message: str
+    severity: str = "info"    # critical | warning | info | positive
+    domains: List[str] = []
+
+
 class AskHaipResponse(BaseModel):
     session_id: str
     question: str
     intent: dict
     paths: List[InvestigationPath] = []
     correlations: List[str] = []
+    structured_signals: List[SignalModel] = []   # Phase 4: severity-tagged
     findings: List[FindingModel] = []
     summary: str = ""
+    root_cause_chain: str = ""                   # Phase 4: signal→cause→impact→action
     confidence: float = 0.0
+    confidence_label: str = "low"                # Phase 4: high | medium | low
     data_completeness: str = "partial"
+    missing_domains: List[str] = []              # Phase 4: domains with no data
     investigation_paths_used: List[str] = []
+    compare_mode: bool = False                   # Phase 4: comparative analysis
     agents: dict = {}   # domain → AgentOutputModel
 
 
@@ -247,3 +259,24 @@ async def run_all_paths(
 
     results = await execute_all_paths(raw_data, body.domains)
     return {"paths": results, "domains_run": list(results.keys())}
+
+
+# ─── Findings History Endpoint (Phase 4) ────────────────────────────────────
+
+@router.get("/ask/history")
+def ask_history(
+    limit: int = 10,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Phase 4: Return recent Ask HAIP findings for this tenant.
+    Used to populate the history panel in the frontend.
+    """
+    return {
+        "history": get_finding_history(
+            db=db,
+            tenant_id=current_user.tenant_id,
+            limit=min(limit, 50),
+        )
+    }
