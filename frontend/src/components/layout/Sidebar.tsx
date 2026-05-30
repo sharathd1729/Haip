@@ -100,6 +100,7 @@ const NAV_ITEMS: NavItem[] = [
       { label: "Churn Risk",    href: "/dashboard/analytics/forecasting/churn" },
       { label: "Cohorts",       href: "/dashboard/analytics/forecasting/cohorts" },
       { label: "AI Recs",       href: "/dashboard/analytics/forecasting/recommendations" },
+      { label: "Reports",       href: "/dashboard/analytics/reports" },
       { label: "✦ Ask HAIP",   href: "/dashboard/analytics/ask" },
     ],
   },

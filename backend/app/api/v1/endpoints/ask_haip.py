@@ -20,6 +20,7 @@ from app.models.user import User
 from app.services.ask_haip_service import ask_haip, run_agents, detect_intent
 from app.services.ask_haip_steps import execute_step, execute_all_paths
 from app.services.ask_haip_rca import get_finding_history
+from app.services.ask_haip_reports import generate_report, save_report, list_reports, REPORT_TYPES
 from app.core.cache import cache_key, get_cached, set_cached
 
 router = APIRouter(prefix="/analytics", tags=["ask-haip"])
@@ -264,6 +265,7 @@ async def run_all_paths(
 # ─── Findings History Endpoint (Phase 4) ────────────────────────────────────
 
 @router.get("/ask/history")
+# ─── Report Endpoints (Phase 5) ─────────────────────────────────────────────
 def ask_history(
     limit: int = 10,
     current_user: User = Depends(get_current_user),
@@ -280,3 +282,117 @@ def ask_history(
             limit=min(limit, 50),
         )
     }
+
+
+# ─── Report Endpoints (Phase 5) ──────────────────────────────────────────────
+
+class GenerateReportRequest(BaseModel):
+    report_type: str       # executive | weekly | monthly | property | guest | revenue | inquiry
+    range_days: int = 30
+    property_ids: Optional[List[str]] = None
+    send_email: bool = False
+
+
+@router.post("/reports/generate")
+async def generate_report_endpoint(
+    body: GenerateReportRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Phase 5: Generate an on-demand report for the current tenant.
+    Fetches live analytics data, renders HTML, saves to DB.
+    Optionally emails to the requesting user.
+    """
+    if body.report_type not in REPORT_TYPES:
+        from fastapi import HTTPException
+        raise HTTPException(400, f"Invalid report_type. Valid: {REPORT_TYPES}")
+
+    # Fetch analytics data (reuse step data cache or fetch fresh)
+    ck_data = cache_key("ask_step_data", current_user.tenant_id,
+                        sid="report", range_days=body.range_days)
+    raw_data = get_cached(ck_data)
+
+    if raw_data is None:
+        base_url = str(request.base_url).rstrip("/") + "/api/v1"
+        auth_header = request.headers.get("Authorization", "")
+        token = auth_header.replace("Bearer ", "").strip()
+
+        from app.services.ask_haip_service import DOMAIN_ENDPOINTS
+        all_domains = list(DOMAIN_ENDPOINTS.keys())
+        raw_data, _ = await run_agents(
+            domains=all_domains,
+            token=token,
+            base_url=base_url,
+            range_days=body.range_days,
+            property_ids=body.property_ids,
+        )
+        set_cached(ck_data, raw_data, ttl=3600)
+
+    result = await generate_report(
+        report_type=body.report_type,
+        raw_data=raw_data,
+        range_days=body.range_days,
+    )
+
+    # Save to DB
+    report = save_report(
+        db=db,
+        tenant_id=current_user.tenant_id,
+        report_type=body.report_type,
+        title=result["title"],
+        html=result["html"],
+        range_days=body.range_days,
+    )
+
+    # Optional email
+    if body.send_email and current_user.email:
+        from app.services.ask_haip_reports import send_report_email
+        await send_report_email(
+            to_email=current_user.email,
+            to_name=getattr(current_user, "full_name", "") or current_user.email,
+            report_type=body.report_type,
+            title=result["title"],
+            html=result["html"],
+        )
+
+    return {
+        "id": str(report.id),
+        "title": result["title"],
+        "report_type": body.report_type,
+        "html": result["html"],   # frontend renders this in an iframe
+        "created_at": report.created_at.isoformat() if report.created_at else None,
+    }
+
+
+@router.get("/reports")
+def list_reports_endpoint(
+    limit: int = 20,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Phase 5: List recent reports for this tenant."""
+    return {"reports": list_reports(db, current_user.tenant_id, limit=min(limit, 50))}
+
+
+@router.get("/reports/{report_id}/html")
+def get_report_html(
+    report_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Phase 5: Get the full HTML content of a specific report."""
+    from fastapi import HTTPException
+    from fastapi.responses import HTMLResponse
+    from app.models.ask_haip import AskHaipReport
+
+    report = db.query(AskHaipReport).filter(
+        AskHaipReport.id == report_id,
+        AskHaipReport.tenant_id == current_user.tenant_id,
+    ).first()
+
+    if not report:
+        raise HTTPException(404, "Report not found")
+
+    return HTMLResponse(content=report.html_content or "<p>No content</p>")

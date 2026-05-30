@@ -41,6 +41,10 @@ celery_app = Celery(
         "app.workers.tasks.owner_digest",
         # Phase 1: AI Insights Engine
         "app.workers.tasks.run_insights",
+        # Phase 3: Intent classification
+        "app.workers.tasks.classify_intent",
+        # Phase 5: Report generation
+        "app.workers.tasks.generate_reports",
     ],
 )
 
@@ -115,5 +119,20 @@ celery_app.conf.beat_schedule = {
     "run-insights-every-15min": {
         "task": "app.workers.tasks.run_insights.run_all_tenants",
         "schedule": crontab(minute="*/15"),
+    },
+    # Phase 3: Intent classification — nightly at 03:00 IST
+    "classify-intent-nightly": {
+        "task": "app.workers.tasks.classify_intent.run",
+        "schedule": crontab(hour=3, minute=0),
+    },
+    # Phase 5: Weekly digest — every Monday 08:00 IST
+    "weekly-digest-monday": {
+        "task": "app.workers.tasks.generate_reports.weekly_digest_all_tenants",
+        "schedule": crontab(hour=8, minute=0, day_of_week=1),
+    },
+    # Phase 5: Monthly report — 1st of each month 07:00 IST
+    "monthly-report-first-of-month": {
+        "task": "app.workers.tasks.generate_reports.monthly_report_all_tenants",
+        "schedule": crontab(hour=7, minute=0, day_of_month=1),
     },
 }
