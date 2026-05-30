@@ -83,6 +83,16 @@ const NAV_ITEMS: NavItem[] = [
     href: "/dashboard/analytics",
     icon: BarChart2,
     resource: "analytics",
+    children: [
+      { label: "Dashboard",   href: "/dashboard/analytics" },
+      { label: "Guests",      href: "/dashboard/analytics/guests" },
+      { label: "Channels",    href: "/dashboard/analytics/channels" },
+      { label: "Campaigns",   href: "/dashboard/analytics/campaigns" },
+      { label: "Properties",  href: "/dashboard/analytics/properties" },
+      { label: "Operations",  href: "/dashboard/analytics/operations" },
+      { label: "AI Intel",    href: "/dashboard/analytics/ai" },
+      { label: "✦ Ask HAIP", href: "/dashboard/analytics/ask" },
+    ],
   },
   {
     label: "Automations",

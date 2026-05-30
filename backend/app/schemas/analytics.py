@@ -166,3 +166,230 @@ class InsightItem(BaseModel):
 class InsightList(BaseModel):
     items: List[InsightItem] = []
     total: int = 0
+
+
+# ── Phase 2: Section Schemas ──────────────────────────────────────────────────
+
+# -- Guest Analytics --
+
+class LTVBucket(BaseModel):
+    bucket: str          # "<10k" | "10-50k" | "50-200k" | ">200k"
+    count: int
+
+class VIPTierRow(BaseModel):
+    tier: Optional[str]  # "platinum" | "gold" | "silver" | None
+    count: int
+    avg_ltv: float = 0.0
+
+class TopCityRow(BaseModel):
+    city: str
+    count: int
+    pct: float = 0.0
+
+class AcquisitionPoint(BaseModel):
+    date: str
+    new_guests: int
+
+class GuestAnalyticsStats(BaseModel):
+    total_guests: int = 0
+    total_guests_prev: int = 0
+    new_guests: int = 0
+    new_guests_prev: int = 0
+    repeat_guests_pct: float = 0.0
+    repeat_guests_pct_prev: float = 0.0
+    avg_ltv: float = 0.0
+    avg_ltv_prev: float = 0.0
+    avg_stays: float = 0.0
+    ltv_distribution: List[LTVBucket] = []
+    vip_breakdown: List[VIPTierRow] = []
+    top_cities: List[TopCityRow] = []
+    acquisition_trend: List[AcquisitionPoint] = []
+
+
+# -- Channel Analytics --
+
+class ChannelBreakdownRow(BaseModel):
+    channel: str
+    messages: int = 0
+    delivered_pct: float = 0.0
+    read_pct: float = 0.0
+    ai_gen_pct: float = 0.0
+
+class ResponseTimeRow(BaseModel):
+    channel: str
+    median_s: float = 0.0
+    p95_s: float = 0.0
+
+class AttributionFunnelRow(BaseModel):
+    source: str
+    inquiries: int = 0
+    converted: int = 0
+    conversion_pct: float = 0.0
+
+class VolumeTrendPoint(BaseModel):
+    date: str
+    whatsapp: int = 0
+    instagram: int = 0
+    voice: int = 0
+    webchat: int = 0
+
+class ChannelAnalyticsStats(BaseModel):
+    total_messages: int = 0
+    total_messages_prev: int = 0
+    delivery_rate_pct: float = 0.0
+    delivery_rate_prev: float = 0.0
+    read_rate_pct: float = 0.0
+    read_rate_prev: float = 0.0
+    avg_response_time_s: float = 0.0
+    avg_response_time_prev: float = 0.0
+    ai_acceptance_pct: float = 0.0
+    ai_acceptance_prev: float = 0.0
+    channel_breakdown: List[ChannelBreakdownRow] = []
+    response_time_by_channel: List[ResponseTimeRow] = []
+    attribution_funnel: List[AttributionFunnelRow] = []
+    volume_trend: List[VolumeTrendPoint] = []
+
+
+# -- Campaign Analytics --
+
+class CampaignRow(BaseModel):
+    id: str
+    name: str
+    status: str
+    sent: int = 0
+    delivered: int = 0
+    read: int = 0
+    failed: int = 0
+    delivery_rate: float = 0.0
+    read_rate: float = 0.0
+    scheduled_at: Optional[str] = None
+
+class TemplatePerformanceRow(BaseModel):
+    name: str
+    category: str
+    status: str
+    times_used: int = 0
+    avg_delivery_rate: float = 0.0
+    avg_read_rate: float = 0.0
+
+class SubscriberTrendPoint(BaseModel):
+    date: str
+    opted_in: int = 0
+    opted_out: int = 0
+    cumulative: int = 0
+
+class CampaignAnalyticsStats(BaseModel):
+    total_campaigns: int = 0
+    active_campaigns: int = 0
+    avg_delivery_rate_pct: float = 0.0
+    avg_read_rate_pct: float = 0.0
+    subscriber_count: int = 0
+    subscriber_count_prev: int = 0
+    campaigns: List[CampaignRow] = []
+    template_performance: List[TemplatePerformanceRow] = []
+    subscriber_trend: List[SubscriberTrendPoint] = []
+
+
+# -- Property Analytics --
+
+class PropertyMatrixRow(BaseModel):
+    id: str
+    name: str
+    type: str
+    city: Optional[str] = None
+    occupancy_pct: float = 0.0
+    revenue_mtd: float = 0.0
+    adr: float = 0.0          # avg daily rate
+    revpar: float = 0.0       # revenue per available room-night
+    total_stays: int = 0
+    direct_pct: float = 0.0
+    ota_pct: float = 0.0
+
+class PropertyAnalyticsStats(BaseModel):
+    total_properties: int = 0
+    portfolio_occupancy: float = 0.0
+    portfolio_occupancy_prev: float = 0.0
+    portfolio_revenue_mtd: float = 0.0
+    portfolio_revenue_prev: float = 0.0
+    portfolio_adr: float = 0.0
+    properties: List[PropertyMatrixRow] = []
+
+
+# -- Operations Analytics --
+
+class AgentLeaderboardRow(BaseModel):
+    id: str
+    name: str
+    role: str
+    calls_handled: int = 0
+    avg_qa_score: float = 0.0
+    inquiries_handled: int = 0
+    sla_compliance_pct: float = 0.0
+    avg_response_time_s: float = 0.0
+    last_seen_at: Optional[str] = None
+
+class SLATrendPoint(BaseModel):
+    date: str
+    compliant: int = 0
+    breached: int = 0
+    compliance_pct: float = 0.0
+
+class IntegrationHealthRow(BaseModel):
+    kind: str
+    status: str
+    last_health_at: Optional[str] = None
+    is_healthy: bool = False
+
+class OperationsAnalyticsStats(BaseModel):
+    team_size: int = 0
+    calls_today: int = 0
+    sla_compliance_pct: float = 0.0
+    sla_compliance_prev: float = 0.0
+    open_conversations: int = 0
+    avg_response_time_s: float = 0.0
+    avg_response_time_prev: float = 0.0
+    agents: List[AgentLeaderboardRow] = []
+    sla_trend: List[SLATrendPoint] = []
+    integrations: List[IntegrationHealthRow] = []
+
+
+# -- AI Intelligence Analytics --
+
+class AIAcceptanceTrendPoint(BaseModel):
+    date: str
+    approved: int = 0
+    rejected: int = 0
+    edited: int = 0
+    total: int = 0
+
+class AICostTrendPoint(BaseModel):
+    date: str
+    transcription_usd: float = 0.0
+    llm_usd: float = 0.0
+    total_usd: float = 0.0
+
+class AIAcceptanceByAgentRow(BaseModel):
+    agent_name: str
+    drafts: int = 0
+    approved: int = 0
+    rejected: int = 0
+    acceptance_pct: float = 0.0
+
+class AIAnalyticsStats(BaseModel):
+    total_ai_drafts: int = 0
+    total_ai_drafts_prev: int = 0
+    acceptance_rate_pct: float = 0.0
+    acceptance_rate_prev: float = 0.0
+    rejection_rate_pct: float = 0.0
+    edit_rate_pct: float = 0.0
+    total_cost_mtd_usd: float = 0.0
+    total_cost_prev_usd: float = 0.0
+    avg_cost_per_call_usd: float = 0.0
+    calls_auto_scored_pct: float = 0.0
+    pipeline_pending_transcription: int = 0
+    pipeline_pending_scoring: int = 0
+    pipeline_done_today: int = 0
+    pipeline_failed_today: int = 0
+    acceptance_trend: List[AIAcceptanceTrendPoint] = []
+    cost_trend: List[AICostTrendPoint] = []
+    acceptance_by_agent: List[AIAcceptanceByAgentRow] = []
