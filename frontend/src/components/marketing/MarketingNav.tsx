@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -45,13 +45,13 @@ const navContainer = {
 
 const navItem = {
   hidden:  { opacity: 0, y: -6 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" as const } },
 };
 
 const mobileMenu = {
   hidden:  { opacity: 0, height: 0 },
-  visible: { opacity: 1, height: "auto", transition: { duration: 0.22, ease: "easeOut" } },
-  exit:    { opacity: 0, height: 0,    transition: { duration: 0.18, ease: "easeIn" } },
+  visible: { opacity: 1, height: "auto", transition: { duration: 0.22, ease: "easeOut" as const } },
+  exit:    { opacity: 0, height: 0,    transition: { duration: 0.18, ease: "easeIn" as const } },
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -278,7 +278,7 @@ function Dropdown({ label, open, onEnter, onLeave, children }: {
             key="dropdown"
             className="absolute top-full left-0 pt-2"
             initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0, transition: { duration: 0.15, ease: "easeOut" } }}
+            animate={{ opacity: 1, y: 0, transition: { duration: 0.15, ease: "easeOut" as const } }}
             exit={{ opacity: 0, y: -4, transition: { duration: 0.1 } }}
           >
             {children}

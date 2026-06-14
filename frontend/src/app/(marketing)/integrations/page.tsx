@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useState } from "react";
@@ -6,8 +6,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, MessageSquare, Phone, Database, Globe, CreditCard, Sparkles, Zap } from "lucide-react";
 
 // ─── Motion variants ──────────────────────────────────────────────────────────
-const fadeUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } } };
-const scaleUp = { hidden: { opacity: 0, scale: 0.95 }, visible: { opacity: 1, scale: 1, transition: { duration: 0.4, ease: "easeOut" } } };
+const fadeUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" as const } } };
+const scaleUp = { hidden: { opacity: 0, scale: 0.95 }, visible: { opacity: 1, scale: 1, transition: { duration: 0.4, ease: "easeOut" as const } } };
 const stagger = { visible: { transition: { staggerChildren: 0.06 } } };
 const VP = { once: true, margin: "-50px" } as const;
 

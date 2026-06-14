@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { motion, useInView, animate } from "framer-motion";
@@ -16,15 +16,15 @@ import {
 // ─── Shared Framer Motion variants ───────────────────────────────────────────
 const fadeUp = {
   hidden:  { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" as const } },
 };
 const fadeIn = {
   hidden:  { opacity: 0 },
-  visible: { opacity: 1, transition: { duration: 0.4, ease: "easeOut" } },
+  visible: { opacity: 1, transition: { duration: 0.4, ease: "easeOut" as const } },
 };
 const scaleUp = {
   hidden:  { opacity: 0, scale: 0.97 },
-  visible: { opacity: 1, scale: 1, transition: { duration: 0.5, ease: "easeOut" } },
+  visible: { opacity: 1, scale: 1, transition: { duration: 0.5, ease: "easeOut" as const } },
 };
 const stagger = {
   visible: { transition: { staggerChildren: 0.08 } },
@@ -40,7 +40,7 @@ function CountUp({ to, prefix = "", suffix = "" }: { to: number; prefix?: string
     if (!inView) return;
     const ctrl = animate(0, to, {
       duration: 1.2,
-      ease: "easeOut",
+      ease: "easeOut" as const,
       onUpdate: v => setDisplay(Math.round(v)),
     });
     return ctrl.stop;
@@ -575,7 +575,7 @@ export default function HomePage() {
                 ].map(item => (
                   <motion.div
                     key={item.tool}
-                    variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0, transition: { duration: 0.4, ease: "easeOut" } } }}
+                    variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0, transition: { duration: 0.4, ease: "easeOut" as const } } }}
                     className="flex items-start gap-3 p-3 rounded-xl"
                     style={{ backgroundColor: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.15)" }}
                   >
@@ -634,7 +634,7 @@ export default function HomePage() {
                 ].map((item, i) => (
                   <motion.div
                     key={i}
-                    variants={{ hidden: { opacity: 0, x: 20 }, visible: { opacity: 1, x: 0, transition: { duration: 0.4, ease: "easeOut" } } }}
+                    variants={{ hidden: { opacity: 0, x: 20 }, visible: { opacity: 1, x: 0, transition: { duration: 0.4, ease: "easeOut" as const } } }}
                     className="flex items-center gap-3"
                   >
                     <span className="text-[10px] font-mono flex-shrink-0 w-10 font-semibold" style={{ color: "#ffc94b" }}>
@@ -776,7 +776,7 @@ export default function HomePage() {
 
             const textBlock = (
               <motion.div
-                variants={{ hidden: { opacity: 0, x: textFrom }, visible: { opacity: 1, x: 0, transition: { duration: 0.5, ease: "easeOut" } } }}
+                variants={{ hidden: { opacity: 0, x: textFrom }, visible: { opacity: 1, x: 0, transition: { duration: 0.5, ease: "easeOut" as const } } }}
                 whileInView="visible" initial="hidden" viewport={{ once: true, margin: "-100px" }}
               >
                 <span
@@ -821,7 +821,7 @@ export default function HomePage() {
 
             const mockBlock = (
               <motion.div
-                variants={{ hidden: { opacity: 0, x: mockFrom }, visible: { opacity: 1, x: 0, transition: { duration: 0.5, ease: "easeOut" } } }}
+                variants={{ hidden: { opacity: 0, x: mockFrom }, visible: { opacity: 1, x: 0, transition: { duration: 0.5, ease: "easeOut" as const } } }}
                 whileInView="visible" initial="hidden" viewport={{ once: true, margin: "-100px" }}
                 className="rounded-2xl p-6 border"
                 style={{
@@ -906,7 +906,7 @@ export default function HomePage() {
 
             {/* Left: feature list — slide from left */}
             <motion.div
-              variants={{ hidden: { opacity: 0, x: -30 }, visible: { opacity: 1, x: 0, transition: { duration: 0.5, ease: "easeOut" } } }}
+              variants={{ hidden: { opacity: 0, x: -30 }, visible: { opacity: 1, x: 0, transition: { duration: 0.5, ease: "easeOut" as const } } }}
               whileInView="visible" initial="hidden" viewport={VP}
             >
               <p className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: "#00555a" }}>
@@ -1052,7 +1052,7 @@ export default function HomePage() {
 
           {/* Text — slide from right (mockup is left, text is right) */}
           <motion.div
-            variants={{ hidden: { opacity: 0, x: 30 }, visible: { opacity: 1, x: 0, transition: { duration: 0.5, ease: "easeOut" } } }}
+            variants={{ hidden: { opacity: 0, x: 30 }, visible: { opacity: 1, x: 0, transition: { duration: 0.5, ease: "easeOut" as const } } }}
             whileInView="visible" initial="hidden" viewport={VP}
           >
             <span
@@ -1103,7 +1103,7 @@ export default function HomePage() {
 
           {/* Inbox mockup — slide from left */}
           <motion.div
-            variants={{ hidden: { opacity: 0, x: -30 }, visible: { opacity: 1, x: 0, transition: { duration: 0.5, ease: "easeOut" } } }}
+            variants={{ hidden: { opacity: 0, x: -30 }, visible: { opacity: 1, x: 0, transition: { duration: 0.5, ease: "easeOut" as const } } }}
             whileInView="visible" initial="hidden" viewport={VP}
             className="rounded-2xl border overflow-hidden"
             style={{ backgroundColor: "#ffffff", borderColor: "#E2E8F0", boxShadow: "0 20px 48px rgba(0,0,0,0.08)" }}
@@ -1173,7 +1173,7 @@ export default function HomePage() {
 
           {/* Call analysis visual — slide from left */}
           <motion.div
-            variants={{ hidden: { opacity: 0, x: -30 }, visible: { opacity: 1, x: 0, transition: { duration: 0.5, ease: "easeOut" } } }}
+            variants={{ hidden: { opacity: 0, x: -30 }, visible: { opacity: 1, x: 0, transition: { duration: 0.5, ease: "easeOut" as const } } }}
             whileInView="visible" initial="hidden" viewport={VP}
             className="order-2 lg:order-1 rounded-2xl border overflow-hidden"
             style={{ backgroundColor: "#ffffff", borderColor: "#E2E8F0", boxShadow: "0 20px 48px rgba(0,0,0,0.08)" }}
@@ -1245,7 +1245,7 @@ export default function HomePage() {
 
           {/* Text — slide from right */}
           <motion.div
-            variants={{ hidden: { opacity: 0, x: 30 }, visible: { opacity: 1, x: 0, transition: { duration: 0.5, ease: "easeOut" } } }}
+            variants={{ hidden: { opacity: 0, x: 30 }, visible: { opacity: 1, x: 0, transition: { duration: 0.5, ease: "easeOut" as const } } }}
             whileInView="visible" initial="hidden" viewport={VP}
             className="order-1 lg:order-2"
           >

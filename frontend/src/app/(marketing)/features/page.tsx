@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useRef, useState, useEffect } from "react";
@@ -7,8 +7,8 @@ import { CheckCircle2, ArrowRight, Inbox, Phone, Users, MessageSquare, Star, Bar
 import { InboxMockup, CallsMockup, CRMMockup, WhatsAppMockup, QAMockup, InsightsMockup } from "@/components/marketing/FeatureMockups";
 
 // ─── Shared motion variants ───────────────────────────────────────────────────
-const fadeUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } } };
-const scaleUp = { hidden: { opacity: 0, scale: 0.97 }, visible: { opacity: 1, scale: 1, transition: { duration: 0.5, ease: "easeOut" } } };
+const fadeUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" as const } } };
+const scaleUp = { hidden: { opacity: 0, scale: 0.97 }, visible: { opacity: 1, scale: 1, transition: { duration: 0.5, ease: "easeOut" as const } } };
 const VP = { once: true, margin: "-60px" } as const;
 
 // ─── Feature data ─────────────────────────────────────────────────────────────
@@ -140,7 +140,7 @@ export default function FeaturesPage() {
 
         const textBlock = (
           <motion.div
-            variants={{ hidden: { opacity: 0, x: isEven ? -24 : 24 }, visible: { opacity: 1, x: 0, transition: { duration: 0.5, ease: "easeOut" } } }}
+            variants={{ hidden: { opacity: 0, x: isEven ? -24 : 24 }, visible: { opacity: 1, x: 0, transition: { duration: 0.5, ease: "easeOut" as const } } }}
             whileInView="visible" initial="hidden" viewport={VP}
           >
             <span className="text-sm font-black block mb-2" style={{ color: "#ffc94b" }}>{f.num}</span>

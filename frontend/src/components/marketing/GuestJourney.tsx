@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -140,7 +140,7 @@ export function GuestJourney() {
           className="absolute left-0 top-0 h-full rounded-full"
           style={{ backgroundColor: "#00555a" }}
           animate={{ width: `${progressPct}%` }}
-          transition={{ duration: 0.5, ease: "easeOut" }}
+          transition={{ duration: 0.5, ease: "easeOut" as const }}
         />
       </div>
 
@@ -149,7 +149,7 @@ export function GuestJourney() {
         <motion.div
           key={active}
           initial={{ opacity: 0, x: -10 }}
-          animate={{ opacity: 1, x: 0, transition: { duration: 0.25, ease: "easeOut" } }}
+          animate={{ opacity: 1, x: 0, transition: { duration: 0.25, ease: "easeOut" as const } }}
           exit={{ opacity: 0, x: 10, transition: { duration: 0.15 } }}
           className="rounded-2xl border overflow-hidden"
           style={{

@@ -22,6 +22,19 @@ import { usePresence } from "@/hooks/usePresence";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+interface GuestSummary {
+  id: string;
+  name?: string;
+  phone?: string;
+  is_vip?: boolean;
+  tags?: string[];
+  total_stays?: number;
+  total_inquiries?: number;
+  lifetime_value?: number;
+  consent_status?: string;
+  recent_stays?: { property_name: string; check_in: string; check_out?: string; nights: number }[];
+}
+
 interface Message {
   id: string;
   text: string;
@@ -245,7 +258,7 @@ function _noop({ detail }: { detail: ConversationDetail }) {
             {/* Tags */}
             {(guest?.tags ?? []).length > 0 && (
               <div className="flex flex-wrap gap-1">
-                {(guest!.tags!).slice(0, 4).map(tag => (
+                {(guest!.tags!).slice(0, 4).map((tag: string) => (
                   <span
                     key={tag}
                     className="px-2 py-0.5 rounded-full text-[10px] font-medium capitalize"
@@ -284,7 +297,7 @@ function _noop({ detail }: { detail: ConversationDetail }) {
                   Recent stays
                 </p>
                 <div className="space-y-1.5">
-                  {(guest!.recent_stays!).slice(0, 3).map((s, i) => (
+                  {(guest!.recent_stays!).slice(0, 3).map((s, i: number) => (
                     <div key={i} className="flex items-start gap-2">
                       <Bed size={10} className="mt-0.5 flex-shrink-0" style={{ color: "#14B8A6" }} />
                       <div className="min-w-0">

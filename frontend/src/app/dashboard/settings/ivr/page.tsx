@@ -84,7 +84,7 @@ export default function IVRPage() {
     queryKey: ["ivr-config"],
     queryFn: () => api.get("/api/v1/ivr/config").then(r => r.data),
     retry: false,
-    onSuccess: (cfg) => {
+    onSuccess: (cfg: IVRConfig) => {
       setForm(f => ({
         ...f,
         greeting_text: cfg.greeting_text,

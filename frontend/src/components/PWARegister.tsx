@@ -24,7 +24,7 @@ async function subscribeToPush(reg: ServiceWorkerRegistration): Promise<void> {
 
     const subscription = await reg.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(public_key),
+      applicationServerKey: urlBase64ToUint8Array(public_key) as unknown as ArrayBuffer,
     });
 
     const json = subscription.toJSON();

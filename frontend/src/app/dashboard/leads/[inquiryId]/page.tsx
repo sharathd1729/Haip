@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, Sparkles, Phone, MessageSquare, Instagram,
+  ArrowLeft, Sparkles, Phone, MessageSquare, MessageCircle as Instagram,
   Building2, Clock, RefreshCw, Plus, User, Globe,
   Shield, ChevronDown, ExternalLink,
 } from "lucide-react";

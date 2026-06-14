@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Phone, MessageSquare, Users, Instagram,
+  Phone, MessageSquare, Users, MessageCircle as Instagram,
   ArrowRight, ChevronDown, Check, Sparkles, BadgeCheck, Brain,
   Mic2, Bot, BarChart2, Zap, FileText, AlertTriangle,
 } from "lucide-react";
@@ -98,7 +98,7 @@ const MIN_BILL = 1500;
 const fmt = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 
 // ─── Motion variants ──────────────────────────────────────────────────────────
-const fadeUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } } };
+const fadeUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" as const } } };
 const VP = { once: true, margin: "-40px" } as const;
 
 // ─── FAQ ──────────────────────────────────────────────────────────────────────
@@ -134,7 +134,7 @@ function FAQAccordion() {
             {open === i && (
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1, transition: { duration: 0.2, ease: "easeOut" } }}
+                animate={{ height: "auto", opacity: 1, transition: { duration: 0.2, ease: "easeOut" as const } }}
                 exit={{ height: 0, opacity: 0, transition: { duration: 0.15 } }}
                 className="overflow-hidden"
               >
@@ -438,7 +438,7 @@ export default function PricingPage() {
               {aiOpen && (
                 <motion.div
                   initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1, transition: { duration: 0.25, ease: "easeOut" } }}
+                  animate={{ height: "auto", opacity: 1, transition: { duration: 0.25, ease: "easeOut" as const } }}
                   exit={{ height: 0, opacity: 0, transition: { duration: 0.18 } }}
                   className="overflow-hidden"
                 >
