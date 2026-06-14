@@ -14,22 +14,30 @@ log = structlog.get_logger()
 
 #: Ranks for detecting backward moves (exit stages have no rank).
 _STAGE_RANK: dict[InquiryStage, int] = {
-    InquiryStage.NEW:        0,
-    InquiryStage.RESPONDING: 1,
-    InquiryStage.QUOTED:     2,
-    InquiryStage.SITE_VISIT: 3,
-    InquiryStage.BOOKED:     4,
+    InquiryStage.NEW:                  0,
+    InquiryStage.RESPONDING:           1,
+    InquiryStage.QUOTED:               2,
+    InquiryStage.SITE_VISIT:           3,   # deprecated alias — kept for compat
+    InquiryStage.SITE_VISIT_SCHEDULED: 3,   # Leads360 addition
+    InquiryStage.SITE_VISIT_DONE:      4,   # Leads360 addition
+    InquiryStage.BOOKED:               5,
 }
 
 #: Allowed *forward* transitions per stage (excluding exit stages).
 ALLOWED_FORWARD: dict[InquiryStage, set[InquiryStage]] = {
     InquiryStage.NEW:        {InquiryStage.RESPONDING},
     InquiryStage.RESPONDING: {InquiryStage.QUOTED},
-    InquiryStage.QUOTED:     {InquiryStage.SITE_VISIT, InquiryStage.BOOKED},
-    InquiryStage.SITE_VISIT: {InquiryStage.BOOKED},
-    InquiryStage.BOOKED:     set(),
-    InquiryStage.LOST:       set(),
-    InquiryStage.GHOSTED:    set(),
+    InquiryStage.QUOTED:     {
+        InquiryStage.SITE_VISIT_SCHEDULED,  # new path
+        InquiryStage.SITE_VISIT,            # backward-compat
+        InquiryStage.BOOKED,
+    },
+    InquiryStage.SITE_VISIT_SCHEDULED: {InquiryStage.SITE_VISIT_DONE},
+    InquiryStage.SITE_VISIT_DONE:      {InquiryStage.BOOKED},
+    InquiryStage.SITE_VISIT:           {InquiryStage.BOOKED},   # deprecated compat
+    InquiryStage.BOOKED:               set(),
+    InquiryStage.LOST:                 set(),
+    InquiryStage.GHOSTED:              set(),
 }
 
 #: Terminal exit stages — reachable from *any* non-terminal stage.
@@ -169,10 +177,29 @@ def _apply_stage(
     actor_user_id: str,
     reason: Optional[str],
 ) -> None:
-    """Write the stage change + audit event. Caller must commit."""
+    """Write the stage change + audit event + Inquiry360 stage log. Caller must commit."""
     old_stage = inquiry.stage
+    now = datetime.now(timezone.utc)
     inquiry.stage = new_stage
-    inquiry.current_stage_entered_at = datetime.now(timezone.utc)
+    inquiry.current_stage_entered_at = now
+
+    # M7: Write to inquiry_stage_log (Inquiry360 — immutable stage history)
+    try:
+        from app.models.inquiry_360 import InquiryStageLog
+        from app.models.base import gen_uuid
+        log_entry = InquiryStageLog(
+            id=gen_uuid(),
+            tenant_id=inquiry.tenant_id,
+            inquiry_id=inquiry.id,
+            from_stage=old_stage.value if old_stage else None,
+            to_stage=new_stage.value,
+            changed_by=actor_user_id or "system",
+            changed_at=now,
+            reason=reason or "",
+        )
+        db.add(log_entry)
+    except Exception as exc:
+        log.warning("inquiry_stage_log_write_failed", error=str(exc))
 
     # Write audit event (best-effort — don't crash the transition if audit fails)
     try:

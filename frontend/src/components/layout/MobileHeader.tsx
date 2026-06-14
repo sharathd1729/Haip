@@ -2,14 +2,17 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Bell, ChevronRight } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
+import { Bell, Sun, Moon, Monitor } from "lucide-react";
 import { useBrandTheme } from "@/components/providers/BrandThemeProvider";
+import { useNotificationsStore } from "@/store/useNotificationsStore";
 
 const ROUTE_LABELS: Record<string, string> = {
   dashboard:    "Dashboard",
   inbox:        "Inbox",
   calls:        "Calls",
+  leads:        "Leads360",
   inquiries:    "Inquiries",
   guests:       "Guests",
   properties:   "Properties",
@@ -36,9 +39,28 @@ function PageTitle() {
   const segments = pathname.split("/").filter(Boolean);
   const last = segments[segments.length - 1] ?? "dashboard";
   return (
-    <span className="font-semibold text-gray-800 text-sm">
+    <span className="font-semibold text-sm tracking-tight" style={{ color: "var(--haip-fg)" }}>
       {ROUTE_LABELS[last] ?? last.charAt(0).toUpperCase() + last.slice(1)}
     </span>
+  );
+}
+
+function MobileThemeToggle() {
+  const { theme, setTheme } = useTheme();
+  function cycle() {
+    if (theme === "light") setTheme("dark");
+    else if (theme === "dark") setTheme("system");
+    else setTheme("light");
+  }
+  const Icon = theme === "light" ? Sun : theme === "dark" ? Moon : Monitor;
+  return (
+    <button
+      onClick={cycle}
+      className="w-9 h-9 rounded-lg flex items-center justify-center transition-colors duration-150 active:bg-muted"
+      style={{ color: "var(--haip-fg-subtle)" }}
+    >
+      <Icon size={16} />
+    </button>
   );
 }
 
@@ -46,24 +68,28 @@ interface MobileHeaderProps {
   user?: { name?: string | null; email?: string | null; role?: string };
 }
 
+function timeAgo(ts: number): string {
+  const secs = Math.floor((Date.now() - ts) / 1000);
+  if (secs < 60) return "just now";
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
+  return `${Math.floor(secs / 86400)}d ago`;
+}
+
 export function MobileHeader({ user }: MobileHeaderProps) {
   const [bellOpen, setBellOpen] = useState(false);
   const { theme } = useBrandTheme();
-  const primary = theme.primaryColor || "#14b8a6";
-
-  const notifications = [
-    { id: 1, text: "Priya Sharma sent a WhatsApp message", time: "2m ago", read: false },
-    { id: 2, text: "New call — transcription ready", time: "15m ago", read: false },
-    { id: 3, text: "QA score dropped below 70 for Agent Ravi", time: "1h ago", read: true },
-  ];
-  const unread = notifications.filter((n) => !n.read).length;
+  const router = useRouter();
+  const items = useNotificationsStore(s => s.items);
+  const markAllRead = useNotificationsStore(s => s.markAllRead);
+  const unreadCount = useNotificationsStore(s => s.unreadCount);
+  const unread = unreadCount();
 
   return (
     <header
-      className="h-14 flex items-center justify-between px-4 flex-shrink-0"
+      className="h-14 flex items-center justify-between px-4 flex-shrink-0 bg-background"
       style={{
-        backgroundColor: "var(--brand-topbar-bg, #FFFFFF)",
-        borderBottom: "1px solid #E5E7EB",
+        borderBottom: "1px solid var(--haip-border)",
         paddingTop: "env(safe-area-inset-top)",
       }}
     >
@@ -74,14 +100,14 @@ export function MobileHeader({ user }: MobileHeaderProps) {
             <img
               src={theme.logoDarkUrl ?? theme.logoUrl}
               alt={theme.companyName}
-              className="h-9 w-auto object-contain"
+              className="h-8 w-auto object-contain"
             />
           ) : (
             <div
               className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs flex-shrink-0"
               style={{
-                background: `linear-gradient(135deg, ${primary}, var(--brand-primary-dark, ${primary}))`,
-                color: "#ffffff",
+                background: "var(--primary)",
+                color: "var(--primary-foreground)",
               }}
             >
               {(theme.companyName ?? "HA").slice(0, 2).toUpperCase()}
@@ -92,18 +118,21 @@ export function MobileHeader({ user }: MobileHeaderProps) {
       </div>
 
       {/* Right actions */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-0.5">
+        <MobileThemeToggle />
+
         {/* Bell */}
         <div className="relative">
           <button
             onClick={() => setBellOpen(!bellOpen)}
-            className="relative w-9 h-9 rounded-xl flex items-center justify-center text-gray-500 hover:text-gray-700 active:bg-gray-100 transition-colors"
+            className="relative w-9 h-9 rounded-lg flex items-center justify-center transition-colors duration-150 active:bg-muted"
+            style={{ color: "var(--haip-fg-subtle)" }}
           >
-            <Bell size={18} />
+            <Bell size={16} />
             {unread > 0 && (
               <span
-                className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full"
-                style={{ backgroundColor: primary }}
+                className="absolute top-1.5 right-1.5 w-[7px] h-[7px] rounded-full"
+                style={{ background: "var(--haip-red)" }}
               />
             )}
           </button>
@@ -111,27 +140,73 @@ export function MobileHeader({ user }: MobileHeaderProps) {
           {bellOpen && (
             <>
               <div className="fixed inset-0 z-30" onClick={() => setBellOpen(false)} />
-              <div className="absolute right-0 top-full mt-2 z-40 w-80 max-w-[calc(100vw-2rem)] bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Notifications</span>
+              <div
+                className="absolute right-0 top-full mt-2 z-40 w-80 max-w-[calc(100vw-2rem)] rounded-xl overflow-hidden shadow-md"
+                style={{
+                  background: "var(--haip-card)",
+                  border: "1px solid var(--haip-border)",
+                }}
+              >
+                <div
+                  className="flex items-center justify-between px-4 py-3"
+                  style={{ borderBottom: "1px solid var(--haip-border)" }}
+                >
+                  <span
+                    className="text-[10px] font-semibold uppercase tracking-widest"
+                    style={{ color: "var(--haip-fg-subtle)" }}
+                  >
+                    Notifications
+                  </span>
                   {unread > 0 && (
-                    <span className="text-[10px] bg-teal-50 text-teal-600 px-2 py-0.5 rounded-full font-bold">
+                    <span
+                      className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                      style={{
+                        background: "color-mix(in srgb, var(--primary) 10%, transparent)",
+                        color: "var(--primary)",
+                      }}
+                    >
                       {unread} new
                     </span>
                   )}
                 </div>
-                {notifications.map((n) => (
-                  <div
-                    key={n.id}
-                    className={`px-4 py-3 border-b border-gray-50 last:border-0 ${!n.read ? "bg-teal-50/50" : ""}`}
-                  >
-                    <p className="text-xs text-gray-700 leading-relaxed mb-1">{n.text}</p>
-                    <p className="text-[10px] text-gray-400">{n.time}</p>
+                {items.length === 0 ? (
+                  <div className="px-4 py-6 text-center">
+                    <p className="text-xs" style={{ color: "var(--haip-fg-subtle)" }}>No notifications yet</p>
                   </div>
-                ))}
-                <div className="px-4 py-3 text-center">
-                  <button className="text-xs text-teal-600 font-semibold">Mark all read</button>
-                </div>
+                ) : (
+                  items.map(n => (
+                    <div
+                      key={n.id}
+                      className="px-4 py-3 cursor-pointer active:bg-muted"
+                      style={{
+                        borderBottom: "1px solid var(--haip-border)",
+                        background: !n.read
+                          ? "color-mix(in srgb, var(--primary) 4%, transparent)"
+                          : "transparent",
+                      }}
+                      onClick={() => { setBellOpen(false); router.push(n.url); }}
+                    >
+                      <p className="text-xs font-semibold mb-0.5" style={{ color: "var(--haip-fg)" }}>
+                        {n.title}
+                      </p>
+                      <p className="text-xs leading-relaxed mb-1" style={{ color: "var(--haip-fg-2)" }}>
+                        {n.body}
+                      </p>
+                      <p className="text-[10px]" style={{ color: "var(--haip-fg-subtle)" }}>{timeAgo(n.ts)}</p>
+                    </div>
+                  ))
+                )}
+                {items.length > 0 && (
+                  <div className="px-4 py-3 text-center">
+                    <button
+                      onClick={markAllRead}
+                      className="text-xs font-semibold"
+                      style={{ color: "var(--primary)" }}
+                    >
+                      Mark all read
+                    </button>
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -140,8 +215,11 @@ export function MobileHeader({ user }: MobileHeaderProps) {
         {/* User avatar */}
         <Link
           href="/dashboard/profile"
-          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ml-1"
-          style={{ backgroundColor: primary, color: "#ffffff" }}
+          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ml-0.5"
+          style={{
+            background: "var(--primary)",
+            color: "var(--primary-foreground)",
+          }}
         >
           {user?.name?.[0]?.toUpperCase() ?? "U"}
         </Link>

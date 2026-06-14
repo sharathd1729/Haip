@@ -1,7 +1,8 @@
-"use client";
+﻿"use client";
+
 
 /**
- * /dashboard/analytics/reports — Report Generation & History
+ * /dashboard/analytics/reports â€” Report Generation & History
  * Phase 5: Generate, view, and email business intelligence reports.
  */
 
@@ -15,7 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface ReportListItem {
   id: string;
@@ -28,7 +29,7 @@ interface ReportListItem {
   created_at: string;
 }
 
-// ─── Report type config ──────────────────────────────────────────────────────
+// â”€â”€â”€ Report type config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const REPORT_CFG: Record<string, { label: string; desc: string; icon: React.ReactNode; color: string }> = {
   executive: {
@@ -77,7 +78,7 @@ const REPORT_CFG: Record<string, { label: string; desc: string; icon: React.Reac
 
 const REPORT_TYPES = Object.keys(REPORT_CFG);
 
-// ─── Page ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function ReportsPage() {
   const qc = useQueryClient();
@@ -141,7 +142,7 @@ export default function ReportsPage() {
         <div>
           <h1 className="text-xl font-semibold text-gray-900 tracking-tight">Reports</h1>
           <p className="text-[12px] mt-0.5 text-gray-400">
-            Generate intelligence reports — weekly auto-delivery every Monday
+            Generate intelligence reports â€” weekly auto-delivery every Monday
           </p>
         </div>
         <div className="flex items-center gap-2">

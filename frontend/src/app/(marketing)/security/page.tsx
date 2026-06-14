@@ -6,7 +6,7 @@ import {
 
 const pillars = [
   {
-    icon: <Lock size={20} className="text-teal-400" />,
+    icon: <Lock size={20} style={{ color: "#00555a" }} />,
     title: "Encryption everywhere",
     bullets: [
       "AES-256 at rest on S3, RDS, and ElastiCache.",
@@ -16,7 +16,7 @@ const pillars = [
     ],
   },
   {
-    icon: <Database size={20} className="text-cyan-400" />,
+    icon: <Database size={20} style={{ color: "#00888f" }} />,
     title: "Multi-tenant isolation",
     bullets: [
       "Every row carries `tenant_id` — compound primary keys where appropriate.",
@@ -26,7 +26,7 @@ const pillars = [
     ],
   },
   {
-    icon: <KeyRound size={20} className="text-amber-400" />,
+    icon: <KeyRound size={20} style={{ color: "#e6b000" }} />,
     title: "Access &amp; identity",
     bullets: [
       "11 built-in roles: Owner · Manager · Reservations · Concierge · FOH · Marketing · Compliance · QA · Coach · Read-only.",
@@ -36,7 +36,7 @@ const pillars = [
     ],
   },
   {
-    icon: <Eye size={20} className="text-purple-400" />,
+    icon: <Eye size={20} style={{ color: "#00555a" }} />,
     title: "Audit &amp; observability",
     bullets: [
       "Append-only, hash-chained audit log — 5-year retention.",
@@ -46,7 +46,7 @@ const pillars = [
     ],
   },
   {
-    icon: <FileCheck2 size={20} className="text-rose-400" />,
+    icon: <FileCheck2 size={20} style={{ color: "#e11d48" }} />,
     title: "DPDP &amp; PII handling",
     bullets: [
       "PII redaction at L1 — card / Aadhaar / PAN / phone / email tokenised before transcripts reach the LLM.",
@@ -56,7 +56,7 @@ const pillars = [
     ],
   },
   {
-    icon: <Globe2 size={20} className="text-green-400" />,
+    icon: <Globe2 size={20} style={{ color: "#16a34a" }} />,
     title: "Data residency",
     bullets: [
       "India tenants live in AWS Mumbai (ap-south-1) by default — primary data, recordings, and backups.",
@@ -79,38 +79,38 @@ const subprocessors = [
 ];
 
 const compliance = [
-  { name: "DPDP Act 2023 (India)", status: "Ready", color: "text-green-400 bg-green-500/15 border-green-500/30", note: "Consent capture, residency, deletion workflows" },
-  { name: "SOC 2 Type I", status: "In progress · 2026 Q4", color: "text-amber-400 bg-amber-500/15 border-amber-500/30", note: "Audit kick-off scheduled" },
-  { name: "ISO 27001", status: "Planned · 2027", color: "text-white/40 bg-white/5 border-white/10", note: "Post SOC 2" },
-  { name: "GDPR", status: "Aligned", color: "text-green-400 bg-green-500/15 border-green-500/30", note: "EU-tenant data residency on Enterprise" },
-  { name: "Annual pen test", status: "From Year 2", color: "text-amber-400 bg-amber-500/15 border-amber-500/30", note: "Third-party tester contracted" },
+  { name: "DPDP Act 2023 (India)", status: "Ready", style: { color: "#15803d", backgroundColor: "rgba(22,163,74,0.08)", border: "1px solid rgba(22,163,74,0.25)" }, note: "Consent capture, residency, deletion workflows" },
+  { name: "SOC 2 Type I", status: "In progress · 2026 Q4", style: { color: "#a16207", backgroundColor: "rgba(255,201,75,0.16)", border: "1px solid rgba(230,176,0,0.30)" }, note: "Audit kick-off scheduled" },
+  { name: "ISO 27001", status: "Planned · 2027", style: { color: "#64748B", backgroundColor: "#F8FAFC", border: "1px solid #E2E8F0" }, note: "Post SOC 2" },
+  { name: "GDPR", status: "Aligned", style: { color: "#15803d", backgroundColor: "rgba(22,163,74,0.08)", border: "1px solid rgba(22,163,74,0.25)" }, note: "EU-tenant data residency on Enterprise" },
+  { name: "Annual pen test", status: "From Year 2", style: { color: "#a16207", backgroundColor: "rgba(255,201,75,0.16)", border: "1px solid rgba(230,176,0,0.30)" }, note: "Third-party tester contracted" },
 ];
 
 export default function SecurityPage() {
   return (
-    <div className="bg-[var(--mkt-bg)] text-white min-h-screen">
+    <div className="min-h-screen" style={{ backgroundColor: "var(--mkt-bg)", color: "#0F172A" }}>
       {/* HERO */}
       <section className="relative pt-32 pb-20 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full bg-teal-500/8 blur-[120px]" />
-          <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)", backgroundSize: "32px 32px" }} />
+          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full blur-[120px]" style={{ backgroundColor: "rgba(0,85,90,0.06)" }} />
+          <div className="absolute inset-0" style={{ backgroundImage: "radial-gradient(circle, #00555a15 1px, transparent 1px)", backgroundSize: "28px 28px" }} />
         </div>
         <div className="relative max-w-5xl mx-auto px-5 sm:px-8 text-center">
-          <div className="inline-flex items-center gap-2 bg-teal-500/10 border border-teal-500/20 rounded-full px-4 py-1.5 mb-6">
-            <Shield size={12} className="text-teal-400" />
-            <span className="text-xs font-semibold text-teal-300 uppercase tracking-wider">Trust center</span>
+          <div className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 mb-6" style={{ backgroundColor: "rgba(0,85,90,0.07)", border: "1px solid rgba(0,85,90,0.25)" }}>
+            <Shield size={12} style={{ color: "#00555a" }} />
+            <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#00555a" }}>Trust center</span>
           </div>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.05] mb-5">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.05] mb-5" style={{ color: "#0F172A" }}>
             Security &amp; privacy at HAIP
           </h1>
-          <p className="text-white/55 text-lg max-w-2xl mx-auto leading-relaxed mb-8">
+          <p className="text-lg max-w-2xl mx-auto leading-relaxed mb-8" style={{ color: "#475569" }}>
             We store voice recordings, guest PII, and full conversation history for paying clients. Multi-tenancy and encryption have to be airtight from day one — here is exactly how we do it.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <a href="mailto:security@haip.app" className="inline-flex items-center gap-2 px-6 py-3 bg-[#C8964A] hover:bg-[#D4A85A] text-[#0E1210] font-bold rounded-2xl transition-all shadow-xl shadow-teal-500/25">
+            <a href="mailto:security@haip.app" className="inline-flex items-center gap-2 px-6 py-3 font-bold rounded-2xl transition-all text-white" style={{ backgroundColor: "#00555a", boxShadow: "0 8px 24px rgba(0,85,90,0.28)" }}>
               <Mail size={16} /> Email security@haip.app
             </a>
-            <Link href="/dpdp" className="inline-flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-2xl border border-white/10 transition-all">
+            <Link href="/dpdp" className="inline-flex items-center gap-2 px-6 py-3 font-semibold rounded-2xl transition-all" style={{ backgroundColor: "#ffffff", border: "1px solid #E2E8F0", color: "#334155" }}>
               DPDP compliance details <ArrowRight size={16} />
             </Link>
           </div>
@@ -121,15 +121,15 @@ export default function SecurityPage() {
       <section className="px-5 sm:px-8 pb-8">
         <div className="max-w-6xl mx-auto grid sm:grid-cols-3 gap-4">
           {[
-            { icon: <Server size={18} className="text-teal-400" />, title: "India-first", desc: "AWS Mumbai (ap-south-1) by default. No US/EU spillover for Indian tenants." },
-            { icon: <BadgeCheck size={18} className="text-green-400" />, title: "DPDP-ready", desc: "Consent · residency · deletion · audit log · sub-processor disclosure." },
-            { icon: <KeyRound size={18} className="text-amber-400" />, title: "Per-tenant KMS", desc: "Your recordings encrypted with a key only your tenant can use." },
+            { icon: <Server size={18} style={{ color: "#00555a" }} />, title: "India-first", desc: "AWS Mumbai (ap-south-1) by default. No US/EU spillover for Indian tenants." },
+            { icon: <BadgeCheck size={18} style={{ color: "#16a34a" }} />, title: "DPDP-ready", desc: "Consent · residency · deletion · audit log · sub-processor disclosure." },
+            { icon: <KeyRound size={18} style={{ color: "#e6b000" }} />, title: "Per-tenant KMS", desc: "Your recordings encrypted with a key only your tenant can use." },
           ].map(c => (
-            <div key={c.title} className="bg-[var(--mkt-panel)] border border-white/10 rounded-2xl p-5 flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center flex-shrink-0">{c.icon}</div>
+            <div key={c.title} className="rounded-2xl p-5 flex items-start gap-3" style={{ backgroundColor: "#ffffff", border: "1px solid #E2E8F0", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#F8FAFC", border: "1px solid #F1F5F9" }}>{c.icon}</div>
               <div>
-                <p className="text-sm font-bold text-white mb-0.5">{c.title}</p>
-                <p className="text-xs text-white/45 leading-relaxed">{c.desc}</p>
+                <p className="text-sm font-bold mb-0.5" style={{ color: "#0F172A" }}>{c.title}</p>
+                <p className="text-xs leading-relaxed" style={{ color: "#64748B" }}>{c.desc}</p>
               </div>
             </div>
           ))}
@@ -140,20 +140,20 @@ export default function SecurityPage() {
       <section className="py-20 px-5 sm:px-8">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
-            <p className="text-xs font-bold text-[#3D9E7E] uppercase tracking-widest mb-3">How we protect your data</p>
-            <h2 className="text-3xl sm:text-4xl font-black tracking-tight">Six pillars · production from day one</h2>
+            <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: "#00555a" }}>How we protect your data</p>
+            <h2 className="text-3xl sm:text-4xl font-black tracking-tight" style={{ color: "#0F172A" }}>Six pillars · production from day one</h2>
           </div>
           <div className="grid md:grid-cols-2 gap-5">
             {pillars.map(p => (
-              <div key={p.title} className="bg-[var(--mkt-panel)]/70 border border-white/10 rounded-2xl p-6 hover:border-teal-500/25 transition-colors">
+              <div key={p.title} className="rounded-2xl p-6 transition-colors" style={{ backgroundColor: "#ffffff", border: "1px solid #E2E8F0", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center">{p.icon}</div>
-                  <h3 className="text-lg font-bold text-white">{p.title}</h3>
+                  <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: "#F8FAFC", border: "1px solid #F1F5F9" }}>{p.icon}</div>
+                  <h3 className="text-lg font-bold" style={{ color: "#0F172A" }} dangerouslySetInnerHTML={{ __html: p.title }} />
                 </div>
                 <ul className="space-y-2.5">
                   {p.bullets.map(b => (
-                    <li key={b} className="flex items-start gap-2.5 text-sm text-white/60 leading-relaxed">
-                      <CheckCircle2 size={14} className="text-teal-400 flex-shrink-0 mt-1" />
+                    <li key={b} className="flex items-start gap-2.5 text-sm leading-relaxed" style={{ color: "#475569" }}>
+                      <CheckCircle2 size={14} className="flex-shrink-0 mt-1" style={{ color: "#00555a" }} />
                       <span dangerouslySetInnerHTML={{ __html: b }} />
                     </li>
                   ))}
@@ -165,24 +165,24 @@ export default function SecurityPage() {
       </section>
 
       {/* SUB-PROCESSORS */}
-      <section className="py-20 px-5 sm:px-8 bg-[#0E1210]">
+      <section className="py-20 px-5 sm:px-8" style={{ backgroundColor: "#003d41" }}>
         <div className="max-w-5xl mx-auto">
           <div className="mb-10">
-            <p className="text-xs font-bold text-[#3D9E7E] uppercase tracking-widest mb-3">Sub-processor registry</p>
-            <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-3">Every third party that touches your data</h2>
-            <p className="text-white/55 max-w-2xl">Public list. Data Processing Agreements (DPAs) signed with each. We will notify you in advance of any new sub-processor we onboard.</p>
+            <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: "#ffc94b" }}>Sub-processor registry</p>
+            <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-3" style={{ color: "#ffffff" }}>Every third party that touches your data</h2>
+            <p className="max-w-2xl" style={{ color: "rgba(255,255,255,0.60)" }}>Public list. Data Processing Agreements (DPAs) signed with each. We will notify you in advance of any new sub-processor we onboard.</p>
           </div>
-          <div className="bg-[var(--mkt-panel)] border border-white/10 rounded-2xl overflow-hidden">
-            <div className="grid grid-cols-12 gap-4 px-5 py-3 border-b border-white/8 text-[11px] font-bold text-white/40 uppercase tracking-widest">
+          <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)" }}>
+            <div className="grid grid-cols-12 gap-4 px-5 py-3 text-[11px] font-bold uppercase tracking-widest" style={{ borderBottom: "1px solid rgba(255,255,255,0.10)", color: "rgba(255,255,255,0.45)" }}>
               <div className="col-span-4">Sub-processor</div>
               <div className="col-span-5">Purpose</div>
               <div className="col-span-3">Region</div>
             </div>
             {subprocessors.map(s => (
-              <div key={s.name} className="grid grid-cols-12 gap-4 px-5 py-4 border-b border-white/4 last:border-b-0 text-sm hover:bg-white/2 transition-colors">
-                <div className="col-span-4 text-white font-semibold" dangerouslySetInnerHTML={{ __html: s.name }} />
-                <div className="col-span-5 text-white/55" dangerouslySetInnerHTML={{ __html: s.purpose }} />
-                <div className="col-span-3 text-white/45 text-xs flex items-center" dangerouslySetInnerHTML={{ __html: s.region }} />
+              <div key={s.name} className="grid grid-cols-12 gap-4 px-5 py-4 text-sm transition-colors" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                <div className="col-span-4 font-semibold" style={{ color: "#ffffff" }} dangerouslySetInnerHTML={{ __html: s.name }} />
+                <div className="col-span-5" style={{ color: "rgba(255,255,255,0.60)" }} dangerouslySetInnerHTML={{ __html: s.purpose }} />
+                <div className="col-span-3 text-xs flex items-center" style={{ color: "rgba(255,255,255,0.50)" }} dangerouslySetInnerHTML={{ __html: s.region }} />
               </div>
             ))}
           </div>
@@ -193,18 +193,18 @@ export default function SecurityPage() {
       <section className="py-20 px-5 sm:px-8">
         <div className="max-w-5xl mx-auto">
           <div className="mb-10">
-            <p className="text-xs font-bold text-[#3D9E7E] uppercase tracking-widest mb-3">Compliance status</p>
-            <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-3">Where we are, and where we&apos;re going</h2>
-            <p className="text-white/55 max-w-2xl">We don&apos;t claim certifications we don&apos;t hold. Here is the honest status as of {new Date().toLocaleDateString("en-IN", { month: "short", year: "numeric" })}.</p>
+            <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: "#00555a" }}>Compliance status</p>
+            <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-3" style={{ color: "#0F172A" }}>Where we are, and where we&apos;re going</h2>
+            <p className="max-w-2xl" style={{ color: "#475569" }}>We don&apos;t claim certifications we don&apos;t hold. Here is the honest status as of {new Date().toLocaleDateString("en-IN", { month: "short", year: "numeric" })}.</p>
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
             {compliance.map(c => (
-              <div key={c.name} className="bg-[var(--mkt-panel)]/70 border border-white/8 rounded-2xl p-5">
+              <div key={c.name} className="rounded-2xl p-5" style={{ backgroundColor: "#ffffff", border: "1px solid #E2E8F0", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-base font-bold text-white">{c.name}</h3>
-                  <span className={`text-[10px] font-bold px-2 py-1 rounded-md border ${c.color}`}>{c.status}</span>
+                  <h3 className="text-base font-bold" style={{ color: "#0F172A" }}>{c.name}</h3>
+                  <span className="text-[10px] font-bold px-2 py-1 rounded-md" style={c.style}>{c.status}</span>
                 </div>
-                <p className="text-xs text-white/45">{c.note}</p>
+                <p className="text-xs" style={{ color: "#64748B" }}>{c.note}</p>
               </div>
             ))}
           </div>
@@ -212,16 +212,16 @@ export default function SecurityPage() {
       </section>
 
       {/* REPORT VULN */}
-      <section className="py-20 px-5 sm:px-8 bg-[#0E1210]">
-        <div className="max-w-4xl mx-auto bg-gradient-to-br from-[var(--mkt-panel)] to-[#0E1210] border border-amber-500/20 rounded-3xl p-8 sm:p-12">
+      <section className="py-20 px-5 sm:px-8" style={{ backgroundColor: "var(--mkt-panel)" }}>
+        <div className="max-w-4xl mx-auto rounded-3xl p-8 sm:p-12" style={{ backgroundColor: "#ffffff", border: "1px solid rgba(230,176,0,0.35)", boxShadow: "0 8px 32px rgba(0,0,0,0.06)" }}>
           <div className="flex items-start gap-4 mb-5">
-            <div className="w-12 h-12 rounded-xl bg-amber-500/15 border border-amber-500/25 flex items-center justify-center flex-shrink-0">
-              <AlertTriangle size={20} className="text-amber-400" />
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "rgba(255,201,75,0.16)", border: "1px solid rgba(230,176,0,0.30)" }}>
+              <AlertTriangle size={20} style={{ color: "#e6b000" }} />
             </div>
             <div>
-              <h2 className="text-2xl font-black tracking-tight mb-2">Reporting a vulnerability</h2>
-              <p className="text-white/60 text-base leading-relaxed">
-                Found something? Please email <a href="mailto:security@haip.app" className="text-amber-300 underline">security@haip.app</a> with details. We acknowledge within 1 working day and aim to triage within 3. We don&apos;t pursue legal action against good-faith research.
+              <h2 className="text-2xl font-black tracking-tight mb-2" style={{ color: "#0F172A" }}>Reporting a vulnerability</h2>
+              <p className="text-base leading-relaxed" style={{ color: "#475569" }}>
+                Found something? Please email <a href="mailto:security@haip.app" className="underline" style={{ color: "#a16207" }}>security@haip.app</a> with details. We acknowledge within 1 working day and aim to triage within 3. We don&apos;t pursue legal action against good-faith research.
               </p>
             </div>
           </div>
@@ -231,9 +231,9 @@ export default function SecurityPage() {
               { label: "Triage", value: "&lt; 3 days" },
               { label: "High-severity fix", value: "&lt; 14 days" },
             ].map(s => (
-              <div key={s.label} className="bg-white/3 rounded-xl px-4 py-3 text-center">
-                <p className="text-lg font-bold text-amber-300" dangerouslySetInnerHTML={{ __html: s.value }} />
-                <p className="text-[10px] text-white/40 uppercase tracking-widest mt-0.5">{s.label}</p>
+              <div key={s.label} className="rounded-xl px-4 py-3 text-center" style={{ backgroundColor: "#F8FAFC", border: "1px solid #F1F5F9" }}>
+                <p className="text-lg font-bold" style={{ color: "#a16207" }} dangerouslySetInnerHTML={{ __html: s.value }} />
+                <p className="text-[10px] uppercase tracking-widest mt-0.5" style={{ color: "#94A3B8" }}>{s.label}</p>
               </div>
             ))}
           </div>
@@ -243,13 +243,13 @@ export default function SecurityPage() {
       {/* CONTACT FOOTER */}
       <section className="py-20 px-5 sm:px-8">
         <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-4">Need our security pack for a vendor review?</h2>
-          <p className="text-white/55 mb-8 max-w-xl mx-auto">We&apos;re happy to share our architecture diagram, threat model, DPA, sub-processor registry, and pen-test plan with your compliance team — typically over a 30-minute call.</p>
+          <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-4" style={{ color: "#0F172A" }}>Need our security pack for a vendor review?</h2>
+          <p className="mb-8 max-w-xl mx-auto" style={{ color: "#475569" }}>We&apos;re happy to share our architecture diagram, threat model, DPA, sub-processor registry, and pen-test plan with your compliance team — typically over a 30-minute call.</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link href="/book-demo?topic=security" className="inline-flex items-center gap-2 px-6 py-3 bg-[#C8964A] hover:bg-[#D4A85A] text-[#0E1210] font-bold rounded-2xl transition-all shadow-xl shadow-[#C8964A]/30">
+            <Link href="/book-demo?topic=security" className="inline-flex items-center gap-2 px-6 py-3 font-bold rounded-2xl transition-all text-white" style={{ backgroundColor: "#00555a", boxShadow: "0 8px 24px rgba(0,85,90,0.28)" }}>
               Schedule security review <ArrowRight size={16} />
             </Link>
-            <a href="mailto:dpo@haip.app" className="inline-flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-2xl border border-white/10 transition-all">
+            <a href="mailto:dpo@haip.app" className="inline-flex items-center gap-2 px-6 py-3 font-semibold rounded-2xl transition-all" style={{ backgroundColor: "#ffffff", border: "1px solid #E2E8F0", color: "#334155" }}>
               <FileText size={16} /> Email DPO
             </a>
           </div>

@@ -503,3 +503,51 @@ def download_report(
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}.csv"'},
     )
+
+
+@router.get("/export")
+def export_report(
+    report_id: str = Query(...),
+    date_from: Optional[str] = Query(default=None),
+    date_to: Optional[str] = Query(default=None),
+    format: str = Query(default="csv", regex="^(csv|json)$"),
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER, UserRole.COMPLIANCE)),
+    db: Session = Depends(get_db),
+):
+    """
+    GET-based export — allows direct browser download via URL params.
+    Delegates to the same fetch_report_data used by POST /download.
+    """
+    catalog_item = next((r for r in REPORT_CATALOG if r["id"] == report_id), None)
+    if not catalog_item:
+        raise HTTPException(status_code=404, detail=f"Report '{report_id}' not in catalog")
+
+    from datetime import timezone as _tz
+    now = datetime.now(timezone.utc)
+    dt_from = datetime.fromisoformat(date_from).replace(tzinfo=_tz.utc) if date_from else now - timedelta(days=30)
+    dt_to = datetime.fromisoformat(date_to).replace(tzinfo=_tz.utc) if date_to else now
+
+    body = ReportRequest(
+        report_id=report_id,
+        date_from=dt_from.isoformat(),
+        date_to=dt_to.isoformat(),
+        fields=catalog_item.get("default_fields", []),
+    )
+    rows = fetch_report_data(db, current_user.tenant_id, body)
+    report_name = catalog_item["name"].replace(" ", "_").lower()
+    date_suffix = now.strftime("%Y%m%d_%H%M")
+    filename = f"haip_{report_name}_{date_suffix}"
+
+    if format == "json":
+        content = json.dumps({"report": report_name, "generated_at": now.isoformat(), "row_count": len(rows), "data": rows}, default=str, indent=2)
+        return StreamingResponse(io.StringIO(content), media_type="application/json", headers={"Content-Disposition": f'attachment; filename="{filename}.json"'})
+
+    output = io.StringIO()
+    if rows:
+        writer = csv.DictWriter(output, fieldnames=body.fields, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(rows)
+    else:
+        output.write(",".join(body.fields) + "\n")
+    output.seek(0)
+    return StreamingResponse(output, media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="{filename}.csv"'})

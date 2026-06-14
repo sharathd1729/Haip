@@ -14,7 +14,7 @@ from app.models.conversation import Conversation, Message
 from app.models.guest import Guest
 from app.models.tenant import Tenant
 from app.models.inquiry import Inquiry
-from app.adapters.llm import get_llm_adapter
+from app.adapters.llm import get_llm
 
 
 def _run_async(coro):
@@ -91,7 +91,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str)
             kb_snippets=ctx["kb_snippets"],
         )
 
-        adapter = get_llm_adapter()
+        adapter = get_llm("concierge_draft")
         result = _run_async(
             adapter.complete(
                 system_prompt=system_prompt,
@@ -132,6 +132,34 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str)
         else:
             # Push SSE notification to inbox
             _emit_sse(tenant_id=tenant_id, event="ai_draft_ready", conversation_id=conversation_id)
+            # Push notification (browser closed / mobile PWA)
+            try:
+                from app.services.push_service import send_to_tenant
+                send_to_tenant(
+                    db=db,
+                    tenant_id=tenant_id,
+                    title="AI draft ready for review",
+                    body="A reply has been drafted and is waiting for your approval.",
+                    url=f"/dashboard/inbox?id={conversation_id}",
+                    tag="haip-draft",
+                    user_id=conversation.assigned_to or None,
+                )
+            except Exception as _push_exc:
+                log.warning("push_notify_failed", error=str(_push_exc))
+
+        # Leads360: trigger debounced AI summary refresh for linked inquiry
+        if inquiry and inquiry.id:
+            try:
+                from app.services.leads_service import trigger_summary_refresh
+                trigger_summary_refresh(
+                    db=db,
+                    inquiry_id=str(inquiry.id),
+                    tenant_id=tenant_id,
+                    source="message",    # 30-min Redis debounce applies
+                )
+            except Exception as summary_exc:
+                log.warning("concierge_summary_refresh_skipped",
+                            conversation_id=conversation_id, error=str(summary_exc))
 
     except Exception as exc:
         log.error("concierge_draft_failed", message_id=message_id, error=str(exc))

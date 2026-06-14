@@ -27,28 +27,94 @@ def normalize_phone(phone: str) -> str:
 
 
 def upsert_by_phone(db: Session, tenant_id: str, phone: str, **kwargs) -> Guest:
-    """Find guest by E.164 phone or create. kwargs: name, email, language_pref."""
+    """
+    Find guest by E.164 phone or create, using the Identity Resolution Engine.
+    kwargs: name, email, language_pref, source
+    """
+    from app.services.identity_resolution import resolve_or_create
     e164 = normalize_phone(phone)
-    guest = db.query(Guest).filter_by(tenant_id=tenant_id, phone=e164, is_deleted=False).first()
-    if not guest:
-        guest = Guest(
-            id=str(uuid.uuid4()),
-            tenant_id=tenant_id,
-            phone=e164,
-            name=kwargs.get("name", "Unknown Guest"),
-            email=kwargs.get("email"),
-            language_pref=kwargs.get("language_pref", "en"),
-        )
-        db.add(guest)
-        db.flush()
-        log.info("guest_created", guest_id=guest.id, phone=e164, tenant_id=tenant_id)
-    else:
-        # Update fields if provided
-        if kwargs.get("name") and guest.name == "Unknown Guest":
+    guest_id, _ = resolve_or_create(
+        db=db,
+        tenant_id=tenant_id,
+        identity_type="phone",
+        identity_value=e164,
+        source=kwargs.pop("source", "system"),
+        guest_fields={"name": kwargs.get("name"), "email": kwargs.get("email"),
+                      "language_pref": kwargs.get("language_pref", "en")},
+    )
+    guest = db.query(Guest).filter_by(id=guest_id, is_deleted=False).first()
+
+    # Update name/email on the guest row if enriched
+    if guest:
+        if kwargs.get("name") and (not guest.name or guest.name == "Unknown Guest"):
             guest.name = kwargs["name"]
         if kwargs.get("email") and not guest.email:
             guest.email = kwargs["email"]
+            # Also enrich the identity graph with the email signal
+            from app.services.identity_resolution import enrich_guest
+            enrich_guest(db, tenant_id, guest_id, "email", kwargs["email"], source="system")
+
     return guest
+
+
+def upsert_by_channel_thread(
+    db: Session,
+    tenant_id: str,
+    channel_thread_id: str,
+    ota_guest_id: Optional[str] = None,
+    source: str = "channel_manager",
+    **kwargs,
+) -> tuple[Guest, bool]:
+    """
+    M3 — Channel Manager identity flow.
+    Resolve or create a guest from an OTA thread ID.
+    Returns (guest, created).
+    """
+    from app.services.identity_resolution import resolve_or_create, enrich_guest
+
+    guest_id, created = resolve_or_create(
+        db=db,
+        tenant_id=tenant_id,
+        identity_type="channel_thread_id",
+        identity_value=channel_thread_id,
+        source=source,
+        guest_fields={"name": kwargs.get("name"), "email": kwargs.get("email")},
+    )
+
+    # Also attach the OTA guest ID if available
+    if ota_guest_id:
+        enrich_guest(db, tenant_id, guest_id, "ota_guest_id", ota_guest_id, source=source)
+
+    guest = db.query(Guest).filter_by(id=guest_id, is_deleted=False).first()
+    return guest, created
+
+
+def enrich_guest_from_booking(
+    db: Session,
+    tenant_id: str,
+    guest_id: str,
+    booking_id: str,
+    phone: Optional[str] = None,
+    email: Optional[str] = None,
+) -> None:
+    """
+    M3 — Called when a Channel Manager booking is confirmed and OTA releases contact details.
+    Enriches the existing guest profile with phone, email, and booking_id.
+    """
+    from app.services.identity_resolution import enrich_guest
+
+    enrich_guest(db, tenant_id, guest_id, "booking_id", booking_id, source="channel_manager")
+    if phone:
+        e164 = normalize_phone(phone)
+        enrich_guest(db, tenant_id, guest_id, "phone", e164, source="channel_manager")
+        # Keep phone column in sync for fast lookups
+        guest = db.query(Guest).filter_by(id=guest_id, tenant_id=tenant_id).first()
+        if guest and not guest.phone:
+            guest.phone = e164
+            db.add(guest)
+    if email:
+        enrich_guest(db, tenant_id, guest_id, "email", email.lower().strip(),
+                     source="channel_manager")
 
 
 def get_timeline(db: Session, tenant_id: str, guest_id: str) -> dict:

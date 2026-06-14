@@ -403,8 +403,33 @@ def launch_campaign(
         raise HTTPException(status_code=400, detail=f"Cannot launch campaign in {campaign.status} status")
     campaign.status = CampaignStatus.RUNNING
     db.commit()
-    # TODO: enqueue Celery task to send messages
+
+    # Enqueue the batch-send worker
+    from app.workers.tasks.run_campaign import run_campaign
+    run_campaign.apply_async(
+        kwargs={
+            "campaign_id": campaign_id,
+            "tenant_id": current_user.tenant_id,
+        },
+        queue="whatsapp",
+    )
+
     return {"status": "running"}
+
+
+@router.delete("/campaigns/{campaign_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_campaign(
+    campaign_id: str,
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER, UserRole.MARKETING)),
+    db: Session = Depends(get_db),
+):
+    campaign = db.query(WACampaign).filter_by(id=campaign_id, tenant_id=current_user.tenant_id).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if campaign.status == CampaignStatus.RUNNING:
+        raise HTTPException(status_code=400, detail="Cannot delete a running campaign")
+    db.delete(campaign)
+    db.commit()
 
 
 # ─── Subscribers ─────────────────────────────────────────────────────────────

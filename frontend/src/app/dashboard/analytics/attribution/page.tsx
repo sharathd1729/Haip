@@ -1,8 +1,9 @@
-"use client";
+﻿"use client";
+
 
 /**
- * /dashboard/analytics/attribution — Revenue Attribution Intelligence
- * ✦ HAIP Hospitality Intelligence
+ * /dashboard/analytics/attribution â€” Revenue Attribution Intelligence
+ * âœ¦ HAIP Hospitality Intelligence
  *
  * First-touch / last-touch channel breakdown, journey paths, days to convert.
  */
@@ -20,7 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 
-// ─── Channel colour palette ────────────────────────────────────────────────
+// â”€â”€â”€ Channel colour palette â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const CH_COLORS: Record<string, string> = {
   WHATSAPP:  "#25d366",
@@ -42,17 +43,17 @@ function chColor(source: string) {
 }
 
 function fmt_inr(n: number) {
-  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
-  if (n >= 100000)   return `₹${(n / 100000).toFixed(1)}L`;
-  if (n >= 1000)     return `₹${(n / 1000).toFixed(0)}k`;
-  return `₹${Math.round(n)}`;
+  if (n >= 10000000) return `â‚¹${(n / 10000000).toFixed(1)}Cr`;
+  if (n >= 100000)   return `â‚¹${(n / 100000).toFixed(1)}L`;
+  if (n >= 1000)     return `â‚¹${(n / 1000).toFixed(0)}k`;
+  return `â‚¹${Math.round(n)}`;
 }
 
 function fmt_pct(n: number) {
   return `${n.toFixed(1)}%`;
 }
 
-// ─── Types ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface AttributionSourceRow {
   source: string;
@@ -84,7 +85,7 @@ interface AttributionStats {
   journey_paths: JourneyPathRow[];
 }
 
-// ─── Skeleton ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ Skeleton â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function PageSkeleton() {
   return (
@@ -101,7 +102,7 @@ function PageSkeleton() {
   );
 }
 
-// ─── Range selector ────────────────────────────────────────────────────────
+// â”€â”€â”€ Range selector â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const RANGES = [
   { label: "7d",  days: 7 },
@@ -109,7 +110,7 @@ const RANGES = [
   { label: "90d", days: 90 },
 ];
 
-// ─── Source label normalizer ───────────────────────────────────────────────
+// â”€â”€â”€ Source label normalizer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function srcLabel(s: string) {
   const map: Record<string, string> = {
@@ -129,7 +130,7 @@ function srcLabel(s: string) {
   return map[s.toUpperCase()] ?? s;
 }
 
-// ─── Custom bar tooltip ────────────────────────────────────────────────────
+// â”€â”€â”€ Custom bar tooltip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function SourceTooltip({ active, payload }: { active?: boolean; payload?: { payload: AttributionSourceRow }[] }) {
   if (!active || !payload?.length) return null;
@@ -146,7 +147,7 @@ function SourceTooltip({ active, payload }: { active?: boolean; payload?: { payl
   );
 }
 
-// ─── Page ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function AttributionPage() {
   const searchParams = useSearchParams();
@@ -226,7 +227,7 @@ export default function AttributionPage() {
         />
         <KpiCard
           label="Fastest Channel"
-          value={s.fastest_channel ? srcLabel(s.fastest_channel) : "—"}
+          value={s.fastest_channel ? srcLabel(s.fastest_channel) : "â€”"}
           icon={<Zap size={14} className="text-teal-500" />}
         />
       </div>
@@ -333,8 +334,8 @@ export default function AttributionPage() {
                   </td>
                   <td className="text-right py-2.5 text-teal-600 font-medium">{fmt_pct(row.conversion_pct)}</td>
                   <td className="text-right py-2.5 text-gray-700">{fmt_inr(row.revenue)}</td>
-                  <td className="text-right py-2.5 text-teal-600 font-medium">{last ? fmt_pct(last.conversion_pct) : "—"}</td>
-                  <td className="text-right py-2.5 text-gray-700">{last ? fmt_inr(last.revenue) : "—"}</td>
+                  <td className="text-right py-2.5 text-teal-600 font-medium">{last ? fmt_pct(last.conversion_pct) : "â€”"}</td>
+                  <td className="text-right py-2.5 text-gray-700">{last ? fmt_inr(last.revenue) : "â€”"}</td>
                   <td className="text-right py-2.5 text-gray-500">{row.avg_days_to_convert}d</td>
                 </tr>
               );
@@ -360,7 +361,7 @@ export default function AttributionPage() {
                     <div className="flex items-center justify-between mb-0.5">
                       <span className="text-xs font-medium text-gray-700 truncate">{p.path}</span>
                       <span className="text-[11px] text-gray-400 ml-2 shrink-0">
-                        {p.count} inquiries · {fmt_pct(p.conversion_pct)} CVR · {p.avg_days}d
+                        {p.count} inquiries Â· {fmt_pct(p.conversion_pct)} CVR Â· {p.avg_days}d
                       </span>
                     </div>
                     <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">

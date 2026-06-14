@@ -78,6 +78,15 @@ CATALOG = [
         "notes": "Generate an API key from Cloudbeds → Settings → API Keys.",
     },
     {
+        "provider": "haip_ivr",
+        "name": "HAIP IVR",
+        "description": "Built-in IVR — connect your Vobiz SIP number, configure a DTMF menu, and route calls to your team via Dograh AI.",
+        "category": "telephony",
+        "auth_type": "ivr_settings",
+        "logo": "phone",
+        "popular": True,
+    },
+    {
         "provider": "callerdesk",
         "name": "CallerDesk",
         "description": "Receive inbound call webhooks, trigger outbound calls, and pull recordings for AI analysis.",

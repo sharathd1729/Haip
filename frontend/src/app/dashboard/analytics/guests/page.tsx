@@ -1,4 +1,5 @@
-"use client";
+﻿"use client";
+
 
 import { useState, useMemo } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -19,9 +20,9 @@ const VIP_COLORS: Record<string, string> = { platinum: "#7c3aed", gold: "#d97706
 const LTV_COLORS = ["#ef4444","#f59e0b","#14b8a6","#6366f1"];
 
 function fmt_inr(n: number) {
-  if (n >= 100000) return `₹${(n/100000).toFixed(1)}L`;
-  if (n >= 1000)   return `₹${(n/1000).toFixed(0)}k`;
-  return `₹${n.toFixed(0)}`;
+  if (n >= 100000) return `â‚¹${(n/100000).toFixed(1)}L`;
+  if (n >= 1000)   return `â‚¹${(n/1000).toFixed(0)}k`;
+  return `â‚¹${n.toFixed(0)}`;
 }
 
 interface GuestStats {
@@ -123,7 +124,7 @@ export default function GuestAnalyticsPage() {
           {/* Acquisition trend */}
           <div className="col-span-12 lg:col-span-8 haip-card rounded-2xl p-5" style={{ border: "1px solid var(--haip-border)" }}>
             <h2 className="text-[13px] font-semibold mb-4" style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--haip-fg)" }}>
-              New Guest Acquisition — last {rangeDays} days
+              New Guest Acquisition â€” last {rangeDays} days
             </h2>
             {s.acquisition_trend.length > 0 ? (
               <ResponsiveContainer width="100%" height={220}>

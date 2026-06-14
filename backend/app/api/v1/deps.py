@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from typing import Optional
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -64,3 +67,112 @@ def require_roles(*roles):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
         return current_user
     return _check
+
+
+# ─── Module-driven guards ─────────────────────────────────────────────────────
+
+def get_workspace_context(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    FastAPI dependency: returns WorkspaceContext for the current user's workspace.
+    L1 Redis cache (5 min TTL) → DB fallback.
+    Non-breaking: if workspace has no module rows (backfill pending), returns
+    a permissive context that allows all access.
+    """
+    from app.services.workspace_context import load_workspace_context, WorkspaceContext
+    from app.models.module import WorkspaceModule
+    from app.core.cache import ctx_get, ctx_set
+
+    wid = current_user.tenant_id
+
+    # L1 cache hit
+    cached = ctx_get(wid)
+    if cached:
+        return WorkspaceContext(
+            workspace_id=cached["workspace_id"],
+            active_modules=cached["active_modules"],
+            flags=cached["flags"],
+            plan=cached["plan"],
+        )
+
+    has_any_modules = db.query(WorkspaceModule).filter(
+        WorkspaceModule.workspace_id == wid
+    ).first()
+
+    if not has_any_modules:
+        import structlog
+        structlog.get_logger().warning("module_backfill_pending", workspace_id=wid)
+        ctx = WorkspaceContext(
+            workspace_id=wid,
+            active_modules=["whatsapp", "instagram", "calls", "leads360",
+                            "channel_manager", "analytics", "ask_haip",
+                            "ai_concierge", "campaigns", "flow_builder"],
+            flags={},
+            plan="growth",
+        )
+    else:
+        ctx = load_workspace_context(db, wid)
+
+    # Populate L1 cache
+    ctx_set(wid, {
+        "workspace_id": ctx.workspace_id,
+        "active_modules": ctx.active_modules,
+        "flags": ctx.flags,
+        "plan": ctx.plan,
+    })
+    return ctx
+
+
+def require_module(*module_codes: str):
+    """
+    Route dependency factory.  Raises 403 with upgrade hint if ANY required
+    module is not active for this workspace.
+
+    Usage:
+        @router.get("/endpoint")
+        def my_endpoint(ctx = Depends(require_module("calls", "analytics"))):
+            ...
+    """
+    def _guard(
+        ctx=Depends(get_workspace_context),
+        current_user: User = Depends(get_current_user),
+    ):
+        missing = [m for m in module_codes if m not in ctx.active_modules]
+        if missing:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "error": "module_not_enabled",
+                    "missing_modules": missing,
+                    "message": f"This feature requires modules: {', '.join(missing)}. "
+                               "Contact your HAIP account manager to upgrade.",
+                },
+            )
+        return ctx
+    return _guard
+
+
+def require_flag(*flag_keys: str):
+    """
+    Route dependency factory.  Raises 403 if ANY required feature flag is False.
+
+    Usage:
+        @router.get("/endpoint")
+        def my_endpoint(ctx = Depends(require_flag("forecasting_enabled"))):
+            ...
+    """
+    def _guard(ctx=Depends(get_workspace_context)):
+        missing = [f for f in flag_keys if not ctx.flag(f)]
+        if missing:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "error": "feature_not_enabled",
+                    "missing_flags": missing,
+                    "message": f"Feature flags required: {', '.join(missing)}.",
+                },
+            )
+        return ctx
+    return _guard

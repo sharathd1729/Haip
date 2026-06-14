@@ -90,3 +90,124 @@ def invalidate_tenant(tenant_id: str) -> None:
             r.delete(*keys)
     except Exception as exc:
         log.debug("Cache invalidation failed for tenant %s: %s", tenant_id, exc)
+
+
+# ── L1-L4 Workspace Cache Layer ───────────────────────────────────────────────
+# Per Scale + Migrate architecture: O(1) lookup via Redis, fallback to DB.
+
+def _rget(key: str):
+    r = _client()
+    if not r:
+        return None
+    try:
+        raw = r.get(key)
+        return json.loads(raw) if raw else None
+    except Exception:
+        return None
+
+
+def _rset(key: str, value, ttl: int) -> None:
+    r = _client()
+    if not r:
+        return
+    try:
+        r.setex(key, ttl, json.dumps(value, default=str))
+    except Exception:
+        pass
+
+
+def _rdel(*keys: str) -> None:
+    r = _client()
+    if not r:
+        return
+    try:
+        r.delete(*keys)
+    except Exception:
+        pass
+
+
+def _rdel_pattern(pattern: str) -> None:
+    r = _client()
+    if not r:
+        return
+    try:
+        keys = list(r.scan_iter(pattern, count=200))
+        if keys:
+            r.delete(*keys)
+    except Exception:
+        pass
+
+
+# L1 — Workspace Context (active_modules + flags), TTL 5 min
+def ctx_get(workspace_id: str):
+    return _rget(f"workspace_ctx:{workspace_id}")
+
+
+def ctx_set(workspace_id: str, data: dict) -> None:
+    _rset(f"workspace_ctx:{workspace_id}", data, 300)
+
+
+def ctx_bust(workspace_id: str) -> None:
+    _rdel(f"workspace_ctx:{workspace_id}", f"feature_flags:{workspace_id}")
+
+
+# L2 — Feature Flags, TTL 60 min
+def flags_get(workspace_id: str):
+    return _rget(f"feature_flags:{workspace_id}")
+
+
+def flags_set(workspace_id: str, flags: dict) -> None:
+    _rset(f"feature_flags:{workspace_id}", flags, 3600)
+
+
+# L3 — Metric Results, TTL from registry (default 15 min)
+def metric_get(workspace_id: str, metric_key: str, range_key: str):
+    return _rget(f"metric_results:{workspace_id}:{metric_key}:{range_key}")
+
+
+def metric_set(workspace_id: str, metric_key: str, range_key: str, value, ttl: int = 900) -> None:
+    _rset(f"metric_results:{workspace_id}:{metric_key}:{range_key}", value, ttl)
+
+
+def metric_bust(workspace_id: str, metric_key: str | None = None) -> None:
+    pattern = (
+        f"metric_results:{workspace_id}:{metric_key}:*"
+        if metric_key
+        else f"metric_results:{workspace_id}:*"
+    )
+    _rdel_pattern(pattern)
+
+
+# L4 — Dashboard Snapshot, TTL 5 min, bust on dashboard save
+def snap_get(dashboard_id: str):
+    return _rget(f"dashboard_snap:{dashboard_id}")
+
+
+def snap_set(dashboard_id: str, data: dict) -> None:
+    _rset(f"dashboard_snap:{dashboard_id}", data, 300)
+
+
+def snap_bust(dashboard_id: str) -> None:
+    _rdel(f"dashboard_snap:{dashboard_id}")
+
+
+# ── SSE pub/sub ───────────────────────────────────────────────────────────────
+
+def publish_workspace_event(workspace_id: str, event_type: str, payload: dict) -> None:
+    """
+    Publish to workspace-scoped SSE channel.
+    Events: metric_update | module_changed | goal_alert | insight_new
+    SSE endpoint subscribes to ws_events:{workspace_id} channel.
+    """
+    r = _client()
+    if not r:
+        return
+    try:
+        import json as _json
+        msg = _json.dumps(
+            {"event": event_type, "workspace_id": workspace_id, **payload},
+            default=str,
+        )
+        r.publish(f"ws_events:{workspace_id}", msg)
+    except Exception as exc:
+        log.debug("SSE publish failed: %s", exc)

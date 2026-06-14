@@ -31,6 +31,9 @@ flower==2.0.1
 pyotp==2.9.0
 qrcode[pil]==7.4.2
 
+# ── Push notifications ───────────────────────────────────────────────────────
+pywebpush>=2.0.0
+
 # ── Free-tier AI providers ────────────────────────────────────────────────────
 # Groq  — free Whisper transcription + fast LLM inference
 # No extra SDK needed; we call the OpenAI-compatible REST API via httpx.

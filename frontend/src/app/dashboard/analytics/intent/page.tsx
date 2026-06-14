@@ -1,11 +1,12 @@
-"use client";
+﻿"use client";
+
 
 /**
- * /dashboard/analytics/intent — Guest Intent Analytics
- * ✦ HAIP Hospitality Intelligence
+ * /dashboard/analytics/intent â€” Guest Intent Analytics
+ * âœ¦ HAIP Hospitality Intelligence
  *
  * Why do guests travel? Which intent converts best?
- * Data: call.occasion + inquiry.occasion → normalized intent buckets
+ * Data: call.occasion + inquiry.occasion â†’ normalized intent buckets
  */
 
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -21,25 +22,25 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 
-// ─── Intent config ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Intent config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const INTENT_CONFIG: Record<string, { label: string; emoji: string; color: string }> = {
-  honeymoon:      { label: "Honeymoon",       emoji: "💑", color: "#ec4899" },
-  anniversary:    { label: "Anniversary",     emoji: "🥂", color: "#8b5cf6" },
-  birthday:       { label: "Birthday",        emoji: "🎂", color: "#f59e0b" },
-  friends_trip:   { label: "Friends Trip",    emoji: "🎉", color: "#06b6d4" },
-  workcation:     { label: "Workcation",      emoji: "💻", color: "#3b82f6" },
-  corporate:      { label: "Corporate",       emoji: "🏢", color: "#6366f1" },
-  family_vacation:{ label: "Family Vacation", emoji: "👨‍👩‍👧", color: "#10b981" },
-  long_stay:      { label: "Long Stay",       emoji: "📅", color: "#14b8a6" },
-  weekend_getaway:{ label: "Weekend Getaway", emoji: "🌅", color: "#f97316" },
-  other:          { label: "Other",           emoji: "✈️", color: "#9ca3af" },
+  honeymoon:      { label: "Honeymoon",       emoji: "ðŸ’‘", color: "#ec4899" },
+  anniversary:    { label: "Anniversary",     emoji: "ðŸ¥‚", color: "#8b5cf6" },
+  birthday:       { label: "Birthday",        emoji: "ðŸŽ‚", color: "#f59e0b" },
+  friends_trip:   { label: "Friends Trip",    emoji: "ðŸŽ‰", color: "#06b6d4" },
+  workcation:     { label: "Workcation",      emoji: "ðŸ’»", color: "#3b82f6" },
+  corporate:      { label: "Corporate",       emoji: "ðŸ¢", color: "#6366f1" },
+  family_vacation:{ label: "Family Vacation", emoji: "ðŸ‘¨â€ðŸ‘©â€ðŸ‘§", color: "#10b981" },
+  long_stay:      { label: "Long Stay",       emoji: "ðŸ“…", color: "#14b8a6" },
+  weekend_getaway:{ label: "Weekend Getaway", emoji: "ðŸŒ…", color: "#f97316" },
+  other:          { label: "Other",           emoji: "âœˆï¸", color: "#9ca3af" },
 };
 
 function fmt_inr(n: number) {
-  if (n >= 100000) return `₹${(n/100000).toFixed(1)}L`;
-  if (n >= 1000)   return `₹${(n/1000).toFixed(0)}k`;
-  return `₹${Math.round(n)}`;
+  if (n >= 100000) return `â‚¹${(n/100000).toFixed(1)}L`;
+  if (n >= 1000)   return `â‚¹${(n/1000).toFixed(0)}k`;
+  return `â‚¹${Math.round(n)}`;
 }
 
 interface IntentBucket {
@@ -83,8 +84,8 @@ export default function IntentAnalyticsPage() {
   if (!s) return null;
 
   const dist = s.intent_distribution ?? [];
-  const topLabel = s.top_intent ? (INTENT_CONFIG[s.top_intent]?.label ?? s.top_intent) : "—";
-  const topRevLabel = s.top_revenue_intent ? (INTENT_CONFIG[s.top_revenue_intent]?.label ?? s.top_revenue_intent) : "—";
+  const topLabel = s.top_intent ? (INTENT_CONFIG[s.top_intent]?.label ?? s.top_intent) : "â€”";
+  const topRevLabel = s.top_revenue_intent ? (INTENT_CONFIG[s.top_revenue_intent]?.label ?? s.top_revenue_intent) : "â€”";
 
   // Pivot intent_trend for multi-line chart
   const trendDates = [...new Set((s.intent_trend ?? []).map(t => t.date))].sort();
@@ -104,12 +105,12 @@ export default function IntentAnalyticsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 font-bold">✦ Hospitality Intelligence</span>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 font-bold">âœ¦ Hospitality Intelligence</span>
             </div>
             <h1 className="text-[20px] font-bold mt-1" style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}>
               Guest Intent Analytics
             </h1>
-            <p className="text-[12px] mt-0.5 text-gray-400">Why guests travel · What drives conversion · Booking value by intent</p>
+            <p className="text-[12px] mt-0.5 text-gray-400">Why guests travel Â· What drives conversion Â· Booking value by intent</p>
           </div>
           <div className="flex gap-2">
             {([7,14,30,90] as const).map(d => (
@@ -130,7 +131,7 @@ export default function IntentAnalyticsPage() {
             icon={<Target size={18}/>}
             subtext={`Calls + inquiries with intent data`} />
           <KpiCard label={`Top Intent: ${topLabel}`} value={`${s.top_intent_conversion}% conv.`}
-            icon={<span className="text-xl">{s.top_intent ? INTENT_CONFIG[s.top_intent]?.emoji : "✈️"}</span>}
+            icon={<span className="text-xl">{s.top_intent ? INTENT_CONFIG[s.top_intent]?.emoji : "âœˆï¸"}</span>}
             subtext={`Best converting travel purpose`} />
           <KpiCard label={`Top Revenue: ${topRevLabel}`} value={fmt_inr(s.top_revenue_intent_value)}
             icon={<DollarSign size={18}/>}
@@ -167,7 +168,7 @@ export default function IntentAnalyticsPage() {
                       <span style={{ background: INTENT_CONFIG[b.intent]?.color ?? "#9ca3af" }}
                         className="w-2 h-2 rounded-full flex-shrink-0" />
                       <span className="text-[11px] flex-1 text-gray-600 truncate">
-                        {INTENT_CONFIG[b.intent]?.emoji ?? "✈️"} {INTENT_CONFIG[b.intent]?.label ?? b.intent}
+                        {INTENT_CONFIG[b.intent]?.emoji ?? "âœˆï¸"} {INTENT_CONFIG[b.intent]?.label ?? b.intent}
                       </span>
                       <span className="text-[11px] font-bold text-gray-700">{b.count}</span>
                     </div>
@@ -189,7 +190,7 @@ export default function IntentAnalyticsPage() {
                 {dist.slice(0, 7).map(b => (
                   <div key={b.intent} className="flex items-center gap-2">
                     <span className="text-sm w-5 text-center flex-shrink-0">
-                      {INTENT_CONFIG[b.intent]?.emoji ?? "✈️"}
+                      {INTENT_CONFIG[b.intent]?.emoji ?? "âœˆï¸"}
                     </span>
                     <div className="flex-1 h-4 rounded-full overflow-hidden" style={{ background: "#e5e7eb" }}>
                       <div className="h-full rounded-full transition-all"
@@ -267,15 +268,15 @@ export default function IntentAnalyticsPage() {
                     <tr key={i} className="border-b last:border-0" style={{ borderColor: "var(--haip-border)" }}>
                       <td className="py-2">
                         <span className="flex items-center gap-1.5">
-                          <span>{INTENT_CONFIG[b.intent]?.emoji ?? "✈️"}</span>
+                          <span>{INTENT_CONFIG[b.intent]?.emoji ?? "âœˆï¸"}</span>
                           <span className="text-gray-700 font-medium">{INTENT_CONFIG[b.intent]?.label ?? b.intent}</span>
                         </span>
                       </td>
                       <td className="py-2 text-right font-bold text-teal-700">
-                        {b.avg_booking_value > 0 ? fmt_inr(b.avg_booking_value) : "—"}
+                        {b.avg_booking_value > 0 ? fmt_inr(b.avg_booking_value) : "â€”"}
                       </td>
                       <td className="py-2 text-right font-mono text-gray-600">
-                        {b.avg_stay_nights > 0 ? `${b.avg_stay_nights}n` : "—"}
+                        {b.avg_stay_nights > 0 ? `${b.avg_stay_nights}n` : "â€”"}
                       </td>
                     </tr>
                   ))}
@@ -291,7 +292,7 @@ export default function IntentAnalyticsPage() {
         {trendByDate.length > 0 && (
           <div className="haip-card rounded-2xl p-5" style={{ border: "1px solid var(--haip-border)" }}>
             <h2 className="text-[13px] font-semibold mb-4" style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--haip-fg)" }}>
-              Intent Trend (weekly) — Top 4 segments
+              Intent Trend (weekly) â€” Top 4 segments
             </h2>
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={trendByDate} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>

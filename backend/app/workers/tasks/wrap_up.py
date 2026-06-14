@@ -10,7 +10,7 @@ from app.core.database import SessionLocal
 from app.models.call import Call, CallDisposition
 from app.models.property import Property
 from app.models.user import User
-from app.adapters.llm import get_llm_adapter
+from app.adapters.llm import get_llm
 import structlog
 
 
@@ -84,7 +84,7 @@ def wrap_up(self, call_id: str, tenant_id: str, classification: dict = None, jud
             missed_revenue=judge_result.get("missed_revenue", []),
         )
 
-        adapter = get_llm_adapter()
+        adapter = get_llm("call_analysis")
         result = _run_async(
             adapter.complete(system_prompt=system_prompt, user_message="Generate the wrap-up.",
                              model="claude-haiku-4-5-20251001", tools=[WRAP_UP_TOOL])
@@ -101,6 +101,38 @@ def wrap_up(self, call_id: str, tenant_id: str, classification: dict = None, jud
 
         # Emit SSE event so the frontend cockpit updates in real time
         _emit_sse(tenant_id=tenant_id, event="call_processed", call_id=call_id)
+
+        # Push notification (browser closed / mobile PWA)
+        try:
+            from app.services.push_service import send_to_tenant
+            send_to_tenant(
+                db=db,
+                tenant_id=tenant_id,
+                title="Call summary ready",
+                body=call.ai_summary[:80] if call.ai_summary else "AI wrap-up complete.",
+                url=f"/dashboard/calls/{call_id}",
+                tag="haip-call",
+                user_id=call.agent_id or None,
+            )
+        except Exception as _push_exc:
+            log.warning("push_notify_failed", error=str(_push_exc))
+
+        # Fire automation trigger (non-blocking)
+        try:
+            from app.workers.tasks.automation_engine import fire_trigger
+            fire_trigger.apply_async(
+                kwargs={
+                    "event": "call_completed",
+                    "tenant_id": tenant_id,
+                    "context": {
+                        "call_id": call_id,
+                        "disposition": disposition_str,
+                    },
+                },
+                queue="whatsapp",
+            )
+        except Exception:
+            pass
 
     except Exception as exc:
         log.error("wrap_up_failed", call_id=call_id, error=str(exc))

@@ -78,7 +78,9 @@ services:
     image: redis:7-alpine
     container_name: haip_redis
     restart: unless-stopped
-    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly yes --appendfsync everysec
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -126,3 +128,4 @@ services:
 
 volumes:
   uploads:
+  redis_data:

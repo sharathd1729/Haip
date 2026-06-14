@@ -2,13 +2,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useNotificationsStore } from "@/store/useNotificationsStore";
+import { useTheme } from "next-themes";
 import { signOut } from "next-auth/react";
 import {
   Bell, Search, User,
   Settings, CreditCard, HelpCircle, LogOut,
-  ChevronDown, X,
+  ChevronDown, X, Sun, Moon, Monitor,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -20,6 +21,41 @@ interface TopBarProps {
     tenantId?: string;
   };
   workspaceName?: string;
+}
+
+// ─── Theme toggle ─────────────────────────────────────────────────────────────
+
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme();
+
+  // Cycle: light → dark → system → light
+  function cycle() {
+    if (theme === "light") setTheme("dark");
+    else if (theme === "dark") setTheme("system");
+    else setTheme("light");
+  }
+
+  const Icon = theme === "light" ? Sun : theme === "dark" ? Moon : Monitor;
+  const label = theme === "light" ? "Light" : theme === "dark" ? "Dark" : "System";
+
+  return (
+    <button
+      onClick={cycle}
+      title={`Theme: ${label} — click to cycle`}
+      className="w-9 h-9 flex items-center justify-center rounded-lg transition-colors duration-150"
+      style={{ color: "var(--haip-fg-subtle)" }}
+      onMouseEnter={e => {
+        (e.currentTarget as HTMLElement).style.background = "color-mix(in srgb, var(--primary) 8%, transparent)";
+        (e.currentTarget as HTMLElement).style.color = "var(--primary)";
+      }}
+      onMouseLeave={e => {
+        (e.currentTarget as HTMLElement).style.background = "transparent";
+        (e.currentTarget as HTMLElement).style.color = "var(--haip-fg-subtle)";
+      }}
+    >
+      <Icon size={15} />
+    </button>
+  );
 }
 
 // ─── Search bar ───────────────────────────────────────────────────────────────
@@ -42,26 +78,34 @@ function GlobalSearch() {
 
   return (
     <div
-      className="flex items-center gap-2 flex-1 max-w-md px-3.5 py-2 rounded-xl transition-all"
+      className="flex items-center gap-2 flex-1 max-w-md px-3 py-[7px] rounded-md transition-all duration-150"
       style={{
-        background: "#F8FAFC",
-        border: focused ? "1px solid #0F766E" : "1px solid #E5E7EB",
-        boxShadow: focused ? "0 0 0 3px rgba(15,118,110,0.08)" : "none",
+        background: "var(--input-bg, var(--muted))",
+        border: focused
+          ? "1px solid var(--primary)"
+          : "1px solid var(--haip-border)",
+        boxShadow: focused ? "0 0 0 3px color-mix(in srgb, var(--primary) 10%, transparent)" : "none",
       }}
     >
-      <Search size={14} style={{ color: focused ? "#0F766E" : "#9CA3AF", flexShrink: 0 }} />
+      <Search size={13} style={{ color: focused ? "var(--primary)" : "var(--haip-fg-subtle)", flexShrink: 0 }} />
       <input
         value={query}
         onChange={e => setQuery(e.target.value)}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         onKeyDown={handleKeyDown}
-        placeholder="Search guests, properties, or AI logs..."
-        className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-gray-400 min-w-0"
-        style={{ color: "#111827" }}
+        placeholder="Search guests, calls, properties…"
+        className="flex-1 bg-transparent text-[13px] outline-none min-w-0"
+        style={{
+          color: "var(--haip-fg)",
+          caretColor: "var(--primary)",
+        }}
       />
       {query && (
-        <button onClick={() => setQuery("")} style={{ color: "#9CA3AF" }}>
+        <button
+          onClick={() => setQuery("")}
+          style={{ color: "var(--haip-fg-subtle)", flexShrink: 0 }}
+        >
           <X size={12} />
         </button>
       )}
@@ -71,29 +115,42 @@ function GlobalSearch() {
 
 // ─── Notification bell ────────────────────────────────────────────────────────
 
+function timeAgo(ts: number): string {
+  const secs = Math.floor((Date.now() - ts) / 1000);
+  if (secs < 60) return "just now";
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
+  return `${Math.floor(secs / 86400)}d ago`;
+}
+
 function NotificationBell() {
   const [open, setOpen] = useState(false);
-  const notifications = [
-    { id: 1, text: "Priya Sharma sent a WhatsApp message", time: "2m ago", read: false },
-    { id: 2, text: "New call from +91 98765 43210 — transcript ready", time: "15m ago", read: false },
-    { id: 3, text: "QA score dropped below 70 for Agent Ravi", time: "1h ago", read: true },
-  ];
-  const unread = notifications.filter(n => !n.read).length;
+  const router = useRouter();
+  const items = useNotificationsStore(s => s.items);
+  const markAllRead = useNotificationsStore(s => s.markAllRead);
+  const unreadCount = useNotificationsStore(s => s.unreadCount);
+  const unread = unreadCount();
 
   return (
     <div className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className="relative w-9 h-9 flex items-center justify-center rounded-xl transition-colors"
-        style={{ color: "#6B7280" }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#F3F4F6"; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+        className="relative w-9 h-9 flex items-center justify-center rounded-lg transition-colors duration-150"
+        style={{ color: "var(--haip-fg-subtle)" }}
+        onMouseEnter={e => {
+          (e.currentTarget as HTMLElement).style.background = "color-mix(in srgb, var(--primary) 8%, transparent)";
+          (e.currentTarget as HTMLElement).style.color = "var(--primary)";
+        }}
+        onMouseLeave={e => {
+          (e.currentTarget as HTMLElement).style.background = "transparent";
+          (e.currentTarget as HTMLElement).style.color = "var(--haip-fg-subtle)";
+        }}
       >
-        <Bell size={16} />
+        <Bell size={15} />
         {unread > 0 && (
           <span
-            className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full"
-            style={{ background: "#EF4444" }}
+            className="absolute top-1.5 right-1.5 w-[7px] h-[7px] rounded-full"
+            style={{ background: "var(--haip-red)" }}
           />
         )}
       </button>
@@ -102,45 +159,83 @@ function NotificationBell() {
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
           <div
-            className="absolute right-0 top-full mt-2 z-40 w-80 rounded-2xl overflow-hidden shadow-lg"
-            style={{ background: "#fff", border: "1px solid #E5E7EB" }}
+            className="absolute right-0 top-full mt-2 z-40 w-80 rounded-xl overflow-hidden shadow-md"
+            style={{
+              background: "var(--haip-card)",
+              border: "1px solid var(--haip-border)",
+            }}
           >
+            {/* Header */}
             <div
               className="flex items-center justify-between px-4 py-3"
-              style={{ borderBottom: "1px solid #F3F4F6" }}
+              style={{ borderBottom: "1px solid var(--haip-border)" }}
             >
-              <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "#6B7280" }}>
+              <span
+                className="text-[10px] font-semibold uppercase tracking-widest"
+                style={{ color: "var(--haip-fg-subtle)" }}
+              >
                 Notifications
               </span>
               {unread > 0 && (
                 <span
-                  className="text-[10px] px-2 py-0.5 rounded-full font-bold"
-                  style={{ background: "rgba(15,118,110,0.10)", color: "#0F766E" }}
+                  className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                  style={{
+                    background: "color-mix(in srgb, var(--primary) 10%, transparent)",
+                    color: "var(--primary)",
+                  }}
                 >
                   {unread} new
                 </span>
               )}
             </div>
-            {notifications.map(n => (
-              <div
-                key={n.id}
-                className="px-4 py-3 transition-colors"
-                style={{
-                  borderBottom: "1px solid #F9FAFB",
-                  background: !n.read ? "rgba(15,118,110,0.03)" : "transparent",
-                }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#F9FAFB"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = !n.read ? "rgba(15,118,110,0.03)" : "transparent"; }}
-              >
-                <p className="text-[12.5px] leading-relaxed mb-0.5" style={{ color: "#374151" }}>{n.text}</p>
-                <p className="text-[11px]" style={{ color: "#9CA3AF" }}>{n.time}</p>
+
+            {/* Items */}
+            {items.length === 0 ? (
+              <div className="px-4 py-6 text-center">
+                <p className="text-xs" style={{ color: "var(--haip-fg-subtle)" }}>No notifications yet</p>
               </div>
-            ))}
-            <div className="px-4 py-3 text-center">
-              <button className="text-[12px] font-semibold transition-colors" style={{ color: "#0F766E" }}>
-                Mark all read
-              </button>
-            </div>
+            ) : (
+              items.map(n => (
+                <div
+                  key={n.id}
+                  className="px-4 py-3 transition-colors duration-150 cursor-pointer"
+                  style={{
+                    borderBottom: "1px solid var(--haip-border)",
+                    background: !n.read
+                      ? "color-mix(in srgb, var(--primary) 4%, transparent)"
+                      : "transparent",
+                  }}
+                  onClick={() => { setOpen(false); router.push(n.url); }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "var(--hover-bg)"; }}
+                  onMouseLeave={e => {
+                    (e.currentTarget as HTMLElement).style.background = !n.read
+                      ? "color-mix(in srgb, var(--primary) 4%, transparent)"
+                      : "transparent";
+                  }}
+                >
+                  <p className="text-xs font-semibold mb-0.5" style={{ color: "var(--haip-fg)" }}>
+                    {n.title}
+                  </p>
+                  <p className="text-xs leading-relaxed mb-0.5" style={{ color: "var(--haip-fg-2)" }}>
+                    {n.body}
+                  </p>
+                  <p className="text-[10px]" style={{ color: "var(--haip-fg-subtle)" }}>{timeAgo(n.ts)}</p>
+                </div>
+              ))
+            )}
+
+            {/* Footer */}
+            {items.length > 0 && (
+              <div className="px-4 py-2.5 text-center">
+                <button
+                  onClick={markAllRead}
+                  className="text-xs font-semibold transition-colors duration-150"
+                  style={{ color: "var(--primary)" }}
+                >
+                  Mark all read
+                </button>
+              </div>
+            )}
           </div>
         </>
       )}
@@ -158,65 +253,94 @@ function UserMenu({ user }: { user?: TopBarProps["user"] }) {
     <div className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1.5 rounded-xl px-1.5 py-1 transition-colors"
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#F3F4F6"; }}
+        className="flex items-center gap-1.5 rounded-lg px-1.5 py-1 transition-colors duration-150"
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "var(--hover-bg)"; }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
       >
         <div
-          className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white"
-          style={{ background: "linear-gradient(135deg, #0F766E, #059669)" }}
+          className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+          style={{
+            background: "var(--primary)",
+            color: "var(--primary-foreground)",
+          }}
         >
           {initials}
         </div>
-        <ChevronDown size={11} style={{ color: "#9CA3AF" }} />
+        <ChevronDown size={11} style={{ color: "var(--haip-fg-subtle)" }} />
       </button>
 
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
           <div
-            className="absolute right-0 top-full mt-2 z-40 w-52 rounded-2xl overflow-hidden shadow-lg"
-            style={{ background: "#fff", border: "1px solid #E5E7EB" }}
+            className="absolute right-0 top-full mt-2 z-40 w-52 rounded-xl overflow-hidden shadow-md"
+            style={{
+              background: "var(--haip-card)",
+              border: "1px solid var(--haip-border)",
+            }}
           >
-            <div className="px-4 py-3" style={{ borderBottom: "1px solid #F3F4F6" }}>
-              <p className="text-[13px] font-bold truncate" style={{ color: "#111827" }}>
+            {/* User info */}
+            <div
+              className="px-4 py-3"
+              style={{ borderBottom: "1px solid var(--haip-border)" }}
+            >
+              <p className="text-[13px] font-semibold truncate" style={{ color: "var(--haip-fg)" }}>
                 {user?.name ?? "User"}
               </p>
-              <p className="text-[11px] truncate" style={{ color: "#6B7280" }}>{user?.email}</p>
+              <p className="text-[11px] truncate" style={{ color: "var(--haip-fg-subtle)" }}>
+                {user?.email}
+              </p>
               <span
-                className="inline-flex items-center mt-1.5 text-[10px] px-2 py-0.5 rounded-full font-bold capitalize"
-                style={{ background: "rgba(15,118,110,0.10)", color: "#0F766E" }}
+                className="inline-flex items-center mt-1.5 text-[10px] px-2 py-0.5 rounded-full font-medium capitalize"
+                style={{
+                  background: "color-mix(in srgb, var(--primary) 10%, transparent)",
+                  color: "var(--primary)",
+                }}
               >
                 {user?.role ?? "member"}
               </span>
             </div>
+
+            {/* Menu items */}
             <div className="p-1.5">
               {[
-                { icon: <User size={13} />,      label: "Profile",       href: "/dashboard/profile" },
-                { icon: <Settings size={13} />,  label: "Settings",      href: "/dashboard/settings" },
-                { icon: <CreditCard size={13} />, label: "Billing",      href: "/dashboard/billing" },
+                { icon: <User size={13} />,       label: "Profile",        href: "/dashboard/profile" },
+                { icon: <Settings size={13} />,   label: "Settings",       href: "/dashboard/settings" },
+                { icon: <CreditCard size={13} />, label: "Billing",        href: "/dashboard/billing" },
                 { icon: <HelpCircle size={13} />, label: "Help & support", href: "/dashboard/help" },
               ].map(item => (
                 <Link
                   key={item.label}
                   href={item.href}
                   onClick={() => setOpen(false)}
-                  className="flex items-center gap-2.5 px-3 py-2 text-[12.5px] rounded-xl transition-colors"
-                  style={{ color: "#475569" }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#F9FAFB"; (e.currentTarget as HTMLElement).style.color = "#111827"; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "#475569"; }}
+                  className="flex items-center gap-2.5 px-3 py-2 text-xs rounded-lg transition-colors duration-150"
+                  style={{ color: "var(--haip-fg-muted)" }}
+                  onMouseEnter={e => {
+                    (e.currentTarget as HTMLElement).style.background = "var(--hover-bg)";
+                    (e.currentTarget as HTMLElement).style.color = "var(--haip-fg)";
+                  }}
+                  onMouseLeave={e => {
+                    (e.currentTarget as HTMLElement).style.background = "transparent";
+                    (e.currentTarget as HTMLElement).style.color = "var(--haip-fg-muted)";
+                  }}
                 >
-                  <span style={{ color: "#9CA3AF" }}>{item.icon}</span>
+                  <span style={{ color: "var(--haip-fg-subtle)" }}>{item.icon}</span>
                   {item.label}
                 </Link>
               ))}
-              <div className="h-px my-1" style={{ background: "#F3F4F6" }} />
+
+              <div className="h-px my-1" style={{ background: "var(--haip-border)" }} />
+
               <button
                 onClick={() => signOut({ callbackUrl: "/login" })}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-[12.5px] rounded-xl transition-colors"
-                style={{ color: "#EF4444" }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,0.05)"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs rounded-lg transition-colors duration-150"
+                style={{ color: "var(--haip-red)" }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,0.06)";
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement).style.background = "transparent";
+                }}
               >
                 <LogOut size={13} />
                 Sign out
@@ -234,18 +358,17 @@ function UserMenu({ user }: { user?: TopBarProps["user"] }) {
 export function TopBar({ user, workspaceName }: TopBarProps) {
   return (
     <div
-      className="h-14 flex items-center justify-between px-5 flex-shrink-0 gap-4"
+      className="h-14 flex items-center justify-between px-5 flex-shrink-0 gap-4 bg-background"
       style={{
-        background: "#FFFFFF",
-        borderBottom: "1px solid #E5E7EB",
+        borderBottom: "1px solid var(--haip-border)",
         zIndex: 10,
       }}
     >
-      {/* Left: Platform name */}
+      {/* Left: page title area (workspace name on desktop) */}
       <div className="flex items-center gap-3 flex-shrink-0">
         <span
-          className="font-semibold text-[14px] hidden sm:block"
-          style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}
+          className="font-semibold text-sm hidden sm:block tracking-tight"
+          style={{ color: "var(--haip-fg)" }}
         >
           {workspaceName ?? "HAIP Platform"}
         </span>
@@ -256,12 +379,10 @@ export function TopBar({ user, workspaceName }: TopBarProps) {
         <GlobalSearch />
       </div>
 
-      {/* Right: Actions */}
-      <div className="flex items-center gap-2 flex-shrink-0">
-        {/* Notification bell */}
+      {/* Right: theme toggle + bell + user */}
+      <div className="flex items-center gap-1 flex-shrink-0">
+        <ThemeToggle />
         <NotificationBell />
-
-        {/* User avatar */}
         <UserMenu user={user} />
       </div>
     </div>

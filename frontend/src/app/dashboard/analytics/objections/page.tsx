@@ -1,8 +1,9 @@
-"use client";
+﻿"use client";
+
 
 /**
- * /dashboard/analytics/objections — Objection Intelligence
- * ✦ HAIP Hospitality Intelligence
+ * /dashboard/analytics/objections â€” Objection Intelligence
+ * âœ¦ HAIP Hospitality Intelligence
  *
  * Why are bookings lost? Pareto of objections, revenue lost, competitor intel.
  */
@@ -34,10 +35,10 @@ const OBJECTION_COLORS: Record<string, string> = {
 };
 
 function fmt_inr(n: number) {
-  if (n >= 10000000) return `₹${(n/10000000).toFixed(1)}Cr`;
-  if (n >= 100000) return `₹${(n/100000).toFixed(1)}L`;
-  if (n >= 1000)   return `₹${(n/1000).toFixed(0)}k`;
-  return `₹${Math.round(n)}`;
+  if (n >= 10000000) return `â‚¹${(n/10000000).toFixed(1)}Cr`;
+  if (n >= 100000) return `â‚¹${(n/100000).toFixed(1)}L`;
+  if (n >= 1000)   return `â‚¹${(n/1000).toFixed(0)}k`;
+  return `â‚¹${Math.round(n)}`;
 }
 
 interface ObjCat { code: string; label: string; count: number; pct: number; revenue_lost: number; cumulative_pct: number; }
@@ -87,12 +88,12 @@ export default function ObjectionIntelligencePage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 font-bold">✦ Hospitality Intelligence</span>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 font-bold">âœ¦ Hospitality Intelligence</span>
             </div>
             <h1 className="text-[20px] font-bold mt-1" style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}>
               Objection Intelligence
             </h1>
-            <p className="text-[12px] mt-0.5 text-gray-400">Why bookings are lost · Revenue at risk · Competitor intelligence</p>
+            <p className="text-[12px] mt-0.5 text-gray-400">Why bookings are lost Â· Revenue at risk Â· Competitor intelligence</p>
           </div>
           <div className="flex gap-2">
             {([7,14,30,90] as const).map(d => (
@@ -126,7 +127,7 @@ export default function ObjectionIntelligencePage() {
         <div className="grid grid-cols-12 gap-5">
           <div className="col-span-12 lg:col-span-8 haip-card rounded-2xl p-5" style={{ border: "1px solid var(--haip-border)" }}>
             <h2 className="text-[13px] font-semibold mb-4" style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--haip-fg)" }}>
-              Objection Pareto — Frequency & Cumulative %
+              Objection Pareto â€” Frequency & Cumulative %
             </h2>
             {objs.length > 0 ? (
               <ResponsiveContainer width="100%" height={240}>

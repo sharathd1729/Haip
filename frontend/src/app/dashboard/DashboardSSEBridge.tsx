@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useInboxStream, SSEPayload } from "@/hooks/useInboxStream";
 import { useCallsStore } from "@/store/calls";
 import { useInboxStore } from "@/store/inbox";
+import { useNotificationsStore } from "@/store/useNotificationsStore";
 
 /**
  * Invisible component that lives in the dashboard layout.
@@ -17,13 +18,18 @@ export function DashboardSSEBridge() {
   const pushWrapUp = useCallsStore(s => s.pushWrapUp);
   const setAiDraft = useInboxStore(s => s.setAiDraft);
   const upsertConversation = useInboxStore(s => s.upsertConversation);
+  const addNotification = useNotificationsStore(s => s.addEvent);
 
   // Extract raw JWT access token – shape depends on next-auth callbacks
   const accessToken =
     (session as unknown as { accessToken?: string })?.accessToken ?? null;
 
   useInboxStream(accessToken, (payload: SSEPayload) => {
+    // Feed every meaningful event into the notification store (powers bell UI)
+    addNotification(payload as unknown as Record<string, unknown>);
+
     switch (payload.event) {
+      case "call_processed":
       case "wrap_up_ready": {
         // Push to the wrap-up notification queue in the calls store
         if (payload.call_id) {

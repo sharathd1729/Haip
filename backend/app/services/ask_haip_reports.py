@@ -27,7 +27,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.adapters.llm import get_llm_adapter
+from app.adapters.llm import get_llm
 from app.models.ask_haip import AskHaipReport
 from app.models.base import gen_uuid
 from app.services.ask_haip_agents import (
@@ -57,7 +57,7 @@ Return plain text only — no markdown, no headings."""
 
 async def _generate_narrative(context: str, report_type: str, period: str) -> str:
     """Generate a short narrative using Claude Haiku (cost-efficient)."""
-    llm = get_llm_adapter()
+    llm = get_llm("report_gen")
     try:
         result = await llm.complete(
             system_prompt=NARRATIVE_PROMPT,

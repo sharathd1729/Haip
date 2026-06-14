@@ -1,4 +1,5 @@
-"use client";
+﻿"use client";
+
 
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -128,7 +129,7 @@ export default function AIAnalyticsPage() {
         <div className="grid grid-cols-12 gap-5">
           <div className="col-span-12 lg:col-span-8 haip-card rounded-2xl p-5" style={{ border: "1px solid var(--haip-border)" }}>
             <h2 className="text-[13px] font-semibold mb-4" style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--haip-fg)" }}>
-              AI Draft Acceptance — last {rangeDays} days
+              AI Draft Acceptance â€” last {rangeDays} days
             </h2>
             {s.acceptance_trend.length > 0 ? (
               <ResponsiveContainer width="100%" height={220}>

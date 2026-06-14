@@ -45,6 +45,27 @@ celery_app = Celery(
         "app.workers.tasks.classify_intent",
         # Phase 5: Report generation
         "app.workers.tasks.generate_reports",
+        # Phase 6: Alert monitoring
+        "app.workers.tasks.check_alerts",
+        # Leads360: async AI summary generation
+        "app.workers.tasks.generate_ai_summary",
+        # WhatsApp: campaign runner + template status sync
+        "app.workers.tasks.run_campaign",
+        "app.workers.tasks.sync_wa_templates",
+        # Automations engine + timer triggers
+        "app.workers.tasks.automation_engine",
+        "app.workers.tasks.check_automation_timers",
+        # Dograh voice AI
+        "app.workers.tasks.dograh_call_processor",
+        # Adaptive dashboard widgets
+        "app.workers.tasks.generate_widgets",
+        # Metric snapshots + goal evaluation (architecture diagram — Metrics Engine)
+        "app.workers.tasks.compute_snapshots",
+        "app.workers.tasks.evaluate_goals",
+        # Cache invalidation (event-driven)
+        "app.workers.tasks.invalidate_cache",
+        # Module activation / deactivation
+        "app.workers.tasks.module_activation",
     ],
 )
 
@@ -72,6 +93,10 @@ celery_app.conf.update(
         "app.workers.tasks.wrap_up.*":              {"queue": "ai_scoring"},
         "app.workers.tasks.concierge_draft.*":      {"queue": "whatsapp"},
         "app.workers.tasks.send_whatsapp.*":        {"queue": "whatsapp"},
+        "app.workers.tasks.run_campaign.*":         {"queue": "whatsapp"},
+        "app.workers.tasks.sync_wa_templates.*":    {"queue": "whatsapp"},
+        "app.workers.tasks.automation_engine.*":    {"queue": "whatsapp"},
+        "app.workers.tasks.check_automation_timers.*": {"queue": "whatsapp"},
         "app.workers.tasks.lost_reason_cluster.*":  {"queue": "ai_scoring"},
         "app.workers.tasks.dpdp_purge.*":           {"queue": "call_ingest"},
         "app.workers.tasks.process_instagram_dm.*": {"queue": "whatsapp"},
@@ -82,6 +107,11 @@ celery_app.conf.update(
         "app.workers.tasks.transcription.*":        {"queue": "transcription"},
         "app.workers.tasks.ai_scoring.*":           {"queue": "ai_scoring"},
         "app.workers.tasks.retention_purge.*":      {"queue": "call_ingest"},
+        "app.workers.tasks.generate_widgets.*":     {"queue": "ai_scoring"},
+        "app.workers.tasks.compute_snapshots.*":    {"queue": "ai_scoring"},
+        "app.workers.tasks.evaluate_goals.*":       {"queue": "ai_scoring"},
+        "app.workers.tasks.invalidate_cache.*":     {"queue": "call_ingest"},
+        "app.workers.tasks.module_activation.*":    {"queue": "call_ingest"},
     },
 )
 
@@ -98,6 +128,14 @@ celery_app.conf.beat_schedule = {
     "retention-purge-nightly": {
         "task": "app.workers.tasks.retention_purge.nightly_purge",
         "schedule": crontab(hour=2, minute=30),
+    },
+    "automation-timers-30min": {
+        "task": "tasks.check_automation_timers.run",
+        "schedule": crontab(minute="*/30"),
+    },
+    "sync-wa-templates-30min": {
+        "task": "tasks.sync_wa_templates.sync_all_tenants",
+        "schedule": crontab(minute="*/30"),
     },
     "meta-quality-hourly": {
         "task": "app.workers.tasks.meta_quality_poll.poll_all_tenants",
@@ -134,5 +172,26 @@ celery_app.conf.beat_schedule = {
     "monthly-report-first-of-month": {
         "task": "app.workers.tasks.generate_reports.monthly_report_all_tenants",
         "schedule": crontab(hour=7, minute=0, day_of_month=1),
+    },
+    # Phase 6: Alert monitoring — every hour
+    "check-alerts-hourly": {
+        "task": "app.workers.tasks.check_alerts.check_all_tenants",
+        "schedule": crontab(minute=45),
+    },
+    # Metrics Engine — nightly snapshot computation at 01:00 IST (19:30 UTC prev day)
+    "compute-snapshots-nightly": {
+        "task": "app.workers.tasks.compute_snapshots.run_all_tenants",
+        "schedule": crontab(hour=19, minute=30),
+    },
+    # Goal evaluator — daily at 08:00 IST (02:30 UTC)
+    "evaluate-goals-daily": {
+        "task": "app.workers.tasks.evaluate_goals.run_all_tenants",
+        "schedule": crontab(hour=2, minute=30),
+    },
+    # Adaptive dashboard widgets — daily at 06:00 IST (00:30 UTC)
+    "generate-all-widgets-daily": {
+        "task": "tasks.generate_widgets",
+        "schedule": crontab(hour=0, minute=30),
+        "kwargs": {"tenant_id": "__all__"},
     },
 }

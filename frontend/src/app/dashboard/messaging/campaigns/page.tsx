@@ -3,9 +3,9 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Megaphone, Plus, Play, Pause, Clock, CheckCircle2,
-  Users, MessageSquare, TrendingUp, X, Loader2,
-  AlertCircle, BarChart2, Calendar, ChevronRight,
-  Send, Eye, Trash2,
+  Users, TrendingUp, X, Loader2,
+  AlertCircle, Calendar,
+  Send, Eye, Trash2, Tag, Filter,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
@@ -62,6 +62,113 @@ function Toast({ msg, type, onClose }: { msg: string; type: "success" | "error";
   );
 }
 
+// ─── Audience Filter Builder ──────────────────────────────────────────────────
+
+const SOURCES = ["web_widget", "import", "inbound", "manual"] as const;
+
+function AudienceFilterBuilder({
+  filter,
+  onChange,
+  allTags,
+  subscriberCount,
+}: {
+  filter: { tags: string[]; source: string[] };
+  onChange: (f: { tags: string[]; source: string[] }) => void;
+  allTags: string[];
+  subscriberCount: number | null;
+}) {
+  const [tagInput, setTagInput] = useState("");
+
+  const toggleTag = (t: string) => {
+    const next = filter.tags.includes(t)
+      ? filter.tags.filter(x => x !== t)
+      : [...filter.tags, t];
+    onChange({ ...filter, tags: next });
+  };
+
+  const toggleSource = (s: string) => {
+    const next = filter.source.includes(s)
+      ? filter.source.filter(x => x !== s)
+      : [...filter.source, s];
+    onChange({ ...filter, source: next });
+  };
+
+  const addTag = () => {
+    const t = tagInput.trim().toLowerCase();
+    if (t && !filter.tags.includes(t)) onChange({ ...filter, tags: [...filter.tags, t] });
+    setTagInput("");
+  };
+
+  const isEmpty = filter.tags.length === 0 && filter.source.length === 0;
+
+  return (
+    <div className="space-y-3">
+      {/* Tag filter */}
+      <div>
+        <p className="text-xs font-semibold text-gray-700 mb-1.5 flex items-center gap-1">
+          <Tag size={11} /> Filter by tags
+        </p>
+        {allTags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {allTags.map(t => (
+              <button key={t} onClick={() => toggleTag(t)}
+                className={cn("text-[11px] px-2.5 py-1 rounded-full border font-medium transition-colors",
+                  filter.tags.includes(t)
+                    ? "bg-teal-500 text-white border-teal-500"
+                    : "bg-gray-50 text-gray-600 border-gray-200 hover:border-teal-300")}>
+                {t}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <input value={tagInput} onChange={e => setTagInput(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addTag(); } }}
+            placeholder="Type a tag and press Enter…"
+            className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
+          <button onClick={addTag}
+            className="px-3 py-2 bg-gray-100 text-gray-600 rounded-xl text-xs font-medium hover:bg-gray-200 transition-colors">
+            Add
+          </button>
+        </div>
+      </div>
+
+      {/* Source filter */}
+      <div>
+        <p className="text-xs font-semibold text-gray-700 mb-1.5 flex items-center gap-1">
+          <Filter size={11} /> Filter by source
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {SOURCES.map(s => (
+            <button key={s} onClick={() => toggleSource(s)}
+              className={cn("text-[11px] px-2.5 py-1 rounded-full border font-medium transition-colors",
+                filter.source.includes(s)
+                  ? "bg-blue-500 text-white border-blue-500"
+                  : "bg-gray-50 text-gray-600 border-gray-200 hover:border-blue-300")}>
+              {s.replace("_", " ")}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Estimated reach */}
+      <div className={cn("rounded-xl px-3 py-2.5 flex items-center gap-2 text-xs",
+        isEmpty ? "bg-teal-50 border border-teal-100" : "bg-blue-50 border border-blue-100")}>
+        <Users size={13} className={isEmpty ? "text-teal-600" : "text-blue-600"} />
+        <span className={isEmpty ? "text-teal-700" : "text-blue-700"}>
+          {subscriberCount === null ? (
+            <span className="flex items-center gap-1"><Loader2 size={11} className="animate-spin" /> Calculating…</span>
+          ) : isEmpty ? (
+            <><strong>{subscriberCount.toLocaleString()}</strong> opted-in subscribers will receive this</>
+          ) : (
+            <><strong>~{subscriberCount.toLocaleString()}</strong> subscribers match these filters</>
+          )}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // ─── Create Campaign Modal ────────────────────────────────────────────────────
 
 function CreateCampaignModal({ templates, onClose, onCreated }: {
@@ -69,14 +176,37 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const [form, setForm] = useState({
-    name: "",
-    template_id: "",
-    scheduled_at: "",
-    audience_tags: "",
-  });
+  const [form, setForm] = useState({ name: "", template_id: "", scheduled_at: "" });
+  const [audienceFilter, setAudienceFilter] = useState<{ tags: string[]; source: string[] }>({ tags: [], source: [] });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  // Fetch all subscriber tags for the tag picker
+  const { data: subscribers = [] } = useQuery<{ tags: string[] }[]>({
+    queryKey: ["wa-subscribers-all"],
+    queryFn: () => api.get("/messaging/subscribers", { params: { limit: 500 } }).then(r => r.data).catch(() => []),
+    staleTime: 60_000,
+  });
+
+  // Derive unique tags across all subscribers
+  const allTags = [...new Set((subscribers as any[]).flatMap((s: any) => s.tags || []))].sort();
+
+  // Live audience count — recomputed when filter changes
+  const { data: audienceCount } = useQuery<number>({
+    queryKey: ["wa-audience-count", audienceFilter],
+    queryFn: async () => {
+      const all: any[] = await api.get("/messaging/subscribers", { params: { opted_in: true, limit: 500 } }).then(r => r.data);
+      let list = all;
+      if (audienceFilter.tags.length > 0) {
+        list = list.filter((s: any) => audienceFilter.tags.some(t => (s.tags || []).includes(t)));
+      }
+      if (audienceFilter.source.length > 0) {
+        list = list.filter((s: any) => audienceFilter.source.includes(s.source));
+      }
+      return list.length;
+    },
+    staleTime: 0,
+  });
 
   const handleCreate = async () => {
     if (!form.name.trim()) { setError("Campaign name is required."); return; }
@@ -84,11 +214,15 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
     setError("");
     setSubmitting(true);
     try {
+      const af: Record<string, any> = {};
+      if (audienceFilter.tags.length > 0) af.tags = audienceFilter.tags;
+      if (audienceFilter.source.length > 0) af.source = audienceFilter.source;
+
       await api.post("/messaging/campaigns", {
         name: form.name,
         template_id: form.template_id,
         scheduled_at: form.scheduled_at || null,
-        audience_filter: form.audience_tags ? { tags: form.audience_tags.split(",").map(t => t.trim()).filter(Boolean) } : {},
+        audience_filter: af,
       });
       onCreated();
       onClose();
@@ -102,17 +236,18 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
   const approvedTemplates = templates.filter(t => t.status === "approved");
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
-        <div className="px-6 pt-6 pb-4 border-b border-gray-100 flex items-center justify-between">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden max-h-[90vh] flex flex-col">
+        <div className="px-6 pt-6 pb-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
           <div>
             <h2 className="text-base font-bold text-gray-900">New campaign</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Send a message to your opted-in subscribers.</p>
+            <p className="text-xs text-gray-400 mt-0.5">Send a template to your opted-in subscribers.</p>
           </div>
           <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
         </div>
 
-        <div className="px-6 py-5 space-y-4">
+        <div className="px-6 py-5 space-y-5 overflow-y-auto flex-1">
+          {/* Name */}
           <div>
             <label className="text-xs font-semibold text-gray-700 block mb-1.5">Campaign name <span className="text-red-500">*</span></label>
             <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
@@ -120,6 +255,7 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
               className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
           </div>
 
+          {/* Template */}
           <div>
             <label className="text-xs font-semibold text-gray-700 block mb-1.5">Message template <span className="text-red-500">*</span></label>
             {approvedTemplates.length === 0 ? (
@@ -137,14 +273,22 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
             )}
           </div>
 
+          {/* Audience filter */}
           <div>
-            <label className="text-xs font-semibold text-gray-700 block mb-1.5">Audience tags <span className="text-gray-400 font-normal">(optional)</span></label>
-            <input value={form.audience_tags} onChange={e => setForm(f => ({ ...f, audience_tags: e.target.value }))}
-              placeholder="vip, repeat-guest, june-arrivals (comma-separated)"
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
-            <p className="text-[10px] text-gray-400 mt-1">Leave blank to send to all opted-in subscribers.</p>
+            <label className="text-xs font-semibold text-gray-700 block mb-2">
+              Audience <span className="text-gray-400 font-normal">(optional — leave all blank for all subscribers)</span>
+            </label>
+            <div className="border border-gray-200 rounded-xl p-4">
+              <AudienceFilterBuilder
+                filter={audienceFilter}
+                onChange={setAudienceFilter}
+                allTags={allTags}
+                subscriberCount={audienceCount ?? null}
+              />
+            </div>
           </div>
 
+          {/* Schedule */}
           <div>
             <label className="text-xs font-semibold text-gray-700 block mb-1.5">Schedule for later <span className="text-gray-400 font-normal">(optional)</span></label>
             <input type="datetime-local" value={form.scheduled_at} onChange={e => setForm(f => ({ ...f, scheduled_at: e.target.value }))}
@@ -159,7 +303,7 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
           )}
         </div>
 
-        <div className="px-6 pb-5 flex gap-3">
+        <div className="px-6 pb-5 flex gap-3 flex-shrink-0 border-t border-gray-100 pt-4">
           <button onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
           <button onClick={handleCreate} disabled={submitting}
             className="flex-1 py-2.5 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">

@@ -1,4 +1,5 @@
-"use client";
+﻿"use client";
+
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Sparkles, AlertTriangle, AlertCircle, Info, TrendingUp, CheckCircle2 } from "lucide-react";
@@ -108,7 +109,7 @@ function InsightCard({ item, onDismiss }: { item: InsightItem; onDismiss: (id: s
                 onClick={() => router.push(item.cta_href!)}
                 className="text-xs font-medium text-teal-600 hover:text-teal-700 underline underline-offset-2"
               >
-                {item.cta_label} →
+                {item.cta_label} â†’
               </button>
             )}
             <button
@@ -163,7 +164,7 @@ export default function RecommendationsPage() {
         <div>
           <h1 className="text-xl font-semibold text-gray-900 tracking-tight">AI Recommendations</h1>
           <p className="text-[12px] text-gray-400 mt-0.5">
-            {active.length} active insight{active.length !== 1 ? "s" : ""} · auto-refreshes every 15 min
+            {active.length} active insight{active.length !== 1 ? "s" : ""} Â· auto-refreshes every 15 min
           </p>
         </div>
       </div>

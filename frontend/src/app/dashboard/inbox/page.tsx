@@ -11,6 +11,7 @@ import { SavedReplyMenu } from "@/components/inbox/SavedReplyMenu";
 import { AIDraftPanel } from "@/components/inbox/AIDraftPanel";
 import { TypingDots } from "@/components/inbox/TypingDots";
 import { ChannelIcon } from "@/components/inbox/ChannelIcon";
+import { GuestPanel } from "@/components/inbox/GuestPanel";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useInboxStore } from "@/store/inbox";
@@ -103,12 +104,11 @@ function ChannelFilterRow({
       {/* Left fade */}
       {canScrollLeft && (
         <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-6 z-10"
-          style={{ background: "linear-gradient(to right, white, transparent)" }} />
+          style={{ background: "linear-gradient(to right, var(--haip-card), transparent)" }} />
       )}
-      {/* Right fade */}
       {canScrollRight && (
         <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 z-10"
-          style={{ background: "linear-gradient(to left, white, transparent)" }} />
+          style={{ background: "linear-gradient(to left, var(--haip-card), transparent)" }} />
       )}
       <div
         ref={scrollRef}
@@ -119,10 +119,10 @@ function ChannelFilterRow({
           <button
             key={f.value}
             onClick={() => onChange(f.value)}
-            className={cn(
-              "flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors min-h-[36px] min-w-[40px]",
-              value === f.value ? "bg-teal-500 text-white" : "text-gray-500 hover:bg-gray-100"
-            )}
+            className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors duration-150 min-h-[36px] min-w-[40px]"
+            style={value === f.value
+              ? { background: "var(--primary)", color: "var(--primary-foreground)" }
+              : { color: "var(--haip-fg-muted)" }}
           >
             {f.value && <ChannelIcon channel={f.value} className="w-3.5 h-3.5" />}
             {f.label}
@@ -133,22 +133,9 @@ function ChannelFilterRow({
   );
 }
 
-// ─── Guest 360 mini-panel ─────────────────────────────────────────────────────
-
-interface GuestSummary {
-  id?: string;
-  name?: string;
-  phone: string;
-  tags?: string[];
-  consent_status?: string;
-  is_vip?: boolean;
-  lifetime_value?: number;
-  total_stays?: number;
-  total_inquiries?: number;
-  recent_stays?: { property_name?: string; check_in?: string; check_out?: string }[];
-}
-
-function GuestPanel({ detail }: { detail: ConversationDetail }) {
+// GuestPanel is in @/components/inbox/GuestPanel — imported above
+// Keeping the function stub to avoid editing the large block below it
+function _noop({ detail }: { detail: ConversationDetail }) {
   const { data: guest, isLoading } = useQuery<GuestSummary>({
     queryKey: ["guest-by-phone", detail.guest_phone],
     queryFn: () =>
@@ -662,23 +649,21 @@ export default function InboxPage() {
     : [];
 
   return (
-    <div className="h-full flex overflow-hidden" style={{ background: "var(--haip-surface)" }}>
+    <div className="h-full flex overflow-hidden bg-background">
       {/* Left: conversation list — full-width on mobile when mobileView==="list", sidebar on md+ */}
       <div className={cn(
-        "flex-col bg-white",
+        "flex-col bg-background",
         "border-r",
-        // mobile: full width on list view, hidden on thread view
         mobileView === "list" ? "flex w-full" : "hidden",
-        // desktop: always visible, fixed width
-        "md:flex md:w-72 md:flex-shrink-0",
+        "md:flex md:w-[280px] md:flex-shrink-0",
       )}
         style={{ borderColor: "var(--haip-border)" }}
       >
         {/* W18: online agents indicator */}
         {onlineUsers.length > 0 && (
-          <div className="px-3 py-1.5 border-b border-gray-50 flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
-            <span className="text-[10px] text-gray-500">
+          <div className="px-3 py-1.5 flex items-center gap-1.5" style={{ borderBottom: "1px solid var(--haip-border)" }}>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
+            <span className="text-[10px]" style={{ color: "var(--haip-fg-subtle)" }}>
               {onlineUsers.length === 1
                 ? `${onlineUsers[0].name.split(" ")[0]} is online`
                 : `${onlineUsers.length} agents online`}
@@ -688,7 +673,8 @@ export default function InboxPage() {
                 <div
                   key={u.id}
                   title={`${u.name} (${u.role})`}
-                  className="w-5 h-5 rounded-full bg-teal-500 border border-white flex items-center justify-center text-white text-[8px] font-bold"
+                  className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold"
+                  style={{ background: "var(--primary)", color: "var(--primary-foreground)", border: "1px solid var(--haip-card)" }}
                 >
                   {u.name[0]?.toUpperCase()}
                 </div>
@@ -698,17 +684,17 @@ export default function InboxPage() {
         )}
         {/* W15: saved views section */}
         {(savedViews as any[]).length > 0 && (
-          <div className="px-3 py-2 border-b border-gray-50">
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Saved views</p>
+          <div className="px-3 py-2" style={{ borderBottom: "1px solid var(--haip-border)" }}>
+            <p className="text-[10px] font-medium uppercase tracking-widest mb-1.5" style={{ color: "var(--haip-fg-subtle)" }}>Saved views</p>
             <div className="space-y-0.5">
               {(savedViews as any[]).map((v: any) => (
                 <button
                   key={v.id}
                   onClick={() => setActiveView(av => av === v.id ? null : v.id)}
-                  className={cn(
-                    "w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-colors",
-                    activeView === v.id ? "bg-teal-100 text-teal-700 font-medium" : "text-gray-600 hover:bg-gray-50"
-                  )}
+                  className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-colors duration-150"
+                  style={activeView === v.id
+                    ? { background: "color-mix(in srgb, var(--primary) 10%, transparent)", color: "var(--primary)", fontWeight: 500 }
+                    : { color: "var(--haip-fg-muted)" }}
                 >
                   {v.name}
                 </button>
@@ -718,7 +704,7 @@ export default function InboxPage() {
         )}
 
         {/* M1: channel filter with scroll-fade on overflow */}
-        <div className="px-3 py-2.5 border-b border-gray-100">
+        <div className="px-3 py-2.5" style={{ borderBottom: "1px solid var(--haip-border)" }}>
           <ChannelFilterRow
             filters={CHANNEL_FILTERS}
             value={channelFilter}
@@ -727,10 +713,10 @@ export default function InboxPage() {
         </div>
 
         {listLoading ? (
-          <div className="flex-1 divide-y divide-gray-50">
+          <div className="flex-1 divide-y" style={{ borderColor: "var(--haip-border)" }}>
             {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="px-4 py-3.5 flex gap-3">
-                <Skeleton className="w-9 h-9 rounded-full" />
+                <Skeleton className="w-9 h-9 rounded-full flex-shrink-0" />
                 <div className="flex-1 space-y-2">
                   <Skeleton className="h-3 w-28" /><Skeleton className="h-2.5 w-40" />
                 </div>
@@ -766,15 +752,15 @@ export default function InboxPage() {
       )}>
         {!activeConversationId ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
-            <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
-              <Sparkles size={24} className="text-gray-400" />
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-4" style={{ background: "var(--muted)" }}>
+              <Sparkles size={18} style={{ color: "var(--haip-fg-subtle)" }} />
             </div>
-            <p className="text-gray-500 text-sm font-medium">Select a conversation</p>
-            <p className="text-gray-400 text-xs mt-1">Choose from the left panel</p>
+            <p className="text-sm font-medium" style={{ color: "var(--haip-fg)" }}>Select a conversation</p>
+            <p className="text-xs mt-1" style={{ color: "var(--haip-fg-subtle)" }}>Choose from the left panel</p>
           </div>
         ) : (
           <>
-            <div className="px-3 md:px-5 py-3 border-b border-gray-100 flex items-center gap-2 md:gap-3 flex-shrink-0">
+            <div className="px-3 md:px-5 py-3 flex items-center gap-2 md:gap-3 flex-shrink-0" style={{ borderBottom: "1px solid var(--haip-border)" }}>
               {/* Mobile back button */}
               <button
                 onClick={() => setMobileView("list")}
@@ -785,11 +771,14 @@ export default function InboxPage() {
               </button>
               {detail ? (
                 <>
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-400 to-blue-500 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
+                    style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
+                  >
                     {detail.guest_name?.[0]?.toUpperCase() ?? "?"}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-gray-900">{detail.guest_name || detail.guest_phone}</div>
+                    <div className="text-sm font-semibold" style={{ color: "var(--haip-fg)" }}>{detail.guest_name || detail.guest_phone}</div>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <ChannelIcon channel={detail.channel} className="w-4 h-4" />
                       <span className="text-xs text-gray-400 capitalize">{detail.channel}</span>
@@ -814,8 +803,9 @@ export default function InboxPage() {
                   {/* W17: search */}
                   <button
                     onClick={() => setShowSearch(s => !s)}
-                    className="w-8 h-8 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex items-center justify-center transition-colors"
-                    title="Search messages (W17)"
+                    className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors duration-150 hover:bg-muted"
+                    style={{ color: "var(--haip-fg-subtle)" }}
+                    title="Search messages"
                   >
                     <Search size={14} />
                   </button>
@@ -823,13 +813,14 @@ export default function InboxPage() {
                   <div className="relative">
                     <button
                       onClick={() => setShowSnooze(s => !s)}
-                      className="w-8 h-8 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex items-center justify-center transition-colors"
-                      title="Snooze conversation (W14)"
+                      className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors duration-150 hover:bg-muted"
+                      style={{ color: "var(--haip-fg-subtle)" }}
+                      title="Snooze conversation"
                     >
                       <BellOff size={14} />
                     </button>
                     {showSnooze && (
-                      <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden w-44">
+                      <div className="absolute top-full right-0 mt-1 z-20 rounded-xl shadow-md overflow-hidden w-44" style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)" }}>
                         {[
                           { label: "3 hours", hours: 3 },
                           { label: "Tomorrow 9am", hours: 18 },
@@ -837,18 +828,17 @@ export default function InboxPage() {
                         ].map(opt => (
                           <button
                             key={opt.label}
-                            onClick={() => {
-                              const d = new Date(Date.now() + opt.hours * 3600_000);
-                              snoozeMutation.mutate(d.toISOString());
-                            }}
-                            className="w-full text-left px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                            onClick={() => { snoozeMutation.mutate(new Date(Date.now() + opt.hours * 3600_000).toISOString()); }}
+                            className="w-full text-left px-4 py-2 text-xs transition-colors duration-150 hover:bg-muted"
+                            style={{ color: "var(--haip-fg-muted)" }}
                           >
                             {opt.label}
                           </button>
                         ))}
                         <button
                           onClick={() => snoozeMutation.mutate(null)}
-                          className="w-full text-left px-4 py-2 text-xs text-red-500 hover:bg-red-50 border-t border-gray-100 transition-colors"
+                          className="w-full text-left px-4 py-2 text-xs transition-colors duration-150 hover:bg-muted"
+                          style={{ color: "var(--haip-red)", borderTop: "1px solid var(--haip-border)" }}
                         >
                           Clear snooze
                         </button>
@@ -858,7 +848,12 @@ export default function InboxPage() {
                   <button
                     onClick={() => draftMutation.mutate()}
                     disabled={draftMutation.isPending || aiTyping}
-                    className="flex items-center gap-1.5 text-xs font-medium text-teal-600 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors duration-150 disabled:opacity-50"
+                    style={{
+                      background: "color-mix(in srgb, var(--primary) 8%, transparent)",
+                      border: "1px solid color-mix(in srgb, var(--primary) 20%, transparent)",
+                      color: "var(--primary)",
+                    }}
                   >
                     {draftMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
                     AI draft
@@ -867,9 +862,9 @@ export default function InboxPage() {
               ) : <Skeleton className="h-6 w-48" />}
             </div>
 
-            {/* W7: AI tone strip — show when AI draft exists or AI is active */}
+            {/* W7: AI tone strip */}
             {(conversations.find(c => c.id === activeConversationId)?.has_ai_draft || aiTyping) && (
-              <div className="px-4 py-2 border-b border-teal-100 bg-teal-50/50 flex-shrink-0">
+              <div className="px-4 py-2 flex-shrink-0" style={{ borderBottom: "1px solid var(--haip-border)", background: "color-mix(in srgb, var(--primary) 4%, transparent)" }}>
                 <AIDraftPanel
                   tone={aiTone}
                   onToneChange={setAiTone}
@@ -887,34 +882,31 @@ export default function InboxPage() {
 
             {/* W17: search overlay */}
             {showSearch && (
-              <div className="border-b border-gray-100 px-4 py-3 bg-gray-50 space-y-2 flex-shrink-0">
+              <div className="px-4 py-3 space-y-2 flex-shrink-0" style={{ borderBottom: "1px solid var(--haip-border)", background: "var(--muted)" }}>
                 <div className="flex items-center gap-2">
-                  <Search size={13} className="text-gray-400 flex-shrink-0" />
+                  <Search size={13} className="flex-shrink-0" style={{ color: "var(--haip-fg-subtle)" }} />
                   <input
                     autoFocus
                     value={searchQ}
                     onChange={e => setSearchQ(e.target.value)}
                     placeholder="Search messages…"
-                    className="flex-1 text-sm bg-transparent outline-none text-gray-800 placeholder:text-gray-400"
+                    className="flex-1 text-sm bg-transparent outline-none"
+                    style={{ color: "var(--haip-fg)" }}
                   />
-                  <button onClick={() => { setShowSearch(false); setSearchQ(""); }}><X size={13} className="text-gray-400" /></button>
+                  <button onClick={() => { setShowSearch(false); setSearchQ(""); }} style={{ color: "var(--haip-fg-subtle)" }}><X size={13} /></button>
                 </div>
                 {searchQ.length >= 2 && (
-                  <div className="space-y-1 max-h-48 overflow-y-auto">
-                    {searchLoading ? <p className="text-xs text-gray-400 py-2 text-center">Searching…</p>
-                    : (searchResults as any[]).length === 0 ? <p className="text-xs text-gray-400 py-2 text-center">No results</p>
+                  <div className="space-y-1 max-h-48 overflow-y-auto haip-scrollbar">
+                    {searchLoading ? <p className="text-xs py-2 text-center" style={{ color: "var(--haip-fg-subtle)" }}>Searching…</p>
+                    : (searchResults as any[]).length === 0 ? <p className="text-xs py-2 text-center" style={{ color: "var(--haip-fg-subtle)" }}>No results</p>
                     : (searchResults as any[]).map((r: any) => (
                       <button
                         key={r.message_id}
-                        onClick={() => {
-                          setActiveConversation(r.conversation_id);
-                          setShowSearch(false);
-                          setSearchQ("");
-                        }}
-                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-white text-xs transition-colors"
+                        onClick={() => { setActiveConversation(r.conversation_id); setShowSearch(false); setSearchQ(""); }}
+                        className="w-full text-left px-3 py-2 rounded-lg text-xs transition-colors duration-150 hover:bg-card"
                       >
-                        <p className="font-medium text-gray-800 truncate">{r.guest_name || r.guest_phone}</p>
-                        <p className="text-gray-500 truncate">{r.snippet}</p>
+                        <p className="font-medium truncate" style={{ color: "var(--haip-fg)" }}>{r.guest_name || r.guest_phone}</p>
+                        <p className="truncate" style={{ color: "var(--haip-fg-subtle)" }}>{r.snippet}</p>
                       </button>
                     ))}
                   </div>
@@ -963,26 +955,24 @@ export default function InboxPage() {
             </div>
 
             {editingDraftId && (
-              <div className="px-5 py-3 bg-teal-50 border-t border-teal-100 flex gap-2">
+              <div className="px-5 py-3 flex gap-2" style={{ borderTop: "1px solid var(--haip-border)", background: "color-mix(in srgb, var(--primary) 4%, transparent)" }}>
                 <textarea
                   value={editText}
                   onChange={e => setEditText(e.target.value)}
                   rows={2}
-                  className="flex-1 text-sm border border-teal-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none bg-white"
+                  className="flex-1 text-sm rounded-lg px-3 py-2 focus:outline-none resize-none"
+                  style={{ border: "1px solid var(--haip-border)", background: "var(--haip-card)", color: "var(--haip-fg)" }}
                 />
                 <div className="flex flex-col gap-1">
                   <button
                     onClick={() => {
                       api.post(`/conversations/${activeConversationId}/messages/${editingDraftId}/approve`, { text: editText })
-                        .then(() => {
-                          setEditingDraftId(null);
-                          queryClient.invalidateQueries({ queryKey: ["conversation", activeConversationId] });
-                          toast({ variant: "success", title: "Edited draft sent" });
-                        });
+                        .then(() => { setEditingDraftId(null); queryClient.invalidateQueries({ queryKey: ["conversation", activeConversationId] }); toast({ variant: "success", title: "Edited draft sent" }); });
                     }}
-                    className="text-xs font-semibold text-white bg-teal-500 hover:bg-teal-600 px-3 py-1.5 rounded-lg transition-colors"
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors duration-150"
+                    style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
                   >Send</button>
-                  <button onClick={() => setEditingDraftId(null)} className="text-xs text-gray-500 hover:text-gray-700 px-3 py-1.5">Cancel</button>
+                  <button onClick={() => setEditingDraftId(null)} className="text-xs px-3 py-1.5" style={{ color: "var(--haip-fg-subtle)" }}>Cancel</button>
                 </div>
               </div>
             )}
@@ -1022,12 +1012,11 @@ export default function InboxPage() {
               </div>
             )}
 
-            {/* Composer — W1, W2, W3, W24, W5 */}
-            <div className={cn(
-              "px-3 md:px-4 pt-2 pb-2 md:pb-1 border-t flex-shrink-0",
-              windowBlocked && !isInternalNote && "hidden",
-              isInternalNote ? "border-amber-200 bg-amber-50/40" : "border-gray-100"
-            )}>
+            {/* Composer */}
+            <div
+              className={cn("px-3 md:px-4 pt-2 pb-2 md:pb-1 flex-shrink-0", windowBlocked && !isInternalNote && "hidden")}
+              style={{ borderTop: `1px solid ${isInternalNote ? "rgba(245,158,11,0.3)" : "var(--haip-border)"}`, background: isInternalNote ? "rgba(245,158,11,0.04)" : "transparent" }}
+            >
               {/* W24: internal note banner */}
               {isInternalNote && (
                 <div className="flex items-center gap-2 mb-2 px-1">
@@ -1040,7 +1029,7 @@ export default function InboxPage() {
               )}
               {/* W5: reply-to preview */}
               {replyToMsg && (
-                <div className="flex items-start gap-2 mb-2 px-1 py-1 bg-gray-100 rounded-lg border-l-2 border-teal-400">
+                <div className="flex items-start gap-2 mb-2 px-1 py-1 rounded-lg" style={{ background: "var(--muted)", borderLeft: "2px solid var(--primary)" }}>
                   <Reply size={11} className="text-teal-500 mt-0.5 flex-shrink-0" />
                   <p className="text-xs text-gray-600 truncate flex-1">{replyToMsg.text}</p>
                   <button onClick={() => setReplyToMsg(null)} className="text-gray-400 hover:text-gray-600 flex-shrink-0">
@@ -1140,30 +1129,25 @@ export default function InboxPage() {
                   onKeyDown={handleKeyDown}
                   rows={1}
                   placeholder={isInternalNote ? "Write an internal note…" : "Type a message or / for saved replies…"}
-                  className={cn(
-                    "flex-1 text-sm border rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:border-transparent resize-none placeholder:text-gray-400 transition-all",
-                    isInternalNote
-                      ? "bg-amber-50 border-amber-300 focus:ring-amber-300"
-                      : "bg-gray-50 border-gray-200 focus:ring-teal-500",
-                    emptyPulse && "border-red-300 ring-2 ring-red-200 animate-pulse"
-                  )}
-                  style={{ minHeight: "42px" }}
+                  className={cn("flex-1 text-sm rounded-xl px-3.5 py-2.5 focus:outline-none resize-none transition-all", emptyPulse && "animate-pulse")}
+                  style={{
+                    minHeight: "42px",
+                    background: isInternalNote ? "rgba(245,158,11,0.06)" : "var(--input-bg)",
+                    border: `1px solid ${emptyPulse ? "var(--haip-red)" : isInternalNote ? "rgba(245,158,11,0.4)" : "var(--haip-border)"}`,
+                    color: "var(--haip-fg)",
+                  }}
                 />
                 {/* Send button + Schedule dropdown trigger */}
                 <div className="flex flex-shrink-0">
                   <button
                     onClick={() => handleSend()}
                     disabled={sendMutation.isPending}
-                    className={cn(
-                      "h-10 px-3 rounded-l-xl text-white flex items-center justify-center transition-colors",
-                      isEmpty
-                        ? "bg-gray-300 cursor-not-allowed"
-                        : isInternalNote
-                        ? "bg-amber-500 hover:bg-amber-600"
-                        : scheduledFor
-                        ? "bg-blue-600 hover:bg-blue-700"
-                        : "bg-[#0F766E] hover:bg-[#0d6660]"
-                    )}
+                    className="h-10 px-3 rounded-l-xl flex items-center justify-center transition-colors duration-150"
+                    style={{
+                      background: isEmpty ? "var(--muted)" : isInternalNote ? "#F59E0B" : scheduledFor ? "#2563EB" : "var(--primary)",
+                      color: isEmpty ? "var(--haip-fg-subtle)" : "var(--primary-foreground)",
+                      cursor: isEmpty ? "not-allowed" : "pointer",
+                    }}
                     aria-label="Send message"
                   >
                     {sendMutation.isPending ? <Loader2 size={14} className="animate-spin" />
@@ -1175,12 +1159,12 @@ export default function InboxPage() {
                     <button
                       onClick={() => setShowSchedule(v => !v)}
                       title="Schedule send"
-                      className={cn(
-                        "h-10 w-6 rounded-r-xl text-white flex items-center justify-center transition-colors border-l border-white/20",
-                        isEmpty ? "bg-gray-300 cursor-not-allowed"
-                        : scheduledFor ? "bg-blue-600 hover:bg-blue-700"
-                        : "bg-[#0F766E] hover:bg-[#0d6660]"
-                      )}
+                      className="h-10 w-6 rounded-r-xl flex items-center justify-center transition-colors duration-150"
+                    style={{
+                      background: isEmpty ? "var(--muted)" : scheduledFor ? "#2563EB" : "var(--primary)",
+                      color: isEmpty ? "var(--haip-fg-subtle)" : "var(--primary-foreground)",
+                      borderLeft: "1px solid rgba(255,255,255,0.15)",
+                    }}
                     >
                       <ChevronDown size={11} />
                     </button>
@@ -1188,7 +1172,7 @@ export default function InboxPage() {
                 </div>
               </div>
               {/* W2: helper text */}
-              <p className="text-[10px] text-gray-400 mt-1 px-1">
+              <p className="text-[10px] mt-1 px-1" style={{ color: "var(--haip-fg-subtle)" }}>
                 {isInternalNote
                   ? "Esc to cancel · Enter to save note"
                   : scheduledFor
@@ -1200,10 +1184,8 @@ export default function InboxPage() {
         )}
       </div>
 
-      {/* Right: Guest 360 mini-card — hidden on mobile */}
-      {detail && (
-        <GuestPanel detail={detail} />
-      )}
+      {/* Right: Guest 360 panel — hidden on mobile */}
+      {detail && <GuestPanel detail={detail} />}
     </div>
   );
 }

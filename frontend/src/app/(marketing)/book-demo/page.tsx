@@ -67,26 +67,26 @@ export default function BookDemoPage() {
   }
 
   return (
-    <div className="bg-[var(--mkt-bg)] text-white min-h-screen">
+    <div className="min-h-screen" style={{ backgroundColor: "var(--mkt-bg)", color: "#0F172A" }}>
       <section className="relative pt-32 pb-24 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/3 left-1/4 w-[700px] h-[500px] rounded-full bg-teal-500/8 blur-[120px]" />
-          <div className="absolute bottom-0 right-0 w-[500px] h-[400px] rounded-full bg-cyan-500/8 blur-[100px]" />
-          <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)", backgroundSize: "32px 32px" }} />
+          <div className="absolute top-1/3 left-1/4 w-[700px] h-[500px] rounded-full blur-[120px]" style={{ backgroundColor: "rgba(0,85,90,0.06)" }} />
+          <div className="absolute bottom-0 right-0 w-[500px] h-[400px] rounded-full blur-[100px]" style={{ backgroundColor: "rgba(255,201,75,0.07)" }} />
+          <div className="absolute inset-0" style={{ backgroundImage: "radial-gradient(circle, #00555a15 1px, transparent 1px)", backgroundSize: "28px 28px" }} />
         </div>
 
         <div className="relative max-w-7xl mx-auto px-5 sm:px-8 grid lg:grid-cols-12 gap-12 items-start">
           {/* LEFT: pitch */}
           <div className="lg:col-span-5 lg:sticky lg:top-28">
-            <div className="inline-flex items-center gap-2 bg-teal-500/10 border border-teal-500/20 rounded-full px-4 py-1.5 mb-6">
-              <Calendar size={12} className="text-teal-400" />
-              <span className="text-xs font-semibold text-teal-300 uppercase tracking-wider">Book a 30-min demo</span>
+            <div className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 mb-6" style={{ backgroundColor: "rgba(0,85,90,0.07)", border: "1px solid rgba(0,85,90,0.25)" }}>
+              <Calendar size={12} style={{ color: "#00555a" }} />
+              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#00555a" }}>Book a 30-min demo</span>
             </div>
-            <h1 className="text-4xl sm:text-5xl font-black tracking-tight leading-[1.05] mb-5">
+            <h1 className="text-4xl sm:text-5xl font-black tracking-tight leading-[1.05] mb-5" style={{ color: "#0F172A" }}>
               See HAIP run live on your
-              <span className="text-teal-400"> own enquiries.</span>
+              <span style={{ color: "#00555a" }}> own enquiries.</span>
             </h1>
-            <p className="text-white/55 text-lg leading-relaxed mb-8">
+            <p className="text-lg leading-relaxed mb-8" style={{ color: "#475569" }}>
               In 30 minutes, we&apos;ll walk you through the unified inbox, AI Concierge in shadow mode, auto-QA on a real call recording, and the cockpit your team would use day-to-day. No slideware.
             </p>
 
@@ -97,26 +97,26 @@ export default function BookDemoPage() {
                 { icon: <Users size={14} />, text: "Role-by-role tour — owner, reservations, concierge, FOH" },
                 { icon: <Shield size={14} />, text: "DPDP + tenancy + BYOC questions answered" },
               ].map(item => (
-                <div key={item.text} className="flex items-start gap-3 bg-white/3 border border-white/6 rounded-xl px-4 py-3">
-                  <div className="w-8 h-8 rounded-lg bg-teal-500/15 flex items-center justify-center text-teal-400 flex-shrink-0">
+                <div key={item.text} className="flex items-start gap-3 rounded-xl px-4 py-3" style={{ backgroundColor: "#ffffff", border: "1px solid #E2E8F0", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "rgba(0,85,90,0.08)", color: "#00555a" }}>
                     {item.icon}
                   </div>
-                  <p className="text-sm text-white/70 leading-relaxed pt-1.5">{item.text}</p>
+                  <p className="text-sm leading-relaxed pt-1.5" style={{ color: "#334155" }}>{item.text}</p>
                 </div>
               ))}
             </div>
 
             {/* Quote */}
-            <div className="bg-[var(--mkt-panel)]/70 border border-white/10 rounded-2xl p-6">
-              <div className="flex gap-1 mb-3">{[...Array(5)].map((_, i) => <span key={i} className="text-teal-400 text-sm">★</span>)}</div>
-              <p className="text-sm text-white/70 italic leading-relaxed mb-4">
+            <div className="rounded-2xl p-6" style={{ backgroundColor: "#F8FAFC", border: "1px solid #E2E8F0" }}>
+              <div className="flex gap-1 mb-3">{[...Array(5)].map((_, i) => <span key={i} className="text-sm" style={{ color: "#ffc94b" }}>★</span>)}</div>
+              <p className="text-sm italic leading-relaxed mb-4" style={{ color: "#475569" }}>
                 &ldquo;Best 30 minutes I&apos;ve spent in a sales call this year. They demoed HAIP on my actual WhatsApp inbox — I signed up at the end of the meeting.&rdquo;
               </p>
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-teal-500 flex items-center justify-center text-xs font-bold text-white">VR</div>
+                <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ backgroundColor: "#00555a" }}>VR</div>
                 <div>
-                  <p className="text-xs font-bold text-white">Vikrant R.</p>
-                  <p className="text-[10px] text-white/40">Founder, Ananta Villa Collection</p>
+                  <p className="text-xs font-bold" style={{ color: "#0F172A" }}>Vikrant R.</p>
+                  <p className="text-[10px]" style={{ color: "#94A3B8" }}>Founder, Ananta Villa Collection</p>
                 </div>
               </div>
             </div>
@@ -124,19 +124,19 @@ export default function BookDemoPage() {
 
           {/* RIGHT: form */}
           <div className="lg:col-span-7">
-            <div className="bg-[var(--mkt-panel)] border border-white/10 rounded-2xl p-7 sm:p-9 shadow-2xl shadow-black/30">
+            <div className="rounded-2xl p-7 sm:p-9" style={{ backgroundColor: "#ffffff", border: "1px solid #E2E8F0", boxShadow: "0 24px 64px rgba(0,85,90,0.10), 0 4px 16px rgba(0,0,0,0.05)" }}>
               {success ? (
                 <div className="text-center py-12">
-                  <div className="w-16 h-16 rounded-2xl bg-teal-500/20 border border-teal-500/30 flex items-center justify-center mx-auto mb-6">
-                    <CheckCircle2 size={32} className="text-teal-400" />
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6" style={{ backgroundColor: "rgba(0,85,90,0.08)", border: "1px solid rgba(0,85,90,0.20)" }}>
+                    <CheckCircle2 size={32} style={{ color: "#00555a" }} />
                   </div>
-                  <h2 className="text-2xl font-black mb-3">Thanks, {form.fullName.split(" ")[0]}!</h2>
-                  <p className="text-white/55 max-w-md mx-auto leading-relaxed mb-8">
+                  <h2 className="text-2xl font-black mb-3" style={{ color: "#0F172A" }}>Thanks, {form.fullName.split(" ")[0]}!</h2>
+                  <p className="max-w-md mx-auto leading-relaxed mb-8" style={{ color: "#475569" }}>
                     A member of our team will WhatsApp you within 2 working hours with a 3-slot calendar link. Most demos happen within 24 hours.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                    <Link href="/" className="px-5 py-2.5 bg-teal-500 hover:bg-teal-400 rounded-xl text-sm font-semibold text-white transition-colors">Back to home</Link>
-                    <a href={`https://wa.me/+918147698153?text=Hi%20HAIP%2C%20I%20just%20booked%20a%20demo%20%E2%80%94%20here%27s%20my%20company%3A%20${encodeURIComponent(form.company)}`} target="_blank" rel="noopener noreferrer" className="px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-semibold text-white transition-colors inline-flex items-center justify-center gap-2">
+                    <Link href="/" className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors" style={{ backgroundColor: "#00555a" }}>Back to home</Link>
+                    <a href={`https://wa.me/+918147698153?text=Hi%20HAIP%2C%20I%20just%20booked%20a%20demo%20%E2%80%94%20here%27s%20my%20company%3A%20${encodeURIComponent(form.company)}`} target="_blank" rel="noopener noreferrer" className="px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors inline-flex items-center justify-center gap-2" style={{ backgroundColor: "#F8FAFC", border: "1px solid #E2E8F0", color: "#334155" }}>
                       <MessageSquare size={14} /> Message us on WhatsApp now
                     </a>
                   </div>
@@ -144,8 +144,8 @@ export default function BookDemoPage() {
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-5">
                   <div>
-                    <h2 className="text-xl font-bold mb-1">Tell us about you</h2>
-                    <p className="text-xs text-white/40">All fields except notes are required. We&apos;ll WhatsApp you with calendar slots.</p>
+                    <h2 className="text-xl font-bold mb-1" style={{ color: "#0F172A" }}>Tell us about you</h2>
+                    <p className="text-xs" style={{ color: "#94A3B8" }}>All fields except notes are required. We&apos;ll WhatsApp you with calendar slots.</p>
                   </div>
 
                   <div className="grid sm:grid-cols-2 gap-4">
@@ -195,15 +195,15 @@ export default function BookDemoPage() {
                   </Field>
 
                   {error && (
-                    <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm rounded-xl px-4 py-3">{error}</div>
+                    <div className="text-sm rounded-xl px-4 py-3" style={{ backgroundColor: "rgba(225,29,72,0.06)", border: "1px solid rgba(225,29,72,0.25)", color: "#be123c" }}>{error}</div>
                   )}
 
-                  <button type="submit" disabled={submitting} className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-teal-500 hover:bg-teal-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-2xl transition-all shadow-xl shadow-teal-500/30">
+                  <button type="submit" disabled={submitting} className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-2xl transition-all" style={{ backgroundColor: "#00555a", boxShadow: "0 8px 24px rgba(0,85,90,0.28)" }}>
                     {submitting ? "Sending…" : (<>Book my 30-min demo <ArrowRight size={16} /></>)}
                   </button>
 
-                  <p className="text-[11px] text-white/30 text-center leading-relaxed">
-                    By submitting you agree to HAIP&apos;s <Link href="/privacy" className="underline hover:text-white/60">privacy policy</Link> and <Link href="/terms" className="underline hover:text-white/60">terms</Link>. We&apos;ll never share your data. DPDP compliant.
+                  <p className="text-[11px] text-center leading-relaxed" style={{ color: "#94A3B8" }}>
+                    By submitting you agree to HAIP&apos;s <Link href="/privacy" className="underline" style={{ color: "#00555a" }}>privacy policy</Link> and <Link href="/terms" className="underline" style={{ color: "#00555a" }}>terms</Link>. We&apos;ll never share your data. DPDP compliant.
                   </p>
                 </form>
               )}
@@ -211,25 +211,25 @@ export default function BookDemoPage() {
 
             {/* Alt-contact strip */}
             <div className="mt-5 grid sm:grid-cols-3 gap-3">
-              <a href="https://wa.me/+918147698153" target="_blank" rel="noopener noreferrer" className="bg-[var(--mkt-panel)]/60 hover:bg-[var(--mkt-panel)] border border-white/8 hover:border-green-500/30 rounded-xl px-4 py-3 flex items-center gap-3 transition-colors">
-                <MessageSquare size={16} className="text-green-400 flex-shrink-0" />
+              <a href="https://wa.me/+918147698153" target="_blank" rel="noopener noreferrer" className="rounded-xl px-4 py-3 flex items-center gap-3 transition-colors" style={{ backgroundColor: "#ffffff", border: "1px solid #E2E8F0" }}>
+                <MessageSquare size={16} className="flex-shrink-0" style={{ color: "#25D366" }} />
                 <div className="min-w-0">
-                  <p className="text-[11px] text-white/40">WhatsApp us</p>
-                  <p className="text-xs font-semibold text-white truncate">+91 81476 98153</p>
+                  <p className="text-[11px]" style={{ color: "#94A3B8" }}>WhatsApp us</p>
+                  <p className="text-xs font-semibold truncate" style={{ color: "#0F172A" }}>+91 81476 98153</p>
                 </div>
               </a>
-              <a href="mailto:gen.haip@gmail.com" className="bg-[var(--mkt-panel)]/60 hover:bg-[var(--mkt-panel)] border border-white/8 hover:border-teal-500/30 rounded-xl px-4 py-3 flex items-center gap-3 transition-colors">
-                <Building2 size={16} className="text-teal-400 flex-shrink-0" />
+              <a href="mailto:gen.haip@gmail.com" className="rounded-xl px-4 py-3 flex items-center gap-3 transition-colors" style={{ backgroundColor: "#ffffff", border: "1px solid #E2E8F0" }}>
+                <Building2 size={16} className="flex-shrink-0" style={{ color: "#00555a" }} />
                 <div className="min-w-0">
-                  <p className="text-[11px] text-white/40">Email sales</p>
-                  <p className="text-xs font-semibold text-white truncate">gen.haip@gmail.com</p>
+                  <p className="text-[11px]" style={{ color: "#94A3B8" }}>Email sales</p>
+                  <p className="text-xs font-semibold truncate" style={{ color: "#0F172A" }}>gen.haip@gmail.com</p>
                 </div>
               </a>
-              <div className="bg-[var(--mkt-panel)]/60 border border-white/8 rounded-xl px-4 py-3 flex items-center gap-3">
-                <Clock size={16} className="text-amber-400 flex-shrink-0" />
+              <div className="rounded-xl px-4 py-3 flex items-center gap-3" style={{ backgroundColor: "#ffffff", border: "1px solid #E2E8F0" }}>
+                <Clock size={16} className="flex-shrink-0" style={{ color: "#e6b000" }} />
                 <div className="min-w-0">
-                  <p className="text-[11px] text-white/40">Avg. response</p>
-                  <p className="text-xs font-semibold text-white truncate">&lt; 2 working hours</p>
+                  <p className="text-[11px]" style={{ color: "#94A3B8" }}>Avg. response</p>
+                  <p className="text-xs font-semibold truncate" style={{ color: "#0F172A" }}>&lt; 2 working hours</p>
                 </div>
               </div>
             </div>
@@ -241,22 +241,23 @@ export default function BookDemoPage() {
       <style>{`
         .haip-input {
           width: 100%;
-          background: rgba(255,255,255,0.04);
-          border: 1px solid rgba(255,255,255,0.10);
-          color: white;
+          background: #F8FAFC;
+          border: 1px solid #E2E8F0;
+          color: #0F172A;
           border-radius: 12px;
           padding: 11px 14px;
           font-size: 14px;
           outline: none;
-          transition: border-color .15s, background .15s;
+          transition: border-color .15s, background .15s, box-shadow .15s;
         }
         .haip-input:focus {
-          border-color: rgba(20,184,166,0.55);
-          background: rgba(255,255,255,0.06);
+          border-color: rgba(0,85,90,0.55);
+          background: #ffffff;
+          box-shadow: 0 0 0 3px rgba(0,85,90,0.10);
         }
-        .haip-input::placeholder { color: rgba(255,255,255,0.25); }
-        select.haip-input { appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px; }
-        select.haip-input option { background: #141B15; color: white; }
+        .haip-input::placeholder { color: #94A3B8; }
+        select.haip-input { appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px; }
+        select.haip-input option { background: #ffffff; color: #0F172A; }
       `}</style>
     </div>
   );
@@ -265,8 +266,8 @@ export default function BookDemoPage() {
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="text-xs font-semibold text-white/55 mb-1.5 inline-block">
-        {label}{required && <span className="text-rose-400 ml-0.5">*</span>}
+      <span className="text-xs font-semibold mb-1.5 inline-block" style={{ color: "#475569" }}>
+        {label}{required && <span className="ml-0.5" style={{ color: "#e11d48" }}>*</span>}
       </span>
       {children}
     </label>

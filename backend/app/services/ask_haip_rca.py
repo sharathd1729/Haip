@@ -19,7 +19,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Optional
 
-from app.adapters.llm import get_llm_adapter
+from app.adapters.llm import get_llm
 from app.services.ask_haip_agents import agents_to_llm_context, _fmt_inr
 
 log = logging.getLogger(__name__)
@@ -356,6 +356,7 @@ async def run_enhanced_rca(
     confidence: "ConfidenceResult",
     range_days: int,
     compare_mode: bool = False,
+    module_context: str = "",
 ) -> dict:
     """
     Phase 4 RCA — higher quality findings using:
@@ -364,7 +365,7 @@ async def run_enhanced_rca(
     - Confidence scoring
     - Proper prompt structure for chain-of-cause reasoning
     """
-    llm = get_llm_adapter()
+    llm = get_llm("ask_haip_rca")
 
     # Build agent context (Phase 2 format)
     agent_context = agents_to_llm_context(agent_outputs)
@@ -400,8 +401,11 @@ Produce root cause analysis. Rank findings by revenue impact."""
 
     try:
         # Use Sonnet with prompt caching on the system prompt
+        effective_system_prompt = (
+            f"{module_context}\n\n{RCA_SYSTEM_PROMPT_V4}" if module_context else RCA_SYSTEM_PROMPT_V4
+        )
         result = await llm.complete(
-            system_prompt=RCA_SYSTEM_PROMPT_V4,
+            system_prompt=effective_system_prompt,
             user_message=user_message,
             max_tokens=2048,
         )

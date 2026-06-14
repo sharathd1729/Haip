@@ -5,6 +5,7 @@ All endpoints verify signatures before queuing work.
 import json
 import hashlib
 import hmac
+from secrets import compare_digest
 from fastapi import APIRouter, Request, HTTPException, BackgroundTasks, Query
 from sqlalchemy.orm import Session
 from fastapi import Depends
@@ -73,7 +74,7 @@ async def whatsapp_verify(
     hub_verify_token: str = Query(alias="hub.verify_token", default=""),
 ):
     """Meta webhook verification (GET)."""
-    if hub_mode == "subscribe" and hub_verify_token == settings.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN:
+    if hub_mode == "subscribe" and settings.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN and compare_digest(hub_verify_token, settings.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN):
         return int(hub_challenge)
     raise HTTPException(status_code=403, detail="Verification failed")
 

@@ -13,7 +13,7 @@ from app.models.call import Call
 from app.models.transcript import Transcript
 from app.models.property import Property
 from app.models.user import User
-from app.adapters.llm import get_llm_adapter
+from app.adapters.llm import get_llm
 from app.services.transcription_service import redact_pii
 import structlog
 
@@ -130,7 +130,7 @@ def classify(self, call_id: str, tenant_id: str):
             transcript_text=transcript_text,
         )
 
-        adapter = get_llm_adapter()
+        adapter = get_llm("quick_classify")
         result = _run_async(
             adapter.complete(
                 system_prompt=system_prompt,
@@ -187,6 +187,20 @@ def classify(self, call_id: str, tenant_id: str):
             judge.delay(call_id=call_id, tenant_id=tenant_id, classification=classification)
         except Exception as chain_exc:
             log.warning("classify_chain_judge_skipped", call_id=call_id, error=str(chain_exc))
+
+        # Leads360: trigger AI summary refresh for the linked inquiry (no debounce for calls)
+        if call.inquiry_id:
+            try:
+                from app.services.leads_service import trigger_summary_refresh
+                trigger_summary_refresh(
+                    db=db,
+                    inquiry_id=str(call.inquiry_id),
+                    tenant_id=tenant_id,
+                    source="call",
+                )
+            except Exception as summary_exc:
+                log.warning("classify_summary_refresh_skipped", call_id=call_id,
+                            error=str(summary_exc))
 
     except Exception as exc:
         log.error("classify_failed", call_id=call_id, error=str(exc))

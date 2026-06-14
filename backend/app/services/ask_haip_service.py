@@ -21,7 +21,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.adapters.llm import get_llm_adapter
+from app.adapters.llm import get_llm
 from app.core.cache import cache_key, get_cached, set_cached
 from app.models.ask_haip import AskHaipSession, AskHaipFinding
 from app.models.base import gen_uuid
@@ -190,8 +190,8 @@ Return ONLY valid JSON, no explanation."""
 
 
 async def detect_intent(question: str) -> dict:
-    """Use Claude Haiku to classify the question into domains + type."""
-    llm = get_llm_adapter()
+    """Use Gemini Flash to classify the question into domains + type (fast, cheap)."""
+    llm = get_llm("ask_haip_intent")
     try:
         result = await llm.complete(
             system_prompt=INTENT_SYSTEM_PROMPT,
@@ -475,7 +475,7 @@ async def run_rca(
     Phase 2: Uses structured AgentOutput context for higher quality findings.
     Uses Claude Sonnet (most capable) for quality findings.
     """
-    llm = get_llm_adapter()
+    llm = get_llm("ask_haip_rca")
 
     # Phase 2: Use structured agent context if available, fall back to raw data summary
     if agent_outputs:
@@ -544,6 +544,53 @@ def _summarize_agent_data(agent_data: dict) -> str:
 
 # ─── Main Entry Point ─────────────────────────────────────────────────────────
 
+def _module_context_block(
+    active_modules: Optional[list],
+    available_metrics: Optional[list],
+) -> str:
+    """Build a system-prompt section that scopes Ask HAIP to active modules only."""
+    if not active_modules:
+        return ""
+
+    module_labels = {
+        "whatsapp": "WhatsApp Messaging",
+        "instagram": "Instagram DM",
+        "calls": "Call Intelligence & QA",
+        "leads360": "Leads360 Sales Pipeline",
+        "channel_manager": "Channel Manager / Bookings",
+        "analytics": "Analytics & Executive Dashboard",
+        "ask_haip": "Ask HAIP Intelligence",
+        "ai_concierge": "AI Concierge",
+        "campaigns": "Campaign Management",
+        "flow_builder": "Flow Builder",
+    }
+
+    active_labels = [module_labels.get(m, m) for m in active_modules]
+    lines = [
+        "## Workspace Scope",
+        "You have access ONLY to data from these active modules:",
+        *[f"  - {lbl}" for lbl in active_labels],
+    ]
+
+    if available_metrics:
+        metric_names = [m.get("metric_name") or m.get("metric_key", "") for m in available_metrics]
+        lines += [
+            "",
+            "Available metrics for this workspace:",
+            *[f"  - {n}" for n in metric_names if n],
+        ]
+
+    lines += [
+        "",
+        "IMPORTANT: If the user asks about data from a module that is NOT in the list above "
+        "(e.g., Instagram when only WhatsApp is active, or forecasting when channel_manager "
+        "is inactive), explicitly state that the module is not enabled for this workspace "
+        "and suggest contacting their HAIP account manager to activate it. "
+        "Do NOT fabricate data for inactive modules.",
+    ]
+    return "\n".join(lines)
+
+
 async def ask_haip(
     question: str,
     tenant_id: str,
@@ -553,6 +600,8 @@ async def ask_haip(
     range_days: int = 30,
     property_ids: Optional[list] = None,
     db: Optional[Session] = None,
+    active_modules: Optional[list] = None,
+    available_metrics: Optional[list] = None,
 ) -> dict:
     """
     Full Ask HAIP pipeline:
@@ -571,6 +620,9 @@ async def ask_haip(
     ck = cache_key("ask_haip", tenant_id, hash=q_hash)
     if (cached := get_cached(ck)) is not None:
         return cached
+
+    # Module-aware context injected into RCA prompts
+    module_context = _module_context_block(active_modules, available_metrics)
 
     # 1. Intent detection
     intent = await detect_intent(question)
@@ -608,6 +660,7 @@ async def ask_haip(
         confidence=confidence,
         range_days=range_days,
         compare_mode=compare_mode,
+        module_context=module_context,
     )
 
     # 6. Build response — Phase 4 adds confidence detail, signals, root_cause_chain

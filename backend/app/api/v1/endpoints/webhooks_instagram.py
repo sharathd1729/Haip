@@ -9,6 +9,7 @@ Inbound DMs:   POST /webhooks/instagram  (X-Hub-Signature-256 header)
 """
 
 import json
+from secrets import compare_digest
 from fastapi import APIRouter, Request, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 from app.core.config import settings
@@ -31,7 +32,7 @@ def verify_instagram_webhook(
     if (
         hub_mode == "subscribe"
         and verify_token
-        and hub_verify_token == verify_token
+        and compare_digest(hub_verify_token, verify_token)
     ):
         log.info("instagram_webhook_verified")
         return PlainTextResponse(hub_challenge)

@@ -1,4 +1,5 @@
-"use client";
+﻿"use client";
+
 
 import { useQuery } from "@tanstack/react-query";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine } from "recharts";
@@ -26,9 +27,9 @@ interface PricingStats {
 }
 
 function fmt(n: number) {
-  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-  if (n >= 1000) return `₹${(n / 1000).toFixed(0)}k`;
-  return `₹${Math.round(n)}`;
+  if (n >= 100000) return `â‚¹${(n / 100000).toFixed(1)}L`;
+  if (n >= 1000) return `â‚¹${(n / 1000).toFixed(0)}k`;
+  return `â‚¹${Math.round(n)}`;
 }
 
 const CONFIDENCE_CFG = {
@@ -61,7 +62,7 @@ export default function PricingPage() {
   if (isError || !s) return <div className="p-6 text-center text-sm text-gray-400">Failed to load pricing suggestions.</div>;
 
   const chartData = s.suggestions.map(r => ({
-    name: r.property_name.length > 16 ? r.property_name.slice(0, 14) + "…" : r.property_name,
+    name: r.property_name.length > 16 ? r.property_name.slice(0, 14) + "â€¦" : r.property_name,
     current: r.current_price,
     suggested: r.suggested_price,
     delta: r.delta_pct,
@@ -129,7 +130,7 @@ export default function PricingPage() {
                   <p className="text-base font-bold text-gray-700">{fmt(row.current_price)}</p>
                 </div>
                 <span className={cn("text-lg font-bold", isUp ? "text-green-500" : isDown ? "text-red-500" : "text-gray-400")}>
-                  {isUp ? "↑" : isDown ? "↓" : "→"}
+                  {isUp ? "â†‘" : isDown ? "â†“" : "â†’"}
                 </span>
                 <div className="text-center">
                   <p className="text-[10px] text-gray-400">Suggested</p>

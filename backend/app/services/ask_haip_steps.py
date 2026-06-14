@@ -22,7 +22,7 @@ import logging
 from dataclasses import dataclass, field, asdict
 from typing import Optional, Any
 
-from app.adapters.llm import get_llm_adapter
+from app.adapters.llm import get_llm
 from app.services.ask_haip_agents import (
     run_revenue_agent, run_inquiry_agent, run_guest_agent,
     run_occupancy_agent, run_property_agent, run_channel_agent,
@@ -99,7 +99,7 @@ Keep actions specific and actionable. Use ₹ for revenue figures. Maximum 3 act
 
 async def _llm_step3(path_id: str, agent_output: dict, context: str) -> dict:
     """Run a mini-RCA for Step 3 of a path."""
-    llm = get_llm_adapter()
+    llm = get_llm("ask_haip_rca")
     user_msg = f"Path: {path_id}\n\nAgent data:\n{context}\n\nProvide focused recommendation."
     try:
         result = await llm.complete(

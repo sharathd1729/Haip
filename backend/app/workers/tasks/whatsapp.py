@@ -190,6 +190,22 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
     except Exception as _sse_exc:
         log.warning("sse_publish_failed", error=str(_sse_exc))
 
+    # Push notification (for staff with PWA on mobile / browser closed)
+    try:
+        from app.services.push_service import send_to_tenant
+        guest_name = guest.name or "Guest"
+        send_to_tenant(
+            db=db,
+            tenant_id=tenant.id,
+            title="New WhatsApp message",
+            body=f"{guest_name}: {(body or '')[:80]}",
+            url=f"/dashboard/inbox?id={conversation.id}",
+            tag="haip-message",
+            user_id=conversation.assigned_to or None,
+        )
+    except Exception as _push_exc:
+        log.warning("push_notify_failed", error=str(_push_exc))
+
     # ── D1: Opt-out / opt-in detection ───────────────────────────────────────
     if body and body.strip():
         try:

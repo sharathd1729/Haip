@@ -32,7 +32,7 @@ log = structlog.get_logger()
 
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=30, name="tasks.transcribe")
-def transcribe(self, call_id: str, tenant_id: str, provider: str = "deepgram"):
+def transcribe(self, call_id: str, tenant_id: str, provider: str = "sarvam"):
     from app.workers.tasks.classify import classify
 
     db = SessionLocal()
@@ -67,9 +67,13 @@ def transcribe(self, call_id: str, tenant_id: str, provider: str = "deepgram"):
             obj = s3.get_object(Bucket=settings.S3_BUCKET_NAME, Key=key)
             audio_bytes = obj["Body"].read()
 
-        # Transcribe via adapter (provider auto-selected from env if not passed)
-        adapter = get_transcription_adapter(provider if provider != "deepgram" else None)
-        result = _run_async(adapter.transcribe(audio_bytes, language_hint="en-IN"))
+        # Transcribe via adapter.
+        # Default provider is "sarvam" (Indic-first, Hindi/Hinglish/code-mixed).
+        # Passing None lets the factory use TRANSCRIPTION_PROVIDER env var or auto-detect.
+        adapter = get_transcription_adapter(provider if provider != "sarvam" else None)
+        # Use hi-IN as default hint — saarika:v2 handles code-switching (Hinglish) gracefully.
+        lang_hint = getattr(call, "detected_language", None) or "hi-IN"
+        result = _run_async(adapter.transcribe(audio_bytes, language_hint=lang_hint))
 
         # Store in transcript table
         turns_dicts = [{"speaker": t.speaker, "t0": t.t0, "t1": t.t1, "text": t.text} for t in result.turns]

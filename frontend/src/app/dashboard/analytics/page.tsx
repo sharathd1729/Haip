@@ -1,7 +1,8 @@
-"use client";
+﻿"use client";
+
 
 /**
- * /dashboard/analytics — Executive Dashboard
+ * /dashboard/analytics â€” Executive Dashboard
  *
  * Phase 1:
  *  - 6 KPI cards (Revenue MTD, Occupancy, Active Inquiries, QA Score, SLA, AI Draft Rate)
@@ -35,7 +36,7 @@ import { MetricDrillDown } from "@/components/analytics/MetricDrillDown";
 import { LostReasonModal } from "@/components/analytics/LostReasonModal";
 import { AIInsightsPanel } from "@/components/analytics/AIInsightsPanel";
 
-// ─── Design tokens ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Design tokens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const TEAL    = "#14b8a6";
 const TEAL_D  = "#0f766e";
@@ -50,7 +51,7 @@ const CHANNEL_COLORS = [
   "#14b8a6","#0ea5e9","#f59e0b","#8b5cf6","#ef4444","#10b981","#f97316","#6366f1",
 ];
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface KPIDelta { pct: number; direction: "up" | "down" | "neutral"; }
 
@@ -86,13 +87,13 @@ interface AnomalyPoint {
 
 interface Property { id: string; name: string; }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function fmt_inr(n: number): string {
-  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
-  if (n >= 100000)   return `₹${(n / 100000).toFixed(1)}L`;
-  if (n >= 1000)     return `₹${(n / 1000).toFixed(0)}k`;
-  return `₹${n.toFixed(0)}`;
+  if (n >= 10000000) return `â‚¹${(n / 10000000).toFixed(1)}Cr`;
+  if (n >= 100000)   return `â‚¹${(n / 100000).toFixed(1)}L`;
+  if (n >= 1000)     return `â‚¹${(n / 1000).toFixed(0)}k`;
+  return `â‚¹${n.toFixed(0)}`;
 }
 
 function delta_from(curr: number, prev: number): KPIDelta {
@@ -101,7 +102,7 @@ function delta_from(curr: number, prev: number): KPIDelta {
   return { pct, direction: pct > 0 ? "up" : pct < 0 ? "down" : "neutral" };
 }
 
-// ─── Delta chip ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ Delta chip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function DeltaChip({ delta, invert = false }: { delta: KPIDelta; invert?: boolean }) {
   const positive = invert ? delta.direction === "down" : delta.direction === "up";
@@ -119,7 +120,7 @@ function DeltaChip({ delta, invert = false }: { delta: KPIDelta; invert?: boolea
   );
 }
 
-// ─── KPI Card ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ KPI Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface KPICardProps {
   label: string;
@@ -170,13 +171,13 @@ const KPICard = memo(function KPICard({
         <p className="text-[11px] mt-0.5" style={{ color: "rgba(100,116,139,0.55)" }}>{subtext}</p>
       )}
       {onClick && (
-        <p className="text-[10px] mt-2 font-medium" style={{ color: TEAL }}>Drill down →</p>
+        <p className="text-[10px] mt-2 font-medium" style={{ color: TEAL }}>Drill down â†’</p>
       )}
     </div>
   );
 });
 
-// ─── Custom tooltip for Revenue chart ─────────────────────────────────────────
+// â”€â”€â”€ Custom tooltip for Revenue chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function RevTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
   if (!active || !payload?.length) return null;
@@ -194,7 +195,7 @@ function RevTooltip({ active, payload, label }: { active?: boolean; payload?: { 
   );
 }
 
-// ─── Funnel chart (horizontal bars) ──────────────────────────────────────────
+// â”€â”€â”€ Funnel chart (horizontal bars) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const FUNNEL_COLORS: Record<string, string> = {
   NEW: "#3b82f6", RESPONDING: "#8b5cf6", QUOTED: "#f59e0b",
@@ -236,7 +237,7 @@ function FunnelChart({ data }: { data: { stage: string; count: number; pct: numb
   );
 }
 
-// ─── Occupancy heatmap ────────────────────────────────────────────────────────
+// â”€â”€â”€ Occupancy heatmap â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function OccupancyHeatmap({ data }: { data: { property_id: string; property_name: string; pct: number }[] }) {
   if (!data.length) return (
@@ -267,7 +268,7 @@ function OccupancyHeatmap({ data }: { data: { property_id: string; property_name
   );
 }
 
-// ─── Property filter ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Property filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function PropertyFilter({ value, onChange }: { value: string[]; onChange: (ids: string[]) => void }) {
   const [open, setOpen] = useState(false);
@@ -331,7 +332,7 @@ function PropertyFilter({ value, onChange }: { value: string[]; onChange: (ids: 
   );
 }
 
-// ─── Anomaly tooltip (preserved from existing page) ───────────────────────────
+// â”€â”€â”€ Anomaly tooltip (preserved from existing page) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function AnomalyTooltip({ active, payload, label, anomalyMap = {} }: {
   active?: boolean;
@@ -348,7 +349,7 @@ function AnomalyTooltip({ active, payload, label, anomalyMap = {} }: {
       </p>
       {payload.map((p, i) => (
         <p key={i} style={{ color: p.color }} className="mb-0.5">
-          {p.name}: <span className="font-mono font-bold">{p.value ?? "—"}</span>
+          {p.name}: <span className="font-mono font-bold">{p.value ?? "â€”"}</span>
         </p>
       ))}
       {anomaly?.is_anomaly && (
@@ -356,14 +357,14 @@ function AnomalyTooltip({ active, payload, label, anomalyMap = {} }: {
           anomaly.direction === "high" ? "border-red-100 text-red-600" : "border-amber-100 text-amber-600",
         )}>
           <AlertCircle size={10} />
-          <span>{anomaly.direction === "high" ? "Unusually high" : "Unusually low"} ({Math.abs(anomaly.z_score).toFixed(1)}σ)</span>
+          <span>{anomaly.direction === "high" ? "Unusually high" : "Unusually low"} ({Math.abs(anomaly.z_score).toFixed(1)}Ïƒ)</span>
         </div>
       )}
     </div>
   );
 }
 
-// ─── Skeleton ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Skeleton â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function PageSkeleton() {
   return (
@@ -388,14 +389,14 @@ function PageSkeleton() {
   );
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Main page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function AnalyticsPage() {
   const router      = useRouter();
   const pathname    = usePathname();
   const searchParams = useSearchParams();
 
-  // ── URL-persisted filters ───────────────────────────────────────────────────
+  // â”€â”€ URL-persisted filters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const rangeDays  = parseInt(searchParams.get("range_days") ?? "30");
   const compareTo  = searchParams.get("compare_to") ?? "none";
   const propFilter = searchParams.get("property_ids") ?? "";
@@ -414,7 +415,7 @@ export default function AnalyticsPage() {
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }, [searchParams, pathname, router]);
 
-  // ── Data fetching ───────────────────────────────────────────────────────────
+  // â”€â”€ Data fetching â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const { data: exec, isLoading: execLoading } = useQuery<ExecutiveStats>({
     queryKey: ["analytics", "executive", rangeDays, propIdsParam],
@@ -440,7 +441,7 @@ export default function AnalyticsPage() {
     staleTime: 5 * 60_000,
   });
 
-  // ── Derived values ──────────────────────────────────────────────────────────
+  // â”€â”€ Derived values â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const e = exec;
   const s = ownerStats ?? {} as OwnerStats;
@@ -465,7 +466,7 @@ export default function AnalyticsPage() {
   return (
     <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--haip-surface)" }}>
 
-      {/* ── Top bar ────────────────────────────────────────────────────────── */}
+      {/* â”€â”€ Top bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div
         className="flex-shrink-0 px-6 py-4 border-b"
         style={{ background: "white", borderColor: "var(--haip-border)" }}
@@ -507,21 +508,21 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* ── Scrollable content ─────────────────────────────────────────────── */}
+      {/* â”€â”€ Scrollable content â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="flex-1 overflow-y-auto haip-scrollbar px-6 py-5 space-y-5">
 
-        {/* ── 6 KPI cards ──────────────────────────────────────────────────── */}
+        {/* â”€â”€ 6 KPI cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
           <KPICard
             label="Revenue MTD"
-            value={e ? fmt_inr(e.revenue_mtd) : "—"}
+            value={e ? fmt_inr(e.revenue_mtd) : "â€”"}
             subtext={e ? `Prev: ${fmt_inr(e.revenue_mtd_prev)}` : undefined}
             icon={<DollarSign size={18} />}
             delta={revDelta ?? undefined}
           />
           <KPICard
             label="Occupancy %"
-            value={e ? `${e.occupancy_pct}%` : "—"}
+            value={e ? `${e.occupancy_pct}%` : "â€”"}
             subtext={e ? `Prev: ${e.occupancy_prev}%` : undefined}
             icon={<Calendar size={18} />}
             variant={e && e.occupancy_pct < 40 ? "warning" : "default"}
@@ -530,7 +531,7 @@ export default function AnalyticsPage() {
           />
           <KPICard
             label="Active Inquiries"
-            value={e?.active_inquiries ?? "—"}
+            value={e?.active_inquiries ?? "â€”"}
             subtext={e ? `Prev: ${e.active_inquiries_prev}` : undefined}
             icon={<Users size={18} />}
             delta={inqDelta ?? undefined}
@@ -538,7 +539,7 @@ export default function AnalyticsPage() {
           />
           <KPICard
             label="Avg QA Score"
-            value={e ? `${e.qa_avg_score}` : "—"}
+            value={e ? `${e.qa_avg_score}` : "â€”"}
             subtext={e ? `Prev: ${e.qa_prev}` : undefined}
             icon={<Star size={18} />}
             variant={e && e.qa_avg_score < 60 ? "danger" : e && e.qa_avg_score < 75 ? "warning" : "default"}
@@ -547,7 +548,7 @@ export default function AnalyticsPage() {
           />
           <KPICard
             label="SLA Compliance"
-            value={e ? `${e.sla_compliance_pct}%` : "—"}
+            value={e ? `${e.sla_compliance_pct}%` : "â€”"}
             subtext={e ? `Prev: ${e.sla_prev}%` : undefined}
             icon={<ShieldCheck size={18} />}
             variant={e && e.sla_compliance_pct < 80 ? "danger" : e && e.sla_compliance_pct < 90 ? "warning" : "default"}
@@ -555,14 +556,14 @@ export default function AnalyticsPage() {
           />
           <KPICard
             label="AI Draft Rate"
-            value={e ? `${e.ai_draft_rate_pct}%` : "—"}
+            value={e ? `${e.ai_draft_rate_pct}%` : "â€”"}
             subtext={e ? `Prev: ${e.ai_draft_prev}%` : undefined}
             icon={<Bot size={18} />}
             delta={aiDelta ?? undefined}
           />
         </div>
 
-        {/* ── Revenue chart + AI Insights Panel ────────────────────────────── */}
+        {/* â”€â”€ Revenue chart + AI Insights Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div className="grid grid-cols-12 gap-5">
 
           {/* Revenue chart */}
@@ -574,7 +575,7 @@ export default function AnalyticsPage() {
               className="text-[13px] font-semibold mb-4"
               style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}
             >
-              Revenue — last {rangeDays} days
+              Revenue â€” last {rangeDays} days
             </h2>
             {(e?.revenue_chart?.length ?? 0) > 0 ? (
               <ResponsiveContainer width="100%" height={220}>
@@ -611,7 +612,7 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        {/* ── Inquiry funnel + Channel mix ──────────────────────────────────── */}
+        {/* â”€â”€ Inquiry funnel + Channel mix â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div className="grid grid-cols-12 gap-5">
 
           {/* Inquiry funnel */}
@@ -682,7 +683,7 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        {/* ── Occupancy heatmap ─────────────────────────────────────────────── */}
+        {/* â”€â”€ Occupancy heatmap â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div
           className="haip-card rounded-2xl p-5"
           style={{ border: "1px solid var(--haip-border)" }}
@@ -691,12 +692,12 @@ export default function AnalyticsPage() {
             className="text-[13px] font-semibold"
             style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}
           >
-            Property Occupancy — MTD
+            Property Occupancy â€” MTD
           </h2>
           <OccupancyHeatmap data={e?.occupancy_heatmap ?? []} />
         </div>
 
-        {/* ── QA / Calls section (preserved from original analytics page) ──── */}
+        {/* â”€â”€ QA / Calls section (preserved from original analytics page) â”€â”€â”€â”€ */}
         <div className="pt-2">
           <h2
             className="text-[14px] font-semibold mb-4"
@@ -718,7 +719,7 @@ export default function AnalyticsPage() {
                   className="text-[13px] font-semibold"
                   style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}
                 >
-                  Calls — last {rangeDays} days
+                  Calls â€” last {rangeDays} days
                 </h2>
                 {anomalyDots.length > 0 && (
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-500 border border-red-100">
@@ -756,7 +757,7 @@ export default function AnalyticsPage() {
                   {anomalyDots.map(a => (
                     <ReferenceDot key={a.date} x={a.date} y={a.count} r={6}
                       fill={a.direction === "high" ? RED : AMBER} stroke="white" strokeWidth={2}
-                      label={{ value: a.direction === "high" ? "▲" : "▼",
+                      label={{ value: a.direction === "high" ? "â–²" : "â–¼",
                         position: a.direction === "high" ? "top" : "bottom" as const,
                         fontSize: 9, fill: a.direction === "high" ? RED : AMBER }}
                     />
@@ -831,7 +832,7 @@ export default function AnalyticsPage() {
                   </div>
                   {t.root_cause && <p className="text-xs text-red-600">{t.root_cause}</p>}
                   <p className="text-[10px] text-red-400 mt-2 group-hover:text-red-600 transition-colors font-medium">
-                    View inquiries →
+                    View inquiries â†’
                   </p>
                 </button>
               ))}
@@ -841,7 +842,7 @@ export default function AnalyticsPage() {
 
       </div>{/* end scrollable */}
 
-      {/* ── Panels ─────────────────────────────────────────────────────────── */}
+      {/* â”€â”€ Panels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {drillMetric && (
         <MetricDrillDown
           metricKey={drillMetric.key}

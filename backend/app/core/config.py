@@ -41,8 +41,15 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = ""
     TRANSCRIPTION_PROVIDER: str = ""
 
+    # NVIDIA NIM — one key per workload group for rate-limit isolation
+    NVIDIA_API_KEY: str = ""          # global fallback (any group missing → uses this)
+    NVIDIA_API_KEY_HEAVY: str = ""    # Ultra 550B: deep_reason, ask_haip_rca, report_gen
+    NVIDIA_API_KEY_MID: str = ""      # Nemotron 70B / Super 49B: call_analysis, call_scoring
+    NVIDIA_API_KEY_FAST: str = ""     # Llama 8B: quick_classify, bulk_batch, ask_haip_intent
+    NVIDIA_API_KEY_FALLBACK: str = "" # Mistral Medium 3.5: fallback task
     ANTHROPIC_API_KEY: str = ""
     GEMINI_API_KEY: str = ""
+    OPENAI_API_KEY: str = ""   # M5: OpenAI fallback provider
     GROQ_API_KEY: str = ""
     DEEPGRAM_API_KEY: str = ""
     SARVAM_API_KEY: str = ""   # Sarvam AI — best for Hindi/Indic/code-switched calls
@@ -77,6 +84,22 @@ class Settings(BaseSettings):
     # Hostaway
     HOSTAWAY_ACCOUNT_ID: str = ""
     HOSTAWAY_API_KEY: str = ""
+
+    # Web Push (PWA notifications) — VAPID keys
+    # Generate: python -c "from py_vapid import Vapid; v=Vapid(); v.generate_keys(); print(v.private_pem().decode())"
+    VAPID_PRIVATE_KEY: str = ""
+    VAPID_PUBLIC_KEY: str = ""
+    VAPID_EMAIL: str = "notifications@haip.app"
+
+    # Dograh Voice AI
+    DOGRAH_WEBHOOK_SECRET: str = ""     # Global fallback — always prefer per-tenant secret
+    DOGRAH_SERVER_URL: str = ""
+    DOGRAH_AGENT_ID_DEFAULT: str = ""
+
+    # SIP / Telephony (Twilio for dev, VoIP.ms or Plivo for production)
+    TWILIO_ACCOUNT_SID: str = ""
+    TWILIO_AUTH_TOKEN: str = ""
+    TWILIO_PHONE_NUMBER: str = ""
 
     @model_validator(mode="after")
     def _validate_and_warn(self) -> "Settings":

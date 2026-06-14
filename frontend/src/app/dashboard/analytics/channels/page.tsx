@@ -1,4 +1,5 @@
-"use client";
+﻿"use client";
+
 
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -109,7 +110,7 @@ export default function ChannelAnalyticsPage() {
         <div className="grid grid-cols-12 gap-5">
           <div className="col-span-12 lg:col-span-8 haip-card rounded-2xl p-5" style={{ border: "1px solid var(--haip-border)" }}>
             <h2 className="text-[13px] font-semibold mb-4" style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--haip-fg)" }}>
-              Message Volume by Channel — last {rangeDays} days
+              Message Volume by Channel â€” last {rangeDays} days
             </h2>
             {s.volume_trend.length > 0 ? (
               <ResponsiveContainer width="100%" height={220}>
@@ -142,7 +143,7 @@ export default function ChannelAnalyticsPage() {
           {/* Attribution funnel */}
           <div className="col-span-12 lg:col-span-6 haip-card rounded-2xl p-5" style={{ border: "1px solid var(--haip-border)" }}>
             <h2 className="text-[13px] font-semibold mb-4" style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--haip-fg)" }}>
-              Source → Booking Attribution
+              Source â†’ Booking Attribution
             </h2>
             {s.attribution_funnel.length > 0 ? (
               <div className="space-y-2">
@@ -158,7 +159,7 @@ export default function ChannelAnalyticsPage() {
                     <span className="w-12 text-right text-[11px] font-mono text-teal-600 font-bold">{row.conversion_pct}%</span>
                   </div>
                 ))}
-                <p className="text-[10px] text-gray-400 mt-2">Bar = inquiries • % = conversion to booking</p>
+                <p className="text-[10px] text-gray-400 mt-2">Bar = inquiries â€¢ % = conversion to booking</p>
               </div>
             ) : (
               <div className="h-[200px] flex items-center justify-center text-sm text-gray-400">No funnel data yet</div>

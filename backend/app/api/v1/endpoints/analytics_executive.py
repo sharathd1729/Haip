@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.core.database import get_db
-from app.api.v1.deps import get_current_user
+from app.api.v1.deps import get_current_user, require_module
 from app.models.user import User
 from app.models.call import Call
 from app.models.inquiry import Inquiry, InquiryStage
@@ -95,6 +95,7 @@ def executive_dashboard(
     property_ids: Optional[str] = Query(default=None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    _ctx=Depends(require_module("analytics")),
 ):
     """
     Executive Dashboard — 6 KPI cards + 4 chart datasets.
@@ -335,6 +336,7 @@ def executive_dashboard(
 def list_insights(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    _ctx=Depends(require_module("analytics")),
 ):
     """Active (non-dismissed, non-resolved) insights for the tenant, severity-sorted."""
     tid = current_user.tenant_id

@@ -1,4 +1,5 @@
-"use client";
+﻿"use client";
+
 
 import { useState } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -154,7 +155,7 @@ export default function OperationsAnalyticsPage() {
         <div className="grid grid-cols-12 gap-5">
           <div className="col-span-12 lg:col-span-8 haip-card rounded-2xl p-5" style={{ border: "1px solid var(--haip-border)" }}>
             <h2 className="text-[13px] font-semibold mb-4" style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--haip-fg)" }}>
-              SLA Compliance Trend — last {rangeDays} days
+              SLA Compliance Trend â€” last {rangeDays} days
             </h2>
             {s.sla_trend.length > 0 ? (
               <ResponsiveContainer width="100%" height={220}>
@@ -217,7 +218,7 @@ export default function OperationsAnalyticsPage() {
                             <p className="font-semibold text-gray-800">{a.name}</p>
                             <p className="text-[10px] text-gray-400 capitalize">{ROLE_LABELS[a.role] ?? a.role}</p>
                           </div>
-                          {i === 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold ml-1">⭐ Top</span>}
+                          {i === 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold ml-1">â­ Top</span>}
                         </div>
                       </td>
                       <td className="py-3 pr-4 text-right"><ScoreBar score={a.avg_qa_score} /></td>
@@ -228,7 +229,7 @@ export default function OperationsAnalyticsPage() {
                           {a.sla_compliance_pct}%
                         </span>
                       </td>
-                      <td className="py-3 text-right text-gray-400">{a.last_seen_at ? timeAgo(a.last_seen_at) : "—"}</td>
+                      <td className="py-3 text-right text-gray-400">{a.last_seen_at ? timeAgo(a.last_seen_at) : "â€”"}</td>
                     </tr>
                   ))}
                 </tbody>

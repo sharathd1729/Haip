@@ -1,4 +1,5 @@
-"use client";
+﻿"use client";
+
 
 import { useQuery } from "@tanstack/react-query";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
@@ -34,9 +35,9 @@ interface ChurnStats {
 }
 
 function fmt(n: number) {
-  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-  if (n >= 1000) return `₹${(n / 1000).toFixed(0)}k`;
-  return `₹${Math.round(n)}`;
+  if (n >= 100000) return `â‚¹${(n / 100000).toFixed(1)}L`;
+  if (n >= 1000) return `â‚¹${(n / 1000).toFixed(0)}k`;
+  return `â‚¹${Math.round(n)}`;
 }
 
 const RISK_CFG = {

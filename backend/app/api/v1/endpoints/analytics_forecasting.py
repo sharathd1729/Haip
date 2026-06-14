@@ -25,7 +25,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.api.v1.deps import get_current_user
+from app.api.v1.deps import get_current_user, require_module, require_flag
 from app.models.user import User
 from app.models.inquiry import Inquiry, InquiryStage
 from app.models.guest import Guest
@@ -106,6 +106,7 @@ def occupancy_forecast(
     property_ids: Optional[str] = Query(default=None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    _ctx=Depends(require_module("channel_manager", "analytics")),
 ):
     tid = current_user.tenant_id
     prop_ids = _prop_ids_list(property_ids)
@@ -248,6 +249,7 @@ def revenue_forecast(
     property_ids: Optional[str] = Query(default=None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    _ctx=Depends(require_module("channel_manager", "analytics")),
 ):
     tid = current_user.tenant_id
     prop_ids = _prop_ids_list(property_ids)
@@ -352,6 +354,7 @@ def revenue_forecast(
 def pricing_suggestions(
     property_ids: Optional[str] = Query(default=None),
     current_user: User = Depends(get_current_user),
+    _ctx=Depends(require_module("channel_manager", "analytics")),
     db: Session = Depends(get_db),
 ):
     tid = current_user.tenant_id
@@ -478,6 +481,7 @@ def pricing_suggestions(
 def churn_risk(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    _ctx=Depends(require_module("channel_manager", "analytics")),
 ):
     tid = current_user.tenant_id
     ck = cache_key("churn_risk", tid)
@@ -575,6 +579,7 @@ def churn_risk(
 def guest_cohorts(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    _ctx=Depends(require_module("channel_manager", "analytics")),
 ):
     tid = current_user.tenant_id
     ck = cache_key("cohorts", tid)

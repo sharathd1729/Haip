@@ -8,15 +8,18 @@ GET /analytics/metrics/{key}/drill  — A1: per-metric breakdown by property/age
 GET /analytics/lost-reasons/{theme}/inquiries — A4: inquiries for a theme
 """
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Float, Integer
 from datetime import datetime, timezone, timedelta, date as date_type
 from typing import List, Optional
 import structlog
+from pydantic import BaseModel
 
 from app.core.database import get_db
-from app.api.v1.deps import get_current_user, require_roles
+from app.api.v1.deps import get_current_user, require_roles, require_module, require_flag
+from app.api.v1.deps import oauth2_scheme
 from app.models.user import User, UserRole
 from app.models.call import Call
 from app.models.inquiry import Inquiry, InquiryStage
@@ -27,9 +30,15 @@ from app.schemas.analytics import (
     OwnerDailyStats, PersonalScorecard, LostReasonTheme,
     CallsWeekPoint, Objection, LostReasonThemeItem, KPIDelta,
     MetricDrillDown, DrillDownPoint, LostInquiryPage, LostInquiryRow,
+    ExecutiveDashboardStats, RevenueChartPoint, FunnelStage,
+    ChannelMixPoint, OccupancyHeatPoint, InsightItem, InsightList,
 )
 from app.services.lost_reason_service import get_lost_inquiries, cluster_themes
 from app.services.anomaly_detector import get_call_anomalies
+from app.models.insight import Insight
+from app.models.property import Stay, Property
+from app.models.conversation import Message, MessageDirection
+from app.core.cache import cache_key, get_cached, set_cached
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/analytics", tags=["analytics"])
@@ -106,6 +115,7 @@ def owner_daily(
     property_ids: Optional[str] = Query(default=None, description="Comma-separated property IDs"),
     current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
     db: Session = Depends(get_db),
+    _ctx=Depends(require_module("leads360")),
 ):
     now = datetime.now(timezone.utc)
     tid = current_user.tenant_id
@@ -218,6 +228,7 @@ def personal_scorecard(
     period: str = Query(default="this_week"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    _ctx=Depends(require_module("calls")),
 ):
     tid = current_user.tenant_id
     uid = current_user.id
@@ -243,6 +254,7 @@ def lost_reasons(
     days: int = Query(default=90, le=365),
     current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
     db: Session = Depends(get_db),
+    _ctx=Depends(require_module("leads360")),
 ):
     lost = get_lost_inquiries(db, current_user.tenant_id, days=days)
     themes = cluster_themes(lost)
@@ -267,6 +279,7 @@ def metric_drill(
     range_days: int = Query(default=7, ge=1, le=90),
     current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
     db: Session = Depends(get_db),
+    _ctx=Depends(require_module("analytics")),
 ):
     now = datetime.now(timezone.utc)
     tid = current_user.tenant_id
@@ -351,6 +364,7 @@ def call_anomalies(
     range_days: int = Query(default=30, ge=7, le=90),
     current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
     db: Session = Depends(get_db),
+    _ctx=Depends(require_module("calls", "analytics")),
 ):
     """A8: Return daily call series with anomaly annotations (z-score, direction, mean)."""
     return get_call_anomalies(db, current_user.tenant_id, range_days=range_days)
@@ -363,6 +377,7 @@ def lost_reason_inquiries(
     per_page: int = Query(default=20, le=100),
     current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
     db: Session = Depends(get_db),
+    _ctx=Depends(require_module("leads360")),
 ):
     tid = current_user.tenant_id
     offset = (page - 1) * per_page
@@ -409,3 +424,180 @@ def lost_reason_inquiries(
         per_page=per_page,
         items=items,
     )
+
+
+# ─── GET /analytics/agent-leaderboard ────────────────────────────────────────
+
+@router.get("/agent-leaderboard")
+def agent_leaderboard(
+    range_days: int = Query(default=7, ge=1, le=90),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _ctx=Depends(require_module("calls")),
+):
+    """Top agents by QA score for the dashboard scorecard panel."""
+    from app.models.user import User as UserModel
+    tid = current_user.tenant_id
+    start = datetime.now(timezone.utc) - timedelta(days=range_days)
+
+    rows = db.query(
+        Call.agent_id.label("user_id"),
+        func.count(Call.id).label("total"),
+        func.avg(Call.ai_score).label("avg_score"),
+    ).filter(
+        Call.tenant_id == tid,
+        Call.started_at >= start,
+        Call.agent_id.isnot(None),
+        Call.ai_score.isnot(None),
+    ).group_by(Call.agent_id).order_by(func.avg(Call.ai_score).desc()).limit(5).all()
+
+    user_ids = [r.user_id for r in rows]
+    users = {
+        str(u.id): u.full_name
+        for u in db.query(UserModel).filter(UserModel.id.in_(user_ids)).all()
+    }
+
+    agents = [
+        {
+            "name": users.get(str(r.user_id), "Unknown"),
+            "calls": r.total,
+            "avg_score": round(float(r.avg_score or 0), 1),
+            "initials": "".join(w[0].upper() for w in (users.get(str(r.user_id), "?") or "?").split()[:2]),
+        }
+        for r in rows
+    ]
+    return {"agents": agents, "range_days": range_days}
+
+
+# ─── AI Intelligence Reports (analytics/reports/*) ────────────────────────────
+
+_REPORT_DOMAINS = {
+    "executive": ["revenue", "occupancy", "inquiry", "channel"],
+    "weekly":    ["revenue", "occupancy", "inquiry", "channel"],
+    "monthly":   ["revenue", "occupancy", "inquiry", "guest", "channel", "property"],
+    "property":  ["property", "occupancy"],
+    "guest":     ["guest"],
+    "revenue":   ["revenue", "channel"],
+    "inquiry":   ["inquiry", "objection", "channel"],
+}
+
+
+class GenerateReportRequest(BaseModel):
+    report_type: str
+    range_days: int = 30
+    send_email: bool = False
+
+
+@router.get("/reports")
+def list_ai_reports(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _ctx=Depends(require_module("ask_haip")),
+):
+    """List previously generated AI intelligence reports for this workspace."""
+    from app.models.ask_haip import AskHaipReport
+    rows = (
+        db.query(AskHaipReport)
+        .filter(AskHaipReport.tenant_id == current_user.tenant_id)
+        .order_by(AskHaipReport.created_at.desc())
+        .limit(50)
+        .all()
+    )
+    return {
+        "reports": [
+            {
+                "id": r.id,
+                "report_type": r.report_type,
+                "title": r.title,
+                "period_start": r.period_start,
+                "period_end": r.period_end,
+                "has_pdf": bool(r.pdf_s3_key),
+                "email_sent_at": r.email_sent_at.isoformat() if r.email_sent_at else None,
+                "created_at": r.created_at.isoformat(),
+            }
+            for r in rows
+        ]
+    }
+
+
+@router.post("/reports/generate")
+async def generate_ai_report(
+    body: GenerateReportRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+    _ctx=Depends(require_module("ask_haip")),
+):
+    """Generate an AI intelligence report using the Ask HAIP report engine."""
+    from app.services.ask_haip_service import run_agents
+    from app.services.ask_haip_reports import generate_report, save_report, send_report_email
+
+    if body.report_type not in _REPORT_DOMAINS:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=f"Unknown report_type. Valid: {list(_REPORT_DOMAINS)}")
+
+    # Build base URL from request
+    base_url = str(request.base_url).rstrip("/")
+    domains = _REPORT_DOMAINS[body.report_type]
+
+    raw_data, _ = await run_agents(
+        domains=domains,
+        token=token,
+        base_url=base_url,
+        range_days=body.range_days,
+    )
+
+    result = await generate_report(
+        report_type=body.report_type,
+        raw_data=raw_data,
+        range_days=body.range_days,
+    )
+
+    saved = save_report(
+        db=db,
+        tenant_id=current_user.tenant_id,
+        report_type=body.report_type,
+        title=result["title"],
+        html=result["html"],
+        range_days=body.range_days,
+    )
+
+    if body.send_email and current_user.email:
+        await send_report_email(
+            to_email=current_user.email,
+            to_name=current_user.full_name or current_user.email,
+            report_type=body.report_type,
+            title=result["title"],
+            html=result["html"],
+        )
+
+    return {
+        "id": saved.id,
+        "report_type": result["report_type"],
+        "title": result["title"],
+        "html": result["html"],
+    }
+
+
+@router.get("/reports/{report_id}/html")
+def get_ai_report_html(
+    report_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _ctx=Depends(require_module("ask_haip")),
+):
+    """Fetch the HTML content of a previously generated AI report."""
+    from app.models.ask_haip import AskHaipReport
+    from fastapi import HTTPException
+    row = (
+        db.query(AskHaipReport)
+        .filter(
+            AskHaipReport.id == report_id,
+            AskHaipReport.tenant_id == current_user.tenant_id,
+        )
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Report not found")
+    return {"html": row.html_content, "title": row.title}

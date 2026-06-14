@@ -24,7 +24,7 @@ from app.models.transcript import Transcript
 from app.models.score import Rubric, CallScore
 from app.models.property import Property
 from app.models.user import User
-from app.adapters.llm import get_llm_adapter
+from app.adapters.llm import get_llm
 
 # Model aliases — used only for Claude; Gemini maps these internally
 MODEL_HAIKU  = "claude-haiku-4-5-20251001"
@@ -139,7 +139,7 @@ def judge(self, call_id: str, tenant_id: str, classification: dict = None):
             transcript_turns_compact=transcript_text,
         )
 
-        adapter = get_llm_adapter()
+        adapter = get_llm("call_scoring")
 
         # First pass: fast model (Haiku / Gemini Flash)
         result_fast = _run_async(

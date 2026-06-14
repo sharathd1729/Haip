@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -70,6 +71,13 @@ function ProviderIcon({
     );
   }
   if (logo === "phone") return <Phone size={size} className={cn("text-blue-500", className)} />;
+  if (logo === "ivr") {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className={cn("text-teal-600", className)}>
+        <path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
+      </svg>
+    );
+  }
   if (logo === "hotel") {
     return (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className={cn("text-indigo-500", className)}>
@@ -714,7 +722,7 @@ function IntegrationCard({
             className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-teal-500 text-white rounded-xl text-xs font-semibold hover:bg-teal-600 transition-colors disabled:opacity-50 shadow-sm shadow-teal-200"
           >
             {isConnecting ? <Loader2 size={13} className="animate-spin" /> : <Plug size={13} />}
-            Connect {item.name}
+            {item.provider === "haip_ivr" ? "Configure IVR" : `Connect ${item.name}`}
           </button>
         )}
       </div>
@@ -737,6 +745,7 @@ function IntegrationCard({
 // ---------------------------------------------------------------------------
 
 export default function IntegrationsPage() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "warning" } | null>(null);
   const [connectModal, setConnectModal] = useState<{ provider: string; name: string; authType?: string; notes?: string } | null>(null);
@@ -754,6 +763,7 @@ export default function IntegrationsPage() {
   const STATIC_CATALOG: CatalogItem[] = [
     { provider: "whatsapp_meta", name: "WhatsApp",      description: "Connect WhatsApp Business via Meta Cloud API to send & receive messages.", category: "messaging",  auth_type: "whatsapp_meta", logo: "whatsapp", popular: true },
     { provider: "instagram",     name: "Instagram DM",  description: "Receive and reply to Instagram Direct Messages from your hospitality page.", category: "messaging",  auth_type: "instagram",     logo: "instagram", popular: true },
+    { provider: "haip_ivr",       name: "HAIP IVR",      description: "Built-in IVR — connect your Vobiz SIP number, configure DTMF menu, and route calls to your team via Dograh.", category: "telephony", auth_type: "ivr_settings", logo: "ivr", popular: true },
     { provider: "callerdesk",    name: "CallerDesk",    description: "Inbound & outbound IVR calls with auto-transcription and QA scoring.", category: "telephony",   auth_type: "api_key",       logo: "phone",  popular: true },
     { provider: "acefone",       name: "Acefone",       description: "Cloud telephony for inbound call handling, call routing, and recordings.", category: "telephony",   auth_type: "api_key",       logo: "phone",  popular: false },
     { provider: "exotel",        name: "Exotel",        description: "Indian cloud telephony platform for voice calls and SMS automation.", category: "telephony",   auth_type: "api_key",       logo: "phone",  popular: false },
@@ -850,10 +860,14 @@ export default function IntegrationsPage() {
 
   // Handlers
   const handleConnect = useCallback((provider: string) => {
+    if (provider === "haip_ivr") {
+      router.push("/dashboard/settings/ivr");
+      return;
+    }
     const item = catalog.find(c => c.provider === provider);
     if (!item) return;
     setConnectModal({ provider, name: item.name, authType: item.auth_type, notes: item.notes });
-  }, [catalog]);
+  }, [catalog, router]);
 
   const handleModalConnect = useCallback(async (fields: Record<string, string>) => {
     if (!connectModal) return;

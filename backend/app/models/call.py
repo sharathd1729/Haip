@@ -113,6 +113,14 @@ class Call(Base, TimestampMixin, TenantMixin):
     conversion_probability = Column(Integer, nullable=True)    # 0–100
     lost_reason = Column(String(100), nullable=True)      # price|dates_unavailable|still_comparing|no_response|wrong_property
 
+    # ── Dograh voice AI (migration 025) ──────────────────────────────────────
+    voice_platform = Column(String(20), nullable=False, server_default="callerdesk")
+    dograh_call_id = Column(String(255), nullable=True, unique=True)
+    dograh_agent_id = Column(String(255), nullable=True)
+    sip_trunk_provider = Column(String(50), nullable=True)
+    transfer_to_human = Column(Boolean, nullable=False, default=False)
+    transfer_reason = Column(String(255), nullable=True)
+
     guest = relationship("Guest", back_populates="calls")
     inquiry = relationship("Inquiry", back_populates="calls")
     agent = relationship("User", foreign_keys=[agent_id])

@@ -9,6 +9,7 @@ import { DashboardClientShell, StatusBarSlot } from "@/components/dashboard/Dash
 import { SampleDataBanner } from "@/components/dashboard/SampleDataBanner";
 import { FinishSetupBanner } from "./FinishSetupBanner";
 import { BrandThemeProvider } from "@/components/providers/BrandThemeProvider";
+import { WorkspaceProvider } from "@/components/providers/WorkspaceProvider";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -30,6 +31,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <BrandThemeProvider>
+    <WorkspaceProvider>
       {/*
         Single layout — children render exactly once.
         Shell elements (sidebar, topbar, bottom nav) are shown/hidden via CSS.
@@ -87,6 +89,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
       {/* Client-side overlays: CommandPalette, StatusBar, ChecklistWidget */}
       <DashboardClientShell />
+    </WorkspaceProvider>
     </BrandThemeProvider>
   );
 }

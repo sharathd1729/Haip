@@ -1,13 +1,14 @@
 """
 Celery task: process an inbound Instagram DM.
 
-Flow:
-  receive webhook → process_instagram_dm → upsert guest (by ig_sender_id)
+Flow (M2 — Instagram Identity Flow):
+  receive webhook → resolve_or_create(instagram_user_id)
                  → find/create conversation → store message
                  → trigger concierge_draft
 
-Instagram senders are identified by their Instagram-scoped user ID.
-We store it in guest.preferences["instagram_id"] for lookup.
+Identity is now managed by the progressive identity graph.
+A guest is created with just their Instagram ID — phone is not required.
+Later, when they share a WhatsApp number or book, enrich_guest() links the signals.
 """
 
 from __future__ import annotations
@@ -66,56 +67,45 @@ def process_instagram_dm(self, payload: dict) -> dict:
             if existing:
                 return {"status": "duplicate", "message_id": mid}
 
-        # ── Upsert guest by instagram_id (stored in preferences) ──────────
-        # Use a JSONB containment query instead of loading all guests (N+1 fix)
-        from sqlalchemy import cast
-        from sqlalchemy.dialects.postgresql import JSONB
-        guest = db.query(Guest).filter(
-            Guest.tenant_id == tenant_id,
-            Guest.is_deleted == False,
-            Guest.preferences.op("@>")(cast({"instagram_id": sender_id}, JSONB)),
-        ).first()
+        # ── Resolve or create guest via Identity Resolution Engine (M2) ─────
+        # Try to fetch IG display name for new guest creation
+        display_name = f"IG User {sender_id[-6:]}"
+        try:
+            creds = decrypt_credentials(integration.credentials_kms_blob)
+            access_token = creds.get("access_token", "")
+            ig_config = integration.config or {}
+            account_id = ig_config.get("instagram_business_account_id", "")
+            if access_token and account_id:
+                from app.adapters.instagram.meta_graph import InstagramGraphAdapter
+                ig_adapter = InstagramGraphAdapter(
+                    access_token=access_token,
+                    ig_account_id=account_id,
+                )
+                profile = ig_adapter.get_user_profile(sender_id)
+                display_name = profile.get("name", display_name)
+        except Exception as exc:
+            logger.debug("Could not fetch IG profile for %s: %s", sender_id, exc)
 
-        if not guest:
-            # Try to fetch name from Instagram Graph API
-            display_name = f"IG User {sender_id[-6:]}"
-            try:
-                creds = decrypt_credentials(integration.credentials_kms_blob)
-                access_token = creds.get("access_token", "")
-                ig_config = integration.config or {}
-                account_id = ig_config.get("instagram_business_account_id", "")
-                if access_token and account_id:
-                    from app.adapters.instagram.meta_graph import InstagramGraphAdapter
-                    ig_adapter = InstagramGraphAdapter(
-                        access_token=access_token,
-                        ig_account_id=account_id,
-                    )
-                    profile = ig_adapter.get_user_profile(sender_id)
-                    display_name = profile.get("name", display_name)
-            except Exception as exc:
-                logger.debug("Could not fetch IG profile for %s: %s", sender_id, exc)
-
-            guest = Guest(
-                id=str(uuid.uuid4()),
-                tenant_id=tenant_id,
-                phone="",  # Instagram DMs have no phone number
-                name=display_name,
-                preferences={"instagram_id": sender_id},
-            )
-            db.add(guest)
-            db.flush()
-            logger.info("Created new guest from Instagram DM: %s (%s)", guest.id, display_name)
+        from app.services.identity_resolution import resolve_or_create
+        guest_id, created = resolve_or_create(
+            db=db,
+            tenant_id=tenant_id,
+            identity_type="instagram_user_id",
+            identity_value=sender_id,
+            source="instagram",
+            guest_fields={"name": display_name},
+        )
+        guest = db.query(Guest).filter_by(id=guest_id, tenant_id=tenant_id).first()
+        if created:
+            logger.info("Created new guest from Instagram DM: %s (%s)", guest_id, display_name)
         else:
-            # Ensure instagram_id is stored (in case it wasn't before)
-            prefs = dict(guest.preferences or {})
-            prefs["instagram_id"] = sender_id
-            guest.preferences = prefs
+            logger.debug("Resolved existing guest from Instagram DM: %s", guest_id)
 
         # ── Find or create open conversation ────────────────────────────────
         channel_val = ChannelType.INSTAGRAM if hasattr(ChannelType, "INSTAGRAM") else "instagram"
         conversation = (
             db.query(Conversation)
-            .filter_by(tenant_id=tenant_id, guest_id=guest.id, is_open=True)
+            .filter_by(tenant_id=tenant_id, guest_id=guest_id, is_open=True)
             .filter(Conversation.channel == channel_val)
             .first()
         )
@@ -124,7 +114,7 @@ def process_instagram_dm(self, payload: dict) -> dict:
             conversation = Conversation(
                 id=str(uuid.uuid4()),
                 tenant_id=tenant_id,
-                guest_id=guest.id,
+                guest_id=guest_id,
                 channel=channel_val,
                 is_open=True,
                 ai_mode="shadow",
@@ -154,7 +144,7 @@ def process_instagram_dm(self, payload: dict) -> dict:
 
         logger.info(
             "Stored Instagram DM: message=%s guest=%s conversation=%s",
-            message.id, guest.id, conversation.id,
+            message.id, guest_id, conversation.id,
         )
 
         # ── Trigger AI concierge draft ─────────────────────────────────────
@@ -176,7 +166,7 @@ def process_instagram_dm(self, payload: dict) -> dict:
         return {
             "status": "ok",
             "message_id": message.id,
-            "guest_id": guest.id,
+            "guest_id": guest_id,
             "conversation_id": conversation.id,
         }
 

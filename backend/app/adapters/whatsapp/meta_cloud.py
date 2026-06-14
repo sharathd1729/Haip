@@ -39,6 +39,50 @@ class MetaCloudAdapter:
         }
         return await self._post(url, payload)
 
+    async def send_image(self, to: str, url: str, caption: str = "") -> dict:
+        url_ = f"{WA_BASE}/{self.phone_number_id}/messages"
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": to,
+            "type": "image",
+            "image": {"link": url, "caption": caption},
+        }
+        return await self._post(url_, payload)
+
+    async def send_video(self, to: str, url: str, caption: str = "") -> dict:
+        url_ = f"{WA_BASE}/{self.phone_number_id}/messages"
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": to,
+            "type": "video",
+            "video": {"link": url, "caption": caption},
+        }
+        return await self._post(url_, payload)
+
+    async def send_audio(self, to: str, url: str) -> dict:
+        url_ = f"{WA_BASE}/{self.phone_number_id}/messages"
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": to,
+            "type": "audio",
+            "audio": {"link": url},
+        }
+        return await self._post(url_, payload)
+
+    async def send_document(self, to: str, url: str, filename: str = "", caption: str = "") -> dict:
+        url_ = f"{WA_BASE}/{self.phone_number_id}/messages"
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": to,
+            "type": "document",
+            "document": {"link": url, "filename": filename or "document", "caption": caption},
+        }
+        return await self._post(url_, payload)
+
     async def mark_read(self, message_id: str) -> dict:
         url = f"{WA_BASE}/{self.phone_number_id}/messages"
         payload = {"messaging_product": "whatsapp", "status": "read", "message_id": message_id}

@@ -1,4 +1,5 @@
-"use client";
+﻿"use client";
+
 
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -160,7 +161,7 @@ export default function CampaignAnalyticsPage() {
                         <td className="py-3 pr-4 w-32"><RateBar pct={c.delivery_rate} color={c.delivery_rate > 90 ? "#10b981" : "#f59e0b"} /></td>
                         <td className="py-3 pr-4 w-32"><RateBar pct={c.read_rate} color={TEAL} /></td>
                         <td className="py-3 text-gray-400">
-                          {c.scheduled_at ? new Date(c.scheduled_at).toLocaleDateString("en-IN", { day:"numeric", month:"short" }) : "—"}
+                          {c.scheduled_at ? new Date(c.scheduled_at).toLocaleDateString("en-IN", { day:"numeric", month:"short" }) : "â€”"}
                         </td>
                       </tr>
                     );

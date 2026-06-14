@@ -1,4 +1,5 @@
-"use client";
+﻿"use client";
+
 
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -120,10 +121,10 @@ export default function OccupancyForecastPage() {
         <KpiCard label={`Forecast (${rangeDays}d)`} value={`${s.portfolio_forecast_30d}%`}
           icon={<TrendingUp size={14} className="text-teal-500" />} />
         <KpiCard label="Peak Demand Date"
-          value={s.highest_demand_date ? s.highest_demand_date.slice(5) : "—"}
+          value={s.highest_demand_date ? s.highest_demand_date.slice(5) : "â€”"}
           icon={<TrendingUp size={14} className="text-green-500" />} />
         <KpiCard label="Lowest Demand Date"
-          value={s.lowest_demand_date ? s.lowest_demand_date.slice(5) : "—"}
+          value={s.lowest_demand_date ? s.lowest_demand_date.slice(5) : "â€”"}
           icon={<CalendarX size={14} className="text-red-400" />} />
       </div>
 
@@ -131,7 +132,7 @@ export default function OccupancyForecastPage() {
       {s.properties.length > 0 && (
         <div className="bg-white border border-gray-100 rounded-2xl p-5">
           <h2 className="text-sm font-semibold text-gray-800 mb-4">
-            {s.properties[0].property_name} — Occupancy Trend & Forecast
+            {s.properties[0].property_name} â€” Occupancy Trend & Forecast
           </h2>
           <ResponsiveContainer width="100%" height={280}>
             <ComposedChart data={portfolioSeries} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>

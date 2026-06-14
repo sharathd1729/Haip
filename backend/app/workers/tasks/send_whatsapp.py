@@ -66,7 +66,24 @@ def send_whatsapp(self, message_id: str, tenant_id: str):
             finally:
                 loop.close()
 
-        result = _run_async(adapter.send_text(to=guest.phone, body=message.body or ""))
+        media_type = getattr(message, "media_type", None)
+        media_url  = getattr(message, "media_url", None)
+        body_text  = message.body or ""
+
+        if media_type and media_url:
+            if media_type == "image":
+                result = _run_async(adapter.send_image(to=guest.phone, url=media_url, caption=body_text))
+            elif media_type == "video":
+                result = _run_async(adapter.send_video(to=guest.phone, url=media_url, caption=body_text))
+            elif media_type == "audio":
+                result = _run_async(adapter.send_audio(to=guest.phone, url=media_url))
+            elif media_type == "document":
+                result = _run_async(adapter.send_document(to=guest.phone, url=media_url, caption=body_text))
+            else:
+                # Unknown media type — fall back to text
+                result = _run_async(adapter.send_text(to=guest.phone, body=body_text))
+        else:
+            result = _run_async(adapter.send_text(to=guest.phone, body=body_text))
 
         # ── Success: transition to SENT ───────────────────────────────────────
         wamid = result.get("messages", [{}])[0].get("id")

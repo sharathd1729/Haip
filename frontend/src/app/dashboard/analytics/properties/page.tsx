@@ -1,4 +1,5 @@
-"use client";
+﻿"use client";
+
 
 import { useState } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -11,10 +12,10 @@ import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 
 function fmt_inr(n: number) {
-  if (n >= 10000000) return `₹${(n/10000000).toFixed(1)}Cr`;
-  if (n >= 100000)   return `₹${(n/100000).toFixed(1)}L`;
-  if (n >= 1000)     return `₹${(n/1000).toFixed(0)}k`;
-  return `₹${Math.round(n)}`;
+  if (n >= 10000000) return `â‚¹${(n/10000000).toFixed(1)}Cr`;
+  if (n >= 100000)   return `â‚¹${(n/100000).toFixed(1)}L`;
+  if (n >= 1000)     return `â‚¹${(n/1000).toFixed(0)}k`;
+  return `â‚¹${Math.round(n)}`;
 }
 
 interface PropertyRow {

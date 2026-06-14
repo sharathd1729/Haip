@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, JSON, Integer
+from sqlalchemy import Column, String, Boolean, JSON, Integer, LargeBinary
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -38,6 +38,25 @@ class Tenant(Base, TimestampMixin):
     timezone = Column(String(60), default="Asia/Kolkata", nullable=False)
     # business_hours: dict keyed by weekday 0-6 (Mon-Sun), each {"open": "HH:MM", "close": "HH:MM", "closed": bool}
     business_hours = Column(JSON, default=dict, nullable=False)
+
+    # M5: LLM Router — optional per-tenant provider override
+    # Values: None (use routing table) | "claude" | "gemini" | "openai"
+    llm_provider_override = Column(String(20), nullable=True)
+
+    # ── Dograh voice AI (migration 025) ──────────────────────────────────────
+    # voice_platform: which IVR adapter handles calls — "callerdesk"|"acefone"|"dograh"
+    voice_platform = Column(String(50), nullable=True, server_default="callerdesk")
+    dograh_agent_id = Column(String(255), nullable=True)
+    # Fernet-encrypted JSON: {"webhook_secret": "<hex>"} — same pattern as Integration.credentials_kms_blob
+    dograh_webhook_secret_enc = Column(LargeBinary, nullable=True)
+    sip_trunk_provider = Column(String(50), nullable=True)
+    sip_trunk_number = Column(String(20), nullable=True)
+
+    # Leads360: per-tenant pipeline stage display config (label, color, order, visible)
+    pipeline_config = Column(JSON, nullable=True)
+
+    # Adaptive dashboard: {"selected_widgets": [...], "customized_at": "ISO"}
+    dashboard_config = Column(JSON, nullable=True)
 
     users = relationship("User", back_populates="tenant", lazy="dynamic")
     guests = relationship("Guest", back_populates="tenant", lazy="dynamic")

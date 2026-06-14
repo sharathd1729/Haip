@@ -68,6 +68,25 @@ def create_inquiry(
     db.add(inquiry)
     db.commit()
     db.refresh(inquiry)
+
+    # Fire automation trigger (non-blocking)
+    try:
+        from app.workers.tasks.automation_engine import fire_trigger
+        fire_trigger.apply_async(
+            kwargs={
+                "event": "new_inquiry",
+                "tenant_id": current_user.tenant_id,
+                "context": {
+                    "inquiry_id": inquiry.id,
+                    "guest_id": inquiry.guest_id,
+                    "source": inquiry.source,
+                },
+            },
+            queue="whatsapp",
+        )
+    except Exception:
+        pass  # never let automation failure block the response
+
     return inquiry
 
 

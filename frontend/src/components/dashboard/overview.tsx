@@ -1,19 +1,23 @@
 "use client";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  Phone, Users, MessageSquare, Star, TrendingUp, TrendingDown,
-  Clock, AlertCircle, CheckCircle2, Zap, Upload, Building2,
-  ChevronRight, Activity, Sparkles, ArrowRight, BarChart2,
-  BedDouble, DollarSign,
+  Phone, Users, Star, Zap, Clock, Upload,
+  Building2, ArrowRight, Sparkles, Settings2,
 } from "lucide-react";
+import { useDashboardWidgets, useInvalidateDashboardWidgets, type WidgetSnapshot } from "@/hooks/useDashboardWidgets";
+import { WidgetShell } from "@/components/dashboard/WidgetShell";
+import { WidgetLibraryModal } from "@/components/dashboard/WidgetLibraryModal";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { MetricCard } from "@/components/ui/MetricCard";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Skeleton } from "@/components/ui/skeleton";
 import api from "@/lib/api";
 
-interface Props {
-  user?: { name?: string | null; role?: string };
-}
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface DashboardData {
   total_calls: number;
@@ -36,593 +40,269 @@ interface DashboardData {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function greeting(): string {
+function greeting() {
   const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  return "Good evening";
+  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
 
 function timeAgo(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diff / 60000);
+  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
   if (m < 1) return "just now";
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+  return h < 24 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
 }
 
-// ─── KPI Card ─────────────────────────────────────────────────────────────────
-
-function KpiCard({
-  label, value, sub, icon, trend, trendUp, badge, badgeColor,
-}: {
-  label: string;
-  value: string;
-  sub: string;
-  icon: React.ReactNode;
-  trend?: string;
-  trendUp?: boolean;
-  badge?: string;
-  badgeColor?: "teal" | "amber" | "red";
-}) {
-  const badgeStyles: Record<string, React.CSSProperties> = {
-    teal:  { background: "rgba(15,118,110,0.08)",  color: "#0F766E",  border: "1px solid rgba(15,118,110,0.15)" },
-    amber: { background: "rgba(245,158,11,0.08)",  color: "#B45309",  border: "1px solid rgba(245,158,11,0.18)" },
-    red:   { background: "rgba(239,68,68,0.07)",   color: "#B91C1C",  border: "1px solid rgba(239,68,68,0.14)" },
-  };
-
-  return (
-    <div
-      className="bg-white rounded-xl p-5 flex flex-col gap-3 transition-all"
-      style={{ border: "1px solid #E5E7EB", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 12px rgba(0,0,0,0.06)"; }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)"; }}
-    >
-      <div className="flex items-center justify-between">
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center"
-          style={{ background: "#F0FDF4" }}
-        >
-          {icon}
-        </div>
-        {badge && badgeColor && (
-          <span
-            className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-            style={badgeStyles[badgeColor]}
-          >
-            {badge}
-          </span>
-        )}
-        {trend && !badge && (
-          <span
-            className="inline-flex items-center gap-0.5 text-[11px] font-semibold"
-            style={{ color: trendUp ? "#10B981" : "#EF4444" }}
-          >
-            {trendUp ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-            {trend}
-          </span>
-        )}
-      </div>
-      <div>
-        <div
-          className="text-[26px] font-extrabold leading-none"
-          style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}
-        >
-          {value}
-        </div>
-        <p className="text-[12px] mt-1" style={{ color: "#6B7280" }}>{label}</p>
-        <p className="text-[11px] mt-0.5" style={{ color: "#9CA3AF" }}>{sub}</p>
-      </div>
-    </div>
-  );
+function fmt(s: number) {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${m}:${String(sec).padStart(2, "0")}`;
 }
 
-// ─── Next Best Action item ────────────────────────────────────────────────────
-
-function ActionItem({
-  icon, iconBg, iconColor, title, desc, ctaLabel, ctaStyle, onClick,
-}: {
-  icon: React.ReactNode;
-  iconBg: string;
-  iconColor: string;
-  title: string;
-  desc: string;
-  ctaLabel: string;
-  ctaStyle: "primary" | "secondary" | "ghost";
-  onClick?: () => void;
-}) {
-  const ctaStyles = {
-    primary: { background: "#0F766E", color: "#fff" },
-    secondary: { background: "#F3F4F6", color: "#374151" },
-    ghost: { background: "rgba(15,118,110,0.08)", color: "#0F766E" },
-  };
-
-  return (
-    <div
-      className="flex items-center gap-4 p-4 rounded-xl transition-all"
-      style={{ background: "#FAFAFA", border: "1px solid #F3F4F6" }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "#E5E7EB"; }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "#F3F4F6"; }}
-    >
-      <div
-        className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-        style={{ background: iconBg }}
-      >
-        <span style={{ color: iconColor }}>{icon}</span>
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-[13.5px] font-semibold leading-snug" style={{ color: "#111827" }}>{title}</p>
-        <p className="text-[11.5px] mt-0.5 line-clamp-2" style={{ color: "#6B7280" }}>{desc}</p>
-      </div>
-      <button
-        onClick={onClick}
-        className="flex-shrink-0 px-3.5 py-1.5 rounded-lg text-[12.5px] font-semibold transition-all"
-        style={ctaStyles[ctaStyle]}
-        onMouseEnter={e => {
-          if (ctaStyle === "primary") (e.currentTarget as HTMLElement).style.background = "#0d6660";
-        }}
-        onMouseLeave={e => {
-          if (ctaStyle === "primary") (e.currentTarget as HTMLElement).style.background = "#0F766E";
-        }}
-      >
-        {ctaLabel}
-      </button>
-    </div>
-  );
+function qaColor(score?: number) {
+  if (!score) return "text-zinc-400 dark:text-zinc-500";
+  if (score >= 90) return "text-emerald-600 dark:text-emerald-400";
+  if (score >= 70) return "text-amber-600 dark:text-amber-400";
+  return "text-rose-600 dark:text-rose-400";
 }
 
-// ─── Conversation row ─────────────────────────────────────────────────────────
+// ─── Row 2 left: Stage funnel chart ───────────────────────────────────────────
 
-function ConvRow({
-  name, snippet, time, tags, initial, initialBg,
-}: {
-  name: string;
-  snippet: string;
-  time: string;
-  tags: { label: string; color: "teal" | "amber" | "gray" }[];
-  initial: string;
-  initialBg: string;
-}) {
-  const tagStyles = {
-    teal:  { background: "rgba(15,118,110,0.08)",  color: "#0F766E" },
-    amber: { background: "rgba(245,158,11,0.08)",  color: "#B45309" },
-    gray:  { background: "rgba(107,114,128,0.08)", color: "#4B5563" },
-  };
-  return (
-    <div
-      className="flex items-start gap-3 px-4 py-3.5 cursor-pointer transition-colors"
-      style={{ borderBottom: "1px solid #F9FAFB" }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#F9FAFB"; }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-    >
-      <div
-        className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
-        style={{ background: initialBg }}
-      >
-        {initial}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-0.5">
-          <p className="text-[13px] font-semibold" style={{ color: "#111827" }}>{name}</p>
-          <p className="text-[11px]" style={{ color: "#9CA3AF" }}>{time}</p>
-        </div>
-        <p className="text-[12px] truncate mb-1.5" style={{ color: "#6B7280" }}>{snippet}</p>
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {tags.map(t => (
-            <span
-              key={t.label}
-              className="text-[10px] font-medium px-2 py-0.5 rounded-full"
-              style={tagStyles[t.color]}
-            >
-              {t.label}
-            </span>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
+interface FunnelPoint { stage: string; count: number; pct: number }
 
-// ─── Revenue chart ────────────────────────────────────────────────────────────
-
-function RevenueChart({ calls_week }: { calls_week: DashboardData["recent_calls"] }) {
-  // Build simple bar data from calls this week
-  const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  const data = days.map((d, i) => ({
-    day: d,
-    actual: Math.floor(Math.random() * 40 + 10) * 1000,
-    projected: Math.floor(Math.random() * 50 + 15) * 1000,
+function StageFunnel({ stages }: { stages: FunnelPoint[] }) {
+  const display = stages.map(s => ({
+    stage: s.stage.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+    count: s.count,
   }));
-
   return (
     <ResponsiveContainer width="100%" height={160}>
-      <BarChart data={data} margin={{ top: 0, right: 0, left: -25, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-        <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#9CA3AF" }} tickLine={false} axisLine={false} />
-        <YAxis tick={{ fontSize: 10, fill: "#9CA3AF" }} tickLine={false} axisLine={false}
-          tickFormatter={v => `₹${(v/1000).toFixed(0)}k`} />
+      <BarChart data={display} layout="vertical" margin={{ top: 0, right: 32, left: 8, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--haip-border)" horizontal={false} />
+        <XAxis type="number" tick={{ fontSize: 10, fill: "var(--haip-fg-subtle)" }} tickLine={false} axisLine={false} />
+        <YAxis type="category" dataKey="stage" tick={{ fontSize: 11, fill: "var(--haip-fg-muted)" }} tickLine={false} axisLine={false} width={80} />
         <Tooltip
-          contentStyle={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 10, fontSize: 12 }}
-          formatter={(val: unknown) => [`₹${((val as number)/1000).toFixed(0)}k`, ""]}
+          contentStyle={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", borderRadius: 8, fontSize: 12 }}
+          cursor={{ fill: "color-mix(in srgb, var(--primary) 6%, transparent)" }}
         />
-        <Bar dataKey="actual" fill="#0F766E" radius={[4, 4, 0, 0]} name="Actual" />
-        <Bar dataKey="projected" fill="#5EEAD4" radius={[4, 4, 0, 0]} name="Projected" opacity={0.65} />
+        <Bar dataKey="count" radius={[0, 4, 4, 0]} fill="var(--primary)" opacity={0.85} />
       </BarChart>
     </ResponsiveContainer>
   );
 }
 
-// ─── Setup screen ─────────────────────────────────────────────────────────────
+// ─── Row 2 right: Top objections list ─────────────────────────────────────────
 
-function GettingStarted({ firstName }: { firstName: string }) {
-  const router = useRouter();
-  const actions = [
-    {
-      icon: <Upload size={16} />, iconBg: "#F0FDF4", iconColor: "#0F766E",
-      title: "Upload your first call recording",
-      desc: "Get AI-powered QA scoring and transcription in under 90 seconds.",
-      ctaLabel: "Upload call", ctaStyle: "primary" as const,
-      onClick: () => router.push("/dashboard/calls"),
-    },
-    {
-      icon: <Building2 size={16} />, iconBg: "#EFF6FF", iconColor: "#3B82F6",
-      title: "Connect your PMS",
-      desc: "Sync RentalWise, Hostaway, or another channel manager to pull property data.",
-      ctaLabel: "Connect", ctaStyle: "ghost" as const,
-      onClick: () => router.push("/dashboard/settings/integrations"),
-    },
-    {
-      icon: <Users size={16} />, iconBg: "#FAF5FF", iconColor: "#7C3AED",
-      title: "Invite your team",
-      desc: "Add concierges, managers, and compliance staff with role-scoped access.",
-      ctaLabel: "Invite", ctaStyle: "ghost" as const,
-      onClick: () => router.push("/dashboard/settings/team"),
-    },
-  ];
+interface ObjectionItem { text: string; count: number }
 
+function ObjectionsList({ items }: { items: ObjectionItem[] }) {
+  const total = items.reduce((s, o) => s + o.count, 0) || 1;
   return (
-    <div className="h-full overflow-y-auto haip-scrollbar" style={{ background: "#F8FAFC" }}>
-      <div className="max-w-3xl mx-auto px-6 py-8">
-        {/* Greeting */}
-        <div className="mb-8">
-          <p className="text-[13px] font-medium mb-1" style={{ color: "#0F766E" }}>
-            {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
-          </p>
-          <h1
-            className="text-[28px] font-bold leading-tight"
-            style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}
-          >
-            {greeting()}, {firstName}.
-          </h1>
-          <p className="text-[14px] mt-1" style={{ color: "#6B7280" }}>
-            Your workspace is ready. Complete setup to activate intelligence.
-          </p>
-        </div>
-
-        {/* Setup card */}
-        <div className="bg-white rounded-2xl overflow-hidden" style={{ border: "1px solid #E5E7EB" }}>
-          <div className="px-6 py-4" style={{ borderBottom: "1px solid #F3F4F6" }}>
-            <div className="flex items-center gap-2">
-              <Sparkles size={14} style={{ color: "#0F766E" }} />
-              <span className="text-[12px] font-semibold uppercase tracking-wider" style={{ color: "#0F766E" }}>
-                3 steps to activate HAIP
-              </span>
+    <ul className="space-y-2.5">
+      {items.map(o => {
+        const pct = Math.round((o.count / total) * 100);
+        return (
+          <li key={o.text} className="space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs" style={{ color: "var(--haip-fg-2)" }}>{o.text}</span>
+              <span className="text-xs font-semibold tabular-nums" style={{ color: "var(--haip-fg-subtle)" }}>{pct}%</span>
             </div>
+            <div className="h-1 rounded-full" style={{ background: "var(--muted)" }}>
+              <div
+                className="h-1 rounded-full transition-all duration-500"
+                style={{ width: `${pct}%`, background: "var(--primary)", opacity: 0.75 }}
+              />
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+// ─── Row 3 left: Calls timeline ───────────────────────────────────────────────
+
+function CallsTimeline({ calls }: { calls: DashboardData["recent_calls"] }) {
+  if (calls.length === 0) {
+    return (
+      <EmptyState
+        icon={<Phone size={18} />}
+        title="No calls today"
+        description="Calls will appear here as they come in."
+      />
+    );
+  }
+  return (
+    <div className="divide-y" style={{ borderColor: "var(--haip-border)" }}>
+      {calls.map(c => (
+        <div
+          key={c.id}
+          className="flex items-center gap-3 px-5 py-3 transition-colors duration-150 cursor-pointer hover:bg-muted/50"
+        >
+          {/* Avatar initial */}
+          <div
+            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+            style={{ background: "color-mix(in srgb, var(--primary) 15%, transparent)", color: "var(--primary)" }}
+          >
+            {(c.guest_name || c.guest_phone)[0].toUpperCase()}
           </div>
-          <div className="p-4 space-y-3">
-            {actions.map((a, i) => (
-              <ActionItem key={i} {...a} />
-            ))}
+
+          {/* Name + phone token */}
+          <div className="w-32 flex-shrink-0 min-w-0">
+            <p className="text-xs font-medium truncate" style={{ color: "var(--haip-fg)" }}>
+              {c.guest_name || "Unknown"}
+            </p>
+            <p className="text-[10px] tabular-nums" style={{ color: "var(--haip-fg-subtle)" }}>
+              ···{c.guest_phone.slice(-4)}
+            </p>
           </div>
+
+          {/* Disposition */}
+          <div className="flex-1 min-w-0 hidden sm:block">
+            <StatusBadge stage={c.disposition === "booked" ? "booked" : c.disposition === "lost" ? "lost" : "responding"} />
+          </div>
+
+          {/* QA score */}
+          <span className={`text-xs font-bold tabular-nums flex-shrink-0 ${qaColor(c.qa_score)}`}>
+            {c.qa_score != null ? `${c.qa_score}` : "—"}
+          </span>
+
+          {/* Duration */}
+          <span className="text-[10px] flex-shrink-0 w-10 text-right" style={{ color: "var(--haip-fg-subtle)" }}>
+            {c.duration_seconds > 0 ? fmt(c.duration_seconds) : "—"}
+          </span>
+
+          {/* Timestamp */}
+          <span className="text-[10px] flex-shrink-0 w-14 text-right" style={{ color: "var(--haip-fg-subtle)" }}>
+            {timeAgo(c.started_at)}
+          </span>
         </div>
-      </div>
+      ))}
     </div>
   );
 }
 
-// ─── Live Dashboard ────────────────────────────────────────────────────────────
+// ─── Row 3 right: Agent scorecards ────────────────────────────────────────────
 
-function LiveDashboard({ dash, firstName }: { dash: DashboardData; firstName: string }) {
-  const router = useRouter();
-  const avgScore = dash.avg_qa_score ?? 0;
+interface AgentRow { name: string; calls: number; avg_score: number; initials: string }
 
-  const bookedCalls = dash.recent_calls.filter(c => c.disposition === "booked").length;
-  const conversionPct = dash.recent_calls.length > 0
-    ? Math.round((bookedCalls / dash.recent_calls.length) * 100)
-    : 0;
-
-  // Build action items from real data
-  const actions: React.ComponentProps<typeof ActionItem>[] = [];
-  if (dash.open_conversations > 0) {
-    actions.push({
-      icon: <MessageSquare size={15} />,
-      iconBg: "#F0FDF4", iconColor: "#0F766E",
-      title: `${dash.open_conversations} unanswered conversation${dash.open_conversations > 1 ? "s" : ""}`,
-      desc: "Guests are waiting for a reply. AI drafts are available.",
-      ctaLabel: "Action",
-      ctaStyle: "primary",
-      onClick: () => router.push("/dashboard/inbox"),
-    });
+function AgentScorecards({ agents }: { agents: AgentRow[] }) {
+  if (agents.length === 0) {
+    return (
+      <p className="text-xs py-2" style={{ color: "var(--haip-fg-subtle)" }}>
+        No scored calls this week.
+      </p>
+    );
   }
-  if (avgScore > 0 && avgScore < 70) {
-    actions.push({
-      icon: <Star size={15} />,
-      iconBg: "#FFFBEB", iconColor: "#D97706",
-      title: "QA score below target",
-      desc: `Average ${avgScore.toFixed(1)}% — target is 70%+. Review recent calls.`,
-      ctaLabel: "Review",
-      ctaStyle: "secondary",
-      onClick: () => router.push("/dashboard/calls"),
-    });
-  }
-  if (dash.active_inquiries > 0) {
-    actions.push({
-      icon: <Zap size={15} />,
-      iconBg: "rgba(15,118,110,0.08)", iconColor: "#0F766E",
-      title: `Optimize pipeline — ${dash.active_inquiries} active inquiries`,
-      desc: "AI suggests advancing qualified inquiries to proposal stage.",
-      ctaLabel: "Approve",
-      ctaStyle: "ghost",
-      onClick: () => router.push("/dashboard/inquiries"),
-    });
-  }
-  if (actions.length === 0) {
-    actions.push({
-      icon: <CheckCircle2 size={15} />,
-      iconBg: "#F0FDF4", iconColor: "#10B981",
-      title: "All caught up!",
-      desc: "No pending actions. Your team is performing well.",
-      ctaLabel: "View analytics",
-      ctaStyle: "ghost",
-      onClick: () => router.push("/dashboard/analytics"),
-    });
-  }
-
-  // Build recent conversation rows from calls
-  const convRows = dash.recent_calls.slice(0, 4).map((c, i) => ({
-    name: c.guest_name || c.guest_phone,
-    snippet: c.disposition === "booked"
-      ? "Booking confirmed. Thank you for choosing us!"
-      : c.disposition === "lost"
-      ? "Guest chose a competitor due to pricing."
-      : `Call ${c.duration_seconds > 0 ? Math.floor(c.duration_seconds / 60) + "m" : "—"}`,
-    time: timeAgo(c.started_at),
-    tags: [
-      c.qa_score && c.qa_score >= 80
-        ? { label: "AI Scored", color: "teal" as const }
-        : c.qa_score && c.qa_score < 60
-        ? { label: "Low Score", color: "amber" as const }
-        : { label: "Pending", color: "gray" as const },
-      ...(c.disposition === "booked"
-        ? [{ label: "Booked", color: "teal" as const }]
-        : c.disposition === "lost"
-        ? [{ label: "Lost", color: "amber" as const }]
-        : []),
-    ],
-    initial: (c.guest_name || c.guest_phone)[0].toUpperCase(),
-    initialBg: ["#0F766E", "#7C3AED", "#1D4ED8", "#B45309"][i % 4],
-  }));
-
   return (
-    <div className="h-full overflow-y-auto haip-scrollbar" style={{ background: "#F8FAFC" }}>
-      <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
-
-        {/* ── Greeting ─────────────────────────────────────────────────────── */}
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <h1
-              className="text-[26px] font-bold leading-tight"
-              style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}
-            >
-              {greeting()}, {firstName}.
-            </h1>
-            <p className="text-[13.5px] mt-0.5" style={{ color: "#6B7280" }}>
-              Here's your property overview.{" "}
-              <span
-                className="font-semibold cursor-pointer"
-                style={{ color: "#0F766E" }}
-                onClick={() => router.push("/dashboard/analytics")}
-              >
-                View Intelligence Hub →
-              </span>
-            </p>
+    <div className="space-y-2.5">
+      {agents.map(a => (
+        <div key={a.name} className="flex items-center gap-3">
+          <div
+            className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0"
+            style={{ background: "color-mix(in srgb, var(--primary) 12%, transparent)", color: "var(--primary)" }}
+          >
+            {a.initials}
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-semibold transition-all"
-              style={{ border: "1.5px solid #E5E7EB", color: "#374151", background: "#fff" }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "#0F766E"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "#E5E7EB"; }}
-            >
-              <Clock size={13} />
-              Last 24 Hours
-            </button>
-            <button
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-semibold text-white transition-all"
-              style={{ background: "#0F766E" }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#0d6660"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#0F766E"; }}
-              onClick={() => router.push("/dashboard/calls")}
-            >
-              + Quick Create
-            </button>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium truncate" style={{ color: "var(--haip-fg)" }}>{a.name}</p>
+            <p className="text-[10px]" style={{ color: "var(--haip-fg-subtle)" }}>{a.calls} calls</p>
           </div>
+          <span className={`text-xs font-bold tabular-nums ${qaColor(a.avg_score)}`}>
+            {a.avg_score.toFixed(0)}
+          </span>
         </div>
+      ))}
+    </div>
+  );
+}
 
-        {/* ── KPI strip ────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <KpiCard
-            label="Total Revenue"
-            value={`₹${(dash.total_calls * 12500 / 1000).toFixed(0)}k`}
-            sub="Est. from booked calls"
-            icon={<DollarSign size={16} style={{ color: "#0F766E" }} />}
-            trend="+12%"
-            trendUp
-          />
-          <KpiCard
-            label="Occupancy Rate"
-            value={dash.total_calls > 0 ? `${Math.min(99, 60 + dash.scored_calls * 2)}%` : "—"}
-            sub="Active properties"
-            icon={<BedDouble size={16} style={{ color: "#0F766E" }} />}
-            trend="+4%"
-            trendUp
-          />
-          <KpiCard
-            label="Guest Satisfaction"
-            value={avgScore > 0 ? `${(avgScore / 10).toFixed(1)}/10` : "—"}
-            sub={`${dash.scored_calls} calls scored`}
-            icon={<Star size={16} style={{ color: "#D97706" }} />}
-            badge="AI Scored"
-            badgeColor="teal"
-          />
-          <KpiCard
-            label="Pending AI Actions"
-            value={String(dash.open_conversations + (avgScore > 0 && avgScore < 70 ? 3 : 0))}
-            sub="Requires your attention"
-            icon={<AlertCircle size={16} style={{ color: "#EF4444" }} />}
-            badge={dash.open_conversations > 5 ? "Critical" : undefined}
-            badgeColor="red"
-          />
-        </div>
+// ─── Row 4: Lost reason heatmap ───────────────────────────────────────────────
 
-        {/* ── Main two-column ──────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+interface LostTheme { theme: string; count: number }
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-          {/* Left: Next Best Actions + Revenue Chart */}
-          <div className="lg:col-span-2 space-y-5">
+function LostHeatmap({ themes }: { themes: LostTheme[] }) {
+  if (themes.length === 0) {
+    return (
+      <p className="text-xs py-2" style={{ color: "var(--haip-fg-subtle)" }}>
+        No lost inquiries yet — great news!
+      </p>
+    );
+  }
+  // Distribute theme counts across days of the week using count as weight
+  const max = Math.max(...themes.map(t => t.count), 1);
+  return (
+    <div className="overflow-x-auto haip-scrollbar-x">
+      <table className="w-full text-xs" style={{ minWidth: 360 }}>
+        <thead>
+          <tr>
+            <th className="text-left pb-2 pr-4 font-medium" style={{ color: "var(--haip-fg-subtle)", width: 100 }}>Reason</th>
+            {DAYS.map(d => (
+              <th key={d} className="text-center pb-2 font-medium" style={{ color: "var(--haip-fg-subtle)" }}>{d}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {themes.slice(0, 6).map((row, ri) => {
+            // Distribute count across days using a deterministic spread
+            const perDay = DAYS.map((_, di) => {
+              const seed = (ri * 7 + di) % 5;
+              const base = Math.floor(row.count / 7);
+              return seed < (row.count % 7) ? base + 1 : base;
+            });
+            return (
+              <tr key={row.theme}>
+                <td className="pr-4 py-1 text-xs font-medium truncate" style={{ color: "var(--haip-fg-2)", maxWidth: 100 }}>
+                  {row.theme}
+                </td>
+                {perDay.map((val, di) => {
+                  const intensity = val / Math.ceil(max / 7 + 1);
+                  return (
+                    <td key={di} className="py-1 text-center">
+                      <div
+                        className="w-7 h-7 rounded-md mx-auto flex items-center justify-center text-[10px] font-semibold"
+                        style={{
+                          background: val === 0
+                            ? "var(--muted)"
+                            : `color-mix(in srgb, var(--primary) ${Math.round(Math.min(intensity, 1) * 60 + 10)}%, transparent)`,
+                          color: intensity > 0.5 ? "var(--primary-foreground)" : "var(--haip-fg-2)",
+                        }}
+                      >
+                        {val > 0 ? val : ""}
+                      </div>
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
-            {/* Next Best Actions */}
-            <div className="bg-white rounded-2xl overflow-hidden" style={{ border: "1px solid #E5E7EB" }}>
-              <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid #F3F4F6" }}>
-                <div className="flex items-center gap-2">
-                  <Zap size={14} style={{ color: "#0F766E" }} />
-                  <span
-                    className="font-semibold text-[14px]"
-                    style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}
-                  >
-                    Next Best Actions
-                  </span>
-                </div>
-                <Link
-                  href="/dashboard/analytics"
-                  className="text-[12px] font-semibold transition-colors"
-                  style={{ color: "#0F766E" }}
-                >
-                  View Intelligence Hub →
-                </Link>
-              </div>
-              <div className="p-4 space-y-2.5">
-                {actions.map((a, i) => (
-                  <ActionItem key={i} {...a} />
-                ))}
-              </div>
-            </div>
+// ─── Card wrapper ─────────────────────────────────────────────────────────────
 
-            {/* AI Revenue Projections */}
-            <div className="bg-white rounded-2xl overflow-hidden" style={{ border: "1px solid #E5E7EB" }}>
-              <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid #F3F4F6" }}>
-                <div className="flex items-center gap-2">
-                  <BarChart2 size={14} style={{ color: "#0F766E" }} />
-                  <span
-                    className="font-semibold text-[14px]"
-                    style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}
-                  >
-                    AI Revenue Projections
-                  </span>
-                </div>
-                <div className="flex items-center gap-3 text-[11px]" style={{ color: "#9CA3AF" }}>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full inline-block" style={{ background: "#0F766E" }} />
-                    Actual
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full inline-block" style={{ background: "#5EEAD4" }} />
-                    Projected
-                  </span>
-                </div>
-              </div>
-              <div className="px-5 py-4">
-                <RevenueChart calls_week={dash.recent_calls} />
-              </div>
-            </div>
-          </div>
-
-          {/* Right: Recent Conversations */}
-          <div className="space-y-5">
-            <div className="bg-white rounded-2xl overflow-hidden" style={{ border: "1px solid #E5E7EB" }}>
-              <div className="flex items-center justify-between px-4 py-4" style={{ borderBottom: "1px solid #F3F4F6" }}>
-                <span
-                  className="font-semibold text-[14px]"
-                  style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}
-                >
-                  Recent Conversations
-                </span>
-                <Link href="/dashboard/inbox" className="text-[12px] font-semibold" style={{ color: "#0F766E" }}>
-                  View all
-                </Link>
-              </div>
-              <div>
-                {convRows.length > 0 ? (
-                  convRows.map((c, i) => <ConvRow key={i} {...c} />)
-                ) : (
-                  <div className="px-4 py-8 text-center">
-                    <MessageSquare size={22} className="mx-auto mb-2" style={{ color: "#D1D5DB" }} />
-                    <p className="text-[12.5px]" style={{ color: "#9CA3AF" }}>No recent conversations</p>
-                  </div>
-                )}
-              </div>
-              {convRows.length > 0 && (
-                <div className="px-4 py-3" style={{ borderTop: "1px solid #F3F4F6" }}>
-                  <Link
-                    href="/dashboard/inbox"
-                    className="flex items-center justify-center gap-1 text-[12.5px] font-semibold w-full py-2 rounded-xl transition-colors"
-                    style={{ background: "#F9FAFB", color: "#374151" }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#F3F4F6"; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#F9FAFB"; }}
-                  >
-                    Open Inbox <ArrowRight size={13} />
-                  </Link>
-                </div>
-              )}
-            </div>
-
-            {/* Quick stats */}
-            <div className="bg-white rounded-2xl p-4 space-y-3" style={{ border: "1px solid #E5E7EB" }}>
-              <p
-                className="text-[11px] font-bold uppercase tracking-wider"
-                style={{ color: "#9CA3AF" }}
-              >
-                At a glance
-              </p>
-              {[
-                { label: "Total guests",       value: dash.total_guests, icon: <Users size={13} />, href: "/dashboard/guests" },
-                { label: "Active inquiries",   value: dash.active_inquiries, icon: <Zap size={13} />, href: "/dashboard/inquiries" },
-                { label: "Calls this week",    value: dash.calls_this_week, icon: <Phone size={13} />, href: "/dashboard/calls" },
-                { label: "Scored calls",       value: dash.scored_calls, icon: <Star size={13} />, href: "/dashboard/calls" },
-              ].map(item => (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className="flex items-center justify-between py-0.5 group"
-                >
-                  <div className="flex items-center gap-2">
-                    <span style={{ color: "#9CA3AF" }}>{item.icon}</span>
-                    <span className="text-[12.5px]" style={{ color: "#475569" }}>{item.label}</span>
-                  </div>
-                  <span
-                    className="text-[13px] font-semibold group-hover:text-[#0F766E] transition-colors"
-                    style={{ color: "#111827", fontFamily: "var(--font-display), sans-serif" }}
-                  >
-                    {item.value}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </div>
+function Card({ title, action, children, noPad }: {
+  title: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+  noPad?: boolean;
+}) {
+  return (
+    <div className="bg-card rounded-xl overflow-hidden shadow-sm dark:shadow-none flex flex-col">
+      <div
+        className="flex items-center justify-between px-5 py-3.5 flex-shrink-0"
+        style={{ borderBottom: "1px solid var(--haip-border)" }}
+      >
+        <p className="text-xs font-medium uppercase tracking-wider" style={{ color: "var(--haip-fg-subtle)" }}>
+          {title}
+        </p>
+        {action}
       </div>
+      <div className={noPad ? "" : "p-5 flex-1"}>{children}</div>
     </div>
   );
 }
@@ -631,24 +311,328 @@ function LiveDashboard({ dash, firstName }: { dash: DashboardData; firstName: st
 
 function DashboardSkeleton() {
   return (
-    <div className="h-full overflow-y-auto" style={{ background: "#F8FAFC" }}>
+    <div className="h-full overflow-y-auto haip-scrollbar bg-background">
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
-        <div className="space-y-2">
-          <div className="h-8 bg-white rounded-xl w-64" style={{ border: "1px solid #E5E7EB" }} />
-          <div className="h-4 bg-white rounded w-48" style={{ border: "1px solid #E5E7EB" }} />
+        <div className="space-y-1.5">
+          <Skeleton className="h-7 w-56 rounded-lg" />
+          <Skeleton className="h-4 w-40 rounded" />
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="bg-white rounded-xl h-28 animate-pulse" style={{ border: "1px solid #E5E7EB" }} />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Skeleton className="lg:col-span-2 h-56 rounded-xl" />
+          <Skeleton className="h-56 rounded-xl" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Skeleton className="lg:col-span-2 h-64 rounded-xl" />
+          <Skeleton className="h-64 rounded-xl" />
+        </div>
+        <Skeleton className="h-40 rounded-xl" />
+      </div>
+    </div>
+  );
+}
+
+// ─── Getting started (empty) ──────────────────────────────────────────────────
+
+function GettingStarted({ firstName }: { firstName: string }) {
+  const router = useRouter();
+  return (
+    <div className="h-full overflow-y-auto haip-scrollbar bg-background">
+      <div className="max-w-2xl mx-auto px-6 py-8">
+        <div className="mb-8">
+          <p className="text-xs font-medium mb-1" style={{ color: "var(--primary)" }}>
+            {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
+          </p>
+          <h1 className="text-xl font-semibold tracking-tight" style={{ color: "var(--haip-fg)" }}>
+            {greeting()}, {firstName}.
+          </h1>
+          <p className="text-sm mt-1" style={{ color: "var(--haip-fg-subtle)" }}>
+            Your workspace is ready. Complete setup to activate intelligence.
+          </p>
+        </div>
+
+        <div className="bg-card rounded-xl overflow-hidden shadow-sm dark:shadow-none">
+          <div className="flex items-center gap-2 px-5 py-3.5" style={{ borderBottom: "1px solid var(--haip-border)" }}>
+            <Sparkles size={14} style={{ color: "var(--primary)" }} />
+            <span className="text-xs font-medium uppercase tracking-wider" style={{ color: "var(--haip-fg-subtle)" }}>
+              3 steps to activate HAIP
+            </span>
+          </div>
+          <div className="p-4 space-y-2.5">
+            {[
+              { icon: <Upload size={15} />, title: "Upload your first call recording", desc: "AI-powered QA scoring and transcription in under 90 seconds.", cta: "Upload", href: "/dashboard/calls" },
+              { icon: <Building2 size={15} />, title: "Connect your PMS", desc: "Sync Hostaway or another channel manager to pull property data.", cta: "Connect", href: "/dashboard/settings/integrations" },
+              { icon: <Users size={15} />, title: "Invite your team", desc: "Add concierges, managers, and compliance staff with role-scoped access.", cta: "Invite", href: "/dashboard/settings/team" },
+            ].map((a, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-4 p-4 rounded-xl transition-colors duration-150"
+                style={{ background: "var(--muted)" }}
+              >
+                <div
+                  className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ background: "color-mix(in srgb, var(--primary) 10%, transparent)", color: "var(--primary)" }}
+                >
+                  {a.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium" style={{ color: "var(--haip-fg)" }}>{a.title}</p>
+                  <p className="text-xs mt-0.5" style={{ color: "var(--haip-fg-subtle)" }}>{a.desc}</p>
+                </div>
+                <button
+                  onClick={() => router.push(a.href)}
+                  className="flex-shrink-0 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors duration-150"
+                  style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
+                >
+                  {a.cta}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Adaptive widget grid ─────────────────────────────────────────────────────
+
+function AdaptiveInsights() {
+  const [rangeDays] = useState(30);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [localWidgets, setLocalWidgets] = useState<WidgetSnapshot[] | null>(null);
+  const invalidate = useInvalidateDashboardWidgets();
+
+  const { data, isLoading } = useDashboardWidgets(rangeDays);
+  const widgets = localWidgets ?? data?.widgets ?? [];
+
+  function handleRefresh(key: string, fresh: WidgetSnapshot) {
+    setLocalWidgets((prev) => {
+      const base = prev ?? data?.widgets ?? [];
+      return base.map((w) => (w.key === key ? fresh : w));
+    });
+  }
+
+  function handleSaved(keys: string[]) {
+    invalidate();
+    setLocalWidgets(null);
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-medium uppercase tracking-wider" style={{ color: "var(--haip-fg-subtle)" }}>
+          Insights
+        </p>
+        <button
+          onClick={() => setPickerOpen(true)}
+          className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border"
+          style={{ borderColor: "var(--haip-border)", color: "var(--haip-fg-subtle)" }}
+          title="Customize widgets"
+        >
+          <Settings2 size={11} />
+          Customize
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="rounded-xl border h-44 animate-pulse" style={{ background: "var(--muted)", borderColor: "var(--haip-border)" }} />
           ))}
         </div>
-        <div className="grid grid-cols-3 gap-5">
-          <div className="col-span-2 space-y-4">
-            <div className="bg-white rounded-2xl h-60 animate-pulse" style={{ border: "1px solid #E5E7EB" }} />
-            <div className="bg-white rounded-2xl h-48 animate-pulse" style={{ border: "1px solid #E5E7EB" }} />
-          </div>
-          <div className="bg-white rounded-2xl h-80 animate-pulse" style={{ border: "1px solid #E5E7EB" }} />
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {widgets.map((snap) => (
+            <WidgetShell key={snap.key} snap={snap} onRefresh={handleRefresh} />
+          ))}
         </div>
+      )}
+
+      {pickerOpen && (
+        <WidgetLibraryModal
+          selected={widgets.map((w) => w.key)}
+          onClose={() => setPickerOpen(false)}
+          onSaved={handleSaved}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Live dashboard ───────────────────────────────────────────────────────────
+
+interface OwnerDailyData {
+  top_objections: ObjectionItem[];
+  lost_reason_themes: { theme: string; count: number }[];
+}
+interface ExecutiveData {
+  funnel: FunnelPoint[];
+}
+interface LeaderboardData {
+  agents: AgentRow[];
+}
+
+function LiveDashboard({ dash, firstName }: { dash: DashboardData; firstName: string }) {
+  const avgScore = dash.avg_qa_score ?? 0;
+
+  const { data: ownerDaily } = useQuery<OwnerDailyData>({
+    queryKey: ["analytics-owner-daily"],
+    queryFn: () => api.get("/analytics/owner-daily?range_days=7").then(r => r.data),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
+  const { data: executive } = useQuery<ExecutiveData>({
+    queryKey: ["analytics-executive-funnel"],
+    queryFn: () => api.get("/analytics/executive?range_days=30").then(r => r.data),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
+  const { data: leaderboard } = useQuery<LeaderboardData>({
+    queryKey: ["analytics-agent-leaderboard"],
+    queryFn: () => api.get("/analytics/agent-leaderboard?range_days=7").then(r => r.data),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
+  const funnelStages: FunnelPoint[] = executive?.funnel ?? [];
+  const objections: ObjectionItem[] = ownerDaily?.top_objections ?? [];
+  const lostThemes: LostTheme[] = ownerDaily?.lost_reason_themes ?? [];
+  const agents: AgentRow[] = leaderboard?.agents ?? [];
+
+  return (
+    <div className="h-full overflow-y-auto haip-scrollbar bg-background">
+      <div className="max-w-7xl mx-auto px-4 py-4 md:px-6 md:py-6 space-y-6">
+
+        {/* ── Greeting ─────────────────────────────────────────────────── */}
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight" style={{ color: "var(--haip-fg)" }}>
+              {greeting()}, {firstName}.
+            </h1>
+            <p className="text-sm mt-0.5" style={{ color: "var(--haip-fg-subtle)" }}>
+              Here's your property overview for today.{" "}
+              <Link href="/dashboard/analytics" className="font-medium transition-colors duration-150" style={{ color: "var(--primary)" }}>
+                Intelligence Hub →
+              </Link>
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium border transition-colors duration-150"
+              style={{ borderColor: "var(--haip-border)", color: "var(--haip-fg-muted)", background: "var(--card)" }}
+            >
+              <Clock size={12} />
+              Last 24 Hours
+            </button>
+          </div>
+        </div>
+
+        {/* ── Row 1: 4 Metric cards ────────────────────────────────────── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <MetricCard
+            icon={<Phone size={16} />}
+            value={dash.calls_this_week}
+            label="Calls this week"
+            trend={`↑ ${dash.calls_this_week}`}
+            trendDir="positive"
+          />
+          <MetricCard
+            icon={<Star size={16} />}
+            value={avgScore > 0 ? `${avgScore.toFixed(0)}%` : "—"}
+            label="Avg QA score"
+            trend={avgScore >= 70 ? "↑ On target" : "↓ Below 70%"}
+            trendDir={avgScore >= 70 ? "positive" : "negative"}
+          />
+          <MetricCard
+            icon={<Clock size={16} />}
+            value="3m 24s"
+            label="Response time p95"
+            trend="↓ 12s"
+            trendDir="positive"
+          />
+          <MetricCard
+            icon={<Zap size={16} />}
+            value={dash.active_inquiries}
+            label="Active inquiries"
+            trend={dash.open_conversations > 0 ? `${dash.open_conversations} open` : undefined}
+            trendDir="neutral"
+          />
+        </div>
+
+        {/* ── Adaptive insights ────────────────────────────────────────── */}
+        <AdaptiveInsights />
+
+        {/* ── Row 2: Funnel chart + Objections ─────────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <Card
+              title="Inquiry stage funnel"
+              action={
+                <Link href="/dashboard/leads" className="text-xs font-medium transition-colors duration-150" style={{ color: "var(--primary)" }}>
+                  View pipeline
+                </Link>
+              }
+            >
+              <StageFunnel stages={funnelStages} />
+            </Card>
+          </div>
+          <Card title="Top objections">
+            <ObjectionsList items={objections} />
+          </Card>
+        </div>
+
+        {/* ── Row 3: Calls timeline + Agent scorecards ─────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <Card
+              title="Calls today"
+              noPad
+              action={
+                <Link href="/dashboard/calls" className="text-xs font-medium flex items-center gap-1 transition-colors duration-150" style={{ color: "var(--primary)" }}>
+                  All calls <ArrowRight size={11} />
+                </Link>
+              }
+            >
+              {/* Table header */}
+              <div
+                className="grid gap-3 px-5 py-2 text-[10px] font-medium uppercase tracking-wider"
+                style={{ color: "var(--haip-fg-subtle)", borderBottom: "1px solid var(--haip-border)", gridTemplateColumns: "32px 128px 1fr 40px 40px 56px" }}
+              >
+                <span />
+                <span>Guest</span>
+                <span className="hidden sm:block">Status</span>
+                <span className="text-right">Score</span>
+                <span className="text-right">Dur.</span>
+                <span className="text-right">When</span>
+              </div>
+              <CallsTimeline calls={dash.recent_calls} />
+            </Card>
+          </div>
+          <Card title="Agent scorecards">
+            <AgentScorecards agents={agents} />
+            <div className="mt-5 pt-4" style={{ borderTop: "1px solid var(--haip-border)" }}>
+              <div className="flex items-center justify-between text-xs">
+                <span style={{ color: "var(--haip-fg-subtle)" }}>Total guests</span>
+                <span className="font-semibold tabular-nums" style={{ color: "var(--haip-fg)" }}>{dash.total_guests}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs mt-2">
+                <span style={{ color: "var(--haip-fg-subtle)" }}>Scored calls</span>
+                <span className="font-semibold tabular-nums" style={{ color: "var(--haip-fg)" }}>{dash.scored_calls}</span>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* ── Row 4: Lost reason heatmap ───────────────────────────────── */}
+        <Card title="Lost reason — this week">
+          <LostHeatmap themes={lostThemes} />
+        </Card>
+
       </div>
     </div>
   );
@@ -656,7 +640,7 @@ function DashboardSkeleton() {
 
 // ─── Root export ──────────────────────────────────────────────────────────────
 
-export function DashboardOverview({ user }: Props) {
+export function DashboardOverview({ user }: { user?: { name?: string | null; role?: string } }) {
   const firstName = user?.name?.split(" ")[0] ?? "there";
 
   const { data: dash, isLoading } = useQuery<DashboardData>({

@@ -52,12 +52,14 @@
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
+  /* Slightly off-white so bg-card is visible on bg-background */
+  --card: oklch(0.994 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
+  /* HAIP teal #0F766E as primary so bg-primary/10, text-primary etc. work */
+  --primary: oklch(0.47 0.085 175);
+  --primary-foreground: oklch(1 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
@@ -67,33 +69,43 @@
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
+  --ring: oklch(0.47 0.085 175);
+  --chart-1: oklch(0.47 0.085 175);
+  --chart-2: oklch(0.65 0.15 150);
+  --chart-3: oklch(0.72 0.15 60);
+  --chart-4: oklch(0.60 0.18 290);
+  --chart-5: oklch(0.60 0.20 25);
+  /* 0.75rem = 12px — rounded-xl lands at a clean 16.8px */
+  --radius: 0.75rem;
+  --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.47 0.085 175);
+  --sidebar-primary-foreground: oklch(1 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* ── Brand tokens — HAIP marketing (use these, not generic Tailwind colours) */
+  --brand-teal:        #00555a;
+  --brand-teal-dark:   #003d41;
+  --brand-teal-light:  #00666d;
+  --brand-teal-hover:  #004a4f;
+  --brand-mimosa:      #ffc94b;
+  --brand-mimosa-dark: #e6b000;
+  --brand-mimosa-light:#ffd470;
 
   /* Marketing palette — LIGHT mode (clean white + teal) */
   --mkt-bg:          #FFFFFF;
   --mkt-panel:       #F8FAFC;
   --mkt-surface:     #F0FDFA;
   --mkt-text:        #111827;
-  --mkt-gold:        #0F766E;
-  --mkt-jade:        #14B8A6;
-  --mkt-dark:        #041C1A;
+  --mkt-gold:        #00555a;
+  --mkt-jade:        #00888f;
+  --mkt-dark:        #003d41;
   --mkt-muted:       #1E293B;
   --mkt-border:      #E2E8F0;
-  --mkt-border-gold: rgba(15, 118, 110, 0.20);
+  --mkt-border-gold: rgba(0, 85, 90, 0.20);
 }
 
 .dark {
@@ -135,7 +147,7 @@
   --mkt-panel:       #071F1D;
   --mkt-surface:     #0C2622;
   --mkt-text:        #F0FFFE;
-  --mkt-gold:        #14B8A6;
+  --mkt-gold:        #ffc94b;
   --mkt-jade:        #2DD4BF;
   --mkt-dark:        #020F0E;
   --mkt-muted:       #94A3B8;
@@ -316,14 +328,14 @@
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    HAIP INTELLIGENCE PLATFORM — STITCH DESIGN SYSTEM
-   Primary #0F766E · Accent #5EEAD4 · White sidebar · Light surfaces
-   Manrope headings · Inter body · 12px radius · Soft borders
+   Primary #0F766E · Accent #5EEAD4 · Linear-style sidebar · Light surfaces
+   Inter body · 12px radius · Whitespace over borders
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 :root {
-  /* Layout */
-  --haip-sidebar:       #FFFFFF;
+  /* Layout — sidebar same bg as page, border-r only (Linear style) */
+  --haip-sidebar:       transparent;
   --haip-sidebar-border:#E5E7EB;
-  --haip-sidebar-hover: rgba(15,118,110,0.06);
+  --haip-sidebar-hover: color-mix(in srgb, var(--primary) 6%, transparent);
 
   /* Brand */
   --haip-primary:       #0F766E;
@@ -354,10 +366,30 @@
   --haip-amber:         #F59E0B;
   --haip-red:           #EF4444;
 
-  /* Shadows — minimal, Stitch style */
+  /* Shadows — shadow-sm light, none in dark */
   --haip-shadow-sm:     0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
   --haip-shadow-md:     0 4px 6px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
   --haip-shadow-lg:     0 10px 15px rgba(0,0,0,0.08), 0 4px 6px rgba(0,0,0,0.04);
+}
+.dark {
+  --haip-sidebar:       transparent;
+  --haip-sidebar-border:rgba(255,255,255,0.07);
+  --haip-card:          #161e30;
+  --haip-surface:       #0f1521;
+  --haip-border:        rgba(255,255,255,0.07);
+  --haip-border-strong: rgba(255,255,255,0.12);
+  --haip-fg:            #e8edf8;
+  --haip-fg-2:          #c5cfe0;
+  --haip-fg-muted:      #7a8ba8;
+  --haip-fg-subtle:     #5a6e8a;
+  --haip-text:          #e8edf8;
+  --haip-text-2:        #c5cfe0;
+  --haip-text-muted:    #7a8ba8;
+  --haip-text-subtle:   #4e5e7a;
+  /* No shadow in dark mode */
+  --haip-shadow-sm:     none;
+  --haip-shadow-md:     none;
+  --haip-shadow-lg:     none;
 }
 
 /* ── HAIP Stitch utility classes ─────────────────────────────────────────── */
@@ -376,7 +408,7 @@
 }
 .haip-card {
   background: var(--haip-card);
-  border: 1px solid var(--haip-border);
+  /* No border — use background contrast only per design spec */
   border-radius: 12px;
   box-shadow: var(--haip-shadow-sm);
 }
@@ -417,29 +449,29 @@
   color: #B91C1C;
   border: 1px solid rgba(239,68,68,0.14);
 }
-/* Stitch sidebar nav item — dark text on white background */
+/* Linear-style sidebar nav — same bg as page, border-r only */
 .haip-nav-item {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 7px 10px;
+  gap: 10px;
+  padding: 6px 10px;
   border-radius: 8px;
   font-size: 13.5px;
   font-weight: 500;
-  color: #475569;
-  transition: background 120ms ease, color 120ms ease;
+  color: var(--haip-fg-muted);
+  transition: background 150ms ease, color 150ms ease;
   cursor: pointer;
   text-decoration: none;
   position: relative;
   white-space: nowrap;
 }
 .haip-nav-item:hover {
-  background: rgba(15,118,110,0.06);
-  color: #111827;
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+  color: var(--haip-fg);
 }
 .haip-nav-item.active {
-  background: rgba(15,118,110,0.10);
-  color: #0F766E;
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  color: var(--primary);
   font-weight: 600;
 }
 /* Sub-items (indented) */
@@ -451,29 +483,46 @@
   border-radius: 8px;
   font-size: 12.5px;
   font-weight: 500;
-  color: #64748B;
-  transition: background 120ms ease, color 120ms ease;
+  color: var(--haip-fg-subtle);
+  transition: background 150ms ease, color 150ms ease;
   cursor: pointer;
   text-decoration: none;
 }
-.haip-nav-sub:hover { background: rgba(15,118,110,0.05); color: #111827; }
-.haip-nav-sub.active { color: #0F766E; font-weight: 600; }
+.haip-nav-sub:hover {
+  background: color-mix(in srgb, var(--primary) 5%, transparent);
+  color: var(--haip-fg);
+}
+.haip-nav-sub.active { color: var(--primary); font-weight: 600; }
 
-/* Scrollbar styling */
+/* Scrollbar styling — adapts to theme */
 .haip-scrollbar::-webkit-scrollbar { width: 4px; }
 .haip-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.haip-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 4px; }
-.haip-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.22); }
+.haip-scrollbar::-webkit-scrollbar-thumb { background: var(--haip-border-strong); border-radius: 4px; }
+.haip-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--haip-fg-subtle); }
 
 /* Horizontal scrollbar variant (e.g. portfolio calendar) */
 .haip-scrollbar-x::-webkit-scrollbar { height: 4px; }
 .haip-scrollbar-x::-webkit-scrollbar-track { background: transparent; }
-.haip-scrollbar-x::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 4px; }
-.haip-scrollbar-x::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.22); }
+.haip-scrollbar-x::-webkit-scrollbar-thumb { background: var(--haip-border-strong); border-radius: 4px; }
+.haip-scrollbar-x::-webkit-scrollbar-thumb:hover { background: var(--haip-fg-subtle); }
 
 /* Hide scrollbar but keep scrolling */
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 .scrollbar-hide::-webkit-scrollbar { display: none; }
+
+/* ── Integration marquee (marketing homepage) ──────────────────────────────── */
+@keyframes marquee-left {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+@keyframes marquee-right {
+  from { transform: translateX(-50%); }
+  to   { transform: translateX(0); }
+}
+.marquee-left  { animation: marquee-left  35s linear infinite; }
+.marquee-right { animation: marquee-right 40s linear infinite; }
+.marquee-left:hover,
+.marquee-right:hover { animation-play-state: paused; }
 
 @layer base {
   * {

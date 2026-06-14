@@ -1,12 +1,13 @@
 /**
- * X7 — Reusable EmptyState component
+ * EmptyState — centered icon + heading + subtext + optional CTA.
  *
- * Use for every list / table view that can be empty.
- * Distinguishes two cases:
- *  - no-data: primary CTA, optional Loom embed
- *  - filtered-zero: "clear filter" CTA
+ * Design spec:
+ *   Icon: 40px, muted color
+ *   Heading: text-sm font-medium
+ *   Subtext: text-xs text-muted-foreground
+ *   CTA button: rounded-lg, bg-primary
+ *   Never show blank white space — always pass at least a title.
  */
-
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { type ReactNode } from "react";
@@ -20,36 +21,34 @@ interface EmptyStateCTAProps {
 }
 
 interface EmptyStateProps {
-  /** Lucide icon element (sized 24–32px) */
+  /** Lucide icon element — rendered at ~20px inside a 40px muted container */
   icon?: ReactNode;
   title: string;
   description?: string;
-  /** Primary action button */
   cta?: EmptyStateCTAProps;
-  /** Secondary action — e.g. "import" or "view docs" */
   secondaryCta?: EmptyStateCTAProps;
-  /** Loom video URL — renders as an embed or link */
   learnMoreUrl?: string;
   learnMoreLabel?: string;
-  /** If true, show "this is a filtered view" variant */
+  /** Filtered-zero variant — shows "clear filter" instead of primary CTA */
   isFiltered?: boolean;
   onClearFilter?: () => void;
   className?: string;
 }
 
 function CTAButton({ cta, isPrimary }: { cta: EmptyStateCTAProps; isPrimary: boolean }) {
+  const base = "inline-flex items-center gap-2 text-xs font-semibold rounded-lg px-4 py-2 transition-colors duration-150";
   const cls = cn(
-    "inline-flex items-center gap-2 text-sm font-semibold rounded-xl px-5 py-2.5 transition-colors",
+    base,
     isPrimary
-      ? "bg-teal-500 hover:bg-teal-600 text-white shadow-sm shadow-teal-200"
-      : "bg-white border border-gray-200 hover:bg-gray-50 text-gray-700"
+      ? "text-primary-foreground hover:opacity-90"
+      : "border border-border hover:bg-muted text-foreground",
   );
+  const style = isPrimary ? { background: "var(--primary)", color: "var(--primary-foreground)" } : undefined;
+
   if (cta.href) {
-    return <Link href={cta.href} className={cls}>{cta.label}</Link>;
+    return <Link href={cta.href} className={cls} style={style}>{cta.label}</Link>;
   }
-  return (
-    <button onClick={cta.onClick} className={cls}>{cta.label}</button>
-  );
+  return <button onClick={cta.onClick} className={cls} style={style}>{cta.label}</button>;
 }
 
 export function EmptyState({
@@ -67,15 +66,24 @@ export function EmptyState({
   if (isFiltered) {
     return (
       <div className={cn("flex flex-col items-center justify-center text-center py-16 px-8", className)}>
-        <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
-          <SlidersHorizontal size={22} className="text-gray-400" />
+        {/* Icon container — 40px */}
+        <div
+          className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
+          style={{ background: "var(--muted)", color: "var(--haip-fg-subtle)" }}
+        >
+          <SlidersHorizontal size={18} />
         </div>
-        <p className="text-gray-800 font-semibold text-sm mb-1">{title}</p>
-        {description && <p className="text-gray-500 text-sm mb-5 max-w-xs">{description}</p>}
+        <p className="text-sm font-medium mb-1" style={{ color: "var(--haip-fg)" }}>{title}</p>
+        {description && (
+          <p className="text-xs mb-5 max-w-xs leading-relaxed" style={{ color: "var(--haip-fg-subtle)" }}>
+            {description}
+          </p>
+        )}
         {onClearFilter && (
           <button
             onClick={onClearFilter}
-            className="text-sm font-semibold text-teal-600 hover:text-teal-700 underline underline-offset-4"
+            className="text-xs font-semibold underline underline-offset-4 transition-colors duration-150"
+            style={{ color: "var(--primary)" }}
           >
             Clear filter
           </button>
@@ -86,27 +94,38 @@ export function EmptyState({
 
   return (
     <div className={cn("flex flex-col items-center justify-center text-center py-16 px-8", className)}>
+      {/* Icon container — 40px */}
       {icon && (
-        <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-5 text-gray-400">
+        <div
+          className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
+          style={{ background: "var(--muted)", color: "var(--haip-fg-subtle)" }}
+        >
           {icon}
         </div>
       )}
-      <p className="text-gray-900 font-bold text-base mb-1.5">{title}</p>
+
+      <p className="text-sm font-medium mb-1" style={{ color: "var(--haip-fg)" }}>{title}</p>
+
       {description && (
-        <p className="text-gray-500 text-sm mb-6 max-w-xs leading-relaxed">{description}</p>
+        <p className="text-xs mb-6 max-w-xs leading-relaxed" style={{ color: "var(--haip-fg-subtle)" }}>
+          {description}
+        </p>
       )}
+
       {(cta || secondaryCta) && (
         <div className="flex items-center gap-3 flex-wrap justify-center">
           {cta && <CTAButton cta={cta} isPrimary />}
           {secondaryCta && <CTAButton cta={secondaryCta} isPrimary={false} />}
         </div>
       )}
+
       {learnMoreUrl && (
         <a
           href={learnMoreUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-xs text-teal-600 hover:text-teal-700 mt-5 font-medium"
+          className="inline-flex items-center gap-1.5 text-xs font-medium mt-5 transition-colors duration-150"
+          style={{ color: "var(--primary)" }}
         >
           <ExternalLink size={12} />
           {learnMoreLabel}

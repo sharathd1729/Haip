@@ -8,19 +8,25 @@ structured findings with evidence, impact, and recommendations.
 
 from __future__ import annotations
 
-from typing import Optional, List
+from typing import Any, Optional, List
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.api.v1.deps import get_current_user
+from app.api.v1.deps import get_current_user, require_module, get_workspace_context
 from app.models.user import User
+from fastapi.responses import StreamingResponse
 from app.services.ask_haip_service import ask_haip, run_agents, detect_intent
 from app.services.ask_haip_steps import execute_step, execute_all_paths
-from app.services.ask_haip_rca import get_finding_history
+from app.services.ask_haip_rca import get_finding_history, build_correlations, calculate_confidence, run_enhanced_rca
 from app.services.ask_haip_reports import generate_report, save_report, list_reports, REPORT_TYPES
+from app.services.ask_haip_memory import (
+    load_memory, save_memory, update_memory,
+    resolve_context, build_context_note, generate_suggestions,
+)
+from app.services.ask_haip_agents import process_agents
 from app.core.cache import cache_key, get_cached, set_cached
 
 router = APIRouter(prefix="/analytics", tags=["ask-haip"])
@@ -32,7 +38,8 @@ class AskHaipRequest(BaseModel):
     question: str
     range_days: int = 30
     property_ids: Optional[List[str]] = None
-    path: Optional[str] = None  # specific path to run, null = auto
+    path: Optional[str] = None
+    session_id: Optional[str] = None    # Phase 6: pass for conversation memory
 
 
 class EvidenceBullet(BaseModel):
@@ -121,8 +128,10 @@ class AskHaipResponse(BaseModel):
     data_completeness: str = "partial"
     missing_domains: List[str] = []              # Phase 4: domains with no data
     investigation_paths_used: List[str] = []
-    compare_mode: bool = False                   # Phase 4: comparative analysis
-    agents: dict = {}   # domain → AgentOutputModel
+    compare_mode: bool = False
+    agents: dict = {}
+    suggestions: List[dict] = []         # Phase 6: proactive follow-up questions
+    context_note: str = ""               # Phase 6: memory context injected
 
 
 # ─── Endpoint ────────────────────────────────────────────────────────────────
@@ -133,6 +142,8 @@ async def ask_haip_endpoint(
     request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    _ctx=Depends(require_module("ask_haip")),
+    workspace_ctx=Depends(get_workspace_context),
 ):
     """
     Ask HAIP — Hospitality Intelligence Analyst
@@ -155,18 +166,271 @@ async def ask_haip_endpoint(
     auth_header = request.headers.get("Authorization", "")
     token = auth_header.replace("Bearer ", "").strip()
 
+    question = body.question.strip()
+
+    # Phase 6: Load conversation memory
+    mem_session_id = body.session_id or str(current_user.id)
+    memory = load_memory(current_user.tenant_id, mem_session_id)
+    ctx    = resolve_context(question, memory)
+
+    # Apply memory context to request params
+    effective_range_days   = ctx.get("range_days", body.range_days)
+    effective_property_ids = body.property_ids   # explicit wins over memory
+
+    from app.services.workspace_context import available_metrics_for_context
+    available_metrics = available_metrics_for_context(db, workspace_ctx)
+
     result = await ask_haip(
-        question=body.question.strip(),
+        question=question,
         tenant_id=current_user.tenant_id,
         user_id=str(current_user.id),
         token=token,
         base_url=internal_base,
-        range_days=body.range_days,
-        property_ids=body.property_ids,
+        range_days=effective_range_days,
+        property_ids=effective_property_ids,
         db=db,
+        active_modules=workspace_ctx.active_modules,
+        available_metrics=available_metrics,
     )
 
+    # Phase 6: Update memory + generate suggestions
+    memory  = update_memory(memory, question, result)
+    save_memory(current_user.tenant_id, mem_session_id, memory)
+    suggestions = generate_suggestions(result, memory)
+
+    result["suggestions"]  = suggestions
+    result["context_note"] = build_context_note(memory, question)
+
     return result
+
+
+# ─── Phase 6: SSE Streaming Endpoint ────────────────────────────────────────
+
+class StreamRequest(BaseModel):
+    question: str
+    range_days: int = 30
+    property_ids: Optional[List[str]] = None
+    session_id: Optional[str] = None
+
+
+@router.post("/ask/stream")
+async def ask_haip_stream(
+    body: StreamRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Phase 6: SSE streaming version of /analytics/ask.
+    Streams pipeline events as they complete so the UI updates progressively.
+
+    Events: intent_detected → agents_running → paths_ready → signals_found
+            → rca_complete → suggestions_ready → done
+    """
+    import json as _json
+
+    base_url   = str(request.base_url).rstrip("/") + "/api/v1"
+    auth_header= request.headers.get("Authorization", "")
+    token      = auth_header.replace("Bearer ", "").strip()
+    question   = body.question.strip()
+    tid        = current_user.tenant_id
+
+    # Load memory
+    mem_sid = body.session_id or str(current_user.id)
+    memory  = load_memory(tid, mem_sid)
+    ctx     = resolve_context(question, memory)
+    range_days = ctx.get("range_days", body.range_days)
+
+    def _sse(event: str, data: dict) -> str:
+        return f"event: {event}\ndata: {_json.dumps(data)}\n\n"
+
+    async def stream_generator():
+        try:
+            yield _sse("connected", {"status": "starting"})
+
+            # 1. Intent detection
+            from app.services.ask_haip_service import detect_intent, DOMAIN_ENDPOINTS
+            intent = await detect_intent(question)
+            yield _sse("intent_detected", {
+                "domains": intent.get("domains", []),
+                "type": intent.get("type", "diagnostic"),
+                "compare_mode": ctx.get("compare_mode", False),
+            })
+
+            # 2. Agents running
+            domains = intent.get("domains", [])
+            yield _sse("agents_running", {"domains": domains, "count": len(domains)})
+
+            raw_data, agent_outputs = await run_agents(
+                domains=domains,
+                token=token,
+                base_url=base_url,
+                range_days=range_days,
+                property_ids=body.property_ids,
+            )
+
+            # Cache for step execution
+            ck = cache_key("ask_step_data", tid, sid=mem_sid, range_days=range_days)
+            set_cached(ck, raw_data, ttl=3600)
+
+            yield _sse("agents_complete", {
+                "agents": {d: {"status": v.get("status","ok"), "summary": v.get("summary","")}
+                           for d, v in agent_outputs.items()}
+            })
+
+            # 3. Paths
+            from app.services.ask_haip_service import generate_paths
+            paths = generate_paths(domains, raw_data)
+            yield _sse("paths_ready", {"paths": paths})
+
+            # 4. Correlations + confidence
+            signals    = build_correlations(domains, raw_data, agent_outputs)
+            confidence = calculate_confidence(domains, agent_outputs,
+                                              [s["message"] for s in signals])
+            yield _sse("signals_found", {
+                "structured_signals": signals,
+                "correlations": [s["message"] for s in signals],
+                "confidence": confidence.score,
+                "confidence_label": confidence.label,
+            })
+
+            # 5. RCA
+            from app.services.ask_haip_rca import is_comparative_question
+            rca = await run_enhanced_rca(
+                question=question, intent=intent,
+                raw_data=raw_data, agent_outputs=agent_outputs,
+                structured_correlations=signals, confidence=confidence,
+                range_days=range_days,
+                compare_mode=is_comparative_question(question),
+            )
+            yield _sse("rca_complete", {
+                "findings": rca.get("findings", []),
+                "summary":  rca.get("summary", ""),
+                "root_cause_chain": rca.get("root_cause_chain", ""),
+            })
+
+            # 6. Suggestions
+            result_stub = {"intent": intent, "structured_signals": signals,
+                           "investigation_paths_used": domains,
+                           "findings": rca.get("findings", []),
+                           "summary": rca.get("summary", "")}
+            suggestions = generate_suggestions(result_stub, memory)
+
+            # Update memory
+            memory_updated = update_memory(memory, question, result_stub)
+            save_memory(tid, mem_sid, memory_updated)
+
+            yield _sse("suggestions_ready", {"suggestions": suggestions})
+            yield _sse("done", {"status": "complete"})
+
+        except Exception as e:
+            import logging as _log
+            _log.getLogger(__name__).error("SSE stream error: %s", e)
+            yield _sse("error", {"message": str(e)})
+
+    return StreamingResponse(
+        stream_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+# ─── Phase 6: Alert Management Endpoints ────────────────────────────────────
+
+class CreateAlertRequest(BaseModel):
+    name: str
+    metric: str        # revenue_mtd | occupancy_pct | high_risk_count | ...
+    operator: str      # lt | gt | lte | gte
+    threshold: float
+    notify_email: bool = True
+
+
+@router.post("/ask/alerts")
+def create_alert(
+    body: CreateAlertRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Phase 6: Create a threshold monitoring alert."""
+    from app.models.ask_haip_alert import AskHaipAlert
+    from app.models.base import gen_uuid
+
+    valid_metrics   = ["revenue_mtd","occupancy_pct","high_risk_count","budget_objection_pct","sla_compliance_pct","active_inquiries"]
+    valid_operators = ["lt","gt","lte","gte"]
+
+    if body.metric not in valid_metrics:
+        from fastapi import HTTPException
+        raise HTTPException(400, f"Invalid metric. Valid: {valid_metrics}")
+    if body.operator not in valid_operators:
+        from fastapi import HTTPException
+        raise HTTPException(400, f"Invalid operator. Valid: {valid_operators}")
+
+    alert = AskHaipAlert(
+        id=gen_uuid(),
+        tenant_id=current_user.tenant_id,
+        user_id=str(current_user.id),
+        name=body.name,
+        metric=body.metric,
+        operator=body.operator,
+        threshold=body.threshold,
+        notify_email=body.notify_email,
+        is_active=True,
+    )
+    db.add(alert)
+    db.commit()
+    db.refresh(alert)
+    return {"id": str(alert.id), "name": alert.name, "status": "created"}
+
+
+@router.get("/ask/alerts")
+def list_alerts(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Phase 6: List all alerts for this tenant."""
+    from app.models.ask_haip_alert import AskHaipAlert
+
+    rows = db.query(AskHaipAlert).filter(
+        AskHaipAlert.tenant_id == current_user.tenant_id
+    ).order_by(AskHaipAlert.created_at.desc()).all()
+
+    return {"alerts": [
+        {
+            "id": str(r.id),
+            "name": r.name,
+            "metric": r.metric,
+            "operator": r.operator,
+            "threshold": float(r.threshold),
+            "is_active": r.is_active,
+            "trigger_count": r.trigger_count or 0,
+            "last_triggered_at": r.last_triggered_at.isoformat() if r.last_triggered_at else None,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]}
+
+
+@router.delete("/ask/alerts/{alert_id}")
+def delete_alert(
+    alert_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Phase 6: Deactivate an alert."""
+    from app.models.ask_haip_alert import AskHaipAlert
+    from fastapi import HTTPException
+
+    alert = db.query(AskHaipAlert).filter(
+        AskHaipAlert.id == alert_id,
+        AskHaipAlert.tenant_id == current_user.tenant_id,
+    ).first()
+    if not alert:
+        raise HTTPException(404, "Alert not found")
+    alert.is_active = False
+    db.commit()
+    return {"status": "deactivated"}
 
 
 # ─── Step Execution Endpoint (Phase 3) ──────────────────────────────────────

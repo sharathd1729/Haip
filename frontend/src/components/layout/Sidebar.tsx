@@ -6,8 +6,8 @@ import { signOut } from "next-auth/react";
 import {
   Home, Inbox, Phone, Users, Building2,
   Sparkles, BarChart2, Zap, Link2, Settings,
-  HelpCircle, User, LogOut, ChevronDown, ChevronRight,
-  MessageSquare, AtSign, Bot,
+  HelpCircle, LogOut, ChevronDown, ChevronRight,
+  MessageSquare, AtSign, Bot, Target, Megaphone, UserCheck, GitBranch, FileText, LayoutDashboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canSeeNav, type Resource } from "@/lib/permissions";
@@ -21,14 +21,26 @@ interface NavItem {
   href: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
   resource: Resource;
-  children?: { label: string; href: string; icon?: React.ComponentType<{ size?: number; className?: string }> }[];
+  section?: string;
+  children?: {
+    label: string;
+    href: string;
+    icon?: React.ComponentType<{ size?: number; className?: string }>;
+  }[];
 }
 
 const NAV_ITEMS: NavItem[] = [
   {
-    label: "Home",
+    label: "Dashboard",
     href: "/dashboard",
     icon: Home,
+    resource: "dashboard",
+    section: "Workspace",
+  },
+  {
+    label: "My Dashboards",
+    href: "/dashboard/dashboards",
+    icon: LayoutDashboard,
     resource: "dashboard",
   },
   {
@@ -37,11 +49,11 @@ const NAV_ITEMS: NavItem[] = [
     icon: Inbox,
     resource: "inbox",
     children: [
-      { label: "Conversations", href: "/dashboard/inbox",             icon: MessageSquare },
-      { label: "WhatsApp",      href: "/dashboard/inbox?ch=whatsapp", icon: MessageSquare },
-      { label: "Instagram",     href: "/dashboard/inbox?ch=instagram", icon: AtSign },
-      { label: "AI Concierge",   href: "/dashboard/inbox?ch=ai",                    icon: Bot },
-      { label: "Channel Manager", href: "/dashboard/inbox/channel-manager",          icon: Building2 },
+      { label: "Conversations",   href: "/dashboard/inbox",                    icon: MessageSquare },
+      { label: "WhatsApp",        href: "/dashboard/inbox?ch=whatsapp",        icon: MessageSquare },
+      { label: "Instagram",       href: "/dashboard/inbox?ch=instagram",       icon: AtSign },
+      { label: "AI Concierge",    href: "/dashboard/inbox?ch=ai",              icon: Bot },
+      { label: "Channel Manager", href: "/dashboard/inbox/channel-manager",    icon: Building2 },
     ],
   },
   {
@@ -51,14 +63,21 @@ const NAV_ITEMS: NavItem[] = [
     resource: "calls",
   },
   {
+    label: "Leads360",
+    href: "/dashboard/leads",
+    icon: Target,
+    resource: "guests",
+    section: "Sales",
+  },
+  {
     label: "Guests",
     href: "/dashboard/guests",
     icon: Users,
     resource: "guests",
     children: [
-      { label: "Guest 360",   href: "/dashboard/guests" },
-      { label: "Segments",    href: "/dashboard/guests?view=segments" },
-      { label: "VIP Guests",  href: "/dashboard/guests?view=vip" },
+      { label: "Guest 360",  href: "/dashboard/guests" },
+      { label: "Segments",   href: "/dashboard/guests?view=segments" },
+      { label: "VIP Guests", href: "/dashboard/guests?view=vip" },
     ],
   },
   {
@@ -67,48 +86,43 @@ const NAV_ITEMS: NavItem[] = [
     icon: Building2,
     resource: "properties",
     children: [
-      { label: "Properties",        href: "/dashboard/properties" },
-      { label: "Calendar",          href: "/dashboard/portfolio/calendar" },
-      { label: "Rate Calculator",   href: "/dashboard/calculator" },
+      { label: "Properties",      href: "/dashboard/properties" },
+      { label: "Calendar",        href: "/dashboard/portfolio/calendar" },
+      { label: "Rate Calculator", href: "/dashboard/calculator" },
     ],
   },
   {
-    label: "AI Intelligence",
-    href: "/dashboard/qa",
-    icon: Sparkles,
-    resource: "analytics",
+    label: "Messaging",
+    href: "/dashboard/messaging/templates",
+    icon: Megaphone,
+    resource: "settings",
+    section: "Channels",
+    children: [
+      { label: "Templates",    href: "/dashboard/messaging/templates",   icon: FileText },
+      { label: "Campaigns",    href: "/dashboard/messaging/campaigns",   icon: Megaphone },
+      { label: "Subscribers",  href: "/dashboard/messaging/subscribers", icon: UserCheck },
+      { label: "Flow Builder", href: "/dashboard/messaging/flows",       icon: GitBranch },
+    ],
   },
   {
-    label: "Analytics",
-    href: "/dashboard/analytics",
+    label: "Reports",
+    href: "/dashboard/reports",
     icon: BarChart2,
     resource: "analytics",
-    children: [
-      { label: "Dashboard",   href: "/dashboard/analytics" },
-      { label: "Guests",      href: "/dashboard/analytics/guests" },
-      { label: "Channels",    href: "/dashboard/analytics/channels" },
-      { label: "Campaigns",   href: "/dashboard/analytics/campaigns" },
-      { label: "Properties",  href: "/dashboard/analytics/properties" },
-      { label: "Operations",  href: "/dashboard/analytics/operations" },
-      { label: "AI Intel",      href: "/dashboard/analytics/ai" },
-      { label: "Intent",        href: "/dashboard/analytics/intent" },
-      { label: "Objections",    href: "/dashboard/analytics/objections" },
-      { label: "Attribution",   href: "/dashboard/analytics/attribution" },
-      { label: "Occ Forecast",  href: "/dashboard/analytics/forecasting/occupancy" },
-      { label: "Rev Forecast",  href: "/dashboard/analytics/forecasting/revenue" },
-      { label: "Pricing",       href: "/dashboard/analytics/forecasting/pricing" },
-      { label: "Churn Risk",    href: "/dashboard/analytics/forecasting/churn" },
-      { label: "Cohorts",       href: "/dashboard/analytics/forecasting/cohorts" },
-      { label: "AI Recs",       href: "/dashboard/analytics/forecasting/recommendations" },
-      { label: "Reports",       href: "/dashboard/analytics/reports" },
-      { label: "✦ Ask HAIP",   href: "/dashboard/analytics/ask" },
-    ],
+    section: "Intelligence",
+  },
+  {
+    label: "Ask HAIP",
+    href: "/dashboard/ask-haip",
+    icon: Sparkles,
+    resource: "analytics",
   },
   {
     label: "Automations",
     href: "/dashboard/automations",
     icon: Zap,
     resource: "settings",
+    section: "Configure",
   },
   {
     label: "Integrations",
@@ -126,7 +140,6 @@ const NAV_ITEMS: NavItem[] = [
 
 const BOTTOM_ITEMS = [
   { label: "Support", href: "/dashboard/help",    icon: HelpCircle },
-  { label: "Account", href: "/dashboard/profile", icon: User },
 ];
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -146,20 +159,20 @@ export function Sidebar({ user }: SidebarProps) {
 
   function isActive(href: string) {
     if (href === "/dashboard") return pathname === "/dashboard";
-    // strip query for path matching
     const hrefPath = href.split("?")[0];
     return pathname === hrefPath || pathname.startsWith(hrefPath + "/");
   }
 
-  function toggleExpand(label: string) {
-    setExpanded(e => e === label ? null : label);
-  }
-
   const companyName = theme.companyName ?? "HAIP";
+
+  // Track which section labels have been rendered to avoid duplicates
+  const renderedSections = new Set<string>();
+
+  const visibleItems = NAV_ITEMS.filter(item => canSeeNav(role, item.resource));
 
   return (
     <aside
-      className="w-[220px] flex flex-col h-full flex-shrink-0 select-none"
+      className="w-[240px] flex flex-col h-full flex-shrink-0 select-none"
       style={{
         background: "var(--haip-sidebar)",
         borderRight: "1px solid var(--haip-sidebar-border)",
@@ -168,7 +181,7 @@ export function Sidebar({ user }: SidebarProps) {
       {/* ── Logo / brand ─────────────────────────────────────────────────── */}
       <Link
         href="/dashboard"
-        className="px-4 py-4 flex items-center gap-3 flex-shrink-0 transition-opacity hover:opacity-80"
+        className="px-4 py-[14px] flex items-center gap-3 flex-shrink-0 transition-opacity hover:opacity-80"
         style={{ borderBottom: "1px solid var(--haip-border)" }}
       >
         {theme.logoUrl ? (
@@ -182,11 +195,10 @@ export function Sidebar({ user }: SidebarProps) {
             <div
               className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{
-                background: "linear-gradient(135deg, #0F766E, #059669)",
+                background: "linear-gradient(135deg, var(--haip-primary), #059669)",
                 boxShadow: "0 2px 8px rgba(15,118,110,0.25)",
               }}
             >
-              {/* Grid icon matching Stitch logo */}
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <rect x="1" y="1" width="6" height="6" rx="1.5" fill="white" fillOpacity="0.9" />
                 <rect x="9" y="1" width="6" height="6" rx="1.5" fill="white" fillOpacity="0.6" />
@@ -213,37 +225,65 @@ export function Sidebar({ user }: SidebarProps) {
       </Link>
 
       {/* ── Navigation ───────────────────────────────────────────────────── */}
-      <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-0.5 haip-scrollbar">
-        {NAV_ITEMS.filter(item => canSeeNav(role, item.resource)).map(item => {
+      <nav className="flex-1 overflow-y-auto py-3 px-3 haip-scrollbar" style={{ gap: 0 }}>
+        {visibleItems.map((item, idx) => {
           const active = isActive(item.href);
           const Icon = item.icon;
           const isInbox = item.href === "/dashboard/inbox";
           const hasChildren = (item.children?.length ?? 0) > 0;
           const isExpanded = expanded === item.label || active;
 
+          // Section label — render once per section
+          let sectionLabel: React.ReactNode = null;
+          if (item.section && !renderedSections.has(item.section)) {
+            renderedSections.add(item.section);
+            sectionLabel = (
+              <p
+                key={`section-${item.section}`}
+                className="text-[10px] font-medium uppercase tracking-widest px-3 mb-1 mt-4 first:mt-2"
+                style={{ color: "var(--haip-fg-subtle)" }}
+              >
+                {item.section}
+              </p>
+            );
+          }
+
           return (
             <div key={item.href}>
+              {sectionLabel}
+
               {/* Main nav item */}
-              <div className="flex items-center">
+              <div className="mb-0.5">
                 <Link
                   href={item.href}
-                  className={cn("haip-nav-item flex-1", active && "active")}
+                  className={cn("haip-nav-item", active && "active")}
                   onClick={() => hasChildren && setExpanded(e => e === item.label ? null : item.label)}
                 >
-                  <span className="flex-shrink-0" style={{ color: active ? "#0F766E" : "#9CA3AF" }}>
+                  <span
+                    className="flex-shrink-0"
+                    style={{ color: active ? "var(--primary)" : "var(--haip-fg-subtle)" }}
+                  >
                     <Icon size={15} />
                   </span>
                   <span className="flex-1 truncate">{item.label}</span>
+
+                  {/* Inbox unread badge */}
                   {isInbox && unreadCount > 0 && (
                     <span
                       className="flex-shrink-0 min-w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10px] font-bold"
-                      style={{ background: "#0F766E", color: "#fff", padding: "0 4px" }}
+                      style={{
+                        background: "var(--primary)",
+                        color: "var(--primary-foreground)",
+                        padding: "0 4px",
+                      }}
                     >
                       {unreadCount > 9 ? "9+" : unreadCount}
                     </span>
                   )}
+
+                  {/* Expand chevron */}
                   {hasChildren && (
-                    <span style={{ color: "#9CA3AF" }}>
+                    <span style={{ color: "var(--haip-fg-subtle)" }}>
                       {isExpanded
                         ? <ChevronDown size={12} />
                         : <ChevronRight size={12} />}
@@ -254,7 +294,7 @@ export function Sidebar({ user }: SidebarProps) {
 
               {/* Sub-items */}
               {hasChildren && isExpanded && (
-                <div className="mt-0.5 space-y-0.5 pl-1">
+                <div className="mb-1 space-y-0.5 pl-1">
                   {item.children!.map(child => {
                     const childActive = pathname === child.href.split("?")[0];
                     const ChildIcon = child.icon;
@@ -265,7 +305,7 @@ export function Sidebar({ user }: SidebarProps) {
                         className={cn("haip-nav-sub", childActive && "active")}
                       >
                         {ChildIcon && (
-                          <span style={{ color: childActive ? "#0F766E" : "#9CA3AF" }}>
+                          <span style={{ color: childActive ? "var(--primary)" : "var(--haip-fg-subtle)" }}>
                             <ChildIcon size={12} />
                           </span>
                         )}
@@ -294,37 +334,53 @@ export function Sidebar({ user }: SidebarProps) {
               href={item.href}
               className={cn("haip-nav-item", active && "active")}
             >
-              <span style={{ color: active ? "#0F766E" : "#9CA3AF" }}><Icon size={14} /></span>
+              <span style={{ color: active ? "var(--primary)" : "var(--haip-fg-subtle)" }}>
+                <Icon size={14} />
+              </span>
               <span>{item.label}</span>
             </Link>
           );
         })}
 
-        {/* User row with sign out */}
+        {/* User row */}
         <div
           className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg mt-1 cursor-default"
           style={{ color: "var(--haip-fg-muted)" }}
         >
+          {/* Avatar */}
           <div
-            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 text-white"
-            style={{ background: "#0F766E" }}
+            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+            style={{
+              background: "var(--primary)",
+              color: "var(--primary-foreground)",
+            }}
           >
             {user?.name?.[0]?.toUpperCase() ?? "U"}
           </div>
+
+          {/* Name + role pill */}
           <div className="flex-1 min-w-0">
             <div className="text-[12.5px] font-semibold truncate" style={{ color: "var(--haip-fg)" }}>
               {user?.name ?? "User"}
             </div>
-            <div className="text-[10px] capitalize" style={{ color: "var(--haip-fg-subtle)" }}>
+            <span
+              className="inline-block text-[9px] font-medium capitalize px-1.5 py-0.5 rounded-full mt-0.5"
+              style={{
+                background: "color-mix(in srgb, var(--primary) 10%, transparent)",
+                color: "var(--primary)",
+              }}
+            >
               {user?.role ?? "concierge"}
-            </div>
+            </span>
           </div>
+
+          {/* Sign out */}
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
-            className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded transition-colors"
-            style={{ color: "#9CA3AF" }}
+            className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded transition-colors duration-150"
+            style={{ color: "var(--haip-fg-subtle)" }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "var(--haip-fg)"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#9CA3AF"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "var(--haip-fg-subtle)"; }}
             title="Sign out"
           >
             <LogOut size={13} />

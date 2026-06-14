@@ -9,7 +9,9 @@ class InquiryStage(str, enum.Enum):
     NEW = "new"
     RESPONDING = "responding"
     QUOTED = "quoted"
-    SITE_VISIT = "site_visit"
+    SITE_VISIT = "site_visit"           # deprecated alias — kept for data compat
+    SITE_VISIT_SCHEDULED = "site_visit_scheduled"   # Leads360 addition (migration 023)
+    SITE_VISIT_DONE      = "site_visit_done"        # Leads360 addition (migration 023)
     BOOKED = "booked"
     LOST = "lost"
     GHOSTED = "ghosted"
@@ -30,6 +32,13 @@ class InquirySource(str, enum.Enum):
     OTA_AIRBNB = "ota_airbnb"
     OTA_BOOKING = "ota_booking"
     OTA_VRBO = "ota_vrbo"
+    # Leads360 additions (migration 023)
+    INBOUND_CALL    = "inbound_call"
+    OUTBOUND_CALL   = "outbound_call"
+    OTA_MMT         = "ota_mmt"
+    OTA_GOIBIBO     = "ota_goibibo"
+    CHANNEL_MANAGER = "channel_manager"
+    WEB_CHAT        = "web_chat"
 
 
 class LostReason(str, enum.Enum):

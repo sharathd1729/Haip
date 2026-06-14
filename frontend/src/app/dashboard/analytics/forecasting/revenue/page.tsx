@@ -1,4 +1,5 @@
-"use client";
+﻿"use client";
+
 
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -29,10 +30,10 @@ interface RevStats {
 }
 
 function fmt(n: number) {
-  if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
-  if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-  if (n >= 1000) return `₹${(n / 1000).toFixed(0)}k`;
-  return `₹${Math.round(n)}`;
+  if (n >= 10000000) return `â‚¹${(n / 10000000).toFixed(1)}Cr`;
+  if (n >= 100000) return `â‚¹${(n / 100000).toFixed(1)}L`;
+  if (n >= 1000) return `â‚¹${(n / 1000).toFixed(0)}k`;
+  return `â‚¹${Math.round(n)}`;
 }
 
 function PageSkeleton() {
@@ -84,12 +85,12 @@ export default function RevenueForecastPage() {
           icon={<TrendingUp size={14} className="text-teal-500" />} />
         <KpiCard label="YTD Actual" value={fmt(s.ytd_actual)}
           icon={<Calendar size={14} className="text-teal-500" />} />
-        <KpiCard label="Best Month" value={s.best_month ?? "—"}
+        <KpiCard label="Best Month" value={s.best_month ?? "â€”"}
           icon={<Star size={14} className="text-amber-500" />} />
       </div>
 
       <div className="bg-white border border-gray-100 rounded-2xl p-5">
-        <h2 className="text-sm font-semibold text-gray-800 mb-4">12-Month Revenue — Actuals & Forecast</h2>
+        <h2 className="text-sm font-semibold text-gray-800 mb-4">12-Month Revenue â€” Actuals & Forecast</h2>
         <ResponsiveContainer width="100%" height={300}>
           <ComposedChart data={chartData} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
@@ -114,7 +115,7 @@ export default function RevenueForecastPage() {
           <p className="text-xs text-indigo-600 font-medium mb-1">YTD Forecast (incl. remaining year)</p>
           <p className="text-2xl font-bold text-indigo-700">{fmt(s.ytd_forecast)}</p>
           {s.best_month && (
-            <p className="text-[11px] text-indigo-400 mt-1">Best month: {s.best_month} — {fmt(s.best_month_revenue)}</p>
+            <p className="text-[11px] text-indigo-400 mt-1">Best month: {s.best_month} â€” {fmt(s.best_month_revenue)}</p>
           )}
         </div>
       </div>

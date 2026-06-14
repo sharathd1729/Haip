@@ -4,8 +4,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Zap, Plus, CheckCircle2, PauseCircle, XCircle,
   MessageSquare, Phone, Clock, ChevronRight, ToggleLeft, ToggleRight,
-  AlertCircle, Loader2, Settings2,
+  AlertCircle, Loader2, Settings2, Pencil, Trash2, X,
+  ChevronDown, Info, CornerDownRight,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -15,9 +17,11 @@ interface AutomationRule {
   name: string;
   description?: string;
   trigger: string;
+  trigger_config: Record<string, any>;
   action: string;
+  action_config: Record<string, any>;
   is_active: boolean;
-  run_count?: number;
+  run_count: number;
   last_run_at?: string;
   created_at?: string;
 }
@@ -27,35 +31,38 @@ interface AutomationRun {
   automation_id: string;
   automation_name?: string;
   status: "success" | "failed" | "skipped";
-  ran_at: string;
+  trigger_event?: string;
+  context: Record<string, any>;
   detail?: string;
+  error?: string;
+  ran_at: string;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Dictionaries ─────────────────────────────────────────────────────────────
 
-const TRIGGER_LABELS: Record<string, { label: string; icon: React.ReactNode }> = {
-  new_inquiry:        { label: "New inquiry",        icon: <MessageSquare size={12} /> },
-  call_completed:     { label: "Call completed",     icon: <Phone size={12} /> },
-  no_response_2h:     { label: "No response 2h",     icon: <Clock size={12} /> },
-  no_response_24h:    { label: "No response 24h",    icon: <Clock size={12} /> },
-  inquiry_lost:       { label: "Inquiry lost",       icon: <XCircle size={12} /> },
-  stay_check_in_1d:   { label: "Check-in tomorrow",  icon: <CheckCircle2 size={12} /> },
-  stay_check_out_1d:  { label: "Check-out tomorrow", icon: <CheckCircle2 size={12} /> },
-};
+const TRIGGERS: { value: string; label: string; icon: React.ReactNode; hint: string }[] = [
+  { value: "new_inquiry",       label: "New inquiry",        icon: <MessageSquare size={13} />, hint: "Fires when a new inquiry is created" },
+  { value: "call_completed",    label: "Call completed",     icon: <Phone size={13} />,         hint: "Fires after every call wrap-up" },
+  { value: "no_response_2h",    label: "No response 2h",     icon: <Clock size={13} />,         hint: "Guest messaged but no reply in 2 hours" },
+  { value: "no_response_24h",   label: "No response 24h",    icon: <Clock size={13} />,         hint: "Guest messaged but no reply in 24 hours" },
+  { value: "inquiry_lost",      label: "Inquiry lost",       icon: <XCircle size={13} />,       hint: "Stage moved to Lost or Ghosted" },
+  { value: "stay_check_in_1d",  label: "Check-in tomorrow",  icon: <CheckCircle2 size={13} />,  hint: "Guest checks in tomorrow" },
+  { value: "stay_check_out_1d", label: "Check-out tomorrow", icon: <CheckCircle2 size={13} />,  hint: "Guest checks out tomorrow" },
+];
 
-const ACTION_LABELS: Record<string, string> = {
-  send_whatsapp_template: "Send WhatsApp template",
-  create_draft_reply:     "Draft AI reply",
-  notify_team:            "Notify team",
-  move_to_followup:       "Move to follow-up",
-  tag_guest:              "Tag guest",
-};
+const ACTIONS: { value: string; label: string; hint: string; configFields: string[] }[] = [
+  { value: "send_whatsapp_template", label: "Send WhatsApp template", hint: "Sends an approved Meta template to the guest", configFields: ["template_id"] },
+  { value: "create_draft_reply",     label: "Draft AI reply",         hint: "Queues the AI concierge to draft a reply",  configFields: [] },
+  { value: "notify_team",            label: "Notify team",            hint: "Sends a WhatsApp message to a team number",  configFields: ["to", "message"] },
+  { value: "move_to_followup",       label: "Move to follow-up",      hint: "Advances inquiry stage to Responding",       configFields: [] },
+  { value: "tag_guest",              label: "Tag guest",               hint: "Adds tags to the subscriber record",         configFields: ["tags"] },
+];
 
-function triggerInfo(trigger: string) {
-  return TRIGGER_LABELS[trigger] ?? { label: trigger, icon: <Zap size={12} /> };
+function triggerInfo(val: string) {
+  return TRIGGERS.find(t => t.value === val) ?? { label: val, icon: <Zap size={13} />, hint: "" };
 }
-function actionLabel(action: string) {
-  return ACTION_LABELS[action] ?? action;
+function actionInfo(val: string) {
+  return ACTIONS.find(a => a.value === val) ?? { label: val, hint: "", configFields: [] };
 }
 
 function timeAgo(iso: string): string {
@@ -68,40 +75,290 @@ function timeAgo(iso: string): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+// ─── Small UI atoms ───────────────────────────────────────────────────────────
+
 function StatusBadge({ status }: { status: AutomationRun["status"] }) {
-  if (status === "success")
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium"
-        style={{ background: "rgba(20,184,166,0.10)", color: "#0F766E" }}>
-        <CheckCircle2 size={9} /> Success
-      </span>
-    );
-  if (status === "failed")
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium"
-        style={{ background: "rgba(248,113,113,0.10)", color: "#dc2626" }}>
-        <XCircle size={9} /> Failed
-      </span>
-    );
+  if (status === "success") return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-teal-50 text-teal-700 border border-teal-100">
+      <CheckCircle2 size={9} /> Success
+    </span>
+  );
+  if (status === "failed") return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-red-50 text-red-600 border border-red-100">
+      <XCircle size={9} /> Failed
+    </span>
+  );
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium"
-      style={{ background: "rgba(148,163,184,0.12)", color: "#64748b" }}>
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-gray-50 text-gray-500 border border-gray-200">
       <PauseCircle size={9} /> Skipped
     </span>
   );
 }
 
-function RuleSkeleton() {
+function Toast({ msg, type, onClose }: { msg: string; type: "success" | "error"; onClose: () => void }) {
   return (
-    <div className="haip-card rounded-2xl p-5 animate-pulse" style={{ border: "1px solid var(--haip-border)" }}>
-      <div className="flex items-start justify-between mb-3">
-        <div className="w-36 h-4 rounded bg-gray-100" />
-        <div className="w-10 h-5 rounded-full bg-gray-100" />
+    <div className={cn("fixed bottom-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium shadow-lg border max-w-sm",
+      type === "success" ? "bg-teal-600 text-white border-teal-700" : "bg-red-600 text-white border-red-700")}>
+      <span className="flex-1">{msg}</span>
+      <button onClick={onClose}><X size={13} className="opacity-70" /></button>
+    </div>
+  );
+}
+
+// ─── Rule Form Modal ──────────────────────────────────────────────────────────
+
+function RuleModal({ initial, onClose, onSaved }: {
+  initial?: AutomationRule;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const isEdit = !!initial;
+  const [form, setForm] = useState({
+    name: initial?.name ?? "",
+    description: initial?.description ?? "",
+    trigger: initial?.trigger ?? "",
+    action: initial?.action ?? "",
+    action_config: initial?.action_config ?? {} as Record<string, any>,
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const { data: templates = [] } = useQuery<{ id: string; name: string; status: string }[]>({
+    queryKey: ["wa-templates"],
+    queryFn: () => api.get("/messaging/templates").then(r => r.data).catch(() => []),
+    staleTime: 60_000,
+  });
+  const approvedTemplates = (templates as any[]).filter((t: any) => t.status === "approved");
+
+  const selectedAction = ACTIONS.find(a => a.value === form.action);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim()) { setError("Name is required"); return; }
+    if (!form.trigger) { setError("Select a trigger"); return; }
+    if (!form.action) { setError("Select an action"); return; }
+    setError("");
+    setSubmitting(true);
+    try {
+      if (isEdit) {
+        await api.patch(`/automations/${initial!.id}`, {
+          name: form.name,
+          description: form.description || null,
+          trigger: form.trigger,
+          action: form.action,
+          action_config: form.action_config,
+        });
+      } else {
+        await api.post("/automations", {
+          name: form.name,
+          description: form.description || null,
+          trigger: form.trigger,
+          action: form.action,
+          action_config: form.action_config,
+        });
+      }
+      onSaved();
+      onClose();
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || "Save failed");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="px-6 pt-6 pb-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+          <div>
+            <h2 className="text-base font-bold text-gray-900">{isEdit ? "Edit automation" : "New automation"}</h2>
+            <p className="text-xs text-gray-400 mt-0.5">When a trigger fires, run the action automatically.</p>
+          </div>
+          <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5 overflow-y-auto flex-1">
+          {/* Name */}
+          <div>
+            <label className="text-xs font-semibold text-gray-700 block mb-1.5">Rule name <span className="text-red-500">*</span></label>
+            <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              placeholder="e.g. Follow-up after 2h silence"
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="text-xs font-semibold text-gray-700 block mb-1.5">Description <span className="text-gray-400 font-normal">(optional)</span></label>
+            <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              placeholder="What does this rule do?"
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
+          </div>
+
+          {/* Trigger selector */}
+          <div>
+            <label className="text-xs font-semibold text-gray-700 block mb-1.5">Trigger <span className="text-red-500">*</span></label>
+            <div className="grid grid-cols-1 gap-1.5">
+              {TRIGGERS.map(t => (
+                <button key={t.value} type="button" onClick={() => setForm(f => ({ ...f, trigger: t.value }))}
+                  className={cn("flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left text-sm transition-all",
+                    form.trigger === t.value
+                      ? "border-teal-500 bg-teal-50 text-teal-800"
+                      : "border-gray-200 text-gray-600 hover:border-teal-300")}>
+                  <span className={cn("flex-shrink-0", form.trigger === t.value ? "text-teal-600" : "text-gray-400")}>{t.icon}</span>
+                  <span className="font-medium flex-1">{t.label}</span>
+                  <span className="text-[10px] text-gray-400 hidden sm:block">{t.hint}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Action selector */}
+          <div>
+            <label className="text-xs font-semibold text-gray-700 block mb-1.5">Then do <span className="text-red-500">*</span></label>
+            <select value={form.action}
+              onChange={e => setForm(f => ({ ...f, action: e.target.value, action_config: {} }))}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+              <option value="">Select an action…</option>
+              {ACTIONS.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
+            </select>
+            {selectedAction && (
+              <p className="text-[11px] text-gray-400 mt-1 flex items-center gap-1">
+                <Info size={10} /> {selectedAction.hint}
+              </p>
+            )}
+          </div>
+
+          {/* Action config fields */}
+          {form.action === "send_whatsapp_template" && (
+            <div className="border border-amber-100 bg-amber-50 rounded-xl p-4">
+              <label className="text-xs font-semibold text-gray-700 block mb-1.5">Template to send <span className="text-red-500">*</span></label>
+              {approvedTemplates.length === 0 ? (
+                <p className="text-xs text-amber-700">No approved templates. <a href="/dashboard/messaging/templates" className="underline font-medium">Create one first.</a></p>
+              ) : (
+                <select value={form.action_config.template_id ?? ""}
+                  onChange={e => setForm(f => ({ ...f, action_config: { ...f.action_config, template_id: e.target.value } }))}
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+                  <option value="">Select template…</option>
+                  {approvedTemplates.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              )}
+            </div>
+          )}
+
+          {form.action === "notify_team" && (
+            <div className="border border-blue-100 bg-blue-50 rounded-xl p-4 space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-gray-700 block mb-1.5">Notify number (WhatsApp)</label>
+                <input value={form.action_config.to ?? ""}
+                  onChange={e => setForm(f => ({ ...f, action_config: { ...f.action_config, to: e.target.value } }))}
+                  placeholder="+91 98765 43210"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-700 block mb-1.5">Message</label>
+                <input value={form.action_config.message ?? ""}
+                  onChange={e => setForm(f => ({ ...f, action_config: { ...f.action_config, message: e.target.value } }))}
+                  placeholder="New high-priority inquiry — check HAIP"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
+              </div>
+            </div>
+          )}
+
+          {form.action === "tag_guest" && (
+            <div className="border border-purple-100 bg-purple-50 rounded-xl p-4">
+              <label className="text-xs font-semibold text-gray-700 block mb-1.5">Tags to apply (comma-separated)</label>
+              <input value={(form.action_config.tags ?? []).join(", ")}
+                onChange={e => setForm(f => ({
+                  ...f, action_config: { ...f.action_config, tags: e.target.value.split(",").map(t => t.trim()).filter(Boolean) }
+                }))}
+                placeholder="vip, high-intent"
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
+            </div>
+          )}
+
+          {error && (
+            <div className="flex items-center gap-2 text-xs text-red-700 bg-red-50 rounded-xl px-3 py-2 border border-red-200">
+              <AlertCircle size={12} /> {error}
+            </div>
+          )}
+        </form>
+
+        <div className="px-6 pb-5 flex gap-3 flex-shrink-0 border-t border-gray-100 pt-4">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
+          <button onClick={handleSubmit as any} disabled={submitting}
+            className="flex-1 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+            {submitting ? <Loader2 size={13} className="animate-spin" /> : <Zap size={13} />}
+            {isEdit ? "Save changes" : "Create automation"}
+          </button>
+        </div>
       </div>
-      <div className="w-48 h-3 rounded bg-gray-100 mb-4" />
-      <div className="flex gap-2">
-        <div className="w-20 h-5 rounded-full bg-gray-100" />
-        <div className="w-28 h-5 rounded-full bg-gray-100" />
+    </div>
+  );
+}
+
+// ─── Run Detail Drawer ────────────────────────────────────────────────────────
+
+function RunDetail({ run, onClose }: { run: AutomationRun; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+      <div className="relative w-full max-w-md bg-white h-full shadow-2xl flex flex-col overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <StatusBadge status={run.status} />
+            <p className="text-sm font-semibold text-gray-900 truncate">{run.automation_name || "Run detail"}</p>
+          </div>
+          <button onClick={onClose}><X size={16} className="text-gray-400 hover:text-gray-600" /></button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          {/* Meta */}
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { label: "Trigger", value: run.trigger_event || "—" },
+              { label: "Ran", value: timeAgo(run.ran_at) },
+              { label: "Run ID", value: run.id.slice(0, 8) + "…" },
+              { label: "Rule ID", value: run.automation_id.slice(0, 8) + "…" },
+            ].map(f => (
+              <div key={f.label} className="bg-gray-50 rounded-xl p-3">
+                <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">{f.label}</p>
+                <p className="text-xs font-mono font-medium text-gray-700">{f.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Outcome detail */}
+          {run.detail && (
+            <div>
+              <p className="text-xs font-semibold text-gray-600 mb-1.5">Outcome</p>
+              <div className="bg-teal-50 border border-teal-100 rounded-xl p-3 text-xs text-teal-800">{run.detail}</div>
+            </div>
+          )}
+
+          {/* Error trace */}
+          {run.error && (
+            <div>
+              <p className="text-xs font-semibold text-red-600 mb-1.5">Error</p>
+              <pre className="bg-red-50 border border-red-100 rounded-xl p-3 text-[11px] text-red-700 overflow-x-auto whitespace-pre-wrap">{run.error}</pre>
+            </div>
+          )}
+
+          {/* Context */}
+          {Object.keys(run.context).length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-gray-600 mb-1.5">Context</p>
+              <div className="bg-gray-50 rounded-xl p-3 space-y-1.5">
+                {Object.entries(run.context).map(([k, v]) => (
+                  <div key={k} className="flex items-center gap-2">
+                    <CornerDownRight size={10} className="text-gray-400 flex-shrink-0" />
+                    <span className="text-[11px] font-mono text-gray-500">{k}:</span>
+                    <span className="text-[11px] font-mono text-gray-700 truncate">{String(v)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -111,33 +368,39 @@ function RuleSkeleton() {
 
 export default function AutomationsPage() {
   const queryClient = useQueryClient();
-  const [toastMsg, setToastMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [editRule, setEditRule] = useState<AutomationRule | null>(null);
+  const [selectedRun, setSelectedRun] = useState<AutomationRun | null>(null);
 
   function showToast(type: "success" | "error", text: string) {
-    setToastMsg({ type, text });
-    setTimeout(() => setToastMsg(null), 3500);
+    setToast({ type, text });
+    setTimeout(() => setToast(null), 3500);
   }
 
   const { data: rules = [], isLoading: rulesLoading } = useQuery<AutomationRule[]>({
     queryKey: ["automations"],
-    queryFn: () => api.get("/automations").then(r => r.data),
+    queryFn: () => api.get("/automations").then(r => r.data).catch(() => []),
     staleTime: 30_000,
   });
 
   const { data: runs = [], isLoading: runsLoading } = useQuery<AutomationRun[]>({
     queryKey: ["automation-runs"],
-    queryFn: () => api.get("/automations/runs?limit=20").then(r => r.data),
+    queryFn: () => api.get("/automations/runs?limit=20").then(r => r.data).catch(() => []),
     staleTime: 30_000,
   });
 
   const toggleMutation = useMutation({
     mutationFn: (rule: AutomationRule) =>
       api.patch(`/automations/${rule.id}`, { is_active: !rule.is_active }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["automations"] });
-      showToast("success", "Automation updated");
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["automations"] }); showToast("success", "Automation updated"); },
     onError: () => showToast("error", "Update failed"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/automations/${id}`),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["automations"] }); showToast("success", "Rule deleted"); },
+    onError: () => showToast("error", "Delete failed"),
   });
 
   const activeCount = rules.filter(r => r.is_active).length;
@@ -145,38 +408,21 @@ export default function AutomationsPage() {
   const failedCount = runs.filter(r => r.status === "failed").length;
 
   return (
-    <div className="h-full flex flex-col" style={{ background: "var(--haip-surface)" }}>
+    <div className="h-full flex flex-col bg-gray-50">
 
-      {/* ── Page header ─────────────────────────────────────────────────── */}
-      <div
-        className="flex-shrink-0 px-6 py-5"
-        style={{
-          background: "#FFFFFF",
-          borderBottom: "1px solid #E5E7EB",
-        }}
-      >
+      {/* Header */}
+      <div className="flex-shrink-0 px-6 py-5 bg-white border-b border-gray-100">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1
-              className="text-[22px] font-bold leading-tight"
-              style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}
-            >
-              Automations
-            </h1>
-            <p className="text-[13px] mt-0.5" style={{ color: "#6B7280" }}>
+            <h1 className="text-[22px] font-bold text-gray-900">Automations</h1>
+            <p className="text-[13px] mt-0.5 text-gray-500">
               {rulesLoading ? "Loading…" : `${rules.length} rules · ${activeCount} active`}
             </p>
           </div>
-
           <button
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-semibold transition-all"
-            style={{ background: "#0F766E", color: "#FFFFFF", border: "1px solid #0F766E" }}
-            onClick={() => showToast("error", "Automation builder coming soon")}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#0d6660"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#0F766E"; }}
-          >
-            <Plus size={14} />
-            New automation
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-semibold bg-teal-600 text-white hover:bg-teal-700 transition-colors">
+            <Plus size={14} /> New automation
           </button>
         </div>
 
@@ -184,29 +430,20 @@ export default function AutomationsPage() {
         {!rulesLoading && runs.length > 0 && (
           <div className="flex items-center gap-6 mt-4">
             <div>
-              <p className="text-[11px]" style={{ color: "#9CA3AF" }}>Total runs</p>
-              <p className="text-[22px] font-bold leading-none mt-0.5"
-                style={{ color: "#111827", fontFamily: "var(--font-display), sans-serif" }}>
-                {runs.length}
-              </p>
+              <p className="text-[11px] text-gray-400">Total runs</p>
+              <p className="text-[22px] font-bold text-gray-900">{runs.length}</p>
             </div>
-            <div className="w-px h-8" style={{ background: "#E5E7EB" }} />
+            <div className="w-px h-8 bg-gray-200" />
             <div>
-              <p className="text-[11px]" style={{ color: "#9CA3AF" }}>Succeeded</p>
-              <p className="text-[22px] font-bold leading-none mt-0.5"
-                style={{ fontFamily: "var(--font-display), sans-serif", color: "#14B8A6" }}>
-                {successCount}
-              </p>
+              <p className="text-[11px] text-gray-400">Succeeded</p>
+              <p className="text-[22px] font-bold text-teal-600">{successCount}</p>
             </div>
             {failedCount > 0 && (
               <>
-                <div className="w-px h-8" style={{ background: "#E5E7EB" }} />
+                <div className="w-px h-8 bg-gray-200" />
                 <div>
-                  <p className="text-[11px]" style={{ color: "#9CA3AF" }}>Failed</p>
-                  <p className="text-[22px] font-bold leading-none mt-0.5"
-                    style={{ fontFamily: "var(--font-display), sans-serif", color: "#f87171" }}>
-                    {failedCount}
-                  </p>
+                  <p className="text-[11px] text-gray-400">Failed</p>
+                  <p className="text-[22px] font-bold text-red-500">{failedCount}</p>
                 </div>
               </>
             )}
@@ -214,131 +451,89 @@ export default function AutomationsPage() {
         )}
       </div>
 
-      {/* ── Content ──────────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto haip-scrollbar p-6">
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-6xl">
 
-          {/* ── Rules list ─────────────────────────────────────────────── */}
+          {/* Rules list */}
           <div className="lg:col-span-2 space-y-3">
-            <h2
-              className="text-[13px] font-bold mb-3"
-              style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}
-            >
-              Rules
-            </h2>
+            <h2 className="text-[13px] font-bold text-gray-700 mb-3">Rules</h2>
 
             {rulesLoading ? (
-              Array.from({ length: 3 }).map((_, i) => <RuleSkeleton key={i} />)
-            ) : rules.length === 0 ? (
-              <div className="haip-card rounded-2xl p-10 text-center" style={{ border: "1px solid var(--haip-border)" }}>
-                <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center"
-                  style={{ background: "rgba(20,184,166,0.08)" }}>
-                  <Zap size={26} style={{ color: "#0F766E" }} />
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="bg-white rounded-2xl p-5 border border-gray-100 animate-pulse">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="w-36 h-4 rounded bg-gray-100" />
+                    <div className="w-10 h-5 rounded-full bg-gray-100" />
+                  </div>
+                  <div className="w-48 h-3 rounded bg-gray-100 mb-4" />
+                  <div className="flex gap-2"><div className="w-20 h-5 rounded-full bg-gray-100" /><div className="w-28 h-5 rounded-full bg-gray-100" /></div>
                 </div>
-                <p className="font-semibold mb-1" style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}>
-                  No automations yet
-                </p>
-                <p className="text-[13px] mb-5" style={{ color: "var(--haip-fg-muted)" }}>
-                  Automate follow-ups, draft replies, and team alerts
-                </p>
-                <button
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
-                  style={{ background: "#14B8A6", color: "#fff" }}
-                  onClick={() => showToast("error", "Automation builder coming soon")}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#0F766E"; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#14B8A6"; }}
-                >
+              ))
+            ) : rules.length === 0 ? (
+              <div className="bg-white rounded-2xl p-10 text-center border border-gray-100">
+                <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center bg-teal-50">
+                  <Zap size={26} className="text-teal-600" />
+                </div>
+                <p className="font-semibold text-gray-800 mb-1">No automations yet</p>
+                <p className="text-[13px] text-gray-400 mb-5">Automate follow-ups, draft replies, and team alerts</p>
+                <button onClick={() => setShowCreate(true)}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-teal-600 text-white hover:bg-teal-700 transition-colors">
                   <Plus size={15} /> Create first automation
                 </button>
               </div>
             ) : (
               rules.map(rule => {
                 const trigger = triggerInfo(rule.trigger);
+                const action = actionInfo(rule.action);
                 return (
-                  <div
-                    key={rule.id}
-                    className="haip-card rounded-2xl p-5 transition-all"
-                    style={{
-                      border: rule.is_active
-                        ? "1px solid rgba(20,184,166,0.25)"
-                        : "1px solid var(--haip-border)",
-                      opacity: rule.is_active ? 1 : 0.65,
-                    }}
-                  >
+                  <div key={rule.id}
+                    className={cn("bg-white rounded-2xl p-5 border transition-all",
+                      rule.is_active ? "border-teal-200" : "border-gray-100 opacity-65")}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-3 flex-1 min-w-0">
-                        <div
-                          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
-                          style={{
-                            background: rule.is_active ? "rgba(20,184,166,0.10)" : "rgba(148,163,184,0.08)",
-                            color: rule.is_active ? "#0F766E" : "#94a3b8",
-                          }}
-                        >
+                        <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5",
+                          rule.is_active ? "bg-teal-50 text-teal-600" : "bg-gray-50 text-gray-400")}>
                           <Zap size={16} />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p
-                            className="font-semibold text-[14px] leading-snug"
-                            style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--haip-fg)" }}
-                          >
-                            {rule.name}
-                          </p>
+                          <p className="font-semibold text-[14px] text-gray-900">{rule.name}</p>
                           {rule.description && (
-                            <p className="text-[12px] mt-0.5 line-clamp-2" style={{ color: "var(--haip-fg-muted)" }}>
-                              {rule.description}
-                            </p>
+                            <p className="text-[12px] text-gray-400 mt-0.5 line-clamp-1">{rule.description}</p>
                           )}
-
-                          {/* trigger → action flow */}
+                          {/* trigger → action */}
                           <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                            <span
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium"
-                              style={{ background: "rgba(20,184,166,0.08)", color: "#0F766E" }}
-                            >
-                              {trigger.icon}
-                              {trigger.label}
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-teal-50 text-teal-700 border border-teal-100">
+                              {trigger.icon} {trigger.label}
                             </span>
-                            <ChevronRight size={10} style={{ color: "var(--haip-fg-muted)" }} />
-                            <span
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium"
-                              style={{ background: "rgba(245,158,11,0.08)", color: "#B45309" }}
-                            >
-                              {actionLabel(rule.action)}
+                            <ChevronRight size={10} className="text-gray-400" />
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-amber-50 text-amber-700 border border-amber-100">
+                              {action.label}
                             </span>
                           </div>
-
-                          {/* run count + last run */}
-                          <div className="flex items-center gap-4 mt-2">
-                            {rule.run_count != null && (
-                              <span className="text-[11px]" style={{ color: "var(--haip-fg-muted)" }}>
-                                {rule.run_count} runs
-                              </span>
-                            )}
-                            {rule.last_run_at && (
-                              <span className="text-[11px]" style={{ color: "var(--haip-fg-muted)" }}>
-                                Last: {timeAgo(rule.last_run_at)}
-                              </span>
-                            )}
+                          <div className="flex items-center gap-4 mt-1.5">
+                            <span className="text-[11px] text-gray-400">{rule.run_count} runs</span>
+                            {rule.last_run_at && <span className="text-[11px] text-gray-400">Last: {timeAgo(rule.last_run_at)}</span>}
                           </div>
                         </div>
                       </div>
 
-                      {/* toggle */}
-                      <button
-                        onClick={() => toggleMutation.mutate(rule)}
-                        disabled={toggleMutation.isPending}
-                        className="flex-shrink-0 transition-colors"
-                        title={rule.is_active ? "Disable" : "Enable"}
-                        style={{ color: rule.is_active ? "#14B8A6" : "#94a3b8" }}
-                      >
-                        {toggleMutation.isPending ? (
-                          <Loader2 size={20} className="animate-spin" />
-                        ) : rule.is_active ? (
-                          <ToggleRight size={24} />
-                        ) : (
-                          <ToggleLeft size={24} />
-                        )}
-                      </button>
+                      {/* Actions */}
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button onClick={() => setEditRule(rule)}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-teal-600 hover:bg-teal-50 transition-colors">
+                          <Pencil size={14} />
+                        </button>
+                        <button onClick={() => { if (confirm(`Delete "${rule.name}"?`)) deleteMutation.mutate(rule.id); }}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                          <Trash2 size={14} />
+                        </button>
+                        <button onClick={() => toggleMutation.mutate(rule)} disabled={toggleMutation.isPending}
+                          className={cn("transition-colors", rule.is_active ? "text-teal-500" : "text-gray-300")}>
+                          {toggleMutation.isPending ? <Loader2 size={22} className="animate-spin" /> :
+                            rule.is_active ? <ToggleRight size={26} /> : <ToggleLeft size={26} />}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -346,82 +541,56 @@ export default function AutomationsPage() {
             )}
           </div>
 
-          {/* ── Recent runs ────────────────────────────────────────────── */}
+          {/* Recent runs */}
           <div className="space-y-3">
-            <h2
-              className="text-[13px] font-bold mb-3"
-              style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}
-            >
-              Recent runs
-            </h2>
+            <h2 className="text-[13px] font-bold text-gray-700 mb-3">Recent runs</h2>
 
             {runsLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="haip-card rounded-xl p-3 animate-pulse" style={{ border: "1px solid var(--haip-border)" }}>
+                <div key={i} className="bg-white rounded-xl p-3 border border-gray-100 animate-pulse">
                   <div className="h-3 bg-gray-100 rounded w-3/4 mb-2" />
                   <div className="h-2.5 bg-gray-100 rounded w-1/2" />
                 </div>
               ))
             ) : runs.length === 0 ? (
-              <div className="haip-card rounded-2xl p-6 text-center" style={{ border: "1px solid var(--haip-border)" }}>
-                <Settings2 size={22} className="mx-auto mb-2" style={{ color: "var(--haip-fg-muted)" }} />
-                <p className="text-[12px]" style={{ color: "var(--haip-fg-muted)" }}>
-                  No runs yet — rules haven't triggered
-                </p>
+              <div className="bg-white rounded-2xl p-6 text-center border border-gray-100">
+                <Settings2 size={22} className="mx-auto mb-2 text-gray-300" />
+                <p className="text-[12px] text-gray-400">No runs yet — rules haven&apos;t triggered</p>
               </div>
             ) : (
-              <div className="haip-card rounded-2xl overflow-hidden" style={{ border: "1px solid var(--haip-border)" }}>
-                <div className="divide-y" style={{ borderColor: "var(--haip-border)" }}>
+              <div className="bg-white rounded-2xl overflow-hidden border border-gray-100">
+                <div className="divide-y divide-gray-50">
                   {runs.slice(0, 15).map(run => (
-                    <div key={run.id} className="px-4 py-3 flex items-start gap-3">
+                    <button key={run.id} onClick={() => setSelectedRun(run)}
+                      className="w-full px-4 py-3 flex items-start gap-3 hover:bg-gray-50 transition-colors text-left">
                       <div className="flex-1 min-w-0">
-                        <p className="text-[12px] font-medium truncate" style={{ color: "var(--haip-fg)" }}>
-                          {run.automation_name || "Automation"}
-                        </p>
-                        {run.detail && (
-                          <p className="text-[11px] truncate mt-0.5" style={{ color: "var(--haip-fg-muted)" }}>
-                            {run.detail}
-                          </p>
-                        )}
-                        <p className="text-[10.5px] mt-0.5" style={{ color: "rgba(100,116,139,0.55)" }}>
-                          {timeAgo(run.ran_at)}
-                        </p>
+                        <p className="text-[12px] font-medium text-gray-800 truncate">{run.automation_name || "Automation"}</p>
+                        {run.detail && <p className="text-[11px] text-gray-400 truncate mt-0.5">{run.detail}</p>}
+                        <p className="text-[10.5px] text-gray-300 mt-0.5">{timeAgo(run.ran_at)}</p>
                       </div>
                       <StatusBadge status={run.status} />
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
             )}
-
-            {/* Coming soon hint */}
-            <div
-              className="rounded-2xl p-4 mt-2"
-              style={{ background: "rgba(20,184,166,0.06)", border: "1px solid rgba(20,184,166,0.15)" }}
-            >
-              <p className="text-[11.5px] font-semibold mb-1" style={{ color: "#0F766E" }}>
-                Coming soon
-              </p>
-              <p className="text-[11px]" style={{ color: "#0F766E", opacity: 0.7 }}>
-                Visual rule builder, conditional branching, and multi-step workflows
-              </p>
-            </div>
           </div>
         </div>
       </div>
 
-      {/* Toast */}
-      {toastMsg && (
-        <div
-          className="fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg"
-          style={{
-            background: toastMsg.type === "success" ? "#0F766E" : "#dc2626",
-            color: "#fff",
+      {/* Modals */}
+      {(showCreate || editRule) && (
+        <RuleModal
+          initial={editRule ?? undefined}
+          onClose={() => { setShowCreate(false); setEditRule(null); }}
+          onSaved={() => {
+            queryClient.invalidateQueries({ queryKey: ["automations"] });
+            showToast("success", editRule ? "Rule updated" : "Automation created");
           }}
-        >
-          {toastMsg.text}
-        </div>
+        />
       )}
+      {selectedRun && <RunDetail run={selectedRun} onClose={() => setSelectedRun(null)} />}
+      {toast && <Toast msg={toast.text} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }

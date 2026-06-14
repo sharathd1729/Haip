@@ -10,8 +10,10 @@ class Guest(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     id = Column(String, primary_key=True, default=gen_uuid)
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
 
-    # Identity (E.164 phone is primary key for dedup)
-    phone = Column(String(20), nullable=False, index=True)
+    # Identity — phone is kept for quick lookup but is NO LONGER the dedup key.
+    # Canonical identity lives in guest_identities table (progressive identity graph).
+    # phone may be empty string ("") when guest enters via Instagram/Channel Manager first.
+    phone = Column(String(20), nullable=False, default="", index=True)
     email = Column(String(255), nullable=True, index=True)
     name = Column(String(255), nullable=True)
     alt_phone = Column(String(20), nullable=True)
@@ -45,9 +47,9 @@ class Guest(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     deletion_requested_at = Column(String, nullable=True)                  # ISO datetime
     deletion_completed_at = Column(String, nullable=True)                  # ISO datetime
 
-    # Unique per tenant
+    # No unique constraint on phone — dedup is in guest_identities.
+    # Index on phone retained for fast call/WhatsApp lookup.
     __table_args__ = (
-        # (tenant_id, phone) must be unique
         {"schema": None},
     )
 

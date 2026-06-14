@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>HAIP — System Architecture</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --teal:    #003d41;
+    --teal2:   #00555a;
+    --teal3:   #004a4f;
+    --gold:    #ffc94b;
+    --gold2:   #e6b000;
+    --purple:  #7c3aed;
+    --purple2: #4c1d95;
+    --slate:   #0f172a;
+    --muted:   #475569;
+    --border:  #e2e8f0;
+    --surface: #f8fafc;
+    --white:   #ffffff;
+    --green:   #16a34a;
+    --red:     #dc2626;
+    --blue:    #2563eb;
+    --orange:  #ea580c;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0b1120;
+    color: #e2e8f0;
+    min-height: 100vh;
+    padding: 40px 24px 80px;
+  }
+
+  /* ── Header ── */
+  .header {
+    text-align: center;
+    margin-bottom: 56px;
+  }
+  .header .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,201,75,0.12);
+    border: 1px solid rgba(255,201,75,0.25);
+    color: var(--gold);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    padding: 5px 14px;
+    border-radius: 999px;
+    margin-bottom: 18px;
+  }
+  .header h1 {
+    font-size: clamp(28px, 4vw, 48px);
+    font-weight: 900;
+    letter-spacing: -.02em;
+    color: #fff;
+    line-height: 1.1;
+  }
+  .header h1 span { color: var(--gold); }
+  .header p {
+    margin-top: 12px;
+    font-size: 15px;
+    color: rgba(255,255,255,.45);
+  }
+
+  /* ── Legend ── */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: center;
+    margin-bottom: 48px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    color: rgba(255,255,255,.55);
+  }
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  /* ── Architecture grid ── */
+  .arch {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  /* ── Layer row ── */
+  .layer {
+    display: grid;
+    gap: 16px;
+    align-items: stretch;
+  }
+  .layer-label {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,.25);
+    text-align: center;
+    margin-bottom: 4px;
+  }
+
+  /* ── Connector arrows between layers ── */
+  .connector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 11px;
+    color: rgba(255,255,255,.22);
+    padding: 0;
+    height: 28px;
+  }
+  .connector::before, .connector::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(255,255,255,.08);
+  }
+  .arrow-down {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: rgba(255,255,255,.18);
+    font-size: 18px;
+    height: 24px;
+  }
+
+  /* ── Cards ── */
+  .card {
+    border-radius: 14px;
+    padding: 18px 20px;
+    border: 1px solid rgba(255,255,255,.08);
+    position: relative;
+    transition: transform .15s, box-shadow .15s;
+    cursor: default;
+  }
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px rgba(0,0,0,.4);
+  }
+  .card-icon {
+    font-size: 20px;
+    margin-bottom: 10px;
+    display: block;
+  }
+  .card-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 5px;
+  }
+  .card-desc {
+    font-size: 11px;
+    color: rgba(255,255,255,.45);
+    line-height: 1.55;
+  }
+  .card-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 10px;
+  }
+  .pill {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.07);
+    color: rgba(255,255,255,.5);
+  }
+  .pill.green  { background: rgba(22,163,74,.15);  color: #4ade80; }
+  .pill.gold   { background: rgba(255,201,75,.15);  color: var(--gold); }
+  .pill.purple { background: rgba(124,58,237,.18);  color: #c4b5fd; }
+  .pill.blue   { background: rgba(37,99,235,.18);   color: #93c5fd; }
+  .pill.red    { background: rgba(220,38,38,.15);   color: #fca5a5; }
+  .pill.orange { background: rgba(234,88,12,.15);   color: #fdba74; }
+  .pill.teal   { background: rgba(0,85,90,.25);     color: #5eead4; }
+
+  /* Color themes per layer */
+  .theme-guest    { background: rgba(15,23,42,.7);  border-color: rgba(255,255,255,.10); }
+  .theme-ingress  { background: rgba(0,61,65,.55);   border-color: rgba(0,85,90,.60); }
+  .theme-platform { background: rgba(124,58,237,.10); border-color: rgba(124,58,237,.25); }
+  .theme-ai       { background: rgba(255,201,75,.06); border-color: rgba(255,201,75,.20); }
+  .theme-storage  { background: rgba(37,99,235,.08); border-color: rgba(37,99,235,.22); }
+  .theme-external { background: rgba(15,23,42,.6);   border-color: rgba(255,255,255,.08); }
+  .theme-worker   { background: rgba(234,88,12,.07); border-color: rgba(234,88,12,.20); }
+  .theme-frontend { background: rgba(0,61,65,.40);   border-color: rgba(0,85,90,.50); }
+
+  /* Layer column counts */
+  .cols-5 { grid-template-columns: repeat(5, 1fr); }
+  .cols-4 { grid-template-columns: repeat(4, 1fr); }
+  .cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .cols-6 { grid-template-columns: repeat(6, 1fr); }
+  .cols-2 { grid-template-columns: repeat(2, 1fr); }
+
+  @media (max-width: 900px) {
+    .cols-5, .cols-6 { grid-template-columns: repeat(3, 1fr); }
+    .cols-4 { grid-template-columns: repeat(2, 1fr); }
+    .cols-3 { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 600px) {
+    .cols-5, .cols-4, .cols-6, .cols-3 { grid-template-columns: 1fr 1fr; }
+  }
+
+  /* ── Data flow section ── */
+  .flow-section {
+    max-width: 1200px;
+    margin: 60px auto 0;
+  }
+  .flow-title {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,.3);
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  .flows {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 20px;
+  }
+  .flow-card {
+    background: rgba(255,255,255,.03);
+    border: 1px solid rgba(255,255,255,.07);
+    border-radius: 14px;
+    padding: 20px 22px;
+  }
+  .flow-card h3 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--gold);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .flow-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .flow-num {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(255,201,75,.15);
+    color: var(--gold);
+    font-size: 10px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .flow-step p {
+    font-size: 12px;
+    color: rgba(255,255,255,.55);
+    line-height: 1.5;
+  }
+  .flow-step p strong { color: rgba(255,255,255,.85); }
+
+  /* ── Tech stack table ── */
+  .stack-section {
+    max-width: 1200px;
+    margin: 60px auto 0;
+  }
+  .stack-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+  }
+  .stack-card {
+    background: rgba(255,255,255,.03);
+    border: 1px solid rgba(255,255,255,.07);
+    border-radius: 12px;
+    padding: 16px 18px;
+  }
+  .stack-label {
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,.25);
+    margin-bottom: 6px;
+  }
+  .stack-value {
+    font-size: 13px;
+    font-weight: 700;
+    color: #e2e8f0;
+  }
+  .stack-note {
+    font-size: 11px;
+    color: rgba(255,255,255,.35);
+    margin-top: 3px;
+  }
+
+  /* ── LLM routing table ── */
+  .llm-section {
+    max-width: 1200px;
+    margin: 60px auto 0;
+  }
+  .llm-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,.08);
+  }
+  .llm-table th {
+    background: rgba(255,255,255,.06);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,.35);
+    padding: 12px 16px;
+    text-align: left;
+  }
+  .llm-table td {
+    padding: 11px 16px;
+    font-size: 12px;
+    color: rgba(255,255,255,.65);
+    border-top: 1px solid rgba(255,255,255,.05);
+  }
+  .llm-table tr:hover td { background: rgba(255,255,255,.02); }
+  .llm-table td:first-child { color: #e2e8f0; font-weight: 600; }
+
+  /* footer */
+  .footer {
+    text-align: center;
+    margin-top: 72px;
+    font-size: 11px;
+    color: rgba(255,255,255,.18);
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════ HEADER -->
+<div class="header">
+  <div class="badge">🏗 Internal · Technical Overview</div>
+  <h1>HAIP <span>System Architecture</span></h1>
+  <p>Full stack · June 2026 · For co-founders, tech leads, and engineering hires</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ LEGEND -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#00555a"></div> Guest Inbound</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#7c3aed"></div> HAIP Platform Modules</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ffc94b"></div> AI / LLM Layer</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#2563eb"></div> Storage</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ea580c"></div> Celery Workers</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#003d41"></div> Frontend / Dashboard</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#475569"></div> External Providers</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ ARCHITECTURE -->
+<div class="arch">
+
+  <!-- ROW 1: Guest touchpoints -->
+  <div>
+    <div class="layer-label">Guest Touchpoints — where guests contact the property</div>
+    <div class="layer cols-5">
+
+      <div class="card theme-guest">
+        <span class="card-icon">💬</span>
+        <div class="card-title">WhatsApp</div>
+        <div class="card-desc">Meta Cloud API · Official WABA per tenant · Embedded signup · Template messaging</div>
+        <div class="card-pills">
+          <span class="pill teal">Inbound</span>
+          <span class="pill teal">Outbound</span>
+          <span class="pill gold">Official API</span>
+        </div>
+      </div>
+
+      <div class="card theme-guest">
+        <span class="card-icon">📸</span>
+        <div class="card-title">Instagram DM</div>
+        <div class="card-desc">Meta Graph API · Webhook-driven · Business account linked via Facebook Page</div>
+        <div class="card-pills">
+          <span class="pill teal">Inbound</span>
+          <span class="pill teal">Outbound</span>
+        </div>
+      </div>
+
+      <div class="card theme-guest">
+        <span class="card-icon">📞</span>
+        <div class="card-title">IVR / Phone</div>
+        <div class="card-desc">CallerDesk or Acefone · Agent's personal mobile rings · Recording captured via webhook · No app required</div>
+        <div class="card-pills">
+          <span class="pill teal">Inbound</span>
+          <span class="pill orange">Recording</span>
+        </div>
+      </div>
+
+      <div class="card theme-guest">
+        <span class="card-icon">🌐</span>
+        <div class="card-title">Web / OTA</div>
+        <div class="card-desc">Web chat widget · OTA sync via Hostaway · Walk-in and manual entry</div>
+        <div class="card-pills">
+          <span class="pill teal">Inbound</span>
+          <span class="pill blue">Hostaway Sync</span>
+        </div>
+      </div>
+
+      <div class="card theme-guest">
+        <span class="card-icon">📬</span>
+        <div class="card-title">Email / Referral</div>
+        <div class="card-desc">Manual entry by agent · Referral tracking · Source attribution captured at inquiry level</div>
+        <div class="card-pills">
+          <span class="pill teal">Manual</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="arrow-down">↓ Webhooks · API calls · IVR events</div>
+
+  <!-- ROW 2: Ingestion layer -->
+  <div>
+    <div class="layer-label">Ingestion Layer — FastAPI endpoints, signature verification, idempotency</div>
+    <div class="layer cols-4">
+
+      <div class="card theme-ingress">
+        <span class="card-icon">🔗</span>
+        <div class="card-title">WhatsApp Webhook</div>
+        <div class="card-desc"><code style="font-size:10px;color:#5eead4">webhooks_whatsapp.py</code><br/>Verify token via <code>secrets.compare_digest</code> · Dedup by WAMID · Enqueue to Celery</div>
+        <div class="card-pills">
+          <span class="pill green">Idempotent</span>
+          <span class="pill teal">Sig-verified</span>
+        </div>
+      </div>
+
+      <div class="card theme-ingress">
+        <span class="card-icon">🔗</span>
+        <div class="card-title">Instagram Webhook</div>
+        <div class="card-desc"><code style="font-size:10px;color:#5eead4">webhooks_instagram.py</code><br/>Meta challenge/verify · Per-tenant page mapping · Async DM processing</div>
+        <div class="card-pills">
+          <span class="pill green">Idempotent</span>
+        </div>
+      </div>
+
+      <div class="card theme-ingress">
+        <span class="card-icon">🔗</span>
+        <div class="card-title">CallerDesk / Acefone Webhook</div>
+        <div class="card-desc"><code style="font-size:10px;color:#5eead4">webhooks_callerdesk.py · webhooks_acefone.py</code><br/>Per-tenant webhook secret · Call-end event → ingest pipeline</div>
+        <div class="card-pills">
+          <span class="pill green">Per-tenant secret</span>
+          <span class="pill orange">Async</span>
+        </div>
+      </div>
+
+      <div class="card theme-ingress">
+        <span class="card-icon">🔑</span>
+        <div class="card-title">Auth · JWT · RLS</div>
+        <div class="card-desc"><code style="font-size:10px;color:#5eead4">auth.py · deps.py</code><br/>NextAuth.js → JWT (15 min) + refresh · PostgreSQL RLS enforced on every query · <code>set_tenant_context()</code></div>
+        <div class="card-pills">
+          <span class="pill red">RBAC</span>
+          <span class="pill red">RLS</span>
+          <span class="pill teal">Multi-tenant</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="arrow-down">↓ FastAPI routes → Services → DB / Celery queue</div>
+
+  <!-- ROW 3: Platform modules -->
+  <div>
+    <div class="layer-label">HAIP Platform Modules — app/api/v1/endpoints/ + app/services/</div>
+    <div class="layer cols-4">
+
+      <div class="card theme-platform">
+        <span class="card-icon">📥</span>
+        <div class="card-title">Unified Inbox</div>
+        <div class="card-desc"><code style="font-size:10px;color:#c4b5fd">conversations.py · messaging.py</code><br/>All channels → one guest timeline · SSE for real-time push · Channel-tagged messages · Internal notes</div>
+        <div class="card-pills">
+          <span class="pill purple">SSE Push</span>
+          <span class="pill purple">Multi-channel</span>
+        </div>
+      </div>
+
+      <div class="card theme-platform">
+        <span class="card-icon">🧠</span>
+        <div class="card-title">Guest Identity (GID)</div>
+        <div class="card-desc"><code style="font-size:10px;color:#c4b5fd">identity_service.py</code><br/>Canonical UUID per guest · Multi-signal dedup (confidence ≥ 0.85) · add_signal · resolve_gid · merge_guests</div>
+        <div class="card-pills">
+          <span class="pill purple">GID engine</span>
+          <span class="pill purple">Auto-merge</span>
+          <span class="pill red">DPDP consent</span>
+        </div>
+      </div>
+
+      <div class="card theme-platform">
+        <span class="card-icon">📊</span>
+        <div class="card-title">Leads360 Pipeline</div>
+        <div class="card-desc"><code style="font-size:10px;color:#c4b5fd">leads.py · leads_service.py</code><br/>Kanban per inquiry · joinedload prevents N+1 · AI summary from DB (no inline LLM) · &lt;200ms p95</div>
+        <div class="card-pills">
+          <span class="pill purple">Kanban</span>
+          <span class="pill purple">AI summary</span>
+          <span class="pill green">&lt;200ms</span>
+        </div>
+      </div>
+
+      <div class="card theme-platform">
+        <span class="card-icon">⚡</span>
+        <div class="card-title">Automations</div>
+        <div class="card-desc"><code style="font-size:10px;color:#c4b5fd">automations.py</code><br/>7 triggers · 5 actions · Rule CRUD · Run history · Fire-and-forget via Celery · Never blocks request</div>
+        <div class="card-pills">
+          <span class="pill purple">7 triggers</span>
+          <span class="pill purple">5 actions</span>
+          <span class="pill orange">Async</span>
+        </div>
+      </div>
+
+      <div class="card theme-platform">
+        <span class="card-icon">📣</span>
+        <div class="card-title">WhatsApp Marketing</div>
+        <div class="card-desc"><code style="font-size:10px;color:#c4b5fd">messaging.py</code><br/>Templates · Campaigns (batch 50, 1s delay) · Subscriber management · Audience filter: tag + source</div>
+        <div class="card-pills">
+          <span class="pill purple">Campaigns</span>
+          <span class="pill purple">Templates</span>
+          <span class="pill gold">Meta compliant</span>
+        </div>
+      </div>
+
+      <div class="card theme-platform">
+        <span class="card-icon">📈</span>
+        <div class="card-title">Analytics</div>
+        <div class="card-desc"><code style="font-size:10px;color:#c4b5fd">analytics*.py · reports.py</code><br/>Conversion funnel · Agent scorecards · Channel attribution · Revenue intelligence · Executive dashboard</div>
+        <div class="card-pills">
+          <span class="pill purple">Funnel</span>
+          <span class="pill purple">QA scores</span>
+        </div>
+      </div>
+
+      <div class="card theme-platform">
+        <span class="card-icon">🛡</span>
+        <div class="card-title">Compliance (DPDP)</div>
+        <div class="card-desc"><code style="font-size:10px;color:#c4b5fd">audit.py · grievance.py · incidents.py</code><br/>Hash-chained audit log · Consent tracking · Retention purge · Data subject rights workflows</div>
+        <div class="card-pills">
+          <span class="pill red">DPDP</span>
+          <span class="pill red">Audit log</span>
+          <span class="pill red">KMS</span>
+        </div>
+      </div>
+
+      <div class="card theme-platform">
+        <span class="card-icon">📞</span>
+        <div class="card-title">Call Intelligence</div>
+        <div class="card-desc"><code style="font-size:10px;color:#c4b5fd">calls.py · qa.py</code><br/>Call records · QA endpoints · Disposition tracking · Wrap-up card serving · Missed revenue flags</div>
+        <div class="card-pills">
+          <span class="pill purple">QA scoring</span>
+          <span class="pill purple">Disposition</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="arrow-down">↓ Celery task queue (Redis broker)</div>
+
+  <!-- ROW 4: Celery Workers -->
+  <div>
+    <div class="layer-label">Background Workers — app/workers/tasks/ · Queues: call_ingest · transcription · ai_scoring · whatsapp</div>
+    <div class="layer cols-6">
+
+      <div class="card theme-worker">
+        <span class="card-icon">🎙</span>
+        <div class="card-title">call_ingest</div>
+        <div class="card-desc">Download recording from IVR · Store to S3 · Hand off to transcribe</div>
+        <div class="card-pills"><span class="pill orange">call_ingest queue</span></div>
+      </div>
+
+      <div class="card theme-worker">
+        <span class="card-icon">📝</span>
+        <div class="card-title">transcribe</div>
+        <div class="card-desc">Sarvam AI primary · Deepgram fallback · Whisper bulk · Store transcript to DB</div>
+        <div class="card-pills"><span class="pill orange">transcription queue</span></div>
+      </div>
+
+      <div class="card theme-worker">
+        <span class="card-icon">⚖️</span>
+        <div class="card-title">judge + wrap_up</div>
+        <div class="card-desc">Claude Sonnet → QA score, disposition, missed revenue flags · SSE emit on complete</div>
+        <div class="card-pills"><span class="pill orange">ai_scoring queue</span></div>
+      </div>
+
+      <div class="card theme-worker">
+        <span class="card-icon">🤖</span>
+        <div class="card-title">concierge_draft</div>
+        <div class="card-desc">Claude Haiku → draft WhatsApp reply grounded in property knowledge base</div>
+        <div class="card-pills"><span class="pill orange">whatsapp queue</span></div>
+      </div>
+
+      <div class="card theme-worker">
+        <span class="card-icon">📤</span>
+        <div class="card-title">send_whatsapp</div>
+        <div class="card-desc">Meta Cloud API send · text / image / video / audio / document · Delivery tracking</div>
+        <div class="card-pills"><span class="pill orange">whatsapp queue</span></div>
+      </div>
+
+      <div class="card theme-worker">
+        <span class="card-icon">🚀</span>
+        <div class="card-title">run_campaign</div>
+        <div class="card-desc">Batch 50 msgs · 1s inter-batch delay · Audience filter (tags + source) · Live counter update</div>
+        <div class="card-pills"><span class="pill orange">whatsapp queue</span></div>
+      </div>
+
+      <div class="card theme-worker">
+        <span class="card-icon">🔄</span>
+        <div class="card-title">sync_wa_templates</div>
+        <div class="card-desc">Every 30 min · Poll Meta for template status · PENDING → APPROVED / REJECTED</div>
+        <div class="card-pills"><span class="pill orange">Beat · 30 min</span></div>
+      </div>
+
+      <div class="card theme-worker">
+        <span class="card-icon">⏱</span>
+        <div class="card-title">check_automation_timers</div>
+        <div class="card-desc">Every 30 min · no_response_2h/24h · check_in_1d · check_out_1d · Dedup guard per entity per day</div>
+        <div class="card-pills"><span class="pill orange">Beat · 30 min</span></div>
+      </div>
+
+      <div class="card theme-worker">
+        <span class="card-icon">🔥</span>
+        <div class="card-title">automation_engine</div>
+        <div class="card-desc">fire_trigger() · Matches active rules to event · Dispatches 5 action types · Records AutomationRun</div>
+        <div class="card-pills"><span class="pill orange">whatsapp queue</span></div>
+      </div>
+
+      <div class="card theme-worker">
+        <span class="card-icon">📋</span>
+        <div class="card-title">generate_ai_summary</div>
+        <div class="card-desc">Async Leads360 summary · 30-min debounce (Redis TTL) · Writes to inquiries.ai_summary</div>
+        <div class="card-pills"><span class="pill orange">ai_scoring queue</span></div>
+      </div>
+
+      <div class="card theme-worker">
+        <span class="card-icon">🗑</span>
+        <div class="card-title">dpdp_purge · retention_purge</div>
+        <div class="card-desc">Nightly · Purge recordings past retention period · DPDP deletion requests · S3 + DB</div>
+        <div class="card-pills"><span class="pill orange">Beat · Nightly</span></div>
+      </div>
+
+      <div class="card theme-worker">
+        <span class="card-icon">📊</span>
+        <div class="card-title">owner_digest · generate_reports</div>
+        <div class="card-desc">Hourly owner dashboard · Weekly agent digest · Monthly exec report · Claude Sonnet</div>
+        <div class="card-pills"><span class="pill orange">Beat · Scheduled</span></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="arrow-down">↓ AI / LLM Router</div>
+
+  <!-- ROW 5: AI layer -->
+  <div>
+    <div class="layer-label">AI / LLM Layer — app/adapters/llm/ · Router pattern · Never import providers directly</div>
+    <div class="layer cols-4">
+
+      <div class="card theme-ai">
+        <span class="card-icon">🔀</span>
+        <div class="card-title">LLM Router</div>
+        <div class="card-desc"><code style="font-size:10px;color:#fbbf24">adapters/llm/__init__.py · get_llm(task)</code><br/>Maps task type → provider + model. Services call get_llm() only — never import Anthropic/Google directly.</div>
+        <div class="card-pills">
+          <span class="pill gold">Task-based routing</span>
+          <span class="pill gold">Provider-agnostic</span>
+        </div>
+      </div>
+
+      <div class="card theme-ai">
+        <span class="card-icon">🟣</span>
+        <div class="card-title">Claude (Anthropic)</div>
+        <div class="card-desc">
+          <strong style="color:#fbbf24;font-size:11px">claude-sonnet-4-6:</strong> call analysis, QA scoring, report generation<br/>
+          <strong style="color:#fbbf24;font-size:11px">claude-haiku-4-5:</strong> concierge draft, wrap-up<br/>
+          <strong style="color:#fbbf24;font-size:11px">claude-opus-4-6:</strong> deep reasoning
+        </div>
+        <div class="card-pills"><span class="pill gold">Primary LLM</span></div>
+      </div>
+
+      <div class="card theme-ai">
+        <span class="card-icon">🔵</span>
+        <div class="card-title">Gemini (Google)</div>
+        <div class="card-desc">
+          <strong style="color:#fbbf24;font-size:11px">gemini-2.0-flash:</strong> quick classify, bulk batch, intent classification
+        </div>
+        <div class="card-pills"><span class="pill gold">Bulk / classify</span></div>
+      </div>
+
+      <div class="card theme-ai">
+        <span class="card-icon">🎙</span>
+        <div class="card-title">Transcription Stack</div>
+        <div class="card-desc">
+          <strong style="color:#fbbf24;font-size:11px">Sarvam AI</strong> — primary, Indian accent optimised<br/>
+          <strong style="color:#fbbf24;font-size:11px">Deepgram</strong> — fallback<br/>
+          <strong style="color:#fbbf24;font-size:11px">Whisper</strong> — bulk / offline
+        </div>
+        <div class="card-pills">
+          <span class="pill gold">Hindi + EN</span>
+          <span class="pill gold">Code-switch</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="arrow-down">↓ Reads / Writes</div>
+
+  <!-- ROW 6: Storage -->
+  <div>
+    <div class="layer-label">Storage Layer — AWS Mumbai (ap-south-1) · Per-tenant isolation · KMS encryption</div>
+    <div class="layer cols-3">
+
+      <div class="card theme-storage">
+        <span class="card-icon">🗄</span>
+        <div class="card-title">PostgreSQL 16 + pgvector</div>
+        <div class="card-desc">Primary datastore · RLS on every tenant-scoped table · set_tenant_context() before every query · pgvector for semantic search · Alembic migrations (024 active)</div>
+        <div class="card-pills">
+          <span class="pill blue">RLS</span>
+          <span class="pill blue">pgvector</span>
+          <span class="pill red">Per-tenant KMS</span>
+        </div>
+      </div>
+
+      <div class="card theme-storage">
+        <span class="card-icon">⚡</span>
+        <div class="card-title">Redis (Upstash — rediss://)</div>
+        <div class="card-desc">Celery broker + result backend · SSE pub/sub channel per tenant · 30-min debounce TTL keys for AI summary · Rate limit counters · Session tokens</div>
+        <div class="card-pills">
+          <span class="pill blue">Celery broker</span>
+          <span class="pill blue">SSE pub/sub</span>
+          <span class="pill blue">TLS (rediss://)</span>
+        </div>
+      </div>
+
+      <div class="card theme-storage">
+        <span class="card-icon">🪣</span>
+        <div class="card-title">AWS S3 (Mumbai)</div>
+        <div class="card-desc">Call recordings · Encrypted at rest (AWS KMS) · Per-tenant bucket prefix · Signed URL access · Retention policy enforced by nightly purge worker</div>
+        <div class="card-pills">
+          <span class="pill blue">KMS encrypted</span>
+          <span class="pill blue">ap-south-1</span>
+          <span class="pill red">DPDP ready</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="arrow-down">↑ API responses → Frontend</div>
+
+  <!-- ROW 7: Frontend -->
+  <div>
+    <div class="layer-label">Frontend — Next.js 16 App Router · /dashboard (authenticated) · /(marketing) (public)</div>
+    <div class="layer cols-4">
+
+      <div class="card theme-frontend">
+        <span class="card-icon">🖥</span>
+        <div class="card-title">Agent Cockpit</div>
+        <div class="card-desc">Unified inbox · AI Concierge approve/edit/send · SSE real-time updates · Call wrap-up card · Assignment and notes</div>
+        <div class="card-pills">
+          <span class="pill teal">SSE live</span>
+          <span class="pill teal">Multi-channel</span>
+        </div>
+      </div>
+
+      <div class="card theme-frontend">
+        <span class="card-icon">📋</span>
+        <div class="card-title">Leads360 Dashboard</div>
+        <div class="card-desc">Kanban pipeline · Inquiry card with AI summary · Guest profile · Full conversation timeline · Stage transitions · Internal notes</div>
+        <div class="card-pills">
+          <span class="pill teal">Kanban</span>
+          <span class="pill teal">AI summary</span>
+        </div>
+      </div>
+
+      <div class="card theme-frontend">
+        <span class="card-icon">📣</span>
+        <div class="card-title">WhatsApp Marketing</div>
+        <div class="card-desc">Templates · Campaign builder · Audience filter (tag + source) · Live count · Subscriber list · Flow builder (roadmap)</div>
+        <div class="card-pills">
+          <span class="pill teal">Campaigns</span>
+          <span class="pill teal">Audience filter</span>
+        </div>
+      </div>
+
+      <div class="card theme-frontend">
+        <span class="card-icon">⚡</span>
+        <div class="card-title">Automations + Analytics</div>
+        <div class="card-desc">Rule builder modal · Run history drawer · Analytics funnel · Agent scorecards · Owner daily dashboard · Executive reports</div>
+        <div class="card-pills">
+          <span class="pill teal">Rule builder</span>
+          <span class="pill teal">Run history</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ROW 8: External providers -->
+  <div>
+    <div class="layer-label">External Providers — BYOC (Bring Your Own Credentials) · Per-tenant credentials in DB (KMS encrypted)</div>
+    <div class="layer cols-6">
+
+      <div class="card theme-external">
+        <span class="card-icon">📞</span>
+        <div class="card-title">CallerDesk</div>
+        <div class="card-desc">IVR for single-property · Webhook on call end</div>
+        <div class="card-pills"><span class="pill">BYOC</span></div>
+      </div>
+
+      <div class="card theme-external">
+        <span class="card-icon">📞</span>
+        <div class="card-title">Acefone</div>
+        <div class="card-desc">IVR for hotel groups · Multi-number support</div>
+        <div class="card-pills"><span class="pill">BYOC</span></div>
+      </div>
+
+      <div class="card theme-external">
+        <span class="card-icon">💬</span>
+        <div class="card-title">Meta Cloud API</div>
+        <div class="card-desc">WhatsApp Business · Instagram Graph v20.0 · Per-tenant WABA</div>
+        <div class="card-pills"><span class="pill">Official</span></div>
+      </div>
+
+      <div class="card theme-external">
+        <span class="card-icon">🏨</span>
+        <div class="card-title">Hostaway</div>
+        <div class="card-desc">PMS sync · Guest + booking data · Channel manager bridge</div>
+        <div class="card-pills"><span class="pill blue">PMS</span></div>
+      </div>
+
+      <div class="card theme-external">
+        <span class="card-icon">🔑</span>
+        <div class="card-title">AWS KMS</div>
+        <div class="card-desc">Per-tenant encryption keys · S3 + DB credentials · Mumbai region</div>
+        <div class="card-pills"><span class="pill red">Encryption</span></div>
+      </div>
+
+      <div class="card theme-external">
+        <span class="card-icon">🌐</span>
+        <div class="card-title">Sarvam / Deepgram / Whisper</div>
+        <div class="card-desc">Transcription APIs · Indian accent primary · Fallback chain</div>
+        <div class="card-pills"><span class="pill gold">AI</span></div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════ DATA FLOWS -->
+<div class="flow-section">
+  <div class="flow-title">Key Data Flows</div>
+  <div class="flows">
+
+    <div class="flow-card">
+      <h3>📞 Inbound Call → Wrap-up Card</h3>
+      <div class="flow-step"><div class="flow-num">1</div><p>Guest calls IVR (CallerDesk/Acefone) → IVR greets, captures consent, forwards to agent's mobile</p></div>
+      <div class="flow-step"><div class="flow-num">2</div><p>Call ends → IVR sends webhook to <strong>/webhooks/callerdesk</strong> or <strong>/webhooks/acefone</strong></p></div>
+      <div class="flow-step"><div class="flow-num">3</div><p>Celery: <strong>call_ingest</strong> → downloads recording → stores to S3 (KMS encrypted)</p></div>
+      <div class="flow-step"><div class="flow-num">4</div><p>Celery: <strong>transcribe</strong> → Sarvam AI → transcript stored to DB</p></div>
+      <div class="flow-step"><div class="flow-num">5</div><p>Celery: <strong>judge</strong> + <strong>wrap_up</strong> → Claude Sonnet → QA score, disposition, missed revenue flags</p></div>
+      <div class="flow-step"><div class="flow-num">6</div><p>Redis pub/sub emit → <strong>SSE endpoint</strong> → wrap-up card appears in cockpit within ~90 sec</p></div>
+      <div class="flow-step"><div class="flow-num">7</div><p>Automation: <strong>fire_trigger(call_completed)</strong> → engine checks active rules → fires actions</p></div>
+    </div>
+
+    <div class="flow-card">
+      <h3>💬 WhatsApp → AI Concierge → Reply</h3>
+      <div class="flow-step"><div class="flow-num">1</div><p>Guest sends WhatsApp message → Meta delivers webhook to <strong>/webhooks/whatsapp</strong></p></div>
+      <div class="flow-step"><div class="flow-num">2</div><p>Webhook validates signature, dedupes by WAMID, creates <strong>Message</strong> row, triggers identity resolution via <strong>identity_service.resolve_gid()</strong></p></div>
+      <div class="flow-step"><div class="flow-num">3</div><p>Celery: <strong>concierge_draft</strong> → Claude Haiku → reply drafted from property knowledge base</p></div>
+      <div class="flow-step"><div class="flow-num">4</div><p>Draft appears in Unified Inbox for agent review (Shadow Mode). Agent taps Approve or edits.</p></div>
+      <div class="flow-step"><div class="flow-num">5</div><p>Celery: <strong>send_whatsapp</strong> → Meta Cloud API → message delivered to guest</p></div>
+      <div class="flow-step"><div class="flow-num">6</div><p>Celery: <strong>generate_ai_summary</strong> debounced 30-min → updates <strong>inquiries.ai_summary</strong> in DB</p></div>
+    </div>
+
+    <div class="flow-card">
+      <h3>📣 WhatsApp Campaign Broadcast</h3>
+      <div class="flow-step"><div class="flow-num">1</div><p>Agent creates campaign in UI: selects template, audience (tags + source), schedule</p></div>
+      <div class="flow-step"><div class="flow-num">2</div><p><strong>POST /messaging/campaigns/{id}/launch</strong> → enqueues <strong>run_campaign</strong> Celery task</p></div>
+      <div class="flow-step"><div class="flow-num">3</div><p>Worker resolves template, pulls WA integration creds, builds recipient list from subscriber table</p></div>
+      <div class="flow-step"><div class="flow-num">4</div><p>Sends in batches of 50 with 1s inter-batch delay (Meta rate limit compliance)</p></div>
+      <div class="flow-step"><div class="flow-num">5</div><p>Live counters (sent/failed) updated per batch. Final status: COMPLETED / FAILED.</p></div>
+    </div>
+
+    <div class="flow-card">
+      <h3>⚡ Automation Rule Fire</h3>
+      <div class="flow-step"><div class="flow-num">1</div><p><strong>Trigger event</strong>: new_inquiry (from endpoint), call_completed (from wrap_up task), or timer event (from check_automation_timers Beat task)</p></div>
+      <div class="flow-step"><div class="flow-num">2</div><p><strong>fire_trigger.apply_async()</strong> — always async, always in try/except, never blocks the response</p></div>
+      <div class="flow-step"><div class="flow-num">3</div><p>Engine fetches active rules matching event + tenant · Evaluates trigger_config conditions</p></div>
+      <div class="flow-step"><div class="flow-num">4</div><p>Dispatches action: <strong>send_wa_template / create_draft / notify_team / move_followup / tag_guest</strong></p></div>
+      <div class="flow-step"><div class="flow-num">5</div><p>Records <strong>AutomationRun</strong> (success/failed/skipped) · Updates rule.run_count and last_run_at</p></div>
+    </div>
+
+    <div class="flow-card">
+      <h3>🧠 Guest Identity Resolution</h3>
+      <div class="flow-step"><div class="flow-num">1</div><p>Inbound signal arrives: phone number from IVR, WA account from webhook, Instagram PSID, email</p></div>
+      <div class="flow-step"><div class="flow-num">2</div><p><strong>identity_service.resolve_gid(signal_type, signal_value, tenant_id)</strong> — only place this can happen</p></div>
+      <div class="flow-step"><div class="flow-num">3</div><p>Queries <strong>guest_identities</strong> table · Calculates composite confidence across all matching signals</p></div>
+      <div class="flow-step"><div class="flow-num">4</div><p>If confidence ≥ 0.85 → returns existing GID. If < 0.85 → creates new guest + GID.</p></div>
+      <div class="flow-step"><div class="flow-num">5</div><p>Writes DPDP consent row if signal type is phone or email (<strong>consent_source = "agent_manual"</strong>)</p></div>
+    </div>
+
+    <div class="flow-card">
+      <h3>🔒 Multi-tenancy Enforcement</h3>
+      <div class="flow-step"><div class="flow-num">1</div><p>Every API request → <strong>get_current_user()</strong> validates JWT → extracts tenant_id</p></div>
+      <div class="flow-step"><div class="flow-num">2</div><p><strong>set_tenant_context(db, tenant_id)</strong> → sets PostgreSQL session variable for RLS</p></div>
+      <div class="flow-step"><div class="flow-num">3</div><p>RLS policy on every tenant-scoped table: <code>tenant_id = current_setting('app.tenant_id')</code></p></div>
+      <div class="flow-step"><div class="flow-num">4</div><p>Celery workers also call <strong>set_tenant_context()</strong> before any DB access</p></div>
+      <div class="flow-step"><div class="flow-num">5</div><p>Webhook shared secrets are per-tenant — no global secrets. KMS keys are per-tenant.</p></div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════ LLM ROUTING -->
+<div class="llm-section">
+  <div class="flow-title">LLM Routing Table — get_llm(task) in adapters/llm/</div>
+  <table class="llm-table">
+    <thead>
+      <tr>
+        <th>Task</th>
+        <th>Provider</th>
+        <th>Model</th>
+        <th>Why</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Call analysis</td><td>Anthropic</td><td>claude-sonnet-4-6</td><td>Long context, nuanced Indian hospitality understanding</td></tr>
+      <tr><td>QA scoring</td><td>Anthropic</td><td>claude-sonnet-4-6</td><td>Structured rubric evaluation, consistent scoring</td></tr>
+      <tr><td>Concierge draft</td><td>Anthropic</td><td>claude-haiku-4-5</td><td>Fast, cheap, sufficient for constrained knowledge-base replies</td></tr>
+      <tr><td>Quick classify</td><td>Google</td><td>gemini-2.0-flash</td><td>Lowest latency, bulk volume, classification only</td></tr>
+      <tr><td>Bulk batch</td><td>Google</td><td>gemini-2.0-flash</td><td>Cost efficiency at scale, parallel processing</td></tr>
+      <tr><td>Deep reasoning</td><td>Anthropic</td><td>claude-opus-4-6</td><td>Complex report generation, multi-step analysis</td></tr>
+      <tr><td>Report generation</td><td>Anthropic</td><td>claude-sonnet-4-6</td><td>Weekly/monthly digest, structured narrative output</td></tr>
+      <tr><td>Fallback</td><td>OpenAI</td><td>gpt-4o-mini</td><td>Provider failover when primary is unavailable</td></tr>
+    </tbody>
+  </table>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════ TECH STACK -->
+<div class="stack-section">
+  <div class="flow-title">Tech Stack — Locked, Do Not Suggest Alternatives</div>
+  <div class="stack-grid">
+    <div class="stack-card">
+      <div class="stack-label">Backend</div>
+      <div class="stack-value">Python 3.12 + FastAPI</div>
+      <div class="stack-note">Async endpoints · Pydantic v2 schemas</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-label">Frontend</div>
+      <div class="stack-value">Next.js 16 App Router</div>
+      <div class="stack-note">TypeScript · Tailwind · Framer Motion</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-label">Database</div>
+      <div class="stack-value">PostgreSQL 16 + pgvector</div>
+      <div class="stack-note">RLS · Alembic migrations · 024 active</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-label">Queue</div>
+      <div class="stack-value">Celery + Redis</div>
+      <div class="stack-note">4 queues · Celery Beat · Upstash TLS</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-label">Storage</div>
+      <div class="stack-value">AWS S3 + KMS</div>
+      <div class="stack-note">Mumbai ap-south-1 · Per-tenant keys</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-label">Auth</div>
+      <div class="stack-value">NextAuth.js + JWT</div>
+      <div class="stack-note">15-min access · Refresh tokens · RBAC</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-label">Transcription</div>
+      <div class="stack-value">Sarvam AI → Deepgram → Whisper</div>
+      <div class="stack-note">Indian accent optimised · Fallback chain</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-label">IVR</div>
+      <div class="stack-value">CallerDesk + Acefone</div>
+      <div class="stack-note">BYOC · Per-tenant webhook secrets</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-label">WhatsApp</div>
+      <div class="stack-value">Meta Cloud API</div>
+      <div class="stack-note">Per-tenant WABA · Graph v20.0</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-label">Region</div>
+      <div class="stack-value">AWS Mumbai</div>
+      <div class="stack-note">ap-south-1 · DPDP compliant</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-label">PMS Integration</div>
+      <div class="stack-value">Hostaway</div>
+      <div class="stack-note">Guest + booking sync · Live</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-label">Compliance</div>
+      <div class="stack-value">DPDP Act · RBAC · Audit log</div>
+      <div class="stack-note">Hash-chained · Consent tracking</div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  HAIP System Architecture · Internal Only · June 2026 · <span style="color:var(--gold)">haip.in</span>
+</div>
+
+</body>
+</html>
