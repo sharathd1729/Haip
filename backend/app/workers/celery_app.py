@@ -101,6 +101,12 @@ celery_app.conf.update(
         "app.workers.tasks.dpdp_purge.*":           {"queue": "call_ingest"},
         "app.workers.tasks.process_instagram_dm.*": {"queue": "whatsapp"},
         "app.workers.tasks.send_instagram_dm.*":    {"queue": "whatsapp"},
+        # These two tasks are registered with explicit short names (no module
+        # path prefix), so the "app.workers.tasks.X.*" patterns above never
+        # match them — without this, they fall through to Celery's implicit
+        # "celery" queue, which no worker here consumes.
+        "process_instagram_dm":                     {"queue": "whatsapp"},
+        "send_instagram_dm":                        {"queue": "whatsapp"},
         "app.workers.tasks.sync_retalwise.*":       {"queue": "call_ingest"},
         "app.workers.tasks.sync_hostaway.*":        {"queue": "call_ingest"},
         "app.workers.tasks.call_ingest.*":          {"queue": "call_ingest"},
