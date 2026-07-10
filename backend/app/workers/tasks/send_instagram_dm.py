@@ -8,7 +8,6 @@ has been approved (or autonomous mode with confidence >= threshold).
 from __future__ import annotations
 import logging
 from datetime import datetime, timezone
-from celery import shared_task
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
@@ -16,11 +15,12 @@ from app.core.encryption import decrypt_credentials
 from app.models.integration import Integration
 from app.models.conversation import Message, Conversation
 from app.models.guest import Guest
+from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=60, name="send_instagram_dm")
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60, name="send_instagram_dm")
 def send_instagram_dm(self, message_id: str, tenant_id: str) -> dict:
     from app.core.database import set_tenant_context
     db: Session = SessionLocal()

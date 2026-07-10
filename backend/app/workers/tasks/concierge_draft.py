@@ -57,6 +57,7 @@ CONFIDENCE_THRESHOLD = 0.78
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=10, name="tasks.concierge_draft")
 def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str):
     from app.workers.tasks.send_whatsapp import send_whatsapp
+    from app.workers.tasks.send_instagram_dm import send_instagram_dm
 
     db = SessionLocal()
     try:
@@ -128,7 +129,11 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str)
         log.info("concierge_draft_stored", message_id=draft_message.id, confidence=confidence, auto_send=should_auto_send)
 
         if should_auto_send:
-            send_whatsapp.delay(message_id=draft_message.id, tenant_id=tenant_id)
+            channel_val = str(conversation.channel.value if hasattr(conversation.channel, "value") else conversation.channel)
+            if channel_val == "instagram":
+                send_instagram_dm.delay(message_id=draft_message.id, tenant_id=tenant_id)
+            else:
+                send_whatsapp.delay(message_id=draft_message.id, tenant_id=tenant_id)
         else:
             # Push SSE notification to inbox
             _emit_sse(tenant_id=tenant_id, event="ai_draft_ready", conversation_id=conversation_id)
