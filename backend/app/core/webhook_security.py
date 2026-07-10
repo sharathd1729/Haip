@@ -64,5 +64,9 @@ def verify_meta_signature(body: bytes, signature_header: str, env: str, secret: 
             expected_prefix=expected[:14],
             received_prefix=signature_header[:14],
             body_len=len(body),
+            # TEMP DEBUG — remove after root-causing the mismatch.
+            # No secret is logged here; body is message content only.
+            raw_body_b64=__import__("base64").b64encode(body).decode(),
+            received_signature_full=signature_header,
         )
         raise HTTPException(status_code=401, detail="Webhook signature verification failed")
