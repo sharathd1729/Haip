@@ -55,5 +55,14 @@ def verify_meta_signature(body: bytes, signature_header: str, env: str, secret: 
     ).hexdigest()
 
     if not _hmac.compare_digest(expected, signature_header):
-        log.warning("webhook_signature_mismatch", env=env)
+        log.warning(
+            "webhook_signature_mismatch",
+            env=env,
+            secret_len=len(secret),
+            secret_prefix=secret[:4],
+            secret_suffix=secret[-4:],
+            expected_prefix=expected[:14],
+            received_prefix=signature_header[:14],
+            body_len=len(body),
+        )
         raise HTTPException(status_code=401, detail="Webhook signature verification failed")
