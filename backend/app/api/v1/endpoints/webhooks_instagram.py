@@ -46,16 +46,39 @@ async def receive_instagram_webhook(request: Request):
     body = await request.body()
     sig = request.headers.get("X-Hub-Signature-256", "")
 
-    # Resolve app_secret: prefer env var, fall back to active Instagram integration credentials
-    app_secret = settings.META_APP_SECRET
-    if not app_secret:
+    try:
+        payload = json.loads(body)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    if payload.get("object") != "instagram":
+        return {"status": "ignored"}
+
+    # Resolve app_secret from the tenant integration matching this IG account,
+    # falling back to the global env var only if no per-tenant secret is found.
+    app_secret = ""
+    entries = payload.get("entry", [])
+    ig_account_id = entries[0].get("id") if entries else None
+
+    if ig_account_id:
         try:
             from app.core.database import SessionLocal
             from app.models.integration import Integration
             from app.core.encryption import decrypt_credentials
             _db = SessionLocal()
             try:
-                _ig = _db.query(Integration).filter_by(kind="instagram", status="active").first()
+                _candidates = (
+                    _db.query(Integration)
+                    .filter(Integration.kind == "instagram", Integration.status == "active")
+                    .all()
+                )
+                _ig = next(
+                    (
+                        c for c in _candidates
+                        if (c.config or {}).get("instagram_business_account_id") == ig_account_id
+                    ),
+                    None,
+                )
                 if _ig:
                     _creds = decrypt_credentials(_ig.credentials_kms_blob)
                     app_secret = _creds.get("app_secret", "")
@@ -64,6 +87,9 @@ async def receive_instagram_webhook(request: Request):
         except Exception as _e:
             log.warning("instagram_webhook_secret_lookup_failed", error=str(_e))
 
+    if not app_secret:
+        app_secret = settings.META_APP_SECRET
+
     # Raises 401 on failure; in dev with no secret logs a warning and continues
     verify_meta_signature(
         body=body,
@@ -71,14 +97,6 @@ async def receive_instagram_webhook(request: Request):
         env=settings.ENVIRONMENT,
         secret=app_secret,
     )
-
-    try:
-        payload = json.loads(body)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON")
-
-    if payload.get("object") != "instagram":
-        return {"status": "ignored"}
 
     for entry in payload.get("entry", []):
         ig_account_id = entry.get("id")
