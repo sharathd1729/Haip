@@ -6,7 +6,7 @@ from app.core.config import settings
 # Upstash (and most managed Redis) use rediss:// (TLS).
 # Celery's Redis backend requires explicit SSL options on Windows / strict environments.
 _is_ssl = settings.REDIS_URL.startswith("rediss://")
-_ssl_opts = {"ssl_cert_reqs": ssl.CERT_NONE} if _is_ssl else {}
+_ssl_opts = {"ssl_cert_reqs": ssl.CERT_NONE} if _is_ssl else None
 
 celery_app = Celery(
     "haip",
