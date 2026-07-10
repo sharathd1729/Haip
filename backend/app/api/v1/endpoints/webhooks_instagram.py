@@ -82,6 +82,13 @@ async def receive_instagram_webhook(request: Request):
                 if _ig:
                     _creds = decrypt_credentials(_ig.credentials_kms_blob)
                     app_secret = _creds.get("app_secret", "")
+                log.info(
+                    "instagram_webhook_tenant_lookup",
+                    received_ig_account_id=ig_account_id,
+                    matched=bool(_ig),
+                    candidate_ids=[(c.config or {}).get("instagram_business_account_id") for c in _candidates],
+                    has_app_secret=bool(app_secret),
+                )
             finally:
                 _db.close()
         except Exception as _e:
