@@ -1,13 +1,15 @@
 import uuid
 import os
 import httpx
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
+from fastapi.responses import RedirectResponse, HTMLResponse
 from sqlalchemy.orm import Session
 from typing import List
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.encryption import encrypt_credentials, decrypt_credentials, get_credential
+from app.core.security import create_access_token, decode_token
 from app.api.v1.deps import get_current_user, require_roles
 from app.models.user import User, UserRole
 from app.models.integration import Integration
@@ -338,6 +340,139 @@ def connect_instagram_manual(
         "instagram_business_account_id": ig_account_id,
         "username": ig_username,
     }
+
+
+@router.get("/instagram/oauth-start")
+def start_instagram_oauth(token: str, db: Session = Depends(get_db)):
+    """
+    Redirects to Meta's Instagram Business Login consent screen.
+    Meta redirects back to /instagram/oauth-callback with a `code`,
+    which is exchanged server-side for a properly-scoped access token —
+    no manual curl/copy-paste required.
+
+    Accepts the HAIP JWT as a `?token=` query param (not an Authorization
+    header) since this is opened as a plain browser link, not an API call.
+    """
+    decoded = decode_token(token)
+    if not decoded or decoded.get("type") != "access":
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    current_user = db.query(User).filter_by(id=decoded["sub"], is_deleted=False, is_active=True).first()
+    if not current_user:
+        raise HTTPException(status_code=401, detail="User not found")
+    if current_user.role.value not in (UserRole.OWNER.value, UserRole.MANAGER.value):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    if not settings.INSTAGRAM_APP_ID:
+        raise HTTPException(status_code=500, detail="INSTAGRAM_APP_ID not configured")
+
+    state = create_access_token(
+        {"tenant_id": current_user.tenant_id, "purpose": "ig_oauth"},
+        expires_delta=timedelta(minutes=10),
+    )
+    base = (settings.API_BASE_URL or "").rstrip("/")
+    redirect_uri = f"{base}/api/v1/integrations/instagram/oauth-callback"
+    scope = ",".join([
+        "instagram_business_basic",
+        "instagram_business_manage_messages",
+        "instagram_business_manage_comments",
+        "instagram_business_content_publish",
+        "instagram_business_manage_insights",
+    ])
+    auth_url = (
+        "https://www.instagram.com/oauth/authorize"
+        f"?force_reauth=true&client_id={settings.INSTAGRAM_APP_ID}"
+        f"&redirect_uri={redirect_uri}"
+        f"&response_type=code&scope={scope}&state={state}"
+    )
+    return RedirectResponse(auth_url)
+
+
+@router.get("/instagram/oauth-callback")
+def instagram_oauth_callback(
+    code: str = "",
+    state: str = "",
+    error: str = "",
+    db: Session = Depends(get_db),
+):
+    """Public callback — Meta redirects here after the user authorizes."""
+    if error:
+        return HTMLResponse(f"<h3>Instagram authorization failed: {error}</h3>", status_code=400)
+
+    decoded = decode_token(state)
+    if not decoded or decoded.get("purpose") != "ig_oauth":
+        return HTMLResponse("<h3>Invalid or expired authorization state. Please retry.</h3>", status_code=400)
+    tenant_id = decoded["tenant_id"]
+
+    row = db.query(Integration).filter_by(tenant_id=tenant_id, kind="instagram").first()
+    existing_creds = decrypt_credentials(row.credentials_kms_blob) if row and row.credentials_kms_blob else {}
+    app_secret = existing_creds.get("app_secret", "")
+    if not app_secret:
+        return HTMLResponse(
+            "<h3>No Instagram App Secret saved yet for this workspace. "
+            "Save one via the manual connect form first, then retry.</h3>",
+            status_code=400,
+        )
+
+    base = (settings.API_BASE_URL or "").rstrip("/")
+    redirect_uri = f"{base}/api/v1/integrations/instagram/oauth-callback"
+
+    try:
+        short_resp = httpx.post(
+            "https://api.instagram.com/oauth/access_token",
+            data={
+                "client_id": settings.INSTAGRAM_APP_ID,
+                "client_secret": app_secret,
+                "grant_type": "authorization_code",
+                "redirect_uri": redirect_uri,
+                "code": code,
+            },
+            timeout=15,
+        )
+        short_data = short_resp.json()
+        if "access_token" not in short_data:
+            return HTMLResponse(f"<h3>Token exchange failed: {short_data}</h3>", status_code=400)
+
+        long_resp = httpx.get(
+            "https://graph.instagram.com/access_token",
+            params={
+                "grant_type": "ig_exchange_token",
+                "client_secret": app_secret,
+                "access_token": short_data["access_token"],
+            },
+            timeout=15,
+        )
+        long_data = long_resp.json()
+        access_token = long_data.get("access_token", short_data["access_token"])
+
+        me_resp = httpx.get(
+            "https://graph.instagram.com/me",
+            params={"fields": "user_id,username", "access_token": access_token},
+            timeout=15,
+        )
+        me_data = me_resp.json()
+        ig_account_id = str(me_data.get("user_id", ""))
+        username = me_data.get("username", "")
+    except Exception as exc:
+        return HTMLResponse(f"<h3>Instagram OAuth exchange error: {exc}</h3>", status_code=500)
+
+    row = _upsert_integration(db, tenant_id, "instagram")
+    row.credentials_kms_blob = encrypt_credentials({
+        "access_token": access_token,
+        "app_secret": app_secret,
+        "instagram_business_account_id": ig_account_id,
+    })
+    row.config = {
+        "instagram_business_account_id": ig_account_id,
+        "username": username,
+    }
+    row.status = "active"
+    row.installed_at = _now()
+    db.commit()
+
+    return HTMLResponse(
+        f"<h3>Instagram connected: @{username or ig_account_id}</h3>"
+        "<p>You can close this tab and return to HAIP.</p>"
+    )
 
 
 @router.get("/instagram/webhook-info")

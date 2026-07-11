@@ -72,6 +72,7 @@ class Settings(BaseSettings):
     META_APP_SECRET: str = ""
     META_INSTAGRAM_ACCESS_TOKEN: str = ""
     META_INSTAGRAM_PAGE_ID: str = ""
+    INSTAGRAM_APP_ID: str = ""
 
     # Email
     RESEND_API_KEY: str = ""
