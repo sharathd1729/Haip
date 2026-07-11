@@ -49,7 +49,28 @@ def list_conversations(
         joinedload(Conversation.inquiry),
     )
 
-    return q.limit(limit).all()
+    conversations = q.limit(limit).all()
+    if not conversations:
+        return []
+
+    # Batch-fetch the latest message per conversation in one query (avoids N+1).
+    conv_ids = [c.id for c in conversations]
+    latest_rows = (
+        db.query(Message.conversation_id, Message.body)
+        .filter(Message.conversation_id.in_(conv_ids), Message.tenant_id == current_user.tenant_id)
+        .order_by(Message.conversation_id, Message.created_at.desc())
+        .distinct(Message.conversation_id)
+        .all()
+    )
+    preview_by_conv = {row.conversation_id: row.body for row in latest_rows}
+
+    result = []
+    for c in conversations:
+        out = ConversationOut.model_validate(c)
+        out.guest_name = c.guest.name if c.guest else None
+        out.last_message_preview = preview_by_conv.get(c.id)
+        result.append(out)
+    return result
 
 
 @router.get("/{conversation_id}/messages", response_model=List[MessageOut])

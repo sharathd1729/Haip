@@ -139,6 +139,7 @@ def process_instagram_dm(self, payload: dict) -> dict:
             channel_status="received",
         )
         db.add(message)
+        conversation.last_message_at = datetime.now(timezone.utc).isoformat()
         db.flush()
         db.commit()
 
