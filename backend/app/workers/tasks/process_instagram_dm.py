@@ -148,6 +148,21 @@ def process_instagram_dm(self, payload: dict) -> dict:
             message.id, guest_id, conversation.id,
         )
 
+        # Notify SSE subscribers so the inbox updates without a page refresh
+        try:
+            import redis as _redis
+            from app.core.config import settings as _settings
+            _r = _redis.Redis.from_url(_settings.REDIS_URL, decode_responses=True, socket_connect_timeout=2)
+            import json as _json
+            _r.publish(f"sse:{tenant_id}", _json.dumps({
+                "event": "message_received",
+                "conversation_id": conversation.id,
+                "channel": "instagram",
+            }))
+            _r.close()
+        except Exception as _sse_exc:
+            logger.warning("sse_publish_failed: %s", _sse_exc)
+
         # ── Trigger AI concierge draft ─────────────────────────────────────
         if body and body.strip() and not body.startswith("["):
             try:
