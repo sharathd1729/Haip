@@ -343,15 +343,25 @@ def connect_instagram_manual(
 
 
 @router.get("/instagram/oauth-start")
-def start_instagram_oauth(
-    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
-):
+def start_instagram_oauth(token: str, db: Session = Depends(get_db)):
     """
     Redirects to Meta's Instagram Business Login consent screen.
     Meta redirects back to /instagram/oauth-callback with a `code`,
     which is exchanged server-side for a properly-scoped access token —
     no manual curl/copy-paste required.
+
+    Accepts the HAIP JWT as a `?token=` query param (not an Authorization
+    header) since this is opened as a plain browser link, not an API call.
     """
+    decoded = decode_token(token)
+    if not decoded or decoded.get("type") != "access":
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    current_user = db.query(User).filter_by(id=decoded["sub"], is_deleted=False, is_active=True).first()
+    if not current_user:
+        raise HTTPException(status_code=401, detail="User not found")
+    if current_user.role.value not in (UserRole.OWNER.value, UserRole.MANAGER.value):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
     if not settings.INSTAGRAM_APP_ID:
         raise HTTPException(status_code=500, detail="INSTAGRAM_APP_ID not configured")
 
