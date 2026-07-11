@@ -370,7 +370,7 @@ def start_instagram_oauth(token: str, db: Session = Depends(get_db)):
         expires_delta=timedelta(minutes=10),
     )
     base = (settings.API_BASE_URL or "").rstrip("/")
-    redirect_uri = f"{base}/api/v1/integrations/instagram/oauth-callback/"
+    redirect_uri = f"{base}/api/v1/integrations/instagram/oauth-callback"
     scope = ",".join([
         "instagram_business_basic",
         "instagram_business_manage_messages",
@@ -414,7 +414,7 @@ def instagram_oauth_callback(
         )
 
     base = (settings.API_BASE_URL or "").rstrip("/")
-    redirect_uri = f"{base}/api/v1/integrations/instagram/oauth-callback/"
+    redirect_uri = f"{base}/api/v1/integrations/instagram/oauth-callback"
 
     try:
         short_resp = httpx.post(
