@@ -68,7 +68,7 @@ def list_conversations(
     for c in conversations:
         out = ConversationOut.model_validate(c)
         out.guest_name = c.guest.name if c.guest else None
-        out.last_message_preview = preview_by_conv.get(c.id)
+        out.last_message = preview_by_conv.get(c.id)
         result.append(out)
     return result
 
