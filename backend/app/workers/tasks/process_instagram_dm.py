@@ -100,6 +100,12 @@ def process_instagram_dm(self, payload: dict) -> dict:
             logger.info("Created new guest from Instagram DM: %s (%s)", guest_id, display_name)
         else:
             logger.debug("Resolved existing guest from Instagram DM: %s", guest_id)
+            # Backfill: earlier messages may have stored the placeholder name
+            # because the profile fetch failed at the time (e.g. before the
+            # graph.instagram.com host fix). Update it once a real name is available.
+            if guest and guest.name and guest.name.startswith("IG User ") and not display_name.startswith("IG User "):
+                guest.name = display_name
+                db.commit()
 
         # ── Find or create open conversation ────────────────────────────────
         channel_val = ChannelType.INSTAGRAM if hasattr(ChannelType, "INSTAGRAM") else "instagram"
