@@ -13,28 +13,49 @@ function getTokenExpiry(token: string): number {
   }
 }
 
-async function refreshAccessToken(refreshToken: string): Promise<{
+type RefreshResult = {
   accessToken: string;
   refreshToken: string;
   accessTokenExpires: number;
   error?: string;
-} | { error: string }> {
-  const apiBase = (process.env.BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
+} | { error: string };
+
+// Backend rotates refresh tokens on use (single-use). Concurrent requests
+// (dashboard pages fire several in parallel) can each independently decide
+// to refresh the same stale token; without dedup, only the first backend
+// call succeeds and the rest get "revoked" 401s that poison the session.
+// Cache in-flight refreshes per token so racing callers share one result.
+const refreshPromises = new Map<string, Promise<RefreshResult>>();
+
+async function refreshAccessToken(refreshToken: string): Promise<RefreshResult> {
+  const inFlight = refreshPromises.get(refreshToken);
+  if (inFlight) return inFlight;
+
+  const promise = (async (): Promise<RefreshResult> => {
+    const apiBase = (process.env.BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
+    try {
+      const res = await fetch(`${apiBase}/api/v1/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+      if (!res.ok) return { error: "RefreshAccessTokenError" };
+      const data = await res.json();
+      return {
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token ?? refreshToken,
+        accessTokenExpires: getTokenExpiry(data.access_token),
+      };
+    } catch {
+      return { error: "RefreshAccessTokenError" };
+    }
+  })();
+
+  refreshPromises.set(refreshToken, promise);
   try {
-    const res = await fetch(`${apiBase}/api/v1/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    });
-    if (!res.ok) return { error: "RefreshAccessTokenError" };
-    const data = await res.json();
-    return {
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token ?? refreshToken,
-      accessTokenExpires: getTokenExpiry(data.access_token),
-    };
-  } catch {
-    return { error: "RefreshAccessTokenError" };
+    return await promise;
+  } finally {
+    refreshPromises.delete(refreshToken);
   }
 }
 
