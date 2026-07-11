@@ -50,12 +50,17 @@ def process_instagram_dm(self, payload: dict) -> dict:
         if not sender_id:
             return {"status": "skipped", "reason": "no sender_id"}
 
-        # ── Find active Instagram integration ──────────────────────────────
-        integration = db.query(Integration).filter_by(
-            kind="instagram", status="active"
-        ).first()
+        # ── Find the tenant's Instagram integration by ig_account_id ───────
+        # Multiple tenants may each have an active Instagram integration, so
+        # matching must be scoped to the account this webhook was for, not
+        # just "the first active one" (which picks an arbitrary tenant).
+        candidates = db.query(Integration).filter_by(kind="instagram", status="active").all()
+        integration = next(
+            (c for c in candidates if (c.config or {}).get("instagram_business_account_id") == ig_account_id),
+            None,
+        )
         if not integration:
-            logger.warning("Instagram DM received but no active Instagram integration")
+            logger.warning("Instagram DM received but no matching active integration for account %s", ig_account_id)
             return {"status": "skipped", "reason": "no integration"}
 
         tenant_id = integration.tenant_id
