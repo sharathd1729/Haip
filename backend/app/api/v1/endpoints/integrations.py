@@ -430,7 +430,13 @@ def instagram_oauth_callback(
         )
         short_data = short_resp.json()
         if "access_token" not in short_data:
-            return HTMLResponse(f"<h3>Token exchange failed: {short_data}</h3>", status_code=400)
+            return HTMLResponse(
+                f"<h3>Token exchange failed: {short_data}</h3>"
+                f"<p>redirect_uri sent: {redirect_uri}</p>"
+                f"<p>client_id sent: {settings.INSTAGRAM_APP_ID}</p>"
+                f"<p>code length: {len(code)}</p>",
+                status_code=400,
+            )
 
         long_resp = httpx.get(
             "https://graph.instagram.com/access_token",
