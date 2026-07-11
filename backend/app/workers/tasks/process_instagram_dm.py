@@ -15,7 +15,6 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import datetime, timezone
-from celery import shared_task
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
@@ -23,11 +22,12 @@ from app.models.integration import Integration
 from app.models.guest import Guest
 from app.models.conversation import Conversation, Message, ChannelType, MessageDirection
 from app.core.encryption import decrypt_credentials
+from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=60, name="process_instagram_dm")
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60, name="process_instagram_dm")
 def process_instagram_dm(self, payload: dict) -> dict:
     """
     payload keys:
@@ -156,7 +156,6 @@ def process_instagram_dm(self, payload: dict) -> dict:
                         "message_id": message.id,
                         "conversation_id": conversation.id,
                         "tenant_id": tenant_id,
-                        "channel": "instagram",
                     },
                     countdown=2,
                 )
