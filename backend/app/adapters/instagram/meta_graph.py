@@ -11,7 +11,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-GRAPH_BASE = "https://graph.facebook.com/v20.0"
+GRAPH_BASE = "https://graph.instagram.com/v20.0"
 
 
 class InstagramGraphAdapter:
