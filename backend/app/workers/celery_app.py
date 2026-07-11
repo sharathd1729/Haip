@@ -107,6 +107,7 @@ celery_app.conf.update(
         # "celery" queue, which no worker here consumes.
         "process_instagram_dm":                     {"queue": "whatsapp"},
         "send_instagram_dm":                        {"queue": "whatsapp"},
+        "instagram_mark_seen":                       {"queue": "whatsapp"},
         "app.workers.tasks.sync_retalwise.*":       {"queue": "call_ingest"},
         "app.workers.tasks.sync_hostaway.*":        {"queue": "call_ingest"},
         "app.workers.tasks.call_ingest.*":          {"queue": "call_ingest"},
