@@ -92,6 +92,21 @@ def send_instagram_dm(self, message_id: str, tenant_id: str) -> dict:
         message.channel_status = "sent"
         db.commit()
 
+        # Notify SSE subscribers so the inbox updates the delivery tick without a page refresh
+        try:
+            import redis as _redis
+            from app.core.config import settings as _settings
+            import json as _json
+            _r = _redis.Redis.from_url(_settings.REDIS_URL, decode_responses=True, socket_connect_timeout=2)
+            _r.publish(f"sse:{tenant_id}", _json.dumps({
+                "event": "message_received",
+                "conversation_id": message.conversation_id,
+                "channel": "instagram",
+            }))
+            _r.close()
+        except Exception as _sse_exc:
+            logger.warning("sse_publish_failed: %s", _sse_exc)
+
         # Mark seen
         try:
             adapter.mark_seen(sender_id)
