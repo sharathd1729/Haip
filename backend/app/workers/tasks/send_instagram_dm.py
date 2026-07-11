@@ -15,6 +15,7 @@ from app.core.encryption import decrypt_credentials
 from app.models.integration import Integration
 from app.models.conversation import Message, Conversation
 from app.models.guest import Guest
+from app.models.guest_identity import GuestIdentity, IdentityType
 from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -43,9 +44,18 @@ def send_instagram_dm(self, message_id: str, tenant_id: str) -> dict:
         if not guest:
             return {"status": "error", "reason": "guest not found"}
 
-        sender_id = (guest.preferences or {}).get("instagram_id", "")
+        identity = (
+            db.query(GuestIdentity)
+            .filter_by(
+                tenant_id=tenant_id,
+                guest_id=guest.id,
+                identity_type=IdentityType.INSTAGRAM_USER_ID,
+            )
+            .first()
+        )
+        sender_id = identity.identity_value if identity else ""
         if not sender_id:
-            return {"status": "error", "reason": "guest has no instagram_id in preferences"}
+            return {"status": "error", "reason": "guest has no instagram_user_id identity"}
 
         # Get integration credentials
         integration = db.query(Integration).filter_by(
