@@ -26,29 +26,28 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    from sqlalchemy import text as _text
-
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        # ── Kill stale connections (best-effort — Neon may deny permission) ───
-        try:
-            connection.execute(_text(
-                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
-                "WHERE pid != pg_backend_pid() AND datname = current_database()"
-            ))
-        except Exception:
-            pass  # neondb_owner lacks pg_signal_backend — skip silently
-
-        # Fail fast: never wait more than 10s for a lock or 60s per statement.
-        try:
-            connection.execute(_text("SET lock_timeout = '10s'"))
-            connection.execute(_text("SET statement_timeout = '60s'"))
-        except Exception:
-            pass  # Some managed Postgres flavours don't allow SET — skip
+        # NOTE: this function previously ran two "best-effort" setup
+        # statements here before the real migration transaction:
+        #   1. pg_terminate_backend(...) — always denied on Neon's
+        #      neondb_owner role (lacks pg_signal_backend).
+        #   2. SET lock_timeout / SET statement_timeout — apparently also
+        #      rejected on Supabase's session pooler in this project.
+        # Both were wrapped in `except: pass`, which hid the failure — but a
+        # failed statement on a Postgres connection poisons that connection's
+        # transaction, so context.begin_transaction() below would silently
+        # begin (and later commit) an already-aborted transaction: every
+        # migration step logs as if it ran, but nothing is ever persisted and
+        # alembic_version never advances. This was the actual cause of two
+        # separate incidents (Neon stuck at 028, Supabase stuck at 033) where
+        # `alembic upgrade head` reported full success with zero effect.
+        # Removed both — neither is essential, and "fails loudly if broken"
+        # beats "silently pretends to work" for a migration runner.
 
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():

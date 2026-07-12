@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Optional
+import uuid
 import structlog
 
 from sqlalchemy.orm import Session
@@ -42,6 +43,39 @@ PLAN_GATED_FLAGS: dict[str, list[str]] = {
     "Enterprise": ["forecasting_enabled", "cohort_analysis_enabled",
                    "occupancy_forecast_enabled", "churn_risk_enabled"],
 }
+
+# Modules every workspace gets by default today (no paid module-selection
+# flow exists yet — see Phase 1 "Choose Modules" onboarding step). Used both
+# to backfill pre-existing tenants (migration 035) and to provision new
+# tenants at registration, so no workspace is ever left with zero rows.
+DEFAULT_MODULE_CODES: list[str] = [
+    "whatsapp", "instagram", "calls", "leads360", "channel_manager",
+    "analytics", "ask_haip", "ai_concierge", "campaigns", "flow_builder",
+]
+
+
+def provision_default_modules(db: Session, workspace_id: str, activated_by: Optional[str] = None) -> None:
+    """
+    Insert workspace_modules rows for the default module set, if not already
+    present. Idempotent — safe to call on every tenant creation.
+    """
+    from app.models.module import Module, WorkspaceModule
+
+    already = {
+        row.module_id for row in
+        db.query(WorkspaceModule.module_id).filter(WorkspaceModule.workspace_id == workspace_id).all()
+    }
+    modules = db.query(Module).filter(Module.code.in_(DEFAULT_MODULE_CODES)).all()
+    for module in modules:
+        if module.id in already:
+            continue
+        db.add(WorkspaceModule(
+            id=str(uuid.uuid4()),
+            workspace_id=workspace_id,
+            module_id=module.id,
+            enabled=True,
+            activated_by=activated_by,
+        ))
 
 
 @dataclass

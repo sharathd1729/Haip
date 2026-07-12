@@ -37,7 +37,8 @@ _STRICT_PREFIXES = (
     "/api/v1/auth/register",
     "/api/v1/auth/otp/send",
     "/api/v1/auth/otp/verify",
-    "/api/v1/auth/password/reset",
+    "/api/v1/auth/forgot-password",
+    "/api/v1/auth/reset-password",
 )
 
 # Routes with tighter per-tenant send limits

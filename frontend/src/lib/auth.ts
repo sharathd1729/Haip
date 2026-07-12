@@ -70,9 +70,35 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       async authorize(credentials) {
         const email = credentials?.email as string;
         const password = credentials?.password as string;
+        const preAuthAccessToken = credentials?.preAuthAccessToken as string | undefined;
+        const preAuthRefreshToken = credentials?.preAuthRefreshToken as string | undefined;
         const apiBase = process.env.BACKEND_URL
           ?? process.env.NEXT_PUBLIC_API_URL
           ?? "http://localhost:8000";
+
+        // Tokens already obtained by the login page itself — e.g. after
+        // completing an MFA challenge or WhatsApp OTP verification directly
+        // against the backend. Trust them, just build the session from /me.
+        if (preAuthAccessToken) {
+          try {
+            const meRes = await fetch(`${apiBase}/api/v1/auth/me`, {
+              headers: { Authorization: `Bearer ${preAuthAccessToken}` },
+            });
+            if (!meRes.ok) return null;
+            const me = await meRes.json();
+            return {
+              id: me.id, name: me.full_name ?? me.name, email: me.email,
+              role: me.role, tenantId: me.tenant_id ?? "haip-villa",
+              onboardingStep: me.onboarding_step ?? 0,
+              accessToken: preAuthAccessToken,
+              refreshToken: preAuthRefreshToken ?? "",
+              accessTokenExpires: getTokenExpiry(preAuthAccessToken),
+            };
+          } catch (e) {
+            console.error("[AUTH] pre-auth token session build failed:", e);
+            return null;
+          }
+        }
 
         // Try real backend first (preferred — returns proper JWT for API calls)
         try {
@@ -86,6 +112,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           console.log("[AUTH] login response status:", res.status);
           if (res.ok) {
             const data = await res.json();
+            if (data.mfa_required) {
+              // This legacy branch can't complete an MFA challenge — callers
+              // that need MFA support must use the login page's dedicated
+              // flow (direct /auth/login call + preAuthAccessToken above).
+              console.warn("[AUTH] mfa_required via legacy authorize() branch — rejecting");
+              return null;
+            }
             const accessToken = data.access_token;
             const meUrl = `${apiBase}/api/v1/auth/me`;
             console.log("[AUTH] calling me →", meUrl);
@@ -116,23 +149,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           console.error("[AUTH] fetch error:", e);
         }
 
-        // Demo bypass fallback (when backend is unavailable)
-        const DEMO_USERS: Record<string, { name: string; role: string }> = {
-          "owner@haip.dev":       { name: "Sharath D.",     role: "owner" },
-          "manager@haip.dev":     { name: "Priya Menon",    role: "manager" },
-          "concierge@haip.dev":   { name: "Ravi Kumar",     role: "concierge" },
-          "reservations@haip.dev":{ name: "Ananya Singh",   role: "reservations" },
-          "compliance@haip.dev":  { name: "Deepa Nair",     role: "compliance" },
-          "sharath@ratha.in":             { name: "Sharath D.", role: "owner" },
-          "dasupatrunisharatchandra@gmail.com": { name: "Sharath D.", role: "owner" },
-        };
-        if (password === "haip2026" && DEMO_USERS[email]) {
-          const u = DEMO_USERS[email];
-          return { id: `demo-${email}`, name: u.name, email, role: u.role, tenantId: "haip-villa", onboardingStep: 9, accessToken: "demo", refreshToken: "" };
-        }
-        // Owner fallback — real password, survives DB wipes
-        if (email === "dasupatrunisharatchandra@gmail.com" && password === "Raina@1729") {
-          return { id: "sharath-owner", name: "Sharath D.", email, role: "owner", tenantId: "haip-villa", onboardingStep: 9, accessToken: "owner-bypass", refreshToken: "" };
+        // Demo bypass fallback (when backend is unavailable) — dev/staging only.
+        // Never active in production, regardless of whether the backend is reachable.
+        if (process.env.NODE_ENV !== "production") {
+          const DEMO_USERS: Record<string, { name: string; role: string }> = {
+            "owner@haip.dev":       { name: "Sharath D.",     role: "owner" },
+            "manager@haip.dev":     { name: "Priya Menon",    role: "manager" },
+            "concierge@haip.dev":   { name: "Ravi Kumar",     role: "concierge" },
+            "reservations@haip.dev":{ name: "Ananya Singh",   role: "reservations" },
+            "compliance@haip.dev":  { name: "Deepa Nair",     role: "compliance" },
+            "sharath@ratha.in":             { name: "Sharath D.", role: "owner" },
+            "dasupatrunisharatchandra@gmail.com": { name: "Sharath D.", role: "owner" },
+          };
+          if (password === "haip2026" && DEMO_USERS[email]) {
+            const u = DEMO_USERS[email];
+            return { id: `demo-${email}`, name: u.name, email, role: u.role, tenantId: "haip-villa", onboardingStep: 9, accessToken: "demo", refreshToken: "" };
+          }
+          // Owner fallback — real password, survives DB wipes
+          if (email === "dasupatrunisharatchandra@gmail.com" && password === "Raina@1729") {
+            return { id: "sharath-owner", name: "Sharath D.", email, role: "owner", tenantId: "haip-villa", onboardingStep: 9, accessToken: "owner-bypass", refreshToken: "" };
+          }
         }
         return null;
       },

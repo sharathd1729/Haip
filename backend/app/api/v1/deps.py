@@ -78,8 +78,13 @@ def get_workspace_context(
     """
     FastAPI dependency: returns WorkspaceContext for the current user's workspace.
     L1 Redis cache (5 min TTL) → DB fallback.
-    Non-breaking: if workspace has no module rows (backfill pending), returns
-    a permissive context that allows all access.
+
+    Every tenant is provisioned with workspace_modules rows at creation time
+    (provision_default_modules(), called from /auth/register) and existing
+    tenants were backfilled in migration 035 — so a workspace with zero rows
+    today is a genuine anomaly (provisioning failed/was skipped), not the
+    normal "not yet backfilled" case. Fail closed: no active modules until
+    someone provisions the workspace, rather than granting full access.
     """
     from app.services.workspace_context import load_workspace_context, WorkspaceContext
     from app.models.module import WorkspaceModule
@@ -103,15 +108,8 @@ def get_workspace_context(
 
     if not has_any_modules:
         import structlog
-        structlog.get_logger().warning("module_backfill_pending", workspace_id=wid)
-        ctx = WorkspaceContext(
-            workspace_id=wid,
-            active_modules=["whatsapp", "instagram", "calls", "leads360",
-                            "channel_manager", "analytics", "ask_haip",
-                            "ai_concierge", "campaigns", "flow_builder"],
-            flags={},
-            plan="growth",
-        )
+        structlog.get_logger().error("workspace_unprovisioned", workspace_id=wid)
+        ctx = WorkspaceContext(workspace_id=wid, active_modules=[], flags={}, plan="growth")
     else:
         ctx = load_workspace_context(db, wid)
 

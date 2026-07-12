@@ -1,5 +1,5 @@
 # HAIP — Claude Code Working Instructions
-**Version**: 2.1 · **Owner**: Sharath D. · **Updated**: May 2026
+**Version**: 2.2 · **Owner**: Sharath D. · **Updated**: July 2026
 **Reference docs**: HAIP_FULL_BUILD_PLAN.md · architecture-delta.md · execution-plan.md
 
 ---
@@ -227,12 +227,33 @@ Legacy `SITE_VISIT` kept in enum for data compat — do not remove.
 ## SECURITY — NON-NEGOTIABLE
 
 - No bypass tokens (demo/owner-bypass removed)
+  ⚠️ **Not currently true in practice** — `frontend/src/lib/auth.ts` still has hardcoded demo/owner-bypass credentials, now gated behind `process.env.NODE_ENV !== "production"` (July 2026) rather than fully removed. Revisit: either strip it entirely to match this rule, or update this rule to explicitly say "dev/staging only."
 - No dev fallback encryption keys
 - Per-tenant webhook secrets (not global shared secret)
 - SSRF protection on all external URL fetches
 - PII never logged in plaintext — hash phone numbers in logs (`_phone_token()`)
 - WhatsApp verify token uses `secrets.compare_digest` not `==`
 - **Agent-added phone/email signals**: auto-write `Consent` row with `consent_source="agent_manual"`, `collected_by=user_id`, `collected_at=now`, `signal_type=type` (handled in `identity_service.add_signal()`)
+
+---
+
+## AUTH & IAM — PHASE 0 (July 2026)
+
+Backend auth is custom JWT (HS256) via `backend/app/api/v1/endpoints/auth.py` — **not** Supabase Auth (evaluated, explicitly declined; see below). NextAuth v5 on the frontend (`frontend/src/lib/auth.ts`) is a thin client that exchanges credentials for these backend tokens — never trusts its own session data for authorization.
+
+**What changed this phase (all live, verified against Supabase prod schema):**
+- **MFA (TOTP) is now enforced at login** — previously `is_mfa_enabled` was set by `/mfa/setup`+`/mfa/verify` but never checked in `login()`. Now: password-verified + MFA-enabled accounts get a short-lived `mfa_challenge` token (`create_mfa_challenge_token()`, 5min, distinct `type` claim so `get_current_user()` rejects it as a real access token) instead of full tokens; client completes `/auth/mfa/verify` to finish. Frontend: login page has a dedicated MFA code-entry step; `auth.ts`'s `authorize()` gained a `preAuthAccessToken`/`preAuthRefreshToken` branch for any flow (MFA, WhatsApp OTP) that already obtained real tokens directly from the backend before touching NextAuth.
+- **Rate limiter path bug fixed** — strict tier was configured for `/auth/password/reset`, but the real endpoints are `/auth/forgot-password` and `/auth/reset-password`; they were silently falling through to the 60/min unauthenticated tier. Fixed in `backend/app/middleware/rate_limit.py`.
+- **DPDP signup consent now persisted** — `users.consent_transactional/marketing/analytics/consent_recorded_at` columns added (migration `034`); previously the register form sent these fields but `RegisterRequest` didn't declare them, so Pydantic silently dropped them.
+- **`user_invitations.expires_at` is now `TIMESTAMPTZ`**, not a fragile ISO string column (migration `034`). Compare directly (`datetime.now(timezone.utc) > invitation.expires_at`) — no more `.fromisoformat()`/`.replace("Z", ...)` parsing.
+- **Module/flag entitlement now fails closed**, not open. `get_workspace_context()` in `deps.py` used to grant every workspace with zero `workspace_modules` rows full access (meant to survive the migration-031 backfill window, but the backfill never actually ran for any pre-existing tenant). Migration `035` backfilled real rows for every existing tenant; every new tenant now gets provisioned via `workspace_context.provision_default_modules()` (called from `/auth/register`) so no workspace is ever left at zero rows. A zero-row workspace today is treated as a genuine anomaly and gets **no** module access, logged as `workspace_unprovisioned` (ERROR level).
+- **Google Sign-In was built, then explicitly reverted** at the user's request — do not re-add without being asked. If revisited: `User.google_id` column already exists (unused), backend verification must independently check the ID token against Google's public keys (`google-auth`, already a transitive dep via `google-generativeai`) rather than trusting client-supplied claims, and must respect a linked account's existing MFA requirement.
+- **Supabase Auth migration was evaluated and declined** — current backend RLS relies on `current_setting('app.tenant_id')` set per-request via `set_tenant_context()`, not `auth.uid()`. Production DB *is* Supabase-hosted Postgres (confirmed July 2026), so a future hosted-Supabase-Auth migration wouldn't require a database move — but there's no active plan to do this.
+
+**⚠️ Alembic migration gotcha — read before touching `backend/alembic/`:**
+`env.py` previously ran two "best-effort" setup statements before every migration transaction (`pg_terminate_backend(...)` and `SET lock_timeout`/`SET statement_timeout`), both wrapped in a silent `except: pass`. A failed statement poisons the rest of that connection's transaction in Postgres — so every migration after it would log "success" via Alembic's step-by-step logging (which fires before each step runs) while nothing ever actually committed, and `alembic_version` would never advance. This cost real time on both Neon (`neondb_owner` lacks `pg_signal_backend` — always failed) and Supabase (session pooler rejected the `SET` calls). Both statements are now removed. **If `alembic upgrade head` ever again logs success without `alembic_version` moving, suspect a silently-swallowed exception earlier in the same transaction, not a "did it really run" mystery** — check `env.py` first.
+
+**Known pre-existing test debt (not caused by Phase 0 work):** `backend/tests/` has ~45 failing tests as of this writing (`test_auth.py`, `test_dashboard_api.py`, `test_analytics_executive.py`, `test_calls.py`, and others) — verified these predate Phase 0 and are test/fixture drift (e.g. `test_auth.py` posts OAuth2 form-encoded `username`/`password` to a JSON-only `/login` endpoint; `test_dashboard_api.py` unpacks a 4-key fixture dict into 3 variables). 207 tests pass. Worth a dedicated cleanup pass — not attempted here to stay in scope.
 
 ---
 

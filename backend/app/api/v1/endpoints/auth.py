@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.core.security import (
     verify_password, get_password_hash,
     create_access_token, create_refresh_token, decode_token,
+    create_mfa_challenge_token,
 )
 from app.models.user import User, RefreshToken, UserInvitation, UserRole
 from app.models.tenant import Tenant
@@ -47,15 +48,28 @@ class RegisterRequest(BaseModel):
     password: str
     tenant_name: str
     tenant_slug: str
+    consent_transactional: bool = True
+    consent_marketing: bool = False
+    consent_analytics: bool = False
 
 
-@router.post("/login", response_model=LoginResponse)
+class MFARequiredResponse(BaseModel):
+    mfa_required: bool = True
+    mfa_token: str
+
+
+@router.post("/login")
 def login(req: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter_by(email=req.email, is_deleted=False).first()
     if not user or not verify_password(req.password, user.hashed_password or ""):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled")
+
+    # MFA-enabled accounts don't get full tokens from password alone — the
+    # client must complete /auth/mfa/verify with this challenge token.
+    if user.is_mfa_enabled:
+        return MFARequiredResponse(mfa_token=create_mfa_challenge_token(user.id)).model_dump()
 
     payload = {"sub": user.id, "tenant_id": user.tenant_id, "role": user.role.value}
     access = create_access_token(payload)
@@ -103,6 +117,9 @@ async def register(req: RegisterRequest, db: Session = Depends(get_db)):
     db.add(tenant)
     db.flush()
 
+    from app.services.workspace_context import provision_default_modules
+    provision_default_modules(db, tenant.id)
+
     from app.models.user import UserRole
     user = User(
         id=str(uuid.uuid4()),
@@ -112,6 +129,10 @@ async def register(req: RegisterRequest, db: Session = Depends(get_db)):
         hashed_password=get_password_hash(req.password),
         role=UserRole.OWNER,
         is_active=True,
+        consent_transactional=req.consent_transactional,
+        consent_marketing=req.consent_marketing,
+        consent_analytics=req.consent_analytics,
+        consent_recorded_at=datetime.now(timezone.utc),
     )
     db.add(user)
     db.commit()
@@ -328,12 +349,8 @@ def preview_invitation(token: str, db: Session = Depends(get_db)):
     invitation = db.query(UserInvitation).filter_by(token=token, is_accepted=False, is_revoked=False).first()
     if not invitation:
         raise HTTPException(status_code=404, detail="Invitation not found or already used")
-    try:
-        expires = datetime.fromisoformat(str(invitation.expires_at).replace("Z", "+00:00"))
-        if datetime.now(timezone.utc) > expires:
-            raise HTTPException(status_code=400, detail="Invitation has expired")
-    except (ValueError, TypeError):
-        pass
+    if datetime.now(timezone.utc) > invitation.expires_at:
+        raise HTTPException(status_code=400, detail="Invitation has expired")
 
     tenant = db.query(Tenant).filter_by(id=invitation.tenant_id).first()
     return {
@@ -550,13 +567,8 @@ def accept_invitation(body: dict, db: Session = Depends(get_db)):
     if not invitation:
         raise HTTPException(status_code=404, detail="Invitation not found or already used")
 
-    # Check expiry
-    try:
-        expires = datetime.fromisoformat(invitation.expires_at.replace("Z", "+00:00"))
-        if datetime.now(timezone.utc) > expires:
-            raise HTTPException(status_code=400, detail="Invitation has expired")
-    except ValueError:
-        pass
+    if datetime.now(timezone.utc) > invitation.expires_at:
+        raise HTTPException(status_code=400, detail="Invitation has expired")
 
     # Check if user already exists in this tenant (created at invite time)
     user = db.query(User).filter_by(email=invitation.email, tenant_id=invitation.tenant_id).first()
