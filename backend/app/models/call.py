@@ -66,7 +66,7 @@ class Call(Base, TimestampMixin, TenantMixin):
     recording_s3_key = Column(Text, nullable=True)   # Our S3 key
     recording_fetched = Column(Boolean, default=False)  # legacy; use recording_status instead
     recording_status = Column(
-        SAEnum(RecordingStatus),
+        SAEnum(RecordingStatus, values_callable=lambda x: [e.value for e in x]),
         nullable=True,
         default=RecordingStatus.PENDING,
     )

@@ -104,7 +104,8 @@ class Message(Base, TimestampMixin, TenantMixin):
     # Delivery state — tracks the outbound send lifecycle independently of approval
     # NULL for inbound messages; defaults to 'pending' for outbound (migration 006)
     delivery_state = Column(
-        SAEnum(MessageDeliveryState), nullable=True,
+        SAEnum(MessageDeliveryState, values_callable=lambda x: [e.value for e in x]),
+        nullable=True,
         default=None,  # set explicitly in send_message endpoint
     )
     delivery_error = Column(Text, nullable=True)  # last error from Meta API

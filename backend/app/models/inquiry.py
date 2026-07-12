@@ -61,9 +61,12 @@ class Inquiry(Base, TimestampMixin, TenantMixin):
     property_id = Column(String, ForeignKey("properties.id"), nullable=True, index=True)
     assigned_to = Column(String, ForeignKey("users.id"), nullable=True, index=True)
 
-    stage = Column(SAEnum(InquiryStage), default=InquiryStage.NEW, nullable=False, index=True)
-    source = Column(SAEnum(InquirySource), nullable=True)
-    lost_reason = Column(SAEnum(LostReason), nullable=True)
+    stage = Column(
+        SAEnum(InquiryStage, values_callable=lambda x: [e.value for e in x]),
+        default=InquiryStage.NEW, nullable=False, index=True,
+    )
+    source = Column(SAEnum(InquirySource, values_callable=lambda x: [e.value for e in x]), nullable=True)
+    lost_reason = Column(SAEnum(LostReason, values_callable=lambda x: [e.value for e in x]), nullable=True)
     lost_note = Column(Text, nullable=True)
 
     # Booking intent
