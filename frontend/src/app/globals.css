@@ -301,6 +301,31 @@
   :root:not(.dark) main .border-white\/10      { border-color: rgba(0,0,0,0.08) !important; }
 }
 
+/* ── Homepage design tokens (enterprise rewrite) ─────────────────────────────
+   Scoped under .haip-home so the new palette never leaks into the other
+   marketing pages, which still read the --mkt-* tokens above.
+────────────────────────────────────────────────────────────────────────────── */
+.haip-home {
+  --home-bg:           #FAFAF8;
+  --home-card:         #FFFFFF;
+  --home-text:         #111111;
+  --home-text-muted:   #666666;
+  --home-text-subtle:  #8A8A85;
+  --home-border:       #ECECEC;
+  --home-accent:       #0B6B5E;
+  --home-accent-hover: #094C44;
+  --home-accent-soft:  rgba(11, 107, 94, 0.08);
+  --home-success:      #1F9D55;
+  --home-warning:      #D97706;
+  --home-error:        #DC2626;
+  --home-shadow-sm:    0 1px 2px rgba(17, 17, 17, 0.05);
+  --home-shadow-md:    0 2px 8px rgba(17, 17, 17, 0.06), 0 1px 2px rgba(17, 17, 17, 0.04);
+  --home-shadow-lg:    0 12px 32px rgba(17, 17, 17, 0.10), 0 2px 8px rgba(17, 17, 17, 0.05);
+  color-scheme: light;
+  background-color: var(--home-bg);
+  color: var(--home-text);
+}
+
 /* ── Marketing animations ────────────────────────────────────────────────── */
 @keyframes haipFadeUp {
   from { opacity: 0; transform: translateY(24px); }
