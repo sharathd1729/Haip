@@ -41,7 +41,7 @@ def run_migrations_online() -> None:
         try:
             connection.rollback()
         except Exception as _e:
-            print(f"[env.py DEBUG] initial rollback failed: {_e!r}")
+            print(f"[env.py DEBUG] initial rollback failed: {_e!r}", flush=True)
 
         # ── Kill stale connections (best-effort — some managed Postgres
         # providers deny permission, e.g. Neon's neondb_owner, or Supabase's
@@ -55,7 +55,7 @@ def run_migrations_online() -> None:
                 "WHERE pid != pg_backend_pid() AND datname = current_database()"
             ))
         except Exception as _e:
-            print(f"[env.py DEBUG] pg_terminate_backend failed: {_e!r}")
+            print(f"[env.py DEBUG] pg_terminate_backend failed: {_e!r}", flush=True)
             connection.rollback()
 
         # Fail fast: never wait more than 10s for a lock or 60s per statement.
@@ -63,9 +63,10 @@ def run_migrations_online() -> None:
             connection.execute(_text("SET lock_timeout = '10s'"))
             connection.execute(_text("SET statement_timeout = '60s'"))
         except Exception as _e:
-            print(f"[env.py DEBUG] SET lock_timeout/statement_timeout failed: {_e!r}")
+            print(f"[env.py DEBUG] SET lock_timeout/statement_timeout failed: {_e!r}", flush=True)
             connection.rollback()
 
+        print(f"[env.py DEBUG] reached context.configure() cleanly, connection.in_transaction()={connection.in_transaction()}", flush=True)
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
             context.run_migrations()
