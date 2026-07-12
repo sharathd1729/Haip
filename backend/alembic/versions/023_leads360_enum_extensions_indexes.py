@@ -37,26 +37,13 @@ def upgrade() -> None:
     op.execute("ALTER TYPE inquirystage ADD VALUE IF NOT EXISTS 'site_visit_done'")
 
     # ── Performance indexes for Leads360 pipeline query ───────────────────────
-    op.create_index(
-        "ix_inquiries_tenant_id_stage",
-        "inquiries",
-        ["tenant_id", "stage"],
-    )
-    op.create_index(
-        "ix_inquiries_tenant_id_source",
-        "inquiries",
-        ["tenant_id", "source"],
-    )
-    op.create_index(
-        "ix_inquiries_tenant_id_assigned_to",
-        "inquiries",
-        ["tenant_id", "assigned_to"],
-    )
-    op.create_index(
-        "ix_inquiries_tenant_id_updated_at",
-        "inquiries",
-        ["tenant_id", "updated_at"],
-    )
+    # IF NOT EXISTS: this migration runs with transaction_per_migration=False
+    # (required for ALTER TYPE ADD VALUE), so a partial failure on a retry
+    # can leave some of these already created — must be idempotent.
+    op.execute("CREATE INDEX IF NOT EXISTS ix_inquiries_tenant_id_stage ON inquiries (tenant_id, stage)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_inquiries_tenant_id_source ON inquiries (tenant_id, source)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_inquiries_tenant_id_assigned_to ON inquiries (tenant_id, assigned_to)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_inquiries_tenant_id_updated_at ON inquiries (tenant_id, updated_at)")
 
 
 def downgrade() -> None:
