@@ -215,9 +215,16 @@ def list_invitations(
         tenant_id=current_user.tenant_id
     ).order_by(UserInvitation.created_at.desc()).all()
 
+    inviter_ids = list({inv.invited_by for inv in invitations if inv.invited_by})
+    inviters_by_id = {}
+    if inviter_ids:
+        inviters_by_id = {
+            u.id: u for u in db.query(User).filter(User.id.in_(inviter_ids)).all()
+        }
+
     result = []
     for inv in invitations:
-        inviter = db.query(User).filter_by(id=inv.invited_by).first()
+        inviter = inviters_by_id.get(inv.invited_by)
         result.append(InvitationOut(
             id=inv.id,
             email=inv.email,
