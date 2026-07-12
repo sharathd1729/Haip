@@ -34,6 +34,15 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
+        # Some PgBouncer session-pooler setups (e.g. Supabase's pooled
+        # connection) can hand back a connection left in an aborted
+        # transaction state by a prior session. Force a clean slate before
+        # doing anything else, regardless of what state we inherited.
+        try:
+            connection.rollback()
+        except Exception as _e:
+            print(f"[env.py DEBUG] initial rollback failed: {_e!r}")
+
         # ── Kill stale connections (best-effort — some managed Postgres
         # providers deny permission, e.g. Neon's neondb_owner, or Supabase's
         # pooled connections). A failed statement here leaves the Postgres
