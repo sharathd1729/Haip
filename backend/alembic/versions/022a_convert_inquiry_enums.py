@@ -44,10 +44,16 @@ def upgrade() -> None:
     stage_enum.create(conn, checkfirst=True)
     source_enum.create(conn, checkfirst=True)
 
+    # stage has a server_default ('new') that Postgres can't auto-cast to
+    # the new enum type — drop it, convert, then re-add cast to the enum.
+    op.execute("ALTER TABLE inquiries ALTER COLUMN stage DROP DEFAULT")
     op.execute(
         "ALTER TABLE inquiries ALTER COLUMN stage TYPE inquirystage "
         "USING stage::inquirystage"
     )
+    op.execute("ALTER TABLE inquiries ALTER COLUMN stage SET DEFAULT 'new'::inquirystage")
+
+    # source has no server_default (migration 001), so no drop/re-add needed.
     op.execute(
         "ALTER TABLE inquiries ALTER COLUMN source TYPE inquirysource "
         "USING source::inquirysource"
