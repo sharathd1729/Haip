@@ -9,7 +9,7 @@ import math
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, cast, DateTime
 import structlog
 
 log = structlog.get_logger()
@@ -85,13 +85,18 @@ def get_call_anomalies(db: Session, tenant_id: str, range_days: int = 30) -> Lis
     now = datetime.now(timezone.utc)
     start = now - timedelta(days=range_days + 14)  # +14 for warmup window
 
+    # Call.started_at is stored as String (ISO datetime text), not a native
+    # timestamp column -- Postgres has no >= operator between varchar and
+    # timestamptz, so both the filter and the date() grouping need an
+    # explicit cast rather than relying on implicit coercion.
+    started_at_ts = cast(Call.started_at, DateTime(timezone=True))
     rows = db.query(
-        func.date(Call.started_at).label("d"),
+        func.date(started_at_ts).label("d"),
         func.count(Call.id).label("count"),
         func.coalesce(func.avg(Call.ai_score), 0).label("avg_score"),
     ).filter(
         Call.tenant_id == tenant_id,
-        Call.started_at >= start,
+        started_at_ts >= start,
     ).group_by("d").order_by("d").all()
 
     series = [{"date": str(r.d), "count": r.count, "avg_score": float(r.avg_score)} for r in rows]
