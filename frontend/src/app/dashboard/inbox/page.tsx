@@ -467,15 +467,39 @@ export default function InboxPage() {
         replied_to_message_id: replied_to_message_id ?? null,
         scheduled_for: scheduled_for ?? null,
       }),
-    onSuccess: () => {
+    // Optimistic insert — show the message immediately instead of waiting on
+    // the full send round trip (Meta API call + DB write can take several
+    // seconds). Reconciled with the real row once the query is invalidated.
+    onMutate: async ({ text, is_internal, replied_to_message_id }) => {
+      const key = ["conversation", activeConversationId];
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<ConversationDetail>(key);
+      const optimisticMessage: Message = {
+        id: `optimistic-${Date.now()}`,
+        text,
+        direction: "outbound",
+        status: "queued",
+        timestamp: new Date().toISOString(),
+        is_internal: is_internal ?? false,
+        replied_to_message_id: replied_to_message_id ?? undefined,
+      };
+      queryClient.setQueryData<ConversationDetail>(key, (old) =>
+        old ? { ...old, messages: [...old.messages, optimisticMessage] } : old
+      );
       setReplyText("");
       setIsInternalNote(false);
       setReplyToMsg(null);
       setScheduledFor(null);
       setShowSchedule(false);
-      queryClient.invalidateQueries({ queryKey: ["conversation", activeConversationId] });
+      return { previous, key };
     },
-    onError: () => toast({ variant: "error", title: "Send failed" }),
+    onSuccess: (_data, _vars, context) => {
+      queryClient.invalidateQueries({ queryKey: context?.key ?? ["conversation", activeConversationId] });
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(context.key, context.previous);
+      toast({ variant: "error", title: "Send failed" });
+    },
   });
 
   const retryMutation = useMutation({
