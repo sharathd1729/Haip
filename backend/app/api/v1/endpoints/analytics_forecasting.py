@@ -123,30 +123,39 @@ def occupancy_forecast(
     if prop_ids:
         props_q = props_q.filter(Property.id.in_(prop_ids))
     props = props_q.all()
+    all_pids = [str(p.id) for p in props]
+
+    # Batch-fetch stays and blocked dates for every property in one query each
+    # instead of issuing 2 queries per property (was 2×N).
+    stays_by_prop: dict[str, list[tuple]] = {pid: [] for pid in all_pids}
+    if all_pids:
+        stays_raw_all = db.query(Stay.property_id, Stay.check_in, Stay.check_out).filter(
+            Stay.tenant_id == tid,
+            Stay.property_id.in_(all_pids),
+            Stay.status.in_(["confirmed", "checked_in", "checked_out"]),
+            Stay.check_in < forecast_end.isoformat(),
+            Stay.check_out > history_start.isoformat(),
+        ).all()
+        for r in stays_raw_all:
+            stays_by_prop.setdefault(str(r.property_id), []).append((r.check_in, r.check_out))
+
+    blocked_by_prop: dict[str, list[tuple]] = {pid: [] for pid in all_pids}
+    if all_pids:
+        blocked_raw_all = db.query(BlockedDate.property_id, BlockedDate.blocked_from, BlockedDate.blocked_to).filter(
+            BlockedDate.tenant_id == tid,
+            BlockedDate.property_id.in_(all_pids),
+            BlockedDate.blocked_from < forecast_end.isoformat(),
+            BlockedDate.blocked_to > history_start.isoformat(),
+        ).all()
+        for r in blocked_raw_all:
+            blocked_by_prop.setdefault(str(r.property_id), []).append((r.blocked_from, r.blocked_to))
 
     prop_forecasts: list[PropertyOccupancyForecast] = []
 
     for prop in props:
         pid = str(prop.id)
-
-        # Fetch all relevant stays
-        stays_raw = db.query(Stay.check_in, Stay.check_out).filter(
-            Stay.tenant_id == tid,
-            Stay.property_id == pid,
-            Stay.status.in_(["confirmed", "checked_in", "checked_out"]),
-            Stay.check_in < forecast_end.isoformat(),
-            Stay.check_out > history_start.isoformat(),
-        ).all()
-        stays = [(r.check_in, r.check_out) for r in stays_raw]
-
-        # Fetch blocked dates
-        blocked_raw = db.query(BlockedDate.blocked_from, BlockedDate.blocked_to).filter(
-            BlockedDate.tenant_id == tid,
-            BlockedDate.property_id == pid,
-            BlockedDate.blocked_from < forecast_end.isoformat(),
-            BlockedDate.blocked_to > history_start.isoformat(),
-        ).all()
-        blocked = [(r.blocked_from, r.blocked_to) for r in blocked_raw]
+        stays = stays_by_prop.get(pid, [])
+        blocked = blocked_by_prop.get(pid, [])
 
         # Build 90d historical occupancy series (1 room = 1 property unit)
         hist_pcts: list[float] = []
@@ -372,6 +381,20 @@ def pricing_suggestions(
     if prop_ids:
         props_q = props_q.filter(Property.id.in_(prop_ids))
     props = props_q.all()
+    all_pids = [str(p.id) for p in props]
+
+    # Batch-fetch upcoming stays for every property in one query (was N queries).
+    stays_by_prop: dict[str, list] = {pid: [] for pid in all_pids}
+    if all_pids:
+        upcoming_stays_all = db.query(Stay.property_id, Stay.check_in, Stay.check_out).filter(
+            Stay.tenant_id == tid,
+            Stay.property_id.in_(all_pids),
+            Stay.status.in_(["confirmed", "checked_in"]),
+            Stay.check_in < month_end.isoformat(),
+            Stay.check_out > today.isoformat(),
+        ).all()
+        for s in upcoming_stays_all:
+            stays_by_prop.setdefault(str(s.property_id), []).append(s)
 
     suggestions: list[PricingSuggestionRow] = []
     total_uplift = 0.0
@@ -403,13 +426,7 @@ def pricing_suggestions(
             base_price = float(seasonal.price_per_night)
 
         # Occupancy in next 30 days
-        upcoming_stays = db.query(Stay.check_in, Stay.check_out).filter(
-            Stay.tenant_id == tid,
-            Stay.property_id == pid,
-            Stay.status.in_(["confirmed", "checked_in"]),
-            Stay.check_in < month_end.isoformat(),
-            Stay.check_out > today.isoformat(),
-        ).all()
+        upcoming_stays = stays_by_prop.get(pid, [])
 
         booked_nights = 0
         for s in upcoming_stays:

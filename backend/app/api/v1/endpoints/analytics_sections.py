@@ -700,32 +700,41 @@ def operations_analytics(
             pass
     avg_resp = round(sorted(resp_times)[len(resp_times)//2] if resp_times else 0, 0)
 
-    # Agent leaderboard
+    # Agent leaderboard — grouped aggregate queries instead of 5 queries per agent.
+    agent_ids = [a.id for a in agents]
+    call_stats_by_agent: dict = {}
+    if agent_ids:
+        call_rows = (
+            db.query(
+                Call.agent_id,
+                func.count(Call.id),
+                func.avg(case((Call.ai_score.isnot(None), Call.ai_score))),
+            )
+            .filter(Call.tenant_id == tid, Call.agent_id.in_(agent_ids), Call.started_at >= start.isoformat())
+            .group_by(Call.agent_id)
+            .all()
+        )
+        call_stats_by_agent = {row[0]: (row[1] or 0, float(row[2] or 0)) for row in call_rows}
+
+    inq_stats_by_agent: dict = {}
+    if agent_ids:
+        inq_rows = (
+            db.query(
+                Inquiry.assigned_to,
+                func.count(Inquiry.id),
+                func.sum(case((Inquiry.first_response_at.isnot(None), 1), else_=0)),
+                func.sum(case((Inquiry.sla_breached == True, 1), else_=0)),
+            )
+            .filter(Inquiry.tenant_id == tid, Inquiry.assigned_to.in_(agent_ids), Inquiry.created_at >= start.isoformat())
+            .group_by(Inquiry.assigned_to)
+            .all()
+        )
+        inq_stats_by_agent = {row[0]: (row[1] or 0, row[2] or 0, row[3] or 0) for row in inq_rows}
+
     leaderboard = []
     for agent in agents:
-        calls_n = db.query(func.count(Call.id)).filter(
-            Call.tenant_id == tid, Call.agent_id == agent.id,
-            Call.started_at >= start.isoformat(),
-        ).scalar() or 0
-        qa_avg = float(db.query(func.avg(Call.ai_score)).filter(
-            Call.tenant_id == tid, Call.agent_id == agent.id,
-            Call.ai_score.isnot(None),
-            Call.started_at >= start.isoformat(),
-        ).scalar() or 0)
-        inq_n = db.query(func.count(Inquiry.id)).filter(
-            Inquiry.tenant_id == tid, Inquiry.assigned_to == agent.id,
-            Inquiry.created_at >= start.isoformat(),
-        ).scalar() or 0
-        inq_total = db.query(func.count(Inquiry.id)).filter(
-            Inquiry.tenant_id == tid, Inquiry.assigned_to == agent.id,
-            Inquiry.first_response_at.isnot(None),
-            Inquiry.created_at >= start.isoformat(),
-        ).scalar() or 0
-        inq_breach = db.query(func.count(Inquiry.id)).filter(
-            Inquiry.tenant_id == tid, Inquiry.assigned_to == agent.id,
-            Inquiry.sla_breached == True,
-            Inquiry.created_at >= start.isoformat(),
-        ).scalar() or 0
+        calls_n, qa_avg = call_stats_by_agent.get(agent.id, (0, 0.0))
+        inq_n, inq_total, inq_breach = inq_stats_by_agent.get(agent.id, (0, 0, 0))
         sla_agent = _safe_pct(inq_total - inq_breach, inq_total) if inq_total else 100.0
 
         leaderboard.append(AgentLeaderboardRow(

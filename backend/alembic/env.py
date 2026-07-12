@@ -34,22 +34,39 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        # ── Kill stale connections (best-effort — Neon may deny permission) ───
+        # Some PgBouncer session-pooler setups (e.g. Supabase's pooled
+        # connection) can hand back a connection left in an aborted
+        # transaction state by a prior session. Force a clean slate before
+        # doing anything else, regardless of what state we inherited.
+        try:
+            connection.rollback()
+        except Exception as _e:
+            print(f"[env.py DEBUG] initial rollback failed: {_e!r}", flush=True)
+
+        # ── Kill stale connections (best-effort — some managed Postgres
+        # providers deny permission, e.g. Neon's neondb_owner, or Supabase's
+        # pooled connections). A failed statement here leaves the Postgres
+        # transaction itself aborted even though the Python exception is
+        # caught — every later statement would fail with "current
+        # transaction is aborted" unless we explicitly roll back first.
         try:
             connection.execute(_text(
                 "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
                 "WHERE pid != pg_backend_pid() AND datname = current_database()"
             ))
-        except Exception:
-            pass  # neondb_owner lacks pg_signal_backend — skip silently
+        except Exception as _e:
+            print(f"[env.py DEBUG] pg_terminate_backend failed: {_e!r}", flush=True)
+            connection.rollback()
 
         # Fail fast: never wait more than 10s for a lock or 60s per statement.
         try:
             connection.execute(_text("SET lock_timeout = '10s'"))
             connection.execute(_text("SET statement_timeout = '60s'"))
-        except Exception:
-            pass  # Some managed Postgres flavours don't allow SET — skip
+        except Exception as _e:
+            print(f"[env.py DEBUG] SET lock_timeout/statement_timeout failed: {_e!r}", flush=True)
+            connection.rollback()
 
+        print(f"[env.py DEBUG] reached context.configure() cleanly, connection.in_transaction()={connection.in_transaction()}", flush=True)
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
             context.run_migrations()

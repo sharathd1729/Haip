@@ -50,12 +50,17 @@ def process_instagram_dm(self, payload: dict) -> dict:
         if not sender_id:
             return {"status": "skipped", "reason": "no sender_id"}
 
-        # ── Find active Instagram integration ──────────────────────────────
-        integration = db.query(Integration).filter_by(
-            kind="instagram", status="active"
-        ).first()
+        # ── Find the tenant's Instagram integration by ig_account_id ───────
+        # Multiple tenants may each have an active Instagram integration, so
+        # matching must be scoped to the account this webhook was for, not
+        # just "the first active one" (which picks an arbitrary tenant).
+        candidates = db.query(Integration).filter_by(kind="instagram", status="active").all()
+        integration = next(
+            (c for c in candidates if (c.config or {}).get("instagram_business_account_id") == ig_account_id),
+            None,
+        )
         if not integration:
-            logger.warning("Instagram DM received but no active Instagram integration")
+            logger.warning("Instagram DM received but no matching active integration for account %s", ig_account_id)
             return {"status": "skipped", "reason": "no integration"}
 
         tenant_id = integration.tenant_id
@@ -100,6 +105,12 @@ def process_instagram_dm(self, payload: dict) -> dict:
             logger.info("Created new guest from Instagram DM: %s (%s)", guest_id, display_name)
         else:
             logger.debug("Resolved existing guest from Instagram DM: %s", guest_id)
+            # Backfill: earlier messages may have stored the placeholder name
+            # because the profile fetch failed at the time (e.g. before the
+            # graph.instagram.com host fix). Update it once a real name is available.
+            if guest and guest.name and guest.name.startswith("IG User ") and not display_name.startswith("IG User "):
+                guest.name = display_name
+                db.commit()
 
         # ── Find or create open conversation ────────────────────────────────
         channel_val = ChannelType.INSTAGRAM if hasattr(ChannelType, "INSTAGRAM") else "instagram"

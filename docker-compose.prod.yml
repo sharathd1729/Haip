@@ -38,6 +38,9 @@ services:
     env_file: ./backend/.env
     environment:
       - ENVIRONMENT=production
+      # concurrency=2 doesn't need the API's full 15-connection pool budget.
+      - DB_POOL_SIZE=3
+      - DB_MAX_OVERFLOW=3
     command: >
       celery -A app.workers.celery_app worker
       --loglevel=info
@@ -96,6 +99,9 @@ services:
     env_file: ./backend/.env
     environment:
       - ENVIRONMENT=production
+      # Beat only ever needs one connection at a time to check the schedule.
+      - DB_POOL_SIZE=1
+      - DB_MAX_OVERFLOW=1
     command: >
       celery -A app.workers.celery_app beat
       --loglevel=info
