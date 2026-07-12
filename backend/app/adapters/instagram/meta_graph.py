@@ -38,7 +38,11 @@ class InstagramGraphAdapter:
         url = f"{GRAPH_BASE}/{path.lstrip('/')}"
         p = {"access_token": self._token, **(params or {})}
         resp = httpx.get(url, params=p, timeout=15)
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            logger.error("Instagram GET %s → %s %s", path, exc.response.status_code, exc.response.text[:300])
+            raise
         return resp.json()
 
     # ── Sending ────────────────────────────────────────────────────────────────
