@@ -594,9 +594,10 @@ function IntegrationCard({
 }) {
   const { data: session } = useSession();
   const accessToken = (session as unknown as { accessToken?: string })?.accessToken ?? null;
-  const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
+  const _rawApiBase = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
+  const apiBase = _rawApiBase.endsWith("/api/v1") ? _rawApiBase : `${_rawApiBase}/api/v1`;
   const igOAuthUrl = accessToken
-    ? `${apiBase}/api/v1/integrations/instagram/oauth-start?token=${encodeURIComponent(accessToken)}`
+    ? `${apiBase}/integrations/instagram/oauth-start?token=${encodeURIComponent(accessToken)}`
     : null;
 
   const status = integration?.status ?? "disconnected";
