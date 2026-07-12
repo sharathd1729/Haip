@@ -34,21 +34,26 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        # ── Kill stale connections (best-effort — Neon may deny permission) ───
+        # ── Kill stale connections (best-effort — some managed Postgres
+        # providers deny permission, e.g. Neon's neondb_owner, or Supabase's
+        # pooled connections). A failed statement here leaves the Postgres
+        # transaction itself aborted even though the Python exception is
+        # caught — every later statement would fail with "current
+        # transaction is aborted" unless we explicitly roll back first.
         try:
             connection.execute(_text(
                 "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
                 "WHERE pid != pg_backend_pid() AND datname = current_database()"
             ))
         except Exception:
-            pass  # neondb_owner lacks pg_signal_backend — skip silently
+            connection.rollback()
 
         # Fail fast: never wait more than 10s for a lock or 60s per statement.
         try:
             connection.execute(_text("SET lock_timeout = '10s'"))
             connection.execute(_text("SET statement_timeout = '60s'"))
         except Exception:
-            pass  # Some managed Postgres flavours don't allow SET — skip
+            connection.rollback()
 
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
