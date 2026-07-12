@@ -66,6 +66,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        // Internal-only fields — never rendered as form inputs, only ever
+        // passed programmatically by the login page once it has already
+        // obtained real tokens directly from the backend (MFA challenge,
+        // WhatsApp OTP verification).
+        preAuthAccessToken: { label: "", type: "text" },
+        preAuthRefreshToken: { label: "", type: "text" },
       },
       async authorize(credentials) {
         const email = credentials?.email as string;
