@@ -1,7 +1,6 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useSession } from "next-auth/react";
 import { Send, Sparkles, User, Loader2, BellOff, Search, X, StickyNote, Reply, Clock, ChevronDown, ChevronLeft, CalendarClock, Timer, AlertTriangle, LayoutTemplate, Star, PhoneCall, MessageSquare, TrendingUp, Bed, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
@@ -15,7 +14,6 @@ import { GuestPanel } from "@/components/inbox/GuestPanel";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useInboxStore } from "@/store/inbox";
-import { useInboxStream } from "@/hooks/useInboxStream";
 import { useAutoGrow } from "@/hooks/useAutoGrow";
 import { useToast } from "@/components/ui/toast";
 import { usePresence } from "@/hooks/usePresence";
@@ -358,7 +356,6 @@ function _noop({ detail }: { detail: ConversationDetail }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function InboxPage() {
-  const { data: session } = useSession();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const {
@@ -453,19 +450,13 @@ export default function InboxPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [detail?.messages]);
 
-  const accessToken = (session as any)?.accessToken as string | undefined;
-
-  useInboxStream(accessToken, useCallback((event) => {
-    if (event.event === "message_received" && event.conversation_id) {
-      queryClient.invalidateQueries({ queryKey: ["conversation", event.conversation_id] });
-      queryClient.invalidateQueries({ queryKey: ["conversations"] });
-    }
-    if (event.event === "ai_draft_ready" && event.conversation_id) {
-      setAiDraft(event.conversation_id as string, true);
-      queryClient.invalidateQueries({ queryKey: ["conversation", event.conversation_id] });
-      toast({ variant: "info", title: "AI draft ready", description: "Review and approve in inbox." });
-    }
-  }, [queryClient, setAiDraft, toast]));
+  // SSE is owned exclusively by DashboardSSEBridge (mounted once in the dashboard
+  // layout) -- it already invalidates ["conversations"]/["conversation", id] and
+  // calls setAiDraft for message_received/ai_draft_ready. A second useInboxStream
+  // connection here opened a duplicate EventSource per inbox page mount, which
+  // under reconnect churn exhausted the browser's connection pool
+  // (net::ERR_INSUFFICIENT_RESOURCES) and starved every other request, including
+  // the send-message call itself.
 
   const sendMutation = useMutation({
     mutationFn: ({ text, is_internal, replied_to_message_id, scheduled_for }: { text: string; is_internal?: boolean; replied_to_message_id?: string; scheduled_for?: string | null }) =>
