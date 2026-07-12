@@ -160,7 +160,10 @@ def upgrade():
         """)
 
     # ── seed: system dashboard templates ──────────────────────────────────────
-    op.execute("""
+    # Uses exec_driver_sql (not op.execute) because the JSON literals below
+    # contain colons (e.g. "col":0) that SQLAlchemy's text() would otherwise
+    # misparse as :bind parameter placeholders.
+    op.get_bind().exec_driver_sql("""
         INSERT INTO dashboard_templates
             (id, template_key, name, description, required_modules, layout_json,
              default_date_range, target_roles, is_system)
@@ -200,6 +203,7 @@ def upgrade():
            '["channel_manager"]',
            '{"widgets":[{"key":"revenue_goal","pos":{"col":0,"row":0,"w":6,"h":2}},{"key":"cm_occupancy_pct","pos":{"col":6,"row":0,"w":3,"h":2}},{"key":"cm_revpar","pos":{"col":9,"row":0,"w":3,"h":2}},{"key":"revenue_forecast","pos":{"col":0,"row":2,"w":6,"h":4}},{"key":"occupancy_forecast","pos":{"col":6,"row":2,"w":6,"h":4}},{"key":"pricing_signals","pos":{"col":0,"row":6,"w":12,"h":4}}]}',
            '30d', '["owner"]', true)
+        ON CONFLICT (template_key) DO NOTHING
     """)
 
 
