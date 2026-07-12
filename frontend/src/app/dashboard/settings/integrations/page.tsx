@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -246,7 +247,7 @@ function ConnectModal({
 
   const canSubmit = (() => {
     if (isWhatsApp)    return !!(fields.phone_number_id?.trim() && fields.waba_id?.trim() && fields.access_token?.trim());
-    if (isInstagram)   return !!(fields.instagram_business_account_id?.trim() && fields.access_token?.trim());
+    if (isInstagram)   return !!fields.app_secret?.trim();
     if (isRentalWise)  return rwAuthMode === "token" ? !!fields.api_token?.trim() : !!(fields.username?.trim() && fields.password?.trim());
     if (isBasicAuth)   return !!(fields.username?.trim() && fields.password?.trim());
     if (isHostaway)    return !!(fields.account_id?.trim() && fields.api_secret?.trim());
@@ -263,7 +264,7 @@ function ConnectModal({
 
   const subtitle = (() => {
     if (isWhatsApp)   return "Paste your WhatsApp Cloud API credentials from Meta Business Suite";
-    if (isInstagram)  return "Paste your Instagram Graph API credentials from Meta Business Suite";
+    if (isInstagram)  return "Save your App Secret, then use \"Connect via Instagram Login\" to finish connecting";
     if (isRentalWise) return "Paste your RentalWise API token (provided by your Engagement Manager)";
     if (isBasicAuth)  return `Enter your ${providerName} username and password`;
     if (isHostaway)   return "Enter your Hostaway Account ID and API Secret";
@@ -331,30 +332,31 @@ function ConnectModal({
             <>
               <div>
                 <label className="text-xs font-semibold text-gray-700 block mb-1.5">
-                  Instagram Business Account ID <span className="text-red-500">*</span>
+                  App Secret <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input autoFocus type="text" value={fields.instagram_business_account_id ?? ""} onChange={e => set("instagram_business_account_id", e.target.value)} placeholder="e.g. 17841234567890123" className={inputCls} />
+                  <input autoFocus type="password" value={fields.app_secret ?? ""} onChange={e => set("app_secret", e.target.value)} placeholder="Meta App Secret" className={inputCls} />
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1">Required for webhook signature verification and to bootstrap the Instagram Login connection.</p>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-700 block mb-1.5">
+                  Instagram Business Account ID <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <div className="relative">
+                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input type="text" value={fields.instagram_business_account_id ?? ""} onChange={e => set("instagram_business_account_id", e.target.value)} placeholder="e.g. 17841234567890123" className={inputCls} />
                 </div>
                 <p className="text-[10px] text-gray-400 mt-1">Found in Meta Business Suite → Instagram → Account settings.</p>
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-700 block mb-1.5">
-                  Access Token <span className="text-red-500">*</span>
+                  Access Token <span className="text-gray-400 font-normal">(not needed — use Instagram Login instead)</span>
                 </label>
                 <div className="relative">
                   <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input type="password" value={fields.access_token ?? ""} onChange={e => set("access_token", e.target.value)} placeholder="Page or System User token with instagram_manage_messages" className={inputCls} />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1.5">
-                  App Secret <span className="text-gray-400 font-normal">(recommended)</span>
-                </label>
-                <div className="relative">
-                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input type="password" value={fields.app_secret ?? ""} onChange={e => set("app_secret", e.target.value)} placeholder="Meta App Secret" className={inputCls} />
+                  <input type="password" value={fields.access_token ?? ""} onChange={e => set("access_token", e.target.value)} placeholder="Leave blank — click \"Connect via Instagram Login\" after saving" className={inputCls} />
                 </div>
               </div>
             </>
@@ -590,6 +592,13 @@ function IntegrationCard({
   isDisconnecting: boolean;
   isVerifying: boolean;
 }) {
+  const { data: session } = useSession();
+  const accessToken = (session as unknown as { accessToken?: string })?.accessToken ?? null;
+  const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
+  const igOAuthUrl = accessToken
+    ? `${apiBase}/api/v1/integrations/instagram/oauth-start?token=${encodeURIComponent(accessToken)}`
+    : null;
+
   const status = integration?.status ?? "disconnected";
   const isConnected = status === "active";
   const isMessaging = item.provider === "whatsapp_meta" || item.provider === "instagram";
@@ -715,6 +724,24 @@ function IntegrationCard({
               Disconnect
             </button>
           </div>
+        ) : item.provider === "instagram" && igOAuthUrl ? (
+          <>
+            <a
+              href={igOAuthUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-teal-500 text-white rounded-xl text-xs font-semibold hover:bg-teal-600 transition-colors shadow-sm shadow-teal-200"
+            >
+              <Plug size={13} />
+              Connect via Instagram Login
+            </a>
+            <p className="text-[10px] text-gray-400 text-center">
+              First time connecting? An App Secret must be saved first —{" "}
+              <button onClick={() => onConnect(item.provider)} className="underline hover:text-gray-600">
+                save credentials manually
+              </button>.
+            </p>
+          </>
         ) : (
           <button
             onClick={() => onConnect(item.provider)}

@@ -297,30 +297,33 @@ def connect_instagram_manual(
     access_token = (body.get("access_token") or "").strip()
     app_secret = (body.get("app_secret") or "").strip()
 
-    if not ig_account_id:
-        raise HTTPException(status_code=400, detail="instagram_business_account_id is required")
-    if not access_token:
-        raise HTTPException(status_code=400, detail="access_token is required")
+    if not app_secret:
+        raise HTTPException(status_code=400, detail="app_secret is required")
 
-    # Quick validation — fetch IG account name
+    # access_token is optional here — this endpoint is primarily used to bootstrap
+    # app_secret before the "Connect via Instagram Login" OAuth flow, which fully
+    # replaces credentials_kms_blob with a correctly-audienced Instagram token.
+    # A manually pasted token (typically a Facebook Page token) is NOT compatible
+    # with graph.instagram.com and should only be used as a temporary placeholder.
     ig_username = ""
-    try:
-        resp = httpx.get(
-            f"https://graph.facebook.com/v20.0/{ig_account_id}",
-            params={"access_token": access_token, "fields": "username,name"},
-            timeout=10,
-        )
-        data = resp.json()
-        if "error" in data:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid credentials: {data['error'].get('message', 'Token rejected by Meta')}"
+    if access_token and ig_account_id:
+        try:
+            resp = httpx.get(
+                f"https://graph.facebook.com/v20.0/{ig_account_id}",
+                params={"access_token": access_token, "fields": "username,name"},
+                timeout=10,
             )
-        ig_username = data.get("username", data.get("name", ""))
-    except HTTPException:
-        raise
-    except Exception:
-        ig_username = ""
+            data = resp.json()
+            if "error" in data:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid credentials: {data['error'].get('message', 'Token rejected by Meta')}"
+                )
+            ig_username = data.get("username", data.get("name", ""))
+        except HTTPException:
+            raise
+        except Exception:
+            ig_username = ""
 
     row = _upsert_integration(db, current_user.tenant_id, "instagram")
     row.credentials_kms_blob = encrypt_credentials({
@@ -332,14 +335,17 @@ def connect_instagram_manual(
         "instagram_business_account_id": ig_account_id,
         "username": ig_username,
     }
-    row.status = "active"
+    row.status = "active" if access_token else "pending"
     row.installed_at = _now()
     db.commit()
-    return {
-        "status": "connected",
+    result = {
+        "status": "connected" if access_token else "pending",
         "instagram_business_account_id": ig_account_id,
         "username": ig_username,
     }
+    if not access_token:
+        result["warning"] = "App Secret saved. Now click \"Connect via Instagram Login\" to finish connecting."
+    return result
 
 
 @router.get("/instagram/oauth-start")
