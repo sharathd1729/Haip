@@ -39,17 +39,23 @@ def _index_exists(index: str, table: str) -> bool:
 
 
 def upgrade() -> None:
-    # Best-effort: kill stale connections. Neon may deny pg_signal_backend — skip.
+    # Best-effort: kill stale connections. Some managed Postgres providers
+    # (Neon's neondb_owner, Supabase's pooled connections) deny
+    # pg_signal_backend. This runs inside Alembic's single shared migration
+    # transaction (001..head), so a failed statement here must be contained
+    # in a SAVEPOINT — a bare rollback() would undo every earlier migration
+    # in the same transaction, not just this statement.
+    bind = op.get_bind()
     try:
-        bind = op.get_bind()
-        bind.execute(text(
-            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
-            "WHERE pid != pg_backend_pid() "
-            "AND datname = current_database() "
-            "AND state IN ('idle', 'idle in transaction', 'idle in transaction (aborted)')"
-        ))
+        with bind.begin_nested():
+            bind.execute(text(
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                "WHERE pid != pg_backend_pid() "
+                "AND datname = current_database() "
+                "AND state IN ('idle', 'idle in transaction', 'idle in transaction (aborted)')"
+            ))
     except Exception:
-        pass
+        pass  # begin_nested() already rolled back to the savepoint on error
 
     # ── Caravan + channel manager columns on properties ───────────────────────
     cols_to_add = [
