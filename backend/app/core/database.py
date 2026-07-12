@@ -1,7 +1,10 @@
+import logging
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 _is_sqlite = "sqlite" in settings.DATABASE_URL
 
@@ -47,6 +50,7 @@ def get_db():
             raise
         from sqlalchemy.exc import OperationalError, DatabaseError
         if isinstance(exc, (OperationalError, DatabaseError)):
+            logger.error("DB error wrapped as 503: %r", exc, exc_info=True)
             raise HTTPException(
                 status_code=503,
                 detail="Database temporarily unavailable — please retry in a moment",
