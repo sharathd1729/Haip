@@ -6,7 +6,6 @@ Create Date: 2026-06-12
 """
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 revision = "027"
 down_revision = "026"
@@ -25,9 +24,9 @@ def upgrade():
 
     op.create_table(
         "push_subscriptions",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column("id", sa.String(), primary_key=True),
         sa.Column("tenant_id", sa.String(), nullable=False),
-        sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("user_id", sa.String(), nullable=False),
         sa.Column("endpoint", sa.String(), nullable=False),
         sa.Column("p256dh", sa.String(), nullable=False),
         sa.Column("auth", sa.String(), nullable=False),
