@@ -45,14 +45,16 @@ def run_migrations_online() -> None:
                 "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
                 "WHERE pid != pg_backend_pid() AND datname = current_database()"
             ))
-        except Exception:
+        except Exception as _e:
+            print(f"[env.py DEBUG] pg_terminate_backend failed: {_e!r}")
             connection.rollback()
 
         # Fail fast: never wait more than 10s for a lock or 60s per statement.
         try:
             connection.execute(_text("SET lock_timeout = '10s'"))
             connection.execute(_text("SET statement_timeout = '60s'"))
-        except Exception:
+        except Exception as _e:
+            print(f"[env.py DEBUG] SET lock_timeout/statement_timeout failed: {_e!r}")
             connection.rollback()
 
         context.configure(connection=connection, target_metadata=target_metadata)
