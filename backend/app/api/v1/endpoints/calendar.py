@@ -110,12 +110,16 @@ def get_calendar(
     revenue_locked         = Decimal("0")
     revenue_quoted         = Decimal("0")
 
-    for prop in properties:
-        # Load stays overlapping window
-        stays_raw = (
+    all_pids = [p.id for p in properties]
+
+    # Batch-fetch stays and blocks for every property in one query each
+    # instead of 2 queries per property (was 2×N).
+    stays_by_prop: dict = {pid: [] for pid in all_pids}
+    if all_pids:
+        stays_all = (
             db.query(Stay)
             .filter(
-                Stay.property_id == prop.id,
+                Stay.property_id.in_(all_pids),
                 Stay.tenant_id == tenant_id,
                 Stay.status.notin_(["cancelled", "checked_out"]),
                 Stay.check_in < to_date,
@@ -123,18 +127,41 @@ def get_calendar(
             )
             .all()
         )
-        # Best-effort guest enrichment (name + phone) — failure MUST NOT break response
-        guest_names: dict[str, str] = {}
-        guest_phones: dict[str, str] = {}
-        try:
-            from app.models.guest import Guest as _Guest  # lazy import avoids mapper startup issues
-            guest_ids = list({str(s.guest_id) for s in stays_raw if s.guest_id})
-            if guest_ids:
-                guests_q = db.query(_Guest).filter(_Guest.id.in_(guest_ids)).all()
-                guest_names  = {str(g.id): (g.name or "")  for g in guests_q}
-                guest_phones = {str(g.id): (g.phone or "") for g in guests_q}
-        except Exception:
-            pass
+        for s in stays_all:
+            stays_by_prop.setdefault(s.property_id, []).append(s)
+
+    blocks_by_prop: dict = {pid: [] for pid in all_pids}
+    if all_pids:
+        blocks_all = (
+            db.query(BlockedDate)
+            .filter(
+                BlockedDate.property_id.in_(all_pids),
+                BlockedDate.tenant_id == tenant_id,
+                BlockedDate.is_active == True,
+                BlockedDate.blocked_from < to_date,
+                BlockedDate.blocked_to > from_date,
+            )
+            .all()
+        )
+        for b in blocks_all:
+            blocks_by_prop.setdefault(b.property_id, []).append(b)
+
+    # Best-effort guest enrichment (name + phone), batched across ALL properties
+    # at once — failure MUST NOT break response.
+    guest_names: dict[str, str] = {}
+    guest_phones: dict[str, str] = {}
+    try:
+        from app.models.guest import Guest as _Guest  # lazy import avoids mapper startup issues
+        all_guest_ids = list({str(s.guest_id) for stay_list in stays_by_prop.values() for s in stay_list if s.guest_id})
+        if all_guest_ids:
+            guests_q = db.query(_Guest).filter(_Guest.id.in_(all_guest_ids)).all()
+            guest_names  = {str(g.id): (g.name or "")  for g in guests_q}
+            guest_phones = {str(g.id): (g.phone or "") for g in guests_q}
+    except Exception:
+        pass
+
+    for prop in properties:
+        stays_raw = stays_by_prop.get(prop.id, [])
 
         stays = [
             {
@@ -155,18 +182,7 @@ def get_calendar(
             for s in stays_raw
         ]
 
-        # Load blocks overlapping window
-        blocks_raw = (
-            db.query(BlockedDate)
-            .filter(
-                BlockedDate.property_id == prop.id,
-                BlockedDate.tenant_id == tenant_id,
-                BlockedDate.is_active == True,
-                BlockedDate.blocked_from < to_date,
-                BlockedDate.blocked_to > from_date,
-            )
-            .all()
-        )
+        blocks_raw = blocks_by_prop.get(prop.id, [])
         blocks = [
             {
                 "id": str(b.id),

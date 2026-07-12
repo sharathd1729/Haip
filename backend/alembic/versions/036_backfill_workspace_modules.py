@@ -6,14 +6,14 @@ in deps.py::get_workspace_context — this backfill gives them real rows
 matching that same default set, so the fallback can be safely flipped to
 fail-closed in the same deploy (see deps.py change alongside this migration).
 
-Revision ID: 035
-Revises: 034
+Revision ID: 036
+Revises: 035
 Create Date: 2026-07-19
 """
 from alembic import op
 
-revision = "035"
-down_revision = "034"
+revision = "036"
+down_revision = "035"
 branch_labels = None
 depends_on = None
 

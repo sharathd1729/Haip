@@ -56,7 +56,7 @@ def upgrade():
             op.execute("ALTER TABLE saved_replies ENABLE ROW LEVEL SECURITY")
             op.execute(
                 "CREATE POLICY saved_replies_isolation ON saved_replies "
-                "USING (tenant_id = current_setting('app.tenant_id', true)::uuid)"
+                "USING (tenant_id = current_setting('app.tenant_id', true)::text)"
             )
 
 

@@ -39,6 +39,8 @@ class ConversationOut(BaseModel):
     last_message_at: Optional[datetime] = None
     last_inbound_at: Optional[datetime] = None  # D9: last inbound message timestamp (computed)
     snoozed_until: Optional[Union[datetime, str]] = None
+    guest_name: Optional[str] = None
+    last_message: Optional[str] = None
 
     class Config:
         from_attributes = True

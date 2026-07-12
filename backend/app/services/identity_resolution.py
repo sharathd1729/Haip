@@ -21,7 +21,6 @@ Matching stages:
 
 from __future__ import annotations
 
-import logging
 import re
 from datetime import datetime, timezone
 from typing import Optional
@@ -36,8 +35,9 @@ from app.models.guest_identity import (
     REVIEW_THRESHOLD,
 )
 from app.models.base import gen_uuid
+import structlog
 
-log = logging.getLogger(__name__)
+log = structlog.get_logger()
 
 _now = lambda: datetime.now(timezone.utc)
 

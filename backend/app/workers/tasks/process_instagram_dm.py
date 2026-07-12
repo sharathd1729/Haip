@@ -15,7 +15,6 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import datetime, timezone
-from celery import shared_task
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
@@ -23,11 +22,12 @@ from app.models.integration import Integration
 from app.models.guest import Guest
 from app.models.conversation import Conversation, Message, ChannelType, MessageDirection
 from app.core.encryption import decrypt_credentials
+from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=60, name="process_instagram_dm")
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60, name="process_instagram_dm")
 def process_instagram_dm(self, payload: dict) -> dict:
     """
     payload keys:
@@ -50,12 +50,17 @@ def process_instagram_dm(self, payload: dict) -> dict:
         if not sender_id:
             return {"status": "skipped", "reason": "no sender_id"}
 
-        # ── Find active Instagram integration ──────────────────────────────
-        integration = db.query(Integration).filter_by(
-            kind="instagram", status="active"
-        ).first()
+        # ── Find the tenant's Instagram integration by ig_account_id ───────
+        # Multiple tenants may each have an active Instagram integration, so
+        # matching must be scoped to the account this webhook was for, not
+        # just "the first active one" (which picks an arbitrary tenant).
+        candidates = db.query(Integration).filter_by(kind="instagram", status="active").all()
+        integration = next(
+            (c for c in candidates if (c.config or {}).get("instagram_business_account_id") == ig_account_id),
+            None,
+        )
         if not integration:
-            logger.warning("Instagram DM received but no active Instagram integration")
+            logger.warning("Instagram DM received but no matching active integration for account %s", ig_account_id)
             return {"status": "skipped", "reason": "no integration"}
 
         tenant_id = integration.tenant_id
@@ -100,6 +105,12 @@ def process_instagram_dm(self, payload: dict) -> dict:
             logger.info("Created new guest from Instagram DM: %s (%s)", guest_id, display_name)
         else:
             logger.debug("Resolved existing guest from Instagram DM: %s", guest_id)
+            # Backfill: earlier messages may have stored the placeholder name
+            # because the profile fetch failed at the time (e.g. before the
+            # graph.instagram.com host fix). Update it once a real name is available.
+            if guest and guest.name and guest.name.startswith("IG User ") and not display_name.startswith("IG User "):
+                guest.name = display_name
+                db.commit()
 
         # ── Find or create open conversation ────────────────────────────────
         channel_val = ChannelType.INSTAGRAM if hasattr(ChannelType, "INSTAGRAM") else "instagram"
@@ -139,6 +150,7 @@ def process_instagram_dm(self, payload: dict) -> dict:
             channel_status="received",
         )
         db.add(message)
+        conversation.last_message_at = datetime.now(timezone.utc).isoformat()
         db.flush()
         db.commit()
 
@@ -146,6 +158,21 @@ def process_instagram_dm(self, payload: dict) -> dict:
             "Stored Instagram DM: message=%s guest=%s conversation=%s",
             message.id, guest_id, conversation.id,
         )
+
+        # Notify SSE subscribers so the inbox updates without a page refresh
+        try:
+            import redis as _redis
+            from app.core.config import settings as _settings
+            _r = _redis.Redis.from_url(_settings.REDIS_URL, decode_responses=True, socket_connect_timeout=2)
+            import json as _json
+            _r.publish(f"sse:{tenant_id}", _json.dumps({
+                "event": "message_received",
+                "conversation_id": conversation.id,
+                "channel": "instagram",
+            }))
+            _r.close()
+        except Exception as _sse_exc:
+            logger.warning("sse_publish_failed: %s", _sse_exc)
 
         # ── Trigger AI concierge draft ─────────────────────────────────────
         if body and body.strip() and not body.startswith("["):
@@ -156,7 +183,6 @@ def process_instagram_dm(self, payload: dict) -> dict:
                         "message_id": message.id,
                         "conversation_id": conversation.id,
                         "tenant_id": tenant_id,
-                        "channel": "instagram",
                     },
                     countdown=2,
                 )

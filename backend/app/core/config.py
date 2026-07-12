@@ -27,6 +27,11 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str = ""
+    # Per-process pool sizing — override per process type (e.g. api vs
+    # celery beat/flower, which rarely need concurrent connections) via env
+    # vars in each service's docker-compose command/environment block.
+    DB_POOL_SIZE: int = 5
+    DB_MAX_OVERFLOW: int = 10
     REDIS_URL: str = "redis://localhost:6379/0"
 
     # ── Object storage (AWS S3 or Cloudflare R2) ─────────────────────────────
@@ -72,6 +77,7 @@ class Settings(BaseSettings):
     META_APP_SECRET: str = ""
     META_INSTAGRAM_ACCESS_TOKEN: str = ""
     META_INSTAGRAM_PAGE_ID: str = ""
+    INSTAGRAM_APP_ID: str = ""
 
     # Email
     RESEND_API_KEY: str = ""

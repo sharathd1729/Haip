@@ -6,7 +6,7 @@ from app.core.config import settings
 # Upstash (and most managed Redis) use rediss:// (TLS).
 # Celery's Redis backend requires explicit SSL options on Windows / strict environments.
 _is_ssl = settings.REDIS_URL.startswith("rediss://")
-_ssl_opts = {"ssl_cert_reqs": ssl.CERT_NONE} if _is_ssl else {}
+_ssl_opts = {"ssl_cert_reqs": ssl.CERT_NONE} if _is_ssl else None
 
 celery_app = Celery(
     "haip",
@@ -101,6 +101,13 @@ celery_app.conf.update(
         "app.workers.tasks.dpdp_purge.*":           {"queue": "call_ingest"},
         "app.workers.tasks.process_instagram_dm.*": {"queue": "whatsapp"},
         "app.workers.tasks.send_instagram_dm.*":    {"queue": "whatsapp"},
+        # These two tasks are registered with explicit short names (no module
+        # path prefix), so the "app.workers.tasks.X.*" patterns above never
+        # match them — without this, they fall through to Celery's implicit
+        # "celery" queue, which no worker here consumes.
+        "process_instagram_dm":                     {"queue": "whatsapp"},
+        "send_instagram_dm":                        {"queue": "whatsapp"},
+        "instagram_mark_seen":                       {"queue": "whatsapp"},
         "app.workers.tasks.sync_retalwise.*":       {"queue": "call_ingest"},
         "app.workers.tasks.sync_hostaway.*":        {"queue": "call_ingest"},
         "app.workers.tasks.call_ingest.*":          {"queue": "call_ingest"},
@@ -135,7 +142,9 @@ celery_app.conf.beat_schedule = {
     },
     "sync-wa-templates-30min": {
         "task": "tasks.sync_wa_templates.sync_all_tenants",
-        "schedule": crontab(minute="*/30"),
+        # Offset from automation-timers-30min (both were firing at :00/:30
+        # simultaneously) to spread DB load across the beat cycle.
+        "schedule": crontab(minute="5,35"),
     },
     "meta-quality-hourly": {
         "task": "app.workers.tasks.meta_quality_poll.poll_all_tenants",
@@ -153,10 +162,13 @@ celery_app.conf.beat_schedule = {
         "task": "app.workers.tasks.owner_digest.orchestrate",
         "schedule": crontab(minute=0),
     },
-    # Phase 1: AI Insights — run every 15 min (urgent detectors: A1, A2, D3)
+    # Phase 1: AI Insights — every 15 min, business hours only (6am-10pm IST).
+    # Was 24/7; reduced steady-state DB/connection load overnight when new
+    # urgent-detector-worthy activity is unlikely anyway (confirmed with
+    # product owner).
     "run-insights-every-15min": {
         "task": "app.workers.tasks.run_insights.run_all_tenants",
-        "schedule": crontab(minute="*/15"),
+        "schedule": crontab(minute="*/15", hour="6-22"),
     },
     # Phase 3: Intent classification — nightly at 03:00 IST
     "classify-intent-nightly": {
