@@ -356,7 +356,7 @@ function ConnectModal({
                 </label>
                 <div className="relative">
                   <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input type="password" value={fields.access_token ?? ""} onChange={e => set("access_token", e.target.value)} placeholder="Leave blank — click \"Connect via Instagram Login\" after saving" className={inputCls} />
+                  <input type="password" value={fields.access_token ?? ""} onChange={e => set("access_token", e.target.value)} placeholder="Leave blank — use Connect via Instagram Login after saving" className={inputCls} />
                 </div>
               </div>
             </>
