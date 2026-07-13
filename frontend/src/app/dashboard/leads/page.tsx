@@ -8,13 +8,14 @@ import { SkeletonCard } from "@/components/ui/SkeletonCard";
 import { cn } from "@/lib/utils";
 import { usePipelineStages, type PipelineStageRow } from "@/hooks/usePipelineStages";
 import { PipelineSettingsModal } from "@/components/leads/PipelineSettingsModal";
+import { LeadsFilterBar, type LeadsFilters } from "@/components/leads/LeadsFilterBar";
 
 const ALL_STAGES_ID = "__all__";
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 
-async function fetchLeads(stage?: string, page = 1) {
-  const params: Record<string, string | number> = { page, page_size: 50 };
+async function fetchLeads(stage: string | undefined, filters: LeadsFilters, page = 1) {
+  const params: Record<string, string | number> = { page, page_size: 50, ...filters };
   if (stage && stage !== ALL_STAGES_ID) params.stage = stage;
   const res = await api.get("/leads", { params });
   return res.data;
@@ -94,13 +95,14 @@ function StageColumn({
 export default function Leads360Page() {
   const [stageFilter, setStageFilter] = useState(ALL_STAGES_ID);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [filters, setFilters] = useState<LeadsFilters>({});
 
   const { data: pipelineStages = [] } = usePipelineStages();
   const visibleStages = pipelineStages;
 
   const { data, isLoading, refetch, isFetching } = useQuery({
-    queryKey: ["leads", stageFilter],
-    queryFn: () => fetchLeads(stageFilter),
+    queryKey: ["leads", stageFilter, filters],
+    queryFn: () => fetchLeads(stageFilter, filters),
     refetchInterval: 30_000,
   });
 
@@ -206,6 +208,8 @@ export default function Leads360Page() {
           </button>
         </div>
       </div>
+
+      <LeadsFilterBar filters={filters} onChange={setFilters} />
 
       {/* ── Kanban board ─────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-x-auto overflow-y-hidden">
