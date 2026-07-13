@@ -270,6 +270,14 @@ export function ConversationList({
                     )}>
                       {conv.guest_name || conv.guest_phone}
                     </span>
+                    {conv.ad_title && (
+                      <span
+                        title={`via Ad: ${conv.ad_title}`}
+                        className="flex-shrink-0 text-[9px] font-semibold text-pink-600 bg-pink-50 border border-pink-200 rounded px-1 py-0.5 uppercase tracking-wide"
+                      >
+                        Ad
+                      </span>
+                    )}
                   </div>
                   <span className="text-[10px] text-gray-400 flex-shrink-0 tabular-nums">
                     {timeAgo(conv.last_message_at)}

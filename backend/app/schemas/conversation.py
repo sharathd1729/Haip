@@ -41,6 +41,7 @@ class ConversationOut(BaseModel):
     snoozed_until: Optional[Union[datetime, str]] = None
     guest_name: Optional[str] = None
     last_message: Optional[str] = None
+    ad_title: Optional[str] = None  # T0.5: set when the conversation originated from a Click-to-Instagram ad
 
     class Config:
         from_attributes = True

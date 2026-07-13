@@ -13,6 +13,7 @@ export interface ConversationSummary {
   unread_count: number;
   has_ai_draft: boolean;
   status: "open" | "resolved" | "snoozed";
+  ad_title?: string | null;  // T0.5: set when this conversation originated from a Click-to-Instagram ad
 }
 
 interface InboxState {

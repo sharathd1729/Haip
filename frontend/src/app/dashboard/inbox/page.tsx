@@ -46,6 +46,8 @@ interface Message {
   ai_confidence?: number;
   is_internal?: boolean;
   replied_to_message_id?: string;
+  media_url?: string | null;   // T0.5
+  media_type?: string | null;
 }
 
 interface ConversationDetail {
@@ -966,6 +968,8 @@ export default function InboxPage() {
                       isInternal={msg.is_internal}
                       aiConfidence={msg.ai_confidence}
                       senderName={msg.direction === "outbound" ? msg.sender_name : (detail.guest_name || detail.guest_phone)}
+                      mediaUrl={msg.media_url}
+                      mediaType={msg.media_type}
                       onApprove={handleApprove}
                       onEdit={(id, text) => { setEditingDraftId(id); setEditText(text); }}
                       onReject={handleReject}

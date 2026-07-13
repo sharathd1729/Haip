@@ -64,11 +64,33 @@ def list_conversations(
     )
     preview_by_conv = {row.conversation_id: row.body for row in latest_rows}
 
+    # T0.5: batch-fetch ad_title from each conversation's earliest message
+    # carrying ad-attribution metadata (Meta only sets referral on the
+    # message that actually originated from the ad).
+    ad_rows = (
+        db.query(Message.conversation_id, Message.channel_metadata)
+        .filter(
+            Message.conversation_id.in_(conv_ids),
+            Message.tenant_id == current_user.tenant_id,
+            Message.channel_metadata.isnot(None),
+        )
+        .order_by(Message.conversation_id, Message.created_at.asc())
+        .distinct(Message.conversation_id)
+        .all()
+    )
+    ad_title_by_conv = {}
+    for row in ad_rows:
+        referral = (row.channel_metadata or {}).get("referral") or {}
+        ad_title = (referral.get("ads_context_data") or {}).get("ad_title")
+        if ad_title:
+            ad_title_by_conv[row.conversation_id] = ad_title
+
     result = []
     for c in conversations:
         out = ConversationOut.model_validate(c)
         out.guest_name = c.guest.name if c.guest else None
         out.last_message = preview_by_conv.get(c.id)
+        out.ad_title = ad_title_by_conv.get(c.id)
         result.append(out)
     return result
 
@@ -385,6 +407,8 @@ def get_conversation_detail(
             "ai_confidence": m.ai_confidence,
             "is_internal": m.is_internal,
             "replied_to_message_id": m.replied_to_message_id,
+            "media_url": m.media_url,   # T0.5
+            "media_type": m.media_type,
         }
 
     channel_val = conv.channel.value if hasattr(conv.channel, "value") else str(conv.channel)

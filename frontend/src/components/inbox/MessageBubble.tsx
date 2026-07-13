@@ -17,6 +17,8 @@ export interface MessageBubbleProps {
   isInternal?: boolean;                  // W24
   aiConfidence?: number;
   senderName?: string;
+  mediaUrl?: string | null;              // T0.5
+  mediaType?: string | null;             // image/video/audio/document
   onApprove?: (id: string) => void;
   onEdit?: (id: string, text: string) => void;
   onReject?: (id: string) => void;
@@ -54,6 +56,31 @@ function formatTime(iso: string) {
   return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 }
 
+// T0.5: inline media rendering. mediaUrl is only ever set server-side after
+// passing an SSRF domain allowlist check (see meta_graph.validate_media_url),
+// so it's safe to render directly here.
+function MediaContent({ url, type }: { url: string; type?: string | null }) {
+  const kind = (type || "").toLowerCase();
+  if (kind.startsWith("image") || kind === "image") {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={url} alt="Attachment" className="rounded-xl max-w-full max-h-72 object-contain" />
+    );
+  }
+  if (kind.startsWith("video") || kind === "video" || kind === "ig_reel" || kind === "reel" || kind === "share") {
+    return <video src={url} controls className="rounded-xl max-w-full max-h-72" />;
+  }
+  if (kind.startsWith("audio") || kind === "audio") {
+    return <audio src={url} controls className="max-w-full" />;
+  }
+  // Unknown/document type — link out rather than guessing a renderer
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer" className="text-teal-600 underline text-sm">
+      View attachment
+    </a>
+  );
+}
+
 export const MessageBubble = memo(function MessageBubble({
   id,
   text,
@@ -65,6 +92,8 @@ export const MessageBubble = memo(function MessageBubble({
   isInternal,
   aiConfidence,
   senderName,
+  mediaUrl,
+  mediaType,
   onApprove,
   onEdit,
   onReject,
@@ -129,7 +158,16 @@ export const MessageBubble = memo(function MessageBubble({
                 )}
               </div>
             )}
-            <p className="whitespace-pre-wrap">{text}</p>
+            {mediaUrl && (
+              <div className={cn(text && !/^\[[a-z_]+\]$/i.test(text) ? "mb-1.5" : "")}>
+                <MediaContent url={mediaUrl} type={mediaType} />
+              </div>
+            )}
+            {/* Bracketed placeholder ("[image]") is a fallback caption only --
+                don't show it redundantly once the real media is rendered. */}
+            {text && !(mediaUrl && /^\[[a-z_]+\]$/i.test(text)) && (
+              <p className="whitespace-pre-wrap">{text}</p>
+            )}
           </div>
 
           {/* W5: hover reply action */}
