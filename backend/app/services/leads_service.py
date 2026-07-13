@@ -395,6 +395,10 @@ def get_leads_pipeline(
     occasion: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    checkin_date_from: Optional[str] = None,
+    checkin_date_to: Optional[str] = None,
+    booked_date_from: Optional[str] = None,
+    booked_date_to: Optional[str] = None,
     page: int = 1,
     page_size: int = 25,
 ) -> LeadsListResponse:
@@ -402,6 +406,14 @@ def get_leads_pipeline(
     Paginated pipeline query. One row per inquiry.
     Uses joinedload to avoid N+1 on guest + assigned_user.
     Batch-fetches guest_identities for all guest_ids in the page.
+
+    date_from/date_to filter enquiry date (inquiries.created_at).
+    checkin_date_from/to filter inquiries.check_in -- stored as an ISO
+    'YYYY-MM-DD' string; string BETWEEN is correct here since same-format
+    ISO dates sort lexicographically identically to chronological order.
+    booked_date_from/to filter on the date the inquiry entered whichever
+    pipeline_stages row has is_closed_won=true for this tenant (restructure
+    plan §3.1 -- there's no stored Hostaway reservation date in HAIP yet).
     """
     q = (
         db.query(Inquiry)
@@ -431,6 +443,14 @@ def get_leads_pipeline(
         q = q.filter(Inquiry.created_at >= date_from)
     if date_to:
         q = q.filter(Inquiry.created_at <= date_to)
+    if checkin_date_from:
+        q = q.filter(Inquiry.check_in >= checkin_date_from)
+    if checkin_date_to:
+        q = q.filter(Inquiry.check_in <= checkin_date_to)
+    if booked_date_from or booked_date_to:
+        q = q.filter(Inquiry.id.in_(
+            _booked_inquiry_ids(db, tenant_id, booked_date_from, booked_date_to)
+        ))
 
     total = q.count()
 
@@ -475,6 +495,37 @@ def get_leads_pipeline(
         stages=stage_meta,
         leads=leads,
     )
+
+
+def _booked_inquiry_ids(
+    db: Session, tenant_id: str, date_from: Optional[str], date_to: Optional[str],
+) -> list[str]:
+    """Inquiry IDs that entered a closed-won pipeline stage within the given
+    range, per the earliest matching InquiryStageLog row (an inquiry can
+    only enter closed-won once in practice, but earliest is used defensively
+    in case of a stage reversal + re-close)."""
+    from app.models.inquiry_360 import InquiryStageLog
+    from app.models.pipeline_stage import PipelineStage
+
+    won_keys = [
+        row.key for row in
+        db.query(PipelineStage.key).filter_by(tenant_id=tenant_id, is_closed_won=True).all()
+    ]
+    if not won_keys:
+        return []
+
+    q = (
+        db.query(InquiryStageLog.inquiry_id)
+        .filter(
+            InquiryStageLog.tenant_id == tenant_id,
+            InquiryStageLog.to_stage.in_(won_keys),
+        )
+    )
+    if date_from:
+        q = q.filter(InquiryStageLog.changed_at >= date_from)
+    if date_to:
+        q = q.filter(InquiryStageLog.changed_at <= date_to)
+    return [r.inquiry_id for r in q.all()]
 
 
 def _build_stage_summary(

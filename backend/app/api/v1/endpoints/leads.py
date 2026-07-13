@@ -33,6 +33,7 @@ from app.schemas.leads import (
     RefreshSummaryResponse,
 )
 from app.services import identity_service, leads_service
+from app.services.date_presets import resolve_range, VALID_PRESETS
 
 router = APIRouter(prefix="/leads", tags=["leads360"])
 
@@ -68,8 +69,14 @@ def list_leads(
     assigned_to: Optional[str] = Query(None),
     source: Optional[str] = Query(None),
     occasion: Optional[str] = Query(None),
-    date_from: Optional[str] = Query(None, description="ISO date string"),
-    date_to: Optional[str] = Query(None, description="ISO date string"),
+    date_from: Optional[str] = Query(None, description="Enquiry date ISO string (created_at)"),
+    date_to: Optional[str] = Query(None, description="Enquiry date ISO string (created_at)"),
+    enquiry_date_preset: Optional[str] = Query(None, description="last_7d|last_14d|custom"),
+    checkin_date_from: Optional[str] = Query(None, description="ISO date string"),
+    checkin_date_to: Optional[str] = Query(None, description="ISO date string"),
+    checkin_date_preset: Optional[str] = Query(None, description="next_7d|last_7d|next_14d|last_14d|custom"),
+    booked_date_from: Optional[str] = Query(None, description="ISO date string"),
+    booked_date_to: Optional[str] = Query(None, description="ISO date string"),
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
     current_user: User = Depends(get_current_user),
@@ -79,7 +86,18 @@ def list_leads(
     Return paginated pipeline view. One row per inquiry.
     A guest with 2 open inquiries appears as 2 rows.
     AI summaries are read from DB — never generated inline.
+
+    Date presets are resolved server-side in IST (restructure plan §3.1) --
+    HAIP is India-only, so a client-timezone-driven "last 7 days" risks
+    silently shifting by a day.
     """
+    for preset, name in ((enquiry_date_preset, "enquiry_date_preset"), (checkin_date_preset, "checkin_date_preset")):
+        if preset and preset not in VALID_PRESETS:
+            raise HTTPException(status_code=422, detail=f"Invalid {name}: {preset}")
+
+    date_from, date_to = resolve_range(enquiry_date_preset, date_from, date_to)
+    checkin_date_from, checkin_date_to = resolve_range(checkin_date_preset, checkin_date_from, checkin_date_to)
+
     return leads_service.get_leads_pipeline(
         db=db,
         tenant_id=current_user.tenant_id,
@@ -90,6 +108,10 @@ def list_leads(
         occasion=occasion,
         date_from=date_from,
         date_to=date_to,
+        checkin_date_from=checkin_date_from,
+        checkin_date_to=checkin_date_to,
+        booked_date_from=booked_date_from,
+        booked_date_to=booked_date_to,
         page=page,
         page_size=page_size,
     )
