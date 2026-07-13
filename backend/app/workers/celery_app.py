@@ -29,6 +29,7 @@ celery_app = Celery(
         "app.workers.tasks.dpdp_purge",
         # Instagram
         "app.workers.tasks.process_instagram_dm",
+        "app.workers.tasks.process_instagram_comment",
         "app.workers.tasks.send_instagram_dm",
         # PMS syncs
         "app.workers.tasks.sync_retalwise",
@@ -106,6 +107,7 @@ celery_app.conf.update(
         # match them — without this, they fall through to Celery's implicit
         # "celery" queue, which no worker here consumes.
         "process_instagram_dm":                     {"queue": "whatsapp"},
+        "process_instagram_comment":                 {"queue": "whatsapp"},
         "send_instagram_dm":                        {"queue": "whatsapp"},
         "instagram_mark_seen":                       {"queue": "whatsapp"},
         "backfill_instagram_guest_name":             {"queue": "whatsapp"},
