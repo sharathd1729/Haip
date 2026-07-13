@@ -6,11 +6,7 @@ import api from "@/lib/api";
 import { LeadCard, type LeadCard as LeadCardType } from "@/components/leads/LeadCard";
 import { SkeletonCard } from "@/components/ui/SkeletonCard";
 import { cn } from "@/lib/utils";
-import {
-  usePipelineConfig,
-  DEFAULT_PIPELINE_STAGES,
-  type PipelineStage,
-} from "@/hooks/usePipelineConfig";
+import { usePipelineStages, type PipelineStageRow } from "@/hooks/usePipelineStages";
 import { PipelineSettingsModal } from "@/components/leads/PipelineSettingsModal";
 
 const ALL_STAGES_ID = "__all__";
@@ -32,7 +28,7 @@ function StageColumn({
   meta,
   loading,
 }: {
-  stage: PipelineStage;
+  stage: PipelineStageRow;
   leads: LeadCardType[];
   meta?: { count: number; potential_revenue: number };
   loading: boolean;
@@ -99,8 +95,8 @@ export default function Leads360Page() {
   const [stageFilter, setStageFilter] = useState(ALL_STAGES_ID);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  const { data: configStages = DEFAULT_PIPELINE_STAGES } = usePipelineConfig();
-  const visibleStages = configStages.filter(s => s.visible);
+  const { data: pipelineStages = [] } = usePipelineStages();
+  const visibleStages = pipelineStages;
 
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ["leads", stageFilter],
@@ -229,7 +225,7 @@ export default function Leads360Page() {
       {/* ── Pipeline settings modal ──────────────────────────────────────── */}
       {settingsOpen && (
         <PipelineSettingsModal
-          stages={configStages}
+          stages={pipelineStages}
           onClose={() => setSettingsOpen(false)}
         />
       )}
