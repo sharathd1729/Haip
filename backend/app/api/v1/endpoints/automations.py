@@ -114,6 +114,13 @@ VALID_TRIGGERS = {
     "no_response_2h", "no_response_24h",
     "inquiry_lost",
     "stay_check_in_1d", "stay_check_out_1d",
+    # T1.3: registered so automation_runs can log outcomes consistently with
+    # every other trigger, and so non-keyword actions (e.g. notify_team) can
+    # attach to comment events without new plumbing. Phase 2's keyword-match
+    # fast path in process_instagram_comment.py bypasses fire_trigger entirely
+    # for latency reasons (Architecture Decision #2) -- this registration is
+    # about consistency/auditability, not the dispatch path itself.
+    "ig_comment_received",
 }
 
 VALID_ACTIONS = {
