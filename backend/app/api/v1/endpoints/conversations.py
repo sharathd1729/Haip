@@ -409,6 +409,7 @@ def get_conversation_detail(
             "replied_to_message_id": m.replied_to_message_id,
             "media_url": m.media_url,   # T0.5
             "media_type": m.media_type,
+            "shared_post_url": (m.channel_metadata or {}).get("shared_post_url"),
         }
 
     channel_val = conv.channel.value if hasattr(conv.channel, "value") else str(conv.channel)

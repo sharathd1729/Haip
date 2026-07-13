@@ -133,6 +133,13 @@ def process_instagram_dm(self, payload: dict) -> dict:
         body = text or ""
         media_url = None
         media_type = None
+        shared_post_url = None
+        # Post/story-share attachments (type "ig_post"/"share"/"story_mention") link
+        # to a permalink, not a fetchable CDN media file -- validate_media_url()
+        # correctly rejects these (they're not on Meta's CDN host allowlist), but
+        # the permalink itself is still useful to show, just as an outbound link
+        # rather than fetched/rendered media. Only genuine CDN attachment URLs are
+        # ever treated as media_url.
         if attachments:
             att = attachments[0]
             att_type = att.get("type", "media")
@@ -143,10 +150,19 @@ def process_instagram_dm(self, payload: dict) -> dict:
                 media_url = att_url
                 media_type = att_type
             elif att_url:
-                logger.warning(
-                    "Instagram attachment URL failed SSRF allowlist check, dropping media_url: host=%s",
-                    urlparse(att_url).netloc,
-                )
+                if att_type in ("ig_post", "share", "story_mention"):
+                    shared_post_url = att_url
+                else:
+                    logger.warning(
+                        "Instagram attachment URL failed SSRF allowlist check, dropping media_url: host=%s",
+                        urlparse(att_url).netloc,
+                    )
+
+        channel_metadata = {}
+        if referral:
+            channel_metadata["referral"] = referral
+        if shared_post_url:
+            channel_metadata["shared_post_url"] = shared_post_url
 
         message = Message(
             id=str(uuid.uuid4()),
@@ -159,7 +175,7 @@ def process_instagram_dm(self, payload: dict) -> dict:
             media_url=media_url,
             media_type=media_type,
             channel_status="received",
-            channel_metadata={"referral": referral} if referral else None,
+            channel_metadata=channel_metadata or None,
         )
         db.add(message)
         conversation.last_message_at = datetime.now(timezone.utc).isoformat()
@@ -231,8 +247,8 @@ def process_instagram_dm(self, payload: dict) -> dict:
         db.close()
 
 
-@celery_app.task(name="backfill_instagram_guest_name", max_retries=2, default_retry_delay=30)
-def backfill_instagram_guest_name(tenant_id: str, guest_id: str, sender_id: str) -> dict:
+@celery_app.task(bind=True, name="backfill_instagram_guest_name", max_retries=3, default_retry_delay=30)
+def backfill_instagram_guest_name(self, tenant_id: str, guest_id: str, sender_id: str) -> dict:
     """
     T0.4: fire-and-forget follow-up to process_instagram_dm. Fetches the
     guest's real Instagram display name via the Graph API and updates it if
@@ -272,7 +288,18 @@ def backfill_instagram_guest_name(tenant_id: str, guest_id: str, sender_id: str)
 
         return {"status": "no_name_available"}
     except Exception as exc:
-        logger.warning("backfill_instagram_guest_name failed for guest %s: %s", guest_id, exc)
-        return {"status": "error", "reason": str(exc)}
+        # 4xx from the Graph API (permission denied, user not found, etc.) will
+        # never succeed on retry -- give up permanently on those. Anything else
+        # (timeouts, 5xx, network errors) is transient -- retry with backoff.
+        status_code = getattr(getattr(exc, "response", None), "status_code", None)
+        if status_code and 400 <= status_code < 500:
+            logger.warning(
+                "backfill_instagram_guest_name permanently failed for guest %s: %s", guest_id, exc
+            )
+            return {"status": "error", "reason": str(exc)}
+        logger.warning(
+            "backfill_instagram_guest_name failed for guest %s (will retry): %s", guest_id, exc
+        )
+        raise self.retry(exc=exc)
     finally:
         db.close()

@@ -19,6 +19,7 @@ export interface MessageBubbleProps {
   senderName?: string;
   mediaUrl?: string | null;              // T0.5
   mediaType?: string | null;             // image/video/audio/document
+  sharedPostUrl?: string | null;         // Instagram post/ad share — permalink, not fetchable media
   onApprove?: (id: string) => void;
   onEdit?: (id: string, text: string) => void;
   onReject?: (id: string) => void;
@@ -94,6 +95,7 @@ export const MessageBubble = memo(function MessageBubble({
   senderName,
   mediaUrl,
   mediaType,
+  sharedPostUrl,
   onApprove,
   onEdit,
   onReject,
@@ -163,9 +165,21 @@ export const MessageBubble = memo(function MessageBubble({
                 <MediaContent url={mediaUrl} type={mediaType} />
               </div>
             )}
+            {!mediaUrl && sharedPostUrl && (
+              <div className={cn(text && !/^\[[a-z_]+\]$/i.test(text) ? "mb-1.5" : "")}>
+                <a
+                  href={sharedPostUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-sm text-teal-600 underline"
+                >
+                  View shared post on Instagram
+                </a>
+              </div>
+            )}
             {/* Bracketed placeholder ("[image]") is a fallback caption only --
-                don't show it redundantly once the real media is rendered. */}
-            {text && !(mediaUrl && /^\[[a-z_]+\]$/i.test(text)) && (
+                don't show it redundantly once the real media/post link is rendered. */}
+            {text && !((mediaUrl || sharedPostUrl) && /^\[[a-z_]+\]$/i.test(text)) && (
               <p className="whitespace-pre-wrap">{text}</p>
             )}
           </div>

@@ -120,10 +120,7 @@ class InstagramGraphAdapter:
 
     def get_user_profile(self, user_id: str) -> dict:
         """Fetch name + profile_pic for an Instagram user (requires instagram_manage_messages permission)."""
-        try:
-            return self._get(f"/{user_id}", params={"fields": "name,profile_pic"})
-        except Exception:
-            return {}
+        return self._get(f"/{user_id}", params={"fields": "name,profile_pic"})
 
     # ── Conversation listing ───────────────────────────────────────────────────
 

@@ -48,6 +48,7 @@ interface Message {
   replied_to_message_id?: string;
   media_url?: string | null;   // T0.5
   media_type?: string | null;
+  shared_post_url?: string | null;
 }
 
 interface ConversationDetail {
@@ -429,7 +430,7 @@ export default function InboxPage() {
     queryKey: ["conversation", activeConversationId],
     queryFn: () => api.get(`/conversations/${activeConversationId}`).then(r => r.data),
     enabled: !!activeConversationId,
-    staleTime: 0,
+    staleTime: 30_000,
   });
 
   // Mark as read when conversation detail loads
@@ -970,6 +971,7 @@ export default function InboxPage() {
                       senderName={msg.direction === "outbound" ? msg.sender_name : (detail.guest_name || detail.guest_phone)}
                       mediaUrl={msg.media_url}
                       mediaType={msg.media_type}
+                      sharedPostUrl={msg.shared_post_url}
                       onApprove={handleApprove}
                       onEdit={(id, text) => { setEditingDraftId(id); setEditText(text); }}
                       onReject={handleReject}
