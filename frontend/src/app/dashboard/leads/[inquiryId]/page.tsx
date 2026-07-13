@@ -35,6 +35,21 @@ interface QuoteHistory {
   age_days?: number;
 }
 
+interface FieldValue {
+  field_key: string;
+  label: string;
+  data_type: string;
+  value: unknown;
+}
+
+function formatFieldValue(f: FieldValue): string {
+  if (f.value === null || f.value === undefined || f.value === "") return "—";
+  if (f.data_type === "currency" && typeof f.value === "number") {
+    return `₹${f.value.toLocaleString("en-IN")}`;
+  }
+  return String(f.value);
+}
+
 // ─── Channel icon ─────────────────────────────────────────────────────────────
 
 function ChannelIcon({ channel }: { channel: string }) {
@@ -189,6 +204,23 @@ export default function LeadDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Lead field registry — tenant-configurable field catalog (Phase 3) */}
+          {(data.custom_field_values ?? []).length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-100 p-3.5">
+              <h3 className="text-[11px] font-semibold text-gray-700 mb-2">Details</h3>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                {(data.custom_field_values as FieldValue[])
+                  .filter(f => f.value !== null && f.value !== undefined && f.value !== "")
+                  .map(f => (
+                    <div key={f.field_key} className="min-w-0">
+                      <p className="text-[9px] text-gray-400 uppercase tracking-wide">{f.label}</p>
+                      <p className="text-[11px] text-gray-700 truncate">{formatFieldValue(f)}</p>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
 
           {/* AI summary */}
           <div className="bg-teal-50 rounded-xl border border-teal-100 p-3.5">
