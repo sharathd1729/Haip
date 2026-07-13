@@ -121,11 +121,21 @@ VALID_TRIGGERS = {
     # for latency reasons (Architecture Decision #2) -- this registration is
     # about consistency/auditability, not the dispatch path itself.
     "ig_comment_received",
+    # T2.1: DM counterpart of ig_comment_received. Same fast-path rationale --
+    # the actual matching in process_instagram_dm.py is inline, not through
+    # fire_trigger, but this registration keeps CRUD validation and
+    # automation_runs auditability consistent.
+    "ig_dm_received",
 }
 
 VALID_ACTIONS = {
     "send_whatsapp_template", "create_draft_reply",
     "notify_team", "move_to_followup", "tag_guest",
+    # T2.3: deterministic canned-text/card send for keyword-matched IG DMs
+    # and comments. Dispatched inline from the ingest tasks, not through
+    # fire_trigger (Architecture Decision #2) -- registered here so it
+    # passes CRUD validation when a rule is created via the API.
+    "send_instagram_quick_reply",
 }
 
 
