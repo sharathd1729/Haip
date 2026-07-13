@@ -7,11 +7,43 @@ API version: v20.0
 
 from __future__ import annotations
 import logging
+from urllib.parse import urlparse
 import httpx
 
 logger = logging.getLogger(__name__)
 
 GRAPH_BASE = "https://graph.instagram.com/v20.0"
+
+# SSRF protection for inbound attachment media_url values (T0.2). Unlike
+# Dograh's fixed hostnames, Meta's CDN serves media from many dynamically
+# numbered subdomains (e.g. scontent-bom2-1.cdninstagram.com), so this is a
+# domain-suffix allowlist rather than an exact-match set.
+#
+# NOTE: these are Meta's long-standing, documented CDN domains for
+# Instagram/Messenger attachment delivery, but per the build plan this
+# should be verified against a live webhook payload before being fully
+# relied on for production media fetching -- flagged, not guessed blind.
+_ALLOWED_MEDIA_HOST_SUFFIXES = (
+    ".cdninstagram.com",
+    "cdninstagram.com",
+    ".fbcdn.net",
+    "fbcdn.net",
+    "lookaside.fbsbx.com",
+)
+
+
+def validate_media_url(url: str) -> bool:
+    """
+    Return True only for HTTPS URLs whose host is on Meta's CDN allowlist.
+    Prevents SSRF via an attacker-controlled attachment payload URL.
+    """
+    if not url:
+        return False
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or not parsed.netloc:
+        return False
+    host = parsed.netloc.split("@")[-1].split(":")[0].lower()
+    return any(host == s.lstrip(".") or host.endswith(s) for s in _ALLOWED_MEDIA_HOST_SUFFIXES)
 
 
 class InstagramGraphAdapter:

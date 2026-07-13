@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
@@ -22,6 +23,7 @@ from app.models.integration import Integration
 from app.models.guest import Guest
 from app.models.conversation import Conversation, Message, ChannelType, MessageDirection
 from app.core.encryption import decrypt_credentials
+from app.adapters.instagram.meta_graph import validate_media_url
 from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -135,9 +137,22 @@ def process_instagram_dm(self, payload: dict) -> dict:
 
         # ── Store message ──────────────────────────────────────────────────
         body = text or ""
-        if not body and attachments:
-            att_type = attachments[0].get("type", "media")
-            body = f"[{att_type}]"
+        media_url = None
+        media_type = None
+        if attachments:
+            att = attachments[0]
+            att_type = att.get("type", "media")
+            att_url = (att.get("payload") or {}).get("url", "")
+            if not body:
+                body = f"[{att_type}]"  # fallback caption, not a replacement for the URL
+            if att_url and validate_media_url(att_url):
+                media_url = att_url
+                media_type = att_type
+            elif att_url:
+                logger.warning(
+                    "Instagram attachment URL failed SSRF allowlist check, dropping media_url: host=%s",
+                    urlparse(att_url).netloc,
+                )
 
         message = Message(
             id=str(uuid.uuid4()),
@@ -147,6 +162,8 @@ def process_instagram_dm(self, payload: dict) -> dict:
             direction=MessageDirection.INBOUND,
             channel=channel_val,
             body=body,
+            media_url=media_url,
+            media_type=media_type,
             channel_status="received",
         )
         db.add(message)
