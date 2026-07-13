@@ -269,6 +269,142 @@ def _apply_stage(
     )
 
 
+def update_stage_by_id(
+    db: Session,
+    *,
+    tenant_id: str,
+    inquiry_id: str,
+    new_stage_id: str,
+    actor_user_id: str,
+    actor_role: str,
+    reason: Optional[str] = None,
+) -> Inquiry:
+    """
+    stage_id-driven transition (Leads360 restructure Phase 1 §2.2) — the
+    tenant-configurable-pipeline replacement for update_stage(). Rules,
+    data-driven off pipeline_stages instead of a hardcoded enum:
+
+      - Forward: allowed to any stage with a higher `order`.
+      - Exit: any stage with is_closed_won/is_closed_lost is reachable from
+        any non-terminal stage.
+      - Backward (lower `order`): requires actor_role in {owner, manager}
+        plus a reason, same guardrail as the legacy update_stage().
+      - Terminal stages (is_closed_won/is_closed_lost) block further moves.
+
+    This is additive alongside update_stage() -- callers on a tenant with
+    only the seeded default stages get equivalent behavior either way, but
+    only this path supports a tenant's custom-added stages. The legacy
+    `inquiries.stage` enum column is left untouched by this path (there is
+    no general mapping from an arbitrary custom stage back to a fixed
+    7-value enum) -- code still reading `inquiry.stage` will see it frozen
+    at its last enum-covered value once a tenant customizes their pipeline.
+    Migrating those ~30 call sites off the enum is tracked as follow-up
+    tickets in the Leads360 restructure plan.
+    """
+    inquiry = db.query(Inquiry).filter_by(id=inquiry_id, tenant_id=tenant_id).first()
+    if not inquiry:
+        raise ValueError(f"Inquiry {inquiry_id} not found")
+
+    new_stage = db.query(PipelineStage).filter_by(id=new_stage_id, tenant_id=tenant_id).first()
+    if not new_stage:
+        raise ValueError(f"Pipeline stage {new_stage_id} not found")
+
+    current = (
+        db.query(PipelineStage).filter_by(id=inquiry.stage_id, tenant_id=tenant_id).first()
+        if inquiry.stage_id else None
+    )
+
+    if current is None:
+        # Data anomaly (should be impossible post-migration-043 backfill) --
+        # fail loudly rather than silently guessing a starting stage.
+        raise ValueError(f"Inquiry {inquiry_id} has no current pipeline stage assigned")
+
+    if current.id == new_stage.id:
+        return inquiry
+
+    if current.is_closed_won or current.is_closed_lost:
+        raise InvalidStageTransition(
+            current.key, new_stage.key,
+            f"Inquiry is in a terminal stage ('{current.label}') and cannot be moved further."
+        )
+
+    if new_stage.is_closed_won or new_stage.is_closed_lost:
+        _apply_stage_by_id(db, inquiry, current, new_stage, actor_user_id, reason)
+        return inquiry
+
+    if new_stage.order > current.order:
+        _apply_stage_by_id(db, inquiry, current, new_stage, actor_user_id, reason)
+        return inquiry
+
+    if new_stage.order < current.order:
+        if actor_role not in BACKWARD_ROLES:
+            raise InvalidStageTransition(
+                current.key, new_stage.key,
+                f"Only owner or manager can reverse a stage transition (actor role: {actor_role})."
+            )
+        if not reason or not reason.strip():
+            raise InvalidStageTransition(
+                current.key, new_stage.key,
+                "A reason is required when reversing a stage transition."
+            )
+        _apply_stage_by_id(db, inquiry, current, new_stage, actor_user_id, reason)
+        return inquiry
+
+    raise InvalidStageTransition(
+        current.key, new_stage.key,
+        f"'{current.key}' and '{new_stage.key}' have the same pipeline order — not a valid transition."
+    )
+
+
+def _apply_stage_by_id(
+    db: Session,
+    inquiry: Inquiry,
+    old_stage: PipelineStage,
+    new_stage: PipelineStage,
+    actor_user_id: str,
+    reason: Optional[str],
+) -> None:
+    """Write the stage change + audit event + Inquiry360 stage log. Caller must commit."""
+    now = datetime.now(timezone.utc)
+    inquiry.stage_id = new_stage.id
+    inquiry.current_stage_entered_at = now
+
+    try:
+        from app.models.inquiry_360 import InquiryStageLog
+        from app.models.base import gen_uuid
+        db.add(InquiryStageLog(
+            id=gen_uuid(),
+            tenant_id=inquiry.tenant_id,
+            inquiry_id=inquiry.id,
+            from_stage=old_stage.key,
+            to_stage=new_stage.key,
+            changed_by=actor_user_id or "system",
+            changed_at=now,
+            reason=reason or "",
+        ))
+    except Exception as exc:
+        log.warning("inquiry_stage_log_write_failed", error=str(exc))
+
+    try:
+        from app.core.audit import append_audit
+        append_audit(
+            db,
+            tenant_id=inquiry.tenant_id,
+            action="inquiry.stage_changed",
+            actor_user_id=actor_user_id,
+            target_type="inquiry",
+            target_id=inquiry.id,
+            payload={"from_stage": old_stage.key, "to_stage": new_stage.key, "reason": reason or ""},
+        )
+    except Exception as exc:
+        log.warning("audit_write_failed", error=str(exc))
+
+    log.info(
+        "inquiry_stage_changed", inquiry_id=inquiry.id,
+        from_stage=old_stage.key, to_stage=new_stage.key, actor=actor_user_id,
+    )
+
+
 def update_status(db: Session, tenant_id: str, inquiry_id: str, stage: str, **kwargs) -> Inquiry:
     """
     Legacy wrapper — skips state-machine validation.

@@ -76,6 +76,10 @@ class InquiryCreateRequest(BaseModel):
 
 class InquiryUpdateRequest(BaseModel):
     stage: Optional[str] = None
+    # Leads360 restructure Phase 1: preferred over `stage` -- required for
+    # tenants that have added a custom pipeline stage. If both are sent,
+    # stage_id wins (see inquiries.py PATCH handler).
+    stage_id: Optional[str] = None
     # Required when performing a backward stage transition (owner/manager only)
     reason: Optional[str] = None
     property_id: Optional[str] = None

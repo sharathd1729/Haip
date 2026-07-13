@@ -9,7 +9,7 @@ from app.models.user import User
 from app.models.inquiry import Inquiry, InquiryStage
 from app.models.conversation import Conversation, Message
 from app.schemas.inquiry import InquiryOut, InquiryCreateRequest, InquiryUpdateRequest
-from app.services.inquiry_service import get_or_create, update_stage, InvalidStageTransition
+from app.services.inquiry_service import get_or_create, update_stage, update_stage_by_id, InvalidStageTransition
 from app.services.assignment import get_next_assignee
 from pydantic import BaseModel
 
@@ -116,8 +116,29 @@ def update_inquiry(
     updates = body.model_dump(exclude_none=True)
     reason = updates.pop("reason", None)
 
-    # Stage transitions go through the state-machine service
-    if "stage" in updates:
+    # Stage transitions go through the state-machine service. `stage_id`
+    # (Leads360 restructure Phase 1) is preferred and required for any
+    # tenant that has added a custom pipeline stage; `stage` (legacy enum
+    # key) is kept for existing frontend callers until the Kanban UI is
+    # migrated over. Both share the same actor-role/reason backward-move
+    # guardrails, just against different underlying data.
+    actor_role = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    if "stage_id" in updates:
+        try:
+            update_stage_by_id(
+                db,
+                tenant_id=current_user.tenant_id,
+                inquiry_id=inquiry_id,
+                new_stage_id=updates.pop("stage_id"),
+                actor_user_id=current_user.id,
+                actor_role=actor_role,
+                reason=reason,
+            )
+        except InvalidStageTransition as e:
+            raise HTTPException(status_code=422, detail=e.detail)
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+    elif "stage" in updates:
         try:
             new_stage = InquiryStage(updates.pop("stage"))
         except ValueError as e:
@@ -130,7 +151,7 @@ def update_inquiry(
                 inquiry_id=inquiry_id,
                 new_stage=new_stage,
                 actor_user_id=current_user.id,
-                actor_role=current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role),
+                actor_role=actor_role,
                 reason=reason,
             )
         except InvalidStageTransition as e:
