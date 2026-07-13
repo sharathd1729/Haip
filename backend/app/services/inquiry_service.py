@@ -4,10 +4,48 @@ from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy.orm import Session
 from app.models.inquiry import Inquiry, InquiryStage, InquirySource
+from app.models.pipeline_stage import PipelineStage
 from app.models.user import UserRole
 import structlog
 
 log = structlog.get_logger()
+
+# Leads360 restructure Phase 1: legacy enum member -> pipeline_stages.key.
+# GHOSTED groups under the same "Closed" stage as LOST (CLAUDE.md); the
+# deprecated SITE_VISIT alias maps to site_visit_scheduled.
+_ENUM_TO_STAGE_KEY: dict[InquiryStage, str] = {
+    InquiryStage.NEW: "new",
+    InquiryStage.RESPONDING: "responding",
+    InquiryStage.QUOTED: "quoted",
+    InquiryStage.SITE_VISIT: "site_visit_scheduled",
+    InquiryStage.SITE_VISIT_SCHEDULED: "site_visit_scheduled",
+    InquiryStage.SITE_VISIT_DONE: "site_visit_done",
+    InquiryStage.BOOKED: "booked",
+    InquiryStage.LOST: "lost",
+    InquiryStage.GHOSTED: "lost",
+}
+
+
+def _stage_id_for(db: Session, tenant_id: str, stage: InquiryStage) -> Optional[str]:
+    """Resolve the pipeline_stages row matching a legacy enum value, for
+    keeping stage_id in sync while call sites are migrated incrementally.
+    Best-effort: stage_id is a Phase 1 migration aid, not yet load-bearing
+    for any transition logic, so a lookup failure must never block the
+    actual enum-based stage change (same pattern as the audit/stage-log
+    writes below)."""
+    key = _ENUM_TO_STAGE_KEY.get(stage)
+    if not key:
+        return None
+    try:
+        row = (
+            db.query(PipelineStage.id)
+            .filter_by(tenant_id=tenant_id, key=key)
+            .first()
+        )
+        return row[0] if row else None
+    except Exception as exc:
+        log.warning("stage_id_sync_failed", tenant_id=tenant_id, stage=stage.value, error=str(exc))
+        return None
 
 
 # ── State machine ─────────────────────────────────────────────────────────────
@@ -87,6 +125,7 @@ def get_or_create(db: Session, tenant_id: str, guest_id: str, source: str = "pho
             tenant_id=tenant_id,
             guest_id=guest_id,
             stage=InquiryStage.NEW,
+            stage_id=_stage_id_for(db, tenant_id, InquiryStage.NEW),
             source=src,
         )
         db.add(inquiry)
@@ -181,6 +220,7 @@ def _apply_stage(
     old_stage = inquiry.stage
     now = datetime.now(timezone.utc)
     inquiry.stage = new_stage
+    inquiry.stage_id = _stage_id_for(db, inquiry.tenant_id, new_stage)
     inquiry.current_stage_entered_at = now
 
     # M7: Write to inquiry_stage_log (Inquiry360 — immutable stage history)
@@ -239,9 +279,11 @@ def update_status(db: Session, tenant_id: str, inquiry_id: str, stage: str, **kw
     if not inquiry:
         raise ValueError(f"Inquiry {inquiry_id} not found")
     try:
-        inquiry.stage = InquiryStage(stage)
+        new_stage = InquiryStage(stage)
     except ValueError:
         raise ValueError(f"Invalid stage: {stage}")
+    inquiry.stage = new_stage
+    inquiry.stage_id = _stage_id_for(db, tenant_id, new_stage)
     for k, v in kwargs.items():
         if hasattr(inquiry, k) and v is not None:
             setattr(inquiry, k, v)

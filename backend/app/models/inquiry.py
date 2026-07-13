@@ -65,6 +65,10 @@ class Inquiry(Base, TimestampMixin, TenantMixin):
         SAEnum(InquiryStage, values_callable=lambda x: [e.value for e in x]),
         default=InquiryStage.NEW, nullable=False, index=True,
     )
+    # Leads360 restructure Phase 1 (migration 043): tenant-owned stage
+    # catalog, coexisting with the legacy `stage` enum during migration.
+    # Kept in sync by inquiry_service until the enum column is dropped.
+    stage_id = Column(String, ForeignKey("pipeline_stages.id"), nullable=True, index=True)
     source = Column(SAEnum(InquirySource, values_callable=lambda x: [e.value for e in x]), nullable=True)
     lost_reason = Column(SAEnum(LostReason, values_callable=lambda x: [e.value for e in x]), nullable=True)
     lost_note = Column(Text, nullable=True)
@@ -101,6 +105,7 @@ class Inquiry(Base, TimestampMixin, TenantMixin):
     custom_fields = Column(JSON, default=dict)
 
     guest = relationship("Guest", back_populates="inquiries")
+    pipeline_stage = relationship("PipelineStage", foreign_keys=[stage_id])
     property = relationship("Property", foreign_keys=[property_id])
     assigned_user = relationship("User", foreign_keys=[assigned_to])
     conversations = relationship("Conversation", back_populates="inquiry", lazy="dynamic")
