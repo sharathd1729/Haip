@@ -186,8 +186,21 @@ def process_instagram_dm(self, payload: dict) -> dict:
         except Exception as _sse_exc:
             logger.warning("sse_publish_failed: %s", _sse_exc)
 
-        # ── Trigger AI concierge draft ─────────────────────────────────────
+        # ── T2/T3: keyword-match first; AI concierge draft is fallback only ──
+        # Priority 3 requirement: auto-reply always wins when both would
+        # otherwise fire. AI is strictly for messages no rule matched.
+        matched_rule = None
         if body and body.strip() and not body.startswith("["):
+            from app.services.ig_keyword_match import find_matching_rule
+            matched_rule = find_matching_rule(db, tenant_id, "ig_dm_received", body)
+
+        if matched_rule:
+            from app.services.ig_quick_reply import dispatch_quick_reply
+            dispatch_quick_reply(
+                db, tenant_id, matched_rule,
+                recipient_id=sender_id, guest_id=guest_id, conversation_id=conversation.id,
+            )
+        elif body and body.strip() and not body.startswith("[") and conversation.ai_mode != "off":
             try:
                 from app.workers.tasks.concierge_draft import concierge_draft
                 concierge_draft.apply_async(

@@ -99,6 +99,10 @@ class InstagramGraphAdapter:
             "messaging_type": "RESPONSE",
         })
 
+    def reply_to_comment(self, comment_id: str, message: str) -> dict:
+        """Post a public reply to a comment (T2.3 — comment-sourced quick replies)."""
+        return self._post(f"/{comment_id}/replies", {"message": message})
+
     def mark_seen(self, sender_id: str) -> dict:
         """Send 'seen' receipt to a user."""
         return self._post(f"/{self._account_id}/messages", {
