@@ -134,6 +134,10 @@ def _handle_inbound_dm(ig_account_id: str, sender_id: str, event: dict):
         "attachments": message.get("attachments", []),
         "timestamp": event.get("timestamp"),
         "reply_to": message.get("reply_to", {}),
+        # T0.3: ad attribution -- present when the DM originated from a
+        # Click-to-Instagram ad. Sibling of "message" in the messaging event,
+        # not nested inside it.
+        "referral": event.get("referral", {}),
     }
 
     try:

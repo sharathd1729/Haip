@@ -91,6 +91,10 @@ class Message(Base, TimestampMixin, TenantMixin):
     # Channel metadata
     channel_message_id = Column(String(255), nullable=True, index=True)
     channel_status = Column(String(50), nullable=True)  # sent/delivered/read/failed
+    # T0.3: raw ad-attribution payload -- Instagram message.referral (Click-to-IG ads)
+    # or media.ad_id/ad_title (Phase 1 comment ingestion). Not attribution rollups --
+    # just storage of what Meta sent, per CLAUDE.md's FUTURE MODULES boundary.
+    channel_metadata = Column(JSON, nullable=True)
 
     # AI
     is_ai_generated = Column(Boolean, default=False)

@@ -48,6 +48,7 @@ def process_instagram_dm(self, payload: dict) -> dict:
         mid = payload.get("message_id", "")
         text = payload.get("text", "")
         attachments = payload.get("attachments", [])
+        referral = payload.get("referral") or None  # T0.3: ad-attribution, if present
 
         if not sender_id:
             return {"status": "skipped", "reason": "no sender_id"}
@@ -165,6 +166,7 @@ def process_instagram_dm(self, payload: dict) -> dict:
             media_url=media_url,
             media_type=media_type,
             channel_status="received",
+            channel_metadata={"referral": referral} if referral else None,
         )
         db.add(message)
         conversation.last_message_at = datetime.now(timezone.utc).isoformat()
