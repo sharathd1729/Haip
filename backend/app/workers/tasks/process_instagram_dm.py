@@ -122,7 +122,9 @@ def process_instagram_dm(self, payload: dict) -> dict:
                 guest_id=guest_id,
                 channel=channel_val,
                 is_open=True,
-                ai_mode="shadow",
+                # T3.2: inherit the tenant's Instagram AI default rather than
+                # a hardcoded "shadow" for every tenant regardless of risk tolerance.
+                ai_mode=integration.tenant.ig_ai_mode_default if integration.tenant else "shadow",
             )
             db.add(conversation)
             db.flush()

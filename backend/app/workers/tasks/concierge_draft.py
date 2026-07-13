@@ -51,6 +51,8 @@ CONCIERGE_TOOL = {
     },
 }
 
+# T3.2: fallback only -- per-tenant threshold (tenant.ig_ai_confidence_threshold)
+# is read below and takes precedence whenever the tenant row has a value.
 CONFIDENCE_THRESHOLD = 0.78
 
 
@@ -108,7 +110,10 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str)
 
         # Determine mode
         ai_mode = conversation.ai_mode or "shadow"
-        should_auto_send = (ai_mode == "autonomous" and confidence >= CONFIDENCE_THRESHOLD and not needs_human)
+        confidence_threshold = tenant.ig_ai_confidence_threshold
+        if confidence_threshold is None:
+            confidence_threshold = CONFIDENCE_THRESHOLD
+        should_auto_send = (ai_mode == "autonomous" and confidence >= confidence_threshold and not needs_human)
 
         # Store the drafted message
         draft_message = Message(

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, JSON, Integer, LargeBinary
+from sqlalchemy import Column, String, Boolean, JSON, Integer, LargeBinary, Float
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -57,6 +57,13 @@ class Tenant(Base, TimestampMixin):
 
     # Adaptive dashboard: {"selected_widgets": [...], "customized_at": "ISO"}
     dashboard_config = Column(JSON, nullable=True)
+
+    # T3.2: per-tenant Instagram AI concierge defaults -- Ratha and Jade can
+    # carry different risk tolerance without a code change. New conversations
+    # inherit ig_ai_mode_default; concierge_draft.py reads
+    # ig_ai_confidence_threshold instead of a hardcoded constant.
+    ig_ai_mode_default = Column(String(20), nullable=False, server_default="shadow")
+    ig_ai_confidence_threshold = Column(Float, nullable=False, server_default="0.78")
 
     users = relationship("User", back_populates="tenant", lazy="dynamic")
     guests = relationship("Guest", back_populates="tenant", lazy="dynamic")
