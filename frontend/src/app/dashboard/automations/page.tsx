@@ -5,10 +5,23 @@ import {
   Zap, Plus, CheckCircle2, PauseCircle, XCircle,
   MessageSquare, Phone, Clock, ChevronRight, ToggleLeft, ToggleRight,
   AlertCircle, Loader2, Settings2, Pencil, Trash2, X,
-  ChevronDown, Info, CornerDownRight, Instagram, Tag,
+  ChevronDown, Info, CornerDownRight, Tag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
+
+// Instagram glyph was removed from lucide v1+ -- same inline SVG pattern
+// already used in components/inbox/ChannelIcon.tsx.
+function InstagramIcon({ size = 13 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+      <circle cx="12" cy="12" r="4" />
+      <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -48,8 +61,8 @@ const TRIGGERS: { value: string; label: string; icon: React.ReactNode; hint: str
   { value: "inquiry_lost",      label: "Inquiry lost",       icon: <XCircle size={13} />,       hint: "Stage moved to Lost or Ghosted" },
   { value: "stay_check_in_1d",  label: "Check-in tomorrow",  icon: <CheckCircle2 size={13} />,  hint: "Guest checks in tomorrow" },
   { value: "stay_check_out_1d", label: "Check-out tomorrow", icon: <CheckCircle2 size={13} />,  hint: "Guest checks out tomorrow" },
-  { value: "ig_dm_received",    label: "Instagram DM received",      icon: <Instagram size={13} />, hint: "Guest sends an Instagram DM matching your keywords" },
-  { value: "ig_comment_received", label: "Instagram comment received", icon: <Instagram size={13} />, hint: "Guest comments on a post matching your keywords" },
+  { value: "ig_dm_received",    label: "Instagram DM received",      icon: <InstagramIcon size={13} />, hint: "Guest sends an Instagram DM matching your keywords" },
+  { value: "ig_comment_received", label: "Instagram comment received", icon: <InstagramIcon size={13} />, hint: "Guest comments on a post matching your keywords" },
 ];
 
 const ACTIONS: { value: string; label: string; hint: string; configFields: string[] }[] = [
