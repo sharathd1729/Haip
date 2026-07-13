@@ -76,23 +76,11 @@ def process_instagram_dm(self, payload: dict) -> dict:
                 return {"status": "duplicate", "message_id": mid}
 
         # ── Resolve or create guest via Identity Resolution Engine (M2) ─────
-        # Try to fetch IG display name for new guest creation
+        # T0.4: use the placeholder name immediately rather than blocking this
+        # latency-critical path on a Graph API round trip for every new guest.
+        # backfill_instagram_guest_name (below) fetches the real name as a
+        # fire-and-forget follow-up after the message is already visible.
         display_name = f"IG User {sender_id[-6:]}"
-        try:
-            creds = decrypt_credentials(integration.credentials_kms_blob)
-            access_token = creds.get("access_token", "")
-            ig_config = integration.config or {}
-            account_id = ig_config.get("instagram_business_account_id", "")
-            if access_token and account_id:
-                from app.adapters.instagram.meta_graph import InstagramGraphAdapter
-                ig_adapter = InstagramGraphAdapter(
-                    access_token=access_token,
-                    ig_account_id=account_id,
-                )
-                profile = ig_adapter.get_user_profile(sender_id)
-                display_name = profile.get("name", display_name)
-        except Exception as exc:
-            logger.debug("Could not fetch IG profile for %s: %s", sender_id, exc)
 
         from app.services.identity_service import resolve_gid
         guest_id, created = resolve_gid(
@@ -108,12 +96,15 @@ def process_instagram_dm(self, payload: dict) -> dict:
             logger.info("Created new guest from Instagram DM: %s (%s)", guest_id, display_name)
         else:
             logger.debug("Resolved existing guest from Instagram DM: %s", guest_id)
-            # Backfill: earlier messages may have stored the placeholder name
-            # because the profile fetch failed at the time (e.g. before the
-            # graph.instagram.com host fix). Update it once a real name is available.
-            if guest and guest.name and guest.name.startswith("IG User ") and not display_name.startswith("IG User "):
-                guest.name = display_name
-                db.commit()
+
+        # T0.4: fire-and-forget real-name fetch. Dispatched whenever the guest
+        # still has a placeholder name (new guest, or an earlier message whose
+        # own backfill attempt failed) -- never blocks this task.
+        if guest and guest.name and guest.name.startswith("IG User "):
+            backfill_instagram_guest_name.apply_async(
+                kwargs={"tenant_id": tenant_id, "guest_id": guest_id, "sender_id": sender_id},
+                countdown=1,
+            )
 
         # ── Find or create open conversation ────────────────────────────────
         channel_val = ChannelType.INSTAGRAM if hasattr(ChannelType, "INSTAGRAM") else "instagram"
@@ -221,5 +212,52 @@ def process_instagram_dm(self, payload: dict) -> dict:
         logger.error("process_instagram_dm failed: %s", exc)
         db.rollback()
         raise self.retry(exc=exc)
+    finally:
+        db.close()
+
+
+@celery_app.task(name="backfill_instagram_guest_name", max_retries=2, default_retry_delay=30)
+def backfill_instagram_guest_name(tenant_id: str, guest_id: str, sender_id: str) -> dict:
+    """
+    T0.4: fire-and-forget follow-up to process_instagram_dm. Fetches the
+    guest's real Instagram display name via the Graph API and updates it if
+    it's still the "IG User ######" placeholder -- run off the critical path
+    so new-guest messages never wait on this external round trip.
+    """
+    from app.core.database import set_tenant_context
+    db: Session = SessionLocal()
+    try:
+        set_tenant_context(db, tenant_id)
+        guest = db.query(Guest).filter_by(id=guest_id, tenant_id=tenant_id).first()
+        if not guest or not guest.name or not guest.name.startswith("IG User "):
+            return {"status": "skipped", "reason": "guest already named or not found"}
+
+        integration = db.query(Integration).filter_by(
+            tenant_id=tenant_id, kind="instagram", status="active"
+        ).first()
+        if not integration:
+            return {"status": "skipped", "reason": "no integration"}
+
+        creds = decrypt_credentials(integration.credentials_kms_blob)
+        access_token = creds.get("access_token", "")
+        account_id = (integration.config or {}).get("instagram_business_account_id", "")
+        if not access_token or not account_id:
+            return {"status": "skipped", "reason": "missing credentials"}
+
+        from app.adapters.instagram.meta_graph import InstagramGraphAdapter
+        ig_adapter = InstagramGraphAdapter(access_token=access_token, ig_account_id=account_id)
+        profile = ig_adapter.get_user_profile(sender_id)
+        real_name = profile.get("name", "")
+
+        if real_name and not real_name.startswith("IG User "):
+            guest.name = real_name
+            db.commit()
+            logger.info("Backfilled Instagram guest name: %s -> %s", guest_id, real_name)
+            return {"status": "ok", "guest_id": guest_id, "name": real_name}
+
+        return {"status": "no_name_available"}
+    except Exception as exc:
+        logger.warning("backfill_instagram_guest_name failed for guest %s: %s", guest_id, exc)
+        return {"status": "error", "reason": str(exc)}
     finally:
         db.close()
