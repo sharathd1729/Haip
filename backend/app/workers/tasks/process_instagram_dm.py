@@ -247,6 +247,154 @@ def process_instagram_dm(self, payload: dict) -> dict:
         db.close()
 
 
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60, name="process_instagram_echo")
+def process_instagram_echo(self, payload: dict) -> dict:
+    """
+    Store a message the business account sent to a guest via a client other
+    than HAIP (e.g. an agent replying directly in the native Instagram app).
+    Meta calls this an "echo" webhook event. Mirrors process_instagram_dm's
+    identity/conversation lookup but writes an OUTBOUND message and never
+    triggers AI drafts or keyword auto-replies (this is our own reply, not
+    something to respond to).
+
+    payload keys:
+      ig_account_id  — the business Instagram account ID
+      recipient_id   — Instagram-scoped user ID of the guest who was messaged
+      message_id     — Meta message ID (mid)
+      text           — message text (may be empty for media)
+      attachments    — list of attachment objects
+      timestamp      — Unix ms timestamp
+    """
+    from app.core.database import set_tenant_context
+    db: Session = SessionLocal()
+    try:
+        ig_account_id = payload.get("ig_account_id", "")
+        recipient_id = payload.get("recipient_id", "")
+        mid = payload.get("message_id", "")
+        text = payload.get("text", "")
+        attachments = payload.get("attachments", [])
+
+        if not recipient_id:
+            return {"status": "skipped", "reason": "no recipient_id"}
+
+        candidates = db.query(Integration).filter_by(kind="instagram", status="active").all()
+        integration = next(
+            (c for c in candidates if (c.config or {}).get("instagram_business_account_id") == ig_account_id),
+            None,
+        )
+        if not integration:
+            logger.warning("Instagram echo received but no matching active integration for account %s", ig_account_id)
+            return {"status": "skipped", "reason": "no integration"}
+
+        tenant_id = integration.tenant_id
+        set_tenant_context(db, tenant_id)
+
+        if mid:
+            existing = db.query(Message).filter_by(channel_message_id=mid).first()
+            if existing:
+                return {"status": "duplicate", "message_id": mid}
+
+        # Guests are only ever created from an inbound signal -- an echo to a
+        # guest HAIP has never seen (e.g. a cold outbound DM sent manually)
+        # has nowhere to file the message, so skip rather than fabricate a
+        # guest record with no other identity signal.
+        from app.services.identity_service import resolve_gid
+        guest_id, created = resolve_gid(
+            db=db,
+            tenant_id=tenant_id,
+            signal_type="instagram_user_id",
+            value=recipient_id,
+            source="instagram",
+            guest_fields={"name": f"IG User {recipient_id[-6:]}"},
+        )
+        guest = db.query(Guest).filter_by(id=guest_id, tenant_id=tenant_id).first()
+
+        channel_val = ChannelType.INSTAGRAM if hasattr(ChannelType, "INSTAGRAM") else "instagram"
+        conversation = (
+            db.query(Conversation)
+            .filter_by(tenant_id=tenant_id, guest_id=guest_id, is_open=True)
+            .filter(Conversation.channel == channel_val)
+            .first()
+        )
+        if not conversation:
+            conversation = Conversation(
+                id=str(uuid.uuid4()),
+                tenant_id=tenant_id,
+                guest_id=guest_id,
+                channel=channel_val,
+                is_open=True,
+                ai_mode=integration.tenant.ig_ai_mode_default if integration.tenant else "shadow",
+            )
+            db.add(conversation)
+            db.flush()
+
+        body = text or ""
+        media_url = None
+        media_type = None
+        if attachments:
+            att = attachments[0]
+            att_type = att.get("type", "media")
+            att_url = (att.get("payload") or {}).get("url", "")
+            if not body:
+                body = f"[{att_type}]"
+            if att_url and validate_media_url(att_url):
+                media_url = att_url
+                media_type = att_type
+
+        message = Message(
+            id=str(uuid.uuid4()),
+            tenant_id=tenant_id,
+            conversation_id=conversation.id,
+            channel_message_id=mid or str(uuid.uuid4()),
+            direction=MessageDirection.OUTBOUND,
+            channel=channel_val,
+            body=body,
+            media_url=media_url,
+            media_type=media_type,
+            channel_status="sent",
+            sender_name="Instagram app",
+        )
+        db.add(message)
+        conversation.last_message_at = datetime.now(timezone.utc).isoformat()
+        db.flush()
+        db.commit()
+
+        logger.info(
+            "Stored Instagram echo (sent outside HAIP): message=%s guest=%s conversation=%s",
+            message.id, guest_id, conversation.id,
+        )
+
+        try:
+            import redis as _redis
+            from app.core.config import settings as _settings
+            _r = _redis.Redis.from_url(_settings.REDIS_URL, decode_responses=True, socket_connect_timeout=2)
+            import json as _json
+            _r.publish(f"sse:{tenant_id}", _json.dumps({
+                "event": "message_received",
+                "conversation_id": conversation.id,
+                "channel": "instagram",
+                "guest_name": guest.name if guest else recipient_id,
+                "preview": body[:120],
+            }))
+            _r.close()
+        except Exception as _sse_exc:
+            logger.warning("sse_publish_failed: %s", _sse_exc)
+
+        return {
+            "status": "ok",
+            "message_id": message.id,
+            "guest_id": guest_id,
+            "conversation_id": conversation.id,
+        }
+
+    except Exception as exc:
+        logger.error("process_instagram_echo failed: %s", exc)
+        db.rollback()
+        raise self.retry(exc=exc)
+    finally:
+        db.close()
+
+
 @celery_app.task(bind=True, name="backfill_instagram_guest_name", max_retries=3, default_retry_delay=30)
 def backfill_instagram_guest_name(self, tenant_id: str, guest_id: str, sender_id: str) -> dict:
     """

@@ -115,6 +115,13 @@ def _handle_messaging_event(ig_account_id: str, event: dict):
     sender_id = event.get("sender", {}).get("id", "")
 
     if event.get("message", {}).get("is_echo"):
+        # An echo is Meta notifying us that the business account sent a
+        # message -- via ANY client, including an agent replying directly in
+        # the native Instagram app rather than through HAIP. Previously this
+        # was discarded entirely, so those replies never appeared in the
+        # HAIP inbox even though they'd actually been sent. Store them as
+        # outbound messages instead.
+        _handle_outbound_echo(ig_account_id, event)
         return
 
     if "message" in event:
@@ -150,6 +157,31 @@ def _handle_inbound_dm(ig_account_id: str, sender_id: str, event: dict):
         log.info("instagram_dm_queued", mid=mid, sender=sender_id)
     except Exception as exc:
         log.error("instagram_dm_queue_failed", error=str(exc))
+
+
+def _handle_outbound_echo(ig_account_id: str, event: dict):
+    """Queue processing for a message the business account sent outside HAIP."""
+    message = event.get("message", {})
+    mid = message.get("mid", "")
+    # For an echo, "recipient" is the guest the business account messaged --
+    # the roles are reversed relative to an inbound DM.
+    recipient_id = event.get("recipient", {}).get("id", "")
+
+    payload_data = {
+        "ig_account_id": ig_account_id,
+        "recipient_id": recipient_id,
+        "message_id": mid,
+        "text": message.get("text", ""),
+        "attachments": message.get("attachments", []),
+        "timestamp": event.get("timestamp"),
+    }
+
+    try:
+        from app.workers.tasks.process_instagram_dm import process_instagram_echo
+        process_instagram_echo.delay(payload_data)
+        log.info("instagram_echo_queued", mid=mid, recipient=recipient_id)
+    except Exception as exc:
+        log.error("instagram_echo_queue_failed", error=str(exc))
 
 
 def _handle_comment_event(ig_account_id: str, value: dict):

@@ -108,6 +108,7 @@ celery_app.conf.update(
         # "celery" queue, which no worker here consumes.
         "process_instagram_dm":                     {"queue": "whatsapp"},
         "process_instagram_comment":                 {"queue": "whatsapp"},
+        "process_instagram_echo":                    {"queue": "whatsapp"},
         "send_instagram_dm":                        {"queue": "whatsapp"},
         "instagram_mark_seen":                       {"queue": "whatsapp"},
         "backfill_instagram_guest_name":             {"queue": "whatsapp"},
