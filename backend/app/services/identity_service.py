@@ -26,16 +26,16 @@ Public API:
 from __future__ import annotations
 
 import hashlib
-import logging
 from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy.orm import Session
+import structlog
 
 from app.models.guest_identity import GuestIdentity
 from app.services import identity_resolution
 
-log = logging.getLogger(__name__)
+log = structlog.get_logger()
 
 _now = lambda: datetime.now(timezone.utc)
 
