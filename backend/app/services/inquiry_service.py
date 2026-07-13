@@ -21,8 +21,8 @@ _ENUM_TO_STAGE_KEY: dict[InquiryStage, str] = {
     InquiryStage.SITE_VISIT_SCHEDULED: "site_visit_scheduled",
     InquiryStage.SITE_VISIT_DONE: "site_visit_done",
     InquiryStage.BOOKED: "booked",
-    InquiryStage.LOST: "lost",
-    InquiryStage.GHOSTED: "lost",
+    InquiryStage.LOST: "closed",
+    InquiryStage.GHOSTED: "closed",
 }
 
 

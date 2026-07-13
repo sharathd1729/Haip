@@ -18,18 +18,6 @@ down_revision = "042"
 branch_labels = None
 depends_on = None
 
-# key -> (label, color, order, is_default_entry, is_closed_won, is_closed_lost)
-_DEFAULT_STAGES = [
-    ("new",                  "New",         "#6366f1", 0, True,  False, False),
-    ("responding",           "Responding",  "#f59e0b", 1, False, False, False),
-    ("quoted",               "Quoted",      "#8b5cf6", 2, False, False, False),
-    ("site_visit_scheduled", "Site Visit",  "#06b6d4", 3, False, False, False),
-    ("site_visit_done",      "Visit Done",  "#10b981", 4, False, False, False),
-    ("booked",               "Booked",      "#22c55e", 5, False, True,  False),
-    ("lost",                 "Closed",      "#6b7280", 6, False, False, True),
-]
-
-
 def upgrade():
     op.create_table(
         "pipeline_stages",
@@ -75,7 +63,7 @@ def upgrade():
             ('site_visit_scheduled', 'Site Visit',  '#06b6d4', 3, false, false, false),
             ('site_visit_done',      'Visit Done',  '#10b981', 4, false, false, false),
             ('booked',               'Booked',      '#22c55e', 5, false, true,  false),
-            ('lost',                 'Closed',      '#6b7280', 6, false, false, true)
+            ('closed',               'Closed',      '#6b7280', 6, false, false, true)
         ) AS d(key, label, color, "order", is_default_entry, is_closed_won, is_closed_lost)
         ON CONFLICT (tenant_id, key) DO NOTHING
     """)
@@ -94,7 +82,8 @@ def upgrade():
         FROM pipeline_stages ps
         WHERE ps.tenant_id = i.tenant_id
           AND ps.key = CASE i.stage::text
-              WHEN 'ghosted'    THEN 'lost'
+              WHEN 'lost'       THEN 'closed'
+              WHEN 'ghosted'    THEN 'closed'
               WHEN 'site_visit' THEN 'site_visit_scheduled'
               ELSE i.stage::text
           END

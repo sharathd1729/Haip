@@ -9,6 +9,7 @@ from app.api.v1.endpoints import (
     grievance, incidents, health, changelog, sample_data, admin_dlq,
     calculator, calendar,
     leads,
+    pipeline_stages,
     automations,
     ivr,
     push,
@@ -35,6 +36,7 @@ api_router.include_router(tenants.router)
 api_router.include_router(users.router)
 api_router.include_router(guests.router)
 api_router.include_router(inquiries.router)
+api_router.include_router(pipeline_stages.router)
 api_router.include_router(conversations.router)
 api_router.include_router(saved_replies.router)
 api_router.include_router(saved_views.router)
