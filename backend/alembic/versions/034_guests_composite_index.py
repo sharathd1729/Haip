@@ -30,6 +30,7 @@ def upgrade() -> None:
         "ix_guests_tenant_id_deleted_created_at",
         "guests",
         ["tenant_id", "is_deleted", "created_at"],
+        if_not_exists=True,
     )
 
 

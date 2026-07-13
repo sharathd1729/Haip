@@ -34,6 +34,11 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
 
+  // MFA challenge step (shown when the account has TOTP enabled)
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [mfaToken, setMfaToken] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
+
   useEffect(() => {
     if (params.get("registered") === "1") {
       setSuccessMsg("Account created! Please sign in to continue.");
@@ -45,17 +50,67 @@ function LoginForm() {
     setError("");
     setLoading(true);
 
-    const res = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-    });
+    try {
+      const data = await api.post("/auth/login", { email, password }).then(r => r.data);
+      if (data.mfa_required) {
+        setMfaToken(data.mfa_token);
+        setMfaRequired(true);
+        setLoading(false);
+        return;
+      }
+      const res = await signIn("credentials", {
+        preAuthAccessToken: data.access_token,
+        preAuthRefreshToken: data.refresh_token,
+        redirect: false,
+      });
+      setLoading(false);
+      if (res?.error) {
+        setError("Sign-in failed. Please try again.");
+      } else {
+        router.push("/dashboard");
+      }
+    } catch (err: unknown) {
+      const e = err as { response?: { status?: number; data?: { detail?: string } } };
+      if (e?.response?.status === 401) {
+        setError("Invalid email or password. Please try again.");
+        setLoading(false);
+        return;
+      }
+      // Backend unreachable — fall back to the legacy authorize() path,
+      // which still allows the dev-only demo bypass when applicable.
+      const res = await signIn("credentials", { email, password, redirect: false });
+      setLoading(false);
+      if (res?.error) {
+        setError("Invalid email or password. Please try again.");
+      } else {
+        router.push("/dashboard");
+      }
+    }
+  };
 
-    setLoading(false);
-    if (res?.error) {
-      setError("Invalid email or password. Please try again.");
-    } else {
-      router.push("/dashboard");
+  const handleVerifyMfa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      const data = await api
+        .post("/auth/mfa/verify", { code: mfaCode }, { headers: { Authorization: `Bearer ${mfaToken}` } })
+        .then(r => r.data);
+      const res = await signIn("credentials", {
+        preAuthAccessToken: data.access_token,
+        preAuthRefreshToken: data.refresh_token,
+        redirect: false,
+      });
+      setLoading(false);
+      if (res?.error) {
+        setError("Sign-in failed. Please try again.");
+      } else {
+        router.push("/dashboard");
+      }
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { detail?: string } } };
+      setError(e?.response?.data?.detail || "Invalid code. Please try again.");
+      setLoading(false);
     }
   };
 
@@ -86,15 +141,15 @@ function LoginForm() {
     try {
       const data = await api.post("/auth/otp/verify", { phone, code: otp }).then(r => r.data);
       const res = await signIn("credentials", {
-        phone,
-        otp_token: data.access_token,
+        preAuthAccessToken: data.access_token,
+        preAuthRefreshToken: data.refresh_token,
         redirect: false,
       });
       if (res?.error) {
-        router.push("/dashboard");
-      } else {
-        router.push("/dashboard");
+        setError("Sign-in failed. Please try again.");
+        return;
       }
+      router.push("/dashboard");
     } catch (err: unknown) {
       const e = err as { response?: { data?: { detail?: string } } };
       setError(e?.response?.data?.detail || "Invalid OTP. Please try again.");
@@ -151,8 +206,47 @@ function LoginForm() {
         </div>
       )}
 
+      {/* ── MFA challenge step ── */}
+      {mfaRequired && (
+        <form onSubmit={handleVerifyMfa} className="space-y-4">
+          <div className="p-4 bg-teal-500/10 border border-teal-500/30 rounded-xl text-sm text-teal-400 text-center">
+            <Shield size={18} className="mx-auto mb-1.5" />
+            Enter the 6-digit code from your authenticator app.
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Authentication code</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]{6}"
+              maxLength={6}
+              required
+              autoFocus
+              value={mfaCode}
+              onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              className="w-full px-4 py-3 border border-border rounded-xl text-sm bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow text-center tracking-widest text-xl font-mono"
+              placeholder="______"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading || mfaCode.length !== 6}
+            className="w-full py-3 bg-teal-600 hover:bg-teal-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
+          >
+            {loading ? "Verifying…" : <>Verify <ArrowRight size={15} /></>}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setMfaRequired(false); setMfaCode(""); setMfaToken(""); setError(""); }}
+            className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            ← Back to sign in
+          </button>
+        </form>
+      )}
+
       {/* ── Email + password form ── */}
-      {loginMode === "email" && (
+      {!mfaRequired && loginMode === "email" && (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">

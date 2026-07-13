@@ -4,15 +4,15 @@ Per-tenant Instagram AI concierge defaults, so Ratha and Jade can carry
 different risk tolerance without a code change. Replaces the hardcoded
 CONFIDENCE_THRESHOLD = 0.78 constant in concierge_draft.py.
 
-Revision ID: 038
-Revises: 037
+Revision ID: 042
+Revises: 041
 Create Date: 2026-07-13
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = "038"
-down_revision = "037"
+revision = "042"
+down_revision = "041"
 branch_labels = None
 depends_on = None
 

@@ -5,15 +5,15 @@ DMs from Click-to-Instagram ads, and media.ad_id/ad_title on comments
 (Phase 1). Nullable JSON, not a new table, per the Instagram module
 build plan's Architecture Decision #4.
 
-Revision ID: 037
-Revises: 036
+Revision ID: 041
+Revises: 040
 Create Date: 2026-07-13
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = "037"
-down_revision = "036"
+revision = "041"
+down_revision = "040"
 branch_labels = None
 depends_on = None
 

@@ -13,28 +13,49 @@ function getTokenExpiry(token: string): number {
   }
 }
 
-async function refreshAccessToken(refreshToken: string): Promise<{
+type RefreshResult = {
   accessToken: string;
   refreshToken: string;
   accessTokenExpires: number;
   error?: string;
-} | { error: string }> {
-  const apiBase = (process.env.BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
+} | { error: string };
+
+// Backend rotates refresh tokens on use (single-use). Concurrent requests
+// (dashboard pages fire several in parallel) can each independently decide
+// to refresh the same stale token; without dedup, only the first backend
+// call succeeds and the rest get "revoked" 401s that poison the session.
+// Cache in-flight refreshes per token so racing callers share one result.
+const refreshPromises = new Map<string, Promise<RefreshResult>>();
+
+async function refreshAccessToken(refreshToken: string): Promise<RefreshResult> {
+  const inFlight = refreshPromises.get(refreshToken);
+  if (inFlight) return inFlight;
+
+  const promise = (async (): Promise<RefreshResult> => {
+    const apiBase = (process.env.BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
+    try {
+      const res = await fetch(`${apiBase}/api/v1/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+      if (!res.ok) return { error: "RefreshAccessTokenError" };
+      const data = await res.json();
+      return {
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token ?? refreshToken,
+        accessTokenExpires: getTokenExpiry(data.access_token),
+      };
+    } catch {
+      return { error: "RefreshAccessTokenError" };
+    }
+  })();
+
+  refreshPromises.set(refreshToken, promise);
   try {
-    const res = await fetch(`${apiBase}/api/v1/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    });
-    if (!res.ok) return { error: "RefreshAccessTokenError" };
-    const data = await res.json();
-    return {
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token ?? refreshToken,
-      accessTokenExpires: getTokenExpiry(data.access_token),
-    };
-  } catch {
-    return { error: "RefreshAccessTokenError" };
+    return await promise;
+  } finally {
+    refreshPromises.delete(refreshToken);
   }
 }
 
@@ -45,13 +66,45 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        // Internal-only fields — never rendered as form inputs, only ever
+        // passed programmatically by the login page once it has already
+        // obtained real tokens directly from the backend (MFA challenge,
+        // WhatsApp OTP verification).
+        preAuthAccessToken: { label: "", type: "text" },
+        preAuthRefreshToken: { label: "", type: "text" },
       },
       async authorize(credentials) {
         const email = credentials?.email as string;
         const password = credentials?.password as string;
+        const preAuthAccessToken = credentials?.preAuthAccessToken as string | undefined;
+        const preAuthRefreshToken = credentials?.preAuthRefreshToken as string | undefined;
         const apiBase = process.env.BACKEND_URL
           ?? process.env.NEXT_PUBLIC_API_URL
           ?? "http://localhost:8000";
+
+        // Tokens already obtained by the login page itself — e.g. after
+        // completing an MFA challenge or WhatsApp OTP verification directly
+        // against the backend. Trust them, just build the session from /me.
+        if (preAuthAccessToken) {
+          try {
+            const meRes = await fetch(`${apiBase}/api/v1/auth/me`, {
+              headers: { Authorization: `Bearer ${preAuthAccessToken}` },
+            });
+            if (!meRes.ok) return null;
+            const me = await meRes.json();
+            return {
+              id: me.id, name: me.full_name ?? me.name, email: me.email,
+              role: me.role, tenantId: me.tenant_id ?? "haip-villa",
+              onboardingStep: me.onboarding_step ?? 0,
+              accessToken: preAuthAccessToken,
+              refreshToken: preAuthRefreshToken ?? "",
+              accessTokenExpires: getTokenExpiry(preAuthAccessToken),
+            };
+          } catch (e) {
+            console.error("[AUTH] pre-auth token session build failed:", e);
+            return null;
+          }
+        }
 
         // Try real backend first (preferred — returns proper JWT for API calls)
         try {
@@ -65,6 +118,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           console.log("[AUTH] login response status:", res.status);
           if (res.ok) {
             const data = await res.json();
+            if (data.mfa_required) {
+              // This legacy branch can't complete an MFA challenge — callers
+              // that need MFA support must use the login page's dedicated
+              // flow (direct /auth/login call + preAuthAccessToken above).
+              console.warn("[AUTH] mfa_required via legacy authorize() branch — rejecting");
+              return null;
+            }
             const accessToken = data.access_token;
             const meUrl = `${apiBase}/api/v1/auth/me`;
             console.log("[AUTH] calling me →", meUrl);
@@ -95,23 +155,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           console.error("[AUTH] fetch error:", e);
         }
 
-        // Demo bypass fallback (when backend is unavailable)
-        const DEMO_USERS: Record<string, { name: string; role: string }> = {
-          "owner@haip.dev":       { name: "Sharath D.",     role: "owner" },
-          "manager@haip.dev":     { name: "Priya Menon",    role: "manager" },
-          "concierge@haip.dev":   { name: "Ravi Kumar",     role: "concierge" },
-          "reservations@haip.dev":{ name: "Ananya Singh",   role: "reservations" },
-          "compliance@haip.dev":  { name: "Deepa Nair",     role: "compliance" },
-          "sharath@ratha.in":             { name: "Sharath D.", role: "owner" },
-          "dasupatrunisharatchandra@gmail.com": { name: "Sharath D.", role: "owner" },
-        };
-        if (password === "haip2026" && DEMO_USERS[email]) {
-          const u = DEMO_USERS[email];
-          return { id: `demo-${email}`, name: u.name, email, role: u.role, tenantId: "haip-villa", onboardingStep: 9, accessToken: "demo", refreshToken: "" };
-        }
-        // Owner fallback — real password, survives DB wipes
-        if (email === "dasupatrunisharatchandra@gmail.com" && password === "Raina@1729") {
-          return { id: "sharath-owner", name: "Sharath D.", email, role: "owner", tenantId: "haip-villa", onboardingStep: 9, accessToken: "owner-bypass", refreshToken: "" };
+        // Demo bypass fallback (when backend is unavailable) — dev/staging only.
+        // Never active in production, regardless of whether the backend is reachable.
+        if (process.env.NODE_ENV !== "production") {
+          const DEMO_USERS: Record<string, { name: string; role: string }> = {
+            "owner@haip.dev":       { name: "Sharath D.",     role: "owner" },
+            "manager@haip.dev":     { name: "Priya Menon",    role: "manager" },
+            "concierge@haip.dev":   { name: "Ravi Kumar",     role: "concierge" },
+            "reservations@haip.dev":{ name: "Ananya Singh",   role: "reservations" },
+            "compliance@haip.dev":  { name: "Deepa Nair",     role: "compliance" },
+            "sharath@ratha.in":             { name: "Sharath D.", role: "owner" },
+            "dasupatrunisharatchandra@gmail.com": { name: "Sharath D.", role: "owner" },
+          };
+          if (password === "haip2026" && DEMO_USERS[email]) {
+            const u = DEMO_USERS[email];
+            return { id: `demo-${email}`, name: u.name, email, role: u.role, tenantId: "haip-villa", onboardingStep: 9, accessToken: "demo", refreshToken: "" };
+          }
+          // Owner fallback — real password, survives DB wipes
+          if (email === "dasupatrunisharatchandra@gmail.com" && password === "Raina@1729") {
+            return { id: "sharath-owner", name: "Sharath D.", email, role: "owner", tenantId: "haip-villa", onboardingStep: 9, accessToken: "owner-bypass", refreshToken: "" };
+          }
         }
         return null;
       },

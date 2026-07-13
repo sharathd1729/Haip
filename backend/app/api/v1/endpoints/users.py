@@ -154,7 +154,7 @@ def create_invitation(
         raise HTTPException(status_code=400, detail=f"Invalid role: {body.role}")
 
     token = secrets.token_urlsafe(32)
-    expires_at = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
 
     invitation = UserInvitation(
         id=str(uuid.uuid4()),

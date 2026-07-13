@@ -46,6 +46,14 @@ class User(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     # A7: daily owner digest opt-in (default False — explicit opt-in required)
     digest_opt_in = Column(Boolean, default=False, nullable=False)
 
+    # Platform-level signup consent (HAIP's own terms/marketing/analytics —
+    # distinct from the guest-facing Consent model in models/consent.py,
+    # which tracks DPDP consent for hospitality guests, not HAIP users).
+    consent_transactional = Column(Boolean, default=True, nullable=False)
+    consent_marketing = Column(Boolean, default=False, nullable=False)
+    consent_analytics = Column(Boolean, default=False, nullable=False)
+    consent_recorded_at = Column(DateTime(timezone=True), nullable=True)
+
     tenant = relationship("Tenant", back_populates="users")
     refresh_tokens = relationship("RefreshToken", back_populates="user", lazy="dynamic")
 
@@ -74,6 +82,6 @@ class UserInvitation(Base, TimestampMixin):
     token = Column(String(255), nullable=False, unique=True, index=True)
     is_accepted = Column(Boolean, default=False, nullable=False)
     is_revoked = Column(Boolean, default=False, nullable=False)
-    expires_at = Column(String(50), nullable=False)   # ISO timestamp string
+    expires_at = Column(DateTime(timezone=True), nullable=False)
 
     inviter = relationship("User", foreign_keys=[invited_by])

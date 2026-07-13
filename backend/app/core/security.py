@@ -35,6 +35,18 @@ def create_refresh_token(data: dict) -> str:
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
 
 
+def create_mfa_challenge_token(user_id: str) -> str:
+    """Short-lived token proving password was verified but the second factor
+    is still pending. Distinct `type` so get_current_user() rejects it as a
+    full access token — it's only accepted by /auth/mfa/verify."""
+    to_encode = {
+        "sub": user_id,
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
+        "type": "mfa_challenge",
+    }
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
+
+
 def decode_token(token: str) -> Optional[dict]:
     try:
         return jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])

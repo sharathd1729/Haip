@@ -4,15 +4,15 @@ Multiple columns existed on live Neon (added directly, never migrated)
 but were missing from migration history entirely. Found by comparing
 Base.metadata against a freshly-built Supabase schema.
 
-Revision ID: 036
-Revises: 035
+Revision ID: 040
+Revises: 039
 Create Date: 2026-07-12
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = "036"
-down_revision = "035"
+revision = "040"
+down_revision = "039"
 branch_labels = None
 depends_on = None
 

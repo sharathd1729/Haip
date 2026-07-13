@@ -4,15 +4,15 @@ app/models/tenant.py has always declared this column, but it was added
 directly to the live database and never captured as a migration — schema
 drift discovered when building a fresh database from migration history.
 
-Revision ID: 035
-Revises: 034
+Revision ID: 039
+Revises: 036
 Create Date: 2026-07-12
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = "035"
-down_revision = "034"
+revision = "039"
+down_revision = "036"
 branch_labels = None
 depends_on = None
 

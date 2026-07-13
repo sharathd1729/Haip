@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List
+from datetime import datetime
 
 
 class UserOut(BaseModel):
@@ -49,7 +50,7 @@ class InvitationOut(BaseModel):
     token: str
     is_accepted: bool
     is_revoked: bool
-    expires_at: str
+    expires_at: datetime
     invited_by_name: Optional[str] = None
 
     class Config:
