@@ -169,6 +169,8 @@ def process_instagram_dm(self, payload: dict) -> dict:
                 "event": "message_received",
                 "conversation_id": conversation.id,
                 "channel": "instagram",
+                "guest_name": guest.name if guest else display_name,
+                "preview": body[:120],
             }))
             _r.close()
         except Exception as _sse_exc:

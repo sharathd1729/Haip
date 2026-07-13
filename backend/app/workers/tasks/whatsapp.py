@@ -185,6 +185,9 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
             "event": "message_received",
             "conversation_id": conversation.id,
             "channel": "whatsapp",
+            "guest_name": guest.name,
+            "guest_phone": guest.phone,
+            "preview": body[:120],
         }))
         _r.close()
     except Exception as _sse_exc:
