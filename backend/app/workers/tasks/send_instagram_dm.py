@@ -95,7 +95,7 @@ def send_instagram_dm(self, message_id: str, tenant_id: str) -> dict:
             import json as _json
             _r = _redis.Redis.from_url(_settings.REDIS_URL, decode_responses=True, socket_connect_timeout=2)
             _r.publish(f"sse:{tenant_id}", _json.dumps({
-                "event": "message_received",
+                "event": "message_sent",
                 "conversation_id": message.conversation_id,
                 "channel": "instagram",
             }))

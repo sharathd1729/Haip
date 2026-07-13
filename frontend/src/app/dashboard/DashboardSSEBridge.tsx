@@ -81,6 +81,22 @@ export function DashboardSSEBridge() {
         break;
       }
 
+      case "message_sent": {
+        // Outbound send completed (delivery tick update) -- just refresh the
+        // thread/list from the server. Must NOT go through upsertConversation
+        // like message_received does: that call defaults missing guest_name
+        // to "Guest" and always sets unread_count: 1, which would overwrite
+        // the correct sidebar name with a placeholder and mark the
+        // conversation unread after the agent's own outbound send.
+        if (payload.conversation_id) {
+          queryClient.invalidateQueries({ queryKey: ["conversations"] });
+          queryClient.invalidateQueries({
+            queryKey: ["conversation", payload.conversation_id],
+          });
+        }
+        break;
+      }
+
       case "call_scored": {
         if (payload.call_id) {
           queryClient.invalidateQueries({ queryKey: ["calls"] });
