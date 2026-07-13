@@ -80,6 +80,12 @@ class Inquiry(Base, TimestampMixin, TenantMixin):
     children = Column(Integer, nullable=True)
     occasion  = Column(String(100), nullable=True)
     special_requests = Column(Text, nullable=True)   # Leads360 restructure Phase 3
+    # Leads360 restructure Phase 4: "qualified" | "pending" | "unqualified".
+    # Default "qualified" preserves today's behavior for the two inquiry
+    # creation paths that exist (manual staff creation, call ingest) -- see
+    # lead_qualification_service.py for the evaluation rules and why this
+    # is opt-in infrastructure rather than a gate on inquiry creation.
+    qualification_status = Column(String(20), nullable=False, default="qualified")
     intent_tag = Column(String(30),  nullable=True, index=True)  # Phase 3: normalized bucket
     budget = Column(Numeric(12, 2), nullable=True)
     currency = Column(String(3), default="INR")

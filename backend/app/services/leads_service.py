@@ -422,6 +422,13 @@ def get_leads_pipeline(
             joinedload(Inquiry.assigned_user),
         )
         .filter(Inquiry.tenant_id == tenant_id)
+        # Leads360 restructure Phase 4: unqualified inquiries are hidden
+        # entirely from the pipeline (per your call) -- they still exist
+        # as rows (fail-loudly, nothing is silently dropped), just never
+        # surface here. Default "qualified" for every existing creation
+        # path means this is a no-op until a tenant configures
+        # required_for_lead fields.
+        .filter(Inquiry.qualification_status != "unqualified")
     )
 
     # Filters

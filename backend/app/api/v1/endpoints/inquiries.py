@@ -164,6 +164,16 @@ def update_inquiry(
         if hasattr(inq, k):
             setattr(inq, k, v)
 
+    # Leads360 restructure Phase 4: re-evaluate qualification whenever an
+    # inquiry's fields change, since qualification is progressive (a field
+    # required_for_lead may have just been filled in). Best-effort -- never
+    # block a normal field update over it.
+    try:
+        from app.services.lead_qualification_service import refresh_qualification_status
+        refresh_qualification_status(db, current_user.tenant_id, inq)
+    except Exception:
+        pass
+
     db.commit()
     db.refresh(inq)
     return inq
