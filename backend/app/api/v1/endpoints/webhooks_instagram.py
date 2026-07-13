@@ -102,6 +102,10 @@ async def receive_instagram_webhook(request: Request):
         ig_account_id = entry.get("id")
         for messaging_event in entry.get("messaging", []):
             _handle_messaging_event(ig_account_id, messaging_event)
+        # T1.1: comment events arrive via entry.changes, not entry.messaging.
+        for change in entry.get("changes", []):
+            if change.get("field") == "comments":
+                _handle_comment_event(ig_account_id, change.get("value", {}))
 
     return {"status": "ok"}
 
@@ -146,6 +150,46 @@ def _handle_inbound_dm(ig_account_id: str, sender_id: str, event: dict):
         log.info("instagram_dm_queued", mid=mid, sender=sender_id)
     except Exception as exc:
         log.error("instagram_dm_queue_failed", error=str(exc))
+
+
+def _handle_comment_event(ig_account_id: str, value: dict):
+    """
+    Queue processing for an inbound Instagram comment.
+
+    T1.1: value shape per Meta's Instagram Platform webhook spec:
+      {
+        "id": "<comment_id>",
+        "text": "...",
+        "from": {"id": "<sender_id>", "username": "..."},
+        "media": {"id": "<media_id>", "ad_id": "...", "ad_title": "..."},
+      }
+    """
+    sender_id = (value.get("from") or {}).get("id", "")
+    comment_id = value.get("id", "")
+
+    # Guard against self-reply loops -- skip comments posted by the business
+    # account itself (e.g. its own reply to an earlier comment), same pattern
+    # as the is_echo check for DMs.
+    if not sender_id or sender_id == ig_account_id:
+        return
+
+    media = value.get("media") or {}
+    payload_data = {
+        "ig_account_id": ig_account_id,
+        "sender_id": sender_id,
+        "comment_id": comment_id,
+        "text": value.get("text", ""),
+        "media_id": media.get("id", ""),
+        "media_ad_id": media.get("ad_id", ""),
+        "media_ad_title": media.get("ad_title", ""),
+    }
+
+    try:
+        from app.workers.tasks.process_instagram_comment import process_instagram_comment
+        process_instagram_comment.delay(payload_data)
+        log.info("instagram_comment_queued", comment_id=comment_id, sender=sender_id)
+    except Exception as exc:
+        log.error("instagram_comment_queue_failed", error=str(exc))
 
 
 def _handle_postback(ig_account_id: str, sender_id: str, event: dict):
