@@ -91,12 +91,12 @@ def process_instagram_dm(self, payload: dict) -> dict:
         except Exception as exc:
             logger.debug("Could not fetch IG profile for %s: %s", sender_id, exc)
 
-        from app.services.identity_resolution import resolve_or_create
-        guest_id, created = resolve_or_create(
+        from app.services.identity_service import resolve_gid
+        guest_id, created = resolve_gid(
             db=db,
             tenant_id=tenant_id,
-            identity_type="instagram_user_id",
-            identity_value=sender_id,
+            signal_type="instagram_user_id",
+            value=sender_id,
             source="instagram",
             guest_fields={"name": display_name},
         )
