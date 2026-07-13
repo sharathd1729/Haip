@@ -5,7 +5,7 @@ import {
   Zap, Plus, CheckCircle2, PauseCircle, XCircle,
   MessageSquare, Phone, Clock, ChevronRight, ToggleLeft, ToggleRight,
   AlertCircle, Loader2, Settings2, Pencil, Trash2, X,
-  ChevronDown, Info, CornerDownRight,
+  ChevronDown, Info, CornerDownRight, Instagram, Tag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
@@ -48,6 +48,8 @@ const TRIGGERS: { value: string; label: string; icon: React.ReactNode; hint: str
   { value: "inquiry_lost",      label: "Inquiry lost",       icon: <XCircle size={13} />,       hint: "Stage moved to Lost or Ghosted" },
   { value: "stay_check_in_1d",  label: "Check-in tomorrow",  icon: <CheckCircle2 size={13} />,  hint: "Guest checks in tomorrow" },
   { value: "stay_check_out_1d", label: "Check-out tomorrow", icon: <CheckCircle2 size={13} />,  hint: "Guest checks out tomorrow" },
+  { value: "ig_dm_received",    label: "Instagram DM received",      icon: <Instagram size={13} />, hint: "Guest sends an Instagram DM matching your keywords" },
+  { value: "ig_comment_received", label: "Instagram comment received", icon: <Instagram size={13} />, hint: "Guest comments on a post matching your keywords" },
 ];
 
 const ACTIONS: { value: string; label: string; hint: string; configFields: string[] }[] = [
@@ -56,6 +58,7 @@ const ACTIONS: { value: string; label: string; hint: string; configFields: strin
   { value: "notify_team",            label: "Notify team",            hint: "Sends a WhatsApp message to a team number",  configFields: ["to", "message"] },
   { value: "move_to_followup",       label: "Move to follow-up",      hint: "Advances inquiry stage to Responding",       configFields: [] },
   { value: "tag_guest",              label: "Tag guest",               hint: "Adds tags to the subscriber record",         configFields: ["tags"] },
+  { value: "send_instagram_quick_reply", label: "Send Instagram quick reply", hint: "Sends a canned DM reply — instant, no AI involved", configFields: ["message", "public_ack_pool"] },
 ];
 
 function triggerInfo(val: string) {
@@ -95,6 +98,55 @@ function StatusBadge({ status }: { status: AutomationRun["status"] }) {
   );
 }
 
+// T2.4: unlimited-keyword chip input (comma or Enter to add) — explicitly
+// not Meta's native 5-keyword cap.
+function ChipInput({
+  values, onChange, placeholder, chipClassName,
+}: {
+  values: string[];
+  onChange: (next: string[]) => void;
+  placeholder: string;
+  chipClassName?: string;
+}) {
+  const [draft, setDraft] = useState("");
+
+  const commit = () => {
+    const parts = draft.split(",").map(s => s.trim()).filter(Boolean);
+    if (parts.length === 0) return;
+    const merged = Array.from(new Set([...values, ...parts]));
+    onChange(merged);
+    setDraft("");
+  };
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-1.5 mb-1.5">
+        {values.map(v => (
+          <span key={v} className={cn(
+            "inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium",
+            chipClassName ?? "bg-teal-50 text-teal-700 border border-teal-200"
+          )}>
+            {v}
+            <button type="button" onClick={() => onChange(values.filter(x => x !== v))} className="opacity-60 hover:opacity-100">
+              <X size={10} />
+            </button>
+          </span>
+        ))}
+      </div>
+      <input
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === "Enter" || e.key === ",") { e.preventDefault(); commit(); }
+        }}
+        onBlur={commit}
+        placeholder={placeholder}
+        className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+      />
+    </div>
+  );
+}
+
 function Toast({ msg, type, onClose }: { msg: string; type: "success" | "error"; onClose: () => void }) {
   return (
     <div className={cn("fixed bottom-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium shadow-lg border max-w-sm",
@@ -117,6 +169,7 @@ function RuleModal({ initial, onClose, onSaved }: {
     name: initial?.name ?? "",
     description: initial?.description ?? "",
     trigger: initial?.trigger ?? "",
+    trigger_config: initial?.trigger_config ?? {} as Record<string, any>,
     action: initial?.action ?? "",
     action_config: initial?.action_config ?? {} as Record<string, any>,
   });
@@ -137,6 +190,14 @@ function RuleModal({ initial, onClose, onSaved }: {
     if (!form.name.trim()) { setError("Name is required"); return; }
     if (!form.trigger) { setError("Select a trigger"); return; }
     if (!form.action) { setError("Select an action"); return; }
+    const isIgTrigger = form.trigger === "ig_dm_received" || form.trigger === "ig_comment_received";
+    const hasReplyAll = form.trigger === "ig_comment_received" && !!form.trigger_config.media_id && !!form.trigger_config.reply_all;
+    if (isIgTrigger && !hasReplyAll && (form.trigger_config.keywords ?? []).length === 0) {
+      setError("Add at least one keyword (or enable reply-all on a scoped post)"); return;
+    }
+    if (form.action === "send_instagram_quick_reply" && !form.action_config.message?.trim()) {
+      setError("Reply message is required"); return;
+    }
     setError("");
     setSubmitting(true);
     try {
@@ -145,6 +206,7 @@ function RuleModal({ initial, onClose, onSaved }: {
           name: form.name,
           description: form.description || null,
           trigger: form.trigger,
+          trigger_config: form.trigger_config,
           action: form.action,
           action_config: form.action_config,
         });
@@ -153,6 +215,7 @@ function RuleModal({ initial, onClose, onSaved }: {
           name: form.name,
           description: form.description || null,
           trigger: form.trigger,
+          trigger_config: form.trigger_config,
           action: form.action,
           action_config: form.action_config,
         });
@@ -199,7 +262,7 @@ function RuleModal({ initial, onClose, onSaved }: {
             <label className="text-xs font-semibold text-gray-700 block mb-1.5">Trigger <span className="text-red-500">*</span></label>
             <div className="grid grid-cols-1 gap-1.5">
               {TRIGGERS.map(t => (
-                <button key={t.value} type="button" onClick={() => setForm(f => ({ ...f, trigger: t.value }))}
+                <button key={t.value} type="button" onClick={() => setForm(f => ({ ...f, trigger: t.value, trigger_config: {} }))}
                   className={cn("flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left text-sm transition-all",
                     form.trigger === t.value
                       ? "border-teal-500 bg-teal-50 text-teal-800"
@@ -211,6 +274,59 @@ function RuleModal({ initial, onClose, onSaved }: {
               ))}
             </div>
           </div>
+
+          {/* T2.4: keyword rule config — shown for both Instagram triggers */}
+          {(form.trigger === "ig_dm_received" || form.trigger === "ig_comment_received") && (
+            <div className="border border-pink-100 bg-pink-50 rounded-xl p-4 space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-700 block mb-1.5 flex items-center gap-1">
+                  <Tag size={12} /> Keywords <span className="text-red-500">*</span>
+                </label>
+                <ChipInput
+                  values={form.trigger_config.keywords ?? []}
+                  onChange={vals => setForm(f => ({ ...f, trigger_config: { ...f.trigger_config, keywords: vals } }))}
+                  placeholder="price, rate, availability — press Enter to add"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">Matches whole words, case-insensitive. Unlimited keywords.</p>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-700 block mb-1.5">Exclude keywords <span className="text-gray-400 font-normal">(optional)</span></label>
+                <ChipInput
+                  values={form.trigger_config.exclude_keywords ?? []}
+                  onChange={vals => setForm(f => ({ ...f, trigger_config: { ...f.trigger_config, exclude_keywords: vals } }))}
+                  placeholder="cancel — press Enter to add"
+                  chipClassName="bg-red-50 text-red-700 border border-red-200"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">If any of these appear, the rule never fires — even if a keyword above also matched.</p>
+              </div>
+
+              {form.trigger === "ig_comment_received" && (
+                <>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-700 block mb-1.5">Scope to a specific post/reel <span className="text-gray-400 font-normal">(optional)</span></label>
+                    <input
+                      value={form.trigger_config.media_id ?? ""}
+                      onChange={e => setForm(f => ({ ...f, trigger_config: { ...f.trigger_config, media_id: e.target.value || undefined } }))}
+                      placeholder="Instagram media/post ID — leave blank to match on any post"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                    />
+                  </div>
+                  {form.trigger_config.media_id && (
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!!form.trigger_config.reply_all}
+                        onChange={e => setForm(f => ({ ...f, trigger_config: { ...f.trigger_config, reply_all: e.target.checked } }))}
+                        className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                      />
+                      Reply to every comment on this post, ignoring keywords
+                    </label>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           {/* Action selector */}
           <div>
@@ -273,6 +389,37 @@ function RuleModal({ initial, onClose, onSaved }: {
                 }))}
                 placeholder="vip, high-intent"
                 className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
+            </div>
+          )}
+
+          {form.action === "send_instagram_quick_reply" && (
+            <div className="border border-pink-100 bg-pink-50 rounded-xl p-4 space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-gray-700 block mb-1.5">Reply message <span className="text-red-500">*</span></label>
+                <textarea
+                  value={form.action_config.message ?? ""}
+                  onChange={e => setForm(f => ({ ...f, action_config: { ...f.action_config, message: e.target.value } }))}
+                  placeholder="Our villas start at ₹18,000/night — check availability at ..."
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30 resize-none"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">Sent as a private DM — deterministic, no AI involved.</p>
+              </div>
+
+              {form.trigger === "ig_comment_received" && (
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 block mb-1.5">
+                    Public comment ack <span className="text-gray-400 font-normal">(one picked at random)</span>
+                  </label>
+                  <ChipInput
+                    values={form.action_config.public_ack_pool ?? []}
+                    onChange={vals => setForm(f => ({ ...f, action_config: { ...f.action_config, public_ack_pool: vals } }))}
+                    placeholder="Check your DMs! 📥 — press Enter to add"
+                    chipClassName="bg-white text-gray-700 border border-gray-200"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">Posted publicly as a reply to the comment. Falls back to a default if left empty.</p>
+                </div>
+              )}
             </div>
           )}
 
