@@ -100,6 +100,9 @@ class LeadDetailSchema(LeadCardSchema):
     timeline_capped: bool = False
     timeline_total_available: int = 0
     quote_history: List[QuoteHistorySchema] = []
+    # Leads360 restructure Phase 3: tenant-configurable field catalog,
+    # rendered in display_order alongside/instead of the fixed columns above.
+    custom_field_values: List[dict] = []
 
 
 # ─── List Response ────────────────────────────────────────────────────────────

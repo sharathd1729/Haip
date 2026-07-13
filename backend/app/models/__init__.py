@@ -4,6 +4,7 @@ from app.models.guest import Guest
 from app.models.property import Property, RatePlan, Stay
 from app.models.inquiry import Inquiry
 from app.models.pipeline_stage import PipelineStage
+from app.models.lead_field_definition import LeadFieldDefinition
 from app.models.conversation import Conversation, Message
 from app.models.call import Call
 from app.models.transcript import Transcript
@@ -27,7 +28,7 @@ from app.api.v1.endpoints.messaging import WATemplate, WACampaign, WASubscriber,
 __all__ = [
     "Tenant", "User", "RefreshToken", "UserInvitation",
     "Guest", "Property", "RatePlan", "Stay",
-    "Inquiry", "PipelineStage", "Conversation", "Message",
+    "Inquiry", "PipelineStage", "LeadFieldDefinition", "Conversation", "Message",
     "Call", "Transcript", "Rubric", "CallScore",
     "Integration", "Consent", "AuditEvent",
     "IVRConfig", "IVROption", "IVRCallLog",

@@ -631,10 +631,20 @@ def get_lead_detail(
 
     card = _build_lead_card(inquiry, completeness, signals, property_interest)
 
+    from app.services.lead_field_service import get_field_values_for_inquiry
+    try:
+        custom_field_values = get_field_values_for_inquiry(db, tenant_id, inquiry, detail_only=True)
+    except Exception as exc:
+        # Field registry is additive UI enrichment -- never break lead detail
+        # over it (e.g. a tenant with zero rows before migration backfill).
+        log.warning("lead_field_values_failed", inquiry_id=inquiry_id, error=str(exc))
+        custom_field_values = []
+
     return LeadDetailSchema(
         **card.model_dump(),
         timeline=timeline,
         timeline_capped=capped,
         timeline_total_available=len(timeline),
         quote_history=quote_history,
+        custom_field_values=custom_field_values,
     )

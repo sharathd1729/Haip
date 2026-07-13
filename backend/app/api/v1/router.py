@@ -10,6 +10,7 @@ from app.api.v1.endpoints import (
     calculator, calendar,
     leads,
     pipeline_stages,
+    lead_fields,
     automations,
     ivr,
     push,
@@ -37,6 +38,7 @@ api_router.include_router(users.router)
 api_router.include_router(guests.router)
 api_router.include_router(inquiries.router)
 api_router.include_router(pipeline_stages.router)
+api_router.include_router(lead_fields.router)
 api_router.include_router(conversations.router)
 api_router.include_router(saved_replies.router)
 api_router.include_router(saved_views.router)

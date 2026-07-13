@@ -79,6 +79,7 @@ class Inquiry(Base, TimestampMixin, TenantMixin):
     adults = Column(Integer, nullable=True)
     children = Column(Integer, nullable=True)
     occasion  = Column(String(100), nullable=True)
+    special_requests = Column(Text, nullable=True)   # Leads360 restructure Phase 3
     intent_tag = Column(String(30),  nullable=True, index=True)  # Phase 3: normalized bucket
     budget = Column(Numeric(12, 2), nullable=True)
     currency = Column(String(3), default="INR")
