@@ -92,8 +92,8 @@ def upgrade():
     )
     op.execute(f"""
         INSERT INTO lead_field_definitions
-            (id, tenant_id, field_key, label, data_type, source, column_name, show_in_detail, required_for_lead, display_order)
-        SELECT gen_random_uuid()::text, t.id, d.field_key, d.label, d.data_type, d.source, d.column_name, d.show_in_detail, d.required_for_lead, d.display_order
+            (id, tenant_id, field_key, label, data_type, source, column_name, show_in_detail, required_for_lead, display_order, created_at, updated_at)
+        SELECT gen_random_uuid()::text, t.id, d.field_key, d.label, d.data_type, d.source, d.column_name, d.show_in_detail, d.required_for_lead, d.display_order, now(), now()
         FROM tenants t
         CROSS JOIN (VALUES {values_sql})
             AS d(field_key, label, data_type, source, column_name, show_in_detail, required_for_lead, display_order)

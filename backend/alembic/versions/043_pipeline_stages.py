@@ -83,10 +83,10 @@ def upgrade():
     # parsing every tenant's JSON blob here).
     op.execute("""
         INSERT INTO pipeline_stages
-            (id, tenant_id, key, label, color, "order", is_default_entry, is_closed_won, is_closed_lost)
+            (id, tenant_id, key, label, color, "order", is_default_entry, is_closed_won, is_closed_lost, created_at, updated_at)
         SELECT
             gen_random_uuid()::text, t.id, d.key, d.label, d.color, d."order",
-            d.is_default_entry, d.is_closed_won, d.is_closed_lost
+            d.is_default_entry, d.is_closed_won, d.is_closed_lost, now(), now()
         FROM tenants t
         CROSS JOIN (VALUES
             ('new',                  'New',         '#6366f1', 0, true,  false, false),
