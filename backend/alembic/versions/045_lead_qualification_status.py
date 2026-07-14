@@ -25,13 +25,18 @@ def _column_exists(table: str, col: str) -> bool:
     return col in {c["name"] for c in insp.get_columns(table)}
 
 
+def _index_exists(table: str, name: str) -> bool:
+    return name in {i["name"] for i in sa.inspect(op.get_bind()).get_indexes(table)}
+
+
 def upgrade():
     if not _column_exists("inquiries", "qualification_status"):
         op.add_column(
             "inquiries",
             sa.Column("qualification_status", sa.String(20), nullable=False, server_default="qualified"),
         )
-    op.create_index("ix_inquiries_qualification_status", "inquiries", ["qualification_status"])
+    if not _index_exists("inquiries", "ix_inquiries_qualification_status"):
+        op.create_index("ix_inquiries_qualification_status", "inquiries", ["qualification_status"])
 
 
 def downgrade():
