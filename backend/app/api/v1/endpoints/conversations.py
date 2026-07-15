@@ -7,7 +7,7 @@ from app.core.database import get_db
 from app.api.v1.deps import get_current_user
 from app.models.user import User
 from app.models.conversation import Conversation, Message, MessageDeliveryState
-from app.schemas.conversation import MessageOut, SendMessageRequest, AIDraftRequest, ConversationOut
+from app.schemas.conversation import MessageOut, SendMessageRequest, AIDraftRequest, ConversationOut, SendTemplateRequest
 from app.workers.tasks.concierge_draft import concierge_draft
 import structlog
 
@@ -205,6 +205,73 @@ def send_message(
         msg.delivery_error = f"No outbound dispatcher for channel: {channel}"
         db.commit()
 
+    return msg
+
+
+@router.post("/{conversation_id}/send-template", response_model=MessageOut, status_code=201)
+def send_template_message(
+    conversation_id: str,
+    body: SendTemplateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    T3.2: send an approved template to re-open a closed WhatsApp service
+    window (previously a dead toast stub in the inbox UI -- clicking
+    "Send template" did nothing). Only meaningful for WhatsApp; other
+    channels don't have Meta's 24h-window/template requirement.
+    """
+    from app.api.v1.endpoints.messaging import WATemplate, TemplateStatus
+    from app.models.conversation import ChannelType
+
+    conv = db.query(Conversation).filter_by(id=conversation_id, tenant_id=current_user.tenant_id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    channel = str(conv.channel.value if hasattr(conv.channel, "value") else conv.channel)
+    if channel != "whatsapp":
+        raise HTTPException(status_code=422, detail="Templates can only be sent on WhatsApp conversations")
+
+    tmpl = db.query(WATemplate).filter_by(id=body.template_id, tenant_id=current_user.tenant_id).first()
+    if not tmpl:
+        raise HTTPException(status_code=404, detail="Template not found")
+    if tmpl.status != TemplateStatus.APPROVED:
+        raise HTTPException(status_code=422, detail="Only approved templates can be sent")
+
+    # Render the template body text (for display in the thread) by
+    # substituting {{1}}, {{2}}, ... with the supplied variables.
+    body_component = next((c for c in (tmpl.components or []) if c.get("type") == "BODY"), None)
+    display_text = body_component.get("text", "") if body_component else tmpl.name
+    for i, var in enumerate(body.variables or [], start=1):
+        display_text = display_text.replace(f"{{{{{i}}}}}", str(var))
+
+    msg = Message(
+        id=str(uuid.uuid4()),
+        tenant_id=current_user.tenant_id,
+        conversation_id=conversation_id,
+        direction="outbound",
+        channel=conv.channel,
+        body=display_text,
+        sender_id=current_user.id,
+        sender_name=current_user.name,
+        was_approved=True,
+        delivery_state=MessageDeliveryState.QUEUED,
+        channel_status="queued",
+        channel_metadata={"template_id": tmpl.id, "template_name": tmpl.name},
+    )
+    db.add(msg)
+    conv.last_message_at = datetime.now(timezone.utc).isoformat()
+    db.commit()
+    db.refresh(msg)
+
+    from app.workers.tasks.send_whatsapp import send_whatsapp_template
+    send_whatsapp_template.delay(
+        message_id=msg.id, tenant_id=current_user.tenant_id,
+        template_name=tmpl.name, language_code=tmpl.language or "en_US",
+        variables=body.variables or [],
+    )
+
+    log.info("send_template_message_queued", message_id=msg.id, conversation_id=conversation_id, template=tmpl.name)
     return msg
 
 

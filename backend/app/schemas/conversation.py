@@ -58,3 +58,10 @@ class SendMessageRequest(BaseModel):
 class AIDraftRequest(BaseModel):
     """Ask the AI concierge to draft a reply for a conversation."""
     context_hint: Optional[str] = None  # optional instruction override
+
+
+class SendTemplateRequest(BaseModel):
+    """T3.2: send an approved WhatsApp template -- required when the 24h
+    service window is closed, since Meta rejects free-form messages then."""
+    template_id: str
+    variables: Optional[list[str]] = None

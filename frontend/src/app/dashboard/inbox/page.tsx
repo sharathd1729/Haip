@@ -17,6 +17,7 @@ import { useInboxStore } from "@/store/inbox";
 import { useAutoGrow } from "@/hooks/useAutoGrow";
 import { useToast } from "@/components/ui/toast";
 import { usePresence } from "@/hooks/usePresence";
+import { TemplatePickerModal } from "@/components/inbox/TemplatePickerModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -395,6 +396,7 @@ export default function InboxPage() {
   const [searchQ, setSearchQ] = useState("");
   // W4: scheduled send
   const [showSchedule, setShowSchedule] = useState(false);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [scheduledFor, setScheduledFor] = useState<string | null>(null);
   // W25: @mention
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
@@ -1025,9 +1027,7 @@ export default function InboxPage() {
                     </p>
                     <div className="flex gap-2 mt-3">
                       <button
-                        onClick={() => {
-                          toast({ variant: "info", title: "Template picker", description: "Select a WhatsApp template to send." });
-                        }}
+                        onClick={() => setShowTemplatePicker(true)}
                         className="inline-flex items-center gap-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg transition-colors"
                       >
                         <LayoutTemplate size={12} />
@@ -1220,6 +1220,14 @@ export default function InboxPage() {
 
       {/* Right: Guest 360 panel — hidden on mobile */}
       {detail && <GuestPanel detail={detail} />}
+
+      {showTemplatePicker && activeConversationId && (
+        <TemplatePickerModal
+          conversationId={activeConversationId}
+          onClose={() => setShowTemplatePicker(false)}
+          onSent={() => toast({ variant: "success", title: "Template sent", description: "The template message is on its way." })}
+        />
+      )}
     </div>
   );
 }
