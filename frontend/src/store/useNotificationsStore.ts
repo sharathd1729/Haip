@@ -67,6 +67,20 @@ function eventToNotification(payload: Record<string, unknown>): NotificationItem
         ts: Date.now(),
         read: false,
       };
+    case "team_alert":
+      // notify_team automation/flow action (T3.3) -- in-app notification,
+      // no external channel (Slack/email) required.
+      return {
+        id,
+        event,
+        title: (payload.title as string) || "Team alert",
+        body: (payload.message as string) || "",
+        url: payload.conversation_id
+          ? `/dashboard/inbox?id=${payload.conversation_id}`
+          : "/dashboard/inbox",
+        ts: Date.now(),
+        read: false,
+      };
     default:
       return null;
   }

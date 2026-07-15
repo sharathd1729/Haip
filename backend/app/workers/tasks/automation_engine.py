@@ -266,41 +266,47 @@ def _action_create_draft(db, cfg: dict, context: dict, tenant_id: str) -> str:
 
 def _action_notify_team(db, cfg: dict, context: dict, tenant_id: str) -> str:
     """
-    Send an internal team notification.
-    Config: {"channel": "whatsapp", "to": "+91XXXXXXXXXX", "message": "..."}
-    If 'to' is missing, logs the notification (no-op for now — Slack/email wiring is future work).
+    In-app team notification (WhatsApp module Phase 3, T3.3 -- scoped to
+    in-app only per explicit confirmation; Slack/email are real, separate
+    scope decisions per CLAUDE.md's non-goals, not built speculatively).
+
+    Previously required a "to" WhatsApp number in cfg and no-op'd
+    otherwise ("Slack/email wiring is future work" -- an in-app option was
+    never actually built either, despite HAIP already having the
+    push_subscription/SSE infrastructure this reuses). Now delivers via:
+      - Web push (push_service.send_to_tenant) to subscribed devices
+      - SSE "team_alert" event, fed into the existing notification bell
+        (useNotificationsStore) the same way message_received/ai_draft_ready
+        already are -- no new frontend polling mechanism needed.
+
+    Config: {"title": "...", "message": "..."}
     """
-    to_number = cfg.get("to")
+    title = cfg.get("title", "Automation alert")
     message = cfg.get("message", "Automation alert from HAIP")
 
-    if not to_number:
-        log.info("automation_notify_team_no_target", tenant_id=tenant_id, context=context)
-        return "notification logged (no target number configured)"
+    from app.services.push_service import send_to_tenant
+    send_to_tenant(
+        db, tenant_id, title=title, body=message,
+        url=(f"/dashboard/inbox?id={context['conversation_id']}" if context.get("conversation_id") else "/dashboard/inbox"),
+        tag="team_alert",
+    )
 
-    import asyncio
-    from app.models.integration import Integration
-    from app.adapters.whatsapp.meta_cloud import get_wa_adapter
+    try:
+        import redis as _redis
+        import json as _json
+        from app.core.config import settings as _settings
+        _r = _redis.Redis.from_url(_settings.REDIS_URL, decode_responses=True, socket_connect_timeout=2)
+        _r.publish(f"sse:{tenant_id}", _json.dumps({
+            "event": "team_alert",
+            "title": title,
+            "message": message,
+            "conversation_id": context.get("conversation_id"),
+        }))
+        _r.close()
+    except Exception as exc:
+        log.warning("notify_team_sse_publish_failed", tenant_id=tenant_id, error=str(exc))
 
-    intg = db.query(Integration).filter_by(
-        tenant_id=tenant_id, kind="whatsapp_meta", status="active"
-    ).first() or db.query(Integration).filter_by(
-        tenant_id=tenant_id, kind="whatsapp", status="active"
-    ).first()
-    if not intg:
-        return "skipped — no active WhatsApp integration for notify_team"
-
-    config = intg.config or {}
-    adapter = get_wa_adapter(config["phone_number_id"], config["access_token"])
-
-    def _run(coro):
-        loop = asyncio.new_event_loop()
-        try:
-            return loop.run_until_complete(coro)
-        finally:
-            loop.close()
-
-    _run(adapter.send_text(to=to_number, body=message))
-    return f"Team notified at {to_number[:4]}****"
+    return f"Team notified in-app: {title}"
 
 
 def _action_move_followup(db, cfg: dict, context: dict, tenant_id: str) -> str:
