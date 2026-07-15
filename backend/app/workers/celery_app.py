@@ -104,21 +104,6 @@ celery_app.conf.update(
         "app.workers.tasks.dpdp_purge.*":           {"queue": "call_ingest"},
         "app.workers.tasks.process_instagram_dm.*": {"queue": "whatsapp"},
         "app.workers.tasks.send_instagram_dm.*":    {"queue": "whatsapp"},
-        # These two tasks are registered with explicit short names (no module
-        # path prefix), so the "app.workers.tasks.X.*" patterns above never
-        # match them — without this, they fall through to Celery's implicit
-        # "celery" queue, which no worker here consumes.
-        "process_instagram_dm":                     {"queue": "whatsapp"},
-        "process_instagram_comment":                 {"queue": "whatsapp"},
-        "process_instagram_echo":                    {"queue": "whatsapp"},
-        "send_instagram_dm":                        {"queue": "whatsapp"},
-        "instagram_mark_seen":                       {"queue": "whatsapp"},
-        "backfill_instagram_guest_name":             {"queue": "whatsapp"},
-        # Same short-name routing gap as above -- tasks.flow_engine.* uses
-        # explicit names (matching check_automation_timers' convention),
-        # not the "app.workers.tasks.flow_engine.*" module-path pattern.
-        "tasks.flow_engine.drain_pending":           {"queue": "whatsapp"},
-        "tasks.flow_engine.resume_execution":        {"queue": "whatsapp"},
         "app.workers.tasks.sync_retalwise.*":       {"queue": "call_ingest"},
         "app.workers.tasks.sync_hostaway.*":        {"queue": "call_ingest"},
         "app.workers.tasks.call_ingest.*":          {"queue": "call_ingest"},
@@ -130,6 +115,59 @@ celery_app.conf.update(
         "app.workers.tasks.evaluate_goals.*":       {"queue": "ai_scoring"},
         "app.workers.tasks.invalidate_cache.*":     {"queue": "call_ingest"},
         "app.workers.tasks.module_activation.*":    {"queue": "call_ingest"},
+        #
+        # ── Exact-name routes for tasks registered with a short name ──────────
+        # (no "app.workers.tasks." module-path prefix) — the glob patterns
+        # above are matched via fnmatch against the task's REGISTERED name,
+        # not its Python import path, so any task decorated with
+        # name="tasks.foo" or name="foo.bar" instead of the full dotted
+        # module path silently falls through every glob above. Unmatched
+        # tasks land in Celery's implicit default queue, "celery" — which
+        # is NOT in this worker's --queues list, so they are enqueued but
+        # never consumed. Found via a stuck backlog of ~9800 tasks sitting
+        # in Redis's "celery" list in production (July 2026) — every task
+        # below was silently non-functional until this fix. Verified
+        # exhaustively against every name="..." in app/workers/tasks/*.py;
+        # see tests/test_celery_task_routing.py for a regression test that
+        # would have caught this, added at the same time.
+        "process_instagram_dm":                     {"queue": "whatsapp"},
+        "process_instagram_comment":                 {"queue": "whatsapp"},
+        "process_instagram_echo":                    {"queue": "whatsapp"},
+        "send_instagram_dm":                        {"queue": "whatsapp"},
+        "instagram_mark_seen":                       {"queue": "whatsapp"},
+        "backfill_instagram_guest_name":             {"queue": "whatsapp"},
+        "tasks.flow_engine.drain_pending":           {"queue": "whatsapp"},
+        "tasks.flow_engine.resume_execution":        {"queue": "whatsapp"},
+        "tasks.automation_engine.fire_trigger":      {"queue": "whatsapp"},
+        "tasks.check_automation_timers.run":         {"queue": "whatsapp"},
+        "tasks.check_automation_timers.check_tenant": {"queue": "whatsapp"},
+        "tasks.classify":                            {"queue": "ai_scoring"},
+        "tasks.concierge_draft":                     {"queue": "whatsapp"},
+        "tasks.dpdp_purge":                          {"queue": "call_ingest"},
+        "tasks.generate_widgets":                    {"queue": "ai_scoring"},
+        "tasks.judge":                                {"queue": "ai_scoring"},
+        "tasks.run_campaign":                        {"queue": "whatsapp"},
+        "tasks.send_whatsapp":                       {"queue": "whatsapp"},
+        "tasks.send_whatsapp_template":              {"queue": "whatsapp"},
+        "tasks.sync_wa_templates.sync_all_tenants":  {"queue": "whatsapp"},
+        "tasks.sync_wa_templates.sync_tenant":       {"queue": "whatsapp"},
+        "tasks.transcribe":                          {"queue": "transcription"},
+        "tasks.wrap_up":                             {"queue": "ai_scoring"},
+        "ai_scoring.score_call":                     {"queue": "ai_scoring"},
+        "call_ingest.process":                       {"queue": "call_ingest"},
+        "transcription.transcribe_call":             {"queue": "transcription"},
+        "sync_hostaway":                             {"queue": "call_ingest"},
+        "sync_hostaway_all_tenants":                 {"queue": "call_ingest"},
+        "sync_retalwise":                            {"queue": "call_ingest"},
+        "sync_retalwise_all_tenants":                {"queue": "call_ingest"},
+        "meta_quality.poll_all_tenants":             {"queue": "whatsapp"},
+        "owner_digest.orchestrate":                  {"queue": "ai_scoring"},
+        "retention.nightly_purge":                   {"queue": "call_ingest"},
+        "call_ingest.fetch_recording":                {"queue": "call_ingest"},
+        "dograh.process_call_completed":              {"queue": "call_ingest"},
+        # This one DOES use its full dotted module path (not a short-name
+        # issue) -- there was simply no glob entry for it at all.
+        "app.workers.tasks.generate_ai_summary.generate_ai_summary": {"queue": "ai_scoring"},
     },
 )
 
