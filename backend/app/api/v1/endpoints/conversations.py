@@ -391,6 +391,19 @@ def get_conversation_detail(
 
     last_inbound_at = _iso(last_inbound.created_at) if last_inbound else None
 
+    def _resolve_media_url(m: Message) -> str | None:
+        """WhatsApp media (T1.2) is stored as an object-storage key, not a
+        URL -- Meta's own download links are short-lived and can't be
+        persisted directly. Presign on read. Instagram's media_url is
+        already a direct (long-lived) Meta CDN link, stored as-is -- pass
+        through unchanged."""
+        if not m.media_url:
+            return None
+        if m.media_url.startswith("http://") or m.media_url.startswith("https://"):
+            return m.media_url
+        from app.services.media_storage import get_presigned_media_url
+        return get_presigned_media_url(m.media_url)
+
     def _msg_dict(m: Message) -> dict:
         body = m.body or ""
         return {
@@ -407,7 +420,7 @@ def get_conversation_detail(
             "ai_confidence": m.ai_confidence,
             "is_internal": m.is_internal,
             "replied_to_message_id": m.replied_to_message_id,
-            "media_url": m.media_url,   # T0.5
+            "media_url": _resolve_media_url(m),   # T0.5 / T1.2
             "media_type": m.media_type,
             "shared_post_url": (m.channel_metadata or {}).get("shared_post_url"),
         }

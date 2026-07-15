@@ -44,37 +44,48 @@ def process_whatsapp_message(self, payload: dict):
         raise self.retry(exc=exc)
 
 
+def resolve_wa_tenant(db, phone_number_id: str) -> Tenant | None:
+    """
+    Resolve which tenant a WhatsApp webhook payload belongs to, by
+    phone_number_id. Shared by _process_value (message ingest) and
+    webhooks_whatsapp.py's signature verification (T1.1) -- both need the
+    same resolution, and duplicating it risked the two drifting apart.
+    """
+    # Primary: find tenant by phone_number_id stored on Tenant row
+    tenant = db.query(Tenant).filter_by(whatsapp_phone_number_id=phone_number_id).first()
+
+    # Fallback: look up via active WhatsApp Integration credentials
+    # (the connect flow may have stored phone_number_id only in Integration)
+    if not tenant and phone_number_id:
+        from app.models.integration import Integration
+        from app.core.encryption import decrypt_credentials
+        integrations = db.query(Integration).filter(
+            Integration.kind.in_(["whatsapp", "whatsapp_meta"]),
+            Integration.status == "active",
+        ).all()
+        for intg in integrations:
+            try:
+                creds = decrypt_credentials(intg.credentials_kms_blob)
+                if creds.get("phone_number_id") == phone_number_id:
+                    tenant = db.query(Tenant).filter_by(id=intg.tenant_id).first()
+                    # Back-fill tenant row so future lookups are fast
+                    if tenant:
+                        tenant.whatsapp_phone_number_id = phone_number_id
+                        db.flush()
+                    break
+            except Exception:
+                continue
+
+    return tenant
+
+
 def _process_value(value: dict):
     """Process a single WhatsApp webhook value object."""
     from app.core.database import set_tenant_context
     db = SessionLocal()
     try:
         phone_number_id = value.get("metadata", {}).get("phone_number_id", "")
-
-        # Primary: find tenant by phone_number_id stored on Tenant row
-        tenant = db.query(Tenant).filter_by(whatsapp_phone_number_id=phone_number_id).first()
-
-        # Fallback: look up via active WhatsApp Integration credentials
-        # (the connect flow may have stored phone_number_id only in Integration)
-        if not tenant and phone_number_id:
-            from app.models.integration import Integration
-            from app.core.encryption import decrypt_credentials
-            integrations = db.query(Integration).filter(
-                Integration.kind.in_(["whatsapp", "whatsapp_meta"]),
-                Integration.status == "active",
-            ).all()
-            for intg in integrations:
-                try:
-                    creds = decrypt_credentials(intg.credentials_kms_blob)
-                    if creds.get("phone_number_id") == phone_number_id:
-                        tenant = db.query(Tenant).filter_by(id=intg.tenant_id).first()
-                        # Back-fill tenant row so future lookups are fast
-                        if tenant:
-                            tenant.whatsapp_phone_number_id = phone_number_id
-                            db.flush()
-                        break
-                except Exception:
-                    continue
+        tenant = resolve_wa_tenant(db, phone_number_id)
 
         if not tenant:
             log.warning("tenant_not_found_for_wa_number", phone_number_id=phone_number_id)
@@ -96,6 +107,53 @@ def _process_value(value: dict):
         db.close()
 
 
+def _get_wa_access_token(db, tenant_id: str) -> str:
+    """Same lookup convention as send_whatsapp.py: whatsapp_meta first,
+    falling back to legacy whatsapp kind. Plaintext config.access_token,
+    matching how the connect-key flow actually stores it (integrations.py)."""
+    from app.models.integration import Integration
+    integration = db.query(Integration).filter_by(tenant_id=tenant_id, kind="whatsapp_meta").first()
+    if not integration:
+        integration = db.query(Integration).filter_by(tenant_id=tenant_id, kind="whatsapp").first()
+    if not integration:
+        return ""
+    return (integration.config or {}).get("access_token", "")
+
+
+def _fetch_and_store_media(tenant_id: str, message_id: str, access_token: str, media_id: str, msg_type: str) -> tuple[str | None, str | None]:
+    """
+    T1.2: WhatsApp Cloud API webhooks only ever include a media_id, never a
+    direct URL -- resolve it via Meta's Graph API, fetch the bytes with the
+    tenant's access token (the resolved download URL is itself short-lived
+    and requires the same bearer token), then persist to object storage
+    since Meta's URL will have expired well before an agent views the
+    message. Returns (s3_key, media_type) or (None, None) on any failure --
+    never let a media fetch failure block storing the rest of the message.
+    """
+    if not access_token or not media_id:
+        return None, None
+    try:
+        import asyncio
+        from app.adapters.whatsapp.meta_cloud import MetaCloudAdapter
+        from app.services.media_storage import upload_media
+
+        adapter = MetaCloudAdapter(phone_number_id="", access_token=access_token)
+
+        def _run_async(coro):
+            loop = asyncio.new_event_loop()
+            try:
+                return loop.run_until_complete(coro)
+            finally:
+                loop.close()
+
+        content, mime_type = _run_async(adapter.fetch_media(media_id))
+        s3_key = upload_media(tenant_id, message_id, content, mime_type)
+        return s3_key, msg_type
+    except Exception as exc:
+        log.warning("wa_media_fetch_failed", tenant_id=tenant_id, media_id=media_id, error=str(exc))
+        return None, None
+
+
 def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
     from_number = "+" + msg.get("from", "").lstrip("+")
     wa_msg_id = msg.get("id", "")
@@ -106,31 +164,33 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
     if existing:
         return
 
-    # Dedup / upsert guest
-    guest = db.query(Guest).filter_by(tenant_id=tenant.id, phone=from_number).first()
-    if not guest:
-        contact = next((c for c in contacts if c.get("wa_id") == msg.get("from")), {})
-        name = contact.get("profile", {}).get("name", "Unknown")
-        guest = Guest(
-            id=str(uuid.uuid4()),
-            tenant_id=tenant.id,
-            phone=from_number,
-            name=name,
-        )
-        db.add(guest)
-        db.flush()
+    # T1.3: identity resolution goes through the canonical facade --
+    # identity_service is the only place for GID resolution, never direct
+    # Guest.filter_by() in an endpoint/worker (CLAUDE.md non-negotiable).
+    from app.services.identity_service import resolve_gid
+    contact = next((c for c in contacts if c.get("wa_id") == msg.get("from")), {})
+    contact_name = contact.get("profile", {}).get("name", "")
+    guest_id, created = resolve_gid(
+        db=db,
+        tenant_id=tenant.id,
+        signal_type="phone",
+        value=from_number,
+        source="whatsapp",
+        guest_fields={"name": contact_name or "Unknown", "phone": from_number},
+    )
+    guest = db.query(Guest).filter_by(id=guest_id, tenant_id=tenant.id).first()
 
     # Find or create open conversation
     conversation = (
         db.query(Conversation)
-        .filter_by(tenant_id=tenant.id, guest_id=guest.id, channel=ChannelType.WHATSAPP, is_open=True)
+        .filter_by(tenant_id=tenant.id, guest_id=guest_id, channel=ChannelType.WHATSAPP, is_open=True)
         .first()
     )
     if not conversation:
         conversation = Conversation(
             id=str(uuid.uuid4()),
             tenant_id=tenant.id,
-            guest_id=guest.id,
+            guest_id=guest_id,
             channel=ChannelType.WHATSAPP,
             is_open=True,
             ai_mode="shadow",
@@ -140,14 +200,14 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
 
     # Extract message body
     body = ""
-    media_url = None
+    media_id = None
     media_type = None
 
     if msg_type == "text":
         body = msg.get("text", {}).get("body", "")
     elif msg_type in ("image", "video", "audio", "document"):
         media_type = msg_type
-        media_url = msg.get(msg_type, {}).get("link", "")
+        media_id = msg.get(msg_type, {}).get("id", "")
         body = msg.get(msg_type, {}).get("caption", "")
     elif msg_type == "interactive":
         body = str(msg.get("interactive", {}).get("button_reply", {}).get("title", ""))
@@ -159,8 +219,8 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
         direction=MessageDirection.INBOUND,
         channel=ChannelType.WHATSAPP,
         body=body,
-        media_url=media_url,
-        media_type=media_type,
+        media_url=None,   # populated below, after the message row (and its id) exists
+        media_type=None,
         channel_message_id=wa_msg_id,
         channel_status="received",
     )
@@ -172,6 +232,17 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
         db.rollback()
         log.info("wa_message_duplicate_skipped", wa_msg_id=wa_msg_id)
         return
+
+    # T1.2: fetch + persist media now that message.id exists (used as the
+    # storage key). Best-effort -- a media fetch failure must not roll back
+    # the message itself, the text/caption still has value on its own.
+    if media_id:
+        access_token = _get_wa_access_token(db, tenant.id)
+        s3_key, resolved_type = _fetch_and_store_media(tenant.id, message.id, access_token, media_id, media_type)
+        if s3_key:
+            message.media_url = s3_key
+            message.media_type = resolved_type
+            db.flush()
 
     log.info("wa_message_stored", guest_token=_phone_token(from_number), conversation=conversation.id)
 
