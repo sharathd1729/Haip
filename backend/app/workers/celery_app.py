@@ -56,6 +56,8 @@ celery_app = Celery(
         # Automations engine + timer triggers
         "app.workers.tasks.automation_engine",
         "app.workers.tasks.check_automation_timers",
+        # Flow Builder execution engine
+        "app.workers.tasks.flow_engine",
         # Dograh voice AI
         "app.workers.tasks.dograh_call_processor",
         # Adaptive dashboard widgets
@@ -112,6 +114,11 @@ celery_app.conf.update(
         "send_instagram_dm":                        {"queue": "whatsapp"},
         "instagram_mark_seen":                       {"queue": "whatsapp"},
         "backfill_instagram_guest_name":             {"queue": "whatsapp"},
+        # Same short-name routing gap as above -- tasks.flow_engine.* uses
+        # explicit names (matching check_automation_timers' convention),
+        # not the "app.workers.tasks.flow_engine.*" module-path pattern.
+        "tasks.flow_engine.drain_pending":           {"queue": "whatsapp"},
+        "tasks.flow_engine.resume_execution":        {"queue": "whatsapp"},
         "app.workers.tasks.sync_retalwise.*":       {"queue": "call_ingest"},
         "app.workers.tasks.sync_hostaway.*":        {"queue": "call_ingest"},
         "app.workers.tasks.call_ingest.*":          {"queue": "call_ingest"},
@@ -143,6 +150,10 @@ celery_app.conf.beat_schedule = {
     "automation-timers-30min": {
         "task": "tasks.check_automation_timers.run",
         "schedule": crontab(minute="*/30"),
+    },
+    "flow-pending-executions-drain": {
+        "task": "tasks.flow_engine.drain_pending",
+        "schedule": crontab(minute="*"),
     },
     "sync-wa-templates-30min": {
         "task": "tasks.sync_wa_templates.sync_all_tenants",

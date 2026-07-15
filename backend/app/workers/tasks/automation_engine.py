@@ -40,6 +40,22 @@ def fire_trigger(event: str, tenant_id: str, context: dict):
     """
     Find all active rules for this tenant matching `event`,
     then execute each rule's action in sequence.
+
+    Also fires any active Flow Builder flows (WAFlow) whose trigger field
+    matches this event -- per the WhatsApp module build plan's Architecture
+    Decision #2/#5, both automation surfaces react to the same event points
+    rather than the flow engine needing its own separate set of fire calls
+    scattered across the codebase. Rules run first, then flows, in this
+    same task -- deterministic, single point of truth for ordering, no
+    risk of double-firing from two different call sites for one event.
+
+    Only "new_inquiry" is wired end-to-end today: it's the one flow
+    trigger value (see flows/page.tsx's TRIGGER_OPTIONS) with a fire point
+    that already exists and fires with the right context shape (guest_id).
+    "keyword" / "opt_in" / "campaign_reply" have no equivalent fire_trigger
+    call anywhere in the codebase yet -- wiring those needs new hook points
+    (inbound-message keyword matching, WASubscriber opt-in, campaign reply
+    detection) and is deliberately left unbuilt rather than guessed.
     """
     from app.core.database import set_tenant_context
     from app.models.automation import AutomationRule
@@ -54,6 +70,8 @@ def fire_trigger(event: str, tenant_id: str, context: dict):
         )
         for rule in rules:
             _execute_rule(db, rule, event, context, tenant_id)
+
+        _fire_matching_flows(db, event, tenant_id, context)
     finally:
         db.close()
 
@@ -68,7 +86,7 @@ def _execute_rule(db, rule, event: str, context: dict, tenant_id: str):
     error = None
 
     try:
-        detail = _dispatch_action(db, rule, context, tenant_id)
+        detail = dispatch_action(db, rule.action, rule.action_config or {}, context, tenant_id)
     except Exception as exc:
         status = "failed"
         error = traceback.format_exc()[:2000]
@@ -109,12 +127,32 @@ def _execute_rule(db, rule, event: str, context: dict, tenant_id: str):
     )
 
 
+def _fire_matching_flows(db, event: str, tenant_id: str, context: dict) -> None:
+    guest_id = context.get("guest_id")
+    if not guest_id:
+        return   # every flow trigger today (new_inquiry) requires a guest to run against
+
+    from app.api.v1.endpoints.messaging import WAFlow
+    from app.services.flow_engine import run_flow
+
+    flows = db.query(WAFlow).filter_by(tenant_id=tenant_id, trigger=event, is_active=True).all()
+    for flow in flows:
+        try:
+            run_flow(db, tenant_id, flow, guest_id, conversation_id=context.get("conversation_id"))
+        except Exception as exc:
+            log.error("flow_trigger_failed", flow_id=flow.id, event=event, error=str(exc))
+
+
 # ─── Action dispatchers ────────────────────────────────────────────────────────
 
-def _dispatch_action(db, rule, context: dict, tenant_id: str) -> str:
-    action = rule.action
-    cfg = rule.action_config or {}
-
+def dispatch_action(db, action: str, cfg: dict, context: dict, tenant_id: str) -> str:
+    """
+    Shared action layer -- both automation_rules (rule-based) and the Flow
+    Builder (visual, workers/tasks/flow_engine.py) execute through this
+    same function, per the WhatsApp module build plan's Architecture
+    Decision #2. The two automation surfaces differ only in trigger/graph-
+    walking logic, not in what an action actually does.
+    """
     if action == "send_whatsapp_template":
         return _action_send_wa_template(db, cfg, context, tenant_id)
     elif action == "create_draft_reply":

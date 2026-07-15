@@ -5,7 +5,7 @@ import {
   GitBranch, Plus, Save, Play, Pause, Trash2,
   X, CheckCircle2, AlertCircle, Loader2, MessageSquare,
   Zap, ArrowRight, ChevronRight, Settings, Move,
-  ToggleLeft, Clock, Users, Send, Hash,
+  ToggleLeft, Clock, Users, Send, Hash, History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
@@ -493,6 +493,7 @@ export default function FlowsPage() {
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [editingFlow, setEditingFlow] = useState<Flow | null>(null);
+  const [viewingLogsFlow, setViewingLogsFlow] = useState<Flow | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const showToast = (msg: string, type: "success" | "error") => {
@@ -500,9 +501,9 @@ export default function FlowsPage() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  const { data: flows = [], isLoading } = useQuery<Flow[]>({
+  const { data: flows = [], isLoading, isError, refetch, isFetching } = useQuery<Flow[]>({
     queryKey: ["wa-flows"],
-    queryFn: () => api.get("/messaging/flows").then(r => r.data).catch(() => DEMO_FLOWS),
+    queryFn: () => api.get("/messaging/flows").then(r => r.data),
     staleTime: 30_000,
   });
 
@@ -543,7 +544,20 @@ export default function FlowsPage() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
-        {isLoading ? (
+        {isError ? (
+          <div className="py-20 text-center">
+            <AlertCircle size={32} className="text-red-300 mx-auto mb-3" />
+            <p className="text-sm text-gray-700 font-medium">Couldn't load flows</p>
+            <p className="text-xs text-gray-400 mt-1">The server didn't respond — this isn't your saved flow list.</p>
+            <button
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="mt-4 text-xs font-semibold text-teal-600 border border-teal-200 bg-teal-50 hover:bg-teal-100 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              {isFetching ? "Retrying…" : "Retry"}
+            </button>
+          </div>
+        ) : isLoading ? (
           <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}</div>
         ) : flows.length === 0 ? (
           <div className="py-20 text-center">
@@ -584,6 +598,10 @@ export default function FlowsPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
+                      <button onClick={() => setViewingLogsFlow(flow)}
+                        className="flex items-center gap-1.5 text-xs border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors font-medium">
+                        <History size={12} /> Logs
+                      </button>
                       <button onClick={() => setEditingFlow(flow)}
                         className="flex items-center gap-1.5 text-xs border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors font-medium">
                         <Settings size={12} /> Edit
@@ -637,41 +655,80 @@ export default function FlowsPage() {
           }}
         />
       )}
+      {viewingLogsFlow && (
+        <FlowLogsModal flow={viewingLogsFlow} onClose={() => setViewingLogsFlow(null)} />
+      )}
       {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 }
 
-// ─── Demo data ────────────────────────────────────────────────────────────────
+// ─── Flow execution logs (T2.3) ────────────────────────────────────────────────
 
-const DEMO_FLOWS: Flow[] = [
-  {
-    id: "1", name: "New Opt-in Welcome", description: "Greet new subscribers and warm them up",
-    is_active: true, trigger: "opt_in",
-    nodes: [
-      { id: "n1", type: "trigger", label: "Contact opts in", content: "opt_in", x: 0, y: 0 },
-      { id: "n2", type: "message", label: "Welcome message", content: "Hi! Welcome to Casa Aurora updates. Reply YES to confirm.", x: 0, y: 120 },
-      { id: "n3", type: "delay", label: "Wait 1 day", delay_minutes: 1440, x: 0, y: 240 },
-      { id: "n4", type: "message", label: "Offer follow-up", content: "Here's our latest availability for you…", x: 0, y: 360 },
-      { id: "n5", type: "end", label: "End", x: 0, y: 480 },
-    ],
-    edges: [
-      { id: "e1", from: "n1", to: "n2" },
-      { id: "e2", from: "n2", to: "n3" },
-      { id: "e3", from: "n3", to: "n4" },
-      { id: "e4", from: "n4", to: "n5" },
-    ],
-    created_at: "2025-05-01T10:00:00Z",
-  },
-  {
-    id: "2", name: "Pre-Arrival Sequence", description: "D-1 reminder + check-in details",
-    is_active: false, trigger: "check_in",
-    nodes: [
-      { id: "n1", type: "trigger", label: "Check-in D-1", content: "check_in", x: 0, y: 0 },
-      { id: "n2", type: "message", label: "Arrival reminder", content: "Your stay at Casa Aurora starts tomorrow! Here are your check-in details…", x: 0, y: 120 },
-      { id: "n3", type: "end", label: "End", x: 0, y: 240 },
-    ],
-    edges: [{ id: "e1", from: "n1", to: "n2" }, { id: "e2", from: "n2", to: "n3" }],
-    created_at: "2025-05-10T08:00:00Z",
-  },
-];
+interface FlowRun {
+  id: string;
+  guest_id: string;
+  node_id: string;
+  node_type: string;
+  status: string;
+  detail: string | null;
+  error: string | null;
+  ran_at: string | null;
+}
+
+const RUN_STATUS_STYLE: Record<string, string> = {
+  success: "bg-teal-50 text-teal-700 border-teal-200",
+  failed: "bg-red-50 text-red-700 border-red-200",
+  waiting: "bg-amber-50 text-amber-700 border-amber-200",
+  skipped: "bg-gray-50 text-gray-500 border-gray-200",
+};
+
+function FlowLogsModal({ flow, onClose }: { flow: Flow; onClose: () => void }) {
+  const { data: runs = [], isLoading, isError } = useQuery<FlowRun[]>({
+    queryKey: ["wa-flow-runs", flow.id],
+    queryFn: () => api.get(`/messaging/flows/${flow.id}/runs`).then(r => r.data),
+    staleTime: 15_000,
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div>
+            <h2 className="text-sm font-bold text-gray-900">Execution Logs</h2>
+            <p className="text-xs text-gray-400">{flow.name}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4">
+          {isLoading ? (
+            <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12 rounded-lg" />)}</div>
+          ) : isError ? (
+            <p className="text-sm text-red-500 text-center py-8">Couldn't load logs.</p>
+          ) : runs.length === 0 ? (
+            <div className="text-center py-10">
+              <History size={32} className="text-gray-200 mx-auto mb-2" />
+              <p className="text-sm text-gray-500 font-medium">No runs yet</p>
+              <p className="text-xs text-gray-400 mt-1">
+                {flow.is_active ? "Nothing has triggered this flow yet." : "Activate this flow to start seeing execution logs here."}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {runs.map(run => (
+                <div key={run.id} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-gray-100 text-xs">
+                  <span className={cn("px-2 py-0.5 rounded-full border font-medium flex-shrink-0", RUN_STATUS_STYLE[run.status] ?? "bg-gray-50 text-gray-500 border-gray-200")}>
+                    {run.status}
+                  </span>
+                  <span className="text-gray-700 font-medium flex-shrink-0">{run.node_type}</span>
+                  <span className="text-gray-400 truncate flex-1">{run.error || run.detail || "—"}</span>
+                  <span className="text-gray-300 flex-shrink-0">{run.ran_at ? new Date(run.ran_at).toLocaleString("en-IN") : ""}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -24,6 +24,7 @@ from app.models.dashboard_v2 import (
     DashboardTemplate, DashboardShare, MetricSnapshot,
 )
 from app.api.v1.endpoints.messaging import WATemplate, WACampaign, WASubscriber, WAFlow
+from app.models.flow_execution import FlowPendingExecution, WAFlowRun
 
 __all__ = [
     "Tenant", "User", "RefreshToken", "UserInvitation",
@@ -38,4 +39,5 @@ __all__ = [
     "Dashboard", "DashboardWidgetInstance", "Goal",
     "DashboardTemplate", "DashboardShare", "MetricSnapshot",
     "WATemplate", "WACampaign", "WASubscriber", "WAFlow",
+    "FlowPendingExecution", "WAFlowRun",
 ]

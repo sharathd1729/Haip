@@ -600,6 +600,39 @@ def activate_flow(
     return {"is_active": flow.is_active}
 
 
+@router.get("/flows/{flow_id}/runs")
+def list_flow_runs(
+    flow_id: str,
+    limit: int = Query(default=100, ge=1, le=500),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """T2.3: execution log per flow -- one row per node executed, so
+    agents can see why a flow did or didn't fire (previously zero
+    visibility, since no flow execution happened at all before Phase 2)."""
+    from app.models.flow_execution import WAFlowRun
+
+    flow = db.query(WAFlow).filter_by(id=flow_id, tenant_id=current_user.tenant_id).first()
+    if not flow:
+        raise HTTPException(status_code=404, detail="Flow not found")
+
+    runs = (
+        db.query(WAFlowRun)
+        .filter_by(tenant_id=current_user.tenant_id, flow_id=flow_id)
+        .order_by(WAFlowRun.ran_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "id": r.id, "guest_id": r.guest_id, "node_id": r.node_id, "node_type": r.node_type,
+            "status": r.status, "detail": r.detail, "error": r.error,
+            "ran_at": r.ran_at.isoformat() if r.ran_at else None,
+        }
+        for r in runs
+    ]
+
+
 @router.delete("/flows/{flow_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_flow(
     flow_id: str,
