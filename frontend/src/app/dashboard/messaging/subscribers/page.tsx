@@ -137,13 +137,13 @@ export default function SubscribersPage() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  const { data: subscribers = [], isLoading } = useQuery<Subscriber[]>({
+  const { data: subscribers = [], isLoading, isError, refetch, isFetching } = useQuery<Subscriber[]>({
     queryKey: ["wa-subscribers", filter],
     queryFn: () => {
       const params: Record<string, string> = {};
       if (filter === "opted_in") params.opted_in = "true";
       if (filter === "opted_out") params.opted_in = "false";
-      return api.get("/messaging/subscribers", { params }).then(r => r.data).catch(() => DEMO_SUBSCRIBERS);
+      return api.get("/messaging/subscribers", { params }).then(r => r.data);
     },
     staleTime: 30_000,
   });
@@ -225,7 +225,20 @@ export default function SubscribersPage() {
 
       {/* List */}
       <div className="flex-1 overflow-y-auto">
-        {isLoading ? (
+        {isError ? (
+          <div className="py-20 text-center">
+            <AlertCircle size={32} className="text-red-300 mx-auto mb-3" />
+            <p className="text-sm text-gray-700 font-medium">Couldn't load subscribers</p>
+            <p className="text-xs text-gray-400 mt-1">The server didn't respond — this isn't your saved subscriber list.</p>
+            <button
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="mt-4 text-xs font-semibold text-teal-600 border border-teal-200 bg-teal-50 hover:bg-teal-100 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              {isFetching ? "Retrying…" : "Retry"}
+            </button>
+          </div>
+        ) : isLoading ? (
           <div className="p-6 space-y-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-14 rounded-xl" />)}</div>
         ) : filtered.length === 0 ? (
           <div className="py-20 text-center">
@@ -295,14 +308,3 @@ export default function SubscribersPage() {
     </div>
   );
 }
-
-// ─── Demo data ────────────────────────────────────────────────────────────────
-
-const DEMO_SUBSCRIBERS: Subscriber[] = [
-  { id: "1", phone: "+919876543210", name: "Priya Sharma", opted_in: true, opt_in_at: "2025-04-10T10:00:00Z", opt_out_at: null, source: "web_widget", tags: ["vip", "repeat-guest"] },
-  { id: "2", phone: "+919123456789", name: "Rohan Mehta", opted_in: true, opt_in_at: "2025-05-01T12:00:00Z", opt_out_at: null, source: "inbound", tags: ["june-arrivals"] },
-  { id: "3", phone: "+918765432109", name: "Ananya Nair", opted_in: true, opt_in_at: "2025-04-22T08:00:00Z", opt_out_at: null, source: "import", tags: [] },
-  { id: "4", phone: "+917654321098", name: "Kiran Kumar", opted_in: false, opt_in_at: "2025-03-15T09:00:00Z", opt_out_at: "2025-04-30T11:00:00Z", source: "web_widget", tags: [] },
-  { id: "5", phone: "+916543210987", name: null, opted_in: true, opt_in_at: "2025-05-12T07:00:00Z", opt_out_at: null, source: "inbound", tags: ["new"] },
-  { id: "6", phone: "+915432109876", name: "Deepa Rao", opted_in: true, opt_in_at: "2025-05-08T16:00:00Z", opt_out_at: null, source: "import", tags: ["corporate"] },
-];

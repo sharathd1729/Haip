@@ -6,6 +6,7 @@ Queries Meta for every PENDING template and updates status
 to APPROVED or REJECTED (with reason) in our DB.
 """
 import httpx
+from celery.exceptions import MaxRetriesExceededError
 from app.workers.celery_app import celery_app
 from app.core.database import SessionLocal
 import structlog
@@ -111,8 +112,19 @@ def sync_tenant_templates(self, tenant_id: str):
             )
 
     except Exception as exc:
-        if not isinstance(exc, self.MaxRetriesExceededError if hasattr(self, "MaxRetriesExceededError") else type(None)):
-            log.error("sync_wa_templates_error", tenant_id=tenant_id, error=str(exc))
+        log.error("sync_wa_templates_error", tenant_id=tenant_id, error=str(exc))
+        # T0.4: self.MaxRetriesExceededError doesn't exist as a Task
+        # attribute -- that hasattr check was always False, so retry
+        # exhaustion was never actually caught or logged distinctly, it
+        # just propagated out of this task as an unhandled failure.
+        # self.retry() itself raises MaxRetriesExceededError once
+        # max_retries is exhausted, so it has to be caught around the
+        # retry() call specifically -- a sibling except clause on the same
+        # try statement can't catch an exception raised from inside another
+        # except block.
+        try:
             raise self.retry(exc=exc)
+        except MaxRetriesExceededError:
+            log.error("sync_wa_templates_retries_exhausted", tenant_id=tenant_id, error=str(exc))
     finally:
         db.close()

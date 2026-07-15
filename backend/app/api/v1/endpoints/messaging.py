@@ -8,6 +8,7 @@ WhatsApp Business messaging features:
 import uuid
 import os
 import httpx
+import structlog
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import Column, String, Boolean, JSON, Enum as SAEnum
@@ -20,6 +21,7 @@ from app.models.user import User, UserRole
 from app.models.base import TimestampMixin, TenantMixin, gen_uuid
 
 router = APIRouter(prefix="/messaging", tags=["messaging"])
+log = structlog.get_logger()
 
 # ─── Inline models (avoid a new alembic migration for now) ───────────────────
 # These are created via create_all on startup.
@@ -31,6 +33,7 @@ class TemplateStatus(str, enum.Enum):
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"
+    SUBMISSION_FAILED = "submission_failed"   # G8: distinct from PENDING -- Meta API call itself failed
 
 class CampaignStatus(str, enum.Enum):
     DRAFT = "draft"
@@ -313,12 +316,14 @@ def submit_template(
                 tmpl.rejection_reason = data.get("error", {}).get("message", "Unknown error")
                 tmpl.status = TemplateStatus.REJECTED
         except Exception as e:
-            tmpl.status = TemplateStatus.PENDING
+            log.error("wa_template_submission_failed", template_id=template_id, error=str(e))
+            tmpl.status = TemplateStatus.SUBMISSION_FAILED
+            tmpl.rejection_reason = f"Submission request failed: {e}"[:500]
     else:
         tmpl.status = TemplateStatus.PENDING
 
     db.commit()
-    return {"status": tmpl.status.value, "meta_template_id": tmpl.meta_template_id}
+    return {"status": tmpl.status.value, "meta_template_id": tmpl.meta_template_id, "rejection_reason": tmpl.rejection_reason}
 
 
 @router.delete("/templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)

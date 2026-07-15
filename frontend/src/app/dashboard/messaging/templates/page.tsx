@@ -339,9 +339,9 @@ export default function TemplatesPage() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  const { data: templates = [], isLoading } = useQuery<Template[]>({
+  const { data: templates = [], isLoading, isError, refetch, isFetching } = useQuery<Template[]>({
     queryKey: ["wa-templates"],
-    queryFn: () => api.get("/messaging/templates").then(r => r.data).catch(() => DEMO_TEMPLATES),
+    queryFn: () => api.get("/messaging/templates").then(r => r.data),
     staleTime: 30_000,
   });
 
@@ -389,7 +389,20 @@ export default function TemplatesPage() {
 
       {/* List */}
       <div className="flex-1 overflow-y-auto p-6">
-        {isLoading ? (
+        {isError ? (
+          <div className="py-20 text-center">
+            <AlertCircle size={32} className="text-red-300 mx-auto mb-3" />
+            <p className="text-sm text-gray-700 font-medium">Couldn't load templates</p>
+            <p className="text-xs text-gray-400 mt-1">The server didn't respond — this isn't your saved template list.</p>
+            <button
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="mt-4 text-xs font-semibold text-teal-600 border border-teal-200 bg-teal-50 hover:bg-teal-100 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              {isFetching ? "Retrying…" : "Retry"}
+            </button>
+          </div>
+        ) : isLoading ? (
           <div className="space-y-3">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}</div>
         ) : filtered.length === 0 ? (
           <div className="py-20 text-center">
@@ -480,41 +493,3 @@ export default function TemplatesPage() {
     </div>
   );
 }
-
-// ─── Demo data ────────────────────────────────────────────────────────────────
-
-const DEMO_TEMPLATES: Template[] = [
-  {
-    id: "1", name: "booking_confirmation", language: "en", category: "UTILITY", status: "approved",
-    components: [
-      { type: "HEADER", format: "TEXT", text: "Booking Confirmed!" },
-      { type: "BODY", text: "Hi {{1}}, your stay at {{2}} from {{3}} to {{4}} is confirmed.\n\nWe look forward to welcoming you!\n\nFor any questions, reply to this message." },
-      { type: "FOOTER", text: "Casa Aurora Resorts" },
-    ],
-    meta_template_id: "1234567890", rejection_reason: null, created_at: "2025-05-10T10:00:00Z",
-  },
-  {
-    id: "2", name: "special_offer_diwali", language: "en", category: "MARKETING", status: "approved",
-    components: [
-      { type: "HEADER", format: "TEXT", text: "✨ Diwali Special Offer" },
-      { type: "BODY", text: "Dear {{1}},\n\nCelebrate Diwali with us! Book before Nov 1st and get 30% off on all villa bookings.\n\nUse code DIWALI30 at checkout." },
-      { type: "BUTTONS", buttons: [{ type: "URL", text: "Book Now", url: "https://casaaurora.com/book" }] },
-    ],
-    meta_template_id: "9876543210", rejection_reason: null, created_at: "2025-05-08T09:00:00Z",
-  },
-  {
-    id: "3", name: "checkin_reminder", language: "en", category: "UTILITY", status: "pending",
-    components: [
-      { type: "BODY", text: "Hi {{1}}, just a reminder that your check-in at {{2}} is tomorrow at {{3}}. Please carry a valid ID. See you soon!" },
-    ],
-    meta_template_id: null, rejection_reason: null, created_at: "2025-05-12T14:00:00Z",
-  },
-  {
-    id: "4", name: "review_request", language: "en", category: "MARKETING", status: "draft",
-    components: [
-      { type: "BODY", text: "Hi {{1}}, we hope you enjoyed your stay at {{2}}! We'd love to hear your feedback. It only takes 2 minutes." },
-      { type: "BUTTONS", buttons: [{ type: "URL", text: "Leave a Review", url: "https://casaaurora.com/review/{{1}}" }] },
-    ],
-    meta_template_id: null, rejection_reason: null, created_at: "2025-05-13T08:00:00Z",
-  },
-];

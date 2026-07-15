@@ -398,9 +398,9 @@ export default function CampaignsPage() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  const { data: campaigns = [], isLoading } = useQuery<Campaign[]>({
+  const { data: campaigns = [], isLoading, isError, refetch, isFetching } = useQuery<Campaign[]>({
     queryKey: ["wa-campaigns"],
-    queryFn: () => api.get("/messaging/campaigns").then(r => r.data).catch(() => DEMO_CAMPAIGNS),
+    queryFn: () => api.get("/messaging/campaigns").then(r => r.data),
     staleTime: 30_000,
   });
 
@@ -460,7 +460,20 @@ export default function CampaignsPage() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
-        {isLoading ? (
+        {isError ? (
+          <div className="py-20 text-center">
+            <AlertCircle size={32} className="text-red-300 mx-auto mb-3" />
+            <p className="text-sm text-gray-700 font-medium">Couldn't load campaigns</p>
+            <p className="text-xs text-gray-400 mt-1">The server didn't respond — this isn't your saved campaign history.</p>
+            <button
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="mt-4 text-xs font-semibold text-teal-600 border border-teal-200 bg-teal-50 hover:bg-teal-100 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              {isFetching ? "Retrying…" : "Retry"}
+            </button>
+          </div>
+        ) : isLoading ? (
           <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}</div>
         ) : campaigns.length === 0 ? (
           <div className="py-20 text-center">
@@ -497,12 +510,3 @@ export default function CampaignsPage() {
     </div>
   );
 }
-
-// ─── Demo data ────────────────────────────────────────────────────────────────
-
-const DEMO_CAMPAIGNS: Campaign[] = [
-  { id: "1", name: "Diwali 2025 Offer", template_id: "2", status: "completed", audience_filter: { tags: ["past-guest"] }, scheduled_at: null, sent_count: "342", delivered_count: "335", read_count: "287", failed_count: "7", created_at: "2025-05-01T10:00:00Z" },
-  { id: "2", name: "Summer Advance Booking", template_id: "1", status: "running", audience_filter: {}, scheduled_at: null, sent_count: "128", delivered_count: "124", read_count: "89", failed_count: "4", created_at: "2025-05-10T08:00:00Z" },
-  { id: "3", name: "June Arrivals Pre-stay", template_id: "3", status: "scheduled", audience_filter: { tags: ["june-arrivals"] }, scheduled_at: "2025-06-01T09:00:00Z", sent_count: "0", delivered_count: "0", read_count: "0", failed_count: "0", created_at: "2025-05-13T12:00:00Z" },
-  { id: "4", name: "Review Request — May Stay", template_id: "4", status: "draft", audience_filter: {}, scheduled_at: null, sent_count: "0", delivered_count: "0", read_count: "0", failed_count: "0", created_at: "2025-05-14T07:00:00Z" },
-];
