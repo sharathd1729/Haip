@@ -33,8 +33,18 @@ def send_whatsapp(self, message_id: str, tenant_id: str):
             log.error("send_whatsapp_conv_not_found", conversation_id=message.conversation_id)
             return
 
-        # Get WhatsApp integration credentials for this tenant
-        integration = db.query(Integration).filter_by(tenant_id=tenant_id, kind="whatsapp").first()
+        # Get WhatsApp integration credentials for this tenant. "whatsapp_meta"
+        # is what the current connect-key UI actually saves (integrations.py
+        # POST /integrations/whatsapp_meta/connect-key); "whatsapp" is a
+        # legacy kind kept as fallback. Matches the lookup order already used
+        # consistently in run_campaign.py, automation_engine.py, and
+        # sync_wa_templates.py -- this was the one path that didn't, so any
+        # tenant onboarded purely through the connect-key UI could send
+        # campaigns/automations but not a single agent-typed or AI-drafted
+        # reply through this task.
+        integration = db.query(Integration).filter_by(tenant_id=tenant_id, kind="whatsapp_meta").first()
+        if not integration:
+            integration = db.query(Integration).filter_by(tenant_id=tenant_id, kind="whatsapp").first()
         if not integration:
             log.error("send_whatsapp_no_integration", tenant_id=tenant_id)
             _mark_failed(db, message, "No WhatsApp integration configured for tenant")

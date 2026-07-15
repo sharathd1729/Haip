@@ -213,7 +213,9 @@ class TestSendWhatsappWorker:
         conv.guest_id = "g1"
 
         db = MagicMock()
-        call_results = iter([msg, conv, None])  # None = no integration
+        # message, conversation, then two integration lookups (kind="whatsapp_meta"
+        # tried first, falls back to kind="whatsapp") -- both miss, so None, None.
+        call_results = iter([msg, conv, None, None])
         db.query.return_value.filter_by.return_value.first.side_effect = lambda: next(call_results)
 
         with patch("app.workers.tasks.send_whatsapp.SessionLocal", return_value=db):
