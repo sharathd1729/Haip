@@ -124,6 +124,86 @@ def send_whatsapp(self, message_id: str, tenant_id: str):
         db.close()
 
 
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=30, name="tasks.send_whatsapp_template")
+def send_whatsapp_template(self, message_id: str, tenant_id: str, template_name: str, language_code: str, variables: list):
+    """
+    T3.2: send an approved template message (as opposed to send_whatsapp's
+    free-form text) -- required when the 24h service window is closed,
+    since Meta rejects free-form business-initiated messages outside it.
+    Separate task from send_whatsapp because the Meta API call itself is
+    different (POST .../messages with type=template, not type=text).
+    """
+    from app.core.database import set_tenant_context
+    db = SessionLocal()
+    try:
+        set_tenant_context(db, tenant_id)
+        message = db.query(Message).filter_by(id=message_id, tenant_id=tenant_id).first()
+        if not message:
+            log.error("send_whatsapp_template_message_not_found", message_id=message_id)
+            return
+
+        conversation = db.query(Conversation).filter_by(id=message.conversation_id).first()
+        if not conversation:
+            log.error("send_whatsapp_template_conv_not_found", conversation_id=message.conversation_id)
+            return
+
+        integration = db.query(Integration).filter_by(tenant_id=tenant_id, kind="whatsapp_meta").first()
+        if not integration:
+            integration = db.query(Integration).filter_by(tenant_id=tenant_id, kind="whatsapp").first()
+        if not integration:
+            _mark_failed(db, message, "No WhatsApp integration configured for tenant")
+            return
+
+        config = integration.config or {}
+        phone_number_id = config.get("phone_number_id")
+        access_token = config.get("access_token")
+        if not phone_number_id or not access_token:
+            _mark_failed(db, message, "Missing phone_number_id or access_token in integration config")
+            return
+
+        from app.models.guest import Guest
+        guest = db.query(Guest).filter_by(id=conversation.guest_id).first()
+        if not guest or not guest.phone:
+            _mark_failed(db, message, "Guest not found or has no phone for conversation")
+            return
+
+        adapter = get_wa_adapter(phone_number_id, access_token)
+        components = [{
+            "type": "body",
+            "parameters": [{"type": "text", "text": str(v)} for v in (variables or [])],
+        }] if variables else []
+
+        def _run_async(coro):
+            loop = asyncio.new_event_loop()
+            try:
+                return loop.run_until_complete(coro)
+            finally:
+                loop.close()
+
+        result = _run_async(adapter.send_template(
+            to=guest.phone, template_name=template_name, language_code=language_code, components=components,
+        ))
+
+        wamid = result.get("messages", [{}])[0].get("id")
+        message.channel_message_id = wamid
+        message.channel_status = "sent"
+        message.delivery_state = MessageDeliveryState.SENT
+        message.delivery_error = None
+        message.was_approved = True
+        db.commit()
+
+        log.info("whatsapp_template_sent", message_id=message_id, wamid=wamid, template=template_name)
+
+    except Exception as exc:
+        error_str = str(exc)
+        log.error("send_whatsapp_template_failed", message_id=message_id, error=error_str)
+        if self.request.retries >= self.max_retries:
+            _mark_failed(db, message, f"Max retries exceeded: {error_str}")
+        raise self.retry(exc=exc)
+    finally:
+        db.close()
+
+
 def _mark_failed(db, message: Message, reason: str) -> None:
     """Transition message to FAILED and record the reason."""
     try:
