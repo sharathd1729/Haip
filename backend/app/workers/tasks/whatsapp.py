@@ -255,9 +255,11 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
         try:
             from app.services.inquiry_service import get_or_create_from_chat
             from app.models.inquiry import InquirySource
-            get_or_create_from_chat(
+            lead_inquiry = get_or_create_from_chat(
                 db, tenant.id, guest_id, source=InquirySource.WA_DIRECT.value, message_text=body,
             )
+            conversation.inquiry_id = lead_inquiry.id
+            db.flush()
         except Exception as exc:
             log.warning("wa_lead_auto_create_failed", tenant_id=tenant.id, error=str(exc))
 

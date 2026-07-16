@@ -195,9 +195,10 @@ def process_instagram_dm(self, payload: dict) -> dict:
             try:
                 from app.services.inquiry_service import get_or_create_from_chat
                 from app.models.inquiry import InquirySource
-                get_or_create_from_chat(
+                lead_inquiry = get_or_create_from_chat(
                     db, tenant_id, guest_id, source=InquirySource.META_IG.value, message_text=body,
                 )
+                conversation.inquiry_id = lead_inquiry.id
                 db.commit()
             except Exception as exc:
                 db.rollback()
