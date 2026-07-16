@@ -15,6 +15,7 @@ from app.models.guest import Guest
 from app.models.tenant import Tenant
 from app.models.inquiry import Inquiry, InquiryStage, InquirySource
 from app.models.guest_identity import GuestIdentity
+from app.models.pipeline_stage import PipelineStage
 from app.services import leads_service
 
 
@@ -59,6 +60,71 @@ def _add_signal(db, tenant_id, guest_id, identity_type, value, confidence=0.70):
     db.add(sig)
     db.flush()
     return sig
+
+
+def _make_stage(db, tenant_id, key, order=0, **kwargs):
+    s = PipelineStage(id=str(uuid.uuid4()), tenant_id=tenant_id, key=key, label=key.title(), order=order, **kwargs)
+    db.add(s)
+    db.flush()
+    return s
+
+
+# ── stage filter must key off pipeline_stages, not the legacy enum ─────────
+# Regression coverage: get_leads_pipeline's `stage` filter used to compare
+# directly against the legacy Inquiry.stage enum column. That only worked by
+# coincidence for tenants whose custom stage keys happened to equal old enum
+# values (new/responding/...) -- any tenant-custom or new-taxonomy key
+# (e.g. "active", "general_enquiry") silently matched zero rows. Discovered
+# live against Ratha's production board after the 049 taxonomy rework: every
+# column showed "No leads here" despite 50 backfilled inquiries existing.
+
+def test_get_leads_pipeline_filters_by_tenant_custom_stage_key(db):
+    tenant = _make_tenant(db)
+    guest = _make_guest(db, tenant.id)
+    active_stage = _make_stage(db, tenant.id, "active", 0)
+    other_stage = _make_stage(db, tenant.id, "general_enquiry", 1)
+
+    matching = _make_inquiry(db, tenant.id, guest.id, stage=InquiryStage.NEW)
+    matching.stage_id = active_stage.id
+    non_matching = _make_inquiry(db, tenant.id, guest.id, stage=InquiryStage.NEW)
+    non_matching.stage_id = other_stage.id
+    db.flush()
+
+    result = leads_service.get_leads_pipeline(db, tenant.id, stage="active")
+
+    ids = [row.inquiry_id for row in result.leads]
+    assert matching.id in ids
+    assert non_matching.id not in ids
+
+
+def test_get_leads_pipeline_unknown_stage_key_returns_empty_not_error(db):
+    tenant = _make_tenant(db)
+    guest = _make_guest(db, tenant.id)
+    stage = _make_stage(db, tenant.id, "active", 0)
+    inq = _make_inquiry(db, tenant.id, guest.id, stage=InquiryStage.NEW)
+    inq.stage_id = stage.id
+    db.flush()
+
+    result = leads_service.get_leads_pipeline(db, tenant.id, stage="does_not_exist")
+
+    assert result.leads == []
+    assert result.total == 0
+
+
+def test_get_leads_pipeline_legacy_enum_key_still_works(db):
+    """Back-compat: a stage string that isn't any tenant's pipeline_stages
+    key, but IS a valid legacy InquiryStage enum value, still filters
+    correctly (covers any caller still on the old enum-value stage keys)."""
+    tenant = _make_tenant(db)
+    guest = _make_guest(db, tenant.id)
+    matching = _make_inquiry(db, tenant.id, guest.id, stage=InquiryStage.RESPONDING)
+    non_matching = _make_inquiry(db, tenant.id, guest.id, stage=InquiryStage.NEW)
+
+    result = leads_service.get_leads_pipeline(db, tenant.id, stage="responding")
+
+    ids = [row.inquiry_id for row in result.leads]
+    assert matching.id in ids
+    assert non_matching.id not in ids
 
 
 # ── T22: one inquiry = one lead card ─────────────────────────────────────────

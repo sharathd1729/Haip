@@ -21,12 +21,13 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, List, Optional
 
-from sqlalchemy import desc
+from sqlalchemy import desc, false as sa_false
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.cache import cache_key, get_cached, set_cached
 from app.models.guest_identity import GuestIdentity, IdentityType
 from app.models.inquiry import Inquiry, InquiryStage, InquirySource
+from app.models.pipeline_stage import PipelineStage
 from app.schemas.leads import (
     LeadCardSchema, LeadDetailSchema, LeadsListResponse,
     PipelineStageMetaSchema, QuoteHistorySchema, TimelineEntrySchema,
@@ -433,11 +434,32 @@ def get_leads_pipeline(
 
     # Filters
     if stage:
-        # "closed" is a UI alias for lost + ghosted
+        # "closed" is a legacy UI alias for lost + ghosted, predating
+        # tenant-owned pipeline_stages -- kept for any caller still sending
+        # it, though the new taxonomy already exposes Lost/Sold as their
+        # own distinct columns and has no need for this grouping.
         if stage == "closed":
             q = q.filter(Inquiry.stage.in_([InquiryStage.LOST, InquiryStage.GHOSTED]))
         else:
-            q = q.filter(Inquiry.stage == stage)
+            # Board columns are keyed by pipeline_stages.key (tenant-owned,
+            # arbitrary), not the legacy Inquiry.stage enum -- filter via
+            # stage_id. Comparing `stage` directly against the enum column
+            # only ever worked by coincidence when a tenant's stage keys
+            # happened to equal the old fixed enum values (new/responding/
+            # etc.); any tenant-custom or new-taxonomy key (general_enquiry,
+            # active, ...) silently matched zero rows under that comparison.
+            stage_row = (
+                db.query(PipelineStage.id)
+                .filter_by(tenant_id=tenant_id, key=stage)
+                .first()
+            )
+            if stage_row:
+                q = q.filter(Inquiry.stage_id == stage_row[0])
+            else:
+                try:
+                    q = q.filter(Inquiry.stage == InquiryStage(stage))
+                except ValueError:
+                    q = q.filter(sa_false())
     if property_id:
         q = q.filter(Inquiry.property_id == property_id)
     if assigned_to:
