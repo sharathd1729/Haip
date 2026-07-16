@@ -17,6 +17,9 @@ export interface PipelineStageRow {
   is_default_entry: boolean;
   is_closed_won: boolean;
   is_closed_lost: boolean;
+  category: "valid" | "invalid" | "marketing" | null;
+  is_valid_lead_entry: boolean;
+  is_collab_entry: boolean;
   lead_count: number;
 }
 
@@ -50,6 +53,8 @@ export async function createPipelineStage(body: {
 export async function updatePipelineStage(id: string, patch: Partial<{
   label: string; color: string; order: number;
   is_default_entry: boolean; is_closed_won: boolean; is_closed_lost: boolean;
+  category: "valid" | "invalid" | "marketing";
+  is_valid_lead_entry: boolean; is_collab_entry: boolean;
 }>) {
   const res = await api.patch(`/pipeline-stages/${id}`, patch);
   return res.data as PipelineStageRow;

@@ -1,8 +1,9 @@
-from typing import Optional
+from typing import Optional, Literal
 from pydantic import BaseModel, field_validator
 import re
 
 _KEY_RE = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
+_VALID_CATEGORIES = {"valid", "invalid", "marketing"}
 
 
 class PipelineStageOut(BaseModel):
@@ -14,6 +15,9 @@ class PipelineStageOut(BaseModel):
     is_default_entry: bool
     is_closed_won: bool
     is_closed_lost: bool
+    category: Optional[str] = None
+    is_valid_lead_entry: bool = False
+    is_collab_entry: bool = False
     lead_count: int = 0   # populated by the endpoint, not stored
 
     class Config:
@@ -61,6 +65,9 @@ class PipelineStageUpdate(BaseModel):
     is_default_entry: Optional[bool] = None
     is_closed_won: Optional[bool] = None
     is_closed_lost: Optional[bool] = None
+    category: Optional[Literal["valid", "invalid", "marketing"]] = None
+    is_valid_lead_entry: Optional[bool] = None
+    is_collab_entry: Optional[bool] = None
 
     @field_validator("label")
     @classmethod

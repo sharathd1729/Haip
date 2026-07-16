@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { GripVertical, X, Plus, Trash2, Check, Award, Ban } from "lucide-react";
+import { GripVertical, X, Plus, Trash2, Check, Award, Ban, UserCheck, Handshake } from "lucide-react";
 import {
   PipelineStageRow,
   useInvalidatePipelineStages,
@@ -98,6 +98,27 @@ export function PipelineSettingsModal({ stages: initialStages, onClose }: Props)
     const updated = await withBusy(() => updatePipelineStage(row.id, { [flag]: !row[flag] }));
     if (updated) {
       setRows(prev => prev.map(r => (r.id === row.id ? updated : r)));
+      invalidate();
+    }
+  }
+
+  async function handleCategoryChange(row: PipelineStageRow, category: PipelineStageRow["category"]) {
+    const updated = await withBusy(() => updatePipelineStage(row.id, { category: category ?? "invalid" }));
+    if (updated) {
+      setRows(prev => prev.map(r => (r.id === row.id ? updated : r)));
+      invalidate();
+    }
+  }
+
+  // Chat auto-create routing (Leads360): exactly one stage per tenant can
+  // be the "valid" landing zone (phone-number leads) and one the "collab"
+  // landing zone (collab-keyword messages) -- same one-true convention as
+  // is_default_entry.
+  async function handleSetLeadEntryFlag(row: PipelineStageRow, flag: "is_valid_lead_entry" | "is_collab_entry") {
+    const nextValue = !row[flag];
+    const updated = await withBusy(() => updatePipelineStage(row.id, { [flag]: nextValue }));
+    if (updated) {
+      setRows(prev => prev.map(r => (r.id === row.id ? updated : (nextValue ? { ...r, [flag]: false } : r))));
       invalidate();
     }
   }
@@ -253,6 +274,34 @@ export function PipelineSettingsModal({ stages: initialStages, onClose }: Props)
                 </button>
               )}
 
+              <select
+                className="flex-shrink-0 text-[10px] rounded px-1 py-0.5"
+                style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", color: "var(--haip-fg-subtle)" }}
+                value={row.category ?? ""}
+                onChange={e => handleCategoryChange(row, (e.target.value || null) as PipelineStageRow["category"])}
+                title="Lead category — controls whether this stage counts toward Leads360 lead metrics"
+              >
+                <option value="">Uncategorized</option>
+                <option value="valid">Valid</option>
+                <option value="invalid">Invalid</option>
+                <option value="marketing">Marketing</option>
+              </select>
+              <button
+                onClick={() => handleSetLeadEntryFlag(row, "is_valid_lead_entry")}
+                title={row.is_valid_lead_entry ? "Auto-create lands here when a phone number is given" : "Set as the phone-number auto-create landing stage"}
+                className="flex-shrink-0"
+                style={{ color: row.is_valid_lead_entry ? "#22c55e" : "var(--haip-fg-subtle)", opacity: row.is_valid_lead_entry ? 1 : 0.3 }}
+              >
+                <UserCheck size={13} />
+              </button>
+              <button
+                onClick={() => handleSetLeadEntryFlag(row, "is_collab_entry")}
+                title={row.is_collab_entry ? "Auto-create lands here when collab keywords are detected" : "Set as the collab-keyword auto-create landing stage"}
+                className="flex-shrink-0"
+                style={{ color: row.is_collab_entry ? "#8b5cf6" : "var(--haip-fg-subtle)", opacity: row.is_collab_entry ? 1 : 0.3 }}
+              >
+                <Handshake size={13} />
+              </button>
               <button
                 onClick={() => handleSetDefaultEntry(row)}
                 title={row.is_default_entry ? "Default entry stage" : "Set as default entry stage"}

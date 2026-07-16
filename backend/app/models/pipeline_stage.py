@@ -28,6 +28,17 @@ class PipelineStage(Base, TimestampMixin, TenantMixin):
     is_closed_won = Column(Boolean, nullable=False, default=False)
     is_closed_lost = Column(Boolean, nullable=False, default=False)
 
+    # Lead auto-create routing (chat -> Leads360 auto-creation).
+    # category groups stages for lead-counting: "valid" stages count as
+    # real leads in dashboards/metrics, "invalid" and "marketing" don't.
+    # is_valid_lead_entry / is_collab_entry mark which single stage within
+    # a category is the landing zone for a freshly auto-created inquiry
+    # (at most one of each per tenant, same "exactly one TRUE" convention
+    # as is_default_entry).
+    category = Column(String(20), nullable=True)  # "valid" | "invalid" | "marketing"
+    is_valid_lead_entry = Column(Boolean, nullable=False, default=False)
+    is_collab_entry = Column(Boolean, nullable=False, default=False)
+
     created_by = Column(String, ForeignKey("users.id"), nullable=True)
 
     __table_args__ = (

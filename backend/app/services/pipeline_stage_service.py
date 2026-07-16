@@ -70,7 +70,8 @@ def update_stage(
     db: Session, tenant_id: str, stage_id: str, *,
     label: Optional[str] = None, color: Optional[str] = None, order: Optional[int] = None,
     is_default_entry: Optional[bool] = None, is_closed_won: Optional[bool] = None,
-    is_closed_lost: Optional[bool] = None,
+    is_closed_lost: Optional[bool] = None, category: Optional[str] = None,
+    is_valid_lead_entry: Optional[bool] = None, is_collab_entry: Optional[bool] = None,
 ) -> PipelineStage:
     stage = db.query(PipelineStage).filter_by(id=stage_id, tenant_id=tenant_id).first()
     if not stage:
@@ -90,6 +91,8 @@ def update_stage(
         if is_closed_lost and stage.is_closed_won:
             raise PipelineStageError("A stage cannot be both closed-won and closed-lost")
         stage.is_closed_lost = is_closed_lost
+    if category is not None:
+        stage.category = category
 
     if is_default_entry is True:
         # Exactly one default-entry stage per tenant — clear the others.
@@ -102,6 +105,26 @@ def update_stage(
         raise PipelineStageError(
             "Cannot unset the default-entry stage directly — mark a different stage as default-entry instead"
         )
+
+    # Lead auto-create routing targets (§ Leads360 chat auto-create) --
+    # same "exactly one TRUE per tenant" convention as is_default_entry.
+    if is_valid_lead_entry is True:
+        db.query(PipelineStage).filter(
+            PipelineStage.tenant_id == tenant_id,
+            PipelineStage.id != stage_id,
+        ).update({"is_valid_lead_entry": False})
+        stage.is_valid_lead_entry = True
+    elif is_valid_lead_entry is False:
+        stage.is_valid_lead_entry = False
+
+    if is_collab_entry is True:
+        db.query(PipelineStage).filter(
+            PipelineStage.tenant_id == tenant_id,
+            PipelineStage.id != stage_id,
+        ).update({"is_collab_entry": False})
+        stage.is_collab_entry = True
+    elif is_collab_entry is False:
+        stage.is_collab_entry = False
 
     db.flush()
     log.info("pipeline_stage_updated", tenant_id=tenant_id, stage_id=stage_id)

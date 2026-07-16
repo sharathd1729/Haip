@@ -115,6 +115,7 @@ def process_instagram_dm(self, payload: dict) -> dict:
             .first()
         )
 
+        is_new_conversation = conversation is None
         if not conversation:
             conversation = Conversation(
                 id=str(uuid.uuid4()),
@@ -186,6 +187,21 @@ def process_instagram_dm(self, payload: dict) -> dict:
             "Stored Instagram DM: message=%s guest=%s conversation=%s",
             message.id, guest_id, conversation.id,
         )
+
+        # Leads360 chat auto-create: only on the guest's first DM in this
+        # conversation -- phone detection is text-based on Instagram (no
+        # inherent phone identity like WhatsApp has).
+        if is_new_conversation and body and not body.startswith("["):
+            try:
+                from app.services.inquiry_service import get_or_create_from_chat
+                from app.models.inquiry import InquirySource
+                get_or_create_from_chat(
+                    db, tenant_id, guest_id, source=InquirySource.META_IG.value, message_text=body,
+                )
+                db.commit()
+            except Exception as exc:
+                db.rollback()
+                logger.warning("ig_lead_auto_create_failed: %s", exc)
 
         # Notify SSE subscribers so the inbox updates without a page refresh
         try:

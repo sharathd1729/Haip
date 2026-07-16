@@ -134,6 +134,62 @@ def get_or_create(db: Session, tenant_id: str, guest_id: str, source: str = "pho
     return inquiry
 
 
+def get_or_create_from_chat(
+    db: Session, tenant_id: str, guest_id: str, *, source: str, message_text: str,
+) -> Inquiry:
+    """
+    Leads360 chat auto-create (WhatsApp/Instagram) -- same open-inquiry
+    lookup as get_or_create(), but a freshly created inquiry is routed to
+    a tenant-tagged pipeline stage (migration 048) based on the message
+    content, instead of always landing in the legacy NEW enum stage.
+    See app/services/lead_auto_create.py for the routing rules.
+    """
+    from app.services.lead_auto_create import (
+        is_collab_message, text_contains_phone, resolve_entry_stage_id,
+    )
+
+    closed_stages = [InquiryStage.BOOKED, InquiryStage.LOST, InquiryStage.GHOSTED]
+    inquiry = (
+        db.query(Inquiry)
+        .filter_by(tenant_id=tenant_id, guest_id=guest_id)
+        .filter(~Inquiry.stage.in_(closed_stages))
+        .order_by(Inquiry.created_at.desc())
+        .first()
+    )
+    if inquiry:
+        return inquiry
+
+    try:
+        src = InquirySource(source)
+    except ValueError:
+        src = InquirySource.PHONE
+
+    is_collab = is_collab_message(message_text)
+    # WhatsApp's channel identity is itself a phone number -- a phone is
+    # always "given" there. Instagram has no inherent phone signal, so it's
+    # only true when the message text itself contains one.
+    has_phone = True if source == InquirySource.WA_DIRECT.value else text_contains_phone(message_text)
+
+    stage_id = resolve_entry_stage_id(db, tenant_id, is_collab=is_collab, has_phone=has_phone)
+
+    inquiry = Inquiry(
+        id=str(uuid.uuid4()),
+        tenant_id=tenant_id,
+        guest_id=guest_id,
+        stage=InquiryStage.NEW,
+        stage_id=stage_id or _stage_id_for(db, tenant_id, InquiryStage.NEW),
+        source=src,
+    )
+    db.add(inquiry)
+    db.flush()
+    log.info(
+        "inquiry_auto_created_from_chat", inquiry_id=inquiry.id, guest_id=guest_id,
+        tenant_id=tenant_id, source=source, is_collab=is_collab, has_phone=has_phone,
+        stage_id=inquiry.stage_id,
+    )
+    return inquiry
+
+
 def update_stage(
     db: Session,
     *,

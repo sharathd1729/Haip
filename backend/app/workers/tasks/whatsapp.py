@@ -186,6 +186,7 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
         .filter_by(tenant_id=tenant.id, guest_id=guest_id, channel=ChannelType.WHATSAPP, is_open=True)
         .first()
     )
+    is_new_conversation = conversation is None
     if not conversation:
         conversation = Conversation(
             id=str(uuid.uuid4()),
@@ -245,6 +246,20 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
             db.flush()
 
     log.info("wa_message_stored", guest_token=_phone_token(from_number), conversation=conversation.id)
+
+    # Leads360 chat auto-create: only fires on the guest's first message in
+    # this channel -- a repeat message on an already-open conversation must
+    # never spawn a second inquiry (identity_service already dedupes the
+    # guest; this dedupes the inquiry).
+    if is_new_conversation and body:
+        try:
+            from app.services.inquiry_service import get_or_create_from_chat
+            from app.models.inquiry import InquirySource
+            get_or_create_from_chat(
+                db, tenant.id, guest_id, source=InquirySource.WA_DIRECT.value, message_text=body,
+            )
+        except Exception as exc:
+            log.warning("wa_lead_auto_create_failed", tenant_id=tenant.id, error=str(exc))
 
     # Notify SSE subscribers so the inbox updates without a page refresh
     try:
