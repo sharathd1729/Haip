@@ -66,14 +66,38 @@ def upgrade():
     for tenant_id in _tenant_ids(bind):
         stage_ids_by_key = _stage_keys(bind, tenant_id)
         has_old = bool(_OLD_KEYS & set(stage_ids_by_key.keys()))
-        has_new = _NEW_KEYS.issubset(set(stage_ids_by_key.keys()))
 
-        if has_new and not has_old:
-            continue  # already reworked (or freshly seeded by register()) -- skip
-
-        # 1. Create any missing new-taxonomy stages for this tenant.
+        # 1. Create any missing new-taxonomy stages, and force-correct the
+        # category/flags/color/order on any that already exist with a
+        # canonical key -- a tenant may already have a stage keyed exactly
+        # "active"/"general_enquiry"/etc. (e.g. hand-created via the
+        # Pipeline Settings UI before this migration ever ran) with none of
+        # the routing flags set. Treating "key present" as "correctly
+        # configured" left those silently wrong (confirmed against Ratha's
+        # production DB: `active` existed pre-migration but without
+        # is_valid_lead_entry=true) -- always reassert the canonical shape
+        # instead, on every run, not just on first creation.
         for key, label, color, order, category, is_default_entry, is_valid_lead_entry, is_collab_entry, is_closed_won, is_closed_lost in _NEW_TAXONOMY:
             if key in stage_ids_by_key:
+                bind.execute(
+                    sa.text(
+                        """
+                        UPDATE pipeline_stages
+                        SET category = :category, is_default_entry = :is_default_entry,
+                            is_valid_lead_entry = :is_valid_lead_entry, is_collab_entry = :is_collab_entry,
+                            is_closed_won = :is_closed_won, is_closed_lost = :is_closed_lost,
+                            "order" = :order, updated_at = now()
+                        WHERE id = :id
+                        """
+                    ),
+                    {
+                        "id": stage_ids_by_key[key], "category": category, "order": order,
+                        "is_default_entry": is_default_entry,
+                        "is_valid_lead_entry": is_valid_lead_entry,
+                        "is_collab_entry": is_collab_entry,
+                        "is_closed_won": is_closed_won, "is_closed_lost": is_closed_lost,
+                    },
+                )
                 continue
             new_id = str(uuid.uuid4())
             bind.execute(
@@ -99,6 +123,9 @@ def upgrade():
                 },
             )
             stage_ids_by_key[key] = new_id
+
+        if not has_old:
+            continue  # nothing further to remap/delete for this tenant
 
         # 2. Remap inquiries off any old stage onto the corresponding new one.
         for old_key, new_key in _OLD_TO_NEW_KEY.items():
