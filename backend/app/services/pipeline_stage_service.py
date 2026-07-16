@@ -16,6 +16,59 @@ class PipelineStageError(Exception):
     """Raised for any invalid pipeline-stage mutation; API layer converts to 4xx."""
 
 
+# Leads360 default taxonomy (chat/call/collab auto-create routing rides on
+# these keys/flags -- see app/services/lead_auto_create.py). "valid" stages
+# count as real leads in dashboards/metrics; "invalid" and "marketing" don't.
+_DEFAULT_TAXONOMY = [
+    {"key": "general_enquiry",           "label": "General Enquiry",           "color": "#6b7280", "category": "invalid",    "is_default_entry": True},
+    {"key": "rnr",                       "label": "RNR",                       "color": "#f59e0b", "category": "invalid"},
+    {"key": "active",                    "label": "Active",                    "color": "#6366f1", "category": "valid",      "is_valid_lead_entry": True},
+    {"key": "unsuitable",                "label": "Unsuitable",                "color": "#8b5cf6", "category": "valid"},
+    {"key": "lost",                      "label": "Lost",                      "color": "#ef4444", "category": "valid",      "is_closed_lost": True},
+    {"key": "sold",                      "label": "Sold",                      "color": "#22c55e", "category": "valid",      "is_closed_won": True},
+    {"key": "collaboration_engagement",  "label": "Collaboration Engagement",  "color": "#06b6d4", "category": "marketing",  "is_collab_entry": True},
+]
+_DEFAULT_TAXONOMY_KEYS = {row["key"] for row in _DEFAULT_TAXONOMY}
+
+
+def seed_default_pipeline_stages(
+    db: Session, tenant_id: str, created_by: Optional[str] = None,
+) -> list[PipelineStage]:
+    """
+    Create the Leads360 default 7-stage taxonomy for a tenant. Idempotent --
+    a tenant that already has this exact key set is left untouched (safe to
+    call from both new-tenant provisioning and the one-time taxonomy-rework
+    migration for existing tenants).
+    """
+    existing_keys = {
+        k for (k,) in db.query(PipelineStage.key).filter_by(tenant_id=tenant_id).all()
+    }
+    if _DEFAULT_TAXONOMY_KEYS.issubset(existing_keys):
+        return list_stages(db, tenant_id)
+
+    for order, row in enumerate(_DEFAULT_TAXONOMY):
+        if row["key"] in existing_keys:
+            continue
+        stage = PipelineStage(
+            tenant_id=tenant_id,
+            key=row["key"],
+            label=row["label"],
+            color=row["color"],
+            order=order,
+            category=row.get("category"),
+            is_default_entry=row.get("is_default_entry", False),
+            is_valid_lead_entry=row.get("is_valid_lead_entry", False),
+            is_collab_entry=row.get("is_collab_entry", False),
+            is_closed_won=row.get("is_closed_won", False),
+            is_closed_lost=row.get("is_closed_lost", False),
+            created_by=created_by,
+        )
+        db.add(stage)
+    db.flush()
+    log.info("pipeline_stages_default_taxonomy_seeded", tenant_id=tenant_id)
+    return list_stages(db, tenant_id)
+
+
 def list_stages(db: Session, tenant_id: str) -> list[PipelineStage]:
     return (
         db.query(PipelineStage)

@@ -53,8 +53,14 @@ def ingest_call(self, payload: dict, tenant_id: str, ivr_provider: str):
             # Dedup / upsert guest by phone
             guest = _dedup_guest(db, tenant_id, normalized.from_number)
 
-            # Find or create open inquiry for this guest
-            inquiry = _find_or_create_inquiry(db, tenant_id, guest)
+            # Find or create open inquiry for this guest, routed via the
+            # same Leads360 auto-create taxonomy WhatsApp/Instagram use --
+            # unanswered calls land on RNR, connected calls on Active.
+            from app.services.inquiry_service import get_or_create_from_call
+            inquiry = get_or_create_from_call(
+                db, tenant_id, guest.id,
+                direction=normalized.direction, answered=normalized.duration_seconds > 0,
+            )
 
             # Create Call record
             call = Call(

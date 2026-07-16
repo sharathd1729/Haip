@@ -190,6 +190,49 @@ def get_or_create_from_chat(
     return inquiry
 
 
+def get_or_create_from_call(
+    db: Session, tenant_id: str, guest_id: str, *, direction: str, answered: bool,
+) -> Inquiry:
+    """
+    Leads360 call auto-create -- unifies calls with the WhatsApp/Instagram
+    chat auto-create flow (get_or_create_from_chat). Routed via
+    lead_auto_create.resolve_call_entry_stage_id() using the answered/
+    unanswered signal already available at call-ingest time (before
+    transcription/AI analysis ever runs). See app/workers/tasks/call_ingest.py.
+    """
+    from app.services.lead_auto_create import resolve_call_entry_stage_id
+
+    closed_stages = [InquiryStage.BOOKED, InquiryStage.LOST, InquiryStage.GHOSTED]
+    inquiry = (
+        db.query(Inquiry)
+        .filter_by(tenant_id=tenant_id, guest_id=guest_id)
+        .filter(~Inquiry.stage.in_(closed_stages))
+        .order_by(Inquiry.created_at.desc())
+        .first()
+    )
+    if inquiry:
+        return inquiry
+
+    src = InquirySource.INBOUND_CALL if direction == "inbound" else InquirySource.OUTBOUND_CALL
+    stage_id = resolve_call_entry_stage_id(db, tenant_id, answered=answered)
+
+    inquiry = Inquiry(
+        id=str(uuid.uuid4()),
+        tenant_id=tenant_id,
+        guest_id=guest_id,
+        stage=InquiryStage.NEW,
+        stage_id=stage_id or _stage_id_for(db, tenant_id, InquiryStage.NEW),
+        source=src,
+    )
+    db.add(inquiry)
+    db.flush()
+    log.info(
+        "inquiry_auto_created_from_call", inquiry_id=inquiry.id, guest_id=guest_id,
+        tenant_id=tenant_id, direction=direction, answered=answered, stage_id=inquiry.stage_id,
+    )
+    return inquiry
+
+
 def update_stage(
     db: Session,
     *,

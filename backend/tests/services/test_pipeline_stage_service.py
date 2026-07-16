@@ -99,3 +99,39 @@ def test_reorder_stages(db):
     assert [s.id for s in reordered] == [s2.id, s1.id]
     assert reordered[0].order == 0
     assert reordered[1].order == 1
+
+
+def test_seed_default_pipeline_stages_creates_full_taxonomy(db):
+    t = _make_tenant(db)
+    stages = svc.seed_default_pipeline_stages(db, t.id)
+    keys = {s.key for s in stages}
+    assert keys == {
+        "general_enquiry", "rnr", "active", "unsuitable",
+        "lost", "sold", "collaboration_engagement",
+    }
+
+    by_key = {s.key: s for s in stages}
+    assert by_key["general_enquiry"].category == "invalid"
+    assert by_key["general_enquiry"].is_default_entry is True
+    assert by_key["active"].category == "valid"
+    assert by_key["active"].is_valid_lead_entry is True
+    assert by_key["sold"].is_closed_won is True
+    assert by_key["lost"].is_closed_lost is True
+    assert by_key["collaboration_engagement"].category == "marketing"
+    assert by_key["collaboration_engagement"].is_collab_entry is True
+
+
+def test_seed_default_pipeline_stages_is_idempotent(db):
+    t = _make_tenant(db)
+    svc.seed_default_pipeline_stages(db, t.id)
+    first_count = len(svc.list_stages(db, t.id))
+    svc.seed_default_pipeline_stages(db, t.id)
+    second_count = len(svc.list_stages(db, t.id))
+    assert first_count == second_count == 7
+
+
+def test_seed_default_pipeline_stages_tenant_isolation(db):
+    t1 = _make_tenant(db, "T1")
+    t2 = _make_tenant(db, "T2")
+    svc.seed_default_pipeline_stages(db, t1.id)
+    assert svc.list_stages(db, t2.id) == []

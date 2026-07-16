@@ -10,7 +10,7 @@ from app.models.guest import Guest
 from app.models.inquiry import Inquiry, InquirySource
 from app.models.pipeline_stage import PipelineStage
 from app.services import lead_auto_create as lac
-from app.services.inquiry_service import get_or_create_from_chat
+from app.services.inquiry_service import get_or_create_from_chat, get_or_create_from_call
 
 
 def _make_tenant(db, name="TenantLeadAuto"):
@@ -153,3 +153,82 @@ def test_get_or_create_from_chat_tenant_isolation(db):
 
     count_t1 = db.query(Inquiry).filter_by(tenant_id=t1.id).count()
     assert count_t1 == 0
+
+
+# ── resolve_call_entry_stage_id + get_or_create_from_call ──────────────────
+
+def test_resolve_call_entry_stage_id_routes_by_answered(db):
+    t = _make_tenant(db)
+    default_stage = _make_stage(db, t.id, "general_enquiry", 0, category="invalid", is_default_entry=True)
+    rnr_stage = _make_stage(db, t.id, "rnr", 1, category="invalid")
+    valid_stage = _make_stage(db, t.id, "active", 2, category="valid", is_valid_lead_entry=True)
+
+    assert lac.resolve_call_entry_stage_id(db, t.id, answered=False) == rnr_stage.id
+    assert lac.resolve_call_entry_stage_id(db, t.id, answered=True) == valid_stage.id
+
+
+def test_resolve_call_entry_stage_id_falls_back_without_rnr_stage(db):
+    t = _make_tenant(db)
+    default_stage = _make_stage(db, t.id, "general_enquiry", 0, category="invalid", is_default_entry=True)
+    _make_stage(db, t.id, "active", 1, category="valid", is_valid_lead_entry=True)
+
+    assert lac.resolve_call_entry_stage_id(db, t.id, answered=False) == default_stage.id
+
+
+def test_get_or_create_from_call_answered_routes_active(db):
+    t = _make_tenant(db)
+    _make_stage(db, t.id, "general_enquiry", 0, category="invalid", is_default_entry=True)
+    _make_stage(db, t.id, "rnr", 1, category="invalid")
+    valid_stage = _make_stage(db, t.id, "active", 2, category="valid", is_valid_lead_entry=True)
+    guest = _make_guest(db, t.id)
+
+    inquiry = get_or_create_from_call(db, t.id, guest.id, direction="inbound", answered=True)
+    assert inquiry.stage_id == valid_stage.id
+    assert inquiry.source == InquirySource.INBOUND_CALL
+
+
+def test_get_or_create_from_call_unanswered_routes_rnr(db):
+    t = _make_tenant(db)
+    _make_stage(db, t.id, "general_enquiry", 0, category="invalid", is_default_entry=True)
+    rnr_stage = _make_stage(db, t.id, "rnr", 1, category="invalid")
+    _make_stage(db, t.id, "active", 2, category="valid", is_valid_lead_entry=True)
+    guest = _make_guest(db, t.id)
+
+    inquiry = get_or_create_from_call(db, t.id, guest.id, direction="inbound", answered=False)
+    assert inquiry.stage_id == rnr_stage.id
+
+
+def test_get_or_create_from_call_outbound_source(db):
+    t = _make_tenant(db)
+    _make_stage(db, t.id, "general_enquiry", 0, category="invalid", is_default_entry=True)
+    _make_stage(db, t.id, "active", 1, category="valid", is_valid_lead_entry=True)
+    guest = _make_guest(db, t.id)
+
+    inquiry = get_or_create_from_call(db, t.id, guest.id, direction="outbound", answered=True)
+    assert inquiry.source == InquirySource.OUTBOUND_CALL
+
+
+def test_get_or_create_from_call_dedupes_existing_open_inquiry(db):
+    t = _make_tenant(db)
+    _make_stage(db, t.id, "general_enquiry", 0, category="invalid", is_default_entry=True)
+    rnr_stage = _make_stage(db, t.id, "rnr", 1, category="invalid")
+    valid_stage = _make_stage(db, t.id, "active", 2, category="valid", is_valid_lead_entry=True)
+    guest = _make_guest(db, t.id)
+
+    first = get_or_create_from_call(db, t.id, guest.id, direction="inbound", answered=True)
+    second = get_or_create_from_call(db, t.id, guest.id, direction="inbound", answered=False)
+    assert first.id == second.id
+    assert second.stage_id == valid_stage.id  # unchanged by the second (unanswered) call
+
+
+def test_get_or_create_from_call_tenant_isolation(db):
+    t1 = _make_tenant(db, "T1")
+    t2 = _make_tenant(db, "T2")
+    _make_stage(db, t2.id, "general_enquiry", 0, category="invalid", is_default_entry=True)
+    t2_valid = _make_stage(db, t2.id, "active", 1, category="valid", is_valid_lead_entry=True)
+    guest = _make_guest(db, t2.id)
+
+    inquiry = get_or_create_from_call(db, t2.id, guest.id, direction="inbound", answered=True)
+    assert inquiry.tenant_id == t2.id
+    assert inquiry.stage_id == t2_valid.id
+    assert db.query(Inquiry).filter_by(tenant_id=t1.id).count() == 0

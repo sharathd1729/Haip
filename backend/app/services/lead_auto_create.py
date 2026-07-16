@@ -77,3 +77,34 @@ def resolve_entry_stage_id(
     if by_flag["default"]:
         return by_flag["default"].id
     return None
+
+
+def resolve_call_entry_stage_id(
+    db: Session, tenant_id: str, *, answered: bool,
+) -> Optional[str]:
+    """
+    Call-specific entry-stage routing. No transcript exists yet at
+    call-ingest time, so there's no collab-keyword/phone-text signal to
+    evaluate the way resolve_entry_stage_id() does for chat -- the call
+    itself already establishes the guest's phone, and the immediate
+    answered/unanswered signal (available from the IVR webhook before
+    transcription ever runs) is the routing input instead:
+      - unanswered -> the tenant's "rnr" stage (falls back to the
+        default-entry stage if the tenant renamed/removed RNR)
+      - answered -> the tenant's valid-lead-entry stage (same landing
+        zone WhatsApp/Instagram use for a phone-present message)
+    """
+    stages = db.query(PipelineStage).filter_by(tenant_id=tenant_id).all()
+    by_key = {s.key: s for s in stages}
+    default_entry = next((s for s in stages if s.is_default_entry), None)
+    valid_entry = next((s for s in stages if s.is_valid_lead_entry), None)
+
+    if not answered:
+        rnr = by_key.get("rnr")
+        if rnr:
+            return rnr.id
+        return default_entry.id if default_entry else None
+
+    if valid_entry:
+        return valid_entry.id
+    return default_entry.id if default_entry else None
