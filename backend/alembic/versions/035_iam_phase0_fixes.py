@@ -16,6 +16,27 @@ depends_on = None
 def upgrade():
     from sqlalchemy import inspect as _inspect
     bind = op.get_bind()
+
+    # user_invitations was never created by any migration in this repo's
+    # history (only ever created out-of-band on already-provisioned
+    # databases) -- guard so a genuinely fresh install doesn't fail here.
+    if "user_invitations" not in _inspect(bind).get_table_names():
+        op.create_table(
+            "user_invitations",
+            sa.Column("id", sa.String(), primary_key=True),
+            sa.Column("tenant_id", sa.String(), sa.ForeignKey("tenants.id"), nullable=False, index=True),
+            sa.Column("invited_by", sa.String(), sa.ForeignKey("users.id"), nullable=False),
+            sa.Column("email", sa.String(255), nullable=False, index=True),
+            sa.Column("name", sa.String(255), nullable=False),
+            sa.Column("role", sa.String(50), nullable=False),
+            sa.Column("token", sa.String(255), nullable=False, unique=True, index=True),
+            sa.Column("is_accepted", sa.Boolean(), nullable=False, server_default="false"),
+            sa.Column("is_revoked", sa.Boolean(), nullable=False, server_default="false"),
+            sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+            sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+            sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        )
+
     existing_cols = {c["name"] for c in _inspect(bind).get_columns("users")}
 
     # ── Platform-level signup consent on users ────────────────────────────────

@@ -154,15 +154,18 @@ def downgrade():
                     """
                     INSERT INTO pipeline_stages
                         (id, tenant_id, key, label, color, "order",
+                         is_default_entry, is_valid_lead_entry, is_collab_entry,
                          is_closed_won, is_closed_lost, created_at, updated_at)
                     VALUES
                         (:id, :tenant_id, :key, :label, :color, :order,
+                         :is_default_entry, false, false,
                          :is_closed_won, :is_closed_lost, now(), now())
                     """
                 ),
                 {
                     "id": new_id, "tenant_id": tenant_id, "key": key, "label": label,
                     "color": color, "order": order,
+                    "is_default_entry": key == "new",
                     "is_closed_won": key == "booked", "is_closed_lost": key == "closed",
                 },
             )
