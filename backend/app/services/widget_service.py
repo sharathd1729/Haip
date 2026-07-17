@@ -68,7 +68,12 @@ WIDGET_REGISTRY: dict[str, WidgetDef] = {d.key: d for d in [
 
 _DEFAULTS: dict[str, list[str]] = {
     "ivr_only":    ["call_volume", "objections", "missed_revenue", "sentiment", "agent_leaderboard"],
-    "wa_only":     ["channel_mix", "response_time", "intent_mix", "ai_recommendations", "attribution"],
+    # intent_mix requires the "ivr" module (calls-only) -- a chat-only
+    # tenant was previously defaulted into an always-"unavailable" tile.
+    # inquiry_funnel needs no module and now reflects the tenant's real
+    # Leads360 taxonomy (pipeline_stages), directly showing off pipeline
+    # health for a WhatsApp/Instagram-only tenant.
+    "wa_only":     ["channel_mix", "response_time", "inquiry_funnel", "ai_recommendations", "attribution"],
     "full_stack":  ["call_volume", "objections", "intent_mix", "occupancy_forecast", "ai_recommendations", "inquiry_funnel"],
     "fresh":       ["ai_recommendations", "inquiry_funnel", "response_time", "guest_ltv"],
 }
@@ -270,9 +275,16 @@ def _intent_mix(db, tid, start, end, now):
 
 
 def _response_time(db, tid, start, end, now):
-    p95 = _p95_seconds(db, tid, start, end)
+    # "messaging" category -- must measure chat first-response latency
+    # (inbound message -> next outbound reply), not call duration.
+    # _p95_seconds only ever measures Call.duration_seconds, so a tenant
+    # with WhatsApp/Instagram but no calls connected yet would silently
+    # read 0s here, misreading as "instant response" rather than
+    # "nothing to measure."
+    from app.services.message_metrics import chat_response_p95_seconds
+    p95 = chat_response_p95_seconds(db, tid, start)
     data = {"p95_seconds": p95, "p95_formatted": f"{p95:.0f}s"}
-    summary = f"p95 response time: {p95:.0f}s over last {(end-start).days} days."
+    summary = f"p95 chat response time: {p95:.0f}s over last {(end-start).days} days."
     return data, summary
 
 

@@ -1,7 +1,7 @@
 """Dashboard summary endpoint — real numbers per tenant."""
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func, text
+from sqlalchemy import func
 from datetime import datetime, timezone, timedelta
 from typing import Any, Optional
 from pydantic import BaseModel
@@ -43,46 +43,6 @@ class WidgetSnapshot(BaseModel):
 
 class DashboardConfigIn(BaseModel):
     selected_widgets: list[str]
-
-
-def _chat_response_p95_seconds(db: Session, tid: str, since: datetime) -> float:
-    """
-    p95 first-response time (seconds) across WhatsApp/Instagram messages --
-    for each inbound message, the gap until the next outbound message in
-    the same conversation. Computed via a correlated subquery in Postgres;
-    unlike call-duration p95 (which needs a window function specifically
-    because Call volume is large), Ratha-scale message volume makes this
-    fine as a plain correlated subquery.
-    """
-    # Message.direction/Conversation.channel are SAEnum columns without
-    # values_callable, so Postgres stores the Python enum MEMBER NAMES
-    # (e.g. "INBOUND", "WHATSAPP"), not their lowercase .value strings --
-    # this raw SQL must match that stored representation exactly.
-    result = db.execute(
-        text(
-            """
-            SELECT percentile_cont(0.95) WITHIN GROUP (ORDER BY gap_seconds)
-            FROM (
-                SELECT EXTRACT(EPOCH FROM (
-                    (SELECT MIN(o.created_at) FROM messages o
-                     WHERE o.conversation_id = m.conversation_id
-                       AND o.direction = 'OUTBOUND'
-                       AND o.created_at > m.created_at)
-                    - m.created_at
-                )) AS gap_seconds
-                FROM messages m
-                JOIN conversations c ON c.id = m.conversation_id
-                WHERE m.tenant_id = :tid
-                  AND m.direction = 'INBOUND'
-                  AND m.created_at >= :since
-                  AND c.channel IN ('WHATSAPP', 'INSTAGRAM')
-            ) sub
-            WHERE gap_seconds IS NOT NULL
-            """
-        ),
-        {"tid": tid, "since": since},
-    ).scalar()
-    return float(result) if result is not None else 0.0
 
 
 @router.get("")
@@ -170,7 +130,8 @@ def get_dashboard(
         .scalar() or 0
     )
 
-    chat_response_p95_seconds = _chat_response_p95_seconds(db, tid, week_ago)
+    from app.services.message_metrics import chat_response_p95_seconds as _chat_p95
+    chat_response_p95_seconds = _chat_p95(db, tid, week_ago)
 
     return {
         "total_calls": total_calls,
