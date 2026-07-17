@@ -3,7 +3,7 @@ from app.api.v1.endpoints import (
     auth, calls, dashboard, workspace_context,
     tenants, users, guests, inquiries, conversations, properties,
     qa, integrations, analytics, analytics_executive, analytics_sections, analytics_intelligence, analytics_forecasting, ask_haip, audit, sse, messaging, reports, saved_replies, saved_views,
-    webhooks_callerdesk, webhooks_acefone, webhooks_whatsapp, webhooks_instagram,
+    webhooks_callerdesk, webhooks_acefone, webhooks_mcube, webhooks_whatsapp, webhooks_instagram,
     webhooks_dograh,
     voice_settings,
     grievance, incidents, health, changelog, sample_data, admin_dlq,
@@ -94,6 +94,7 @@ api_router.include_router(push.router)
 # Webhooks (no JWT required — use shared-secret auth)
 api_router.include_router(webhooks_callerdesk.router)
 api_router.include_router(webhooks_acefone.router)
+api_router.include_router(webhooks_mcube.router)
 api_router.include_router(webhooks_whatsapp.router)
 api_router.include_router(webhooks_instagram.router)
 api_router.include_router(webhooks_dograh.router)

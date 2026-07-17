@@ -70,6 +70,8 @@ class Settings(BaseSettings):
     ACEFONE_API_SECRET: str = ""
     ACEFONE_WEBHOOK_SECRET: str = ""
 
+    MCUBE_API_KEY: str = ""
+
     # WhatsApp / Instagram (Meta)
     META_WHATSAPP_PHONE_NUMBER_ID: str = ""
     META_WHATSAPP_ACCESS_TOKEN: str = ""

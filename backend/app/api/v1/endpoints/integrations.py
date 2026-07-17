@@ -107,6 +107,20 @@ CATALOG = [
         "logo": "phone",
         "popular": False,
     },
+    {
+        "provider": "mcube",
+        "name": "Mcube",
+        "description": "Receive inbound call webhooks and pull recordings for AI analysis.",
+        "category": "telephony",
+        "auth_type": "api_key",
+        "logo": "phone",
+        "popular": False,
+        "notes": (
+            "Mcube has no webhook-signing scheme — the webhook_secret you set here "
+            "becomes part of the callback URL you paste into Mcube's dashboard "
+            "(not a separate \"Secret\" field there)."
+        ),
+    },
 ]
 
 
@@ -687,8 +701,17 @@ def connect_via_api_key(
     if not api_key:
         raise HTTPException(status_code=400, detail="api_key is required")
 
-    _IVR_KINDS = {"callerdesk", "acefone"}
+    _IVR_KINDS = {"callerdesk", "acefone", "mcube"}
     if kind in _IVR_KINDS and not webhook_secret:
+        if kind == "mcube":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "webhook_secret is required for mcube. Generate any random string — "
+                    "it becomes part of the webhook URL you paste into Mcube's dashboard "
+                    "(Mcube has no separate signing/secret field of its own)."
+                ),
+            )
         raise HTTPException(
             status_code=400,
             detail=(
@@ -931,6 +954,20 @@ def test_integration(
                 else:
                     status = "error"
                     message = f"{kind.title()} API error ({resp.status_code})."
+
+        elif kind == "mcube":
+            # No documented account/health-check endpoint for Mcube --
+            # accept-and-save rather than block connect on an undocumented
+            # call. Real verification happens on the first inbound webhook.
+            api_key = creds.get("api_key", "")
+            if not api_key:
+                status = "error"
+                message = "Missing api_key in credentials."
+            else:
+                message = (
+                    "Mcube credentials saved. Verification happens on the first "
+                    "real inbound call — no account/health-check endpoint is documented."
+                )
 
         else:
             # Generic: just mark health timestamp and return ok
