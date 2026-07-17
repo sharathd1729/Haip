@@ -325,11 +325,17 @@ def channel_analytics(
         for r in ch_msg_rows
     ]
 
-    # Attribution funnel (inquiry source → booked)
+    # Attribution funnel (inquiry source → booked). Every auto-created
+    # inquiry permanently leaves the legacy Inquiry.stage enum at NEW --
+    # "booked" is resolved via stage_id joined against pipeline_stages'
+    # is_closed_won flag, not the enum.
+    from app.models.pipeline_stage import PipelineStage
     funnel_rows = db.query(
         Inquiry.source,
         func.count(Inquiry.id).label("total"),
-        func.sum(case((Inquiry.stage == InquiryStage.BOOKED, 1), else_=0)).label("booked"),
+        func.sum(case((PipelineStage.is_closed_won == True, 1), else_=0)).label("booked"),  # noqa: E712
+    ).outerjoin(
+        PipelineStage, PipelineStage.id == Inquiry.stage_id,
     ).filter(
         Inquiry.tenant_id == tid,
         Inquiry.created_at >= start.isoformat(),

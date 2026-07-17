@@ -13,7 +13,7 @@ from typing import Any, Literal, Optional
 import structlog
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, false as sa_false
 
 from app.models.tenant import Tenant
 from app.models.call import Call
@@ -218,10 +218,12 @@ def _sentiment(db, tid, start, end, now):
 
 
 def _missed_revenue(db, tid, start, end, now):
+    from app.services.pipeline_stage_service import get_stage_ids_by_flag
     at_risk = _revenue_at_risk(db, tid)
+    lost_ids = get_stage_ids_by_flag(db, tid, is_closed_lost=True)
     lost_count = db.query(func.count(Inquiry.id)).filter(
         Inquiry.tenant_id == tid,
-        Inquiry.stage == InquiryStage.LOST,
+        Inquiry.stage_id.in_(lost_ids) if lost_ids else sa_false(),
         Inquiry.updated_at >= start,
     ).scalar() or 0
     data = {"revenue_at_risk": at_risk or 0, "lost_inquiries": lost_count}
@@ -297,23 +299,35 @@ def _agent_leaderboard(db, tid, start, end, now):
 
 
 def _inquiry_funnel(db, tid, start, end, now):
-    stage_order = [
-        InquiryStage.NEW, InquiryStage.RESPONDING, InquiryStage.QUOTED,
-        InquiryStage.SITE_VISIT_SCHEDULED, InquiryStage.BOOKED,
-    ]
-    rows = db.query(Inquiry.stage, func.count(Inquiry.id)).filter(
-        Inquiry.tenant_id == tid,
-    ).group_by(Inquiry.stage).all()
-    counts = {r[0]: r[1] for r in rows}
-    stages = [{"stage": s.value, "count": counts.get(s, 0)} for s in stage_order]
-    top_count = stages[0]["count"] if stages else 1
+    """Funnel across the tenant's actual pipeline_stages (Leads360 taxonomy),
+    ordered by their configured `order` -- not the old fixed 5-stage enum
+    sequence, which no auto-created inquiry advances through anymore
+    (stage_id carries real routing; the legacy enum column stays at NEW)."""
+    from app.models.pipeline_stage import PipelineStage
+
+    stage_rows = (
+        db.query(PipelineStage)
+        .filter_by(tenant_id=tid)
+        .order_by(PipelineStage.order)
+        .all()
+    )
+    count_rows = (
+        db.query(Inquiry.stage_id, func.count(Inquiry.id))
+        .filter(Inquiry.tenant_id == tid, Inquiry.stage_id.isnot(None))
+        .group_by(Inquiry.stage_id)
+        .all()
+    )
+    counts = {r[0]: r[1] for r in count_rows}
+    stages = [{"stage": s.key, "label": s.label, "count": counts.get(s.id, 0)} for s in stage_rows]
+    top_count = max((s["count"] for s in stages), default=0) or 1
     for s in stages:
         s["pct"] = round(s["count"] / top_count * 100) if top_count else 0
-    booked = counts.get(InquiryStage.BOOKED, 0)
+
+    won = sum(counts.get(s.id, 0) for s in stage_rows if s.is_closed_won)
     total = sum(counts.values())
-    cvr = round(booked / total * 100, 1) if total else 0
+    cvr = round(won / total * 100, 1) if total else 0
     data = {"stages": stages, "conversion_rate": cvr}
-    summary = f"{cvr}% inquiry-to-booking conversion rate ({booked} booked / {total} total)."
+    summary = f"{cvr}% lead-to-sold conversion rate ({won} sold / {total} total)."
     return data, summary
 
 
@@ -337,9 +351,11 @@ def _channel_mix(db, tid, start, end, now):
 
 def _attribution(db, tid, start, end, now):
     from app.models.inquiry import InquirySource
+    from app.services.pipeline_stage_service import get_stage_ids_by_flag
+    won_ids = get_stage_ids_by_flag(db, tid, is_closed_won=True)
     rows = db.query(Inquiry.source, func.count(Inquiry.id)).filter(
         Inquiry.tenant_id == tid,
-        Inquiry.stage == InquiryStage.BOOKED,
+        Inquiry.stage_id.in_(won_ids) if won_ids else sa_false(),
     ).group_by(Inquiry.source).all()
     total = sum(r[1] for r in rows)
     data = {"sources": [

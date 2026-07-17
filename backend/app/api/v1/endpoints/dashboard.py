@@ -1,7 +1,7 @@
 """Dashboard summary endpoint — real numbers per tenant."""
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, text
 from datetime import datetime, timezone, timedelta
 from typing import Any, Optional
 from pydantic import BaseModel
@@ -43,6 +43,46 @@ class WidgetSnapshot(BaseModel):
 
 class DashboardConfigIn(BaseModel):
     selected_widgets: list[str]
+
+
+def _chat_response_p95_seconds(db: Session, tid: str, since: datetime) -> float:
+    """
+    p95 first-response time (seconds) across WhatsApp/Instagram messages --
+    for each inbound message, the gap until the next outbound message in
+    the same conversation. Computed via a correlated subquery in Postgres;
+    unlike call-duration p95 (which needs a window function specifically
+    because Call volume is large), Ratha-scale message volume makes this
+    fine as a plain correlated subquery.
+    """
+    # Message.direction/Conversation.channel are SAEnum columns without
+    # values_callable, so Postgres stores the Python enum MEMBER NAMES
+    # (e.g. "INBOUND", "WHATSAPP"), not their lowercase .value strings --
+    # this raw SQL must match that stored representation exactly.
+    result = db.execute(
+        text(
+            """
+            SELECT percentile_cont(0.95) WITHIN GROUP (ORDER BY gap_seconds)
+            FROM (
+                SELECT EXTRACT(EPOCH FROM (
+                    (SELECT MIN(o.created_at) FROM messages o
+                     WHERE o.conversation_id = m.conversation_id
+                       AND o.direction = 'OUTBOUND'
+                       AND o.created_at > m.created_at)
+                    - m.created_at
+                )) AS gap_seconds
+                FROM messages m
+                JOIN conversations c ON c.id = m.conversation_id
+                WHERE m.tenant_id = :tid
+                  AND m.direction = 'INBOUND'
+                  AND m.created_at >= :since
+                  AND c.channel IN ('WHATSAPP', 'INSTAGRAM')
+            ) sub
+            WHERE gap_seconds IS NOT NULL
+            """
+        ),
+        {"tid": tid, "since": since},
+    ).scalar()
+    return float(result) if result is not None else 0.0
 
 
 @router.get("")
@@ -104,10 +144,22 @@ def get_dashboard(
         })
 
     # ── Active inquiries (non-terminal stages) ───────────────────────────────
-    _terminal_stages = [InquiryStage.BOOKED, InquiryStage.LOST, InquiryStage.GHOSTED]
+    # Every inquiry created via the chat/call auto-create flow permanently
+    # leaves the legacy Inquiry.stage enum at NEW -- real stage lives in
+    # stage_id/pipeline_stages, so "terminal" must be resolved via the
+    # is_closed_won/is_closed_lost flags, not the enum.
+    from sqlalchemy import true as sa_true
+    from app.services.pipeline_stage_service import get_stage_ids_by_flag
+    _terminal_stage_ids = (
+        get_stage_ids_by_flag(db, tid, is_closed_won=True)
+        + get_stage_ids_by_flag(db, tid, is_closed_lost=True)
+    )
     active_inquiries = (
         db.query(func.count(Inquiry.id))
-        .filter(Inquiry.tenant_id == tid, Inquiry.stage.not_in(_terminal_stages))
+        .filter(
+            Inquiry.tenant_id == tid,
+            ~Inquiry.stage_id.in_(_terminal_stage_ids) if _terminal_stage_ids else sa_true(),
+        )
         .scalar() or 0
     )
 
@@ -118,6 +170,8 @@ def get_dashboard(
         .scalar() or 0
     )
 
+    chat_response_p95_seconds = _chat_response_p95_seconds(db, tid, week_ago)
+
     return {
         "total_calls": total_calls,
         "calls_this_week": calls_this_week,
@@ -126,6 +180,7 @@ def get_dashboard(
         "open_conversations": open_conversations,
         "scored_calls": scored_calls,
         "avg_qa_score": avg_qa_score,
+        "chat_response_p95_seconds": chat_response_p95_seconds,
         "recent_calls": recent_calls,
     }
 

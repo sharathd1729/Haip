@@ -27,6 +27,7 @@ interface DashboardData {
   open_conversations: number;
   calls_this_week: number;
   scored_calls: number;
+  chat_response_p95_seconds: number;
   recent_calls: Array<{
     id: string;
     guest_phone: string;
@@ -43,6 +44,13 @@ interface DashboardData {
 function greeting() {
   const h = new Date().getHours();
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+}
+
+function formatSeconds(seconds: number): string {
+  if (!seconds || seconds <= 0) return "—";
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
 function timeAgo(iso: string) {
@@ -550,10 +558,8 @@ function LiveDashboard({ dash, firstName }: { dash: DashboardData; firstName: st
           />
           <MetricCard
             icon={<Clock size={16} />}
-            value="3m 24s"
-            label="Response time p95"
-            trend="↓ 12s"
-            trendDir="positive"
+            value={formatSeconds(dash.chat_response_p95_seconds)}
+            label="Chat response time p95"
           />
           <MetricCard
             icon={<Zap size={16} />}

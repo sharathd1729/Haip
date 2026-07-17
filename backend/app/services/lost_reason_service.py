@@ -9,10 +9,14 @@ log = structlog.get_logger()
 
 def get_lost_inquiries(db: Session, tenant_id: str, days: int = 90) -> List[dict]:
     from datetime import datetime, timedelta, timezone
+    from app.services.pipeline_stage_service import get_stage_ids_by_flag
     since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    lost_ids = get_stage_ids_by_flag(db, tenant_id, is_closed_lost=True)
+    if not lost_ids:
+        return []
     rows = (
         db.query(Inquiry)
-        .filter_by(tenant_id=tenant_id, stage=InquiryStage.LOST)
+        .filter(Inquiry.tenant_id == tenant_id, Inquiry.stage_id.in_(lost_ids))
         .filter(Inquiry.updated_at >= since)
         .all()
     )

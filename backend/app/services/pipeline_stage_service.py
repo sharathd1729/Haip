@@ -233,3 +233,26 @@ def delete_stage(
     db.delete(stage)
     db.flush()
     log.info("pipeline_stage_deleted", tenant_id=tenant_id, stage_id=stage_id)
+
+
+def get_stage_ids_by_flag(
+    db: Session, tenant_id: str, *,
+    is_closed_won: Optional[bool] = None,
+    is_closed_lost: Optional[bool] = None,
+    category: Optional[str] = None,
+) -> list[str]:
+    """
+    Resolve pipeline_stages.id list matching the given flags, for dashboard/
+    analytics queries that need to count inquiries by stage semantics
+    (won/lost/open) via stage_id -- NOT the legacy Inquiry.stage enum, which
+    every inquiry created through the chat/call auto-create flow permanently
+    leaves at NEW regardless of its real stage_id-based routing.
+    """
+    q = db.query(PipelineStage.id).filter_by(tenant_id=tenant_id)
+    if is_closed_won is not None:
+        q = q.filter(PipelineStage.is_closed_won == is_closed_won)
+    if is_closed_lost is not None:
+        q = q.filter(PipelineStage.is_closed_lost == is_closed_lost)
+    if category is not None:
+        q = q.filter(PipelineStage.category == category)
+    return [row[0] for row in q.all()]

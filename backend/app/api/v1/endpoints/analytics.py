@@ -11,7 +11,7 @@ GET /analytics/lost-reasons/{theme}/inquiries — A4: inquiries for a theme
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from sqlalchemy import func, cast, Float, Integer
+from sqlalchemy import func, cast, Float, Integer, true as sa_true, false as sa_false
 from datetime import datetime, timezone, timedelta, date as date_type
 from typing import List, Optional
 import structlog
@@ -89,9 +89,16 @@ def _p95_seconds(db: Session, tid: str, start: datetime, end: datetime,
 
 
 def _revenue_at_risk(db: Session, tid: str) -> Optional[float]:
+    # Every inquiry created via the chat/call auto-create flow permanently
+    # leaves the legacy Inquiry.stage enum at NEW -- resolve "lost" via
+    # stage_id/pipeline_stages.is_closed_lost, not the enum.
+    from app.services.pipeline_stage_service import get_stage_ids_by_flag
+    lost_ids = get_stage_ids_by_flag(db, tid, is_closed_lost=True)
+    if not lost_ids:
+        return None
     total = db.query(func.sum(Inquiry.budget)).filter(
         Inquiry.tenant_id == tid,
-        Inquiry.stage == InquiryStage.LOST,
+        Inquiry.stage_id.in_(lost_ids),
         Inquiry.budget.isnot(None),
     ).scalar()
     return float(total) if total else None
@@ -129,9 +136,13 @@ def owner_daily(
         Call.started_at >= now.date().isoformat(),
     ).scalar() or 0
 
+    from app.services.pipeline_stage_service import get_stage_ids_by_flag
+    _open_stage_ids = (
+        get_stage_ids_by_flag(db, tid, is_closed_won=False, is_closed_lost=False)
+    )
     today_queue = db.query(func.count(Inquiry.id)).filter(
         Inquiry.tenant_id == tid,
-        Inquiry.stage.in_([InquiryStage.NEW, InquiryStage.RESPONDING, InquiryStage.QUOTED]),
+        Inquiry.stage_id.in_(_open_stage_ids) if _open_stage_ids else sa_true(),
     ).scalar() or 0
 
     qa_q = db.query(func.avg(Call.ai_score)).filter(
@@ -147,13 +158,14 @@ def owner_daily(
     rev_at_risk = _revenue_at_risk(db, tid)
 
     # Top objections — from call transcripts' objections field or inquiry lost_reason
+    _lost_ids_for_objections = get_stage_ids_by_flag(db, tid, is_closed_lost=True)
     obj_rows = db.query(
         Inquiry.lost_reason,
         func.count(Inquiry.id).label("cnt"),
     ).filter(
         Inquiry.tenant_id == tid,
         Inquiry.lost_reason.isnot(None),
-        Inquiry.stage == InquiryStage.LOST,
+        Inquiry.stage_id.in_(_lost_ids_for_objections) if _lost_ids_for_objections else sa_true(),
     ).group_by(Inquiry.lost_reason).order_by(func.count(Inquiry.id).desc()).limit(5).all()
     top_objections = [Objection(text=r.lost_reason.replace("_", " ").title(), count=r.cnt) for r in obj_rows]
 
@@ -166,8 +178,10 @@ def owner_daily(
     ]
 
     # Occupancy: booked / (booked + lost)
+    _won_ids = get_stage_ids_by_flag(db, tid, is_closed_won=True)
     booked = db.query(func.count(Inquiry.id)).filter(
-        Inquiry.tenant_id == tid, Inquiry.stage == InquiryStage.BOOKED,
+        Inquiry.tenant_id == tid,
+        Inquiry.stage_id.in_(_won_ids) if _won_ids else sa_false(),
         Inquiry.created_at >= start,
     ).scalar() or 0
     total_closed = booked + len(lost)
