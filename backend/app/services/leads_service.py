@@ -365,6 +365,7 @@ def _build_lead_card(
         source=source_val,
         primary_channel=primary_channel,
         inquiry_stage=stage_val,
+        stage_key=inquiry.pipeline_stage.key if inquiry.pipeline_stage else None,
         sla_breached=bool(inquiry.sla_breached),
         occasion=inquiry.occasion,
         group_type=inquiry.intent_tag,
@@ -421,6 +422,7 @@ def get_leads_pipeline(
         .options(
             joinedload(Inquiry.guest),
             joinedload(Inquiry.assigned_user),
+            joinedload(Inquiry.pipeline_stage),
         )
         .filter(Inquiry.tenant_id == tenant_id)
         # Leads360 restructure Phase 4: unqualified inquiries are hidden
@@ -565,12 +567,20 @@ def _build_stage_summary(
     assigned_to: Optional[str],
     source: Optional[str],
 ) -> dict[str, PipelineStageMetaSchema]:
-    """Compute count + potential_revenue per stage across all matching inquiries."""
+    """Compute count + potential_revenue per stage across all matching inquiries.
+
+    Groups on the tenant's pipeline_stages.key (via Inq.stage_id), not the
+    legacy Inq.stage enum -- the enum grouping only ever matched by
+    coincidence for tenants whose stage keys equalled the old fixed enum
+    values (see get_leads_pipeline's `stage` filter fix, same bug class).
+    Inquiries with no stage_id yet (pre-restructure rows never synced) are
+    excluded -- an unmapped key isn't a real board column."""
     from sqlalchemy import func, case
     from app.models.inquiry import Inquiry as Inq
+    from app.models.pipeline_stage import PipelineStage as PS
 
     q = db.query(
-        Inq.stage,
+        PS.key,
         func.count(Inq.id).label("cnt"),
         func.coalesce(func.sum(
             case(
@@ -578,7 +588,7 @@ def _build_stage_summary(
                 else_=func.coalesce(Inq.budget, 0),
             )
         ), 0).label("revenue"),
-    ).filter(Inq.tenant_id == tenant_id)
+    ).join(PS, PS.id == Inq.stage_id).filter(Inq.tenant_id == tenant_id, PS.tenant_id == tenant_id)
 
     if property_id:
         q = q.filter(Inq.property_id == property_id)
@@ -587,13 +597,11 @@ def _build_stage_summary(
     if source:
         q = q.filter(Inq.source == source)
 
-    rows = q.group_by(Inq.stage).all()
+    rows = q.group_by(PS.key).all()
 
     result: dict[str, PipelineStageMetaSchema] = {}
     for row in rows:
-        s = row.stage.value if hasattr(row.stage, "value") else str(row.stage)
-        if s in _CLOSED_STAGES:
-            s = "closed"
+        s = row.key
         if s not in result:
             result[s] = PipelineStageMetaSchema()
         result[s].count += row.cnt

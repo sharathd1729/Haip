@@ -59,7 +59,10 @@ class LeadCardSchema(BaseModel):
     primary_channel: Optional[str] = None  # derived icon key
 
     # Stage
-    inquiry_stage: str                 # new | responding | quoted | ...
+    inquiry_stage: str                 # legacy InquiryStage enum value -- kept for
+                                        # the inquiry detail page's cosmetic display,
+                                        # not for board column grouping (see stage_key)
+    stage_key: Optional[str] = None    # tenant's pipeline_stages.key, or None if unset
     sla_breached: bool = False
 
     # Trip intent

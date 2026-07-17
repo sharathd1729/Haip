@@ -110,20 +110,14 @@ export default function Leads360Page() {
   const stageMeta: Record<string, { count: number; potential_revenue: number }> = data?.stages ?? {};
   const total: number = data?.total ?? 0;
 
-  // Group by stage — map legacy values
+  // Group by the tenant's actual pipeline_stages.key -- inquiry_stage is the
+  // legacy enum value (kept only for the detail page's cosmetic display) and
+  // never matches a tenant-custom or new-taxonomy stage key.
   const leadsByStage: Record<string, LeadCardType[]> = {};
   for (const s of visibleStages) leadsByStage[s.key] = [];
   for (const lead of leads) {
-    const s = lead.inquiry_stage;
-    if (leadsByStage[s] !== undefined) {
-      leadsByStage[s].push(lead);
-    } else {
-      const mapped =
-        s === "site_visit" ? "site_visit_scheduled"
-        : s === "lost" || s === "ghosted" ? "closed"
-        : s;
-      if (leadsByStage[mapped] !== undefined) leadsByStage[mapped].push(lead);
-    }
+    const key = lead.stage_key;
+    if (key && leadsByStage[key] !== undefined) leadsByStage[key].push(lead);
   }
 
   return (

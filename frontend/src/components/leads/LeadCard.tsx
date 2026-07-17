@@ -16,6 +16,7 @@ export interface LeadCard {
   source?: string;
   primary_channel?: string;
   inquiry_stage: string;
+  stage_key: string | null;
   sla_breached?: boolean;
   occasion?: string;
   group_type?: string;

@@ -127,6 +127,62 @@ def test_get_leads_pipeline_legacy_enum_key_still_works(db):
     assert non_matching.id not in ids
 
 
+# ── card/summary payload must key off pipeline_stages.key, not the enum ────
+# Regression coverage for the second half of the same bug class: the board's
+# initial unfiltered load groups cards client-side using LeadCardSchema's
+# stage_key field, and the stage-filter pill counts come from
+# _build_stage_summary()'s grouping -- both previously kept using the legacy
+# Inquiry.stage enum, so every card/column silently mismatched under any
+# tenant-custom or new-taxonomy stage key even though get_leads_pipeline's
+# `stage` *filter* param (tested above) was already fixed.
+
+def test_build_lead_card_populates_stage_key_from_pipeline_stage(db):
+    tenant = _make_tenant(db)
+    guest = _make_guest(db, tenant.id)
+    active_stage = _make_stage(db, tenant.id, "active", 0)
+    inq = _make_inquiry(db, tenant.id, guest.id, stage=InquiryStage.NEW)
+    inq.stage_id = active_stage.id
+    db.flush()
+
+    result = leads_service.get_leads_pipeline(db, tenant.id)
+
+    card = next(c for c in result.leads if c.inquiry_id == inq.id)
+    assert card.stage_key == "active"
+
+
+def test_build_lead_card_stage_key_none_when_stage_id_unset(db):
+    tenant = _make_tenant(db)
+    guest = _make_guest(db, tenant.id)
+    inq = _make_inquiry(db, tenant.id, guest.id, stage=InquiryStage.NEW)
+    db.flush()
+
+    result = leads_service.get_leads_pipeline(db, tenant.id)
+
+    card = next(c for c in result.leads if c.inquiry_id == inq.id)
+    assert card.stage_key is None
+
+
+def test_stage_summary_groups_by_pipeline_stage_key(db):
+    tenant = _make_tenant(db)
+    guest = _make_guest(db, tenant.id)
+    active_stage = _make_stage(db, tenant.id, "active", 0)
+    general_stage = _make_stage(db, tenant.id, "general_enquiry", 1)
+
+    inq1 = _make_inquiry(db, tenant.id, guest.id, stage=InquiryStage.NEW)
+    inq1.stage_id = active_stage.id
+    inq2 = _make_inquiry(db, tenant.id, guest.id, stage=InquiryStage.NEW)
+    inq2.stage_id = active_stage.id
+    inq3 = _make_inquiry(db, tenant.id, guest.id, stage=InquiryStage.NEW)
+    inq3.stage_id = general_stage.id
+    db.flush()
+
+    result = leads_service.get_leads_pipeline(db, tenant.id)
+
+    assert result.stages["active"].count == 2
+    assert result.stages["general_enquiry"].count == 1
+    assert "new" not in result.stages  # not grouped by the legacy enum value
+
+
 # ── T22: one inquiry = one lead card ─────────────────────────────────────────
 
 def test_get_leads_pipeline_one_row_per_inquiry(db):
