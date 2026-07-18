@@ -1,9 +1,14 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { Clock, Sparkles, AlertCircle } from "lucide-react";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Clock, Sparkles, AlertCircle, ChevronDown } from "lucide-react";
 import { cn, timeAgo } from "@/lib/utils";
 import { ChannelIcon } from "@/components/inbox/ChannelIcon";
 import { Skeleton } from "@/components/ui/skeleton";
+import { usePipelineStages } from "@/hooks/usePipelineStages";
+import { useToast } from "@/components/ui/toast";
+import api from "@/lib/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -89,6 +94,58 @@ function Pill({ label }: { label: string }) {
 
 // ─── Lead Card ────────────────────────────────────────────────────────────────
 
+// ─── Stage select ──────────────────────────────────────────────────────────
+
+function StageSelect({ lead }: { lead: LeadCard }) {
+  const { data: stages = [] } = usePipelineStages();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
+
+  const current = stages.find(s => s.key === lead.stage_key);
+
+  async function handleChange(newStageId: string) {
+    if (!newStageId || newStageId === current?.id) return;
+    setSaving(true);
+    try {
+      await api.patch(`/inquiries/${lead.inquiry_id}`, { stage_id: newStageId });
+      await queryClient.invalidateQueries({ queryKey: ["leads"] });
+      toast({ title: "Stage updated", variant: "success" });
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast({
+        title: "Couldn't update stage",
+        description: typeof msg === "string" ? msg : "Backward moves may require a reason and manager approval.",
+        variant: "error",
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="relative flex-shrink-0" onClick={e => e.stopPropagation()}>
+      <select
+        value={current?.id ?? ""}
+        disabled={saving}
+        onChange={e => handleChange(e.target.value)}
+        className="appearance-none text-[10px] font-medium rounded-full pl-2.5 pr-6 py-1 cursor-pointer disabled:opacity-50"
+        style={{
+          background: current?.color ? `color-mix(in srgb, ${current.color} 15%, transparent)` : "var(--muted)",
+          color: current?.color ?? "var(--haip-fg-subtle)",
+          border: "none",
+        }}
+      >
+        {!current && <option value="" disabled>Stage…</option>}
+        {stages.map(s => (
+          <option key={s.id} value={s.id}>{s.label}</option>
+        ))}
+      </select>
+      <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: current?.color ?? "var(--haip-fg-subtle)" }} />
+    </div>
+  );
+}
+
 export function LeadCard({ lead }: { lead: LeadCard }) {
   const router = useRouter();
   const src = lead.source ?? lead.primary_channel ?? "";
@@ -115,7 +172,10 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
             <AlertCircle size={10} style={{ color: "var(--haip-fg-subtle)", flexShrink: 0 }} />
           )}
         </div>
-        <ChannelIcon channel={src} className="flex-shrink-0" />
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <ChannelIcon channel={src} className="flex-shrink-0" />
+          <StageSelect lead={lead} />
+        </div>
       </div>
 
       {/* Row 2: Occasion + group type pills */}
