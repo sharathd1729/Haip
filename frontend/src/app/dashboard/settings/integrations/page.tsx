@@ -241,6 +241,7 @@ function ConnectModal({
   const isRentalWise  = provider === "retalwise";
   const isBasicAuth   = authType === "basic_auth" && !isWhatsApp && !isInstagram && !isRentalWise;
   const isHostaway    = provider === "hostaway";
+  const isIvr         = provider === "callerdesk" || provider === "acefone" || provider === "mcube";
 
   // RentalWise: user can choose between API token (Bearer) or username/password (Basic)
   const [rwAuthMode, setRwAuthMode] = useState<"token" | "basic">("token");
@@ -250,6 +251,7 @@ function ConnectModal({
     if (isInstagram)   return !!fields.app_secret?.trim();
     if (isRentalWise)  return rwAuthMode === "token" ? !!fields.api_token?.trim() : !!(fields.username?.trim() && fields.password?.trim());
     if (isBasicAuth)   return !!(fields.username?.trim() && fields.password?.trim());
+    if (isIvr)         return !!(fields.api_key?.trim() && fields.webhook_secret?.trim());
     if (isHostaway)    return !!(fields.account_id?.trim() && fields.api_secret?.trim());
     return !!fields.api_key?.trim();
   })();
@@ -461,23 +463,48 @@ function ConnectModal({
               </div>
             </>
           ) : (
-            <div>
-              <label className="text-xs font-semibold text-gray-700 block mb-1.5">
-                API Key <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  autoFocus
-                  type="password"
-                  value={fields.api_key ?? ""}
-                  onChange={e => set("api_key", e.target.value)}
-                  placeholder="Paste your API key here…"
-                  className={inputCls}
-                  onKeyDown={e => { if (e.key === "Enter") handleSubmit(); }}
-                />
+            <>
+              <div>
+                <label className="text-xs font-semibold text-gray-700 block mb-1.5">
+                  API Key <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    autoFocus
+                    type="password"
+                    value={fields.api_key ?? ""}
+                    onChange={e => set("api_key", e.target.value)}
+                    placeholder="Paste your API key here…"
+                    className={inputCls}
+                    onKeyDown={e => { if (e.key === "Enter") handleSubmit(); }}
+                  />
+                </div>
               </div>
-            </div>
+              {isIvr && (
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 block mb-1.5">
+                    Webhook Secret <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Shield size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="password"
+                      value={fields.webhook_secret ?? ""}
+                      onChange={e => set("webhook_secret", e.target.value)}
+                      placeholder="Any random string you generate"
+                      className={inputCls}
+                      onKeyDown={e => { if (e.key === "Enter") handleSubmit(); }}
+                    />
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    {provider === "mcube"
+                      ? "Generate any random string — it becomes part of the webhook URL you'll copy after connecting."
+                      : `Generate any random string, then paste the same value into your ${providerName} dashboard → Webhooks → Secret.`}
+                  </p>
+                </div>
+              )}
+            </>
           )}
 
           <p className="text-[11px] text-gray-400 flex items-center gap-1">
@@ -544,12 +571,16 @@ function Toast({ message, type, onClose }: { message: string; type: "success" | 
 
 function WebhookUrlCopy({ provider }: { provider: string }) {
   const [copied, setCopied] = useState(false);
-  const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
-  const url = apiBase
-    ? `${apiBase}/webhooks/${provider}`
-    : `https://your-haip-domain.com/webhooks/${provider}`;
+
+  const { data, isLoading } = useQuery<{ webhook_url: string | null; instructions?: string[] }>({
+    queryKey: ["ivr-webhook-info", provider],
+    queryFn: () => api.get(`/integrations/${provider}/webhook-info`).then(r => r.data),
+  });
+
+  const url = data?.webhook_url ?? null;
 
   const copy = () => {
+    if (!url) return;
     navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -558,13 +589,25 @@ function WebhookUrlCopy({ provider }: { provider: string }) {
   return (
     <div className="border-t border-gray-100 pt-3">
       <p className="text-[10px] text-gray-400 mb-1.5 font-semibold uppercase tracking-wide">Webhook URL</p>
-      <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-2.5 py-1.5">
-        <code className="text-[10px] text-gray-600 flex-1 truncate font-mono">{url}</code>
-        <button onClick={copy} className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0" title="Copy">
-          {copied ? <CheckCircle2 size={11} className="text-green-500" /> : <Copy size={11} />}
-        </button>
-      </div>
-      <p className="text-[10px] text-gray-400 mt-1">Configure this URL in your {provider} portal.</p>
+      {isLoading ? (
+        <p className="text-[10px] text-gray-400">Loading…</p>
+      ) : url ? (
+        <>
+          <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-2.5 py-1.5">
+            <code className="text-[10px] text-gray-600 flex-1 truncate font-mono">{url}</code>
+            <button onClick={copy} className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0" title="Copy">
+              {copied ? <CheckCircle2 size={11} className="text-green-500" /> : <Copy size={11} />}
+            </button>
+          </div>
+          {data?.instructions?.map((line, i) => (
+            <p key={i} className="text-[10px] text-gray-400 mt-1">{line}</p>
+          ))}
+        </>
+      ) : (
+        <p className="text-[10px] text-amber-600">
+          {data?.instructions?.[0] ?? `Reconnect ${provider} with a webhook secret to generate this URL.`}
+        </p>
+      )}
     </div>
   );
 }

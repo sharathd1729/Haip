@@ -159,3 +159,48 @@ def test_webhook_accepts_correct_secret_and_dispatches(client, tenant_and_user, 
     assert dispatched["tenant_id"] == tenant.id
     assert dispatched["ivr_provider"] == "mcube"
     assert dispatched["payload"]["callid"] == "80889767291697091597"
+
+
+# ── GET /integrations/mcube/webhook-info ────────────────────────────────────
+
+def test_webhook_info_includes_secret_in_url(client, tenant_and_user, db):
+    tenant = tenant_and_user["tenant"]
+    _connect_mcube(db, tenant.id, webhook_secret="my-secret-123")
+
+    res = client.get(
+        "/api/v1/integrations/mcube/webhook-info",
+        headers={"Authorization": f"Bearer {tenant_and_user['access_token']}"},
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["webhook_url"] == f"https://testserver/api/v1/webhooks/mcube/{tenant.slug}/my-secret-123"
+
+
+def test_webhook_info_null_url_before_connect(client, tenant_and_user):
+    res = client.get(
+        "/api/v1/integrations/mcube/webhook-info",
+        headers={"Authorization": f"Bearer {tenant_and_user['access_token']}"},
+    )
+    assert res.status_code == 200
+    assert res.json()["webhook_url"] is None
+
+
+def test_webhook_info_callerdesk_has_no_secret_in_url(client, tenant_and_user, db):
+    """CallerDesk/Acefone still use HMAC signing, not a URL-embedded secret --
+    their webhook-info URL should never leak the secret into the path."""
+    tenant = tenant_and_user["tenant"]
+    integration = Integration(
+        id=str(uuid.uuid4()), tenant_id=tenant.id, kind="callerdesk", status="active",
+        credentials_kms_blob=encrypt_credentials({"api_key": "x", "webhook_secret": "cd-secret"}),
+    )
+    db.add(integration)
+    db.commit()
+
+    res = client.get(
+        "/api/v1/integrations/callerdesk/webhook-info",
+        headers={"Authorization": f"Bearer {tenant_and_user['access_token']}"},
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["webhook_url"] == f"https://testserver/api/v1/webhooks/callerdesk/{tenant.slug}"
+    assert "cd-secret" not in body["webhook_url"]

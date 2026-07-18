@@ -523,6 +523,63 @@ def get_instagram_webhook_info(
     }
 
 
+_IVR_WEBHOOK_KINDS = {"callerdesk", "acefone", "mcube"}
+
+
+@router.get("/{kind}/webhook-info", include_in_schema=False)
+def get_ivr_webhook_info(
+    kind: str,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Webhook URL to paste into an IVR provider's dashboard, including the
+    tenant slug (all IVR webhooks route by /webhooks/{provider}/{tenant_slug})
+    and, for Mcube specifically, the webhook_secret embedded directly in the
+    URL path (Mcube has no signing scheme of its own -- see webhooks_mcube.py).
+    Declared with a generic {kind} path param but only serves the IVR kinds;
+    must stay AFTER the whatsapp_meta/instagram routes above (both literal
+    paths) so those match first -- Starlette resolves routes in registration
+    order, not by specificity.
+    """
+    if kind not in _IVR_WEBHOOK_KINDS:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    base = (settings.API_BASE_URL or str(request.base_url).rstrip("/")).rstrip("/")
+    base = base.replace("http://", "https://", 1) if base.startswith("http://") else base
+    tenant = current_user.tenant
+    slug = tenant.slug if tenant else current_user.tenant_id
+
+    if kind == "mcube":
+        integration = db.query(Integration).filter_by(
+            tenant_id=current_user.tenant_id, kind="mcube"
+        ).first()
+        secret = get_credential(integration.credentials_kms_blob, "webhook_secret") if integration and integration.credentials_kms_blob else None
+        if not secret:
+            return {
+                "webhook_url": None,
+                "instructions": ["Connect Mcube with a webhook_secret first — the webhook URL is generated from it."],
+            }
+        return {
+            "webhook_url": f"{base}/api/v1/webhooks/mcube/{slug}/{secret}",
+            "instructions": [
+                "Log into your Mcube account and find the callback/webhook setting for your DID number.",
+                "Paste the Webhook URL above exactly — the trailing segment is your secret, not a placeholder.",
+                "Mcube has no separate 'Secret' field to fill in — this URL is the entire auth mechanism.",
+            ],
+        }
+
+    return {
+        "webhook_url": f"{base}/api/v1/webhooks/{kind}/{slug}",
+        "instructions": [
+            f"Paste the Webhook URL above into your {kind.title()} dashboard's webhook/callback settings.",
+            "Make sure the webhook_secret you set when connecting here matches what you configure in "
+            f"{kind.title()}'s own signing-secret field.",
+        ],
+    }
+
+
 # ─── Retalwise ───────────────────────────────────────────────────────────────
 
 @router.get("/retalwise/credentials")
