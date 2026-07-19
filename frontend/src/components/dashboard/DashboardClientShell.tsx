@@ -6,7 +6,6 @@
  *
  * Components mounted here:
  *   - CommandPalette   (X6) — Cmd+K global shortcut, rendered outside flow
- *   - ChecklistWidget  (O5) — setup progress widget, fixed bottom-right
  *
  * NOTE: StatusBar (X8) is rendered inline within the main column via
  * StatusBarSlot so it participates in flex layout between topbar and content.

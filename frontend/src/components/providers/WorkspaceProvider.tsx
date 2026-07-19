@@ -3,11 +3,14 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import api from "@/lib/api";
 
+export type BusinessType = "caravan" | "villa_resort" | "homestay" | "hotel";
+
 export interface WorkspaceContext {
   workspace_id: string;
   active_modules: string[];
   flags: Record<string, boolean>;
   plan: string;
+  business_type: BusinessType | null;
   available_metrics: { key: string; name: string; module: string; unit?: string }[];
   available_widgets: { key: string; name: string; category: string; available: boolean }[];
 }
@@ -38,4 +41,11 @@ export function useFlag(key: string): boolean {
   const ctx = useWorkspace();
   if (!ctx) return false;
   return ctx.flags[key] ?? false;
+}
+
+/** Tenant's business vertical, chosen at signup. null while loading or for
+ *  pre-existing tenants not yet backfilled — callers must hide nothing on null. */
+export function useBusinessType(): BusinessType | null {
+  const ctx = useWorkspace();
+  return ctx?.business_type ?? null;
 }

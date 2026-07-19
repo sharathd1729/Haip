@@ -14,6 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import { canSeeNav, type Resource } from "@/lib/permissions";
 import { useBrandTheme } from "@/components/providers/BrandThemeProvider";
+import { useBusinessType } from "@/components/providers/WorkspaceProvider";
 
 interface MobileNavProps {
   user?: { name?: string | null; email?: string | null; role?: string };
@@ -42,7 +43,7 @@ const ALL_SECTIONS = [
     items: [
       { label: "Inquiries",  href: "/dashboard/inquiries",  icon: Zap,     resource: "inquiries"  as Resource },
       { label: "Guests",     href: "/dashboard/guests",     icon: Users,   resource: "guests"     as Resource },
-      { label: "Properties", href: "/dashboard/properties", icon: Home,    resource: "properties" as Resource },
+      { label: "Properties", href: "/dashboard/properties", icon: Home,    resource: "properties" as Resource, hideForBusinessTypes: ["caravan"] },
     ],
   },
   {
@@ -80,6 +81,7 @@ const ALL_SECTIONS = [
 export function MobileNav({ user }: MobileNavProps) {
   const pathname = usePathname();
   const role = user?.role ?? "";
+  const businessType = useBusinessType();
   const [sheetOpen, setSheetOpen] = useState(false);
   const { theme } = useBrandTheme();
 
@@ -185,7 +187,11 @@ export function MobileNav({ user }: MobileNavProps) {
             {/* Nav sections */}
             <nav className="flex-1 py-2 overflow-y-auto">
               {ALL_SECTIONS.map((section) => {
-                const visible = section.items.filter(item => canSeeNav(role, item.resource));
+                const visible = section.items.filter(
+                  (item: { resource: Resource; hideForBusinessTypes?: string[] }) =>
+                    canSeeNav(role, item.resource) &&
+                    (!businessType || !item.hideForBusinessTypes?.includes(businessType))
+                );
                 if (visible.length === 0) return null;
                 return (
                   <div key={section.label} className="px-3 py-1">

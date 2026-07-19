@@ -13,6 +13,10 @@ class Tenant(Base, TimestampMixin):
     slug = Column(String(100), unique=True, nullable=False, index=True)
     plan = Column(String(50), default="growth", nullable=False)  # starter/growth/scale/enterprise
     is_active = Column(Boolean, default=True, nullable=False)
+    # Chosen at signup; drives per-type nav/dashboard gating (e.g. caravan
+    # tenants don't see Properties / Rate Calculator / Channel Manager /
+    # AI Concierge). Nullable: pre-existing tenants until backfilled.
+    business_type = Column(String(30), nullable=True)  # caravan / villa_resort / homestay / hotel
     data_region = Column(String(20), default="ap-south-1", nullable=False)
 
     # IVR config

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
+from typing import Optional, Literal
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.security import (
@@ -48,6 +49,7 @@ class RegisterRequest(BaseModel):
     password: str
     tenant_name: str
     tenant_slug: str
+    business_type: Optional[Literal["caravan", "villa_resort", "homestay", "hotel"]] = None
     consent_transactional: bool = True
     consent_marketing: bool = False
     consent_analytics: bool = False
@@ -113,6 +115,7 @@ async def register(req: RegisterRequest, db: Session = Depends(get_db)):
         name=req.tenant_name,
         slug=req.tenant_slug,
         plan="growth",
+        business_type=req.business_type,
     )
     db.add(tenant)
     db.flush()

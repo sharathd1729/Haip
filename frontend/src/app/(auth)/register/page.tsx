@@ -62,6 +62,13 @@ function friendlyError(detail: string): { msg: string; field?: string } {
   return { msg: detail };
 }
 
+const BUSINESS_TYPES = [
+  { value: "caravan",      label: "Caravans",            emoji: "🚐" },
+  { value: "villa_resort", label: "Villa / Resort",      emoji: "🏝️" },
+  { value: "homestay",     label: "Homestays",           emoji: "🏡" },
+  { value: "hotel",        label: "Hotels",              emoji: "🏨" },
+];
+
 export default function RegisterPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -71,6 +78,7 @@ export default function RegisterPage() {
   const [agreed, setAgreed] = useState(false);
   const [consentMarketing, setConsentMarketing] = useState(false);
   const [consentAnalytics, setConsentAnalytics] = useState(false);
+  const [businessType, setBusinessType] = useState<string>("");
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -89,6 +97,7 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!agreed) { setError("Please accept the terms to continue."); setFieldError(undefined); return; }
+    if (!businessType) { setError("Please select your type of business."); setFieldError(undefined); return; }
     if (form.password.length < 8) { setError("Password must be at least 8 characters."); setFieldError("password"); return; }
 
     setLoading(true);
@@ -112,6 +121,7 @@ export default function RegisterPage() {
             password: form.password,
             tenant_name: form.tenant_name,
             tenant_slug: form.tenant_slug,
+            business_type: businessType,
             consent_transactional: true,
             consent_marketing: consentMarketing,
             consent_analytics: consentAnalytics,
@@ -138,7 +148,7 @@ export default function RegisterPage() {
         router.push("/login");
         return;
       }
-      router.push("/onboarding");
+      router.push("/dashboard");
     } catch {
       setError("Could not reach the server. Please check your connection.");
     } finally {
@@ -303,6 +313,27 @@ export default function RegisterPage() {
               {fieldError === "slug" && (
                 <p className="mt-1.5 text-xs text-red-400">{error}</p>
               )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Type of business</label>
+              <div className="grid grid-cols-2 gap-2">
+                {BUSINESS_TYPES.map(bt => (
+                  <button
+                    key={bt.value}
+                    type="button"
+                    onClick={() => setBusinessType(bt.value)}
+                    className={`px-3 py-2.5 rounded-xl border text-sm text-left transition-colors ${
+                      businessType === bt.value
+                        ? "border-teal-500 ring-2 ring-teal-500/30 bg-teal-500/5 text-foreground font-medium"
+                        : "border-border text-muted-foreground hover:border-teal-500/50"
+                    }`}
+                  >
+                    <span className="mr-1.5">{bt.emoji}</span>
+                    {bt.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* DPDP consents */}

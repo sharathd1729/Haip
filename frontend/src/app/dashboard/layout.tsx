@@ -7,7 +7,6 @@ import { auth } from "@/lib/auth";
 import { DashboardSSEBridge } from "./DashboardSSEBridge";
 import { DashboardClientShell, StatusBarSlot } from "@/components/dashboard/DashboardClientShell";
 import { SampleDataBanner } from "@/components/dashboard/SampleDataBanner";
-import { FinishSetupBanner } from "./FinishSetupBanner";
 import { BrandThemeProvider } from "@/components/providers/BrandThemeProvider";
 import { WorkspaceProvider } from "@/components/providers/WorkspaceProvider";
 
@@ -20,14 +19,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     email?: string | null;
     role?: string;
     tenantId?: string;
-    onboarding_step?: number;
   };
-
-  const onboardingStep = user.onboarding_step ?? 0;
-  // NOTE: Do NOT hard-redirect to /onboarding here. The JWT value is cached
-  // and may be stale for existing accounts. The FinishSetupBanner shows an
-  // inline prompt for users with incomplete setup instead of blocking them.
-  const onboardingComplete = onboardingStep >= 9;
 
   return (
     <BrandThemeProvider>
@@ -63,11 +55,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
           {/* Sample data banner (O2) — amber strip when viewing sample data */}
           <SampleDataBanner />
 
-          {/* Setup banner (both breakpoints) */}
-          {!onboardingComplete && (
-            <FinishSetupBanner currentStep={onboardingStep} />
-          )}
-
           {/* Page content — flex column so children can use h-full */}
           <main
             className="flex-1 overflow-hidden flex flex-col"
@@ -87,7 +74,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {/* SSE bridge — rendered once, outside layout columns */}
       <DashboardSSEBridge />
 
-      {/* Client-side overlays: CommandPalette, StatusBar, ChecklistWidget */}
+      {/* Client-side overlays: CommandPalette, StatusBar */}
       <DashboardClientShell />
     </WorkspaceProvider>
     </BrandThemeProvider>

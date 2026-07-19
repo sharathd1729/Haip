@@ -27,6 +27,7 @@ router = APIRouter(prefix="/workspace", tags=["workspace"])
 class WorkspaceContextResponse(BaseModel):
     workspace_id: str
     plan: str
+    business_type: str | None = None   # caravan / villa_resort / homestay / hotel
     active_modules: list[str]
     flags: dict[str, bool]
     available_metrics: list[dict[str, Any]]
@@ -51,9 +52,13 @@ def get_workspace_context(
     metrics = available_metrics_for_context(db, ctx)
     widgets = available_widgets_for_context(db, ctx)
 
+    from app.models.tenant import Tenant
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+
     return WorkspaceContextResponse(
         workspace_id=current_user.tenant_id,
         plan=ctx.plan,
+        business_type=tenant.business_type if tenant else None,
         active_modules=ctx.active_modules,
         flags=ctx.flags,
         available_metrics=metrics,

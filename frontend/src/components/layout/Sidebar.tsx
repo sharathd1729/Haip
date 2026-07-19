@@ -12,6 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 import { canSeeNav, type Resource } from "@/lib/permissions";
 import { useBrandTheme } from "@/components/providers/BrandThemeProvider";
+import { useBusinessType } from "@/components/providers/WorkspaceProvider";
 import { useInboxStore } from "@/store/inbox";
 
 // ─── Nav structure ────────────────────────────────────────────────────────────
@@ -22,10 +23,14 @@ interface NavItem {
   icon: React.ComponentType<{ size?: number; className?: string }>;
   resource: Resource;
   section?: string;
+  /** Business verticals (tenants.business_type) that should NOT see this item.
+   *  null/unknown business_type hides nothing. */
+  hideForBusinessTypes?: string[];
   children?: {
     label: string;
     href: string;
     icon?: React.ComponentType<{ size?: number; className?: string }>;
+    hideForBusinessTypes?: string[];
   }[];
 }
 
@@ -52,8 +57,8 @@ const NAV_ITEMS: NavItem[] = [
       { label: "Conversations",   href: "/dashboard/inbox",                    icon: MessageSquare },
       { label: "WhatsApp",        href: "/dashboard/inbox?ch=whatsapp",        icon: MessageSquare },
       { label: "Instagram",       href: "/dashboard/inbox?ch=instagram",       icon: AtSign },
-      { label: "AI Concierge",    href: "/dashboard/inbox?ch=ai",              icon: Bot },
-      { label: "Channel Manager", href: "/dashboard/inbox/channel-manager",    icon: Building2 },
+      { label: "AI Concierge",    href: "/dashboard/inbox?ch=ai",              icon: Bot,       hideForBusinessTypes: ["caravan"] },
+      { label: "Channel Manager", href: "/dashboard/inbox/channel-manager",    icon: Building2, hideForBusinessTypes: ["caravan"] },
     ],
   },
   {
@@ -86,9 +91,9 @@ const NAV_ITEMS: NavItem[] = [
     icon: Building2,
     resource: "properties",
     children: [
-      { label: "Properties",      href: "/dashboard/properties" },
+      { label: "Properties",      href: "/dashboard/properties",         hideForBusinessTypes: ["caravan"] },
       { label: "Calendar",        href: "/dashboard/portfolio/calendar" },
-      { label: "Rate Calculator", href: "/dashboard/calculator" },
+      { label: "Rate Calculator", href: "/dashboard/calculator",         hideForBusinessTypes: ["caravan"] },
     ],
   },
   {
@@ -149,6 +154,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ user }: SidebarProps) {
+  const businessType = useBusinessType();
   const pathname = usePathname();
   const role = user?.role ?? "";
   const { theme } = useBrandTheme();
@@ -168,7 +174,15 @@ export function Sidebar({ user }: SidebarProps) {
   // Track which section labels have been rendered to avoid duplicates
   const renderedSections = new Set<string>();
 
-  const visibleItems = NAV_ITEMS.filter(item => canSeeNav(role, item.resource));
+  const visibleItems = NAV_ITEMS
+    .filter(item => canSeeNav(role, item.resource))
+    .filter(item => !businessType || !item.hideForBusinessTypes?.includes(businessType))
+    .map(item => ({
+      ...item,
+      children: item.children?.filter(
+        c => !businessType || !c.hideForBusinessTypes?.includes(businessType)
+      ),
+    }));
 
   return (
     <aside

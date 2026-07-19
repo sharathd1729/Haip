@@ -11,7 +11,6 @@ declare module "next-auth" {
       image?: string | null;
       role: string;
       tenantId: string;
-      onboarding_step: number;
     };
   }
 
@@ -19,8 +18,6 @@ declare module "next-auth" {
     id: string;
     role: string;
     tenantId: string;
-    onboarding_step?: number;
-    onboardingStep?: number;
     accessToken?: string;
     refreshToken?: string;
   }
@@ -31,7 +28,6 @@ declare module "next-auth/jwt" {
     id?: string;
     role?: string;
     tenantId?: string;
-    onboardingStep?: number;
     accessToken?: string;
     refreshToken?: string;
   }
