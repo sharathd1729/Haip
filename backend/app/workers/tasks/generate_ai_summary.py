@@ -169,7 +169,7 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
             adapter.complete(
                 system_prompt=SYSTEM_PROMPT,
                 user_message=user_message,
-                model="nvidia/llama-3.1-nemotron-70b-instruct",
+                model="nvidia/llama-3.3-nemotron-super-49b-v1.5",
                 max_tokens=512,
             )
         )

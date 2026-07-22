@@ -12,8 +12,8 @@ Usage:
   adapter = get_llm_adapter("nvidia")
 
 Routing rules:
-  call_analysis    → nvidia   nvidia/llama-3.1-nemotron-70b-instruct
-  call_scoring     → nvidia   nvidia/llama-3.3-nemotron-super-49b-v1
+  call_analysis    → nvidia   nvidia/llama-3.3-nemotron-super-49b-v1.5
+  call_scoring     → nvidia   nvidia/llama-3.3-nemotron-super-49b-v1.5
   ask_haip_rca     → nvidia   nvidia/nemotron-3-ultra-550b-a55b  (thinking=True)
   ask_haip_intent  → nvidia   meta/llama-3.1-8b-instruct
   quick_classify   → nvidia   meta/llama-3.1-8b-instruct
@@ -21,8 +21,8 @@ Routing rules:
   deep_reason      → nvidia   nvidia/nemotron-3-ultra-550b-a55b  (thinking=True)
   report_gen       → nvidia   nvidia/nemotron-3-ultra-550b-a55b
   concierge_draft  → claude   claude-haiku-4-5   (kept — Indian hospitality tone)
-  ruflo_domain     → nvidia   nvidia/llama-3.1-nemotron-70b-instruct
-  ruflo_synthesis  → nvidia   nvidia/llama-3.1-nemotron-70b-instruct
+  ruflo_domain     → nvidia   nvidia/llama-3.3-nemotron-super-49b-v1.5
+  ruflo_synthesis  → nvidia   nvidia/llama-3.3-nemotron-super-49b-v1.5
   fallback         → nvidia   mistralai/mistral-medium-3.5-128b
 
 Provider priority for get_llm_adapter (legacy path):
@@ -46,20 +46,20 @@ log = logging.getLogger(__name__)
 # (provider, model)
 _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # ── NVIDIA NIM (primary) ──────────────────────────────────────────────────
-    "call_analysis":   ("nvidia",  "nvidia/llama-3.1-nemotron-70b-instruct"),
-    "call_scoring":    ("nvidia",  "nvidia/llama-3.3-nemotron-super-49b-v1"),
+    "call_analysis":   ("nvidia",  "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
+    "call_scoring":    ("nvidia",  "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
     "ask_haip_rca":    ("nvidia",  "nvidia/nemotron-3-ultra-550b-a55b"),
     "ask_haip_intent": ("nvidia",  "meta/llama-3.1-8b-instruct"),
     "quick_classify":  ("nvidia",  "meta/llama-3.1-8b-instruct"),
     "bulk_batch":      ("nvidia",  "meta/llama-3.1-8b-instruct"),
     "deep_reason":     ("nvidia",  "nvidia/nemotron-3-ultra-550b-a55b"),
     "report_gen":      ("nvidia",  "nvidia/nemotron-3-ultra-550b-a55b"),
-    "ruflo_domain":    ("nvidia",  "nvidia/llama-3.1-nemotron-70b-instruct"),
-    "ruflo_synthesis": ("nvidia",  "nvidia/llama-3.1-nemotron-70b-instruct"),
+    "ruflo_domain":    ("nvidia",  "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
+    "ruflo_synthesis": ("nvidia",  "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
     # Leads360 summary + structured analysis. Split off from concierge_draft
     # (which stays Claude for guest-facing tone) because deployments run on
     # NVIDIA keys only — an internal summary shouldn't require an Anthropic key.
-    "lead_summary":    ("nvidia",  "nvidia/llama-3.1-nemotron-70b-instruct"),
+    "lead_summary":    ("nvidia",  "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
     "fallback":        ("nvidia",  "mistralai/mistral-medium-3.5-128b"),
     # ── Claude kept for tone-sensitive tasks ──────────────────────────────────
     "concierge_draft": ("claude",  "claude-haiku-4-5"),

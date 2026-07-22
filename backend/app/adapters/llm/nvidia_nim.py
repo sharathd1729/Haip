@@ -30,8 +30,7 @@ _THINKING_MODELS = frozenset({
 # Falls back to NVIDIA_API_KEY if group key is empty.
 _MODEL_KEY_GROUP: dict[str, str] = {
     "nvidia/nemotron-3-ultra-550b-a55b":       "NVIDIA_API_KEY_HEAVY",
-    "nvidia/llama-3.1-nemotron-70b-instruct":  "NVIDIA_API_KEY_MID",
-    "nvidia/llama-3.3-nemotron-super-49b-v1":  "NVIDIA_API_KEY_MID",
+    "nvidia/llama-3.3-nemotron-super-49b-v1.5":  "NVIDIA_API_KEY_MID",
     "meta/llama-3.1-8b-instruct":              "NVIDIA_API_KEY_FAST",
     "mistralai/mistral-medium-3.5-128b":       "NVIDIA_API_KEY_FALLBACK",
 }
@@ -50,7 +49,7 @@ class NvidiaNIMAdapter(LLMAdapter):
         self,
         system_prompt: str,
         user_message: str,
-        model: str = "nvidia/llama-3.1-nemotron-70b-instruct",
+        model: str = "nvidia/llama-3.3-nemotron-super-49b-v1.5",
         max_tokens: int = 4096,
         tools: Optional[list] = None,
         thinking: bool = False,
