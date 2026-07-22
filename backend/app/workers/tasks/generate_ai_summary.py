@@ -9,7 +9,7 @@ inquiries.ai_summary. Called by:
   - POST /leads/{inquiry_id}/refresh-summary (manual — always immediate)
 
 Constitution checks:
-  ✓ Uses get_llm("concierge_draft") — never direct Claude import
+  ✓ Uses get_llm("lead_summary") — never direct provider import
   ✓ Phone never logged in plaintext
   ✓ LLM failure does not crash the task — graceful degradation
 """
@@ -164,11 +164,12 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
         user_message = f"Lead context:\n{context}\n\nGenerate the JSON response."
 
         # ── LLM call ──────────────────────────────────────────────────────────
-        adapter = get_llm("concierge_draft")
+        adapter = get_llm("lead_summary")
         result = _run_async(
             adapter.complete(
                 system_prompt=SYSTEM_PROMPT,
                 user_message=user_message,
+                model="nvidia/llama-3.1-nemotron-70b-instruct",
                 max_tokens=512,
             )
         )

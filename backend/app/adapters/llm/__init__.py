@@ -56,6 +56,10 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     "report_gen":      ("nvidia",  "nvidia/nemotron-3-ultra-550b-a55b"),
     "ruflo_domain":    ("nvidia",  "nvidia/llama-3.1-nemotron-70b-instruct"),
     "ruflo_synthesis": ("nvidia",  "nvidia/llama-3.1-nemotron-70b-instruct"),
+    # Leads360 summary + structured analysis. Split off from concierge_draft
+    # (which stays Claude for guest-facing tone) because deployments run on
+    # NVIDIA keys only — an internal summary shouldn't require an Anthropic key.
+    "lead_summary":    ("nvidia",  "nvidia/llama-3.1-nemotron-70b-instruct"),
     "fallback":        ("nvidia",  "mistralai/mistral-medium-3.5-128b"),
     # ── Claude kept for tone-sensitive tasks ──────────────────────────────────
     "concierge_draft": ("claude",  "claude-haiku-4-5"),

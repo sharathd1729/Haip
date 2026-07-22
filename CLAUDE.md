@@ -53,6 +53,7 @@ Active clients:
 | Call analysis | Claude | claude-sonnet-4-6 |
 | Call QA scoring | Claude | claude-sonnet-4-6 |
 | Concierge draft | Claude | claude-haiku-4-5 |
+| Lead summary (Leads360) | NVIDIA | llama-3.1-nemotron-70b-instruct |
 | Quick classify | Gemini | gemini-2.0-flash |
 | Bulk batch | Gemini | gemini-2.0-flash |
 | Deep reasoning | Claude | claude-opus-4-6 |
