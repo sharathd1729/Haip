@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useBusinessType } from "@/components/providers/WorkspaceProvider";
 
 interface Property {
   id: string;
@@ -66,7 +67,7 @@ function PropertySkeleton() {
   );
 }
 
-function PropertyCard({ p, onEdit }: { p: Property; onEdit: (p: Property) => void }) {
+function PropertyCard({ p, onEdit, noun }: { p: Property; onEdit: (p: Property) => void; noun: string }) {
   const typeKey = (p.type ?? p.property_type ?? "other").toLowerCase();
   const emoji = TYPE_ICON[typeKey] ?? "🏠";
   const sc = sourceStyle(p.channel_source);
@@ -99,7 +100,7 @@ function PropertyCard({ p, onEdit }: { p: Property; onEdit: (p: Property) => voi
               className="font-semibold text-[14.5px] leading-snug line-clamp-2"
               style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--haip-fg)" }}
             >
-              {p.name || <span className="text-gray-400 italic text-sm">Unnamed property</span>}
+              {p.name || <span className="text-gray-400 italic text-sm">Unnamed {noun}</span>}
             </h3>
             {(p.city || p.address) && (
               <div className="flex items-center gap-1 mt-0.5">
@@ -119,7 +120,7 @@ function PropertyCard({ p, onEdit }: { p: Property; onEdit: (p: Property) => voi
           style={{ color: "var(--haip-fg-muted)" }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(0,0,0,0.05)"; }}
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ""; }}
-          title="Edit property"
+          title={`Edit ${noun}`}
         >
           <Edit2 size={13} />
         </button>
@@ -204,6 +205,12 @@ function PropertyCard({ p, onEdit }: { p: Property; onEdit: (p: Property) => voi
 
 export default function PropertiesPage() {
   const queryClient = useQueryClient();
+  const businessType = useBusinessType();
+  const isCaravan = businessType === "caravan";
+  const noun = isCaravan ? "package" : "property";
+  const nounPlural = isCaravan ? "packages" : "properties";
+  const Noun = isCaravan ? "Package" : "Property";
+  const NounPlural = isCaravan ? "Packages" : "Portfolio";
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Property | null>(null);
   const [form, setForm] = useState({ name: "", city: "", property_type: "villa" });
@@ -224,7 +231,7 @@ export default function PropertiesPage() {
     mutationFn: () => api.post("/properties", form),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["properties"] });
-      showToast("success", "Property created");
+      showToast("success", `${Noun} created`);
       setShowForm(false);
       setForm({ name: "", city: "", property_type: "villa" });
     },
@@ -235,7 +242,7 @@ export default function PropertiesPage() {
     mutationFn: () => api.patch(`/properties/${editing!.id}`, form),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["properties"] });
-      showToast("success", "Property updated");
+      showToast("success", `${Noun} updated`);
       setEditing(null);
       setShowForm(false);
     },
@@ -281,10 +288,10 @@ export default function PropertiesPage() {
               className="text-[22px] font-bold leading-tight"
               style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}
             >
-              Portfolio
+              {NounPlural}
             </h1>
             <p className="text-[13px] mt-0.5" style={{ color: "#6B7280" }}>
-              {isLoading ? "Loading…" : `${properties.length} ${properties.length === 1 ? "property" : "properties"}`}
+              {isLoading ? "Loading…" : `${properties.length} ${properties.length === 1 ? noun : nounPlural}`}
               {!isLoading && inactiveCount > 0 && (
                 <span style={{ color: "#EF4444" }}> · {inactiveCount} inactive</span>
               )}
@@ -299,7 +306,7 @@ export default function PropertiesPage() {
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#0F766E"; }}
           >
             <Plus size={14} />
-            Add property
+            Add {noun}
           </button>
         </div>
 
@@ -352,10 +359,10 @@ export default function PropertiesPage() {
               <Building2 size={28} style={{ color: "#0F766E" }} />
             </div>
             <p className="font-semibold" style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}>
-              No properties yet
+              No {nounPlural} yet
             </p>
             <p className="text-sm mt-1 mb-5" style={{ color: "var(--haip-fg-muted)" }}>
-              Add your first property to start tracking inquiries and revenue
+              Add your first {noun} to start tracking inquiries and revenue
             </p>
             <button
               onClick={openCreate}
@@ -364,13 +371,13 @@ export default function PropertiesPage() {
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#0F766E"; }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#14B8A6"; }}
             >
-              <Plus size={15} /> Add property
+              <Plus size={15} /> Add {noun}
             </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {properties.map(p => (
-              <PropertyCard key={p.id} p={p} onEdit={openEdit} />
+              <PropertyCard key={p.id} p={p} onEdit={openEdit} noun={noun} />
             ))}
           </div>
         )}
@@ -392,7 +399,7 @@ export default function PropertiesPage() {
                 className="font-bold text-[15px]"
                 style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}
               >
-                {editing ? "Edit property" : "Add property"}
+                {editing ? `Edit ${noun}` : `Add ${noun}`}
               </h3>
               <button
                 onClick={() => { setShowForm(false); setEditing(null); }}
@@ -409,13 +416,13 @@ export default function PropertiesPage() {
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
                 <label className="block text-[12.5px] font-semibold mb-1.5" style={{ color: "var(--haip-fg)" }}>
-                  Property name *
+                  {Noun} name *
                 </label>
                 <input
                   required
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="Jade Beach Villa"
+                  placeholder={isCaravan ? "Backwaters Explorer" : "Jade Beach Villa"}
                   className="w-full px-4 py-2.5 rounded-xl text-sm focus:outline-none transition-colors"
                   style={{
                     border: "1px solid var(--haip-border)",
@@ -485,7 +492,7 @@ export default function PropertiesPage() {
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#14B8A6"; }}
                 >
                   {isPending && <Loader2 size={14} className="animate-spin" />}
-                  {editing ? "Save changes" : "Create property"}
+                  {editing ? "Save changes" : `Create ${noun}`}
                 </button>
               </div>
             </form>
