@@ -151,3 +151,33 @@ def test_parse_summary_prose_fallback():
     summary, analysis = _parse_summary_response(raw)
     assert summary == raw
     assert analysis is None
+
+
+def test_parse_summary_truncated_json_salvages_summary():
+    """max_tokens cutting the JSON mid-key must not leak raw JSON into the UI
+    (seen in prod: summary stored as '{ "summary": "...", "analysis": { "reply_urg')."""
+    from app.workers.tasks.generate_ai_summary import _parse_summary_response
+    raw = '{ "summary": "Guest has not specified dates. Budget unknown. Ask for details.", "analysis": { "intent": "inquire about services", "sentiment": "neutral", "objection": null, "reply_urg'
+    summary, analysis = _parse_summary_response(raw)
+    assert summary == "Guest has not specified dates. Budget unknown. Ask for details."
+    assert analysis is None
+
+
+def test_parse_summary_truncated_json_without_summary_is_rejected():
+    from app.workers.tasks.generate_ai_summary import _parse_summary_response
+    raw = '{ "anal'
+    summary, analysis = _parse_summary_response(raw)
+    assert summary == ""   # caller logs unparseable + keeps the old summary
+    assert analysis is None
+
+
+def test_parse_summary_strips_think_blocks():
+    from app.workers.tasks.generate_ai_summary import _parse_summary_response
+    raw = (
+        "<think>The guest asked about pricing so urgency is high.</think>\n"
+        '{"summary": "S1. S2. S3.", "analysis": {"intent": "pricing", "sentiment": "positive",'
+        ' "objection": null, "reply_urgency": "high", "next_action": "Send quote"}}'
+    )
+    summary, analysis = _parse_summary_response(raw)
+    assert summary == "S1. S2. S3."
+    assert analysis["reply_urgency"] == "high"

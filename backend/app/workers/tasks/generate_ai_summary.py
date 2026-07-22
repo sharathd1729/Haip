@@ -50,13 +50,16 @@ _ANALYSIS_KEYS = ("intent", "sentiment", "objection", "reply_urgency", "next_act
 def _parse_summary_response(raw: str) -> tuple[str, dict | None]:
     """Parse the v2 JSON response into (summary_text, analysis_dict).
 
-    Degrades gracefully: if the model ignored the JSON instruction and
-    returned prose (or wrapped JSON in markdown fences), keep whatever prose
-    we can as the summary and return analysis=None — never lose the summary
-    over a formatting miss."""
+    Degrades gracefully: markdown fences and reasoning-model <think> blocks
+    are stripped; a truncated JSON payload (max_tokens hit mid-object) still
+    yields its "summary" field via regex instead of leaking raw JSON into
+    the UI; plain prose is kept as-is with analysis=None."""
     import json as _json
+    import re as _re
 
     text = raw.strip()
+    # Reasoning models (nemotron super/ultra) may prepend <think>...</think>
+    text = _re.sub(r"<think>.*?</think>", "", text, flags=_re.DOTALL).strip()
     if text.startswith("```"):
         # strip ```json ... ``` fences
         text = text.strip("`")
@@ -64,20 +67,34 @@ def _parse_summary_response(raw: str) -> tuple[str, dict | None]:
             text = text[4:]
         text = text.strip()
 
+    parsed = None
     try:
         parsed = _json.loads(text)
     except (ValueError, TypeError):
-        return raw, None
+        pass
 
-    if not isinstance(parsed, dict):
-        return raw, None
+    if isinstance(parsed, dict):
+        summary = str(parsed.get("summary") or "").strip()
+        analysis_raw = parsed.get("analysis")
+        analysis = None
+        if isinstance(analysis_raw, dict):
+            analysis = {k: analysis_raw.get(k) for k in _ANALYSIS_KEYS}
+        return summary or raw, analysis
 
-    summary = str(parsed.get("summary") or "").strip()
-    analysis_raw = parsed.get("analysis")
-    analysis = None
-    if isinstance(analysis_raw, dict):
-        analysis = {k: analysis_raw.get(k) for k in _ANALYSIS_KEYS}
-    return summary or raw, analysis
+    # Truncated/malformed JSON: salvage the summary value rather than storing
+    # a raw JSON fragment as the "prose" summary.
+    if text.startswith("{"):
+        m = _re.search(r'"summary"\s*:\s*"((?:[^"\\]|\\.)*)"', text)
+        if m:
+            try:
+                salvaged = _json.loads(f'"{m.group(1)}"')  # unescape
+            except (ValueError, TypeError):
+                salvaged = m.group(1)
+            if salvaged.strip():
+                return salvaged.strip(), None
+        return "", None   # unusable JSON fragment — caller logs + keeps old summary
+
+    return raw, None
 
 
 def _run_async(coro):
@@ -170,7 +187,9 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
                 system_prompt=SYSTEM_PROMPT,
                 user_message=user_message,
                 model="nvidia/llama-3.3-nemotron-super-49b-v1.5",
-                max_tokens=512,
+                # Reasoning model: internal thinking counts against the
+                # completion budget — 512 truncated the visible JSON mid-key.
+                max_tokens=2048,
             )
         )
         raw_text = (result.get("content") or "").strip()
