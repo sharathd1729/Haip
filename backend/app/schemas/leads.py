@@ -33,6 +33,10 @@ class TimelineEntrySchema(BaseModel):
     is_ai_generated: bool = False
     call_summary: Optional[str] = None      # populated for call entries
     agent_name: Optional[str] = None
+    # Call entries only — lets the profile render calls as a summary card
+    # (duration + QA) instead of a chat bubble.
+    call_duration_seconds: Optional[int] = None
+    call_qa_score: Optional[float] = None
 
 
 class QuoteHistorySchema(BaseModel):
@@ -88,12 +92,26 @@ class LeadCardSchema(BaseModel):
     # AI summary (async-generated, may be null)
     ai_summary: Optional[str] = None        # null → show "Generating..." in UI
     ai_next_action: Optional[str] = None
+    # Structured analysis from the same worker (prompt v2): {intent,
+    # sentiment, objection, reply_urgency, next_action}. Null for leads
+    # whose summary hasn't regenerated since the v2 prompt shipped.
+    ai_analysis: Optional[dict] = None
 
     # Agent + timing
     assigned_agent_name: Optional[str] = None
     assigned_agent_id: Optional[str] = None
     last_touch_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
+
+    # Response time — computed on read from messages, never stored (same
+    # pattern as profile_completeness_pct). The stored first_response_at /
+    # sla_breached columns are dead: nothing writes them.
+    # status: "waiting" (guest's latest message unanswered; seconds = wait so
+    # far) | "responded" (seconds = inbound→reply gap) | None (no messages).
+    # Across multiple conversations, any waiting thread beats a responded
+    # one, and the longest wait wins.
+    response_time_seconds: Optional[int] = None
+    response_time_status: Optional[str] = None
 
 
 # ─── Lead Detail (card + timeline) ───────────────────────────────────────────

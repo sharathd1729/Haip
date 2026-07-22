@@ -104,6 +104,10 @@ class Inquiry(Base, TimestampMixin, TenantMixin):
 
     # AI
     ai_summary = Column(Text, nullable=True)
+    # Structured companion to ai_summary, written by the same Celery task
+    # (prompt leads360-summary-v2): {intent, sentiment, objection,
+    # reply_urgency, next_action}. Nullable — older leads keep prose only.
+    ai_analysis = Column(JSON, nullable=True)
     ai_next_action = Column(Text, nullable=True)
     ai_confidence = Column(Numeric(3, 2), nullable=True)
 

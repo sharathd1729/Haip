@@ -36,6 +36,45 @@ export interface LeadCard {
   assigned_agent_name?: string;
   last_touch_at?: string;
   created_at?: string;
+  // Computed on read from messages (see LeadCardSchema): "waiting" = guest's
+  // latest message unanswered, seconds = wait so far; "responded" = gap
+  // between inbound and reply; null = no messages yet.
+  response_time_seconds?: number | null;
+  response_time_status?: "waiting" | "responded" | null;
+}
+
+// ─── Response time badge ─────────────────────────────────────────────────────
+
+export function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return m % 60 ? `${h}h ${m % 60}m` : `${h}h`;
+  const d = Math.floor(h / 24);
+  return h % 24 ? `${d}d ${h % 24}h` : `${d}d`;
+}
+
+export function ResponseTimeBadge({ seconds, status }: { seconds?: number | null; status?: string | null }) {
+  if (seconds == null || !status) return null;
+  const waiting = status === "waiting";
+  // Waiting escalates: subtle under 15m, amber under 1h, red beyond.
+  const tone = !waiting
+    ? { bg: "color-mix(in srgb, var(--haip-green) 12%, transparent)", fg: "var(--haip-green)" }
+    : seconds < 15 * 60
+    ? { bg: "var(--muted)", fg: "var(--haip-fg-muted)" }
+    : seconds < 60 * 60
+    ? { bg: "color-mix(in srgb, var(--haip-amber) 15%, transparent)", fg: "var(--haip-amber)" }
+    : { bg: "rgba(244,63,94,0.12)", fg: "#e11d48" };
+  return (
+    <span
+      className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold whitespace-nowrap"
+      style={{ background: tone.bg, color: tone.fg }}
+      title={waiting ? "Guest is waiting for a reply" : "Time to first reply"}
+    >
+      {waiting ? `waiting ${formatDuration(seconds)}` : `replied in ${formatDuration(seconds)}`}
+    </span>
+  );
 }
 
 // ─── Completeness bar ─────────────────────────────────────────────────────────
@@ -185,11 +224,6 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
           {lead.group_type && lead.group_type !== lead.occasion && (
             <Pill label={lead.group_type} />
           )}
-          {lead.sla_breached && (
-            <span className="rounded-full px-2 py-0.5 text-[10px] font-medium bg-rose-50 text-rose-600 dark:bg-rose-950 dark:text-rose-400">
-              SLA
-            </span>
-          )}
         </div>
       )}
 
@@ -205,11 +239,14 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
       {/* Row 4: Completeness bar */}
       <CompletenessBar pct={lead.profile_completeness_pct} />
 
-      {/* Row 5: Last activity */}
-      <p className="text-[10px] flex items-center gap-1" style={{ color: "var(--haip-fg-subtle)" }}>
-        <Clock size={9} />
-        {lead.last_touch_at ? timeAgo(lead.last_touch_at) : "—"}
-      </p>
+      {/* Row 5: Last activity + response time */}
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] flex items-center gap-1" style={{ color: "var(--haip-fg-subtle)" }}>
+          <Clock size={9} />
+          {lead.last_touch_at ? timeAgo(lead.last_touch_at) : "—"}
+        </p>
+        <ResponseTimeBadge seconds={lead.response_time_seconds} status={lead.response_time_status} />
+      </div>
 
       {/* Row 6: Agent avatar + AI summary */}
       <div className="flex items-start gap-1.5 pt-0.5" style={{ borderTop: "1px solid var(--haip-border)" }}>

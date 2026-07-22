@@ -151,6 +151,103 @@ def _batch_signals(
     return result
 
 
+# ── Response time (computed on read, never stored) ───────────────────────────
+# The stored Inquiry.first_response_at / sla_breached columns are dead — no
+# code path writes them. Same computed-on-read pattern as
+# profile_completeness_pct; see LeadCardSchema for the field contract.
+
+def _batch_response_time(
+    db: Session,
+    tenant_id: str,
+    inquiry_ids: list[str],
+    now: Optional[datetime] = None,
+) -> dict[str, tuple[int, str]]:
+    """Per-inquiry response time across all its conversations, in two batch
+    queries (no N+1): (1) latest inbound message per conversation, (2) the
+    earliest outbound after that inbound. A conversation whose last inbound
+    has no later outbound is "waiting" (seconds = wait so far); otherwise
+    "responded" (seconds = inbound→reply gap). Per inquiry, any waiting
+    conversation outranks responded ones, and the longest wait wins.
+
+    Returns {inquiry_id: (seconds, status)}; inquiries with no inbound
+    messages are absent from the result."""
+    from sqlalchemy import func
+    from app.models.conversation import Conversation, Message, MessageDirection
+
+    if not inquiry_ids:
+        return {}
+    now = now or datetime.now(timezone.utc)
+
+    last_inbound_sq = (
+        db.query(
+            Message.conversation_id.label("conv_id"),
+            func.max(Message.created_at).label("last_in_at"),
+        )
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .filter(
+            Message.tenant_id == tenant_id,
+            Message.direction == MessageDirection.INBOUND,
+            Conversation.inquiry_id.in_(inquiry_ids),
+        )
+        .group_by(Message.conversation_id)
+        .subquery()
+    )
+
+    # (conversation_id, inquiry_id, last inbound time) for every conversation
+    # that has at least one inbound message
+    inbound_rows = (
+        db.query(Conversation.id, Conversation.inquiry_id, last_inbound_sq.c.last_in_at)
+        .join(last_inbound_sq, last_inbound_sq.c.conv_id == Conversation.id)
+        .all()
+    )
+    if not inbound_rows:
+        return {}
+
+    # Earliest outbound strictly after each conversation's last inbound
+    first_reply_rows = (
+        db.query(
+            Message.conversation_id,
+            func.min(Message.created_at).label("first_out_at"),
+        )
+        .join(last_inbound_sq, last_inbound_sq.c.conv_id == Message.conversation_id)
+        .filter(
+            Message.tenant_id == tenant_id,
+            Message.direction == MessageDirection.OUTBOUND,
+            Message.created_at > last_inbound_sq.c.last_in_at,
+        )
+        .group_by(Message.conversation_id)
+        .all()
+    )
+    reply_at_by_conv = {conv_id: t for conv_id, t in first_reply_rows}
+
+    def _aware(dt: datetime) -> datetime:
+        # SQLite (tests) returns naive datetimes even for timezone=True columns
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+    result: dict[str, tuple[int, str]] = {}
+    for conv_id, inquiry_id, last_in_at in inbound_rows:
+        last_in = _aware(last_in_at)
+        reply_at = reply_at_by_conv.get(conv_id)
+        if reply_at is None:
+            seconds = max(0, int((now - last_in).total_seconds()))
+            status = "waiting"
+        else:
+            seconds = max(0, int((_aware(reply_at) - last_in).total_seconds()))
+            status = "responded"
+
+        prev = result.get(inquiry_id)
+        if prev is None:
+            result[inquiry_id] = (seconds, status)
+            continue
+        prev_seconds, prev_status = prev
+        # waiting outranks responded; within the same status, longest wins
+        if (status == "waiting" and prev_status != "waiting") or (
+            status == prev_status and seconds > prev_seconds
+        ):
+            result[inquiry_id] = (seconds, status)
+    return result
+
+
 # ── Property interest ─────────────────────────────────────────────────────────
 
 def get_property_interest(
@@ -235,6 +332,7 @@ def build_timeline(
                 "direction": msg.direction.value if hasattr(msg.direction, "value") else str(msg.direction),
                 "occurred_at": msg.created_at,
                 "content_preview": body[:120],
+                "full_content": body or None,
                 "is_ai_generated": bool(getattr(msg, "is_ai_generated", False)),
             })
 
@@ -256,6 +354,8 @@ def build_timeline(
             "content_preview": (call.ai_summary or "")[:120] or "Call recorded",
             "is_ai_generated": False,
             "call_summary": call.ai_summary,
+            "call_duration_seconds": call.duration_seconds,
+            "call_qa_score": float(call.ai_score) if call.ai_score is not None else None,
         })
 
     # ── System events (merge log) ─────────────────────────────────────────────
@@ -290,8 +390,11 @@ def build_timeline(
             direction=e["direction"],
             occurred_at=e["occurred_at"],
             content_preview=e["content_preview"],
+            full_content=e.get("full_content"),
             is_ai_generated=e.get("is_ai_generated", False),
             call_summary=e.get("call_summary"),
+            call_duration_seconds=e.get("call_duration_seconds"),
+            call_qa_score=e.get("call_qa_score"),
         )
         for e in entries
     ]
@@ -340,6 +443,7 @@ def _build_lead_card(
     completeness: int,
     signals: list[str],
     property_interest: list[str],
+    response_time: Optional[tuple[int, str]] = None,
 ) -> LeadCardSchema:
     """Build a LeadCardSchema from an Inquiry ORM object and precomputed fields."""
     guest = inquiry.guest
@@ -380,10 +484,13 @@ def _build_lead_card(
         property_interest=property_interest,
         ai_summary=inquiry.ai_summary,
         ai_next_action=inquiry.ai_next_action,
+        ai_analysis=inquiry.ai_analysis,
         assigned_agent_name=assigned.name if assigned else None,
         assigned_agent_id=str(assigned.id) if assigned else None,
         last_touch_at=inquiry.updated_at,
         created_at=inquiry.created_at,
+        response_time_seconds=response_time[0] if response_time else None,
+        response_time_status=response_time[1] if response_time else None,
     )
 
 
@@ -506,12 +613,15 @@ def get_leads_pipeline(
         for inq in inquiries
     }
 
+    response_time_map = _batch_response_time(db, tenant_id, [inq.id for inq in inquiries])
+
     leads = [
         _build_lead_card(
             inq,
             completeness=completeness_map.get(inq.guest_id, 0),
             signals=signals_map.get(inq.guest_id, []),
             property_interest=prop_interest_map.get(inq.id, []),
+            response_time=response_time_map.get(inq.id),
         )
         for inq in inquiries
     ]
@@ -666,7 +776,8 @@ def get_lead_detail(
         for q in quotes_raw
     ]
 
-    card = _build_lead_card(inquiry, completeness, signals, property_interest)
+    response_time = _batch_response_time(db, tenant_id, [inquiry_id]).get(inquiry_id)
+    card = _build_lead_card(inquiry, completeness, signals, property_interest, response_time)
 
     from app.services.lead_field_service import get_field_values_for_inquiry
     try:
