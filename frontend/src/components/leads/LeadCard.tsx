@@ -164,7 +164,7 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
     >
       {/* Row 1: Guest name + source icon */}
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 min-w-0">
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
           <span className="font-medium text-sm truncate" style={{ color: "var(--haip-fg)" }}>
             {lead.display_name}
           </span>
@@ -172,11 +172,11 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
             <AlertCircle size={10} style={{ color: "var(--haip-fg-subtle)", flexShrink: 0 }} />
           )}
         </div>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          <ChannelIcon channel={src} className="flex-shrink-0" />
-          <StageSelect lead={lead} />
-        </div>
+        <ChannelIcon channel={src} className="flex-shrink-0" />
       </div>
+
+      {/* Row 1b: stage dropdown on its own line so it never squeezes the name */}
+      <StageSelect lead={lead} />
 
       {/* Row 2: Occasion + group type pills */}
       {(lead.occasion || lead.group_type) && (
