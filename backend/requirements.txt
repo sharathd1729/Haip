@@ -39,6 +39,11 @@ pywebpush>=2.0.0
 # No extra SDK needed; we call the OpenAI-compatible REST API via httpx.
 # (httpx is already listed above)
 
+# openai SDK — required by the NVIDIA NIM adapter (adapters/llm/nvidia_nim.py),
+# which uses it as an OpenAI-compatible client (base_url override + tool-calls
+# parsing) against integrate.api.nvidia.com. Not used for OpenAI itself.
+openai==1.59.5
+
 # Google Gemini — free LLM (1M tokens/day)
 google-generativeai==0.8.3
 
