@@ -150,6 +150,7 @@ import { IntentMixWidget }          from "./widgets/IntentMixWidget";
 import { ResponseTimeWidget }       from "./widgets/ResponseTimeWidget";
 import { AgentLeaderboardWidget }   from "./widgets/AgentLeaderboardWidget";
 import { InquiryFunnelWidget }      from "./widgets/InquiryFunnelWidget";
+import { LeadVsConversationWidget } from "./widgets/LeadVsConversationWidget";
 import { ChannelMixWidget }         from "./widgets/ChannelMixWidget";
 import { AttributionWidget }        from "./widgets/AttributionWidget";
 import { CampaignPerformanceWidget }from "./widgets/CampaignPerformanceWidget";
@@ -171,6 +172,7 @@ const WIDGET_COMPONENTS: Record<string, React.ComponentType<{ data: any }>> = {
   response_time:        ResponseTimeWidget,
   agent_leaderboard:    AgentLeaderboardWidget,
   inquiry_funnel:       InquiryFunnelWidget,
+  lead_vs_conversation: LeadVsConversationWidget,
   channel_mix:          ChannelMixWidget,
   attribution:          AttributionWidget,
   campaign_performance: CampaignPerformanceWidget,

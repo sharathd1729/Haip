@@ -62,7 +62,7 @@ class TestGenerateWidgetsTask:
         assert count == 1
 
     def test_all_widget_keys_in_registry(self):
-        assert len(WIDGET_REGISTRY) == 18
+        assert len(WIDGET_REGISTRY) == 19
 
     def test_tenant_isolation(self, db):
         from app.services.widget_service import detect_modules, upsert_widget

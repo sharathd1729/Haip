@@ -76,12 +76,12 @@ class TestUpdateConfig:
 
 
 class TestWidgetLibrary:
-    def test_returns_18_widgets(self, client, tenant_and_user):
+    def test_returns_19_widgets(self, client, tenant_and_user):
         _, _, tokens = tenant_and_user
         resp = client.get("/api/v1/dashboard/widget-library", headers=auth_headers(tokens))
         assert resp.status_code == 200
         library = resp.json()["library"]
-        assert len(library) == 18
+        assert len(library) == 19
 
     def test_each_entry_has_category(self, client, tenant_and_user):
         _, _, tokens = tenant_and_user

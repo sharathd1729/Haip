@@ -18,7 +18,7 @@ from sqlalchemy import func, false as sa_false
 from app.models.tenant import Tenant
 from app.models.call import Call
 from app.models.inquiry import Inquiry, InquiryStage
-from app.models.conversation import Message, MessageDirection
+from app.models.conversation import Conversation, Message, MessageDirection
 from app.models.property import Stay, Property
 from app.models.integration import Integration
 from app.models.dashboard_widget import DashboardWidget
@@ -52,6 +52,7 @@ WIDGET_REGISTRY: dict[str, WidgetDef] = {d.key: d for d in [
     WidgetDef("response_time",      "Response Time",        "p95 first-reply latency",              "messaging", [],                             5,  4),
     WidgetDef("agent_leaderboard",  "Agent Leaderboard",    "Concierge QA score ranking",           "calls",     ["ivr"],                        5,  4),
     WidgetDef("inquiry_funnel",     "Inquiry Funnel",       "Stage-by-stage conversion",            "revenue",   [],                             10, 6),
+    WidgetDef("lead_vs_conversation","Lead vs Conversation", "New leads vs. conversations, daily",  "messaging", [],                             5,  6),
     WidgetDef("channel_mix",        "Channel Mix",          "Inbound volume by channel",            "messaging", ["whatsapp"],                   10, 4),
     WidgetDef("attribution",        "Lead Attribution",     "Which sources drive bookings",         "revenue",   [],                             10, 24),
     WidgetDef("campaign_performance","Campaign Performance","WhatsApp blast outcomes",              "messaging", ["whatsapp"],                   5,  6),
@@ -154,6 +155,11 @@ def _count_rows(db: Session, tid: str, widget_key: str) -> int:
     if widget_key in ("inquiry_funnel", "attribution"):
         return db.query(func.count(Inquiry.id)).filter(
             Inquiry.tenant_id == tid,
+        ).scalar() or 0
+    if widget_key == "lead_vs_conversation":
+        return db.query(func.count(Inquiry.id)).filter(
+            Inquiry.tenant_id == tid,
+            Inquiry.created_at >= start_30d,
         ).scalar() or 0
     if widget_key in ("occupancy_forecast", "revenue_forecast", "pricing",
                        "churn_risk", "cohorts", "guest_ltv"):
@@ -361,6 +367,53 @@ def _channel_mix(db, tid, start, end, now):
     return data, summary
 
 
+def _lead_vs_conversation(db, tid, start, end, now):
+    """Daily count of new leads (Inquiry.created_at) vs. new conversations
+    (Conversation.created_at, linked via inquiry_id per the core data thread
+    Inquiry -> Conversation -> Booking -> Stay -> Revenue)."""
+    # func.date() returns a plain date under Postgres but a string under
+    # SQLite (used in tests) -- normalize both sides to ISO strings so the
+    # dict lookup below isn't dialect-dependent.
+    lead_rows = {
+        str(d): c for d, c in
+        db.query(func.date(Inquiry.created_at), func.count(Inquiry.id))
+        .filter(Inquiry.tenant_id == tid, Inquiry.created_at >= start)
+        .group_by(func.date(Inquiry.created_at)).all()
+    }
+    convo_rows = {
+        str(d): c for d, c in
+        db.query(func.date(Conversation.created_at), func.count(Conversation.id))
+        .filter(Conversation.tenant_id == tid, Conversation.created_at >= start)
+        .group_by(func.date(Conversation.created_at)).all()
+    }
+    # _date_range() here returns a (start, end) bound tuple, not a day list --
+    # build the day list locally instead.
+    # Inclusive of end_d ("today", since end == now) -- unlike calendar.py's
+    # [from, to) grid semantics, this window would otherwise silently drop
+    # today's leads until tomorrow.
+    from datetime import timedelta as _td
+    day_list = []
+    cur = start.date() if hasattr(start, "date") else start
+    end_d = end.date() if hasattr(end, "date") else end
+    while cur <= end_d:
+        day_list.append(cur)
+        cur += _td(days=1)
+
+    series = [
+        {
+            "date": d.isoformat(),
+            "leads": lead_rows.get(d.isoformat(), 0),
+            "conversations": convo_rows.get(d.isoformat(), 0),
+        }
+        for d in day_list
+    ]
+    total_leads = sum(p["leads"] for p in series)
+    total_convos = sum(p["conversations"] for p in series)
+    data = {"series": series, "total_leads": total_leads, "total_conversations": total_convos}
+    summary = f"{total_leads} leads vs. {total_convos} conversations over the last {len(series)} days."
+    return data, summary
+
+
 def _attribution(db, tid, start, end, now):
     from app.models.inquiry import InquirySource
     from app.services.pipeline_stage_service import get_stage_ids_by_flag
@@ -481,6 +534,7 @@ _BUILDERS = {
     "response_time":       _response_time,
     "agent_leaderboard":   _agent_leaderboard,
     "inquiry_funnel":      _inquiry_funnel,
+    "lead_vs_conversation":_lead_vs_conversation,
     "channel_mix":         _channel_mix,
     "attribution":         _attribution,
     "campaign_performance":_campaign_performance,

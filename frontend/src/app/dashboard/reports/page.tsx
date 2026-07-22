@@ -302,10 +302,20 @@ export default function ReportsPage() {
     <div className="h-full flex flex-col bg-gray-50">
       {/* Header */}
       <div className="px-6 py-5 bg-white border-b border-gray-100 flex-shrink-0">
-        <h1 className="text-xl font-bold text-gray-900">Reports</h1>
-        <p className="text-sm text-gray-400 mt-0.5">
-          Build custom data exports — choose a report type, set the date range, pick columns, then download as CSV or JSON.
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Reports</h1>
+            <p className="text-sm text-gray-400 mt-0.5">
+              Build custom data exports — choose a report type, set the date range, pick columns, then download as CSV or JSON.
+            </p>
+          </div>
+          <a
+            href="/dashboard/reports/analytics"
+            className="text-xs font-medium text-teal-600 hover:underline whitespace-nowrap"
+          >
+            View chart analytics →
+          </a>
+        </div>
 
         {/* Step tracker */}
         <div className="flex items-center gap-2 mt-4">

@@ -551,3 +551,49 @@ def export_report(
         output.write(",".join(body.fields) + "\n")
     output.seek(0)
     return StreamingResponse(output, media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="{filename}.csv"'})
+
+
+# ─── Aggregate/chart reports ────────────────────────────────────────────────
+# Unlike the row-export catalog above, these return pre-aggregated series for
+# chart rendering. Auth matches the rest of this file (OWNER/MANAGER/COMPLIANCE).
+
+@router.get("/lead-source-breakdown")
+def get_lead_source_breakdown(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER, UserRole.COMPLIANCE)),
+):
+    from app.services.leads_service import get_source_breakdown
+    df, dt = _date_range(date_from, date_to)
+    rows = get_source_breakdown(db, current_user.tenant_id, datetime.fromisoformat(df), datetime.fromisoformat(dt))
+    return {"date_from": df, "date_to": dt, "sources": rows}
+
+
+@router.get("/lead-funnel-daily")
+def get_lead_funnel_daily(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER, UserRole.COMPLIANCE)),
+):
+    from app.services.leads_service import get_daily_lead_funnel
+    df, dt = _date_range(date_from, date_to)
+    rows = get_daily_lead_funnel(db, current_user.tenant_id, datetime.fromisoformat(df), datetime.fromisoformat(dt))
+    return {"date_from": df, "date_to": dt, "daily": rows}
+
+
+@router.get("/occupancy-summary")
+def get_reports_occupancy_summary(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER, UserRole.COMPLIANCE)),
+):
+    """Thin wrapper around calendar.py's occupancy grid aggregation so this
+    report sits alongside the others under /reports for the frontend."""
+    from app.api.v1.endpoints.calendar import get_occupancy_summary
+    df, dt = _date_range(date_from, date_to)
+    from_d = datetime.fromisoformat(df).date().isoformat()
+    to_d = datetime.fromisoformat(dt).date().isoformat()
+    return get_occupancy_summary(from_date=from_d, to_date=to_d, db=db, current_user=current_user)

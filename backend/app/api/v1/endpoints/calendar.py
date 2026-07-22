@@ -526,3 +526,89 @@ def list_blocks(
         }
         for b in blocks
     ]
+
+
+@router.get("/occupancy-summary")
+def get_occupancy_summary(
+    from_date: str = Query(..., description="YYYY-MM-DD start of window"),
+    to_date: str = Query(..., description="YYYY-MM-DD end of window (exclusive)"),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Per-day occupancy % across the active property portfolio, for reporting/
+    trend charts. Reuses get_calendar()'s _date_range/_cell_status day-grid
+    logic rather than re-deriving occupied-vs-total from scratch."""
+    tenant_id = current_user.tenant_id
+    start = date.fromisoformat(from_date)
+    end = date.fromisoformat(to_date)
+    days = _date_range(start, end)
+
+    properties = db.query(Property).filter_by(tenant_id=tenant_id, is_active=True).all()
+    all_pids = [p.id for p in properties]
+    total_properties = len(all_pids)
+
+    stays_by_prop: dict = {pid: [] for pid in all_pids}
+    if all_pids:
+        stays_all = (
+            db.query(Stay)
+            .filter(
+                Stay.property_id.in_(all_pids),
+                Stay.tenant_id == tenant_id,
+                Stay.status.notin_(["cancelled", "checked_out"]),
+                Stay.check_in < to_date,
+                Stay.check_out > from_date,
+            )
+            .all()
+        )
+        for s in stays_all:
+            stays_by_prop.setdefault(s.property_id, []).append(
+                {"check_in": s.check_in, "check_out": s.check_out, "status": s.status}
+            )
+
+    blocks_by_prop: dict = {pid: [] for pid in all_pids}
+    if all_pids:
+        blocks_all = (
+            db.query(BlockedDate)
+            .filter(
+                BlockedDate.property_id.in_(all_pids),
+                BlockedDate.tenant_id == tenant_id,
+                BlockedDate.is_active == True,
+                BlockedDate.blocked_from < to_date,
+                BlockedDate.blocked_to > from_date,
+            )
+            .all()
+        )
+        for b in blocks_all:
+            blocks_by_prop.setdefault(b.property_id, []).append(
+                {"blocked_from": b.blocked_from, "blocked_to": b.blocked_to,
+                 "reason": b.reason, "is_active": b.is_active}
+            )
+
+    daily = []
+    total_occupied_nights = 0
+    for day in days:
+        occupied = sum(
+            1 for pid in all_pids
+            if _cell_status(day, stays_by_prop.get(pid, []), blocks_by_prop.get(pid, [])) in ("confirmed", "checked_in")
+        )
+        total_occupied_nights += occupied
+        daily.append({
+            "date": day,
+            "occupied_properties": occupied,
+            "total_properties": total_properties,
+            "occupancy_pct": round(occupied / total_properties * 100, 1) if total_properties else 0,
+        })
+
+    total_possible_nights = total_properties * len(days)
+    return {
+        "from_date": from_date,
+        "to_date": to_date,
+        "daily": daily,
+        "summary": {
+            "avg_occupancy_pct": (
+                round(total_occupied_nights / total_possible_nights * 100, 1)
+                if total_possible_nights else 0
+            ),
+            "total_properties": total_properties,
+        },
+    }

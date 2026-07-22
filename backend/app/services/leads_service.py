@@ -685,3 +685,87 @@ def get_lead_detail(
         quote_history=quote_history,
         custom_field_values=custom_field_values,
     )
+
+
+# ── Reporting aggregations ──────────────────────────────────────────────────
+
+def get_source_breakdown(
+    db: Session,
+    tenant_id: str,
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
+) -> list[dict]:
+    """Lead count per inquiries.source, with conversion rate to a closed-won
+    pipeline stage. Same PipelineStage join style as _build_stage_summary."""
+    from sqlalchemy import func, case
+
+    q = (
+        db.query(
+            Inquiry.source,
+            func.count(Inquiry.id).label("total"),
+            func.coalesce(func.sum(case((PipelineStage.is_closed_won.is_(True), 1), else_=0)), 0).label("won"),
+        )
+        .outerjoin(PipelineStage, PipelineStage.id == Inquiry.stage_id)
+        .filter(Inquiry.tenant_id == tenant_id)
+    )
+    if date_from:
+        q = q.filter(Inquiry.created_at >= date_from)
+    if date_to:
+        q = q.filter(Inquiry.created_at <= date_to)
+
+    rows = q.group_by(Inquiry.source).all()
+    return [
+        {
+            "source": row.source.value if row.source else "UNKNOWN",
+            "total_leads": row.total,
+            "converted": row.won,
+            "conversion_rate": round(row.won / row.total, 4) if row.total else 0.0,
+        }
+        for row in rows
+    ]
+
+
+def get_daily_lead_funnel(
+    db: Session,
+    tenant_id: str,
+    date_from: datetime,
+    date_to: datetime,
+) -> list[dict]:
+    """Per-day lead counts split by pipeline_stages.category ("valid" is the
+    only category that counts as a real lead per the category column's own
+    docstring in pipeline_stage.py) plus closed-won conversions.
+
+    Inquiries whose stage_id hasn't been backfilled to a PipelineStage yet
+    fall into neither "valid" nor "invalid" -- excluded from both buckets,
+    same exclusion _build_stage_summary already applies for unmapped stages,
+    but still counted in total_leads since the lead itself is real."""
+    from sqlalchemy import func, case
+
+    day = func.date(Inquiry.created_at)
+    q = (
+        db.query(
+            day.label("day"),
+            func.count(Inquiry.id).label("total"),
+            func.coalesce(func.sum(case((PipelineStage.category == "valid", 1), else_=0)), 0).label("valid"),
+            func.coalesce(func.sum(case((PipelineStage.category == "invalid", 1), else_=0)), 0).label("invalid"),
+            func.coalesce(func.sum(case((PipelineStage.is_closed_won.is_(True), 1), else_=0)), 0).label("converted"),
+        )
+        .outerjoin(PipelineStage, PipelineStage.id == Inquiry.stage_id)
+        .filter(
+            Inquiry.tenant_id == tenant_id,
+            Inquiry.created_at >= date_from,
+            Inquiry.created_at <= date_to,
+        )
+        .group_by(day)
+        .order_by(day)
+    )
+    return [
+        {
+            "date": str(row.day),
+            "total_leads": row.total,
+            "valid": row.valid,
+            "invalid": row.invalid,
+            "converted": row.converted,
+        }
+        for row in q.all()
+    ]
