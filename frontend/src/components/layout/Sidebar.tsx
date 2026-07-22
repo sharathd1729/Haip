@@ -115,6 +115,11 @@ const NAV_ITEMS: NavItem[] = [
     icon: BarChart2,
     resource: "analytics",
     section: "Intelligence",
+    children: [
+      { label: "Analytics",  href: "/dashboard/analytics" },
+      { label: "Charts",     href: "/dashboard/reports/analytics" },
+      { label: "Exports",    href: "/dashboard/reports" },
+    ],
   },
   {
     label: "Ask HAIP",
