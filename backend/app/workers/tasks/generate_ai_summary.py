@@ -15,13 +15,13 @@ Constitution checks:
 """
 
 import asyncio
-import logging
+import structlog
 
 from app.workers.celery_app import celery_app
 from app.core.database import SessionLocal
 from app.adapters.llm import get_llm
 
-log = logging.getLogger(__name__)
+log = structlog.get_logger()
 
 PROMPT_VERSION = "leads360-summary-v2"
 

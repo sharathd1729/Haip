@@ -11,13 +11,13 @@ Pass thinking=True to enable it (used for deep_reason and ask_haip_rca tasks).
 from __future__ import annotations
 
 import json
-import logging
+import structlog
 from typing import Optional
 
 from app.adapters.llm.base import LLMAdapter
 from app.core.config import settings
 
-log = logging.getLogger(__name__)
+log = structlog.get_logger()
 
 _BASE_URL = "https://integrate.api.nvidia.com/v1"
 
