@@ -126,6 +126,10 @@ const NAV_ITEMS: NavItem[] = [
     href: "/dashboard/ask-haip",
     icon: Sparkles,
     resource: "analytics",
+    children: [
+      { label: "Ask",     href: "/dashboard/ask-haip" },
+      { label: "Reports", href: "/dashboard/analytics/ask/reports" },
+    ],
   },
   {
     label: "Automations",

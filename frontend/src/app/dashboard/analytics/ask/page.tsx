@@ -17,6 +17,7 @@ import {
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
+import { AgentChart, type ChartSpec } from "@/components/ask-haip/AgentChart";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -63,6 +64,7 @@ interface AgentOutput {
   top_concern?: string;
   top_positive?: string;
   summary: string;
+  charts?: ChartSpec[];
 }
 
 interface Finding {
@@ -419,9 +421,16 @@ function AgentPanel({ agents }: { agents: Record<string, AgentOutput> }) {
 
             {/* Top signal */}
             {(agent.top_concern || agent.top_positive) && (
-              <p className="text-[10px] text-gray-500 leading-relaxed">
+              <p className="text-[10px] text-gray-500 leading-relaxed mb-3">
                 {agent.top_concern || agent.top_positive}
               </p>
+            )}
+
+            {/* Charts */}
+            {agent.charts && agent.charts.length > 0 && (
+              <div className="space-y-2">
+                {agent.charts.map((spec, i) => <AgentChart key={i} spec={spec} />)}
+              </div>
             )}
           </div>
         ))}
