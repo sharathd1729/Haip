@@ -119,8 +119,13 @@ class InstagramGraphAdapter:
     # ── Profile fetch ──────────────────────────────────────────────────────────
 
     def get_user_profile(self, user_id: str) -> dict:
-        """Fetch name + profile_pic for an Instagram user (requires instagram_manage_messages permission)."""
-        return self._get(f"/{user_id}", params={"fields": "name,profile_pic"})
+        """Fetch name + username + profile_pic for an Instagram user (requires
+        instagram_manage_messages permission). Meta's Send API user-profile
+        endpoint no longer reliably returns "name" for most business
+        integrations (platform restriction, not something we control) --
+        "username" (the @handle) is still returned and is what callers should
+        fall back to when "name" is empty."""
+        return self._get(f"/{user_id}", params={"fields": "name,username,profile_pic"})
 
     # ── Conversation listing ───────────────────────────────────────────────────
 

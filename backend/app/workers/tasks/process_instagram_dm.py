@@ -444,12 +444,19 @@ def backfill_instagram_guest_name(self, tenant_id: str, guest_id: str, sender_id
         ig_adapter = InstagramGraphAdapter(access_token=access_token, ig_account_id=account_id)
         profile = ig_adapter.get_user_profile(sender_id)
         real_name = profile.get("name", "")
+        username = profile.get("username", "")
 
-        if real_name and not real_name.startswith("IG User "):
-            guest.name = real_name
+        # Meta's Send API user-profile endpoint no longer reliably returns
+        # "name" for most business integrations (platform restriction) --
+        # "username" (the @handle) is still returned and is a real
+        # improvement over the numeric placeholder even when "name" is empty.
+        resolved_name = real_name or (f"@{username}" if username else "")
+
+        if resolved_name and not resolved_name.startswith("IG User "):
+            guest.name = resolved_name
             db.commit()
-            logger.info("Backfilled Instagram guest name: %s -> %s", guest_id, real_name)
-            return {"status": "ok", "guest_id": guest_id, "name": real_name}
+            logger.info("Backfilled Instagram guest name: %s -> %s", guest_id, resolved_name)
+            return {"status": "ok", "guest_id": guest_id, "name": resolved_name}
 
         return {"status": "no_name_available"}
     except Exception as exc:
