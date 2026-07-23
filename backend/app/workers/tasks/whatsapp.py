@@ -1,6 +1,7 @@
 """WhatsApp Cloud API message processing."""
 import hashlib
 import uuid
+from datetime import datetime, timezone
 from sqlalchemy.exc import IntegrityError
 from app.workers.celery_app import celery_app
 from app.core.database import SessionLocal
@@ -226,6 +227,15 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
         body = msg.get(msg_type, {}).get("caption", "")
     elif msg_type == "interactive":
         body = str(msg.get("interactive", {}).get("button_reply", {}).get("title", ""))
+
+    # Inbox sort key -- Instagram's inbound handlers
+    # (process_instagram_dm.py/process_instagram_comment.py) already set this
+    # on every message; this path never did, so any WhatsApp conversation the
+    # team hasn't replied to yet has a NULL last_message_at, sorts dead last
+    # (nullslast()), and gets pushed off the default 50-item inbox fetch by
+    # Instagram's much higher volume -- effectively invisible until someone
+    # happens to reply to it first.
+    conversation.last_message_at = datetime.now(timezone.utc).isoformat()
 
     message = Message(
         id=str(uuid.uuid4()),
