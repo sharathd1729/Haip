@@ -15,7 +15,14 @@ const ALL_STAGES_ID = "__all__";
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 
 async function fetchLeads(stage: string | undefined, filters: LeadsFilters, page = 1) {
-  const params: Record<string, string | number> = { page, page_size: 50, ...filters };
+  // The board is a single Kanban view bucketed client-side by stage, not an
+  // incremental-scroll list -- there's no "load more" affordance anywhere in
+  // this component. A page_size of 50 silently truncated the whole pipeline
+  // once total leads passed 50, burying entire stage columns (their count
+  // badge -- a separate unpaginated query -- still showed the true count,
+  // while the card list underneath rendered "No leads here"). Request enough
+  // to cover realistic tenant sizes in one shot.
+  const params: Record<string, string | number> = { page, page_size: 1000, ...filters };
   if (stage && stage !== ALL_STAGES_ID) params.stage = stage;
   const res = await api.get("/leads", { params });
   return res.data;
