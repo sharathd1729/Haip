@@ -10,7 +10,7 @@ the numeric "IG User ######" placeholder forever.
 """
 import os
 import uuid
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from cryptography.fernet import Fernet
 
@@ -115,5 +115,39 @@ def test_no_name_or_username_leaves_placeholder(db):
         result = backfill_instagram_guest_name.run(tenant_id=tenant.id, guest_id=guest.id, sender_id="929817850128977")
 
     assert result["status"] == "no_name_available"
+    db.refresh(guest)
+    assert guest.name.startswith("IG User ")
+
+
+def test_consent_required_500_is_permanent_not_retried(db):
+    """Meta wraps IGApiException code 230 ("User consent is required to
+    access user profile") in an HTTP 500 -- confirmed live against most of
+    Ratha's actual Instagram senders. Must be treated as permanent (like a
+    4xx), not retried -- retrying burns 5 attempts with backoff on every
+    single message from a guest who will never grant that consent, since
+    this task re-fires per new message while the guest stays on the
+    placeholder name."""
+    tenant = _make_tenant(db)
+    _make_ig_integration(db, tenant.id)
+    guest = _make_placeholder_guest(db, tenant.id)
+    db.commit()
+
+    fake_response = MagicMock()
+    fake_response.status_code = 500
+    fake_response.json.return_value = {
+        "error": {"message": "User consent is required to access user profile", "type": "IGApiException", "code": 230}
+    }
+    consent_error = Exception("Server error '500 Internal Server Error'")
+    consent_error.response = fake_response
+
+    with patch.object(mod, "SessionLocal", return_value=_NoCloseSessionWrapper(db)), \
+         patch(
+        "app.adapters.instagram.meta_graph.InstagramGraphAdapter.get_user_profile",
+        side_effect=consent_error,
+    ):
+        # Must return normally (permanent failure), not raise Retry.
+        result = backfill_instagram_guest_name.run(tenant_id=tenant.id, guest_id=guest.id, sender_id="929817850128977")
+
+    assert result["status"] == "error"
     db.refresh(guest)
     assert guest.name.startswith("IG User ")

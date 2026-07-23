@@ -463,8 +463,27 @@ def backfill_instagram_guest_name(self, tenant_id: str, guest_id: str, sender_id
         # 4xx from the Graph API (permission denied, user not found, etc.) will
         # never succeed on retry -- give up permanently on those. Anything else
         # (timeouts, 5xx, network errors) is transient -- retry with backoff.
-        status_code = getattr(getattr(exc, "response", None), "status_code", None)
-        if status_code and 400 <= status_code < 500:
+        #
+        # One exception to the status-code rule: Meta wraps IGApiException
+        # code 230 ("User consent is required to access user profile") in an
+        # HTTP 500, even though it's a permanent per-user privacy restriction,
+        # not a server error -- some Instagram users simply haven't granted
+        # the consent Meta requires before any app can fetch their profile,
+        # and no amount of retrying changes that. Confirmed live: this fires
+        # for most Instagram senders, while a plain "5xx, retry" treatment
+        # would burn all 5 retries (with backoff) on every single one of them,
+        # forever, since this task re-fires on every new message from a guest
+        # still on the placeholder name.
+        response = getattr(exc, "response", None)
+        status_code = getattr(response, "status_code", None)
+        is_consent_required = False
+        if response is not None:
+            try:
+                is_consent_required = response.json().get("error", {}).get("code") == 230
+            except Exception:
+                pass
+
+        if is_consent_required or (status_code and 400 <= status_code < 500):
             logger.warning(
                 "backfill_instagram_guest_name permanently failed for guest %s: %s", guest_id, exc
             )
