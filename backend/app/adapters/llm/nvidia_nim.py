@@ -42,18 +42,20 @@ def _get_api_key(model: str) -> str:
 
 
 class NvidiaNIMAdapter(LLMAdapter):
-    def __init__(self, api_key: str | None = None):
+    def __init__(self, api_key: str | None = None, default_model: str = "nvidia/llama-3.3-nemotron-super-49b-v1.5"):
         self._api_key_override = api_key  # explicit override (e.g. tests)
+        self._default_model = default_model
 
     async def complete(
         self,
         system_prompt: str,
         user_message: str,
-        model: str = "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        model: Optional[str] = None,
         max_tokens: int = 4096,
         tools: Optional[list] = None,
         thinking: bool = False,
     ) -> dict:
+        model = model or self._default_model
         api_key = self._api_key_override or _get_api_key(model)
         if not api_key:
             raise RuntimeError(

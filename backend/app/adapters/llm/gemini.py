@@ -133,11 +133,14 @@ class GeminiAdapter(LLMAdapter):
       returns {"content": str, "tool_use": dict | None, ...}
     """
 
+    def __init__(self, default_model: str = GEMINI_FLASH):
+        self._default_model = default_model
+
     async def complete(
         self,
         system_prompt: str,
         user_message: str,
-        model: str = GEMINI_FLASH,
+        model: Optional[str] = None,
         max_tokens: int = 4096,
         tools: Optional[list] = None,
     ) -> dict:
@@ -149,6 +152,7 @@ class GeminiAdapter(LLMAdapter):
         Native FC avoids the aggressive token truncation that occurs with
         JSON mode on gemini-2.5-flash.
         """
+        model = model or self._default_model
         gemini_model = _map_model(model)
         url = _build_url(gemini_model)
 

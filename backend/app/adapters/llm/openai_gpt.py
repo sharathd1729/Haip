@@ -16,17 +16,19 @@ log = logging.getLogger(__name__)
 
 
 class OpenAIAdapter(LLMAdapter):
-    def __init__(self, api_key: str | None = None):
+    def __init__(self, api_key: str | None = None, default_model: str = "gpt-4o-mini"):
         self._api_key = api_key or settings.OPENAI_API_KEY
+        self._default_model = default_model
 
     async def complete(
         self,
         system_prompt: str,
         user_message: str,
-        model: str = "gpt-4o-mini",
+        model: Optional[str] = None,
         max_tokens: int = 1024,
         tools: Optional[list] = None,
     ) -> dict:
+        model = model or self._default_model
         try:
             import openai
         except ImportError:

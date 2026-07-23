@@ -16,17 +16,19 @@ MODEL_SONNET = "claude-sonnet-4-6"
 
 
 class ClaudeAdapter(LLMAdapter):
-    def __init__(self):
+    def __init__(self, default_model: str = MODEL_HAIKU):
         self._client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+        self._default_model = default_model
 
     async def complete(
         self,
         system_prompt: str,
         user_message: str,
-        model: str = MODEL_HAIKU,
+        model: Optional[str] = None,
         max_tokens: int = 2048,
         tools: Optional[list] = None,
     ) -> dict:
+        model = model or self._default_model
         kwargs = dict(
             model=model,
             max_tokens=max_tokens,

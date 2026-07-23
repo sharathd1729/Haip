@@ -104,21 +104,30 @@ def get_llm_adapter(provider: Optional[str] = None) -> LLMAdapter:
 # ─── Internals ───────────────────────────────────────────────────────────────
 
 def _build_adapter(provider: str, model: Optional[str]) -> LLMAdapter:
+    # `model` here is the task-routed model (from _TASK_ROUTES). It's bound
+    # as each adapter's default_model so callers that don't pass model=
+    # explicitly to .complete() still get the routed model, not whatever
+    # hardcoded literal the adapter class happens to default to. Previously
+    # this was silently discarded here -- every get_llm(task).complete(...)
+    # call without an explicit model= kwarg used the adapter's own class
+    # default regardless of the routing table, which is how ask_haip_rca /
+    # deep_reason ended up silently running on llama-3.3-nemotron-super-49b
+    # instead of the routed nemotron-3-ultra-550b-a55b thinking model.
     if provider == "nvidia":
         from app.adapters.llm.nvidia_nim import NvidiaNIMAdapter
-        return NvidiaNIMAdapter()
+        return NvidiaNIMAdapter(default_model=model) if model else NvidiaNIMAdapter()
 
     if provider == "claude":
         from app.adapters.llm.anthropic_claude import ClaudeAdapter
-        return ClaudeAdapter()
+        return ClaudeAdapter(default_model=model) if model else ClaudeAdapter()
 
     if provider == "gemini":
         from app.adapters.llm.gemini import GeminiAdapter
-        return GeminiAdapter()
+        return GeminiAdapter(default_model=model) if model else GeminiAdapter()
 
     if provider == "openai":
         from app.adapters.llm.openai_gpt import OpenAIAdapter
-        return OpenAIAdapter()
+        return OpenAIAdapter(default_model=model) if model else OpenAIAdapter()
 
     raise ValueError(
         f"Unknown LLM provider: {provider!r}. "
