@@ -503,6 +503,62 @@ def _apply_stage_by_id(
         from_stage=old_stage.key, to_stage=new_stage.key, actor=actor_user_id,
     )
 
+    if new_stage.is_closed_won:
+        _create_stay_for_won_inquiry(db, inquiry)
+
+
+def _create_stay_for_won_inquiry(db: Session, inquiry: Inquiry) -> None:
+    """
+    A lead marked as won ("Sold") represents a real booking -- create the
+    Stay record so it shows up alongside PMS-synced bookings on the
+    property calendar. HAIP is not the source of truth for bookings
+    (Hostaway/eZee are, per CLAUDE.md), but a directly-sold lead has no
+    PMS counterpart to sync from, so this is the only way it ever becomes
+    a Stay. hostaway_booking_id is left null (not PMS-sourced);
+    channel_source="direct" distinguishes it from PMS-synced rows.
+
+    property_id/check_in/check_out are required on Stay (NOT NULL) but are
+    often unset on chat/WhatsApp-sourced leads -- skip (log, don't block
+    the stage move) rather than writing a half-populated Stay.
+    """
+    if not (inquiry.property_id and inquiry.check_in and inquiry.check_out):
+        log.warning(
+            "won_inquiry_missing_booking_fields_no_stay_created",
+            inquiry_id=inquiry.id,
+            has_property_id=bool(inquiry.property_id),
+            has_check_in=bool(inquiry.check_in),
+            has_check_out=bool(inquiry.check_out),
+        )
+        return
+
+    from app.models.property import Stay
+    from app.models.base import gen_uuid
+
+    existing = db.query(Stay).filter_by(inquiry_id=inquiry.id).first()
+    if existing:
+        return  # idempotent -- a re-entry into the won stage shouldn't duplicate the Stay
+
+    amount = inquiry.quoted_amount if inquiry.quoted_amount is not None else inquiry.budget
+    stay = Stay(
+        id=gen_uuid(),
+        tenant_id=inquiry.tenant_id,
+        guest_id=inquiry.guest_id,
+        property_id=inquiry.property_id,
+        inquiry_id=inquiry.id,
+        check_in=inquiry.check_in,
+        check_out=inquiry.check_out,
+        adults=inquiry.adults or 1,
+        children=inquiry.children or 0,
+        status="confirmed",
+        total_amount=amount,
+        currency=inquiry.currency or "INR",
+        occasion=inquiry.occasion,
+        channel_source="direct",
+    )
+    db.add(stay)
+    db.flush(objects=[stay])
+    log.info("stay_created_from_won_inquiry", inquiry_id=inquiry.id, stay_id=stay.id)
+
 
 def update_status(db: Session, tenant_id: str, inquiry_id: str, stage: str, **kwargs) -> Inquiry:
     """
