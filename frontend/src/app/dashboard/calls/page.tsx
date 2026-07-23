@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import {
   Phone, Upload, X, Filter, Calendar, Sparkles,
-  Search, ChevronRight, TrendingUp, TrendingDown, Minus,
+  Search, ChevronRight, TrendingUp, TrendingDown, Minus, AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EmptyCalls } from "@/components/empty-states/EmptyCalls";
@@ -249,7 +249,7 @@ export default function CallsPage() {
   const [search, setSearch] = useState("");
   const [activeCallId, setActiveCallId] = useState<string | null>(null);
 
-  const { data: calls = [], isLoading } = useQuery<CallItem[]>({
+  const { data: calls = [], isLoading, isError, error } = useQuery<CallItem[]>({
     queryKey: ["calls", filters],
     queryFn: () => {
       const params: Record<string, string> = {};
@@ -387,6 +387,16 @@ export default function CallsPage() {
                 <Skeleton className="w-12 h-5 rounded-full" />
               </div>
             ))}
+          </div>
+        ) : isError ? (
+          <div className="flex flex-col items-center justify-center py-24 text-center gap-2">
+            <AlertCircle size={28} className="text-rose-500" />
+            <p className="font-semibold" style={{ color: "var(--haip-fg)" }}>Couldn't load calls</p>
+            <p className="text-xs max-w-sm" style={{ color: "var(--haip-fg-subtle)" }}>
+              {(error as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+                || (error as Error)?.message
+                || "Unknown error — check the browser console or try refreshing."}
+            </p>
           </div>
         ) : filtered.length === 0 ? (
           <EmptyCalls />
