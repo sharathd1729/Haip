@@ -994,14 +994,24 @@ export default function PortfolioCalendarPage() {
 
           {/* Date nav */}
           <div className="flex items-center gap-0.5 bg-gray-100 rounded-xl p-0.5">
-            <button onClick={prevPeriod} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white text-gray-600">
-              <ChevronLeft size={14} />
+            <button
+              onClick={prevPeriod}
+              title={`Previous ${numDays} days`}
+              aria-label={`Previous ${numDays} days`}
+              className="flex items-center gap-1 px-2 h-7 rounded-lg hover:bg-white text-gray-600 text-[11px] font-medium"
+            >
+              <ChevronLeft size={14} /> Past
             </button>
             <button onClick={goToToday} className="px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-white rounded-lg">
               Today
             </button>
-            <button onClick={nextPeriod} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white text-gray-600">
-              <ChevronRight size={14} />
+            <button
+              onClick={nextPeriod}
+              title={`Next ${numDays} days`}
+              aria-label={`Next ${numDays} days`}
+              className="flex items-center gap-1 px-2 h-7 rounded-lg hover:bg-white text-gray-600 text-[11px] font-medium"
+            >
+              Future <ChevronRight size={14} />
             </button>
           </div>
 
@@ -1034,14 +1044,17 @@ export default function PortfolioCalendarPage() {
             {CHANNEL_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
 
-          {/* Search */}
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search properties…"
-            className="text-xs border border-gray-200 rounded-xl px-3 py-1.5 outline-none focus:ring-2 focus:ring-teal-300 w-36"
-          />
+          {/* Search -- not useful for caravan tenants, who run a small enough
+              fleet that scanning the row list directly is easier than typing */}
+          {!isCaravan && (
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search properties…"
+              className="text-xs border border-gray-200 rounded-xl px-3 py-1.5 outline-none focus:ring-2 focus:ring-teal-300 w-36"
+            />
+          )}
 
           <div className="flex-1" />
 
