@@ -48,7 +48,7 @@ class WrapUpRequest(BaseModel):
     next_action: Optional[str] = None
 
 
-@router.get("/")
+@router.get("")
 def list_calls(
     page: int = 1,
     limit: int = 20,
