@@ -93,6 +93,12 @@ def upgrade() -> None:
         op.execute("CREATE ROLE haip_analyst_ro NOLOGIN")
 
     op.execute("ALTER ROLE haip_analyst_ro SET statement_timeout = '5s'")
+    # Managed Postgres (Supabase, and any hardened install) commonly revokes
+    # the default USAGE grant on the public schema from PUBLIC -- without
+    # this, table-level SELECT grants below are silently useless: queries
+    # fail with "relation does not exist" (not a permission error, since the
+    # role can't even resolve the schema), discovered live in production.
+    op.execute("GRANT USAGE ON SCHEMA public TO haip_analyst_ro")
     op.execute("REVOKE ALL ON ALL TABLES IN SCHEMA public FROM haip_analyst_ro")
     for table in ANALYST_READABLE_TABLES:
         if _table_exists(table):
