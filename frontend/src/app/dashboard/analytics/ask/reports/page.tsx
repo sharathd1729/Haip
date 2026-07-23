@@ -43,13 +43,13 @@ export default function AskHaipReportsPage() {
 
   const { data: reportsData, isLoading: loadingList } = useQuery<{ reports: ReportSummary[] }>({
     queryKey: ["ask-haip-reports"],
-    queryFn: () => api.get("/ask/reports").then(r => r.data),
+    queryFn: () => api.get("/analytics/reports").then(r => r.data),
   });
   const reports = reportsData?.reports ?? [];
 
   const generate = useMutation({
     mutationFn: () =>
-      api.post<GeneratedReport>("/ask/reports/generate", {
+      api.post<GeneratedReport>("/analytics/reports/generate", {
         report_type: reportType,
         range_days: rangeDays,
         send_email: sendEmail,
@@ -62,7 +62,7 @@ export default function AskHaipReportsPage() {
 
   const viewReport = useMutation({
     mutationFn: (id: string) =>
-      api.get(`/ask/reports/${id}/html`, { responseType: "text" }).then(r => r.data as string),
+      api.get(`/analytics/reports/${id}/html`, { responseType: "text" }).then(r => r.data as string),
   });
 
   async function openReport(r: ReportSummary) {
