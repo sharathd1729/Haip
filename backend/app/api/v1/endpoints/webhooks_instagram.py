@@ -196,7 +196,8 @@ def _handle_comment_event(ig_account_id: str, value: dict):
         "media": {"id": "<media_id>", "ad_id": "...", "ad_title": "..."},
       }
     """
-    sender_id = (value.get("from") or {}).get("id", "")
+    from_obj = value.get("from") or {}
+    sender_id = from_obj.get("id", "")
     comment_id = value.get("id", "")
 
     # Guard against self-reply loops -- skip comments posted by the business
@@ -214,6 +215,13 @@ def _handle_comment_event(ig_account_id: str, value: dict):
         "media_id": media.get("id", ""),
         "media_ad_id": media.get("ad_id", ""),
         "media_ad_title": media.get("ad_title", ""),
+        # Meta includes the commenter's username directly in the comment
+        # webhook (comments are public content, unlike DM sender profiles,
+        # which are consent-gated behind a separate Graph API call --
+        # confirmed live that call 500s with IGApiException 230 "User
+        # consent is required" for essentially every DM sender). Free,
+        # no extra API round trip needed.
+        "sender_username": from_obj.get("username", ""),
     }
 
     try:

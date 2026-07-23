@@ -99,9 +99,10 @@ def test_comment_webhook_happy_path_queues_task(client, db):
     body = json.dumps(payload).encode()
     sig = _make_sig(body, "comment-secret")
 
+    captured = {}
     with patch("app.core.database.SessionLocal", return_value=_NoCloseSessionWrapper(db)), \
          patch("app.workers.tasks.process_instagram_comment.process_instagram_comment") as mock_task:
-        mock_task.delay = lambda *a, **kw: None
+        mock_task.delay = lambda payload: captured.update(payload)
         resp = client.post(
             "/api/v1/webhooks/instagram",
             content=body,
@@ -110,6 +111,10 @@ def test_comment_webhook_happy_path_queues_task(client, db):
 
     assert resp.status_code == 200
     assert resp.json()["status"] == "ok"
+    # Meta includes the commenter's username directly on the webhook (public
+    # content, unlike a DM sender's profile which is consent-gated behind a
+    # separate Graph API call) -- must be forwarded to the task, not dropped.
+    assert captured["sender_username"] == "test_guest"
 
 
 # ── Invalid signature → 401 ──────────────────────────────────────────────────

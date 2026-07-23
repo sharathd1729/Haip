@@ -44,12 +44,15 @@ def process_instagram_comment(self, payload: dict) -> dict:
       media_id       — the post/reel the comment was made on
       media_ad_id    — present if the post is a running ad
       media_ad_title — ad title, if applicable
+      sender_username — commenter's @handle, if Meta included one (free,
+                        no separate Graph API call -- unlike DMs)
     """
     from app.core.database import set_tenant_context
     db: Session = SessionLocal()
     try:
         ig_account_id = payload.get("ig_account_id", "")
         sender_id = payload.get("sender_id", "")
+        sender_username = payload.get("sender_username", "")
         comment_id = payload.get("comment_id", "")
         text = payload.get("text", "")
         media_id = payload.get("media_id", "")
@@ -80,7 +83,10 @@ def process_instagram_comment(self, payload: dict) -> dict:
         # ── Resolve or create guest via identity_service (T0.1 pattern) ─────
         # Same identity signal as DMs -- a commenter and a DM sender are the
         # same Instagram-scoped user ID, so they resolve to the same guest.
-        display_name = f"IG User {sender_id[-6:]}"
+        # Meta hands us the commenter's username directly on the webhook
+        # (public content, not consent-gated like a DM sender's profile) --
+        # use it immediately instead of the numeric placeholder when present.
+        display_name = f"@{sender_username}" if sender_username else f"IG User {sender_id[-6:]}"
 
         from app.services.identity_service import resolve_gid
         guest_id, created = resolve_gid(
@@ -94,8 +100,17 @@ def process_instagram_comment(self, payload: dict) -> dict:
         guest = db.query(Guest).filter_by(id=guest_id, tenant_id=tenant_id).first()
         if created:
             logger.info("Created new guest from Instagram comment: %s (%s)", guest_id, display_name)
+        elif sender_username and guest and guest.name and guest.name.startswith("IG User "):
+            # Guest already existed (e.g. created via an earlier DM, stuck on
+            # the placeholder since DM sender profiles are consent-gated) --
+            # this comment's free username resolves it immediately, no need
+            # to queue the doomed API backfill below.
+            guest.name = f"@{sender_username}"
+            db.commit()
+            logger.info("Resolved existing guest's name from Instagram comment: %s -> @%s", guest_id, sender_username)
 
         # T0.4 pattern: defer the profile-name fetch, never block ingest on it.
+        # Not needed when we already have a real username from the webhook.
         if guest and guest.name and guest.name.startswith("IG User "):
             from app.workers.tasks.process_instagram_dm import backfill_instagram_guest_name
             backfill_instagram_guest_name.apply_async(
