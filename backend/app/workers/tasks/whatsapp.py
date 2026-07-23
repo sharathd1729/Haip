@@ -108,16 +108,30 @@ def _process_value(value: dict):
 
 
 def _get_wa_access_token(db, tenant_id: str) -> str:
-    """Same lookup convention as send_whatsapp.py: whatsapp_meta first,
-    falling back to legacy whatsapp kind. Plaintext config.access_token,
-    matching how the connect-key flow actually stores it (integrations.py)."""
+    """whatsapp_meta first, falling back to legacy whatsapp kind.
+
+    Reads from the encrypted credentials_kms_blob, NOT integration.config --
+    connect_whatsapp_manual() (integrations.py) never wrote access_token into
+    config (only phone_number_id/waba_id/display_phone/verified_name; config
+    is spread wholesale into the GET /integrations response, so a secret
+    can never go there). access_token only ever existed in the encrypted
+    blob. This function's old docstring claimed config.access_token was the
+    convention -- it wasn't; every one of the 5 callers of that convention
+    (this function, send_whatsapp.py's two tasks, automation_engine.py,
+    run_campaign.py) has been silently failing with "missing credentials"
+    since whichever tenant first connected via this UI. Fixed here and
+    propagated to the other 4 call sites in the same pass."""
     from app.models.integration import Integration
+    from app.core.encryption import decrypt_credentials
     integration = db.query(Integration).filter_by(tenant_id=tenant_id, kind="whatsapp_meta").first()
     if not integration:
         integration = db.query(Integration).filter_by(tenant_id=tenant_id, kind="whatsapp").first()
-    if not integration:
+    if not integration or not integration.credentials_kms_blob:
         return ""
-    return (integration.config or {}).get("access_token", "")
+    try:
+        return decrypt_credentials(integration.credentials_kms_blob).get("access_token", "")
+    except Exception:
+        return ""
 
 
 def _fetch_and_store_media(tenant_id: str, message_id: str, access_token: str, media_id: str, msg_type: str) -> tuple[str | None, str | None]:

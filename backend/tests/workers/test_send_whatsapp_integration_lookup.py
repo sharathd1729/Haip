@@ -14,6 +14,7 @@ from app.models.tenant import Tenant
 from app.models.guest import Guest
 from app.models.conversation import Conversation, Message, ChannelType, MessageDirection, MessageDeliveryState
 from app.models.integration import Integration
+from app.core.encryption import encrypt_credentials
 from app.workers.tasks import send_whatsapp as mod
 
 
@@ -58,7 +59,8 @@ def test_send_whatsapp_finds_whatsapp_meta_kind(db):
     t = _make_tenant(db)
     integration = Integration(
         id=str(uuid.uuid4()), tenant_id=t.id, kind="whatsapp_meta", status="active",
-        config={"phone_number_id": "123", "access_token": "tok"},
+        config={"phone_number_id": "123"},
+        credentials_kms_blob=encrypt_credentials({"phone_number_id": "123", "access_token": "tok"}),
     )
     db.add(integration)
     conv, msg = _make_conversation_with_message(db, t.id)
@@ -84,7 +86,8 @@ def test_send_whatsapp_falls_back_to_legacy_whatsapp_kind(db):
     t = _make_tenant(db)
     integration = Integration(
         id=str(uuid.uuid4()), tenant_id=t.id, kind="whatsapp", status="active",
-        config={"phone_number_id": "123", "access_token": "tok"},
+        config={"phone_number_id": "123"},
+        credentials_kms_blob=encrypt_credentials({"phone_number_id": "123", "access_token": "tok"}),
     )
     db.add(integration)
     conv, msg = _make_conversation_with_message(db, t.id)

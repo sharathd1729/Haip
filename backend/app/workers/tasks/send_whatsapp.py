@@ -33,15 +33,12 @@ def send_whatsapp(self, message_id: str, tenant_id: str):
             log.error("send_whatsapp_conv_not_found", conversation_id=message.conversation_id)
             return
 
-        # Get WhatsApp integration credentials for this tenant. "whatsapp_meta"
-        # is what the current connect-key UI actually saves (integrations.py
-        # POST /integrations/whatsapp_meta/connect-key); "whatsapp" is a
-        # legacy kind kept as fallback. Matches the lookup order already used
-        # consistently in run_campaign.py, automation_engine.py, and
-        # sync_wa_templates.py -- this was the one path that didn't, so any
-        # tenant onboarded purely through the connect-key UI could send
-        # campaigns/automations but not a single agent-typed or AI-drafted
-        # reply through this task.
+        # phone_number_id (not secret) comes from integration.config;
+        # access_token (secret) comes from the encrypted credentials_kms_blob
+        # via _get_wa_access_token -- config never held the token (see that
+        # function's docstring), so this used to always fail here with
+        # "missing credentials" for every tenant.
+        from app.workers.tasks.whatsapp import _get_wa_access_token
         integration = db.query(Integration).filter_by(tenant_id=tenant_id, kind="whatsapp_meta").first()
         if not integration:
             integration = db.query(Integration).filter_by(tenant_id=tenant_id, kind="whatsapp").first()
@@ -50,9 +47,8 @@ def send_whatsapp(self, message_id: str, tenant_id: str):
             _mark_failed(db, message, "No WhatsApp integration configured for tenant")
             return
 
-        config = integration.config or {}
-        phone_number_id = config.get("phone_number_id")
-        access_token = config.get("access_token")
+        phone_number_id = (integration.config or {}).get("phone_number_id")
+        access_token = _get_wa_access_token(db, tenant_id)
 
         if not phone_number_id or not access_token:
             log.error("send_whatsapp_missing_credentials", tenant_id=tenant_id)
@@ -154,9 +150,9 @@ def send_whatsapp_template(self, message_id: str, tenant_id: str, template_name:
             _mark_failed(db, message, "No WhatsApp integration configured for tenant")
             return
 
-        config = integration.config or {}
-        phone_number_id = config.get("phone_number_id")
-        access_token = config.get("access_token")
+        from app.workers.tasks.whatsapp import _get_wa_access_token
+        phone_number_id = (integration.config or {}).get("phone_number_id")
+        access_token = _get_wa_access_token(db, tenant_id)
         if not phone_number_id or not access_token:
             _mark_failed(db, message, "Missing phone_number_id or access_token in integration config")
             return

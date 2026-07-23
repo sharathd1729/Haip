@@ -174,7 +174,7 @@ class TestSendWhatsappWorker:
         conv.guest_id = "g1"
 
         integration = MagicMock()
-        integration.config = {"phone_number_id": "pnid", "access_token": "tok"}
+        integration.config = {"phone_number_id": "pnid"}
 
         guest = MagicMock()
         guest.phone = "+919999000001"
@@ -195,6 +195,7 @@ class TestSendWhatsappWorker:
 
         with patch("app.workers.tasks.send_whatsapp.SessionLocal", return_value=db), \
              patch("app.workers.tasks.send_whatsapp.get_wa_adapter", return_value=mock_adapter), \
+             patch("app.workers.tasks.whatsapp._get_wa_access_token", return_value="tok"), \
              patch("app.models.guest.Guest"):
             # run() bypasses Celery machinery
             send_whatsapp.run(message_id=msg.id, tenant_id=msg.tenant_id)

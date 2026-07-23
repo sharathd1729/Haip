@@ -202,8 +202,12 @@ def _action_send_wa_template(db, cfg: dict, context: dict, tenant_id: str) -> st
     if not intg:
         return "skipped — no active WhatsApp integration"
 
-    config = intg.config or {}
-    adapter = get_wa_adapter(config["phone_number_id"], config["access_token"])
+    from app.workers.tasks.whatsapp import _get_wa_access_token
+    phone_number_id = (intg.config or {}).get("phone_number_id")
+    access_token = _get_wa_access_token(db, tenant_id)
+    if not phone_number_id or not access_token:
+        return "skipped — missing phone_number_id or access_token for WhatsApp integration"
+    adapter = get_wa_adapter(phone_number_id, access_token)
 
     def _run(coro):
         loop = asyncio.new_event_loop()

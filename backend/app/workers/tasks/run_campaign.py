@@ -85,9 +85,9 @@ def run_campaign(self, campaign_id: str, tenant_id: str):
             _set_status(db, campaign, CampaignStatus.PAUSED)
             return
 
-        config = integration.config or {}
-        phone_number_id = config.get("phone_number_id")
-        access_token = config.get("access_token")
+        from app.workers.tasks.whatsapp import _get_wa_access_token
+        phone_number_id = (integration.config or {}).get("phone_number_id")
+        access_token = _get_wa_access_token(db, tenant_id)
         if not phone_number_id or not access_token:
             log.error("run_campaign_missing_creds", tenant_id=tenant_id)
             _set_status(db, campaign, CampaignStatus.PAUSED)
