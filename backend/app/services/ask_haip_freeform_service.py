@@ -171,6 +171,35 @@ def _get_ro_engine():
     return _ro_engine
 
 
+def _enrich_stage_labels(conn, tenant_id: str, rows: list[dict]) -> list[dict]:
+    """
+    V1's single-table restriction means the LLM can never JOIN inquiries to
+    pipeline_stages itself, so a question like "inquiries by stage" comes
+    back with raw stage_id UUIDs instead of readable names ("RNR",
+    "Active", "Sold"). Rather than relaxing the join restriction (which
+    would reopen the multi-table validation surface), do the lookup
+    server-side as a second, equally-scoped query -- adds a sibling
+    "stage_label" field next to any stage_id column found, non-destructive.
+    """
+    if not rows or "stage_id" not in rows[0]:
+        return rows
+
+    stage_ids = {r["stage_id"] for r in rows if r.get("stage_id")}
+    if not stage_ids:
+        return rows
+
+    result = conn.execute(
+        text("SELECT id, label FROM pipeline_stages WHERE tenant_id = :tenant_id AND id = ANY(:ids)"),
+        {"tenant_id": tenant_id, "ids": list(stage_ids)},
+    )
+    label_by_id = {row.id: row.label for row in result.fetchall()}
+
+    for r in rows:
+        if r.get("stage_id") in label_by_id:
+            r["stage_label"] = label_by_id[r["stage_id"]]
+    return rows
+
+
 async def answer_freeform_question(
     db: Session,
     tenant_id: str,
@@ -213,6 +242,7 @@ async def answer_freeform_question(
             conn.execute(text("SELECT set_config('app.tenant_id', :tenant_id, true)"), {"tenant_id": tenant_id})
             result = conn.execute(text(scoped_sql), {"tenant_id": tenant_id})
             rows = [dict(r._mapping) for r in result.fetchall()]
+            rows = _enrich_stage_labels(conn, tenant_id, rows)
 
         audit.row_count = len(rows)
 

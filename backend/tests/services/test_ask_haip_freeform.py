@@ -5,14 +5,18 @@ role, which can't be exercised in this sqlite-backed test suite). Per the
 build plan, "1 happy path + 1 tenant-isolation test" is not sufficient
 for the riskiest data-access path in the app.
 """
+import os
 import uuid
 import pytest
 
 from app.services.ask_haip_freeform_service import (
-    _validate_and_scope, FreeformRejected, answer_freeform_question,
+    _validate_and_scope, _enrich_stage_labels, FreeformRejected, answer_freeform_question,
 )
 from app.models.tenant import Tenant
+from app.models.pipeline_stage import PipelineStage
 from app.models.ask_haip import AskHaipFreeformQuery
+
+_IS_POSTGRES = "sqlite" not in os.environ.get("DATABASE_URL", "sqlite")
 
 
 def _make_tenant(db):
@@ -136,6 +140,38 @@ async def test_rejected_question_writes_audit_row(db, monkeypatch):
     assert audit is not None
     assert audit.status == "rejected"
     assert audit.question == "delete everything"
+
+
+@pytest.mark.skipif(not _IS_POSTGRES, reason="ANY(:ids) array binding is Postgres-only")
+def test_enrich_stage_labels_adds_readable_name_without_clobbering_unknowns(db):
+    """V1's single-table restriction means the LLM can't JOIN to
+    pipeline_stages itself -- this is the server-side workaround. A known
+    stage_id gets a stage_label added; an unrecognized one is left alone
+    rather than guessed at."""
+    from sqlalchemy import text
+
+    tenant = _make_tenant(db)
+    stage = PipelineStage(id=str(uuid.uuid4()), tenant_id=tenant.id, key="active", label="Active", order=0)
+    db.add(stage)
+    db.commit()
+
+    conn = db.connection()
+    conn.execute(text("SELECT set_config(:k, :v, true)"), {"k": "app.tenant_id", "v": tenant.id})
+
+    rows = [
+        {"stage_id": stage.id, "inquiry_count": 5},
+        {"stage_id": "not-a-real-stage-id", "inquiry_count": 1},
+    ]
+    enriched = _enrich_stage_labels(conn, tenant.id, rows)
+
+    assert enriched[0]["stage_label"] == "Active"
+    assert "stage_label" not in enriched[1]
+
+
+def test_enrich_stage_labels_noop_when_no_stage_id_column(db):
+    rows = [{"guest_name": "Vishwas", "total_spend": 15000}]
+    result = _enrich_stage_labels(None, "tenant-abc", rows)
+    assert result == rows
 
 
 @pytest.mark.asyncio
