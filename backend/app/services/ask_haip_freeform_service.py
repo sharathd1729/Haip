@@ -200,8 +200,17 @@ async def answer_freeform_question(
         audit.generated_sql = scoped_sql
 
         engine = _get_ro_engine()
-        with engine.connect() as conn:
+        # engine.begin() (not .connect()) -- SET LOCAL / the is_local=true
+        # set_config() call only take effect for the duration of a single
+        # transaction, so this must all run in one. inquiries (and every
+        # other allowlisted table) has RLS enforced via
+        # current_setting('app.tenant_id') -- without setting it here, RLS
+        # silently returns zero rows regardless of the WHERE clause, since
+        # this dedicated connection never goes through the normal per-request
+        # middleware that sets it on the app's main connection pool.
+        with engine.begin() as conn:
             conn.execute(text(f"SET LOCAL statement_timeout = '{QUERY_TIMEOUT_S}s'"))
+            conn.execute(text("SELECT set_config('app.tenant_id', :tenant_id, true)"), {"tenant_id": tenant_id})
             result = conn.execute(text(scoped_sql), {"tenant_id": tenant_id})
             rows = [dict(r._mapping) for r in result.fetchall()]
 
