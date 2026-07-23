@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { X, Search, Loader2 } from "lucide-react";
 import api from "@/lib/api";
 import { formatPhone } from "@/lib/utils";
+import type { RWBooking } from "@/lib/rentalwise";
 
 interface GuestSearchResult {
   id: string;
@@ -45,13 +46,30 @@ const focusHandlers = {
   },
 };
 
-export function CreateBookingModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+export function CreateBookingModal({
+  onClose, onCreated, editBooking,
+}: {
+  onClose: () => void;
+  onCreated: () => void;
+  /** When set, the modal edits this existing booking instead of creating a new one. */
+  editBooking?: RWBooking;
+}) {
   const queryClient = useQueryClient();
+  const isEditing = !!editBooking;
 
-  // Guest -- either pick an existing one via search, or fill in a new one
+  // Guest -- either pick an existing one via search, or fill in a new one.
+  // Not editable once a booking exists -- who booked it doesn't change.
   const [guestSearch, setGuestSearch] = useState("");
   const [debouncedGuestSearch, setDebouncedGuestSearch] = useState("");
-  const [selectedGuest, setSelectedGuest] = useState<GuestSearchResult | null>(null);
+  const [selectedGuest, setSelectedGuest] = useState<GuestSearchResult | null>(
+    editBooking?.main_guest
+      ? {
+          id: String(editBooking.main_guest.id ?? ""),
+          name: `${editBooking.main_guest.first_name} ${editBooking.main_guest.last_name}`.trim(),
+          phone: editBooking.main_guest.phone || "",
+        }
+      : null
+  );
   const [newGuestName, setNewGuestName] = useState("");
   const [newGuestPhone, setNewGuestPhone] = useState("");
 
@@ -71,16 +89,21 @@ export function CreateBookingModal({ onClose, onCreated }: { onClose: () => void
     queryFn: () => api.get("/bookings/properties").then(r => r.data),
   });
 
-  const [propertyId, setPropertyId] = useState("");
+  const [propertyId, setPropertyId] = useState(editBooking?.property?.id ? String(editBooking.property.id) : "");
   const [ratePlanId, setRatePlanId] = useState("");
-  const [checkIn, setCheckIn] = useState("");
-  const [checkOut, setCheckOut] = useState("");
-  const [adults, setAdults] = useState(2);
-  const [children, setChildren] = useState(0);
-  const [totalAmount, setTotalAmount] = useState<string>("");
-  const [totalEdited, setTotalEdited] = useState(false);
-  const [occasion, setOccasion] = useState("");
+  const [checkIn, setCheckIn] = useState(editBooking?.checkin || "");
+  const [checkOut, setCheckOut] = useState(editBooking?.checkout || "");
+  const [adults, setAdults] = useState(editBooking?.adults || 2);
+  const [children, setChildren] = useState(editBooking?.children || 0);
+  const [totalAmount, setTotalAmount] = useState<string>(editBooking?.total ? String(editBooking.total) : "");
+  // In edit mode the total already reflects the existing booking, not a
+  // package default -- treat it as already "edited" so selecting a package
+  // (e.g. while fixing which caravan this booking is on) doesn't silently
+  // overwrite a real total with the package's flat price.
+  const [totalEdited, setTotalEdited] = useState(isEditing);
+  const [occasion, setOccasion] = useState(""); // RWBooking doesn't expose occasion -- edit mode leaves this blank rather than guessing
   const [specialRequests, setSpecialRequests] = useState("");
+  const [status, setStatus] = useState<string>(editBooking?.status || "confirmed");
 
   const selectedProperty = properties.find(p => p.id === propertyId);
   const selectedRatePlan = selectedProperty?.rate_plans.find(rp => rp.id === ratePlanId);
@@ -96,27 +119,39 @@ export function CreateBookingModal({ onClose, onCreated }: { onClose: () => void
 
   const mutation = useMutation({
     mutationFn: () =>
-      api.post("/bookings", {
-        guest_id: selectedGuest?.id || undefined,
-        guest_name: selectedGuest ? undefined : (newGuestName || undefined),
-        guest_phone: selectedGuest ? undefined : (newGuestPhone || undefined),
-        property_id: propertyId,
-        rate_plan_id: ratePlanId || undefined,
-        check_in: checkIn,
-        check_out: checkOut,
-        adults,
-        children,
-        total_amount: totalAmount ? Number(totalAmount) : undefined,
-        occasion: occasion || undefined,
-        special_requests: specialRequests || undefined,
-      }),
+      isEditing
+        ? api.patch(`/bookings/${editBooking!.id}`, {
+            property_id: propertyId,
+            check_in: checkIn,
+            check_out: checkOut,
+            adults,
+            children,
+            total_amount: totalAmount ? Number(totalAmount) : undefined,
+            status,
+            occasion: occasion || undefined,
+            special_requests: specialRequests || undefined,
+          })
+        : api.post("/bookings", {
+            guest_id: selectedGuest?.id || undefined,
+            guest_name: selectedGuest ? undefined : (newGuestName || undefined),
+            guest_phone: selectedGuest ? undefined : (newGuestPhone || undefined),
+            property_id: propertyId,
+            rate_plan_id: ratePlanId || undefined,
+            check_in: checkIn,
+            check_out: checkOut,
+            adults,
+            children,
+            total_amount: totalAmount ? Number(totalAmount) : undefined,
+            occasion: occasion || undefined,
+            special_requests: specialRequests || undefined,
+          }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["local-bookings"] });
       onCreated();
     },
   });
 
-  const guestValid = !!selectedGuest || (newGuestName.trim() && newGuestPhone.trim());
+  const guestValid = isEditing || !!selectedGuest || (newGuestName.trim() && newGuestPhone.trim());
   const canSubmit = guestValid && propertyId && checkIn && checkOut && !mutation.isPending;
 
   return (
@@ -130,7 +165,7 @@ export function CreateBookingModal({ onClose, onCreated }: { onClose: () => void
           style={{ background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}
         >
           <h3 className="font-bold text-[15px]" style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}>
-            Create Booking
+            {isEditing ? `Edit Booking #${editBooking!.external_id ?? editBooking!.id}` : "Create Booking"}
           </h3>
           <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700">
             <X size={15} />
@@ -147,7 +182,9 @@ export function CreateBookingModal({ onClose, onCreated }: { onClose: () => void
             {selectedGuest ? (
               <div className="flex items-center justify-between px-4 py-2.5 rounded-xl text-sm" style={{ border: "1px solid var(--haip-border)", background: "var(--haip-surface)" }}>
                 <span>{selectedGuest.name || "Unknown"} · {formatPhone(selectedGuest.phone)}</span>
-                <button type="button" onClick={() => setSelectedGuest(null)} className="text-xs text-teal-600 font-medium">Change</button>
+                {!isEditing && (
+                  <button type="button" onClick={() => setSelectedGuest(null)} className="text-xs text-teal-600 font-medium">Change</button>
+                )}
               </div>
             ) : (
               <div className="space-y-2">
@@ -289,9 +326,26 @@ export function CreateBookingModal({ onClose, onCreated }: { onClose: () => void
             />
           </div>
 
+          {/* Status -- only meaningful once a booking already exists */}
+          {isEditing && (
+            <div>
+              <label className="block text-[12.5px] font-semibold mb-1.5" style={{ color: "var(--haip-fg)" }}>Status</label>
+              <select
+                value={status}
+                onChange={e => setStatus(e.target.value)}
+                className={inputCls + " appearance-none cursor-pointer"} style={inputStyle}
+              >
+                <option value="confirmed">Confirmed</option>
+                <option value="checked_in">Checked In</option>
+                <option value="checked_out">Checked Out</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+          )}
+
           {mutation.isError && (
             <p className="text-xs text-red-600">
-              {(mutation.error as any)?.response?.data?.detail || "Failed to create booking. Please check the fields and try again."}
+              {(mutation.error as any)?.response?.data?.detail || "Failed to save booking. Please check the fields and try again."}
             </p>
           )}
 
@@ -311,7 +365,7 @@ export function CreateBookingModal({ onClose, onCreated }: { onClose: () => void
               style={{ background: "#0F766E" }}
             >
               {mutation.isPending && <Loader2 size={14} className="animate-spin" />}
-              Create Booking
+              {isEditing ? "Save Changes" : "Create Booking"}
             </button>
           </div>
         </form>

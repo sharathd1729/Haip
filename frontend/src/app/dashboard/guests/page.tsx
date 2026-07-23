@@ -8,7 +8,7 @@ import {
   Calendar, TrendingUp, Users, Sparkles,
   BookOpen, X, ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon, Download,
-  SlidersHorizontal, ExternalLink, Bed, CreditCard,
+  SlidersHorizontal, ExternalLink, Bed, CreditCard, Pencil,
   RefreshCw,
 } from "lucide-react";
 import { timeAgo, cn, formatPhone } from "@/lib/utils";
@@ -411,6 +411,7 @@ function BookingsTable() {
   const [page, setPage]                   = useState(1);
   const [showFilters, setShowFilters]     = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingBooking, setEditingBooking] = useState<RWBooking | null>(null);
 
   // Debounce search
   useEffect(() => {
@@ -578,6 +579,14 @@ function BookingsTable() {
         />
       )}
 
+      {editingBooking && (
+        <CreateBookingModal
+          editBooking={editingBooking}
+          onClose={() => setEditingBooking(null)}
+          onCreated={() => { setEditingBooking(null); refetch(); }}
+        />
+      )}
+
       {/* ── Table ───────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-auto haip-scrollbar">
         {isLoading ? (
@@ -709,13 +718,24 @@ function BookingsTable() {
 
                     {/* Actions */}
                     <td className="px-4 py-3.5">
-                      <button
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium hover:bg-gray-100 transition-colors"
-                        style={{ color: "#6B7280" }}
-                        title="View in RentalWise"
-                      >
-                        <ExternalLink size={11} />
-                      </button>
+                      {usingLocal ? (
+                        <button
+                          onClick={() => setEditingBooking(b)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium hover:bg-gray-100 transition-colors"
+                          style={{ color: "#6B7280" }}
+                          title="Edit booking"
+                        >
+                          <Pencil size={11} />
+                        </button>
+                      ) : (
+                        <button
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium hover:bg-gray-100 transition-colors"
+                          style={{ color: "#6B7280" }}
+                          title="View in RentalWise"
+                        >
+                          <ExternalLink size={11} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );

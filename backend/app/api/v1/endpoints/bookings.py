@@ -316,3 +316,68 @@ def create_booking(
 
     seq = _seq_for_stay(db, tenant_id, stay.id)
     return _serialize_stay(stay, seq)
+
+
+# ── Manual booking edit ──────────────────────────────────────────────────────
+# Also the way to reassign the legacy Sold-lead bookings off the placeholder
+# "Unassigned" property once you know which real caravan each guest used.
+
+class BookingUpdateRequest(BaseModel):
+    property_id: Optional[str] = None
+    check_in: Optional[str] = None    # YYYY-MM-DD
+    check_out: Optional[str] = None   # YYYY-MM-DD
+    adults: Optional[int] = Field(None, ge=1)
+    children: Optional[int] = Field(None, ge=0)
+    total_amount: Optional[float] = None
+    status: Optional[str] = None
+    occasion: Optional[str] = None
+    special_requests: Optional[str] = None
+
+
+@router.patch("/{booking_id}")
+def update_booking(
+    booking_id: str,
+    payload: BookingUpdateRequest,
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER, UserRole.RESERVATIONS)),
+    db: Session = Depends(get_db),
+):
+    tenant_id = current_user.tenant_id
+
+    stay = db.query(Stay).filter_by(id=booking_id, tenant_id=tenant_id).first()
+    if not stay:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    if payload.property_id is not None:
+        prop = db.query(Property).filter_by(id=payload.property_id, tenant_id=tenant_id).first()
+        if not prop:
+            raise HTTPException(status_code=404, detail="Property not found")
+        stay.property_id = prop.id
+
+    new_check_in = payload.check_in if payload.check_in is not None else stay.check_in
+    new_check_out = payload.check_out if payload.check_out is not None else stay.check_out
+    try:
+        if date.fromisoformat(new_check_out) < date.fromisoformat(new_check_in):
+            raise HTTPException(status_code=422, detail="check_out cannot be before check_in")
+    except ValueError:
+        raise HTTPException(status_code=422, detail="check_in/check_out must be YYYY-MM-DD")
+    stay.check_in = new_check_in
+    stay.check_out = new_check_out
+
+    if payload.adults is not None:
+        stay.adults = payload.adults
+    if payload.children is not None:
+        stay.children = payload.children
+    if payload.total_amount is not None:
+        stay.total_amount = payload.total_amount
+    if payload.status is not None:
+        stay.status = payload.status
+    if payload.occasion is not None:
+        stay.occasion = payload.occasion
+    if payload.special_requests is not None:
+        stay.special_requests = [payload.special_requests] if payload.special_requests else []
+
+    db.commit()
+    db.refresh(stay)
+
+    seq = _seq_for_stay(db, tenant_id, stay.id)
+    return _serialize_stay(stay, seq)

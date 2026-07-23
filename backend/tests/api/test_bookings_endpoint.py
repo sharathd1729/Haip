@@ -243,3 +243,95 @@ def test_create_booking_cross_tenant_property_404(client, db):
         },
     )
     assert resp.status_code == 404
+
+
+# ── PATCH /bookings/{id} ──────────────────────────────────────────────────────
+
+def test_update_booking_reassigns_property(client, db):
+    """The primary use case: reassigning a legacy/placeholder booking to the
+    real caravan once staff know which one the guest actually used."""
+    tenant = _make_tenant(db, "UpdateTenant")
+    user = _make_user(db, tenant.id, UserRole.OWNER)
+    placeholder = _make_property(db, tenant.id, name="Unassigned")
+    real_caravan = _make_property(db, tenant.id, name="White Caravan")
+    guest = _make_guest(db, tenant.id)
+    stay = _make_stay(db, tenant.id, guest.id, placeholder.id)
+    db.commit()
+
+    resp = client.patch(
+        f"/api/v1/bookings/{stay.id}",
+        headers=_auth(_token(user)),
+        json={"property_id": real_caravan.id},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["property"]["id"] == real_caravan.id
+
+
+def test_update_booking_can_change_dates_pax_and_total(client, db):
+    tenant = _make_tenant(db, "UpdateFieldsTenant")
+    user = _make_user(db, tenant.id, UserRole.OWNER)
+    prop = _make_property(db, tenant.id)
+    guest = _make_guest(db, tenant.id)
+    stay = _make_stay(db, tenant.id, guest.id, prop.id, check_in="2026-08-01", check_out="2026-08-02", total_amount=10000)
+    db.commit()
+
+    resp = client.patch(
+        f"/api/v1/bookings/{stay.id}",
+        headers=_auth(_token(user)),
+        json={"check_in": "2026-08-05", "check_out": "2026-08-07", "adults": 6, "total_amount": 42000},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["checkin"] == "2026-08-05"
+    assert body["checkout"] == "2026-08-07"
+    assert body["adults"] == 6
+    assert body["total"] == 42000
+
+
+def test_update_booking_rejects_checkout_before_checkin(client, db):
+    tenant = _make_tenant(db, "InvalidDatesTenant")
+    user = _make_user(db, tenant.id, UserRole.OWNER)
+    prop = _make_property(db, tenant.id)
+    guest = _make_guest(db, tenant.id)
+    stay = _make_stay(db, tenant.id, guest.id, prop.id, check_in="2026-08-01", check_out="2026-08-02")
+    db.commit()
+
+    resp = client.patch(
+        f"/api/v1/bookings/{stay.id}",
+        headers=_auth(_token(user)),
+        json={"check_out": "2026-07-30"},
+    )
+    assert resp.status_code == 422
+
+
+def test_update_booking_forbidden_for_concierge_role(client, db):
+    tenant = _make_tenant(db, "UpdateForbiddenTenant")
+    user = _make_user(db, tenant.id, UserRole.CONCIERGE)
+    prop = _make_property(db, tenant.id)
+    guest = _make_guest(db, tenant.id)
+    stay = _make_stay(db, tenant.id, guest.id, prop.id)
+    db.commit()
+
+    resp = client.patch(
+        f"/api/v1/bookings/{stay.id}",
+        headers=_auth(_token(user)),
+        json={"adults": 3},
+    )
+    assert resp.status_code == 403
+
+
+def test_update_booking_cross_tenant_404(client, db):
+    tenant_a = _make_tenant(db, "TAAA")
+    tenant_b = _make_tenant(db, "TBBB")
+    user_b = _make_user(db, tenant_b.id, UserRole.OWNER)
+    prop_a = _make_property(db, tenant_a.id)
+    guest_a = _make_guest(db, tenant_a.id)
+    stay_a = _make_stay(db, tenant_a.id, guest_a.id, prop_a.id)
+    db.commit()
+
+    resp = client.patch(
+        f"/api/v1/bookings/{stay_a.id}",
+        headers=_auth(_token(user_b)),
+        json={"adults": 3},
+    )
+    assert resp.status_code == 404
