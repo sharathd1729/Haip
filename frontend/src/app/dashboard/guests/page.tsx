@@ -429,7 +429,8 @@ function BookingsTable() {
     per_page: 25,
   };
 
-  const { data, isLoading, isError, refetch, isFetching } = useRWBookings(filters);
+  const { data, isLoading, isError, error, refetch, isFetching } = useRWBookings(filters);
+  const isNotConnected = isError && error instanceof Error && error.message.toLowerCase().includes("not connected");
   const bookings: RWBooking[] = data?.data ?? [];
   const meta = data?.meta;
 
@@ -554,6 +555,16 @@ function BookingsTable() {
             {[...Array(8)].map((_, i) => (
               <div key={i} className="h-14 bg-white rounded-xl border border-gray-100 animate-pulse" />
             ))}
+          </div>
+        ) : isNotConnected ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-2 text-center px-6">
+            <BookOpen size={28} className="text-gray-300" />
+            <p className="text-sm text-gray-500">RentalWise isn&apos;t connected for this account</p>
+            <p className="text-xs text-gray-400 max-w-xs">
+              This tab shows bookings synced from a RentalWise PMS integration. Connect one under
+              Settings &rarr; Integrations to see bookings here, or check the property calendar
+              for bookings created directly in HAIP.
+            </p>
           </div>
         ) : isError ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
