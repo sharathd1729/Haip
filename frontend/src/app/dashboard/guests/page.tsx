@@ -456,12 +456,6 @@ function BookingsTable() {
   return (
     <div className="flex flex-col h-full">
 
-      {usingLocal && (
-        <div className="flex-shrink-0 px-5 py-1.5 text-[11px] text-teal-700 bg-teal-50 border-b border-teal-100">
-          Showing bookings created directly in HAIP (no RentalWise integration connected for this account)
-        </div>
-      )}
-
       {/* ── Filter bar ──────────────────────────────────────────────────── */}
       <div
         className="flex-shrink-0 px-5 py-3 border-b flex flex-wrap items-center gap-2"
@@ -834,21 +828,16 @@ export default function GuestsPage() {
     <div className="flex flex-col h-full bg-[#F8FAFC]">
       {/* Header + Tabs */}
       <div
-        className="flex-shrink-0 px-6 py-4"
+        className="flex-shrink-0 px-6 py-3"
         style={{ background: "#FFFFFF", borderBottom: "1px solid #E5E7EB" }}
       >
-        <div className="flex items-center justify-between gap-4 mb-4">
-          <div>
-            <h1
-              className="text-xl font-bold"
-              style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}
-            >
-              Guests &amp; Bookings
-            </h1>
-            <p className="text-xs mt-0.5" style={{ color: "#6B7280" }}>
-              Manage guest profiles and RentalWise bookings
-            </p>
-          </div>
+        <div className="flex items-center gap-3 mb-2.5">
+          <h1
+            className="text-base font-bold"
+            style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}
+          >
+            Guests &amp; Bookings
+          </h1>
         </div>
 
         {/* Tab switcher */}
