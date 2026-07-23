@@ -67,6 +67,24 @@ def test_list_bookings_happy_path(client, db):
     assert row["status"] == "confirmed"
 
 
+def test_list_bookings_external_id_is_short_sequential_number(client, db):
+    """external_id (what the frontend renders as "#...") should be a short
+    per-tenant sequence number, not the raw UUID -- matches the shape a
+    RentalWise booking already has, so #84f8dcde-... doesn't show up."""
+    tenant = _make_tenant(db, "SeqTenant")
+    user = _make_user(db, tenant.id)
+    prop = _make_property(db, tenant.id)
+    guest = _make_guest(db, tenant.id)
+    _make_stay(db, tenant.id, guest.id, prop.id)
+    _make_stay(db, tenant.id, guest.id, prop.id)
+    db.commit()
+
+    resp = client.get("/api/v1/bookings?sort=oldest", headers=_auth(_token(user)))
+    assert resp.status_code == 200
+    rows = resp.json()["data"]
+    assert [r["external_id"] for r in rows] == ["1", "2"]
+
+
 def test_list_bookings_cross_tenant_isolation(client, db):
     tenant_a = _make_tenant(db, "TenantA")
     tenant_b = _make_tenant(db, "TenantB")

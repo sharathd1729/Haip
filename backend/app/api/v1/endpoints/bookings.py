@@ -15,7 +15,7 @@ from __future__ import annotations
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.database import get_db
@@ -57,8 +57,21 @@ def list_bookings(
 ):
     tenant_id = current_user.tenant_id
 
+    # Short, human-friendly booking number (order of creation) instead of the
+    # raw UUID -- RentalWise bookings already have a short numeric id; this
+    # gives local (HAIP-native) bookings the same feel.
+    seq_subq = (
+        db.query(
+            Stay.id.label("stay_id"),
+            func.row_number().over(order_by=Stay.created_at.asc()).label("seq"),
+        )
+        .filter(Stay.tenant_id == tenant_id)
+        .subquery()
+    )
+
     q = (
-        db.query(Stay)
+        db.query(Stay, seq_subq.c.seq)
+        .join(seq_subq, seq_subq.c.stay_id == Stay.id)
         .options(joinedload(Stay.guest), joinedload(Stay.property))
         .filter(Stay.tenant_id == tenant_id)
     )
@@ -84,10 +97,10 @@ def list_bookings(
     q = q.order_by(sort_col.desc() if desc else sort_col.asc())
 
     total = q.count()
-    stays = q.offset((page - 1) * per_page).limit(per_page).all()
+    rows = q.offset((page - 1) * per_page).limit(per_page).all()
 
     data = []
-    for s in stays:
+    for s, seq in rows:
         guest = s.guest
         prop = s.property
         first_name, _, last_name = (guest.name or "Unknown").partition(" ") if guest else ("Unknown", "", "")
@@ -98,7 +111,7 @@ def list_bookings(
             "adults": s.adults or 0,
             "children": s.children or 0,
             "created_at": s.created_at.isoformat() if s.created_at else None,
-            "external_id": None,
+            "external_id": str(seq),
             "status": _STATUS_MAP.get(s.status, "confirmed"),
             "payment_status": "paid" if s.status in ("checked_in", "checked_out") else "unpaid",
             "total": float(s.total_amount) if s.total_amount is not None else 0,
