@@ -27,6 +27,14 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str = ""
+    # Read-only connection for the Ask HAIP free-form analyst
+    # (ask_haip_freeform_service.py), bound to the haip_analyst_ro Postgres
+    # role (migration 052). Deliberately separate from DATABASE_URL -- the
+    # feature must fail closed (not silently fall back to the privileged
+    # connection) if this isn't set. Set once an operator has run
+    # `ALTER ROLE haip_analyst_ro WITH LOGIN PASSWORD '...'` (see migration
+    # 052's docstring); never generated or defaulted here.
+    ANALYST_RO_DATABASE_URL: str = ""
     # Per-process pool sizing — override per process type (e.g. api vs
     # celery beat/flower, which rarely need concurrent connections) via env
     # vars in each service's docker-compose command/environment block.

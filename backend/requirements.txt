@@ -47,6 +47,12 @@ openai==1.59.5
 # Google Gemini — free LLM (1M tokens/day)
 google-generativeai==0.8.3
 
+# sqlglot — parses/validates LLM-generated SQL before execution in the Ask
+# HAIP free-form analyst (ask_haip_freeform_service.py). This is the primary
+# security boundary rejecting non-SELECT statements, disallowed tables, and
+# missing tenant_id predicates before a query ever reaches the DB.
+sqlglot==25.34.1
+
 # ── Testing ───────────────────────────────────────────────────────────────────
 pytest==8.3.4
 pytest-asyncio==0.24.0

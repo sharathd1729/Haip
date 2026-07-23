@@ -60,6 +60,11 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # (which stays Claude for guest-facing tone) because deployments run on
     # NVIDIA keys only — an internal summary shouldn't require an Anthropic key.
     "lead_summary":    ("nvidia",  "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
+    # Ask HAIP free-form analyst: SQL generation needs real reasoning (same
+    # tier as ask_haip_rca/deep_reason), summarizing already-fetched rows
+    # into a narrative + chart spec is cheap classification-tier work.
+    "ask_haip_freeform_sql":     ("nvidia", "nvidia/nemotron-3-ultra-550b-a55b"),
+    "ask_haip_freeform_summary": ("nvidia", "meta/llama-3.1-8b-instruct"),
     "fallback":        ("nvidia",  "mistralai/mistral-medium-3.5-128b"),
     # ── Claude kept for tone-sensitive tasks ──────────────────────────────────
     "concierge_draft": ("claude",  "claude-haiku-4-5"),

@@ -15,8 +15,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.api.v1.deps import get_current_user, require_module, get_workspace_context
-from app.models.user import User
+from app.api.v1.deps import get_current_user, require_module, get_workspace_context, require_roles
+from app.models.user import User, UserRole
 from fastapi.responses import StreamingResponse
 from app.services.ask_haip_service import ask_haip, run_agents, detect_intent
 from app.services.ask_haip_steps import execute_step, execute_all_paths
@@ -660,3 +660,34 @@ def get_report_html(
         raise HTTPException(404, "Report not found")
 
     return HTMLResponse(content=report.html_content or "<p>No content</p>")
+
+
+# ─── Free-form analyst (Phase 1 -- Owner-only soft launch) ────────────────────
+
+class FreeformAskRequest(BaseModel):
+    question: str
+
+
+@router.post("/ask/freeform")
+async def ask_freeform_endpoint(
+    body: FreeformAskRequest,
+    current_user: User = Depends(require_roles(UserRole.OWNER)),
+    db: Session = Depends(get_db),
+):
+    """
+    Ask HAIP free-form analyst -- answers ad-hoc questions outside the 10
+    pre-built domain agents via NL->SQL against a read-only DB role.
+    See ask_haip_freeform_service.py for the security model. Owner-only
+    for this initial rollout (Phase 2 of the build plan) -- expand roles
+    once real usage/audit logs have been reviewed.
+    """
+    from app.services.ask_haip_freeform_service import answer_freeform_question
+
+    question = body.question.strip()
+    if not question:
+        from fastapi import HTTPException
+        raise HTTPException(422, "question cannot be empty")
+
+    return await answer_freeform_question(
+        db=db, tenant_id=current_user.tenant_id, user_id=current_user.id, question=question,
+    )
