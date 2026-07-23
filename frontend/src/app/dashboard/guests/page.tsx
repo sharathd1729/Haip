@@ -14,6 +14,7 @@ import {
 import { timeAgo, cn, formatPhone } from "@/lib/utils";
 import { EmptyGuests } from "@/components/empty-states/EmptyGuests";
 import { useRWBookings, useLocalBookings } from "@/hooks/useRentalWise";
+import { CreateBookingModal } from "@/components/bookings/CreateBookingModal";
 import {
   type RWBooking, type RWBookingStatus, type RWPaymentStatus,
   type RWBookingFilters,
@@ -409,6 +410,7 @@ function BookingsTable() {
   const [sort, setSort]                   = useState<RWBookingFilters["sort"]>("newest");
   const [page, setPage]                   = useState(1);
   const [showFilters, setShowFilters]     = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   // Debounce search
   useEffect(() => {
@@ -563,8 +565,24 @@ function BookingsTable() {
           >
             <Download size={12} /> Export CSV
           </button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11.5px] font-semibold text-white transition-colors"
+            style={{ background: "#111827" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#1f2937"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#111827"; }}
+          >
+            <Plus size={12} /> Create Booking
+          </button>
         </div>
       </div>
+
+      {showCreateModal && (
+        <CreateBookingModal
+          onClose={() => setShowCreateModal(false)}
+          onCreated={() => { setShowCreateModal(false); refetch(); }}
+        />
+      )}
 
       {/* ── Table ───────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-auto haip-scrollbar">
