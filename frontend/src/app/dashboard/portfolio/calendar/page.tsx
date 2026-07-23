@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useBusinessType } from "@/components/providers/WorkspaceProvider";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -813,16 +814,24 @@ const CalendarHeader = memo(function CalendarHeader({
 
 // ── Legend ─────────────────────────────────────────────────────────────────────
 
-const LEGEND = [
-  { dot: "bg-emerald-500", label: "Direct" },
+// Caravan tenants have no OTA/PMS channel integrations (no Airbnb, Booking.com,
+// VRBO, MMT, RentalWise) -- every booking is either direct or blocked/maintenance.
+const OTA_LEGEND_ITEMS = [
   { dot: "bg-rose-500",    label: "Airbnb" },
   { dot: "bg-blue-600",    label: "Booking.com" },
   { dot: "bg-purple-500",  label: "VRBO" },
   { dot: "bg-orange-500",  label: "MMT" },
   { dot: "bg-indigo-500",  label: "RentalWise" },
-  { dot: "bg-gray-300",    label: "Blocked" },
-  { dot: "bg-red-200",     label: "Maintenance" },
 ];
+
+function buildLegend(isCaravan: boolean) {
+  return [
+    { dot: "bg-emerald-500", label: "Direct" },
+    ...(isCaravan ? [] : OTA_LEGEND_ITEMS),
+    { dot: "bg-gray-300",    label: "Blocked" },
+    { dot: "bg-red-200",     label: "Maintenance" },
+  ];
+}
 
 const MODE_TABS: { key: CalendarMode; icon: React.ReactNode; label: string }[] = [
   { key: "bookings",     icon: <Calendar size={12} />,    label: "Bookings"     },
@@ -831,19 +840,29 @@ const MODE_TABS: { key: CalendarMode; icon: React.ReactNode; label: string }[] =
   { key: "revenue",      icon: <BarChart2 size={12} />,   label: "Revenue"      },
 ];
 
-const CHANNEL_OPTS = [
-  { value: "",            label: "All channels" },
+const OTA_CHANNEL_OPTS = [
   { value: "airbnb",      label: "Airbnb"       },
   { value: "booking.com", label: "Booking.com"  },
-  { value: "direct",      label: "Direct"       },
   { value: "makemytrip",  label: "MMT"          },
   { value: "vrbo",        label: "VRBO"         },
   { value: "retalwise",   label: "RentalWise"   },
 ];
 
+function buildChannelOpts(isCaravan: boolean) {
+  return [
+    { value: "",       label: "All channels" },
+    { value: "direct", label: "Direct"       },
+    ...(isCaravan ? [] : OTA_CHANNEL_OPTS),
+  ];
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 
 export default function PortfolioCalendarPage() {
+  const businessType = useBusinessType();
+  const isCaravan = businessType === "caravan";
+  const LEGEND = useMemo(() => buildLegend(isCaravan), [isCaravan]);
+  const CHANNEL_OPTS = useMemo(() => buildChannelOpts(isCaravan), [isCaravan]);
   const [startDate, setStartDate]     = useState<Date>(() => { const d = new Date(); d.setDate(1); return d; });
   const [viewWindow, setViewWindow]   = useState<ViewWindow>("30");
   const [mode, setMode]               = useState<CalendarMode>("bookings");
@@ -1026,28 +1045,32 @@ export default function PortfolioCalendarPage() {
 
           <div className="flex-1" />
 
-          {/* Sync */}
-          {syncMutation.isSuccess && (
-            <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-xl">
-              <CheckCircle2 size={11} /> Synced
-            </span>
+          {/* Sync -- RentalWise-only, no PMS/channel sync exists for caravan tenants */}
+          {!isCaravan && (
+            <>
+              {syncMutation.isSuccess && (
+                <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-xl">
+                  <CheckCircle2 size={11} /> Synced
+                </span>
+              )}
+              {syncMutation.isError && (
+                <span className="flex items-center gap-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded-xl">
+                  <AlertCircle size={11} /> Failed
+                </span>
+              )}
+              <button
+                onClick={() => syncMutation.mutate()}
+                disabled={syncMutation.isPending}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors",
+                  syncMutation.isPending ? "bg-indigo-100 text-indigo-400 cursor-not-allowed" : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100",
+                )}
+              >
+                <CloudDownload size={12} className={syncMutation.isPending ? "animate-pulse" : ""} />
+                RW Sync
+              </button>
+            </>
           )}
-          {syncMutation.isError && (
-            <span className="flex items-center gap-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded-xl">
-              <AlertCircle size={11} /> Failed
-            </span>
-          )}
-          <button
-            onClick={() => syncMutation.mutate()}
-            disabled={syncMutation.isPending}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors",
-              syncMutation.isPending ? "bg-indigo-100 text-indigo-400 cursor-not-allowed" : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100",
-            )}
-          >
-            <CloudDownload size={12} className={syncMutation.isPending ? "animate-pulse" : ""} />
-            RW Sync
-          </button>
           <button onClick={() => refetch()} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-500">
             <RefreshCw size={14} className={isFetching ? "animate-spin" : ""} />
           </button>
