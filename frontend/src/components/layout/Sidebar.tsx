@@ -31,6 +31,10 @@ interface NavItem {
     href: string;
     icon?: React.ComponentType<{ size?: number; className?: string }>;
     hideForBusinessTypes?: string[];
+    /** Only shown to users with role === "owner" -- e.g. the free-form
+     *  analyst's Phase 2 early-access gate. Backend still enforces this
+     *  independently; this is purely to avoid showing a dead-end link. */
+    ownerOnly?: boolean;
   }[];
 }
 
@@ -127,8 +131,9 @@ const NAV_ITEMS: NavItem[] = [
     icon: Sparkles,
     resource: "analytics",
     children: [
-      { label: "Ask",     href: "/dashboard/ask-haip" },
-      { label: "Reports", href: "/dashboard/analytics/ask/reports" },
+      { label: "Ask",       href: "/dashboard/ask-haip" },
+      { label: "Reports",   href: "/dashboard/analytics/ask/reports" },
+      { label: "Free-Form", href: "/dashboard/analytics/ask/freeform", ownerOnly: true },
     ],
   },
   {
@@ -189,7 +194,8 @@ export function Sidebar({ user }: SidebarProps) {
     .map(item => ({
       ...item,
       children: item.children?.filter(
-        c => !businessType || !c.hideForBusinessTypes?.includes(businessType)
+        c => (!businessType || !c.hideForBusinessTypes?.includes(businessType))
+          && (!c.ownerOnly || role === "owner")
       ),
     }));
 
