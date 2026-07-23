@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { timeAgo, cn, formatPhone } from "@/lib/utils";
 import { EmptyGuests } from "@/components/empty-states/EmptyGuests";
-import { useRWBookings } from "@/hooks/useRentalWise";
+import { useRWBookings, useLocalBookings } from "@/hooks/useRentalWise";
 import {
   type RWBooking, type RWBookingStatus, type RWPaymentStatus,
   type RWBookingFilters,
@@ -429,9 +429,21 @@ function BookingsTable() {
     per_page: 25,
   };
 
-  const { data, isLoading, isError, error, refetch, isFetching } = useRWBookings(filters);
-  const isNotConnected = isError && error instanceof Error && error.message.toLowerCase().includes("not connected");
-  const bookings: RWBooking[] = data?.data ?? [];
+  const rw = useRWBookings(filters);
+  const isNotConnected = rw.isError && rw.error instanceof Error && rw.error.message.toLowerCase().includes("not connected");
+
+  // RentalWise isn't connected for this tenant -- fall back to bookings
+  // created directly in HAIP (e.g. a Leads360 lead moved to "Sold") instead
+  // of showing an empty/blocked state. Tenants WITH RentalWise keep the
+  // existing live-proxy behavior unchanged.
+  const local = useLocalBookings(filters);
+  const usingLocal = isNotConnected;
+
+  const { data, isLoading, isError, refetch, isFetching } = usingLocal
+    ? { data: local.data, isLoading: local.isLoading, isError: local.isError, refetch: local.refetch, isFetching: local.isFetching }
+    : { data: rw.data, isLoading: rw.isLoading, isError: rw.isError, refetch: rw.refetch, isFetching: rw.isFetching };
+
+  const bookings: RWBooking[] = (data?.data ?? []) as RWBooking[];
   const meta = data?.meta;
 
   function clearFilters() {
@@ -441,6 +453,12 @@ function BookingsTable() {
 
   return (
     <div className="flex flex-col h-full">
+
+      {usingLocal && (
+        <div className="flex-shrink-0 px-5 py-1.5 text-[11px] text-teal-700 bg-teal-50 border-b border-teal-100">
+          Showing bookings created directly in HAIP (no RentalWise integration connected for this account)
+        </div>
+      )}
 
       {/* ── Filter bar ──────────────────────────────────────────────────── */}
       <div
@@ -555,16 +573,6 @@ function BookingsTable() {
             {[...Array(8)].map((_, i) => (
               <div key={i} className="h-14 bg-white rounded-xl border border-gray-100 animate-pulse" />
             ))}
-          </div>
-        ) : isNotConnected ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-2 text-center px-6">
-            <BookOpen size={28} className="text-gray-300" />
-            <p className="text-sm text-gray-500">RentalWise isn&apos;t connected for this account</p>
-            <p className="text-xs text-gray-400 max-w-xs">
-              This tab shows bookings synced from a RentalWise PMS integration. Connect one under
-              Settings &rarr; Integrations to see bookings here, or check the property calendar
-              for bookings created directly in HAIP.
-            </p>
           </div>
         ) : isError ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">

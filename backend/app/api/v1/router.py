@@ -7,7 +7,7 @@ from app.api.v1.endpoints import (
     webhooks_dograh,
     voice_settings,
     grievance, incidents, health, changelog, sample_data, admin_dlq,
-    calculator, calendar,
+    calculator, calendar, bookings,
     leads,
     pipeline_stages,
     lead_fields,
@@ -45,6 +45,7 @@ api_router.include_router(saved_views.router)
 api_router.include_router(properties.router)
 api_router.include_router(calculator.router)
 api_router.include_router(calendar.router)
+api_router.include_router(bookings.router)
 api_router.include_router(calls.router)
 
 # Leads360 — unified sales pipeline

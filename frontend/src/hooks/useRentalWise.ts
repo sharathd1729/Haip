@@ -1,8 +1,10 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import api from "@/lib/api";
 import {
   rentalwiseService,
   type RWThreadFilters,
   type RWBookingFilters,
+  type RWBookingsResponse,
   type RWSendMessagePayload,
 } from "@/lib/rentalwise";
 
@@ -56,5 +58,31 @@ export function useRWBookings(filters: RWBookingFilters = {}) {
     placeholderData: keepPreviousData,
     staleTime:   30_000,
     retry:       1,
+  });
+}
+
+// ─── Local (HAIP-native) bookings ──────────────────────────────────────────────
+// Bookings created directly in HAIP -- e.g. a Leads360 lead moved to a
+// closed_won ("Sold") stage -- independent of any RentalWise integration.
+// Same response shape as RWBookingsResponse so the Bookings table can render
+// either source (or both, merged) without a separate component.
+
+export function useLocalBookings(filters: RWBookingFilters = {}) {
+  return useQuery({
+    queryKey: ["local-bookings", filters],
+    queryFn: () =>
+      api.get<RWBookingsResponse>("/bookings", {
+        params: {
+          search: filters.search || undefined,
+          status: filters.status || undefined,
+          channel: filters.channel || undefined,
+          sort: filters.sort,
+          page: filters.page,
+          per_page: filters.per_page,
+        },
+      }).then(r => r.data),
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+    retry: 1,
   });
 }
