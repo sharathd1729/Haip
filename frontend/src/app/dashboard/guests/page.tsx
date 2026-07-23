@@ -561,10 +561,10 @@ function BookingsTable() {
           </button>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11.5px] font-semibold text-white transition-colors"
-            style={{ background: "#111827" }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#1f2937"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#111827"; }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11.5px] font-semibold transition-colors"
+            style={{ background: "#fff", color: "#0F766E", border: "1px solid #0F766E" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(15,118,110,0.08)"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#fff"; }}
           >
             <Plus size={12} /> Create Booking
           </button>
