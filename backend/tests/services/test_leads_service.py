@@ -183,6 +183,30 @@ def test_stage_summary_groups_by_pipeline_stage_key(db):
     assert "new" not in result.stages  # not grouped by the legacy enum value
 
 
+# ── Regression: stage count badge must match the card list's qualification
+# filter. get_leads_pipeline's card list excludes qualification_status ==
+# "unqualified" (leads_service.py ~L541), but _build_stage_summary's count
+# query didn't apply the same filter -- so a column like
+# "collaboration_engagement" could show a nonzero count badge while its card
+# list rendered "No leads here", since every inquiry landing there defaults
+# to qualification_status="unqualified". Discovered live on Ratha's board.
+def test_stage_summary_excludes_unqualified_like_the_card_list(db):
+    tenant = _make_tenant(db)
+    guest = _make_guest(db, tenant.id)
+    collab_stage = _make_stage(db, tenant.id, "collaboration_engagement", 0)
+
+    inq = _make_inquiry(db, tenant.id, guest.id, stage=InquiryStage.NEW)
+    inq.stage_id = collab_stage.id
+    inq.qualification_status = "unqualified"
+    db.flush()
+
+    result = leads_service.get_leads_pipeline(db, tenant.id)
+
+    assert "collaboration_engagement" not in result.stages or \
+        result.stages["collaboration_engagement"].count == 0
+    assert not any(c.inquiry_id == inq.id for c in result.leads)
+
+
 # ── T22: one inquiry = one lead card ─────────────────────────────────────────
 
 def test_get_leads_pipeline_one_row_per_inquiry(db):

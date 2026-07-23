@@ -698,7 +698,10 @@ def _build_stage_summary(
                 else_=func.coalesce(Inq.budget, 0),
             )
         ), 0).label("revenue"),
-    ).join(PS, PS.id == Inq.stage_id).filter(Inq.tenant_id == tenant_id, PS.tenant_id == tenant_id)
+    ).join(PS, PS.id == Inq.stage_id).filter(
+        Inq.tenant_id == tenant_id, PS.tenant_id == tenant_id,
+        Inq.qualification_status != "unqualified",
+    )
 
     if property_id:
         q = q.filter(Inq.property_id == property_id)
