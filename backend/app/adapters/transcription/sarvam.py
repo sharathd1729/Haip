@@ -1,10 +1,15 @@
 """
-Sarvam AI Speech-to-Text adapter.
+Sarvam AI Speech-to-Text adapter -- Batch Job API.
 
-API docs: https://docs.sarvam.ai/api-reference-docs/speech-to-text
-Endpoint: POST https://api.sarvam.ai/speech-to-text
+Uses the official `sarvamai` SDK's batch job client (create_job -> upload_files
+-> start -> wait_until_complete -> download outputs), NOT the synchronous
+POST /speech-to-text real-time endpoint. The real-time endpoint hard-caps
+audio at 30 seconds ("Audio duration exceeds the maximum limit of 30
+seconds. Please use the batch API for longer audio files.") -- confirmed
+live in production that every real call recording (multi-minute) was
+rejected outright. The batch API handles recordings up to 2 hours.
 
-Auth: API key via header  api-subscription-key: <key>
+Auth: API key via header  api-subscription-key: <key> (handled by the SDK)
 
 Supported languages (BCP-47):
   hi-IN  kn-IN  ta-IN  te-IN  ml-IN  mr-IN  gu-IN  bn-IN  od-IN  pa-IN  en-IN
@@ -16,18 +21,24 @@ Model:  saarika:v2.5  (Indic-first, code-switching aware -- v2 deprecated
 Key advantage over Deepgram:
   - Native Hindi + code-switched (Hinglish) support
   - Accurate on Indian-accented English
-  - Speaker diarisation (with_disfluencies=false gives clean turns)
+  - Speaker diarisation
 """
 
 from __future__ import annotations
-import httpx
+import json
+import os
+import tempfile
 import structlog
+from sarvamai import SarvamAI
 from app.adapters.transcription.base import TranscriptionAdapter, TranscriptResult, TranscriptTurn
 from app.core.config import settings
 
 log = structlog.get_logger()
 
-SARVAM_STT_URL = "https://api.sarvam.ai/speech-to-text"
+# Batch jobs on multi-minute call recordings can take a while to process --
+# generous but bounded so a stuck job doesn't hang a Celery worker forever.
+_JOB_POLL_INTERVAL_SECONDS = 5
+_JOB_TIMEOUT_SECONDS = 900
 
 # Language codes Sarvam accepts → map from our hint format
 _LANG_MAP = {
@@ -77,40 +88,51 @@ class SarvamAdapter(TranscriptionAdapter):
         audio_bytes: bytes,
         language_hint: str = "hi-IN",
     ) -> TranscriptResult:
+        """
+        Submits a Sarvam batch job for this recording, blocks (via the SDK's
+        synchronous polling) until it completes, and parses the result.
+
+        The SDK's job client is synchronous (plain httpx.Client, no asyncio) --
+        that's fine here since this coroutine already runs inside its own
+        dedicated event loop per Celery task (see workers/tasks/transcribe.py's
+        _run_async), with nothing else to interleave with.
+        """
         lang = _LANG_MAP.get(language_hint, language_hint)
+        client = SarvamAI(api_subscription_key=self._api_key)
 
-        # Sarvam STT expects multipart/form-data
-        files = {
-            "file": ("audio.wav", audio_bytes, "audio/wav"),
-        }
-        data = {
-            "language_code": lang,
-            "model": "saarika:v2.5",
-            "with_timestamps": "true",
-            "with_disfluencies": "false",  # removes ums/ahs for cleaner transcript
-        }
-        headers = {
-            "api-subscription-key": self._api_key,
-        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_path = os.path.join(tmpdir, "recording.wav")
+            with open(audio_path, "wb") as f:
+                f.write(audio_bytes)
 
-        async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(
-                SARVAM_STT_URL,
-                files=files,
-                data=data,
-                headers=headers,
+            job = client.speech_to_text_job.create_job(
+                model="saarika:v2.5",
+                language_code=lang,
+                with_timestamps=True,
+                with_diarization=True,
             )
-            try:
-                resp.raise_for_status()
-            except httpx.HTTPStatusError as exc:
-                log.error(
-                    "sarvam_stt_error",
-                    status=exc.response.status_code,
-                    body=exc.response.text[:300],
-                )
-                raise
+            job.upload_files([audio_path])
+            job.start()
+            job.wait_until_complete(
+                poll_interval=_JOB_POLL_INTERVAL_SECONDS,
+                timeout=_JOB_TIMEOUT_SECONDS,
+            )
 
-        payload = resp.json()
+            if not job.is_successful():
+                results = job.get_file_results()
+                error = (results.get("failed") or [{}])[0].get("error_message", "unknown error")
+                log.error("sarvam_batch_job_failed", job_id=job.job_id, error=error)
+                raise RuntimeError(f"Sarvam batch job failed: {error}")
+
+            output_dir = os.path.join(tmpdir, "output")
+            job.download_outputs(output_dir)
+            output_files = os.listdir(output_dir)
+            if not output_files:
+                raise RuntimeError("Sarvam batch job succeeded but produced no output file")
+
+            with open(os.path.join(output_dir, output_files[0])) as f:
+                payload = json.load(f)
+
         return self._parse(payload, lang)
 
     def _parse(self, payload: dict, language: str) -> TranscriptResult:
@@ -202,7 +224,9 @@ class SarvamAdapter(TranscriptionAdapter):
         When diarization is unavailable, wrap the full transcript as one turn.
         Groups words into ~10-second chunks so the UI renders paragraph breaks.
         """
-        if not timestamps:
+        # Defensive: seen live in production as a dict rather than a list on
+        # some responses, which raised KeyError(0) on timestamps[0] below.
+        if not isinstance(timestamps, list) or not timestamps:
             return [TranscriptTurn(speaker="unknown", t0=0.0, t1=0.0, text=raw_text)]
 
         CHUNK_SECONDS = 10.0
