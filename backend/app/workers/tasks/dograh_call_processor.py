@@ -22,6 +22,7 @@ import uuid
 from datetime import datetime, timezone
 
 import boto3
+from botocore.config import Config
 import httpx
 import structlog
 from sqlalchemy.exc import IntegrityError
@@ -274,6 +275,9 @@ def _fetch_and_store_recording(db: Session, call: Call, recording_url: str, tena
     )
     if settings.AWS_S3_ENDPOINT_URL:
         s3_kwargs["endpoint_url"] = settings.AWS_S3_ENDPOINT_URL
+        # Path-style addressing -- virtual-hosted-style (boto3's default)
+        # breaks TLS cert validation against R2's endpoint.
+        s3_kwargs["config"] = Config(s3={"addressing_style": "path"})
 
     s3 = boto3.client("s3", **s3_kwargs)
     put_kwargs = dict(
@@ -282,7 +286,9 @@ def _fetch_and_store_recording(db: Session, call: Call, recording_url: str, tena
         Body=audio_bytes,
         ContentType="audio/mpeg",
     )
-    if settings.KMS_KEY_ID:
+    # SSE-KMS is an AWS S3 API feature R2 doesn't implement -- only send it
+    # against real AWS S3, i.e. when no custom endpoint is configured.
+    if settings.KMS_KEY_ID and not settings.AWS_S3_ENDPOINT_URL:
         put_kwargs["ServerSideEncryption"] = "aws:kms"
         put_kwargs["SSEKMSKeyId"] = settings.KMS_KEY_ID
 

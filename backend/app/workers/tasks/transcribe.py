@@ -11,6 +11,7 @@ import asyncio
 import json
 import os
 import boto3
+from botocore.config import Config
 
 
 def _run_async(coro):
@@ -63,6 +64,9 @@ def transcribe(self, call_id: str, tenant_id: str, provider: str = "sarvam"):
             )
             if settings.AWS_S3_ENDPOINT_URL:
                 s3_kwargs["endpoint_url"] = settings.AWS_S3_ENDPOINT_URL
+                # Path-style addressing -- virtual-hosted-style (boto3's
+                # default) breaks TLS cert validation against R2's endpoint.
+                s3_kwargs["config"] = Config(s3={"addressing_style": "path"})
             s3 = boto3.client("s3", **s3_kwargs)
             obj = s3.get_object(Bucket=settings.S3_BUCKET_NAME, Key=key)
             audio_bytes = obj["Body"].read()

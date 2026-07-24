@@ -7,6 +7,7 @@ second convention -- same boto3-against-AWS_S3_ENDPOINT_URL client setup,
 same tenant-scoped key prefix.
 """
 import boto3
+from botocore.config import Config
 from app.core.config import settings
 import structlog
 
@@ -21,6 +22,9 @@ def _s3_client():
     )
     if settings.AWS_S3_ENDPOINT_URL:
         kwargs["endpoint_url"] = settings.AWS_S3_ENDPOINT_URL
+        # Path-style addressing -- virtual-hosted-style (boto3's default)
+        # breaks TLS cert validation against R2's endpoint.
+        kwargs["config"] = Config(s3={"addressing_style": "path"})
     return boto3.client("s3", **kwargs)
 
 
@@ -38,7 +42,9 @@ def upload_media(tenant_id: str, message_id: str, content: bytes, content_type: 
         Body=content,
         ContentType=content_type,
     )
-    if settings.KMS_KEY_ID:
+    # SSE-KMS is an AWS S3 API feature R2 doesn't implement -- only send it
+    # against real AWS S3, i.e. when no custom endpoint is configured.
+    if settings.KMS_KEY_ID and not settings.AWS_S3_ENDPOINT_URL:
         put_kwargs["ServerSideEncryption"] = "aws:kms"
         put_kwargs["SSEKMSKeyId"] = settings.KMS_KEY_ID
     s3.put_object(**put_kwargs)

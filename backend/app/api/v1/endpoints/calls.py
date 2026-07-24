@@ -7,6 +7,7 @@ import mimetypes
 import os
 import uuid
 import boto3
+from botocore.config import Config
 from datetime import datetime, timezone
 from app.core.database import get_db
 from app.core.config import settings
@@ -266,6 +267,9 @@ async def upload_call_recording(
             )
             if settings.AWS_S3_ENDPOINT_URL:
                 s3_kwargs["endpoint_url"] = settings.AWS_S3_ENDPOINT_URL
+                # Path-style addressing -- virtual-hosted-style (boto3's
+                # default) breaks TLS cert validation against R2's endpoint.
+                s3_kwargs["config"] = Config(s3={"addressing_style": "path"})
             s3 = boto3.client("s3", **s3_kwargs)
             s3.put_object(
                 Bucket=settings.S3_BUCKET_NAME,
@@ -438,6 +442,9 @@ def _get_recording_url(s3_key: str | None, call_id: str | None = None) -> str | 
             )
             if settings.AWS_S3_ENDPOINT_URL:
                 s3_kwargs["endpoint_url"] = settings.AWS_S3_ENDPOINT_URL
+                # Path-style addressing -- virtual-hosted-style (boto3's
+                # default) breaks TLS cert validation against R2's endpoint.
+                s3_kwargs["config"] = Config(s3={"addressing_style": "path"})
             s3 = boto3.client("s3", **s3_kwargs)
             return s3.generate_presigned_url(
                 "get_object",
