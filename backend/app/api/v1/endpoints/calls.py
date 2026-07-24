@@ -583,6 +583,14 @@ def _serialize_call_detail(call: Call, db) -> dict:
         "ai_score_status": call.ai_score_status,
         "disposition": disp.value if hasattr(disp, "value") else (disp or "pending"),
         "transcript": {"turns": normalised_turns} if normalised_turns else None,
+        # Flat convenience fields for simpler consumers (Calls list quick-view
+        # panel) alongside the nested transcript.turns/score shapes above,
+        # which the lead detail page's CallCard already relies on.
+        "ai_summary": call.ai_summary,
+        "ai_next_action": call.ai_next_action,
+        "transcript_text": "\n".join(
+            f"{t['speaker'].capitalize()}: {t['text']}" for t in normalised_turns
+        ) if normalised_turns else None,
         "score": score_data,
         "ivr_provider": call.ivr_provider,
         "created_at": call.created_at.isoformat() if call.created_at else None,

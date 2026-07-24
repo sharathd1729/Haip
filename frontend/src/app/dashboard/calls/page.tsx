@@ -32,6 +32,7 @@ interface CallItem {
   call_date?: string;
   created_at?: string;
   recording_url?: string | null;
+  ai_next_action?: string | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -223,6 +224,11 @@ function CallSlideOver({ callId, onClose }: { callId: string; onClose: () => voi
                     <Sparkles size={11} /> AI Summary
                   </p>
                   <p className="text-sm leading-relaxed" style={{ color: "var(--haip-fg-2)" }}>{call.ai_summary}</p>
+                  {call.ai_next_action && (
+                    <p className="text-xs font-medium mt-2 pt-2" style={{ color: "var(--primary)", borderTop: "1px solid color-mix(in srgb, var(--primary) 15%, transparent)" }}>
+                      → {call.ai_next_action}
+                    </p>
+                  )}
                 </div>
               )}
 
