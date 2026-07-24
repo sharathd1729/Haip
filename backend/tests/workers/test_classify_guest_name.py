@@ -107,3 +107,26 @@ def test_empty_guest_name_leaves_placeholder_untouched(db, monkeypatch):
 
     refreshed = db.query(Guest).filter_by(id=guest_id).first()
     assert refreshed.name == "Unknown Guest"
+
+
+@pytest.mark.parametrize("bogus", ["Unknown", "unknown", "N/A", "None", "Unidentified"])
+def test_non_name_placeholder_values_are_rejected(db, monkeypatch, bogus):
+    """Regression: the model echoing a transcript phrase like 'caller
+    unknown' produced Guest.name == 'Unknown' in production -- distinct
+    from our own 'Unknown Guest' placeholder, so the basic guard didn't
+    catch it."""
+    tenant, guest, call = _setup(db, guest_name="Unknown Guest")
+    guest_id, tenant_id, call_id = guest.id, tenant.id, call.id
+
+    class _FakeLLM:
+        async def complete(self, **kwargs):
+            return {"tool_use": _base_classification(guest_name=bogus)}
+
+    monkeypatch.setattr("app.workers.tasks.classify.get_llm", lambda task: _FakeLLM())
+    monkeypatch.setattr("app.workers.tasks.judge.judge.delay", MagicMock())
+
+    with patch("app.workers.tasks.classify.SessionLocal", return_value=db):
+        classify(call_id=call_id, tenant_id=tenant_id)
+
+    refreshed = db.query(Guest).filter_by(id=guest_id).first()
+    assert refreshed.name == "Unknown Guest"

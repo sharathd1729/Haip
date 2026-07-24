@@ -181,6 +181,12 @@ def classify(self, call_id: str, tenant_id: str):
         # elsewhere is never clobbered. Matches the same guard used in
         # guest_service.upsert_by_phone().
         guest_name = (classification.get("guest_name") or "").strip()
+        # Guard against the model echoing a non-name placeholder it saw
+        # in the transcript/agent notes (e.g. "caller unknown") -- seen
+        # live producing Guest.name == "Unknown" (not our own placeholder
+        # string, so the guard above didn't already catch it).
+        if guest_name.lower() in {"unknown", "unnamed", "n/a", "na", "none", "unidentified"}:
+            guest_name = ""
         if guest_name and call.guest_id:
             guest = db.query(Guest).filter_by(id=call.guest_id, tenant_id=tenant_id).first()
             if guest and (not guest.name or guest.name == "Unknown Guest"):
