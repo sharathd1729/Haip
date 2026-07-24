@@ -4,6 +4,7 @@ Call ingestion pipeline:
 """
 import asyncio
 import boto3
+from botocore.config import Config
 import hashlib
 import phonenumbers
 from sqlalchemy.orm import Session
@@ -161,16 +162,25 @@ def _do_fetch_recording(task_self, call_id: str, recording_url: str, tenant_id: 
         )
         if settings.AWS_S3_ENDPOINT_URL:
             s3_kwargs["endpoint_url"] = settings.AWS_S3_ENDPOINT_URL
+            # Path-style addressing -- virtual-hosted-style (boto3's default)
+            # sends requests to "<bucket>.<endpoint>", which breaks TLS cert
+            # validation against Cloudflare R2's endpoint (confirmed live in
+            # production: SSLV3_ALERT_HANDSHAKE_FAILURE on every upload).
+            s3_kwargs["config"] = Config(s3={"addressing_style": "path"})
         s3 = boto3.client("s3", **s3_kwargs)
         put_kwargs = dict(
             Bucket=settings.S3_BUCKET_NAME,
             Key=s3_key,
             Body=audio_bytes,
             ContentType="audio/mpeg",
-            ServerSideEncryption="aws:kms",
         )
-        if settings.KMS_KEY_ID:
-            put_kwargs["SSEKMSKeyId"] = settings.KMS_KEY_ID
+        # SSE-KMS is an AWS S3 API feature R2 doesn't implement (R2 encrypts
+        # at rest by default, with no S3-API SSE parameters) -- only send it
+        # against real AWS S3, i.e. when no custom endpoint is configured.
+        if not settings.AWS_S3_ENDPOINT_URL:
+            put_kwargs["ServerSideEncryption"] = "aws:kms"
+            if settings.KMS_KEY_ID:
+                put_kwargs["SSEKMSKeyId"] = settings.KMS_KEY_ID
         s3.put_object(**put_kwargs)
 
         call.recording_s3_key = s3_key
