@@ -11,6 +11,10 @@ from app.core.config import settings
 _ALLOWED_RECORDING_HOSTS = frozenset({
     "s3.ap-south-1.amazonaws.com",
     "mcube.vmctechnologies.com",  # seen on an outbound-callback recording sample
+    "recordings.mcube.com",       # Ratha's actual live inbound recording host --
+                                   # every recording was being permanently rejected
+                                   # (retried 3x then given up) because this wasn't
+                                   # in the allowlist. Confirmed live in production.
 })
 _S3_BUCKET_PATH_PREFIX = "/app.mcube.com/"
 

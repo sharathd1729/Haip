@@ -284,6 +284,7 @@ Backend auth is custom JWT (HS256) via `backend/app/api/v1/endpoints/auth.py` �
 | CallerDesk | `cdn.callerdesk.io`, `recordings.callerdesk.io` |
 | Acefone | `cdn.acefone.com` |
 | Dograh | `cdn.dograh.com`, `recordings.dograh.com`, `storage.dograh.com` |
+| Mcube (Ratha's live IVR — replacing CallerDesk) | `recordings.mcube.com`, `mcube.vmctechnologies.com`, `s3.ap-south-1.amazonaws.com` (shared S3 host, additionally scoped to path prefix `/app.mcube.com/` — see `backend/app/adapters/ivr/mcube.py`) |
 
 **SSRF protection required on ALL recording URL fetches** — validate scheme (`https`) and domain before any HTTP call.
 

@@ -99,6 +99,31 @@ async def test_fetch_recording_rejects_arbitrary_bucket_on_shared_s3_host():
         await adapter.fetch_recording("https://s3.ap-south-1.amazonaws.com/some-other-bucket/file.wav")
 
 
+@pytest.mark.asyncio
+async def test_fetch_recording_accepts_recordings_mcube_com(monkeypatch):
+    """Regression: recordings.mcube.com is Ratha's actual live recording
+    host -- every single recording was being permanently rejected (and
+    retried 3x before giving up) because this domain was missing from the
+    allowlist, discovered live in production. Only asserts the SSRF gate
+    passes -- mocks the actual HTTP fetch."""
+    import httpx
+
+    class _FakeResponse:
+        content = b"fake-audio-bytes"
+        def raise_for_status(self): pass
+
+    class _FakeAsyncClient:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def get(self, *a, **kw): return _FakeResponse()
+
+    monkeypatch.setattr(httpx, "AsyncClient", lambda: _FakeAsyncClient())
+
+    adapter = McubeAdapter()
+    result = await adapter.fetch_recording("https://recordings.mcube.com/some/path/recording.wav")
+    assert result == b"fake-audio-bytes"
+
+
 # ── Webhook endpoint ─────────────────────────────────────────────────────────
 
 def _connect_mcube(db, tenant_id, webhook_secret="test-mcube-secret", api_key="test-api-key"):
