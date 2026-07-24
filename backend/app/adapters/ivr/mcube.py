@@ -110,7 +110,15 @@ class McubeAdapter(IVRAdapter):
                 f"(got path={parsed.path!r})."
             )
         async with httpx.AsyncClient() as client:
-            resp = await client.get(recording_url, timeout=60, follow_redirects=False)
+            resp = await client.get(
+                recording_url,
+                timeout=60,
+                follow_redirects=False,
+                # Mcube's Apache server 404s requests with no/non-browser
+                # User-Agent (confirmed live: curl's default UA -> 404,
+                # a browser-style UA -> 200). httpx sends no UA by default.
+                headers={"User-Agent": "Mozilla/5.0 (compatible; HAIP-RecordingFetcher/1.0)"},
+            )
             resp.raise_for_status()
             return resp.content
 
