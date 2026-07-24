@@ -212,8 +212,8 @@ export default function Leads360Page() {
 
       <LeadsFilterBar filters={filters} onChange={setFilters} />
 
-      {/* ── Kanban board ─────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden">
+      {/* ── Kanban board (desktop) ──────────────────────────────────────── */}
+      <div className="hidden md:block flex-1 overflow-x-auto overflow-y-hidden">
         <div className="flex gap-3 p-4 h-full" style={{ minWidth: "max-content" }}>
           {visibleStages.map(stage => (
             <StageColumn
@@ -225,6 +225,54 @@ export default function Leads360Page() {
             />
           ))}
         </div>
+      </div>
+
+      {/* ── Stacked stage list (mobile) — sideways-scrolling sub-300px
+          Kanban columns are unusable on a phone; the stage filter pills
+          above already let you narrow to one stage, so this just stacks
+          whichever stage(s) are visible vertically instead. ─────────── */}
+      <div className="md:hidden flex-1 overflow-y-auto haip-scrollbar px-3 py-3 space-y-4">
+        {(stageFilter === ALL_STAGES_ID ? visibleStages : visibleStages.filter(s => s.key === stageFilter))
+          .map(stage => {
+            const stageLeads = leadsByStage[stage.key] ?? [];
+            const meta = stageMeta[stage.key];
+            const count = meta?.count ?? stageLeads.length;
+            const revenue = meta?.potential_revenue ?? 0;
+            return (
+              <div key={stage.key}>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: stage.color }} />
+                    <span className="text-sm font-semibold truncate" style={{ color: "var(--haip-fg)" }}>
+                      {stage.label}
+                    </span>
+                    <span
+                      className="rounded-full px-2 py-0.5 text-[10px] font-medium tabular-nums flex-shrink-0"
+                      style={{ background: "var(--muted)", color: "var(--haip-fg-subtle)" }}
+                    >
+                      {count}
+                    </span>
+                  </div>
+                  {revenue > 0 && (
+                    <p className="text-[10px] flex-shrink-0" style={{ color: "var(--haip-fg-subtle)" }}>
+                      ₹{Number(revenue).toLocaleString("en-IN")}
+                    </p>
+                  )}
+                </div>
+                {isLoading ? (
+                  <SkeletonCard />
+                ) : stageLeads.length === 0 ? (
+                  <div className="flex items-center justify-center py-6 text-[11px] rounded-xl" style={{ background: "var(--muted)", color: "var(--haip-fg-subtle)" }}>
+                    No leads here
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {stageLeads.map(lead => <LeadCard key={lead.inquiry_id} lead={lead} />)}
+                  </div>
+                )}
+              </div>
+            );
+          })}
       </div>
 
       {/* ── Pipeline settings modal ──────────────────────────────────────── */}
