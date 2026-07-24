@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import {
@@ -266,19 +266,29 @@ export default function CallsPage() {
   const [showUpload, setShowUpload] = useState(false);
   const [search, setSearch] = useState("");
   const [activeCallId, setActiveCallId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
 
-  const { data: calls = [], isLoading, isError, error } = useQuery<CallItem[]>({
-    queryKey: ["calls", filters],
+  const { data, isLoading, isError, error } = useQuery<{ items: CallItem[]; total: number }>({
+    queryKey: ["calls", filters, page],
     queryFn: () => {
-      const params: Record<string, string> = {};
+      const params: Record<string, string | number> = { page, limit: pageSize };
       if (filters.disposition) params.disposition = filters.disposition;
       if (filters.dateFrom)    params.date_from = filters.dateFrom;
       if (filters.dateTo)      params.date_to = filters.dateTo;
       if (filters.agentId)     params.agent_id = filters.agentId;
-      return api.get("/calls", { params }).then(r => r.data?.items ?? r.data ?? []);
+      return api.get("/calls", { params }).then(r => ({
+        items: r.data?.items ?? r.data ?? [],
+        total: r.data?.total ?? (r.data?.items ?? r.data ?? []).length,
+      }));
     },
     staleTime: 30_000,
   });
+  const calls = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  useEffect(() => { setPage(1); }, [filters]);
 
   const filtered = search.trim()
     ? calls.filter(c =>
@@ -298,7 +308,9 @@ export default function CallsPage() {
           <div>
             <h1 className="text-xl font-semibold tracking-tight" style={{ color: "var(--haip-fg)" }}>Calls</h1>
             <p className="text-xs mt-0.5" style={{ color: "var(--haip-fg-subtle)" }}>
-              {filtered.length} call{filtered.length !== 1 ? "s" : ""} · click row to inspect
+              {search.trim()
+                ? `${filtered.length} of ${calls.length} on this page match`
+                : `${total} call${total !== 1 ? "s" : ""}`} · click row to inspect
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -424,6 +436,33 @@ export default function CallsPage() {
           ))
         )}
       </div>
+
+      {/* ── Pagination ─────────────────────────────────────────────────────── */}
+      {!isLoading && !isError && totalPages > 1 && (
+        <div className="flex items-center justify-between px-5 py-3 flex-shrink-0" style={{ borderTop: "1px solid var(--haip-border)" }}>
+          <p className="text-[11px]" style={{ color: "var(--haip-fg-subtle)" }}>
+            Page {page} of {totalPages}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="text-xs px-3 py-1.5 rounded-lg border font-medium disabled:opacity-40"
+              style={{ borderColor: "var(--haip-border)", color: "var(--haip-fg-muted)" }}
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="text-xs px-3 py-1.5 rounded-lg border font-medium disabled:opacity-40"
+              style={{ borderColor: "var(--haip-border)", color: "var(--haip-fg-muted)" }}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Slide-over ─────────────────────────────────────────────────────── */}
       {activeCallId && (
