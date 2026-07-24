@@ -9,7 +9,9 @@ Auth: API key via header  api-subscription-key: <key>
 Supported languages (BCP-47):
   hi-IN  kn-IN  ta-IN  te-IN  ml-IN  mr-IN  gu-IN  bn-IN  od-IN  pa-IN  en-IN
 
-Model:  saarika:v2  (Indic-first, code-switching aware)
+Model:  saarika:v2.5  (Indic-first, code-switching aware -- v2 deprecated
+        by Sarvam as of July 2026, confirmed live via 400 "Model 'saarika:v2'
+        has been deprecated. Please use 'saarika:v2.5' instead.")
 
 Key advantage over Deepgram:
   - Native Hindi + code-switched (Hinglish) support
@@ -56,7 +58,7 @@ _COST_PER_MIN_USD = 0.0012
 
 class SarvamAdapter(TranscriptionAdapter):
     """
-    Transcribes audio using Sarvam AI saarika:v2.
+    Transcribes audio using Sarvam AI saarika:v2.5.
 
     Best for:
       - Hindi / Hinglish calls
@@ -83,7 +85,7 @@ class SarvamAdapter(TranscriptionAdapter):
         }
         data = {
             "language_code": lang,
-            "model": "saarika:v2",
+            "model": "saarika:v2.5",
             "with_timestamps": "true",
             "with_disfluencies": "false",  # removes ums/ahs for cleaner transcript
         }

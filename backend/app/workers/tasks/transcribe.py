@@ -32,7 +32,14 @@ import structlog
 log = structlog.get_logger()
 
 
-@celery_app.task(bind=True, max_retries=3, default_retry_delay=30, name="tasks.transcribe")
+@celery_app.task(
+    bind=True, max_retries=5, default_retry_delay=30,
+    # Throttle so bulk backfills don't slam Sarvam's rate limit -- confirmed
+    # live: dispatching ~60 transcriptions at once got 429 Too Many Requests
+    # on most of them, then exhausted retries before the rate limit cleared.
+    rate_limit="10/m",
+    name="tasks.transcribe",
+)
 def transcribe(self, call_id: str, tenant_id: str, provider: str = "sarvam"):
     from app.workers.tasks.classify import classify
 
@@ -111,6 +118,9 @@ def transcribe(self, call_id: str, tenant_id: str, provider: str = "sarvam"):
         except Exception:
             pass
         log.error("transcribe_failed", call_id=call_id, error=str(exc))
-        raise self.retry(exc=exc)
+        # Exponential backoff -- a fixed 30s retry on a 429 just re-hits the
+        # same rate limit before it clears, especially under bulk backfills.
+        countdown = 30 * (2 ** self.request.retries)
+        raise self.retry(exc=exc, countdown=countdown)
     finally:
         db.close()
