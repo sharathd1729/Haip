@@ -31,6 +31,7 @@ interface CallItem {
   ai_summary?: string;
   call_date?: string;
   created_at?: string;
+  recording_url?: string | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -73,7 +74,7 @@ function SentimentIcon({ s }: { s?: string }) {
 function CallRow({ call, onClick }: { call: CallItem; onClick: () => void }) {
   const dt = call.started_at || call.created_at || "";
   const name = call.guest_name || "Unknown";
-  const phoneToken = call.guest_phone ? `···${call.guest_phone.slice(-4)}` : "";
+  const phoneToken = call.guest_phone || "";
   const snippet = call.transcript_text?.trim().slice(0, 120) ?? "";
 
   return (
@@ -189,7 +190,7 @@ function CallSlideOver({ callId, onClose }: { callId: string; onClose: () => voi
                 )}
                 <div>
                   <p className="text-sm font-semibold" style={{ color: "var(--haip-fg)" }}>{call.guest_name || "Unknown"}</p>
-                  <p className="text-xs tabular-nums" style={{ color: "var(--haip-fg-subtle)" }}>···{call.guest_phone?.slice(-4)}</p>
+                  <p className="text-xs tabular-nums" style={{ color: "var(--haip-fg-subtle)" }}>{call.guest_phone}</p>
                   <div className="flex items-center gap-2 mt-1 text-xs" style={{ color: "var(--haip-fg-subtle)" }}>
                     {call.duration_seconds > 0 && <span>{fmt(call.duration_seconds)}</span>}
                     {call.agent_name && <span>· {call.agent_name}</span>}
@@ -197,6 +198,23 @@ function CallSlideOver({ callId, onClose }: { callId: string; onClose: () => voi
                   </div>
                 </div>
               </div>
+
+              {/* Recording */}
+              {call.recording_url ? (
+                <audio
+                  controls
+                  className="w-full"
+                  src={
+                    call.recording_url.startsWith("/")
+                      ? `${(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1").replace(/\/api\/v1$/, "")}${call.recording_url}`
+                      : call.recording_url
+                  }
+                />
+              ) : (
+                <div className="rounded-xl p-4 text-center" style={{ background: "var(--muted)" }}>
+                  <p className="text-xs" style={{ color: "var(--haip-fg-subtle)" }}>Recording not yet available</p>
+                </div>
+              )}
 
               {/* AI Summary */}
               {call.ai_summary && (
