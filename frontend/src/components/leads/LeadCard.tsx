@@ -33,6 +33,7 @@ export interface LeadCard {
   quoted_amount?: number;
   property_interest?: string[];
   ai_summary?: string;
+  ai_next_action?: string;
   assigned_agent_name?: string;
   last_touch_at?: string;
   created_at?: string;
@@ -254,10 +255,17 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
           <AgentAvatar name={lead.assigned_agent_name} />
         )}
         {lead.ai_summary ? (
-          <p className="text-[10px] leading-relaxed line-clamp-2 flex-1" style={{ color: "var(--haip-fg-subtle)" }}>
-            <Sparkles size={9} className="inline mr-1" style={{ color: "var(--primary)" }} />
-            {lead.ai_summary}
-          </p>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] leading-relaxed line-clamp-2" style={{ color: "var(--haip-fg-subtle)" }}>
+              <Sparkles size={9} className="inline mr-1" style={{ color: "var(--primary)" }} />
+              {lead.ai_summary}
+            </p>
+            {lead.ai_next_action && (
+              <p className="text-[10px] font-medium line-clamp-1 mt-0.5" style={{ color: "var(--primary)" }}>
+                → {lead.ai_next_action}
+              </p>
+            )}
+          </div>
         ) : (
           <div className="flex-1 space-y-1">
             <Skeleton className="h-2.5 w-full rounded" />

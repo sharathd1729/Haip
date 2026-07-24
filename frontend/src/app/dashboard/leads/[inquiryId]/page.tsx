@@ -28,6 +28,15 @@ interface TimelineEntry {
   call_summary?: string | null;
   call_duration_seconds?: number | null;
   call_qa_score?: number | null;
+  call_has_transcript?: boolean;
+  call_next_action?: string | null;
+  call_disposition?: string | null;
+  call_occasion?: string | null;
+  call_budget_signal?: string | null;
+  call_decision_stage?: string | null;
+  call_competitor_mentioned?: string | null;
+  call_conversion_probability?: number | null;
+  call_lost_reason?: string | null;
 }
 
 interface QuoteHistory {
@@ -108,7 +117,38 @@ const BUBBLE_TONES: Record<string, { in: string; out: string }> = {
   instagram: { in: "bg-pink-50 border-pink-100 text-gray-800", out: "bg-teal-600 text-white" },
 };
 
+interface CallTranscriptTurn {
+  speaker: string;
+  text: string;
+  t0: number;
+  t1: number;
+}
+
+function CallBreakdownPill({ label }: { label: string }) {
+  return (
+    <span className="text-[9.5px] bg-white border border-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full capitalize">
+      {label.replace(/_/g, " ")}
+    </span>
+  );
+}
+
 function CallCard({ entry }: { entry: TimelineEntry }) {
+  const [showTranscript, setShowTranscript] = useState(false);
+
+  const { data: detail, isLoading: loadingTranscript } = useQuery({
+    queryKey: ["call-transcript", entry.id],
+    queryFn: () => api.get(`/calls/${entry.id}`).then(r => r.data),
+    enabled: showTranscript,
+    staleTime: 60_000,
+  });
+
+  const breakdownPills = [
+    entry.call_occasion,
+    entry.call_decision_stage?.replace(/_/g, " "),
+    entry.call_competitor_mentioned && `vs. ${entry.call_competitor_mentioned}`,
+    entry.call_lost_reason && `lost: ${entry.call_lost_reason}`,
+  ].filter(Boolean) as string[];
+
   return (
     <div className="mx-auto w-full max-w-[420px] rounded-xl border border-blue-100 bg-blue-50/60 p-3 space-y-1.5">
       <div className="flex items-center justify-between">
@@ -129,9 +169,53 @@ function CallCard({ entry }: { entry: TimelineEntry }) {
             <Star size={10} /> QA {Math.round(entry.call_qa_score)}/100
           </span>
         )}
+        {entry.call_disposition && (
+          <span className="capitalize">{entry.call_disposition.replace(/_/g, " ")}</span>
+        )}
+        {entry.call_conversion_probability != null && (
+          <span>{entry.call_conversion_probability}% likely to book</span>
+        )}
       </div>
       {entry.call_summary && (
         <p className="text-[11px] text-gray-700 leading-relaxed line-clamp-3">{entry.call_summary}</p>
+      )}
+      {entry.call_next_action && (
+        <p className="text-[11px] font-medium text-blue-700 border-t border-blue-100 pt-1.5">
+          → {entry.call_next_action}
+        </p>
+      )}
+      {breakdownPills.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {breakdownPills.map((p, i) => <CallBreakdownPill key={i} label={p} />)}
+        </div>
+      )}
+      {entry.call_has_transcript && (
+        <div>
+          <button
+            onClick={() => setShowTranscript(v => !v)}
+            className="text-[10px] font-medium text-blue-600 hover:underline"
+          >
+            {showTranscript ? "Hide transcript" : "View full transcript"}
+          </button>
+          {showTranscript && (
+            <div className="mt-1.5 max-h-56 overflow-y-auto space-y-1.5 bg-white rounded-lg border border-blue-100 p-2">
+              {loadingTranscript ? (
+                <p className="text-[10px] text-gray-400">Loading…</p>
+              ) : (detail?.transcript?.turns ?? []).length === 0 ? (
+                <p className="text-[10px] text-gray-400">No transcript available.</p>
+              ) : (
+                (detail.transcript.turns as CallTranscriptTurn[]).map((t, i) => (
+                  <p key={i} className="text-[10.5px] leading-relaxed">
+                    <span className={cn("font-semibold capitalize", t.speaker === "agent" ? "text-blue-700" : "text-gray-700")}>
+                      {t.speaker}:
+                    </span>{" "}
+                    <span className="text-gray-600">{t.text}</span>
+                  </p>
+                ))
+              )}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

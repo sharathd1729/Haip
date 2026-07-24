@@ -356,6 +356,16 @@ def build_timeline(
             "call_summary": call.ai_summary,
             "call_duration_seconds": call.duration_seconds,
             "call_qa_score": float(call.ai_score) if call.ai_score is not None else None,
+            "call_has_transcript": bool(call.transcript_json),
+            "call_next_action": call.ai_next_action,
+            "call_disposition": (call.human_disposition or call.ai_disposition).value
+                if (call.human_disposition or call.ai_disposition) else None,
+            "call_occasion": call.occasion,
+            "call_budget_signal": call.budget_signal,
+            "call_decision_stage": call.decision_stage,
+            "call_competitor_mentioned": call.competitor_mentioned,
+            "call_conversion_probability": call.conversion_probability,
+            "call_lost_reason": call.lost_reason,
         })
 
     # ── System events (merge log) ─────────────────────────────────────────────
@@ -395,6 +405,15 @@ def build_timeline(
             call_summary=e.get("call_summary"),
             call_duration_seconds=e.get("call_duration_seconds"),
             call_qa_score=e.get("call_qa_score"),
+            call_has_transcript=e.get("call_has_transcript", False),
+            call_next_action=e.get("call_next_action"),
+            call_disposition=e.get("call_disposition"),
+            call_occasion=e.get("call_occasion"),
+            call_budget_signal=e.get("call_budget_signal"),
+            call_decision_stage=e.get("call_decision_stage"),
+            call_competitor_mentioned=e.get("call_competitor_mentioned"),
+            call_conversion_probability=e.get("call_conversion_probability"),
+            call_lost_reason=e.get("call_lost_reason"),
         )
         for e in entries
     ]

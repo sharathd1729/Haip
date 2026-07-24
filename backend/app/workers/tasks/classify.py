@@ -10,6 +10,7 @@ from pathlib import Path
 from app.workers.celery_app import celery_app
 from app.core.database import SessionLocal
 from app.models.call import Call
+from app.models.guest import Guest
 from app.models.transcript import Transcript
 from app.models.property import Property
 from app.models.user import User
@@ -89,10 +90,14 @@ CLASSIFY_TOOL = {
                 "type": "string",
                 "description": "If the call ended without converting, the likely reason. One of: price, dates_unavailable, still_comparing, no_response, wrong_property, other. Empty string if not lost.",
             },
+            "guest_name": {
+                "type": "string",
+                "description": "The guest/caller's first name if they state it themselves during the call (e.g. \"This is Priya calling\", \"Meera here\"). Do NOT use the agent's name. Empty string if the guest never states their name.",
+            },
         },
         "required": ["sentiment", "intent", "language", "is_code_mixed", "themes", "confidence",
                      "occasion", "budget_signal", "decision_stage", "competitor_mentioned",
-                     "conversion_probability", "lost_reason"],
+                     "conversion_probability", "lost_reason", "guest_name"],
     },
 }
 
@@ -170,6 +175,17 @@ def classify(self, call_id: str, tenant_id: str):
         lost_reason = classification.get("lost_reason", "")
         if lost_reason:
             call.lost_reason = lost_reason
+
+        # Detect the guest's spoken name and backfill the Guest record --
+        # only when currently unnamed, so a name confidently entered
+        # elsewhere is never clobbered. Matches the same guard used in
+        # guest_service.upsert_by_phone().
+        guest_name = (classification.get("guest_name") or "").strip()
+        if guest_name and call.guest_id:
+            guest = db.query(Guest).filter_by(id=call.guest_id, tenant_id=tenant_id).first()
+            if guest and (not guest.name or guest.name == "Unknown Guest"):
+                guest.name = guest_name
+                log.info("guest_name_detected_from_call", call_id=call_id, guest_id=guest.id)
 
         db.commit()
 

@@ -37,6 +37,15 @@ class TimelineEntrySchema(BaseModel):
     # (duration + QA) instead of a chat bubble.
     call_duration_seconds: Optional[int] = None
     call_qa_score: Optional[float] = None
+    call_has_transcript: bool = False
+    call_next_action: Optional[str] = None
+    call_disposition: Optional[str] = None
+    call_occasion: Optional[str] = None
+    call_budget_signal: Optional[str] = None
+    call_decision_stage: Optional[str] = None
+    call_competitor_mentioned: Optional[str] = None
+    call_conversion_probability: Optional[int] = None
+    call_lost_reason: Optional[str] = None
 
 
 class QuoteHistorySchema(BaseModel):
