@@ -1,5 +1,5 @@
-// HAIP Service Worker v2
-const CACHE_NAME = 'haip-shell-v2';
+// HAIP Service Worker v3
+const CACHE_NAME = 'haip-shell-v3';
 
 // App shell assets to cache on install
 const PRECACHE = ['/offline'];

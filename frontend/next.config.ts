@@ -17,6 +17,27 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async headers() {
+    return [
+      {
+        // The service worker file itself must never be cached -- browsers
+        // (and any CDN/proxy in front of this app) only check for a new
+        // sw.js when this request actually reaches the origin. Confirmed
+        // live: mobile users stuck on an old app version because nothing
+        // forced revalidation of this file.
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+        ],
+      },
+      {
+        source: "/manifest.json",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

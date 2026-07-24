@@ -54,12 +54,32 @@ export function PWARegister() {
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
 
+    // A new service worker calling skipWaiting()/clients.claim() (see
+    // sw.js) fires this once it takes control -- reload so the page picks
+    // up the new app shell instead of staying on stale in-memory JS.
+    // Guarded so it only ever fires once per page load, not a reload loop.
+    let reloadedForUpdate = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (reloadedForUpdate) return;
+      reloadedForUpdate = true;
+      window.location.reload();
+    });
+
     navigator.serviceWorker
       .register("/sw.js", { scope: "/" })
       .then(async (reg) => {
         if (process.env.NODE_ENV === "development") {
           console.log("[HAIP SW] registered, scope:", reg.scope);
         }
+
+        // Browsers only check for a new sw.js occasionally on their own
+        // (and can go a long time on mobile with backgrounded tabs) --
+        // force a check now and whenever the tab becomes visible again,
+        // so users don't get stuck on an old version for hours/days.
+        reg.update();
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState === "visible") reg.update();
+        });
 
         // Request notification permission and subscribe to push
         if ("Notification" in window && "PushManager" in window) {
