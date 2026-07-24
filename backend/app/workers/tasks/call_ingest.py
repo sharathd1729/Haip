@@ -162,14 +162,16 @@ def _do_fetch_recording(task_self, call_id: str, recording_url: str, tenant_id: 
         if settings.AWS_S3_ENDPOINT_URL:
             s3_kwargs["endpoint_url"] = settings.AWS_S3_ENDPOINT_URL
         s3 = boto3.client("s3", **s3_kwargs)
-        s3.put_object(
+        put_kwargs = dict(
             Bucket=settings.S3_BUCKET_NAME,
             Key=s3_key,
             Body=audio_bytes,
             ContentType="audio/mpeg",
             ServerSideEncryption="aws:kms",
-            SSEKMSKeyId=settings.KMS_KEY_ID or None,
         )
+        if settings.KMS_KEY_ID:
+            put_kwargs["SSEKMSKeyId"] = settings.KMS_KEY_ID
+        s3.put_object(**put_kwargs)
 
         call.recording_s3_key = s3_key
         call.recording_fetched = True
