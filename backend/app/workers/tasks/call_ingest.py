@@ -14,6 +14,7 @@ from app.models.call import Call
 from app.models.guest import Guest
 from app.models.inquiry import Inquiry, InquiryStage, InquirySource
 from app.adapters.ivr import get_ivr_adapter
+from app.services import identity_service
 from app.models.call import RecordingStatus
 from app.workers.celery_app import celery_app
 import structlog
@@ -231,25 +232,22 @@ def _mark_recording_status(db, call: Call, status: RecordingStatus, error: str) 
 
 
 def _dedup_guest(db: Session, tenant_id: str, phone: str) -> Guest:
-    """Find existing guest by E.164 phone or create new."""
+    """Resolve the calling phone number to a GID via identity_service --
+    the only place guest identity resolution is allowed to happen (see
+    CLAUDE.md). Previously this hardcoded a new Guest with name="Unknown
+    Guest" and a direct phone= lookup, bypassing identity_service entirely
+    and permanently stamping "Unknown Guest" even when other signals for
+    the same guest already existed."""
     try:
         parsed = phonenumbers.parse(phone, "IN")
         e164 = phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
     except Exception:
         e164 = phone
 
-    guest = db.query(Guest).filter_by(tenant_id=tenant_id, phone=e164).first()
-    if not guest:
-        guest = Guest(
-            id=str(uuid.uuid4()),
-            tenant_id=tenant_id,
-            phone=e164,
-            name="Unknown Guest",
-        )
-        db.add(guest)
-        db.flush()
-
-    return guest
+    guest_id, _created = identity_service.resolve_gid(
+        db, tenant_id, signal_type="phone", value=e164, source="ivr_call",
+    )
+    return db.query(Guest).filter_by(id=guest_id).one()
 
 
 def _find_or_create_inquiry(db: Session, tenant_id: str, guest: Guest) -> Inquiry:

@@ -13,6 +13,7 @@ from app.core.database import get_db
 from app.core.config import settings
 from app.api.v1.deps import get_current_user, get_current_user_flexible
 from app.models.call import Call, CallDisposition, CallDirection
+from app.models.guest import Guest
 from app.models.user import User
 from app.adapters.ivr import get_ivr_adapter
 from pydantic import BaseModel
@@ -69,11 +70,18 @@ def list_calls(
     total = q.count()
     calls = q.order_by(Call.created_at.desc()).offset((page - 1) * limit).limit(limit).all()
 
+    guest_ids = {c.guest_id for c in calls if c.guest_id}
+    guest_names = {}
+    if guest_ids:
+        guest_names = dict(
+            db.query(Guest.id, Guest.name).filter(Guest.id.in_(guest_ids)).all()
+        )
+
     return {
         "total": total,
         "page": page,
         "limit": limit,
-        "items": [_serialize_call(c) for c in calls],
+        "items": [_serialize_call(c, guest_names.get(c.guest_id)) for c in calls],
     }
 
 
@@ -456,7 +464,7 @@ def _get_recording_url(s3_key: str | None, call_id: str | None = None) -> str | 
     return None
 
 
-def _serialize_call(call: Call) -> dict:
+def _serialize_call(call: Call, guest_name: Optional[str] = None) -> dict:
     """Lightweight serializer used in the list endpoint."""
     disp = call.human_disposition or call.ai_disposition
     return {
@@ -468,6 +476,7 @@ def _serialize_call(call: Call) -> dict:
         "started_at": call.started_at,
         "ended_at": call.ended_at,
         "guest_id": call.guest_id,
+        "guest_name": guest_name,
         "guest_phone": call.from_number,
         "inquiry_id": call.inquiry_id,
         "transcription_status": call.transcription_status,
