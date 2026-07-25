@@ -49,28 +49,38 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* ── Canonical token layer ───────────────────────────────────────────────────
+   These are the single source of truth for colour. The --haip-* layer below
+   aliases onto these, and brandTheme.ts overrides them at runtime for
+   per-tenant white-labelling. Light-mode neutrals use the HAIP hex palette
+   (Tailwind slate/gray scale) so both layers agree; dark mode already did.
+   See docs/DESIGN.md.
+────────────────────────────────────────────────────────────────────────────── */
 :root {
   --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --foreground: #111827;
   /* Slightly off-white so bg-card is visible on bg-background */
   --card: oklch(0.994 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: #111827;
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  /* HAIP teal #0F766E as primary so bg-primary/10, text-primary etc. work */
-  --primary: oklch(0.47 0.085 175);
+  --popover-foreground: #111827;
+  /* HAIP teal so bg-primary/10, text-primary etc. work. Literal hex, not
+     oklch: the previous oklch(0.47 0.085 175) resolved to rgb(13,106,88),
+     a duller teal than the #0F766E it claimed to be — the --haip-* layer
+     used the correct hex, so the two drifted. */
+  --primary: #0F766E;
   --primary-foreground: oklch(1 0 0);
   --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
+  --secondary-foreground: #374151;
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  --muted-foreground: #475569;
   --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --accent-foreground: #374151;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.47 0.085 175);
-  --chart-1: oklch(0.47 0.085 175);
+  --border: #E5E7EB;
+  --input: #E5E7EB;
+  --ring: #0F766E;
+  --chart-1: #0F766E;
   --chart-2: oklch(0.65 0.15 150);
   --chart-3: oklch(0.72 0.15 60);
   --chart-4: oklch(0.60 0.18 290);
@@ -79,21 +89,12 @@
   --radius: 0.75rem;
   --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.47 0.085 175);
+  --sidebar-primary: #0F766E;
   --sidebar-primary-foreground: oklch(1 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-
-  /* ── Brand tokens — HAIP marketing (use these, not generic Tailwind colours) */
-  --brand-teal:        #00555a;
-  --brand-teal-dark:   #003d41;
-  --brand-teal-light:  #00666d;
-  --brand-teal-hover:  #004a4f;
-  --brand-mimosa:      #ffc94b;
-  --brand-mimosa-dark: #e6b000;
-  --brand-mimosa-light:#ffd470;
 
   /* Marketing palette — LIGHT mode (clean white + teal) */
   --mkt-bg:          #FFFFFF;
@@ -162,28 +163,18 @@
 :root {
   --page-bg:           #ffffff;
   --panel-bg:          #f8fafc;
-  --panel-border:      rgba(0, 0, 0, 0.08);
   --text-primary:      #111827;
   --text-secondary:    #4b5563;
-  --text-tertiary:     #9ca3af;
-  --icon-color:        #6b7280;
   --input-bg:          #f1f5f9;
-  --input-border:      #e2e8f0;
   --hover-bg:          rgba(0, 0, 0, 0.04);
-  --active-bg:         rgba(0, 0, 0, 0.07);
 }
 .dark {
   --page-bg:           #0f1521;
   --panel-bg:          #161e30;
-  --panel-border:      rgba(255, 255, 255, 0.07);
   --text-primary:      #e8edf8;
   --text-secondary:    #7a8ba8;
-  --text-tertiary:     #4e5e7a;
-  --icon-color:        #5a6e8a;
   --input-bg:          rgba(255, 255, 255, 0.05);
-  --input-border:      rgba(255, 255, 255, 0.08);
   --hover-bg:          rgba(255, 255, 255, 0.04);
-  --active-bg:         rgba(255, 255, 255, 0.08);
 }
 
 /* ── Global dark-mode overrides ───────────────────────────────────────────────
@@ -356,34 +347,40 @@
    Primary #0F766E · Accent #5EEAD4 · Linear-style sidebar · Light surfaces
    Inter body · 12px radius · Whitespace over borders
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/* --haip-* is an ALIAS layer over the canonical tokens above — not a second
+   palette. Defined once in :root; var() re-resolves per element, so the .dark
+   overrides of the canonical tokens flow through automatically. Only tokens
+   with no canonical equivalent (accent, status, shadows, subtle text) carry
+   literal values and need a .dark override. Prefer Tailwind utilities
+   (bg-card, text-foreground) in new code — see docs/DESIGN.md. */
 :root {
   /* Layout — sidebar same bg as page, border-r only (Linear style) */
   --haip-sidebar:       transparent;
-  --haip-sidebar-border:#E5E7EB;
+  --haip-sidebar-border:var(--border);
   --haip-sidebar-hover: color-mix(in srgb, var(--primary) 6%, transparent);
 
-  /* Brand */
-  --haip-primary:       #0F766E;
-  --haip-primary-hover: #0d6660;
+  /* Brand — follows --primary so per-tenant white-labelling propagates */
+  --haip-primary:       var(--primary);
+  --haip-primary-hover: color-mix(in srgb, var(--primary) 85%, black);
   --haip-accent:        #5EEAD4;
   --haip-accent-light:  rgba(94,234,212,0.15);
 
   /* Surfaces */
   --haip-surface:       #F8FAFC;
-  --haip-card:          #FFFFFF;
-  --haip-border:        #E5E7EB;
+  --haip-card:          var(--card);
+  --haip-border:        var(--border);
   --haip-border-strong: #D1D5DB;
 
   /* Typography */
-  --haip-fg:            #111827;
-  --haip-fg-2:          #374151;
-  --haip-fg-muted:      #475569;
+  --haip-fg:            var(--foreground);
+  --haip-fg-2:          var(--secondary-foreground);
+  --haip-fg-muted:      var(--muted-foreground);
   --haip-fg-subtle:     #64748B;
 
   /* Legacy aliases (keep for pages not yet migrated) */
-  --haip-text:          #111827;
-  --haip-text-2:        #374151;
-  --haip-text-muted:    #64748B;
+  --haip-text:          var(--foreground);
+  --haip-text-2:        var(--secondary-foreground);
+  --haip-text-muted:    var(--muted-foreground);
   --haip-text-subtle:   #94A3B8;
 
   /* Status */
@@ -397,19 +394,10 @@
   --haip-shadow-lg:     0 10px 15px rgba(0,0,0,0.08), 0 4px 6px rgba(0,0,0,0.04);
 }
 .dark {
-  --haip-sidebar:       transparent;
-  --haip-sidebar-border:rgba(255,255,255,0.07);
-  --haip-card:          #161e30;
-  --haip-surface:       #0f1521;
-  --haip-border:        rgba(255,255,255,0.07);
+  /* Only the literals need a dark variant — aliases follow automatically */
+  --haip-surface:       var(--background);
   --haip-border-strong: rgba(255,255,255,0.12);
-  --haip-fg:            #e8edf8;
-  --haip-fg-2:          #c5cfe0;
-  --haip-fg-muted:      #7a8ba8;
   --haip-fg-subtle:     #5a6e8a;
-  --haip-text:          #e8edf8;
-  --haip-text-2:        #c5cfe0;
-  --haip-text-muted:    #7a8ba8;
   --haip-text-subtle:   #4e5e7a;
   /* No shadow in dark mode */
   --haip-shadow-sm:     none;

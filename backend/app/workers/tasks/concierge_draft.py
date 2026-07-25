@@ -15,6 +15,7 @@ from app.models.guest import Guest
 from app.models.tenant import Tenant
 from app.models.inquiry import Inquiry
 from app.adapters.llm import get_llm
+from app.core.prompt_versions import stamp
 
 
 def _run_async(coro):
@@ -131,7 +132,8 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str)
         db.add(draft_message)
         db.commit()
 
-        log.info("concierge_draft_stored", message_id=draft_message.id, confidence=confidence, auto_send=should_auto_send)
+        log.info("concierge_draft_stored", message_id=draft_message.id, confidence=confidence,
+                 auto_send=should_auto_send, **stamp("concierge_reply"))
 
         if should_auto_send:
             channel_val = str(conversation.channel.value if hasattr(conversation.channel, "value") else conversation.channel)

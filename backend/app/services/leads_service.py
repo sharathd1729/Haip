@@ -17,7 +17,7 @@ Design rules:
 from __future__ import annotations
 
 import json
-import logging
+import structlog
 from datetime import datetime, timezone
 from typing import Any, List, Optional
 
@@ -33,7 +33,13 @@ from app.schemas.leads import (
     PipelineStageMetaSchema, QuoteHistorySchema, TimelineEntrySchema,
 )
 
-log = logging.getLogger(__name__)
+# structlog, not stdlib logging: the log calls in this module pass structured
+# kwargs (inquiry_id=..., source=...). stdlib's Logger.info() rejects those with
+# TypeError — but only once the level is enabled, so this was silent at WARNING
+# and broke trigger_summary_refresh() at INFO, where the success log raised
+# inside the try block and the except handler then raised again on its own
+# kwargs, surfacing a successful enqueue as a failure.
+log = structlog.get_logger()
 
 # ── Profile completeness mapping ──────────────────────────────────────────────
 # Ordered: each new signal type adds incremental completeness

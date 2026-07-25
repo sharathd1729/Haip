@@ -48,17 +48,29 @@ Active clients:
 
 ## LLM ROUTING TABLE — ALWAYS USE ROUTER, NEVER IMPORT DIRECTLY
 
-| Task | Provider | Model |
+Routing is **NVIDIA NIM-first**. Claude is retained only for the tone-sensitive
+concierge draft. There is currently **no Gemini and no OpenAI** in the live table.
+
+Task keys below are the exact strings accepted by `get_llm(task)` — verified against
+`_TASK_ROUTES` in `backend/app/adapters/llm/__init__.py`. That dict is the source of
+truth; if this table and the code disagree, the code wins and this table is stale.
+
+| Task key | Provider | Model |
 |---|---|---|
-| Call analysis | Claude | claude-sonnet-4-6 |
-| Call QA scoring | Claude | claude-sonnet-4-6 |
-| Concierge draft | Claude | claude-haiku-4-5 |
-| Lead summary (Leads360) | NVIDIA | llama-3.3-nemotron-super-49b-v1.5 |
-| Quick classify | Gemini | gemini-2.0-flash |
-| Bulk batch | Gemini | gemini-2.0-flash |
-| Deep reasoning | Claude | claude-opus-4-6 |
-| Report generation | Claude | claude-sonnet-4-6 |
-| Fallback | OpenAI | gpt-4o-mini |
+| `call_analysis` | NVIDIA | nvidia/llama-3.3-nemotron-super-49b-v1.5 |
+| `call_scoring` | NVIDIA | nvidia/llama-3.3-nemotron-super-49b-v1.5 |
+| `lead_summary` | NVIDIA | nvidia/llama-3.3-nemotron-super-49b-v1.5 |
+| `ruflo_domain` · `ruflo_synthesis` | NVIDIA | nvidia/llama-3.3-nemotron-super-49b-v1.5 |
+| `ask_haip_rca` | NVIDIA | nvidia/nemotron-3-ultra-550b-a55b |
+| `ask_haip_freeform_sql` | NVIDIA | nvidia/nemotron-3-ultra-550b-a55b |
+| `deep_reason` · `report_gen` | NVIDIA | nvidia/nemotron-3-ultra-550b-a55b |
+| `ask_haip_intent` | NVIDIA | meta/llama-3.1-8b-instruct |
+| `ask_haip_freeform_summary` | NVIDIA | meta/llama-3.1-8b-instruct |
+| `quick_classify` · `bulk_batch` | NVIDIA | meta/llama-3.1-8b-instruct |
+| `fallback` | NVIDIA | mistralai/mistral-medium-3.5-128b |
+| `concierge_draft` | Claude | claude-haiku-4-5 |
+
+Per-tenant override: `tenants.llm_provider_override` (cached 300s).
 
 All AI calls go through `backend/app/adapters/llm/` router.
 Never import provider clients directly in services.
@@ -83,7 +95,8 @@ Never resolve guest identity directly in endpoints or other services.
 | `merge_guests()` | Merge two GIDs; idempotent |
 | `get_confidence_score()` | Max confidence across all signals for a guest |
 
-Signal confidence weights: phone 0.90 · booking_id 0.95 · WA 0.85 · email 0.75 · IG 0.70 · channel_thread_id 0.80
+Signal confidence weights (`CONFIDENCE_WEIGHTS` in `models/guest_identity.py`):
+booking_id 0.95 · phone 0.90 · WA 0.85 · ota_guest_id 0.85 · channel_thread_id 0.80 · call_record_id 0.80 · email 0.75 · IG 0.70
 
 See: `architecture-delta.md` → MODIFICATION 1
 
@@ -166,13 +179,40 @@ Every table must have tenant_id.
 
 ## DATA MODEL — LEADS360
 
-**`inquiries.source`** (14 values):
-`WA_DIRECT` · `INBOUND_CALL` · `OUTBOUND_CALL` · `META_IG` · `OTA_AIRBNB` · `OTA_MMT` · `OTA_BOOKING` · `OTA_VRBO` · `OTA_GOIBIBO` · `CHANNEL_MANAGER` · `WALK_IN` · `WEB_CHAT` · `REFERRAL` · `WEBSITE`
+**`inquiries.source`** (15 values, per `InquirySource` in `backend/app/models/inquiry.py`):
+`WEBSITE` · `GOOGLE` · `META_IG` · `META_FB` · `CLICK_TO_WA` · `WA_DIRECT` · `EMAIL` · `PHONE` · `WALK_IN` · `REFERRAL` · `TRAVEL_AGENT` · `OTA_AIRBNB` · `OTA_BOOKING` · `OTA_VRBO` · `CHANNEL_MANAGER`
 
-**`inquiries.stage`** — full villa/resort flow:
-`NEW → RESPONDING → QUOTED → SITE_VISIT_SCHEDULED → SITE_VISIT_DONE → BOOKED → LOST`
-`GHOSTED` is grouped with `LOST` in UI as "Closed".
-Legacy `SITE_VISIT` kept in enum for data compat — do not remove.
+**Pipeline stages are a tenant-owned catalog, NOT a hardcoded enum** (migrations `043`, `049`).
+
+`pipeline_stages` (`backend/app/models/pipeline_stage.py`) is a per-tenant table — tenants
+add/remove/reorder their own stages, same tenant-scoped-catalog pattern as
+`modules`/`workspace_modules` (migration 031). Default taxonomy seeded for every tenant:
+
+| key | label | category |
+|---|---|---|
+| `general_enquiry` | General Enquiry | invalid *(default entry)* |
+| `rnr` | RNR | invalid |
+| `active` | Active | valid *(valid-lead entry)* |
+| `unsuitable` | Unsuitable | valid |
+| `lost` | Lost | valid *(closed-lost)* |
+| `sold` | Sold | valid *(closed-won)* |
+| `collaboration_engagement` | Collaboration Engagement | marketing *(collab entry)* |
+
+`category` drives lead counting: **only `valid` stages count as real leads** in dashboards
+and metrics — `invalid` and `marketing` do not. Three "landing zone" flags mark where a
+freshly auto-created inquiry lands, each at most one TRUE per tenant:
+`is_default_entry` · `is_valid_lead_entry` · `is_collab_entry`.
+Plus `is_closed_won` / `is_closed_lost` for funnel terminal states.
+
+⚠️ **Two stage columns coexist during cutover.** `inquiries.stage_id` (FK → `pipeline_stages`)
+is the new path; the legacy `inquiries.stage` enum is retained until every call site is
+migrated, then dropped. Correspondingly there are **two transition code paths in
+`inquiry_service.py`** — legacy `update_stage`/`_apply_stage` and the new
+`update_stage_by_id`/`_apply_stage_by_id`. **Anything that hooks stage transitions must
+hook both**, or transitions through the new path are silently missed.
+
+The old `NEW → RESPONDING → QUOTED → SITE_VISIT_* → BOOKED → LOST` flow was replaced
+wholesale by migration `049` — do not write new code against it.
 
 **Indexes** (migration `023_leads360_enum_extensions_indexes.py`):
 - `ix_inquiries_tenant_id_stage`
@@ -254,7 +294,24 @@ Backend auth is custom JWT (HS256) via `backend/app/api/v1/endpoints/auth.py` �
 **⚠️ Alembic migration gotcha — read before touching `backend/alembic/`:**
 `env.py` previously ran two "best-effort" setup statements before every migration transaction (`pg_terminate_backend(...)` and `SET lock_timeout`/`SET statement_timeout`), both wrapped in a silent `except: pass`. A failed statement poisons the rest of that connection's transaction in Postgres — so every migration after it would log "success" via Alembic's step-by-step logging (which fires before each step runs) while nothing ever actually committed, and `alembic_version` would never advance. This cost real time on both Neon (`neondb_owner` lacks `pg_signal_backend` — always failed) and Supabase (session pooler rejected the `SET` calls). Both statements are now removed. **If `alembic upgrade head` ever again logs success without `alembic_version` moving, suspect a silently-swallowed exception earlier in the same transaction, not a "did it really run" mystery** — check `env.py` first.
 
-**Known pre-existing test debt (not caused by Phase 0 work):** `backend/tests/` has ~45 failing tests as of this writing (`test_auth.py`, `test_dashboard_api.py`, `test_analytics_executive.py`, `test_calls.py`, and others) — verified these predate Phase 0 and are test/fixture drift (e.g. `test_auth.py` posts OAuth2 form-encoded `username`/`password` to a JSON-only `/login` endpoint; `test_dashboard_api.py` unpacks a 4-key fixture dict into 3 variables). 207 tests pass. Worth a dedicated cleanup pass — not attempted here to stay in scope.
+**Known test debt — but do NOT assume it is all fixture drift.** As of 2026-07-25 the
+suite is **455 passing / 44 failing**. Some genuinely is drift (`test_auth.py` posts
+OAuth2 form-encoded credentials to a JSON-only `/login`; `test_dashboard_api.py` unpacks
+a 4-key fixture into 3 variables).
+
+⚠️ **13 of the previously-"pre-existing" failures turned out to be a real production
+bug, not drift.** `leads_service.py`, `identity_service.py`, and
+`property_share_service.py` used stdlib `logging.getLogger()` but called it with
+structlog-style kwargs (`log.info("evt", tenant_id=...)`). `Logger.info()` short-circuits
+when its level is disabled, so this was **silent at WARNING and raised `TypeError` at
+INFO** — which is how production and pytest run. It took out `test_tenant_isolation`,
+the whole idempotency suite, and request-ID middleware tests. Fixed by switching those
+modules to structlog; an AST sweep confirms zero remaining call sites.
+
+The lesson: before writing a failure off as drift, check whether it is a latent
+level-dependent or environment-dependent bug. Grep is not enough to find this class —
+use an AST scan for `log.*()` calls carrying non-stdlib kwargs in modules that use
+`logging.getLogger`.
 
 ---
 

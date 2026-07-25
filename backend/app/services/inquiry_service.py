@@ -308,6 +308,53 @@ def update_stage(
     )
 
 
+def _emit_stage_ledger_event(
+    db: Session,
+    inquiry: Inquiry,
+    *,
+    stage_log_id: Optional[str],
+    from_key: Optional[str],
+    to_key: str,
+    actor_user_id: Optional[str],
+    reason: Optional[str],
+    occurred_at: datetime,
+) -> None:
+    """
+    Mirror a stage transition into the guest_events ledger (Guest Journey).
+
+    Shared by both transition paths — the legacy enum one (_apply_stage) and the
+    stage_id one (_apply_stage_by_id). Keep it that way: a hook added to only one
+    silently misses every transition that goes through the other.
+
+    Best-effort, matching the stage-log and audit writes either side of it — a
+    ledger problem must never block the transition itself.
+    """
+    if not stage_log_id:
+        return
+    try:
+        from app.core.events import emit_event
+        from app.schemas.guest_events import GuestEventType, SourceModule
+
+        emit_event(
+            db,
+            tenant_id=inquiry.tenant_id,
+            event_type=GuestEventType.INQUIRY_STAGE_MOVED,
+            entity_type="inquiry",
+            entity_id=stage_log_id,
+            source_module=SourceModule.LEADS360,
+            occurred_at=occurred_at,
+            guest_id=inquiry.guest_id,
+            inquiry_id=inquiry.id,
+            channel="system",
+            direction="system",
+            preview=(reason or f"Stage → {to_key}")[:120],
+            actor_user_id=actor_user_id or None,
+            payload={"from_stage": from_key, "to_stage": to_key},
+        )
+    except Exception as exc:
+        log.warning("guest_event_stage_write_failed", error=str(exc))
+
+
 def _apply_stage(
     db: Session,
     inquiry: Inquiry,
@@ -337,8 +384,20 @@ def _apply_stage(
             reason=reason or "",
         )
         db.add(log_entry)
+        _stage_log_id = log_entry.id
     except Exception as exc:
+        _stage_log_id = None
         log.warning("inquiry_stage_log_write_failed", error=str(exc))
+
+    _emit_stage_ledger_event(
+        db, inquiry,
+        stage_log_id=_stage_log_id,
+        from_key=old_stage.value if old_stage else None,
+        to_key=new_stage.value,
+        actor_user_id=actor_user_id,
+        reason=reason,
+        occurred_at=now,
+    )
 
     # Write audit event (best-effort — don't crash the transition if audit fails)
     try:
@@ -471,7 +530,7 @@ def _apply_stage_by_id(
     try:
         from app.models.inquiry_360 import InquiryStageLog
         from app.models.base import gen_uuid
-        db.add(InquiryStageLog(
+        _stage_log = InquiryStageLog(
             id=gen_uuid(),
             tenant_id=inquiry.tenant_id,
             inquiry_id=inquiry.id,
@@ -480,9 +539,22 @@ def _apply_stage_by_id(
             changed_by=actor_user_id or "system",
             changed_at=now,
             reason=reason or "",
-        ))
+        )
+        db.add(_stage_log)
+        _stage_log_id = _stage_log.id
     except Exception as exc:
+        _stage_log_id = None
         log.warning("inquiry_stage_log_write_failed", error=str(exc))
+
+    _emit_stage_ledger_event(
+        db, inquiry,
+        stage_log_id=_stage_log_id,
+        from_key=old_stage.key,
+        to_key=new_stage.key,
+        actor_user_id=actor_user_id,
+        reason=reason,
+        occurred_at=now,
+    )
 
     try:
         from app.core.audit import append_audit

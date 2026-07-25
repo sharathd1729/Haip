@@ -17,7 +17,7 @@ Public API:
 
 from __future__ import annotations
 
-import logging
+import structlog
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -26,7 +26,10 @@ from sqlalchemy.orm import Session
 from app.models.property_share import PropertyShare, PropertyShareEvent, ShareEventType
 from app.models.base import gen_uuid
 
-log = logging.getLogger(__name__)
+# structlog, not stdlib logging — the calls below pass structured kwargs
+# (tenant_id=..., token=...), which stdlib's Logger rejects with TypeError once
+# the log level is enabled. Same latent bug as leads_service/identity_service.
+log = structlog.get_logger()
 _now = lambda: datetime.now(timezone.utc)
 
 
