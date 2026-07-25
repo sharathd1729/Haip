@@ -1,27 +1,25 @@
 """
-Sarvam AI Speech-to-Text adapter -- Batch Job API.
+Sarvam AI Speech-to-Text-Translate adapter -- Batch Job API.
 
-Uses the official `sarvamai` SDK's batch job client (create_job -> upload_files
--> start -> wait_until_complete -> download outputs), NOT the synchronous
-POST /speech-to-text real-time endpoint. The real-time endpoint hard-caps
-audio at 30 seconds ("Audio duration exceeds the maximum limit of 30
-seconds. Please use the batch API for longer audio files.") -- confirmed
-live in production that every real call recording (multi-minute) was
-rejected outright. The batch API handles recordings up to 2 hours.
+Uses the official `sarvamai` SDK's batch STT-TRANSLATE job client
+(create_job -> upload_files -> start -> wait_until_complete -> download
+outputs), NOT the plain transcribe job and NOT the synchronous
+POST /speech-to-text real-time endpoint (hard-caps audio at 30s -- real
+call recordings are always longer). The translate job auto-detects the
+spoken language and always outputs English text/turns, regardless of
+whether the call was in Hindi, Hinglish, a regional language, or English.
+
+Confirmed live: the plain (non-translate) transcribe job returns text in
+the *script* of whatever language_code is passed -- English speech
+transcribed with a "hi-IN" hint came back phonetically transliterated
+into Devanagari (e.g. "फॉर सिक्स पीपल" for "for six people"), unusable
+for English-reading staff and worse input for downstream LLM analysis.
+The translate job side-steps this entirely by always producing English.
+
+Model: saaras:v2.5 (Sarvam's translate-capable model; auto-detects
+       source language, no language_code param needed/accepted).
 
 Auth: API key via header  api-subscription-key: <key> (handled by the SDK)
-
-Supported languages (BCP-47):
-  hi-IN  kn-IN  ta-IN  te-IN  ml-IN  mr-IN  gu-IN  bn-IN  od-IN  pa-IN  en-IN
-
-Model:  saarika:v2.5  (Indic-first, code-switching aware -- v2 deprecated
-        by Sarvam as of July 2026, confirmed live via 400 "Model 'saarika:v2'
-        has been deprecated. Please use 'saarika:v2.5' instead.")
-
-Key advantage over Deepgram:
-  - Native Hindi + code-switched (Hinglish) support
-  - Accurate on Indian-accented English
-  - Speaker diarisation
 """
 
 from __future__ import annotations
@@ -40,44 +38,24 @@ log = structlog.get_logger()
 _JOB_POLL_INTERVAL_SECONDS = 5
 _JOB_TIMEOUT_SECONDS = 900
 
-# Language codes Sarvam accepts → map from our hint format
-_LANG_MAP = {
-    "hi":    "hi-IN",
-    "hi-IN": "hi-IN",
-    "kn":    "kn-IN",
-    "kn-IN": "kn-IN",
-    "ta":    "ta-IN",
-    "ta-IN": "ta-IN",
-    "te":    "te-IN",
-    "te-IN": "te-IN",
-    "ml":    "ml-IN",
-    "ml-IN": "ml-IN",
-    "mr":    "mr-IN",
-    "mr-IN": "mr-IN",
-    "gu":    "gu-IN",
-    "gu-IN": "gu-IN",
-    "bn":    "bn-IN",
-    "bn-IN": "bn-IN",
-    "en":    "en-IN",
-    "en-IN": "en-IN",
-    "en-US": "en-IN",
-}
-
 # Cost: ~₹1 per minute at public pricing ≈ $0.0012/min (update when official)
 _COST_PER_MIN_USD = 0.0012
 
 
 class SarvamAdapter(TranscriptionAdapter):
     """
-    Transcribes audio using Sarvam AI saarika:v2.5.
+    Transcribes AND translates call audio to English using Sarvam AI's
+    speech-to-text-translate batch job (saaras:v2.5).
 
     Best for:
-      - Hindi / Hinglish calls
-      - Regional Indian languages (Kannada, Tamil, Telugu, etc.)
-      - Code-switched speech (Hindi + English mixed)
+      - Hindi / Hinglish / regional-language calls -- always comes back
+        in English, unlike the plain transcribe job which preserves
+        (and can garble into the wrong script) the spoken language.
+      - Downstream LLM analysis (classify.py) working on clean English.
 
-    Pass language_hint as BCP-47 code, e.g. "hi-IN", "kn-IN", "en-IN".
-    If unknown, use "hi-IN" — saarika handles code-switching gracefully.
+    language_hint is accepted for interface compatibility with other
+    TranscriptionAdapter implementations but unused -- the translate job
+    auto-detects the source language itself and always outputs English.
     """
 
     def __init__(self, api_key: str | None = None):
@@ -89,15 +67,15 @@ class SarvamAdapter(TranscriptionAdapter):
         language_hint: str = "hi-IN",
     ) -> TranscriptResult:
         """
-        Submits a Sarvam batch job for this recording, blocks (via the SDK's
-        synchronous polling) until it completes, and parses the result.
+        Submits a Sarvam batch translate job for this recording, blocks
+        (via the SDK's synchronous polling) until it completes, and
+        parses the result.
 
         The SDK's job client is synchronous (plain httpx.Client, no asyncio) --
         that's fine here since this coroutine already runs inside its own
         dedicated event loop per Celery task (see workers/tasks/transcribe.py's
         _run_async), with nothing else to interleave with.
         """
-        lang = _LANG_MAP.get(language_hint, language_hint)
         client = SarvamAI(api_subscription_key=self._api_key)
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -105,10 +83,8 @@ class SarvamAdapter(TranscriptionAdapter):
             with open(audio_path, "wb") as f:
                 f.write(audio_bytes)
 
-            job = client.speech_to_text_job.create_job(
-                model="saarika:v2.5",
-                language_code=lang,
-                with_timestamps=True,
+            job = client.speech_to_text_translate_job.create_job(
+                model="saaras:v2.5",
                 with_diarization=True,
             )
             job.upload_files([audio_path])
@@ -122,7 +98,7 @@ class SarvamAdapter(TranscriptionAdapter):
                 results = job.get_file_results()
                 error = (results.get("failed") or [{}])[0].get("error_message", "unknown error")
                 log.error("sarvam_batch_job_failed", job_id=job.job_id, error=error)
-                raise RuntimeError(f"Sarvam batch job failed: {error}")
+                raise RuntimeError(f"Sarvam batch translate job failed: {error}")
 
             output_dir = os.path.join(tmpdir, "output")
             job.download_outputs(output_dir)
@@ -133,7 +109,7 @@ class SarvamAdapter(TranscriptionAdapter):
             with open(os.path.join(output_dir, output_files[0])) as f:
                 payload = json.load(f)
 
-        return self._parse(payload, lang)
+        return self._parse(payload, "en-IN")
 
     def _parse(self, payload: dict, language: str) -> TranscriptResult:
         """

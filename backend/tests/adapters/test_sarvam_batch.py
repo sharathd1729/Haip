@@ -102,15 +102,14 @@ async def test_transcribe_runs_full_batch_job_flow(tmp_path):
     fake_job.download_outputs.side_effect = fake_download_outputs
 
     fake_client = MagicMock()
-    fake_client.speech_to_text_job.create_job.return_value = fake_job
+    fake_client.speech_to_text_translate_job.create_job.return_value = fake_job
 
     with patch("app.adapters.transcription.sarvam.SarvamAI", return_value=fake_client):
         result = await _adapter().transcribe(b"fake-wav-bytes", language_hint="hi-IN")
 
-    fake_client.speech_to_text_job.create_job.assert_called_once()
-    call_kwargs = fake_client.speech_to_text_job.create_job.call_args.kwargs
-    assert call_kwargs["model"] == "saarika:v2.5"
-    assert call_kwargs["with_timestamps"] is True
+    fake_client.speech_to_text_translate_job.create_job.assert_called_once()
+    call_kwargs = fake_client.speech_to_text_translate_job.create_job.call_args.kwargs
+    assert call_kwargs["model"] == "saaras:v2.5"
     assert call_kwargs["with_diarization"] is True
 
     fake_job.upload_files.assert_called_once()
@@ -133,7 +132,7 @@ async def test_transcribe_raises_on_failed_job():
     }
 
     fake_client = MagicMock()
-    fake_client.speech_to_text_job.create_job.return_value = fake_job
+    fake_client.speech_to_text_translate_job.create_job.return_value = fake_job
 
     with patch("app.adapters.transcription.sarvam.SarvamAI", return_value=fake_client):
         with pytest.raises(RuntimeError, match="corrupt audio"):
