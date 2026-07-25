@@ -67,6 +67,15 @@ class GuestEventCreate(BaseModel):
     payload:       dict[str, Any] = Field(default_factory=dict)
 
 
+class GuestJourneyResponse(BaseModel):
+    """GET /guests/{id}/journey — the Guest Journey view's payload."""
+
+    guest_id:       str
+    events:         list["GuestEventSchema"]
+    total_returned: int
+    capped:         bool = False
+
+
 class GuestEventSchema(BaseModel):
     """A single ledger row as returned by the service."""
 

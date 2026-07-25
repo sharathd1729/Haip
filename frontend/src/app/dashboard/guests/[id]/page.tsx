@@ -7,6 +7,7 @@ import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { GuestAvatar } from "@/components/crm/GuestAvatar";
 import { TimelineEvent, type TimelineEventProps } from "@/components/crm/TimelineEvent";
+import { GuestJourney } from "@/components/guests/GuestJourney";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
@@ -198,8 +199,15 @@ export default function GuestDetailPage() {
           </div>
         </div>
 
-        {/* Right: timeline */}
-        <div className="col-span-12 lg:col-span-8">
+        {/* Right: journey + legacy timeline */}
+        <div className="col-span-12 lg:col-span-8 space-y-5">
+          {/* Ledger-backed journey — spans every module and every inquiry,
+              including messages, which the legacy timeline below omits. */}
+          <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+            <h2 className="text-sm font-semibold text-gray-900 mb-5">Guest journey</h2>
+            <GuestJourney guestId={id} />
+          </div>
+
           <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
             <h2 className="text-sm font-semibold text-gray-900 mb-5">Activity timeline</h2>
             {guest.timeline.length === 0 ? (
