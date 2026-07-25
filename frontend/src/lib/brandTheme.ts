@@ -143,6 +143,22 @@ export function buildCSSVars(theme: BrandTheme): Record<string, string> {
       const rgb = hexToRgb(s);
       return rgb ? `${rgb.r}, ${rgb.g}, ${rgb.b}` : "11, 31, 58";
     })(),
+
+    // ── Canonical token overrides ──────────────────────────────────────────
+    // The --brand-* vars above are only read by a couple of components. These
+    // override the canonical tokens in globals.css, which every Tailwind
+    // utility (bg-primary, ring-*) and the whole --haip-* alias layer resolve
+    // through — so a tenant's colours actually reach the UI. See docs/DESIGN.md.
+    "--primary":            p,
+    "--primary-foreground": brightness(p) > 160 ? "#111827" : "#ffffff",
+    "--ring":               p,
+    "--sidebar":            s,
+    "--sidebar-primary":    p,
+    "--sidebar-foreground": brightness(s) > 160 ? "#111827" : mixWithWhite(s, 0.65),
+    "--radius":             RADIUS_MAP[theme.radiusScale],
+    // NOTE: --font-sans is deliberately NOT set here. It is owned by next/font
+    // (app/layout.tsx), which self-hosts an optimised Inter. applyTheme() only
+    // overrides it when a tenant picks a different font — see below.
   };
 }
 
@@ -153,8 +169,13 @@ export function applyTheme(theme: BrandTheme): void {
   const root = document.documentElement;
   Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v));
 
-  // Font injection (Google Fonts)
+  // Font injection (Google Fonts). Only a non-default font overrides
+  // --font-sans; the "Inter" default stays on next/font's optimised copy.
   if (theme.fontFamily && theme.fontFamily !== "Inter") {
+    root.style.setProperty(
+      "--font-sans",
+      `"${theme.fontFamily}", ui-sans-serif, system-ui, sans-serif`,
+    );
     const fontName = theme.fontFamily.replace(/ /g, "+");
     const existingLink = document.getElementById("brand-font-link");
     if (!existingLink) {

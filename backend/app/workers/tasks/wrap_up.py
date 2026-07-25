@@ -11,6 +11,7 @@ from app.models.call import Call, CallDisposition
 from app.models.property import Property
 from app.models.user import User
 from app.adapters.llm import get_llm
+from app.core.prompt_versions import stamp
 import structlog
 
 
@@ -97,7 +98,8 @@ def wrap_up(self, call_id: str, tenant_id: str, classification: dict = None, jud
         call.ai_disposition = DISPOSITION_MAP.get(disposition_str, CallDisposition.CALLBACK)
         db.commit()
 
-        log.info("wrap_up_done", call_id=call_id, disposition=disposition_str)
+        log.info("wrap_up_done", call_id=call_id, disposition=disposition_str,
+                 **stamp("call_wrap_up", model=result.get("model")))
 
         # Emit SSE event so the frontend cockpit updates in real time
         _emit_sse(tenant_id=tenant_id, event="call_processed", call_id=call_id)

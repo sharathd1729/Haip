@@ -16,10 +16,15 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
 
+import structlog
+
 from app.core.database import get_db
 from app.api.v1.deps import get_current_user, require_roles
 from app.models.user import User, UserRole
 from app.models.automation import AutomationRule, AutomationRun
+from app.schemas.action_execution import ExecuteActionRequest, ExecuteActionResponse
+
+log = structlog.get_logger()
 
 router = APIRouter(prefix="/automations", tags=["automations"])
 
@@ -139,6 +144,16 @@ VALID_ACTIONS = {
 }
 
 
+#: Actions a user may fire directly from an AI recommendation.
+#: Deliberately a subset of VALID_ACTIONS, not the whole set: a rule author
+#: configuring an automation is a different trust context from a one-click
+#: button, so new actions are opted in here explicitly rather than by default.
+ONE_CLICK_ACTIONS = {
+    "send_whatsapp_template", "create_draft_reply",
+    "notify_team", "move_to_followup", "tag_guest",
+}
+
+
 def _validate(trigger: str, action: str):
     if trigger not in VALID_TRIGGERS:
         raise HTTPException(status_code=422, detail=f"Unknown trigger: {trigger}")
@@ -250,3 +265,104 @@ def get_run(
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
     return RunOut.from_orm_safe(run)
+
+
+# ─── One-click execution of an AI recommendation ──────────────────────────────
+
+@router.post("/actions/execute", response_model=ExecuteActionResponse)
+def execute_recommended_action(
+    payload: ExecuteActionRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Execute a single AI-recommended action, right now, for one entity.
+
+    Any authenticated user of the tenant may call this, matching
+    conversations.py — which already lets any authenticated user approve and
+    send a WhatsApp message. Gating the one-click form of the same send behind
+    OWNER/MANAGER would be arbitrary. The real controls here are tenant scoping
+    and ONE_CLICK_ACTIONS, which is a deliberate subset of VALID_ACTIONS.
+
+    Every "AI suggested this — do it" button in the product posts here instead
+    of each surface growing its own execute route. The action itself runs
+    through automation_engine.dispatch_action, the same shared layer automation
+    rules and the Flow Builder use, so an action behaves identically however it
+    was triggered.
+
+    This always runs inline rather than via Celery: the user is watching, and a
+    fire-and-forget task could not tell them whether the send actually worked.
+    Actions here are short (a template send, a stage move) — anything genuinely
+    slow belongs in a rule, not on a button.
+
+    Every execution is written to the audit chain, success or failure, so an
+    outbound action can always be traced back to the person who clicked it.
+    """
+    if payload.action_type not in ONE_CLICK_ACTIONS:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Action '{payload.action_type}' cannot be run from a recommendation. "
+                f"Allowed: {sorted(ONE_CLICK_ACTIONS)}"
+            ),
+        )
+    if payload.entity_refs.is_empty():
+        raise HTTPException(status_code=422, detail="entity_refs must identify at least one entity")
+
+    tenant_id = current_user.tenant_id
+    target_type, target_id = payload.entity_refs.primary()
+
+    # dispatch_action reads guest_id/inquiry_id straight off the context dict.
+    context = payload.entity_refs.model_dump(exclude_none=True)
+
+    status_str, detail, error = "success", "", None
+    try:
+        from app.workers.tasks.automation_engine import dispatch_action
+        detail = dispatch_action(db, payload.action_type, payload.action_config, context, tenant_id)
+    except Exception as exc:
+        status_str, error = "failed", str(exc)
+        detail = f"Action failed: {exc}"
+        log.warning(
+            "one_click_action_failed",
+            action=payload.action_type, tenant_id=tenant_id,
+            target_type=target_type, target_id=target_id, error=str(exc),
+        )
+
+    # Audit before responding — an outbound action that is not recorded is worse
+    # than one that fails, so this is written on the failure path too.
+    audit_id = None
+    try:
+        from app.core.audit import append_audit
+        event = append_audit(
+            db,
+            tenant_id=tenant_id,
+            action="ai_recommendation.executed",
+            actor_user_id=current_user.id,
+            target_type=target_type,
+            target_id=target_id,
+            payload={
+                "action_type": payload.action_type,
+                "status": status_str,
+                "source": payload.source,
+                "entity_refs": context,
+                "error": error,
+            },
+        )
+        audit_id = event.id
+    except Exception as exc:
+        log.warning("one_click_action_audit_failed", error=str(exc), tenant_id=tenant_id)
+
+    db.commit()
+
+    if status_str == "failed":
+        raise HTTPException(status_code=502, detail=detail)
+
+    log.info(
+        "one_click_action_executed",
+        action=payload.action_type, tenant_id=tenant_id, actor=current_user.id,
+        target_type=target_type, target_id=target_id,
+    )
+    return ExecuteActionResponse(
+        status=status_str, action_type=payload.action_type,
+        detail=detail or "Done", audit_id=audit_id,
+    )

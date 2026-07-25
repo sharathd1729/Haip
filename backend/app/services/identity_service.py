@@ -247,5 +247,39 @@ def _write_merge_stage_event(
                 reason=f"Lead merged with deprecated guest {deprecated_id[:8]}",
             )
             db.add(entry)
+
+            # Mirror the merge onto the guest_events ledger (Guest Journey).
+            try:
+                from app.core.events import emit_event
+                from app.schemas.guest_events import GuestEventType, SourceModule
+
+                emit_event(
+                    db,
+                    tenant_id=tenant_id,
+                    event_type=GuestEventType.INQUIRY_MERGED,
+                    entity_type="inquiry",
+                    entity_id=entry.id,
+                    source_module=SourceModule.LEADS360,
+                    occurred_at=now,
+                    guest_id=survivor_id,
+                    inquiry_id=inq.id,
+                    channel="system",
+                    direction="system",
+                    preview=entry.reason[:120],
+                    payload={"deprecated_guest_id": deprecated_id},
+                )
+            except Exception as exc:
+                log.warning("guest_event_merge_write_failed", error=str(exc))
+
+        # The deprecated GID's history must follow it onto the survivor, or the
+        # merged guest's journey silently loses everything from before the merge.
+        try:
+            from app.services import guest_events_service
+
+            guest_events_service.attach_guest(
+                db, tenant_id, from_guest_id=deprecated_id, to_guest_id=survivor_id
+            )
+        except Exception as exc:
+            log.warning("guest_event_reattach_failed", error=str(exc))
     except Exception as exc:
         log.warning("merge_stage_event_write_failed", error=str(exc))

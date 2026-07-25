@@ -15,6 +15,7 @@ from app.models.transcript import Transcript
 from app.models.property import Property
 from app.models.user import User
 from app.adapters.llm import get_llm
+from app.core.prompt_versions import stamp
 from app.services.transcription_service import redact_pii
 import structlog
 
@@ -202,6 +203,7 @@ def classify(self, call_id: str, tenant_id: str):
             occasion=occasion or None,
             conversion_probability=conv_prob,
             decision_stage=decision_stage or None,
+            **stamp("call_classify"),
         )
 
         # Chain to judge (best-effort — fails gracefully if broker is down)

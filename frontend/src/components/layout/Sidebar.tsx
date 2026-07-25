@@ -127,11 +127,15 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     label: "Ask HAIP",
-    href: "/dashboard/ask-haip",
+    // Point at the real page, not the /dashboard/ask-haip redirect stub: the
+    // stub bounces to this URL, after which neither isActive() nor childActive
+    // matches "/dashboard/ask-haip", so the nav item silently stopped
+    // highlighting. Also matches the Reports/Free-Form siblings below.
+    href: "/dashboard/analytics/ask",
     icon: Sparkles,
     resource: "analytics",
     children: [
-      { label: "Ask",       href: "/dashboard/ask-haip" },
+      { label: "Ask",       href: "/dashboard/analytics/ask" },
       { label: "Reports",   href: "/dashboard/analytics/ask/reports" },
       { label: "Free-Form", href: "/dashboard/analytics/ask/freeform", ownerOnly: true },
     ],

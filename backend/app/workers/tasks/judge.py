@@ -25,6 +25,7 @@ from app.models.score import Rubric, CallScore
 from app.models.property import Property
 from app.models.user import User
 from app.adapters.llm import get_llm
+from app.core.prompt_versions import stamp
 
 # Model aliases — used only for Claude; Gemini maps these internally
 MODEL_HAIKU  = "claude-haiku-4-5-20251001"
@@ -167,7 +168,8 @@ def judge(self, call_id: str, tenant_id: str, classification: dict = None):
         call.ai_score_status = "done"
         db.commit()
 
-        log.info("judge_done", call_id=call_id, score=float(score.percentage), model=model_used)
+        log.info("judge_done", call_id=call_id, score=float(score.percentage),
+                 **stamp("call_judge", model=model_used))
 
         # Chain to wrap_up (best-effort — fails gracefully if broker is down)
         try:

@@ -23,7 +23,11 @@ from app.adapters.llm import get_llm
 
 log = structlog.get_logger()
 
-PROMPT_VERSION = "leads360-summary-v2"
+from app.core.prompt_versions import get_version, stamp
+
+# Kept as a module constant for backwards compatibility with existing readers,
+# but the registry is now the single source of truth — bump it there.
+PROMPT_VERSION = get_version("leads360_summary")
 
 SYSTEM_PROMPT = """You are a hospitality sales intelligence assistant.
 Given a lead's inquiry details, recent conversation, and call notes,
@@ -215,7 +219,7 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
             inquiry_id=inquiry_id,
             tenant_id=tenant_id,
             chars=len(summary_text),
-            prompt_version=PROMPT_VERSION,
+            **stamp("leads360_summary", model=result.get("model")),
         )
 
     except Exception as exc:
