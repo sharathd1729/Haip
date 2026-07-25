@@ -66,6 +66,9 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = ""
     DEEPGRAM_API_KEY: str = ""
     SARVAM_API_KEY: str = ""   # Sarvam AI — best for Hindi/Indic/code-switched calls
+    # Operational kill switch: when true, new call recordings are stored but
+    # NOT enqueued for transcription. Existing in-flight jobs are unaffected.
+    TRANSCRIPTION_PAUSED: bool = False
 
     # CallerDesk
     CALLERDESK_API_KEY: str = ""

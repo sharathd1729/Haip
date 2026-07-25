@@ -188,13 +188,19 @@ def _do_fetch_recording(task_self, call_id: str, recording_url: str, tenant_id: 
         call.recording_fetched = True
         call.recording_status = RecordingStatus.AVAILABLE
         call.recording_error = None
-        call.transcription_status = "queued"
-        db.commit()
 
-        log.info("recording_stored", call_id=call_id, s3_key=s3_key)
+        if settings.TRANSCRIPTION_PAUSED:
+            call.transcription_status = "pending"
+            db.commit()
+            log.info("recording_stored_transcription_paused", call_id=call_id, s3_key=s3_key)
+        else:
+            call.transcription_status = "queued"
+            db.commit()
 
-        from app.workers.tasks.transcribe import transcribe as transcribe_new
-        transcribe_new.delay(call_id=call_id, tenant_id=tenant_id)
+            log.info("recording_stored", call_id=call_id, s3_key=s3_key)
+
+            from app.workers.tasks.transcribe import transcribe as transcribe_new
+            transcribe_new.delay(call_id=call_id, tenant_id=tenant_id)
 
     except Exception as exc:
         error_str = str(exc)
