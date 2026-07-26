@@ -123,6 +123,11 @@ def score_call(self, call_id: str, tenant_id: str):
         call.ai_next_action = result.get("next_action", "")
         call.ai_score_status = "done"
 
+        from app.services.call_service import derive_recommended_action
+        action_type, action_target = derive_recommended_action(db, call)
+        call.recommended_action_type = action_type
+        call.recommended_action_target_id = action_target
+
         # Estimate LLM cost
         call.llm_cost_usd = 0.0001 if model_used == "claude-haiku-4-5-20251001" else 0.003
 

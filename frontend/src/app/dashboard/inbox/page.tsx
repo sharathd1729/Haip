@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Send, Sparkles, User, Loader2, BellOff, Search, X, StickyNote, Reply, Clock, ChevronDown, ChevronLeft, CalendarClock, Timer, AlertTriangle, LayoutTemplate, Star, PhoneCall, MessageSquare, TrendingUp, Bed, ExternalLink } from "lucide-react";
+import { Send, Sparkles, Loader2, BellOff, Search, X, StickyNote, Reply, ChevronDown, ChevronLeft, CalendarClock, Timer, AlertTriangle, LayoutTemplate } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { ConversationList } from "@/components/inbox/ConversationList";
@@ -20,19 +20,6 @@ import { usePresence } from "@/hooks/usePresence";
 import { TemplatePickerModal } from "@/components/inbox/TemplatePickerModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-interface GuestSummary {
-  id: string;
-  name?: string;
-  phone?: string;
-  is_vip?: boolean;
-  tags?: string[];
-  total_stays?: number;
-  total_inquiries?: number;
-  lifetime_value?: number;
-  consent_status?: string;
-  recent_stays?: { property_name: string; check_in: string; check_out?: string; nights: number }[];
-}
 
 interface Message {
   id: string;
@@ -143,215 +130,6 @@ function ChannelFilterRow({
             {f.label}
           </button>
         ))}
-      </div>
-    </div>
-  );
-}
-
-// GuestPanel is in @/components/inbox/GuestPanel — imported above
-// Keeping the function stub to avoid editing the large block below it
-function _noop({ detail }: { detail: ConversationDetail }) {
-  const { data: guest, isLoading } = useQuery<GuestSummary>({
-    queryKey: ["guest-by-phone", detail.guest_phone],
-    queryFn: () =>
-      api.get(`/guests?phone=${encodeURIComponent(detail.guest_phone)}&limit=1`)
-         .then(r => Array.isArray(r.data) ? r.data[0] : r.data),
-    enabled: !!detail.guest_phone,
-    staleTime: 60_000,
-  });
-
-  const initial = (detail.guest_name ?? detail.guest_phone)?.[0]?.toUpperCase() ?? "?";
-  const isVip = guest?.is_vip;
-
-  return (
-    <div
-      className="hidden md:flex md:flex-col w-64 flex-shrink-0 overflow-y-auto haip-scrollbar"
-      style={{
-        borderLeft: "1px solid var(--haip-border)",
-        background: "#fff",
-      }}
-    >
-      {/* Header */}
-      <div
-        className="px-4 py-4 flex-shrink-0"
-        style={{
-          background: "#FFFFFF",
-          borderBottom: "1px solid #E5E7EB",
-        }}
-      >
-        <p className="text-[10px] font-bold uppercase tracking-widest mb-3"
-          style={{ color: "#9CA3AF" }}>
-          Guest 360
-        </p>
-        <div className="flex items-center gap-3">
-          <div
-            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
-            style={{
-              background: isVip
-                ? "linear-gradient(135deg, #F59E0B, #D97706)"
-                : "linear-gradient(135deg, #14B8A6, #0F766E)",
-            }}
-          >
-            {initial}
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <p className="text-[13.5px] font-bold truncate"
-                style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}>
-                {detail.guest_name || "Unknown"}
-              </p>
-              {isVip && <Star size={11} className="flex-shrink-0" style={{ color: "#F59E0B" }} fill="#F59E0B" />}
-            </div>
-            <p className="text-[11px] truncate" style={{ color: "#6B7280" }}>
-              {detail.guest_phone}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Body */}
-      <div className="flex-1 px-4 py-4 space-y-4">
-        {isLoading ? (
-          <div className="space-y-3 animate-pulse">
-            {[60, 80, 50].map((w, i) => (
-              <div key={i} className="h-3 rounded" style={{ width: `${w}%`, background: "var(--haip-border)" }} />
-            ))}
-          </div>
-        ) : (
-          <>
-            {/* LTV stats */}
-            {(guest?.lifetime_value != null || guest?.total_stays != null || guest?.total_inquiries != null) && (
-              <div className="grid grid-cols-3 gap-2">
-                {guest?.total_stays != null && (
-                  <div className="text-center p-2 rounded-xl"
-                    style={{ background: "rgba(20,184,166,0.07)" }}>
-                    <p className="text-[16px] font-bold leading-none"
-                      style={{ fontFamily: "var(--font-display), sans-serif", color: "#0F766E" }}>
-                      {guest.total_stays}
-                    </p>
-                    <p className="text-[9px] mt-1" style={{ color: "var(--haip-fg-muted)" }}>Stays</p>
-                  </div>
-                )}
-                {guest?.total_inquiries != null && (
-                  <div className="text-center p-2 rounded-xl"
-                    style={{ background: "rgba(15,118,110,0.06)" }}>
-                    <p className="text-[16px] font-bold leading-none"
-                      style={{ fontFamily: "var(--font-display), sans-serif", color: "#0F766E" }}>
-                      {guest.total_inquiries}
-                    </p>
-                    <p className="text-[9px] mt-1" style={{ color: "var(--haip-fg-muted)" }}>Inquiries</p>
-                  </div>
-                )}
-                {guest?.lifetime_value != null && (
-                  <div className="text-center p-2 rounded-xl"
-                    style={{ background: "rgba(245,158,11,0.08)" }}>
-                    <p className="text-[13px] font-bold leading-none"
-                      style={{ fontFamily: "var(--font-display), sans-serif", color: "#B45309" }}>
-                      ₹{guest.lifetime_value >= 1000
-                          ? `${(guest.lifetime_value / 1000).toFixed(0)}k`
-                          : guest.lifetime_value}
-                    </p>
-                    <p className="text-[9px] mt-1" style={{ color: "var(--haip-fg-muted)" }}>LTV</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Tags */}
-            {(guest?.tags ?? []).length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {(guest!.tags!).slice(0, 4).map((tag: string) => (
-                  <span
-                    key={tag}
-                    className="px-2 py-0.5 rounded-full text-[10px] font-medium capitalize"
-                    style={{ background: "rgba(20,184,166,0.10)", color: "#0F766E" }}
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Channel + status row */}
-            <div className="flex items-center justify-between pt-1">
-              <div className="flex items-center gap-1.5">
-                <ChannelIcon channel={detail.channel} className="w-3.5 h-3.5" />
-                <span className="text-[11px] capitalize" style={{ color: "var(--haip-fg-muted)" }}>{detail.channel}</span>
-              </div>
-              <span
-                className="px-2 py-0.5 rounded-full text-[10px] font-medium capitalize"
-                style={{
-                  background: detail.status === "open"
-                    ? "rgba(20,184,166,0.10)"
-                    : "rgba(148,163,184,0.12)",
-                  color: detail.status === "open" ? "#0F766E" : "#64748b",
-                }}
-              >
-                {detail.status}
-              </span>
-            </div>
-
-            {/* Recent stays */}
-            {(guest?.recent_stays ?? []).length > 0 && (
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider mb-2"
-                  style={{ color: "var(--haip-fg-muted)" }}>
-                  Recent stays
-                </p>
-                <div className="space-y-1.5">
-                  {(guest!.recent_stays!).slice(0, 3).map((s, i: number) => (
-                    <div key={i} className="flex items-start gap-2">
-                      <Bed size={10} className="mt-0.5 flex-shrink-0" style={{ color: "#14B8A6" }} />
-                      <div className="min-w-0">
-                        <p className="text-[11px] font-medium truncate" style={{ color: "var(--haip-fg)" }}>
-                          {s.property_name || "Property"}
-                        </p>
-                        {s.check_in && (
-                          <p className="text-[10px]" style={{ color: "var(--haip-fg-muted)" }}>
-                            {new Date(s.check_in).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-                            {s.check_out && ` → ${new Date(s.check_out).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Consent */}
-            {guest?.consent_status && (
-              <div className="flex items-center gap-1.5">
-                <div
-                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                  style={{
-                    background: guest.consent_status === "granted" ? "#10b981" : "#f59e0b",
-                  }}
-                />
-                <span className="text-[10.5px] capitalize" style={{ color: "var(--haip-fg-muted)" }}>
-                  Consent {guest.consent_status}
-                </span>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Footer link */}
-      <div
-        className="px-4 py-3 flex-shrink-0"
-        style={{ borderTop: "1px solid var(--haip-border)" }}
-      >
-        <a
-          href={`/dashboard/guests?phone=${encodeURIComponent(detail.guest_phone)}`}
-          className="flex items-center gap-1.5 text-[11.5px] font-semibold transition-colors"
-          style={{ color: "#0F766E" }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#14B8A6"; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#0F766E"; }}
-        >
-          <ExternalLink size={11} />
-          View full Guest 360
-        </a>
       </div>
     </div>
   );
@@ -797,7 +575,8 @@ export default function InboxPage() {
               {/* Mobile back button */}
               <button
                 onClick={() => setMobileView("list")}
-                className="md:hidden flex items-center justify-center w-8 h-8 rounded-lg text-gray-500 hover:bg-gray-100 flex-shrink-0 -ml-1"
+                className="md:hidden flex items-center justify-center w-8 h-8 rounded-lg hover:bg-muted flex-shrink-0 -ml-1"
+                style={{ color: "var(--haip-fg-subtle)" }}
                 aria-label="Back to conversations"
               >
                 <ChevronLeft size={18} />
@@ -814,18 +593,32 @@ export default function InboxPage() {
                     <div className="text-sm font-semibold" style={{ color: "var(--haip-fg)" }}>{detail.guest_name || detail.guest_phone}</div>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <ChannelIcon channel={detail.channel} className="w-4 h-4" />
-                      <span className="text-xs text-gray-400 capitalize">{detail.channel}</span>
+                      <span className="text-xs capitalize" style={{ color: "var(--haip-fg-subtle)" }}>{detail.channel}</span>
                       <Badge variant={detail.status === "open" ? "success" : "ghost"} className="text-[10px] py-0 h-4">{detail.status}</Badge>
                       {/* D9: WhatsApp 24h service window indicator */}
                       {isWhatsApp && detail.last_inbound_at && (
                         windowOpen ? (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-green-50 border border-green-200 text-[10px] text-green-700 font-medium">
+                          <span
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium"
+                            style={{
+                              background: "color-mix(in srgb, var(--haip-green) 10%, transparent)",
+                              border: "1px solid color-mix(in srgb, var(--haip-green) 30%, transparent)",
+                              color: "var(--haip-green)",
+                            }}
+                          >
                             <Timer size={9} />
                             {/* suppress lint: windowTick used to trigger re-render on tick */}
                             Service window: {formatWindowCountdown(getWindowSecondsLeft(detail.last_inbound_at))}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-300 text-[10px] text-amber-700 font-medium">
+                          <span
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium"
+                            style={{
+                              background: "color-mix(in srgb, var(--haip-amber) 10%, transparent)",
+                              border: "1px solid color-mix(in srgb, var(--haip-amber) 35%, transparent)",
+                              color: "var(--haip-amber)",
+                            }}
+                          >
                             <AlertTriangle size={9} />
                             Template required
                           </span>
@@ -1015,27 +808,41 @@ export default function InboxPage() {
 
             {/* D9: Window-closed blocker — shown instead of composer when 24h window expired */}
             {windowBlocked && (
-              <div className="px-4 py-4 border-t border-amber-200 bg-amber-50/60 flex-shrink-0">
+              <div
+                className="px-4 py-4 flex-shrink-0"
+                style={{
+                  borderTop: "1px solid color-mix(in srgb, var(--haip-amber) 30%, transparent)",
+                  background: "color-mix(in srgb, var(--haip-amber) 6%, transparent)",
+                }}
+              >
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <AlertTriangle size={14} className="text-amber-600" />
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+                    style={{ background: "color-mix(in srgb, var(--haip-amber) 15%, transparent)" }}
+                  >
+                    <AlertTriangle size={14} style={{ color: "var(--haip-amber)" }} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-amber-800">24-hour service window closed</p>
-                    <p className="text-xs text-amber-600 mt-0.5">
+                    <p className="text-sm font-semibold" style={{ color: "var(--haip-amber)" }}>24-hour service window closed</p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--haip-amber)" }}>
                       Free-form messages are not allowed. Send a pre-approved WhatsApp template to re-open the window.
                     </p>
                     <div className="flex gap-2 mt-3">
                       <button
                         onClick={() => setShowTemplatePicker(true)}
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg transition-colors"
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                        style={{ background: "var(--haip-amber)", color: "#fff" }}
                       >
                         <LayoutTemplate size={12} />
                         Send template
                       </button>
                       <button
                         onClick={() => { setIsInternalNote(true); }}
-                        className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors"
+                        className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                        style={{
+                          background: "color-mix(in srgb, var(--haip-amber) 15%, transparent)",
+                          color: "var(--haip-amber)",
+                        }}
                       >
                         <StickyNote size={12} />
                         Internal note
@@ -1049,14 +856,19 @@ export default function InboxPage() {
             {/* Composer */}
             <div
               className={cn("px-3 md:px-4 pt-2 pb-2 md:pb-1 flex-shrink-0", windowBlocked && !isInternalNote && "hidden")}
-              style={{ borderTop: `1px solid ${isInternalNote ? "rgba(245,158,11,0.3)" : "var(--haip-border)"}`, background: isInternalNote ? "rgba(245,158,11,0.04)" : "transparent" }}
+              style={{
+                borderTop: isInternalNote
+                  ? "1px solid color-mix(in srgb, var(--haip-amber) 30%, transparent)"
+                  : "1px solid var(--haip-border)",
+                background: isInternalNote ? "color-mix(in srgb, var(--haip-amber) 4%, transparent)" : "transparent",
+              }}
             >
               {/* W24: internal note banner */}
               {isInternalNote && (
                 <div className="flex items-center gap-2 mb-2 px-1">
-                  <StickyNote size={12} className="text-amber-500" />
-                  <span className="text-xs font-semibold text-amber-700">Internal note — not sent to guest</span>
-                  <button onClick={exitInternalNote} className="ml-auto text-amber-400 hover:text-amber-600">
+                  <StickyNote size={12} style={{ color: "var(--haip-amber)" }} />
+                  <span className="text-xs font-semibold" style={{ color: "var(--haip-amber)" }}>Internal note — not sent to guest</span>
+                  <button onClick={exitInternalNote} className="ml-auto transition-colors" style={{ color: "var(--haip-fg-subtle)" }}>
                     <X size={12} />
                   </button>
                 </div>
@@ -1064,21 +876,27 @@ export default function InboxPage() {
               {/* W5: reply-to preview */}
               {replyToMsg && (
                 <div className="flex items-start gap-2 mb-2 px-1 py-1 rounded-lg" style={{ background: "var(--muted)", borderLeft: "2px solid var(--primary)" }}>
-                  <Reply size={11} className="text-teal-500 mt-0.5 flex-shrink-0" />
-                  <p className="text-xs text-gray-600 truncate flex-1">{replyToMsg.text}</p>
-                  <button onClick={() => setReplyToMsg(null)} className="text-gray-400 hover:text-gray-600 flex-shrink-0">
+                  <Reply size={11} className="mt-0.5 flex-shrink-0" style={{ color: "var(--primary)" }} />
+                  <p className="text-xs truncate flex-1" style={{ color: "var(--haip-fg-muted)" }}>{replyToMsg.text}</p>
+                  <button onClick={() => setReplyToMsg(null)} className="flex-shrink-0" style={{ color: "var(--haip-fg-subtle)" }}>
                     <X size={11} />
                   </button>
                 </div>
               )}
               {/* W4: scheduled send banner */}
               {scheduledFor && (
-                <div className="flex items-center gap-2 mb-2 px-1 py-1 bg-blue-50 border border-blue-100 rounded-lg">
-                  <CalendarClock size={12} className="text-blue-500 flex-shrink-0" />
-                  <span className="text-xs text-blue-700 flex-1">
+                <div
+                  className="flex items-center gap-2 mb-2 px-1 py-1 rounded-lg"
+                  style={{
+                    background: "color-mix(in srgb, #3B82F6 8%, transparent)",
+                    border: "1px solid color-mix(in srgb, #3B82F6 20%, transparent)",
+                  }}
+                >
+                  <CalendarClock size={12} className="flex-shrink-0" style={{ color: "#3B82F6" }} />
+                  <span className="text-xs flex-1" style={{ color: "#3B82F6" }}>
                     Scheduled for {new Date(scheduledFor).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                   </span>
-                  <button onClick={() => setScheduledFor(null)} className="text-blue-300 hover:text-blue-600">
+                  <button onClick={() => setScheduledFor(null)} style={{ color: "#3B82F6", opacity: 0.6 }}>
                     <X size={11} />
                   </button>
                 </div>
@@ -1101,23 +919,29 @@ export default function InboxPage() {
 
                 {/* W25: @mention dropdown */}
                 {mentionQuery !== null && mentionMatches.length > 0 && (
-                  <div className="absolute bottom-full left-0 mb-1.5 z-30 bg-white border border-gray-200 rounded-xl shadow-lg p-1 min-w-[200px]">
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase px-2 py-1">Mention teammate</p>
+                  <div
+                    className="absolute bottom-full left-0 mb-1.5 z-30 rounded-xl p-1 min-w-[200px]"
+                    style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", boxShadow: "var(--haip-shadow-lg)" }}
+                  >
+                    <p className="text-[10px] font-semibold uppercase px-2 py-1" style={{ color: "var(--haip-fg-subtle)" }}>Mention teammate</p>
                     {mentionMatches.map((u: any) => (
                       <button
                         key={u.id}
                         onClick={() => insertMention(u)}
-                        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-50"
+                        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-muted"
                       >
-                        <div className="w-6 h-6 rounded-full bg-teal-500 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+                        <div
+                          className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0"
+                          style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
+                        >
                           {u.name?.[0]?.toUpperCase() ?? "?"}
                         </div>
                         <div className="text-left">
-                          <p className="text-xs font-medium text-gray-800">{u.name}</p>
-                          <p className="text-[10px] text-gray-400 capitalize">{u.role}</p>
+                          <p className="text-xs font-medium" style={{ color: "var(--haip-fg)" }}>{u.name}</p>
+                          <p className="text-[10px] capitalize" style={{ color: "var(--haip-fg-subtle)" }}>{u.role}</p>
                         </div>
                         {onlineUsers.some(o => o.id === u.id) && (
-                          <span className="ml-auto w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
+                          <span className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "var(--haip-green)" }} />
                         )}
                       </button>
                     ))}
@@ -1126,8 +950,11 @@ export default function InboxPage() {
 
                 {/* W4: schedule dropdown */}
                 {showSchedule && (
-                  <div className="absolute bottom-full right-0 mb-1.5 z-30 bg-white border border-gray-200 rounded-xl shadow-lg p-1 min-w-[170px]">
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase px-2 py-1">Send later</p>
+                  <div
+                    className="absolute bottom-full right-0 mb-1.5 z-30 rounded-xl p-1 min-w-[170px]"
+                    style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", boxShadow: "var(--haip-shadow-lg)" }}
+                  >
+                    <p className="text-[10px] font-semibold uppercase px-2 py-1" style={{ color: "var(--haip-fg-subtle)" }}>Send later</p>
                     {SCHEDULE_OPTIONS.map(opt => (
                       <button
                         key={opt.label}
@@ -1136,15 +963,17 @@ export default function InboxPage() {
                           setScheduledFor(iso);
                           setShowSchedule(false);
                         }}
-                        className="w-full text-left text-xs px-3 py-1.5 rounded-lg hover:bg-gray-50 text-gray-700"
+                        className="w-full text-left text-xs px-3 py-1.5 rounded-lg hover:bg-muted"
+                        style={{ color: "var(--haip-fg-muted)" }}
                       >
                         {opt.label}
                       </button>
                     ))}
-                    <div className="border-t border-gray-100 my-1 pt-1 px-2 pb-1">
+                    <div className="pt-1 px-2 pb-1 mt-1" style={{ borderTop: "1px solid var(--haip-border)" }}>
                       <input
                         type="datetime-local"
-                        className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-teal-400"
+                        className="w-full text-xs rounded-lg px-2 py-1 focus:outline-none"
+                        style={{ border: "1px solid var(--haip-border)", background: "var(--input-bg)", color: "var(--haip-fg)" }}
                         onChange={e => {
                           if (e.target.value) {
                             setScheduledFor(new Date(e.target.value).toISOString());

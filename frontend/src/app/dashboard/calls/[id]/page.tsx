@@ -75,6 +75,13 @@ interface CallDetail {
     next_action?: string;
     ai_summary?: string;
   };
+  recommended_action?: {
+    type: string;
+    label: string;
+    target_field: string;
+    target: string;
+    target_conversation_id?: string | null;
+  } | null;
 }
 
 const DISPOSITION_OPTIONS = [
@@ -186,6 +193,21 @@ export default function CallDetailPage() {
     },
     onError: () => {
       toast({ variant: "error", title: "Save failed", description: "Please try again." });
+    },
+  });
+
+  // M5+ WS1/WS3: reuses the existing approve-and-queue endpoint
+  // (conversations.py::approve_ai_draft) rather than a new one.
+  const approveAndSendMutation = useMutation({
+    mutationFn: ({ conversationId, messageId }: { conversationId: string; messageId: string }) =>
+      api.post(`/conversations/${conversationId}/messages/${messageId}/approve`),
+    onSuccess: () => {
+      toast({ variant: "success", title: "Draft sent", description: "The WhatsApp reply is on its way." });
+      queryClient.invalidateQueries({ queryKey: ["call", id] });
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.detail ?? "Could not send the draft";
+      toast({ variant: "error", title: "Send failed", description: msg });
     },
   });
 
@@ -706,8 +728,33 @@ export default function CallDetailPage() {
               />
             </div>
 
-            {/* Suggested next action */}
-            {call.score?.next_action && (
+            {/* Suggested next action — clickable when a structured recommended_action
+                exists (currently: a pending AI-drafted WhatsApp reply), otherwise
+                falls back to the free-text next_action as before. */}
+            {call.recommended_action?.type === "send_whatsapp_draft" && call.recommended_action.target_conversation_id ? (
+              <div className="mb-4 p-3 bg-teal-50 border border-teal-100 rounded-xl">
+                <p className="text-xs font-semibold text-teal-700 mb-1">Suggested next action</p>
+                {call.score?.next_action && (
+                  <p className="text-sm text-teal-800 mb-2">{call.score.next_action}</p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => approveAndSendMutation.mutate({
+                    conversationId: call.recommended_action!.target_conversation_id!,
+                    messageId: call.recommended_action!.target,
+                  })}
+                  disabled={approveAndSendMutation.isPending}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition-colors"
+                >
+                  {approveAndSendMutation.isPending ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <MessageSquare size={12} />
+                  )}
+                  {call.recommended_action.label}
+                </button>
+              </div>
+            ) : call.score?.next_action && (
               <div className="mb-4 p-3 bg-teal-50 border border-teal-100 rounded-xl">
                 <p className="text-xs font-semibold text-teal-700 mb-1">Suggested next action</p>
                 <p className="text-sm text-teal-800">{call.score.next_action}</p>

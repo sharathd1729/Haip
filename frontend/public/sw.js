@@ -1,8 +1,17 @@
-// HAIP Service Worker v3
-const CACHE_NAME = 'haip-shell-v3';
+// HAIP Service Worker v4
+const CACHE_NAME = 'haip-shell-v4';
+const STATIC_CACHE_NAME = 'haip-static-v4';
 
-// App shell assets to cache on install
-const PRECACHE = ['/offline'];
+// App shell assets to cache on install — everything a cold offline load needs
+// besides the hashed /_next/static bundles (those get cached as they're
+// requested, since their filenames aren't known at SW build time).
+const PRECACHE = [
+  '/offline',
+  '/manifest.json',
+  '/icon.svg',
+  '/icon-maskable.svg',
+  '/app-icon.png',
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -16,7 +25,11 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
       .then((keys) =>
-        Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+        Promise.all(
+          keys
+            .filter((k) => k !== CACHE_NAME && k !== STATIC_CACHE_NAME)
+            .map((k) => caches.delete(k))
+        )
       )
       .then(() => self.clients.claim())
   );
@@ -27,12 +40,29 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
-  // Skip: Next.js internals, API calls, auth — always network
-  if (
-    url.pathname.startsWith('/_next/') ||
-    url.pathname.startsWith('/api/') ||
-    url.pathname.startsWith('/v1/')
-  ) return;
+  // API calls always go live — never cached, never served stale
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/v1/')) return;
+
+  // /_next/static/* is content-hashed by Next.js — immutable per build, so
+  // cache-first is safe and gives the app shell's JS/CSS an offline cold start.
+  if (url.pathname.startsWith('/_next/static/')) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        if (cached) return cached;
+        return fetch(event.request).then((response) => {
+          if (response.ok) {
+            const cloned = response.clone();
+            caches.open(STATIC_CACHE_NAME).then((cache) => cache.put(event.request, cloned));
+          }
+          return response;
+        });
+      })
+    );
+    return;
+  }
+
+  // Other /_next/ internals (RSC payloads, etc.) — always network, no caching
+  if (url.pathname.startsWith('/_next/')) return;
 
   // Network-first strategy: try network, fall back to cache, fall back to offline page
   event.respondWith(

@@ -1,8 +1,8 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { Clock, Sparkles, AlertCircle, ChevronDown } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Clock, Sparkles, AlertCircle, ChevronDown, MessageSquare, Loader2 } from "lucide-react";
 import { cn, timeAgo } from "@/lib/utils";
 import { ChannelIcon } from "@/components/inbox/ChannelIcon";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -42,6 +42,8 @@ export interface LeadCard {
   // between inbound and reply; null = no messages yet.
   response_time_seconds?: number | null;
   response_time_status?: "waiting" | "responded" | null;
+  // M5+ WS3: most recent pending AI draft for this lead, if any.
+  pending_draft?: { message_id: string; conversation_id: string; preview: string } | null;
 }
 
 // ─── Response time badge ─────────────────────────────────────────────────────
@@ -186,10 +188,31 @@ function StageSelect({ lead }: { lead: LeadCard }) {
   );
 }
 
+// M5+ WS3: reuses the existing approve-and-queue endpoint
+// (conversations.py::approve_ai_draft) rather than a new one — same one
+// the call detail page's recommended-action button uses.
+function useApproveAndSendDraft() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: ({ conversationId, messageId }: { conversationId: string; messageId: string }) =>
+      api.post(`/conversations/${conversationId}/messages/${messageId}/approve`),
+    onSuccess: () => {
+      toast({ variant: "success", title: "Draft sent", description: "The WhatsApp reply is on its way." });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+    },
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast({ title: "Send failed", description: typeof msg === "string" ? msg : "Please try again.", variant: "error" });
+    },
+  });
+}
+
 export function LeadCard({ lead }: { lead: LeadCard }) {
   const router = useRouter();
   const src = lead.source ?? lead.primary_channel ?? "";
   const hasPhone = lead.identity_signals?.includes("phone");
+  const approveAndSend = useApproveAndSendDraft();
 
   const budget = lead.quoted_amount ?? lead.budget_estimate;
   const budgetLabel = lead.budget_range_label
@@ -273,6 +296,32 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
           </div>
         )}
       </div>
+
+      {/* Row 7: pending AI draft — one-click send */}
+      {lead.pending_draft && (
+        <div
+          className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5"
+          style={{ background: "var(--haip-accent-soft, color-mix(in srgb, var(--primary) 6%, transparent))" }}
+          onClick={e => e.stopPropagation()}
+        >
+          <p className="text-[10px] truncate flex-1" style={{ color: "var(--haip-fg-subtle)" }} title={lead.pending_draft.preview}>
+            {lead.pending_draft.preview}
+          </p>
+          <button
+            type="button"
+            onClick={() => approveAndSend.mutate({
+              conversationId: lead.pending_draft!.conversation_id,
+              messageId: lead.pending_draft!.message_id,
+            })}
+            disabled={approveAndSend.isPending}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold flex-shrink-0 transition-colors disabled:opacity-60"
+            style={{ background: "var(--primary)", color: "white" }}
+          >
+            {approveAndSend.isPending ? <Loader2 size={10} className="animate-spin" /> : <MessageSquare size={10} />}
+            Send
+          </button>
+        </div>
+      )}
     </div>
   );
 }

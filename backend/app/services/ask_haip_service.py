@@ -25,7 +25,7 @@ from app.adapters.llm import get_llm
 from app.core.cache import cache_key, get_cached, set_cached
 from app.models.ask_haip import AskHaipSession, AskHaipFinding
 from app.models.base import gen_uuid
-from app.services.ask_haip_agents import process_agents, agents_to_llm_context
+from app.services.ask_haip_agents import process_agents
 from app.services.ask_haip_rca import (
     build_correlations, correlations_to_strings,
     calculate_confidence, run_enhanced_rca, is_comparative_question,
@@ -413,136 +413,12 @@ def detect_correlations(domains: list[str], agent_data: dict,
     return signals
 
 
-# ─── Layer 5: Root Cause Engine ───────────────────────────────────────────────
-
-RCA_SYSTEM_PROMPT = """You are a senior hospitality intelligence analyst for an Indian villa/hotel platform.
-
-You receive a business question and structured analytics data from 10 specialized agents.
-Your job: produce a root cause analysis in strict JSON format.
-
-Rules:
-- Always cite specific numbers from the data. Never invent metrics.
-- If data is missing for a domain, say so explicitly in evidence.
-- Revenue figures in Indian Rupees (₹). Format: ₹4.2L, ₹12k, etc.
-- Recommendations must link to specific platform modules.
-- Maximum 3 findings. Rank by revenue impact (highest first).
-- Confidence: 0.0–1.0 based on data completeness.
-
-Output format (strict JSON, no markdown):
-{
-  "summary": "One-sentence headline answer to the question",
-  "findings": [
-    {
-      "title": "Short finding title",
-      "evidence": ["bullet 1 with specific number", "bullet 2", "bullet 3"],
-      "impact": {"revenue_loss": 420000, "currency": "INR", "severity": "high"},
-      "root_cause": "One sentence root cause",
-      "recommendations": [
-        {
-          "action": "Specific action",
-          "expected_impact": "Estimated outcome",
-          "module": "Module name",
-          "href": "/dashboard/module-path"
-        }
-      ]
-    }
-  ],
-  "confidence": 0.85,
-  "data_completeness": "high",
-  "investigation_paths_used": ["revenue", "occupancy"]
-}
-
-Module paths:
-- Revenue Calculator: /dashboard/revenue-calculator
-- Campaigns: /dashboard/campaigns/new
-- Inbox: /dashboard/inbox
-- Guests: /dashboard/guests
-- Properties/Calendar: /dashboard/calendar
-- Analytics: /dashboard/analytics
-- Flow Builder: /dashboard/flows"""
-
-
-async def run_rca(
-    question: str,
-    intent: dict,
-    agent_data: dict,
-    correlations: list[str],
-    range_days: int,
-    agent_outputs: Optional[dict] = None,
-) -> dict:
-    """
-    Synthesize all agent data into a structured root cause analysis.
-    Phase 2: Uses structured AgentOutput context for higher quality findings.
-    Uses Claude Sonnet (most capable) for quality findings.
-    """
-    llm = get_llm("ask_haip_rca")
-
-    # Phase 2: Use structured agent context if available, fall back to raw data summary
-    if agent_outputs:
-        data_summary = agents_to_llm_context(agent_outputs)
-    else:
-        data_summary = _summarize_agent_data(agent_data)
-
-    correlation_block = ""
-    if correlations:
-        correlation_block = "\n\nHYPOTHESES TO INVESTIGATE:\n" + "\n".join(f"- {s}" for s in correlations)
-
-    user_message = f"""Question: {question}
-
-Period: last {range_days} days
-Question type: {intent.get('type', 'diagnostic')}
-Domains: {', '.join(intent.get('domains', []))}
-{correlation_block}
-
-Analytics Data:
-{data_summary}
-
-Provide root cause analysis."""
-
-    try:
-        from app.adapters.llm.anthropic_claude import MODEL_SONNET
-        result = await llm.complete(
-            system_prompt=RCA_SYSTEM_PROMPT,
-            user_message=user_message,
-            model=MODEL_SONNET,
-            max_tokens=2048,
-        )
-        content = result.get("content", "").strip()
-        start = content.find("{")
-        end = content.rfind("}") + 1
-        if start >= 0 and end > start:
-            return json.loads(content[start:end])
-    except Exception as e:
-        log.error("RCA synthesis failed: %s", e)
-
-    # Graceful fallback
-    return {
-        "summary": "Analysis complete — see findings below.",
-        "findings": [],
-        "confidence": 0.3,
-        "data_completeness": "partial",
-        "investigation_paths_used": intent.get("domains", []),
-        "error": "LLM synthesis unavailable — check API key configuration",
-    }
-
-
-def _summarize_agent_data(agent_data: dict) -> str:
-    """Convert agent data dict into a concise, numbered summary for the LLM prompt."""
-    lines = []
-    for ep, data in agent_data.items():
-        if not data:
-            lines.append(f"[{ep}]: No data available")
-            continue
-        # Trim to avoid token bloat — keep top-level fields only
-        if isinstance(data, dict):
-            trimmed = {k: v for k, v in data.items() if not isinstance(v, list) or len(str(v)) < 300}
-            lines.append(f"[{ep}]: {json.dumps(trimmed, default=str)[:800]}")
-        else:
-            lines.append(f"[{ep}]: {str(data)[:200]}")
-    return "\n".join(lines)
-
-
 # ─── Main Entry Point ─────────────────────────────────────────────────────────
+#
+# The Root Cause Engine (Layer 5) lives in ask_haip_rca.py's run_enhanced_rca()
+# — the agentic loop below calls it directly. An earlier Phase-1 run_rca() with
+# its own RCA_SYSTEM_PROMPT used to live in this file; it was never called by
+# ask_haip() and has been removed.
 
 def _module_context_block(
     active_modules: Optional[list],
@@ -706,7 +582,7 @@ async def ask_haip(
                 session_id=session_id,
                 question_hash=q_hash,
                 findings_json=rca,
-                agents_used=list(agent_data.keys()),
+                agents_used=list(agent_outputs.keys()),
                 range_days=range_days,
                 property_ids=property_ids,
                 confidence=rca.get("confidence"),

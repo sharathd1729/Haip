@@ -9,6 +9,8 @@ from app.models.user import User, UserRole
 from app.models.guest import Guest
 from app.schemas.guest import GuestOut, GuestUpsertRequest, GuestUpdateRequest
 from app.services.guest_service import upsert_by_phone, get_timeline, dpdp_delete
+from app.services import guest_events_service
+from app.schemas.guest_events import GuestJourneyResponse
 from app.core.audit import append_audit
 
 router = APIRouter(prefix="/guests", tags=["guests"])
@@ -65,7 +67,52 @@ def guest_timeline(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """
+    Legacy Guest 360 timeline — calls and stays only, assembled per request.
+
+    Superseded by /journey below, which reads the guest_events ledger and
+    therefore also includes messages and stage changes. Kept unchanged because
+    existing clients depend on this response shape.
+    """
     return get_timeline(db, current_user.tenant_id, guest_id)
+
+
+@router.get("/{guest_id}/journey", response_model=GuestJourneyResponse)
+def guest_journey(
+    guest_id: str,
+    limit: int = Query(default=50, le=200),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Guest Journey — the guest's full history across every module, newest first.
+
+    Reads the guest_events ledger rather than re-assembling from source tables,
+    so it spans the whole lifecycle (messages, calls, stage changes, merges)
+    and every inquiry the guest has ever had. The legacy /timeline endpoint
+    queries conversations but never turns them into events, so messages are
+    absent there entirely.
+
+    Events only exist from the point the ledger started recording. Run
+    tasks.backfill_guest_events for a tenant to populate history.
+    """
+    guest = (
+        db.query(Guest)
+        .filter_by(id=guest_id, tenant_id=current_user.tenant_id, is_deleted=False)
+        .first()
+    )
+    if not guest:
+        raise HTTPException(status_code=404, detail="Guest not found")
+
+    events, capped = guest_events_service.get_guest_timeline(
+        db, current_user.tenant_id, guest_id, limit=limit
+    )
+    return GuestJourneyResponse(
+        guest_id=guest_id,
+        events=events,
+        total_returned=len(events),
+        capped=capped,
+    )
 
 
 @router.patch("/{guest_id}", response_model=GuestOut)

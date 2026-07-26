@@ -59,6 +59,12 @@ class QuoteHistorySchema(BaseModel):
 
 # ─── Lead Card ────────────────────────────────────────────────────────────────
 
+class PendingDraftSchema(BaseModel):
+    message_id: str
+    conversation_id: str
+    preview: str
+
+
 class LeadCardSchema(BaseModel):
     # Core identity
     inquiry_id: str
@@ -121,6 +127,11 @@ class LeadCardSchema(BaseModel):
     # one, and the longest wait wins.
     response_time_seconds: Optional[int] = None
     response_time_status: Optional[str] = None
+
+    # M5+ WS3: the most recent pending AI-drafted reply for this lead, if
+    # any (a Message with is_ai_generated=True, was_approved=None), so the
+    # card can offer a one-click "send" without a second round-trip.
+    pending_draft: Optional[PendingDraftSchema] = None
 
 
 # ─── Lead Detail (card + timeline) ───────────────────────────────────────────

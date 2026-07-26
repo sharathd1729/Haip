@@ -491,6 +491,40 @@ def _serialize_call(call: Call, guest_name: Optional[str] = None) -> dict:
     }
 
 
+# M5+ WS1: label + minimal frontend hint for each recognized action type.
+# `target_field` tells the frontend which field on the payload the target
+# id refers to, since different action types will point at different
+# entity kinds as the taxonomy grows.
+_RECOMMENDED_ACTION_LABELS = {
+    "send_whatsapp_draft": {"label": "Send WhatsApp draft", "target_field": "message_id"},
+}
+
+
+def _serialize_recommended_action(call: Call, db) -> Optional[dict]:
+    if not call.recommended_action_type:
+        return None
+    meta = _RECOMMENDED_ACTION_LABELS.get(call.recommended_action_type)
+    if not meta:
+        return None
+    payload = {
+        "type": call.recommended_action_type,
+        "label": meta["label"],
+        "target_field": meta["target_field"],
+        "target": call.recommended_action_target_id,
+    }
+    if call.recommended_action_type == "send_whatsapp_draft" and call.recommended_action_target_id:
+        # The existing approve endpoint is nested under its conversation
+        # (POST /conversations/{conversation_id}/messages/{message_id}/approve)
+        # — resolve it here rather than storing a second column, since it's
+        # one PK lookup on a single-call endpoint, not a list.
+        from app.models.conversation import Message
+        msg = db.query(Message.conversation_id).filter_by(
+            id=call.recommended_action_target_id, tenant_id=call.tenant_id
+        ).first()
+        payload["target_conversation_id"] = msg.conversation_id if msg else None
+    return payload
+
+
 def _serialize_call_detail(call: Call, db) -> dict:
     """Rich serializer for the call detail page — includes transcript, guest, score, recording URL."""
     from app.models.guest import Guest
@@ -588,6 +622,7 @@ def _serialize_call_detail(call: Call, db) -> dict:
         # which the lead detail page's CallCard already relies on.
         "ai_summary": call.ai_summary,
         "ai_next_action": call.ai_next_action,
+        "recommended_action": _serialize_recommended_action(call, db),
         "transcript_text": "\n".join(
             f"{t['speaker'].capitalize()}: {t['text']}" for t in normalised_turns
         ) if normalised_turns else None,

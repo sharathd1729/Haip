@@ -6,7 +6,7 @@ import { ArrowLeft, Phone, MessageSquare, Home, Star, Shield, Trash2 } from "luc
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { GuestAvatar } from "@/components/crm/GuestAvatar";
-import { TimelineEvent, type TimelineEventProps } from "@/components/crm/TimelineEvent";
+import { GuestJourney } from "@/components/guests/GuestJourney";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
@@ -198,27 +198,14 @@ export default function GuestDetailPage() {
           </div>
         </div>
 
-        {/* Right: timeline */}
-        <div className="col-span-12 lg:col-span-8">
+        {/* Right: journey — the single timeline. Ledger-backed, spans every
+            module and every inquiry (messages, calls, inquiry stage moves,
+            automations). Stays don't emit ledger events yet, so they stay
+            visible via the "Stays" list card on the left instead of here. */}
+        <div className="col-span-12 lg:col-span-8 space-y-5">
           <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
-            <h2 className="text-sm font-semibold text-gray-900 mb-5">Activity timeline</h2>
-            {guest.timeline.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-8">No activity yet</p>
-            ) : (
-              <div>
-                {guest.timeline.map((event, idx) => (
-                  <TimelineEvent
-                    key={idx}
-                    type={event.type}
-                    title={event.title}
-                    subtitle={event.subtitle}
-                    timestamp={event.timestamp}
-                    score={event.score}
-                    isLast={idx === guest.timeline.length - 1}
-                  />
-                ))}
-              </div>
-            )}
+            <h2 className="text-sm font-semibold text-gray-900 mb-5">Guest journey</h2>
+            <GuestJourney guestId={id} />
           </div>
         </div>
       </div>

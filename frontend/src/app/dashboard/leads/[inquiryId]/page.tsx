@@ -411,6 +411,20 @@ export default function LeadDetailPage() {
     },
   });
 
+  // M5+ WS3: same approve-and-queue endpoint LeadCard's one-click send uses.
+  const approveAndSendMutation = useMutation({
+    mutationFn: ({ conversationId, messageId }: { conversationId: string; messageId: string }) =>
+      api.post(`/conversations/${conversationId}/messages/${messageId}/approve`),
+    onSuccess: () => {
+      toast({ title: "Draft sent", description: "The WhatsApp reply is on its way.", variant: "success" });
+      qc.invalidateQueries({ queryKey: ["lead", inquiryId] });
+    },
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast({ title: "Send failed", description: typeof msg === "string" ? msg : "Please try again.", variant: "error" });
+    },
+  });
+
   const refreshMutation = useMutation({
     mutationFn: () => api.post(`/leads/${inquiryId}/refresh-summary`),
     onSuccess: () => {
@@ -575,6 +589,25 @@ export default function LeadDetailPage() {
                   <p className="text-[11px] text-teal-600 font-medium mt-1.5 border-t border-teal-100 pt-1.5">
                     → {data.ai_next_action}
                   </p>
+                )}
+                {data.pending_draft && (
+                  <div className="mt-2 pt-2 border-t border-teal-100 flex items-center justify-between gap-2">
+                    <p className="text-[10px] text-teal-700 truncate flex-1" title={data.pending_draft.preview}>
+                      {data.pending_draft.preview}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => approveAndSendMutation.mutate({
+                        conversationId: data.pending_draft.conversation_id,
+                        messageId: data.pending_draft.message_id,
+                      })}
+                      disabled={approveAndSendMutation.isPending}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white text-[10px] font-semibold flex-shrink-0 transition-colors"
+                    >
+                      <MessageSquare size={10} />
+                      {approveAndSendMutation.isPending ? "Sending…" : "Send draft"}
+                    </button>
+                  </div>
                 )}
               </div>
 

@@ -168,6 +168,13 @@ def dpdp_delete(db: Session, tenant_id: str, guest_id: str) -> dict:
     db.query(Stay).filter_by(tenant_id=tenant_id, guest_id=guest_id).delete()
     db.query(Consent).filter_by(tenant_id=tenant_id, guest_id=guest_id).delete()
 
+    # guest_events carries message previews and AI summaries — PII-bearing, so
+    # it must be purged here like every other child table. Missing it would
+    # leave a readable copy of the guest's conversation behind after a DPDP
+    # deletion request.
+    from app.models.guest_event import GuestEvent
+    db.query(GuestEvent).filter_by(tenant_id=tenant_id, guest_id=guest_id).delete()
+
     # Tombstone guest — anonymise PII, keep id for audit referential integrity
     guest = db.query(Guest).filter_by(id=guest_id, tenant_id=tenant_id).first()
     if guest:

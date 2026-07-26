@@ -114,8 +114,10 @@ function EarlySignalState({ summary }: { summary: string | null }) {
   );
 }
 
-// Lazy widget renderer — resolves key → component
-function WidgetContent({
+// Lazy widget renderer — resolves key → component. Exported so other
+// surfaces (e.g. the custom dashboard builder) can render the same real
+// charts without dragging in this shell's own header/refresh chrome.
+export function WidgetContent({
   widgetKey,
   data,
 }: {
@@ -125,7 +127,7 @@ function WidgetContent({
   const Component = WIDGET_COMPONENTS[widgetKey];
   if (!Component || !data) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex items-center justify-center w-full h-full">
         <p className="text-[11px]" style={{ color: "var(--haip-fg-subtle)" }}>
           No data available.
         </p>
@@ -133,7 +135,7 @@ function WidgetContent({
     );
   }
   return (
-    <div className="h-full overflow-hidden px-3 py-2">
+    <div className="w-full h-full overflow-hidden px-3 py-2">
       {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
       <Component data={data as any} />
     </div>
