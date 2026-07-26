@@ -28,19 +28,23 @@ log = structlog.get_logger()
 PROMPTS_DIR = Path(__file__).parent.parent.parent / "prompts"
 _jinja_env = Environment(loader=FileSystemLoader(str(PROMPTS_DIR)))
 
+# OpenAI/NVIDIA function-calling shape — see note in classify.py's CLASSIFY_TOOL.
 WRAP_UP_TOOL = {
-    "name": "wrap_up_call",
-    "description": "Generate a call wrap-up with summary and disposition",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "summary": {"type": "string"},
-            "suggested_disposition": {"type": "string"},
-            "next_action": {"type": "string"},
-            "follow_up_message": {"type": "string"},  # no union types — Gemini doesn't support ["string","null"]
-            "confidence": {"type": "number"},
+    "type": "function",
+    "function": {
+        "name": "wrap_up_call",
+        "description": "Generate a call wrap-up with summary and disposition",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "summary": {"type": "string"},
+                "suggested_disposition": {"type": "string"},
+                "next_action": {"type": "string"},
+                "follow_up_message": {"type": "string"},  # no union types
+                "confidence": {"type": "number"},
+            },
+            "required": ["summary", "suggested_disposition", "next_action"],
         },
-        "required": ["summary", "suggested_disposition", "next_action"],
     },
 }
 
