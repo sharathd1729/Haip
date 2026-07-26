@@ -180,40 +180,46 @@ class TestWorkerTenantContext:
 # ──────────────────────────────────────────────────────────────────────────────
 
 class TestAnalyticsP95:
-    def test_p95_does_not_load_all_rows(self):
-        """_p95_seconds must not call .all() to load all duration values into Python."""
+    """
+    _p95_seconds previously computed percentile_cont(0.95) over
+    Call.duration_seconds directly (call LENGTH, not response latency) --
+    a real bug, since the name/docstring/OwnerDailyStats field all say
+    "response time." It now delegates to the same shared
+    message_metrics.chat_response_p95_seconds() the dashboard widget uses,
+    so both agree under the "response time" label. These tests check the
+    delegation and the shared function's own SQL, not ORM-query internals
+    that no longer apply now that it's a single source of truth.
+    """
+
+    def test_p95_delegates_to_shared_chat_metric(self):
+        """_p95_seconds must reuse message_metrics.chat_response_p95_seconds, not recompute its own metric."""
         import app.api.v1.endpoints.analytics as analytics_module
         source = inspect.getsource(analytics_module._p95_seconds)
-        # Must NOT load all rows into Python
-        assert "sorted(" not in source, (
-            "_p95_seconds must not use Python sorted() — use SQL percentile_cont"
-        )
-        assert ".all()" not in source, (
-            "_p95_seconds must not call .all() to load all rows into Python"
+        assert "return chat_response_p95_seconds(" in source, (
+            "_p95_seconds must delegate to message_metrics.chat_response_p95_seconds "
+            "so it agrees with the ResponseTimeWidget instead of measuring call duration"
         )
 
-    def test_p95_uses_percentile_cont(self):
-        """_p95_seconds must delegate to PostgreSQL percentile_cont aggregate."""
-        import app.api.v1.endpoints.analytics as analytics_module
-        source = inspect.getsource(analytics_module._p95_seconds)
-        assert "percentile_cont" in source, (
-            "_p95_seconds must use func.percentile_cont(0.95) for in-database p95 computation"
-        )
+    def test_shared_metric_does_not_load_all_rows(self):
+        """chat_response_p95_seconds must not load all message gaps into Python."""
+        import app.services.message_metrics as message_metrics_module
+        source = inspect.getsource(message_metrics_module.chat_response_p95_seconds)
+        assert "sorted(" not in source
+        assert ".all()" not in source
 
-    def test_p95_uses_within_group(self):
-        """percentile_cont requires .within_group() ordered-set syntax."""
-        import app.api.v1.endpoints.analytics as analytics_module
-        source = inspect.getsource(analytics_module._p95_seconds)
-        assert "within_group" in source, (
-            "percentile_cont requires .within_group() — must be present"
-        )
+    def test_shared_metric_uses_percentile_cont_within_group(self):
+        """chat_response_p95_seconds must use PostgreSQL percentile_cont/within group syntax."""
+        import app.services.message_metrics as message_metrics_module
+        source = inspect.getsource(message_metrics_module.chat_response_p95_seconds)
+        assert "percentile_cont" in source
+        assert "WITHIN GROUP" in source
 
     def test_p95_returns_float_on_empty(self):
-        """_p95_seconds must return 0.0 (not raise) when there are no calls."""
+        """_p95_seconds must return 0.0 (not raise) when there are no matching messages."""
         from app.api.v1.endpoints.analytics import _p95_seconds
         from datetime import datetime, timezone, timedelta
         db = MagicMock()
-        db.query.return_value.filter.return_value.scalar.return_value = None
+        db.execute.return_value.scalar.return_value = None
         result = _p95_seconds(db, "tid", datetime.now(timezone.utc) - timedelta(days=7), datetime.now(timezone.utc))
         assert result == 0.0
 
@@ -223,12 +229,24 @@ class TestAnalyticsP95:
         from datetime import datetime, timezone, timedelta
         db = MagicMock()
         # Simulate PostgreSQL returning 123.5 from percentile_cont
-        q = MagicMock()
-        db.query.return_value = q
-        q.filter.return_value = q
-        q.scalar.return_value = 123.5
+        db.execute.return_value.scalar.return_value = 123.5
         result = _p95_seconds(db, "tid", datetime.now(timezone.utc) - timedelta(days=7), datetime.now(timezone.utc))
         assert result == 123.5
+
+    def test_p95_forwards_property_ids_filter(self):
+        """_p95_seconds must forward property_ids so the property-filtered KPI drill-down still works."""
+        from app.api.v1.endpoints.analytics import _p95_seconds
+        from datetime import datetime, timezone, timedelta
+        db = MagicMock()
+        db.execute.return_value.scalar.return_value = 42.0
+        start = datetime.now(timezone.utc) - timedelta(days=7)
+        end = datetime.now(timezone.utc)
+        result = _p95_seconds(db, "tid", start, end, property_ids=["prop-1", "prop-2"])
+        assert result == 42.0
+        # The raw-SQL params dict passed to db.execute must include the property filter
+        call_args = db.execute.call_args
+        params = call_args[0][1]
+        assert params.get("property_ids") == ["prop-1", "prop-2"]
 
 
 # ──────────────────────────────────────────────────────────────────────────────

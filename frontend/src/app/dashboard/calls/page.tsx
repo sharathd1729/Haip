@@ -1,10 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import {
   Phone, Upload, X, Filter, Calendar, Sparkles,
   Search, ChevronRight, TrendingUp, TrendingDown, Minus, AlertCircle,
+  MessageSquare, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EmptyCalls } from "@/components/empty-states/EmptyCalls";
@@ -12,6 +13,7 @@ import { ScoreRing } from "@/components/calls/ScoreRing";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UploadModal } from "@/components/calls/UploadModal";
 import { useCallsStore } from "@/store/calls";
+import { useToast } from "@/components/ui/toast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,6 +35,13 @@ interface CallItem {
   created_at?: string;
   recording_url?: string | null;
   ai_next_action?: string | null;
+  recommended_action?: {
+    type: string;
+    label: string;
+    target_field: string;
+    target: string;
+    target_conversation_id?: string | null;
+  } | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -140,10 +149,27 @@ function CallRow({ call, onClick }: { call: CallItem; onClick: () => void }) {
 // ─── Call slide-over ──────────────────────────────────────────────────────────
 
 function CallSlideOver({ callId, onClose }: { callId: string; onClose: () => void }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { data: call, isLoading } = useQuery<CallItem>({
     queryKey: ["call-detail", callId],
     queryFn: () => api.get(`/calls/${callId}`).then(r => r.data),
     staleTime: 60_000,
+  });
+
+  // M5+ WS1/WS3: reuses the existing approve-and-queue endpoint
+  // (conversations.py::approve_ai_draft) rather than a new one.
+  const approveAndSendMutation = useMutation({
+    mutationFn: ({ conversationId, messageId }: { conversationId: string; messageId: string }) =>
+      api.post(`/conversations/${conversationId}/messages/${messageId}/approve`),
+    onSuccess: () => {
+      toast({ variant: "success", title: "Draft sent", description: "The WhatsApp reply is on its way." });
+      queryClient.invalidateQueries({ queryKey: ["call-detail", callId] });
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.detail ?? "Could not send the draft";
+      toast({ variant: "error", title: "Send failed", description: msg });
+    },
   });
 
   return (
@@ -228,6 +254,24 @@ function CallSlideOver({ callId, onClose }: { callId: string; onClose: () => voi
                     <p className="text-xs font-medium mt-2 pt-2" style={{ color: "var(--primary)", borderTop: "1px solid color-mix(in srgb, var(--primary) 15%, transparent)" }}>
                       → {call.ai_next_action}
                     </p>
+                  )}
+                  {call.recommended_action?.type === "send_whatsapp_draft" && call.recommended_action.target_conversation_id && (
+                    <button
+                      type="button"
+                      onClick={() => approveAndSendMutation.mutate({
+                        conversationId: call.recommended_action!.target_conversation_id!,
+                        messageId: call.recommended_action!.target,
+                      })}
+                      disabled={approveAndSendMutation.isPending}
+                      className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition-colors"
+                    >
+                      {approveAndSendMutation.isPending ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : (
+                        <MessageSquare size={12} />
+                      )}
+                      {call.recommended_action.label}
+                    </button>
                   )}
                 </div>
               )}

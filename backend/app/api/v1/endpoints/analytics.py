@@ -72,20 +72,20 @@ def _calls_week_series(db: Session, tid: str, start: datetime, end: datetime,
 
 def _p95_seconds(db: Session, tid: str, start: datetime, end: datetime,
                   property_ids: Optional[List[str]] = None) -> float:
-    """p95 response time (seconds) — computed in Postgres to avoid OOM on large datasets."""
-    q = db.query(
-        func.percentile_cont(0.95).within_group(
-            cast(Call.duration_seconds, Float).asc()
-        )
-    ).filter(
-        Call.tenant_id == tid,
-        Call.started_at >= start,
-        Call.duration_seconds.isnot(None),
-    )
-    if property_ids:
-        q = q.filter(Call.property_id.in_(property_ids))
-    result = q.scalar()
-    return float(result) if result is not None else 0.0
+    """
+    p95 response time (seconds) — chat (WhatsApp/Instagram) first-reply
+    latency, matching the ResponseTimeWidget's definition.
+
+    This previously computed percentile_cont(0.95) over Call.duration_seconds
+    -- call LENGTH, not response latency -- despite the name and docstring.
+    That silently diverged from the dashboard widget's "response time"
+    (message_metrics.chat_response_p95_seconds), so OwnerDailyStats and the
+    widget could disagree under the same label. Delegating to the same
+    shared function fixes that; see message_metrics.py's module docstring,
+    which already documented this as the intended single source of truth.
+    """
+    from app.services.message_metrics import chat_response_p95_seconds
+    return chat_response_p95_seconds(db, tid, start, until=end, property_ids=property_ids)
 
 
 def _revenue_at_risk(db: Session, tid: str) -> Optional[float]:

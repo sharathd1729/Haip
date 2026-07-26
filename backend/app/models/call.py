@@ -87,6 +87,14 @@ class Call(Base, TimestampMixin, TenantMixin):
     ai_next_action = Column(Text, nullable=True)
     ai_score = Column(Numeric(5, 2), nullable=True)   # 0-100
 
+    # M5+ WS1: structured, clickable version of ai_next_action. Derived
+    # programmatically from existing data (e.g. a pending AI-drafted
+    # WhatsApp reply for this call's guest) -- not a new LLM classification
+    # call. See call_service.py::derive_recommended_action(). Additive:
+    # ai_next_action (free text) is unchanged and still always populated.
+    recommended_action_type = Column(String(30), nullable=True)     # e.g. "send_whatsapp_draft"
+    recommended_action_target_id = Column(String, nullable=True)    # e.g. a Message.id
+
     # Human override
     human_disposition = Column(SAEnum(CallDisposition), nullable=True)
     disposition_note = Column(Text, nullable=True)

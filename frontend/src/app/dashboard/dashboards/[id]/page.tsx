@@ -19,6 +19,7 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
+import { WidgetContent } from "@/components/dashboard/WidgetShell";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -384,13 +385,11 @@ function WidgetBody({ widget }: { widget: WidgetInstance }) {
       </div>
     );
   }
-  // full_insight — render widget type placeholder (real widget components wire here)
+  // full_insight — render the real chart, same component the main dashboard uses
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center gap-1">
-      <div className="text-xs text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded">
-        {widget.widget_type}
-      </div>
-      <p className="text-xs text-muted-foreground">{widget.widget_name}</p>
-    </div>
+    <WidgetContent
+      widgetKey={widget.widget_key}
+      data={(widget.cached_data as Record<string, unknown> | null) ?? null}
+    />
   );
 }

@@ -29,7 +29,7 @@ from app.models.guest_identity import GuestIdentity, IdentityType
 from app.models.inquiry import Inquiry, InquiryStage, InquirySource
 from app.models.pipeline_stage import PipelineStage
 from app.schemas.leads import (
-    LeadCardSchema, LeadDetailSchema, LeadsListResponse,
+    LeadCardSchema, LeadDetailSchema, LeadsListResponse, PendingDraftSchema,
     PipelineStageMetaSchema, QuoteHistorySchema, TimelineEntrySchema,
 )
 
@@ -254,6 +254,49 @@ def _batch_response_time(
     return result
 
 
+# ── Pending AI drafts (M5+ WS3) ───────────────────────────────────────────────
+
+def _batch_pending_drafts(
+    db: Session,
+    tenant_id: str,
+    inquiry_ids: list[str],
+) -> dict[str, PendingDraftSchema]:
+    """Most recent pending AI-drafted reply per inquiry, in one query (no
+    N+1) — same "pending draft" representation concierge_draft already
+    writes (is_ai_generated=True, was_approved=None). Returns
+    {inquiry_id: PendingDraftSchema}; inquiries with no pending draft are
+    absent from the result."""
+    from app.models.conversation import Conversation, Message, MessageDirection
+
+    if not inquiry_ids:
+        return {}
+
+    rows = (
+        db.query(Message.id, Message.conversation_id, Message.body, Conversation.inquiry_id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .filter(
+            Message.tenant_id == tenant_id,
+            Message.is_ai_generated.is_(True),
+            Message.was_approved.is_(None),
+            Message.direction == MessageDirection.OUTBOUND,
+            Conversation.inquiry_id.in_(inquiry_ids),
+        )
+        .order_by(Message.created_at.desc())
+        .all()
+    )
+
+    result: dict[str, PendingDraftSchema] = {}
+    for msg_id, conv_id, body, inquiry_id in rows:
+        if inquiry_id in result:
+            continue  # already have the most recent (rows are newest-first)
+        result[inquiry_id] = PendingDraftSchema(
+            message_id=msg_id,
+            conversation_id=conv_id,
+            preview=(body or "")[:140],
+        )
+    return result
+
+
 # ── Property interest ─────────────────────────────────────────────────────────
 
 def get_property_interest(
@@ -469,6 +512,7 @@ def _build_lead_card(
     signals: list[str],
     property_interest: list[str],
     response_time: Optional[tuple[int, str]] = None,
+    pending_draft: Optional[PendingDraftSchema] = None,
 ) -> LeadCardSchema:
     """Build a LeadCardSchema from an Inquiry ORM object and precomputed fields."""
     guest = inquiry.guest
@@ -516,6 +560,7 @@ def _build_lead_card(
         created_at=inquiry.created_at,
         response_time_seconds=response_time[0] if response_time else None,
         response_time_status=response_time[1] if response_time else None,
+        pending_draft=pending_draft,
     )
 
 
@@ -639,6 +684,7 @@ def get_leads_pipeline(
     }
 
     response_time_map = _batch_response_time(db, tenant_id, [inq.id for inq in inquiries])
+    pending_draft_map = _batch_pending_drafts(db, tenant_id, [inq.id for inq in inquiries])
 
     leads = [
         _build_lead_card(
@@ -647,6 +693,7 @@ def get_leads_pipeline(
             signals=signals_map.get(inq.guest_id, []),
             property_interest=prop_interest_map.get(inq.id, []),
             response_time=response_time_map.get(inq.id),
+            pending_draft=pending_draft_map.get(inq.id),
         )
         for inq in inquiries
     ]
@@ -805,7 +852,8 @@ def get_lead_detail(
     ]
 
     response_time = _batch_response_time(db, tenant_id, [inquiry_id]).get(inquiry_id)
-    card = _build_lead_card(inquiry, completeness, signals, property_interest, response_time)
+    pending_draft = _batch_pending_drafts(db, tenant_id, [inquiry_id]).get(inquiry_id)
+    card = _build_lead_card(inquiry, completeness, signals, property_interest, response_time, pending_draft)
 
     from app.services.lead_field_service import get_field_values_for_inquiry
     try:
