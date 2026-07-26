@@ -1,6 +1,7 @@
 """
-Judge task — QA scoring via LLM rubric (Gemini Flash free / Claude Haiku paid).
-Confidence < 0.78 triggers a stronger-model re-judge.
+Judge task — QA scoring via LLM rubric. Uses get_llm("call_scoring")
+(NVIDIA nemotron-super-49b). Confidence < 0.78 escalates to
+get_llm("deep_reason") (NVIDIA nemotron-3-ultra-550b) for a re-judge.
 Chains to wrap_up.
 """
 import asyncio
@@ -26,10 +27,6 @@ from app.models.property import Property
 from app.models.user import User
 from app.adapters.llm import get_llm
 from app.core.prompt_versions import stamp
-
-# Model aliases — used only for Claude; Gemini maps these internally
-MODEL_HAIKU  = "claude-haiku-4-5-20251001"
-MODEL_SONNET = "claude-sonnet-4-6"
 from app.services.transcription_service import redact_pii
 from app.services.qa_service import get_default_rubric, store_score
 import structlog
@@ -142,23 +139,24 @@ def judge(self, call_id: str, tenant_id: str, classification: dict = None):
 
         adapter = get_llm("call_scoring")
 
-        # First pass: fast model (Haiku / Gemini Flash)
+        # First pass: the task-routed model for call_scoring.
         result_fast = _run_async(
             adapter.complete(system_prompt=system_prompt, user_message="Score this call.",
-                             model=MODEL_HAIKU, tools=[JUDGE_TOOL])
+                             tools=[JUDGE_TOOL])
         )
         judge_result = result_fast.get("tool_use") or {}
-        model_used = result_fast.get("model", MODEL_HAIKU)
+        model_used = result_fast.get("model", "call_scoring")
 
-        # Escalate to stronger model if confidence < threshold
+        # Escalate to the stronger deep_reason model if confidence < threshold
         if judge_result.get("confidence", 1.0) < CONFIDENCE_THRESHOLD:
             log.info("judge_escalating", call_id=call_id, confidence=judge_result.get("confidence"))
+            strong_adapter = get_llm("deep_reason")
             result_strong = _run_async(
-                adapter.complete(system_prompt=system_prompt, user_message="Score this call.",
-                                 model=MODEL_SONNET, tools=[JUDGE_TOOL])
+                strong_adapter.complete(system_prompt=system_prompt, user_message="Score this call.",
+                                        tools=[JUDGE_TOOL])
             )
             judge_result = result_strong.get("tool_use") or judge_result
-            model_used = result_strong.get("model", MODEL_SONNET) + "_review"
+            model_used = result_strong.get("model", "deep_reason") + "_review"
 
         judge_result["model_used"] = model_used
         score = store_score(db, call_id=call_id, tenant_id=tenant_id, rubric_id=rubric.id, result=judge_result)

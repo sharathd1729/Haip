@@ -1,7 +1,7 @@
 """
 Classify task — sentiment, intent, language, themes via LLM.
-Uses Gemini Flash (free) or Claude Haiku depending on env config.
-Chains to judge.
+Uses get_llm("quick_classify") — NVIDIA meta/llama-3.1-8b-instruct per the
+locked routing table. Chains to judge.
 """
 import asyncio
 import json
@@ -141,7 +141,6 @@ def classify(self, call_id: str, tenant_id: str):
             adapter.complete(
                 system_prompt=system_prompt,
                 user_message="Classify this call.",
-                model="claude-haiku-4-5-20251001",   # Gemini maps this → Flash
                 tools=[CLASSIFY_TOOL],
             )
         )

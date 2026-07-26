@@ -88,7 +88,7 @@ def wrap_up(self, call_id: str, tenant_id: str, classification: dict = None, jud
         adapter = get_llm("call_analysis")
         result = _run_async(
             adapter.complete(system_prompt=system_prompt, user_message="Generate the wrap-up.",
-                             model="claude-haiku-4-5-20251001", tools=[WRAP_UP_TOOL])
+                             tools=[WRAP_UP_TOOL])
         )
         wu = result.get("tool_use") or {}
 
