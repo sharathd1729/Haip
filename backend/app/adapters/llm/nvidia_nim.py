@@ -107,10 +107,12 @@ class NvidiaNIMAdapter(LLMAdapter):
 
         if choice.finish_reason == "tool_calls" and choice.message.tool_calls:
             tc = choice.message.tool_calls[0]
-            result["tool_use"] = {
-                "name":  tc.function.name,
-                "input": json.loads(tc.function.arguments),
-            }
+            # Flat dict — matches anthropic_claude.py's tool_use shape
+            # (tool_result = block.input) that every caller expects. This used
+            # to wrap it in {"name":..., "input":...} instead, so every caller's
+            # judge_result.get("criterion_scores")/wu.get("summary")/etc always
+            # silently hit their default (score 0.0, summary never written).
+            result["tool_use"] = json.loads(tc.function.arguments)
         else:
             result["content"] = choice.message.content or ""
 

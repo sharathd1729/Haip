@@ -60,10 +60,9 @@ class OpenAIAdapter(LLMAdapter):
         if choice.finish_reason == "tool_calls" and choice.message.tool_calls:
             tc = choice.message.tool_calls[0]
             import json
-            result["tool_use"] = {
-                "name":  tc.function.name,
-                "input": json.loads(tc.function.arguments),
-            }
+            # Flat dict — matches anthropic_claude.py's tool_use shape, which
+            # every caller expects (see nvidia_nim.py for the full note).
+            result["tool_use"] = json.loads(tc.function.arguments)
         else:
             result["content"] = choice.message.content or ""
 
