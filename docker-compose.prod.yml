@@ -131,6 +131,12 @@ services:
       - "127.0.0.1:5555:5555"
     depends_on:
       - redis
+    healthcheck:
+      # The base image's HEALTHCHECK probes :8000 (the FastAPI app) — wrong
+      # port for this service, which only ever listens on :5555. Without this
+      # override Docker reports the container "unhealthy" forever even when
+      # Flower itself is fine, same as worker/beat above.
+      disable: true
 
 volumes:
   uploads:
