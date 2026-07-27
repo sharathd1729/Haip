@@ -241,7 +241,7 @@ function ConnectModal({
   const isRentalWise  = provider === "retalwise";
   const isBasicAuth   = authType === "basic_auth" && !isWhatsApp && !isInstagram && !isRentalWise;
   const isHostaway    = provider === "hostaway";
-  const isIvr         = provider === "callerdesk" || provider === "acefone" || provider === "mcube";
+  const isIvr         = provider === "callerdesk" || provider === "acefone" || provider === "mcube" || provider === "vobiz";
 
   // RentalWise: user can choose between API token (Bearer) or username/password (Basic)
   const [rwAuthMode, setRwAuthMode] = useState<"token" | "basic">("token");
@@ -498,7 +498,7 @@ function ConnectModal({
                     />
                   </div>
                   <p className="text-[11px] text-gray-400 mt-1">
-                    {provider === "mcube"
+                    {provider === "mcube" || provider === "vobiz"
                       ? "Generate any random string — it becomes part of the webhook URL you'll copy after connecting."
                       : `Generate any random string, then paste the same value into your ${providerName} dashboard → Webhooks → Secret.`}
                   </p>
