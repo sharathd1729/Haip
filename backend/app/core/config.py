@@ -83,6 +83,14 @@ class Settings(BaseSettings):
 
     MCUBE_API_KEY: str = ""
 
+    # Vobiz — SIP/voice trunk, Plivo-compatible REST API
+    VOBIZ_AUTH_ID: str = ""
+    VOBIZ_AUTH_TOKEN: str = ""
+    # Agent's personal mobile the inbound call is bridged to (E.164). No DTMF
+    # menu for this pass — every inbound call rings this one number while the
+    # whole session records. Per-tenant routing is future work.
+    VOBIZ_FORWARD_NUMBER: str = ""
+
     # WhatsApp / Instagram (Meta)
     META_WHATSAPP_PHONE_NUMBER_ID: str = ""
     META_WHATSAPP_ACCESS_TOKEN: str = ""

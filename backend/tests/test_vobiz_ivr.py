@@ -1,0 +1,316 @@
+"""
+Tests for the Vobiz IVR integration (recording-only pass, no DTMF menu):
+  - VobizAdapter.parse_call_webhook (merged-payload field mapping)
+  - VobizAdapter.fetch_recording SSRF allowlist (api.vobiz.ai only)
+  - VobizAdapter.verify_vobiz_signature (V3/V2 HMAC, ported from Dograh's
+    own VobizProvider — same signature scheme, tests confirm the port is
+    byte-for-byte compatible)
+  - POST /webhooks/vobiz/{tenant_slug}/{url_secret}/answer + /recording
+    auth + dispatch, including the answer->recording cache bridge
+"""
+import base64
+import hashlib
+import hmac
+import uuid
+import pytest
+
+from app.adapters.ivr.vobiz import VobizAdapter
+from app.adapters.ivr import get_ivr_adapter
+from app.models.integration import Integration
+from app.core.encryption import encrypt_credentials
+
+_MERGED_PAYLOAD = {
+    "CallUUID": "call-abc-123",
+    "From": "+919876543210",
+    "To": "+912271264296",
+    "Direction": "inbound",
+    "RecordUrl": "https://api.vobiz.ai/api/v1/Account/MA123/Recording/rec-1/",
+    "RecordingDuration": "42",
+    "agent_number": "+919000000000",
+    "started_at": "2026-07-26T10:00:00Z",
+    "ended_at": "1690000042000",
+}
+
+
+# ── Adapter registration ────────────────────────────────────────────────────
+
+def test_get_ivr_adapter_returns_vobiz():
+    adapter = get_ivr_adapter("vobiz")
+    assert isinstance(adapter, VobizAdapter)
+
+
+# ── parse_call_webhook ──────────────────────────────────────────────────────
+
+def test_parse_call_webhook_maps_fields_correctly():
+    adapter = VobizAdapter()
+    normalized = adapter.parse_call_webhook(_MERGED_PAYLOAD)
+
+    assert normalized.ivr_call_id == "call-abc-123"
+    assert normalized.direction == "inbound"
+    assert normalized.from_number == "+919876543210"
+    assert normalized.to_number == "+912271264296"
+    assert normalized.agent_number == "+919000000000"
+    assert normalized.duration_seconds == 42
+    assert normalized.recording_url == _MERGED_PAYLOAD["RecordUrl"]
+    assert normalized.provider == "vobiz"
+    assert normalized.raw == _MERGED_PAYLOAD
+
+
+def test_parse_call_webhook_falls_back_to_recordfile_key():
+    payload = dict(_MERGED_PAYLOAD)
+    del payload["RecordUrl"]
+    payload["RecordFile"] = "https://api.vobiz.ai/api/v1/Account/MA123/Recording/rec-2/"
+    normalized = VobizAdapter().parse_call_webhook(payload)
+    assert normalized.recording_url == payload["RecordFile"]
+
+
+def test_parse_call_webhook_normalizes_leading_zero_indian_number():
+    payload = dict(_MERGED_PAYLOAD, From="02271264296")
+    normalized = VobizAdapter().parse_call_webhook(payload)
+    assert normalized.from_number == "+912271264296"
+
+
+@pytest.mark.parametrize("raw,expected", [("42", 42), ("0", 0), ("", 0), ("garbage", 0), (None, 0)])
+def test_parse_int_duration(raw, expected):
+    assert VobizAdapter._parse_int(raw) == expected
+
+
+# ── fetch_recording SSRF allowlist ──────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_fetch_recording_rejects_non_https():
+    adapter = VobizAdapter()
+    with pytest.raises(ValueError):
+        await adapter.fetch_recording("http://api.vobiz.ai/api/v1/Account/MA123/Recording/rec-1/")
+
+
+@pytest.mark.asyncio
+async def test_fetch_recording_rejects_unknown_host():
+    adapter = VobizAdapter()
+    with pytest.raises(ValueError):
+        await adapter.fetch_recording("https://evil.example.com/recording.mp3")
+
+
+@pytest.mark.asyncio
+async def test_fetch_recording_accepts_api_vobiz_ai(monkeypatch):
+    class _FakeResponse:
+        content = b"fake-audio-bytes"
+        def raise_for_status(self): pass
+
+    class _FakeAsyncClient:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def get(self, *a, **kw): return _FakeResponse()
+
+    import httpx
+    monkeypatch.setattr(httpx, "AsyncClient", lambda: _FakeAsyncClient())
+
+    adapter = VobizAdapter()
+    result = await adapter.fetch_recording("https://api.vobiz.ai/api/v1/Account/MA123/Recording/rec-1/")
+    assert result == b"fake-audio-bytes"
+
+
+# ── verify_vobiz_signature (ported HMAC scheme) ──────────────────────────────
+
+def test_verify_vobiz_signature_v3_accepts_valid_signature_and_strips_query():
+    auth_token = "vobiz-auth-token"
+    url = "https://example.test/api/v1/webhooks/vobiz/acme/secret/recording"
+    nonce = "12345678901234567890"
+    signed_payload = f"{url}.{nonce}"
+    signature = base64.b64encode(
+        hmac.new(auth_token.encode("utf-8"), signed_payload.encode("utf-8"), hashlib.sha256).digest()
+    ).decode("ascii")
+
+    assert VobizAdapter.verify_vobiz_signature(
+        url + "?foo=bar",
+        {"x-vobiz-signature-v3": signature, "x-vobiz-signature-v3-nonce": nonce},
+        auth_token,
+    )
+
+
+def test_verify_vobiz_signature_v2_accepts_valid_signature():
+    auth_token = "vobiz-auth-token"
+    url = "https://example.test/api/v1/webhooks/vobiz/acme/secret/recording"
+    nonce = "12345678901234567890"
+    signature = base64.b64encode(
+        hmac.new(auth_token.encode("utf-8"), f"{url}{nonce}".encode("utf-8"), hashlib.sha256).digest()
+    ).decode("ascii")
+
+    assert VobizAdapter.verify_vobiz_signature(
+        url,
+        {"X-Vobiz-Signature-V2": signature, "X-Vobiz-Signature-V2-Nonce": nonce},
+        auth_token,
+    )
+
+
+def test_verify_vobiz_signature_rejects_missing_signature():
+    assert not VobizAdapter.verify_vobiz_signature(
+        "https://example.test/whatever", {}, "some-token"
+    )
+
+
+def test_verify_vobiz_signature_rejects_wrong_token():
+    url = "https://example.test/whatever"
+    nonce = "12345678901234567890"
+    signature = base64.b64encode(
+        hmac.new(b"correct-token", f"{url}.{nonce}".encode("utf-8"), hashlib.sha256).digest()
+    ).decode("ascii")
+
+    assert not VobizAdapter.verify_vobiz_signature(
+        url,
+        {"x-vobiz-signature-v3": signature, "x-vobiz-signature-v3-nonce": nonce},
+        "wrong-token",
+    )
+
+
+# ── Webhook endpoints ────────────────────────────────────────────────────────
+
+def _connect_vobiz(db, tenant_id, webhook_secret="test-vobiz-secret"):
+    integration = Integration(
+        id=str(uuid.uuid4()), tenant_id=tenant_id, kind="vobiz", status="active",
+        credentials_kms_blob=encrypt_credentials({"webhook_secret": webhook_secret}),
+    )
+    db.add(integration)
+    db.commit()
+    return integration
+
+
+def test_answer_webhook_rejects_unknown_tenant(client):
+    res = client.post(
+        "/api/v1/webhooks/vobiz/no-such-tenant/whatever/answer",
+        data={"CallUUID": "x"},
+    )
+    assert res.status_code == 404
+
+
+def test_answer_webhook_rejects_wrong_secret(client, tenant_and_user, db):
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret")
+
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/wrong-secret/answer",
+        data={"CallUUID": "x"},
+    )
+    assert res.status_code == 401
+
+
+def test_answer_webhook_rejects_when_not_configured(client, tenant_and_user):
+    tenant = tenant_and_user["tenant"]
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/any-secret/answer",
+        data={"CallUUID": "x"},
+    )
+    assert res.status_code == 401
+
+
+def test_answer_webhook_returns_xml_with_record_and_dial(client, tenant_and_user, db, monkeypatch):
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret")
+
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "VOBIZ_FORWARD_NUMBER", "+919000000000")
+
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/answer",
+        data={"CallUUID": "call-abc-123", "From": "+919876543210", "To": "+912271264296", "Direction": "inbound"},
+    )
+    assert res.status_code == 200
+    assert res.headers["content-type"].startswith("application/xml")
+    assert "<Record" in res.text
+    assert 'recordSession="true"' in res.text
+    assert "<Number>+919000000000</Number>" in res.text
+    assert f"/webhooks/vobiz/{tenant.slug}/correct-secret/recording" in res.text
+
+
+def test_answer_webhook_hangs_up_gracefully_when_forward_number_unset(client, tenant_and_user, db, monkeypatch):
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret")
+
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "VOBIZ_FORWARD_NUMBER", "")
+
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/answer",
+        data={"CallUUID": "call-abc-123", "From": "+919876543210", "To": "+912271264296"},
+    )
+    assert res.status_code == 200
+    assert "<Hangup" in res.text
+    assert "<Record" not in res.text
+
+
+def test_recording_webhook_merges_cached_answer_data_and_dispatches(client, tenant_and_user, db, monkeypatch):
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret")
+
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "VOBIZ_FORWARD_NUMBER", "+919000000000")
+
+    # Prime the answer->recording cache bridge exactly as the answer webhook would.
+    from app.core.cache import set_cached
+    from app.api.v1.endpoints.webhooks_vobiz import _cache_key
+    set_cached(
+        _cache_key(tenant.id, "call-abc-123"),
+        {"From": "+919876543210", "To": "+912271264296", "Direction": "inbound", "started_at": "2026-07-26T10:00:00Z"},
+        ttl=60,
+    )
+
+    dispatched = {}
+
+    def fake_delay(**kwargs):
+        dispatched.update(kwargs)
+
+    from app.workers.tasks import call_ingest
+    monkeypatch.setattr(call_ingest.ingest_call, "delay", fake_delay)
+
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/recording",
+        data={
+            "CallUUID": "call-abc-123",
+            "RecordFile": "https://api.vobiz.ai/api/v1/Account/MA123/Recording/rec-1/",
+            "RecordingDuration": "42",
+        },
+    )
+    assert res.status_code == 200
+    assert dispatched["tenant_id"] == tenant.id
+    assert dispatched["ivr_provider"] == "vobiz"
+    assert dispatched["payload"]["CallUUID"] == "call-abc-123"
+    assert dispatched["payload"]["From"] == "+919876543210"
+    assert dispatched["payload"]["To"] == "+912271264296"
+    assert dispatched["payload"]["RecordUrl"] == "https://api.vobiz.ai/api/v1/Account/MA123/Recording/rec-1/"
+    assert dispatched["payload"]["RecordingDuration"] == "42"
+
+
+def test_recording_webhook_ignores_missing_call_uuid(client, tenant_and_user, db):
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret")
+
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/recording",
+        data={"RecordFile": "https://api.vobiz.ai/x"},
+    )
+    assert res.status_code == 200
+    assert res.json()["status"] == "ignored"
+
+
+# ── GET /integrations/vobiz/webhook-info ────────────────────────────────────
+
+def test_webhook_info_includes_secret_and_answer_suffix(client, tenant_and_user, db):
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz(db, tenant.id, webhook_secret="my-secret-123")
+
+    res = client.get(
+        "/api/v1/integrations/vobiz/webhook-info",
+        headers={"Authorization": f"Bearer {tenant_and_user['access_token']}"},
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["webhook_url"] == f"https://testserver/api/v1/webhooks/vobiz/{tenant.slug}/my-secret-123/answer"
+
+
+def test_webhook_info_null_url_before_connect(client, tenant_and_user):
+    res = client.get(
+        "/api/v1/integrations/vobiz/webhook-info",
+        headers={"Authorization": f"Bearer {tenant_and_user['access_token']}"},
+    )
+    assert res.status_code == 200
+    assert res.json()["webhook_url"] is None

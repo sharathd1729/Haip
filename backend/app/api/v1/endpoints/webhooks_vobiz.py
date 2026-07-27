@@ -1,0 +1,172 @@
+"""
+Vobiz IVR webhooks — recording-only pass (no DTMF menu, no AI agent).
+
+Vobiz's inbound flow is two separate webhooks, unlike CallerDesk/Acefone/
+Mcube's single call-completed callback:
+
+  1. Answer URL  — fires when the call arrives. HAIP replies with XML that
+     starts a whole-session recording and dials the agent's mobile.
+  2. Recording callback — fires once the (session-long) recording finishes,
+     with the download URL and duration.
+
+Since CallWebhookPayload needs from/to/duration/recording_url in one shot,
+step 1's From/To/Direction are cached (keyed by CallUUID) and merged back in
+at step 2, right before handing off to the same call_ingest pipeline every
+other IVR provider uses.
+
+Auth: same convention as Mcube (see McubeAdapter/VobizAdapter docstrings) —
+an unguessable per-tenant secret embedded in the URL path itself, checked
+with secrets.compare_digest. Vobiz's own X-Vobiz-Signature HMAC is not used
+for authorization since it signs the URL, not the body.
+"""
+import secrets
+
+from fastapi import APIRouter, Request, HTTPException, Depends, Response
+from sqlalchemy.orm import Session
+
+from app.core.database import get_db
+from app.core.cache import get_cached, set_cached
+from app.core.config import settings
+from app.adapters.ivr import get_ivr_adapter
+from app.models.tenant import Tenant
+from app.models.integration import Integration
+from app.core.encryption import get_credential
+from app.workers.tasks.call_ingest import ingest_call
+import structlog
+
+log = structlog.get_logger()
+router = APIRouter(prefix="/webhooks", tags=["webhooks"])
+
+_CACHE_TTL = 3600 * 4  # session-long recordings can run up to maxLength=3600s
+
+
+def _cache_key(tenant_id: str, call_uuid: str) -> str:
+    return f"haip:vobiz:call:{tenant_id}:{call_uuid}"
+
+
+def _resolve_tenant_and_secret(db: Session, tenant_slug: str, url_secret: str) -> Tenant:
+    tenant = db.query(Tenant).filter_by(slug=tenant_slug, is_active=True).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    integration = db.query(Integration).filter_by(tenant_id=tenant.id, kind="vobiz").first()
+    if not integration or not integration.credentials_kms_blob:
+        log.warning("vobiz_integration_not_configured", tenant=tenant_slug)
+        raise HTTPException(status_code=401, detail="Vobiz integration not configured for this tenant")
+
+    tenant_secret = get_credential(integration.credentials_kms_blob, "webhook_secret")
+    if not tenant_secret or not secrets.compare_digest(url_secret, tenant_secret):
+        log.warning("vobiz_url_secret_invalid", tenant=tenant_slug)
+        raise HTTPException(status_code=401, detail="Invalid webhook secret")
+
+    return tenant
+
+
+@router.post("/vobiz/{tenant_slug}/{url_secret}/answer")
+async def vobiz_answer_webhook(
+    tenant_slug: str,
+    url_secret: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Vobiz Answer URL — fires when an inbound call arrives. Caches From/To/
+    Direction/started_at keyed by CallUUID, then replies with XML that
+    records the whole session and dials the agent's forwarding number.
+    """
+    tenant = _resolve_tenant_and_secret(db, tenant_slug, url_secret)
+    form = await request.form()
+    data = dict(form)
+
+    call_uuid = data.get("CallUUID", "")
+    if not call_uuid:
+        log.warning("vobiz_answer_missing_call_uuid", tenant=tenant_slug)
+        raise HTTPException(status_code=400, detail="Missing CallUUID")
+
+    log.info("vobiz_answer_received", tenant=tenant_slug, call_uuid=call_uuid)
+
+    set_cached(
+        _cache_key(tenant.id, call_uuid),
+        {
+            "From": data.get("From", ""),
+            "To": data.get("To", ""),
+            "Direction": data.get("Direction", "inbound"),
+            "started_at": data.get("StartTime", ""),
+        },
+        ttl=_CACHE_TTL,
+    )
+
+    if not settings.VOBIZ_FORWARD_NUMBER:
+        log.error("vobiz_forward_number_not_configured", tenant=tenant_slug)
+        return Response(
+            content=(
+                '<?xml version="1.0" encoding="UTF-8"?>'
+                '<Response><Speak>Sorry, this line is not configured yet.</Speak><Hangup/></Response>'
+            ),
+            media_type="application/xml",
+        )
+
+    base = str(request.base_url).rstrip("/")
+    recording_callback_url = f"{base}/api/v1/webhooks/vobiz/{tenant_slug}/{url_secret}/recording"
+    to_number = data.get("To", "")
+
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        "<Response>"
+        f'<Record fileFormat="mp3" recordSession="true" maxLength="3600" '
+        f'callbackUrl="{recording_callback_url}" redirect="false" playBeep="false"/>'
+        f'<Dial callerId="{to_number}" timeout="30" timeLimit="1800" redirect="false">'
+        f"<Number>{settings.VOBIZ_FORWARD_NUMBER}</Number>"
+        "</Dial>"
+        "<Hangup/>"
+        "</Response>"
+    )
+    return Response(content=xml, media_type="application/xml")
+
+
+@router.post("/vobiz/{tenant_slug}/{url_secret}/recording")
+async def vobiz_recording_webhook(
+    tenant_slug: str,
+    url_secret: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Vobiz recording callback — fires once the session recording finishes.
+    Merges the cached call metadata from the answer webhook, then queues
+    the same call_ingest pipeline every IVR provider uses.
+    """
+    tenant = _resolve_tenant_and_secret(db, tenant_slug, url_secret)
+    form = await request.form()
+    data = dict(form)
+
+    call_uuid = data.get("CallUUID", "")
+    if not call_uuid:
+        log.warning("vobiz_recording_missing_call_uuid", tenant=tenant_slug)
+        return {"status": "ignored"}
+
+    cached = get_cached(_cache_key(tenant.id, call_uuid)) or {}
+
+    merged = {
+        "CallUUID": call_uuid,
+        "From": cached.get("From", ""),
+        "To": cached.get("To", ""),
+        "Direction": cached.get("Direction", "inbound"),
+        "RecordUrl": data.get("RecordFile") or data.get("RecordUrl", ""),
+        "RecordingDuration": data.get("RecordingDuration", "0"),
+        "agent_number": settings.VOBIZ_FORWARD_NUMBER,
+        "started_at": cached.get("started_at", ""),
+        "ended_at": data.get("RecordingEndMs", ""),
+    }
+
+    log.info("vobiz_recording_received", tenant=tenant_slug, call_uuid=call_uuid)
+    # verify_webhook_signature() is a documented no-op for this provider (see
+    # VobizAdapter) -- the URL-path secret checked above IS the auth. Passing
+    # b"" avoids re-reading the request body, which request.form() above
+    # already consumed (a second await request.body() raises "Stream consumed").
+    adapter = get_ivr_adapter("vobiz")
+    if not adapter.verify_webhook_signature(b"", dict(request.headers)):
+        raise HTTPException(status_code=401, detail="Invalid signature")
+
+    ingest_call.delay(payload=merged, tenant_id=tenant.id, ivr_provider="vobiz")
+    return {"status": "queued"}

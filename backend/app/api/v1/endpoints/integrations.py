@@ -121,6 +121,20 @@ CATALOG = [
             "(not a separate \"Secret\" field there)."
         ),
     },
+    {
+        "provider": "vobiz",
+        "name": "Vobiz",
+        "description": "SIP voice trunk — record every inbound call and bridge it to your agent's mobile.",
+        "category": "telephony",
+        "auth_type": "api_key",
+        "logo": "phone",
+        "popular": False,
+        "notes": (
+            "Vobiz has no webhook-signing scheme — the webhook_secret you set here "
+            "becomes part of the Answer URL you paste into the Vobiz Console's XML "
+            "Application (not a separate \"Secret\" field there)."
+        ),
+    },
 ]
 
 
@@ -523,7 +537,7 @@ def get_instagram_webhook_info(
     }
 
 
-_IVR_WEBHOOK_KINDS = {"callerdesk", "acefone", "mcube"}
+_IVR_WEBHOOK_KINDS = {"callerdesk", "acefone", "mcube", "vobiz"}
 
 
 @router.get("/{kind}/webhook-info", include_in_schema=False)
@@ -567,6 +581,27 @@ def get_ivr_webhook_info(
                 "Log into your Mcube account and find the callback/webhook setting for your DID number.",
                 "Paste the Webhook URL above exactly — the trailing segment is your secret, not a placeholder.",
                 "Mcube has no separate 'Secret' field to fill in — this URL is the entire auth mechanism.",
+            ],
+        }
+
+    if kind == "vobiz":
+        integration = db.query(Integration).filter_by(
+            tenant_id=current_user.tenant_id, kind="vobiz"
+        ).first()
+        secret = get_credential(integration.credentials_kms_blob, "webhook_secret") if integration and integration.credentials_kms_blob else None
+        if not secret:
+            return {
+                "webhook_url": None,
+                "instructions": ["Connect Vobiz with a webhook_secret first — the webhook URL is generated from it."],
+            }
+        return {
+            "webhook_url": f"{base}/api/v1/webhooks/vobiz/{slug}/{secret}/answer",
+            "instructions": [
+                "In the Vobiz Console, create (or edit) an XML Application.",
+                "Paste the Webhook URL above into the Application's Answer URL field.",
+                "Attach your Vobiz phone number to that Application (or set it as the Default Number App).",
+                "The recording callback URL is generated automatically at call time — nothing else to configure.",
+                "Vobiz has no separate 'Secret' field to fill in — this URL is the entire auth mechanism.",
             ],
         }
 
@@ -758,7 +793,7 @@ def connect_via_api_key(
     if not api_key:
         raise HTTPException(status_code=400, detail="api_key is required")
 
-    _IVR_KINDS = {"callerdesk", "acefone", "mcube"}
+    _IVR_KINDS = {"callerdesk", "acefone", "mcube", "vobiz"}
     if kind in _IVR_KINDS and not webhook_secret:
         if kind == "mcube":
             raise HTTPException(
@@ -767,6 +802,18 @@ def connect_via_api_key(
                     "webhook_secret is required for mcube. Generate any random string — "
                     "it becomes part of the webhook URL you paste into Mcube's dashboard "
                     "(Mcube has no separate signing/secret field of its own)."
+                ),
+            )
+        if kind == "vobiz":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "webhook_secret is required for vobiz. Generate any random string — "
+                    "it becomes part of the Answer URL you paste into the Vobiz Console's "
+                    "XML Application (Vobiz has no separate signing/secret field of its own). "
+                    "SIP/API credentials (auth_id, auth_token) and the agent forwarding number "
+                    "are configured via VOBIZ_AUTH_ID/VOBIZ_AUTH_TOKEN/VOBIZ_FORWARD_NUMBER "
+                    "server env vars, not per-tenant, for this pass."
                 ),
             )
         raise HTTPException(
