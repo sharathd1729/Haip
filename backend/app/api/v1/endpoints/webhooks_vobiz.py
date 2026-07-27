@@ -26,7 +26,6 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.cache import get_cached, set_cached
-from app.core.config import settings
 from app.adapters.ivr import get_ivr_adapter
 from app.models.tenant import Tenant
 from app.models.integration import Integration
@@ -44,7 +43,14 @@ def _cache_key(tenant_id: str, call_uuid: str) -> str:
     return f"haip:vobiz:call:{tenant_id}:{call_uuid}"
 
 
-def _resolve_tenant_and_secret(db: Session, tenant_slug: str, url_secret: str) -> Tenant:
+def _resolve_tenant_and_creds(db: Session, tenant_slug: str, url_secret: str) -> tuple[Tenant, dict]:
+    """
+    Resolves tenant + validates the URL-path secret, and returns the tenant's
+    own Vobiz credentials (auth_id/auth_token/forward_number) — this is the
+    client's own Vobiz account, not a shared HAIP server credential, so it's
+    stored per-tenant in the same encrypted Integration row the webhook
+    secret comes from (api_key -> auth_id, api_secret -> auth_token).
+    """
     tenant = db.query(Tenant).filter_by(slug=tenant_slug, is_active=True).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
@@ -54,12 +60,18 @@ def _resolve_tenant_and_secret(db: Session, tenant_slug: str, url_secret: str) -
         log.warning("vobiz_integration_not_configured", tenant=tenant_slug)
         raise HTTPException(status_code=401, detail="Vobiz integration not configured for this tenant")
 
-    tenant_secret = get_credential(integration.credentials_kms_blob, "webhook_secret")
+    blob = integration.credentials_kms_blob
+    tenant_secret = get_credential(blob, "webhook_secret")
     if not tenant_secret or not secrets.compare_digest(url_secret, tenant_secret):
         log.warning("vobiz_url_secret_invalid", tenant=tenant_slug)
         raise HTTPException(status_code=401, detail="Invalid webhook secret")
 
-    return tenant
+    creds = {
+        "auth_id": get_credential(blob, "api_key"),
+        "auth_token": get_credential(blob, "api_secret"),
+        "forward_number": get_credential(blob, "forward_number"),
+    }
+    return tenant, creds
 
 
 @router.post("/vobiz/{tenant_slug}/{url_secret}/answer")
@@ -74,7 +86,7 @@ async def vobiz_answer_webhook(
     Direction/started_at keyed by CallUUID, then replies with XML that
     records the whole session and dials the agent's forwarding number.
     """
-    tenant = _resolve_tenant_and_secret(db, tenant_slug, url_secret)
+    tenant, creds = _resolve_tenant_and_creds(db, tenant_slug, url_secret)
     form = await request.form()
     data = dict(form)
 
@@ -96,7 +108,8 @@ async def vobiz_answer_webhook(
         ttl=_CACHE_TTL,
     )
 
-    if not settings.VOBIZ_FORWARD_NUMBER:
+    forward_number = creds.get("forward_number")
+    if not forward_number:
         log.error("vobiz_forward_number_not_configured", tenant=tenant_slug)
         return Response(
             content=(
@@ -116,7 +129,7 @@ async def vobiz_answer_webhook(
         f'<Record fileFormat="mp3" recordSession="true" maxLength="3600" '
         f'callbackUrl="{recording_callback_url}" redirect="false" playBeep="false"/>'
         f'<Dial callerId="{to_number}" timeout="30" timeLimit="1800" redirect="false">'
-        f"<Number>{settings.VOBIZ_FORWARD_NUMBER}</Number>"
+        f"<Number>{forward_number}</Number>"
         "</Dial>"
         "<Hangup/>"
         "</Response>"
@@ -136,7 +149,7 @@ async def vobiz_recording_webhook(
     Merges the cached call metadata from the answer webhook, then queues
     the same call_ingest pipeline every IVR provider uses.
     """
-    tenant = _resolve_tenant_and_secret(db, tenant_slug, url_secret)
+    tenant, creds = _resolve_tenant_and_creds(db, tenant_slug, url_secret)
     form = await request.form()
     data = dict(form)
 
@@ -154,7 +167,7 @@ async def vobiz_recording_webhook(
         "Direction": cached.get("Direction", "inbound"),
         "RecordUrl": data.get("RecordFile") or data.get("RecordUrl", ""),
         "RecordingDuration": data.get("RecordingDuration", "0"),
-        "agent_number": settings.VOBIZ_FORWARD_NUMBER,
+        "agent_number": creds.get("forward_number", ""),
         "started_at": cached.get("started_at", ""),
         "ended_at": data.get("RecordingEndMs", ""),
     }

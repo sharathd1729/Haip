@@ -29,7 +29,18 @@ class VobizAdapter(IVRAdapter):
     builds by combining (1)'s cached from/to/direction with (2)'s
     recording/duration data, since CallWebhookPayload needs everything in
     one shot to match every other provider's shape.
+
+    Unlike CallerDesk/Acefone/Mcube (one shared account per HAIP deployment,
+    configured via server settings), Vobiz here is each client's own account
+    -- auth_id/auth_token are per-tenant, passed in explicitly by the caller
+    (see call_ingest.py's _do_fetch_recording) rather than read from global
+    settings. The fallback to settings.VOBIZ_AUTH_ID/VOBIZ_AUTH_TOKEN only
+    matters if those are ever set for a single-tenant deployment.
     """
+
+    def __init__(self, auth_id: str = "", auth_token: str = ""):
+        self.auth_id = auth_id or settings.VOBIZ_AUTH_ID
+        self.auth_token = auth_token or settings.VOBIZ_AUTH_TOKEN
 
     def verify_webhook_signature(self, payload: bytes, headers: dict, secret: str = "") -> bool:
         """
@@ -86,8 +97,8 @@ class VobizAdapter(IVRAdapter):
                 recording_url,
                 timeout=60,
                 headers={
-                    "X-Auth-ID": settings.VOBIZ_AUTH_ID,
-                    "X-Auth-Token": settings.VOBIZ_AUTH_TOKEN,
+                    "X-Auth-ID": self.auth_id,
+                    "X-Auth-Token": self.auth_token,
                 },
             )
             resp.raise_for_status()

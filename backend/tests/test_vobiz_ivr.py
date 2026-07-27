@@ -110,6 +110,33 @@ async def test_fetch_recording_accepts_api_vobiz_ai(monkeypatch):
     assert result == b"fake-audio-bytes"
 
 
+@pytest.mark.asyncio
+async def test_fetch_recording_uses_per_tenant_credentials_in_headers(monkeypatch):
+    """Vobiz is the client's own account -- fetch_recording must send THIS
+    tenant's auth_id/auth_token, not a shared/global one."""
+    captured_headers = {}
+
+    class _FakeResponse:
+        content = b"fake-audio-bytes"
+        def raise_for_status(self): pass
+
+    class _FakeAsyncClient:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def get(self, url, timeout=None, headers=None):
+            captured_headers.update(headers or {})
+            return _FakeResponse()
+
+    import httpx
+    monkeypatch.setattr(httpx, "AsyncClient", lambda: _FakeAsyncClient())
+
+    adapter = VobizAdapter(auth_id="tenant-auth-id", auth_token="tenant-auth-token")
+    result = await adapter.fetch_recording("https://api.vobiz.ai/api/v1/Account/MA123/Recording/rec-1/")
+    assert result == b"fake-audio-bytes"
+    assert captured_headers["X-Auth-ID"] == "tenant-auth-id"
+    assert captured_headers["X-Auth-Token"] == "tenant-auth-token"
+
+
 # ── verify_vobiz_signature (ported HMAC scheme) ──────────────────────────────
 
 def test_verify_vobiz_signature_v3_accepts_valid_signature_and_strips_query():
@@ -165,10 +192,14 @@ def test_verify_vobiz_signature_rejects_wrong_token():
 
 # ── Webhook endpoints ────────────────────────────────────────────────────────
 
-def _connect_vobiz(db, tenant_id, webhook_secret="test-vobiz-secret"):
+def _connect_vobiz(db, tenant_id, webhook_secret="test-vobiz-secret", forward_number=None,
+                    auth_id="MA123", auth_token="vobiz-auth-token"):
+    creds = {"webhook_secret": webhook_secret, "api_key": auth_id, "api_secret": auth_token}
+    if forward_number:
+        creds["forward_number"] = forward_number
     integration = Integration(
         id=str(uuid.uuid4()), tenant_id=tenant_id, kind="vobiz", status="active",
-        credentials_kms_blob=encrypt_credentials({"webhook_secret": webhook_secret}),
+        credentials_kms_blob=encrypt_credentials(creds),
     )
     db.add(integration)
     db.commit()
@@ -203,12 +234,9 @@ def test_answer_webhook_rejects_when_not_configured(client, tenant_and_user):
     assert res.status_code == 401
 
 
-def test_answer_webhook_returns_xml_with_record_and_dial(client, tenant_and_user, db, monkeypatch):
+def test_answer_webhook_returns_xml_with_record_and_dial(client, tenant_and_user, db):
     tenant = tenant_and_user["tenant"]
-    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret")
-
-    from app.core.config import settings
-    monkeypatch.setattr(settings, "VOBIZ_FORWARD_NUMBER", "+919000000000")
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret", forward_number="+919000000000")
 
     res = client.post(
         f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/answer",
@@ -222,12 +250,9 @@ def test_answer_webhook_returns_xml_with_record_and_dial(client, tenant_and_user
     assert f"/webhooks/vobiz/{tenant.slug}/correct-secret/recording" in res.text
 
 
-def test_answer_webhook_hangs_up_gracefully_when_forward_number_unset(client, tenant_and_user, db, monkeypatch):
+def test_answer_webhook_hangs_up_gracefully_when_forward_number_unset(client, tenant_and_user, db):
     tenant = tenant_and_user["tenant"]
-    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret")
-
-    from app.core.config import settings
-    monkeypatch.setattr(settings, "VOBIZ_FORWARD_NUMBER", "")
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret")  # no forward_number
 
     res = client.post(
         f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/answer",
@@ -240,10 +265,7 @@ def test_answer_webhook_hangs_up_gracefully_when_forward_number_unset(client, te
 
 def test_recording_webhook_merges_cached_answer_data_and_dispatches(client, tenant_and_user, db, monkeypatch):
     tenant = tenant_and_user["tenant"]
-    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret")
-
-    from app.core.config import settings
-    monkeypatch.setattr(settings, "VOBIZ_FORWARD_NUMBER", "+919000000000")
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret", forward_number="+919000000000")
 
     # Prime the answer->recording cache bridge exactly as the answer webhook would.
     from app.core.cache import set_cached

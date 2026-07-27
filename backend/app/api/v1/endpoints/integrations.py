@@ -790,6 +790,7 @@ def connect_via_api_key(
     api_key = (body.get("api_key") or "").strip()
     api_secret = (body.get("api_secret") or "").strip()
     webhook_secret = (body.get("webhook_secret") or "").strip()
+    forward_number = (body.get("forward_number") or "").strip()
     if not api_key:
         raise HTTPException(status_code=400, detail="api_key is required")
 
@@ -810,10 +811,7 @@ def connect_via_api_key(
                 detail=(
                     "webhook_secret is required for vobiz. Generate any random string — "
                     "it becomes part of the Answer URL you paste into the Vobiz Console's "
-                    "XML Application (Vobiz has no separate signing/secret field of its own). "
-                    "SIP/API credentials (auth_id, auth_token) and the agent forwarding number "
-                    "are configured via VOBIZ_AUTH_ID/VOBIZ_AUTH_TOKEN/VOBIZ_FORWARD_NUMBER "
-                    "server env vars, not per-tenant, for this pass."
+                    "XML Application (Vobiz has no separate signing/secret field of its own)."
                 ),
             )
         raise HTTPException(
@@ -825,12 +823,25 @@ def connect_via_api_key(
             ),
         )
 
+    # Vobiz's Auth ID/Auth Secret/agent-forwarding number are the client's own
+    # account, not a shared HAIP server credential — stored per-tenant here
+    # (api_key -> auth_id, api_secret -> auth_token) rather than the
+    # VOBIZ_AUTH_ID/VOBIZ_AUTH_TOKEN/VOBIZ_FORWARD_NUMBER server env vars an
+    # earlier pass of this integration assumed.
+    if kind == "vobiz":
+        if not api_secret:
+            raise HTTPException(status_code=400, detail="Auth Secret (api_secret) is required for vobiz")
+        if not forward_number:
+            raise HTTPException(status_code=400, detail="forward_number (agent's mobile, E.164) is required for vobiz")
+
     row = _upsert_integration(db, current_user.tenant_id, kind)
     creds: dict = {"api_key": api_key}
     if api_secret:
         creds["api_secret"] = api_secret
     if webhook_secret:
         creds["webhook_secret"] = webhook_secret
+    if forward_number:
+        creds["forward_number"] = forward_number
     row.credentials_kms_blob = encrypt_credentials(creds)
     row.status = "active"
     row.installed_at = _now()

@@ -241,7 +241,8 @@ function ConnectModal({
   const isRentalWise  = provider === "retalwise";
   const isBasicAuth   = authType === "basic_auth" && !isWhatsApp && !isInstagram && !isRentalWise;
   const isHostaway    = provider === "hostaway";
-  const isIvr         = provider === "callerdesk" || provider === "acefone" || provider === "mcube" || provider === "vobiz";
+  const isVobiz       = provider === "vobiz";
+  const isIvr         = provider === "callerdesk" || provider === "acefone" || provider === "mcube";
 
   // RentalWise: user can choose between API token (Bearer) or username/password (Basic)
   const [rwAuthMode, setRwAuthMode] = useState<"token" | "basic">("token");
@@ -251,6 +252,7 @@ function ConnectModal({
     if (isInstagram)   return !!fields.app_secret?.trim();
     if (isRentalWise)  return rwAuthMode === "token" ? !!fields.api_token?.trim() : !!(fields.username?.trim() && fields.password?.trim());
     if (isBasicAuth)   return !!(fields.username?.trim() && fields.password?.trim());
+    if (isVobiz)       return !!(fields.api_key?.trim() && fields.api_secret?.trim() && fields.forward_number?.trim() && fields.webhook_secret?.trim());
     if (isIvr)         return !!(fields.api_key?.trim() && fields.webhook_secret?.trim());
     if (isHostaway)    return !!(fields.account_id?.trim() && fields.api_secret?.trim());
     return !!fields.api_key?.trim();
@@ -269,6 +271,7 @@ function ConnectModal({
     if (isInstagram)  return "Save your App Secret, then use \"Connect via Instagram Login\" to finish connecting";
     if (isRentalWise) return "Paste your RentalWise API token (provided by your Engagement Manager)";
     if (isBasicAuth)  return `Enter your ${providerName} username and password`;
+    if (isVobiz)      return "Enter your Vobiz account credentials — this is your client's own Vobiz account, not a shared HAIP one";
     if (isHostaway)   return "Enter your Hostaway Account ID and API Secret";
     return `Enter your API key from the ${providerName} dashboard`;
   })();
@@ -445,6 +448,51 @@ function ConnectModal({
                 </div>
               </div>
             </>
+          ) : isVobiz ? (
+            <>
+              <div>
+                <label className="text-xs font-semibold text-gray-700 block mb-1.5">Auth ID <span className="text-red-500">*</span></label>
+                <div className="relative">
+                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input autoFocus type="text" value={fields.api_key ?? ""} onChange={e => set("api_key", e.target.value)} placeholder="e.g. MA_K8PLCAKA" className={inputCls} />
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1">From the Vobiz Console → Basic Information → Auth ID.</p>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-700 block mb-1.5">Auth Secret <span className="text-red-500">*</span></label>
+                <div className="relative">
+                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input type="password" value={fields.api_secret ?? ""} onChange={e => set("api_secret", e.target.value)} placeholder="From Vobiz Console → Basic Information → Auth Secret" className={inputCls} />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-700 block mb-1.5">Agent Forwarding Number <span className="text-red-500">*</span></label>
+                <div className="relative">
+                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input type="text" value={fields.forward_number ?? ""} onChange={e => set("forward_number", e.target.value)} placeholder="+9198XXXXXXXX" className={inputCls} />
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1">Every inbound call rings this mobile number while the whole session records. E.164 format.</p>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-700 block mb-1.5">
+                  Webhook Secret <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <Shield size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="password"
+                    value={fields.webhook_secret ?? ""}
+                    onChange={e => set("webhook_secret", e.target.value)}
+                    placeholder="Any random string you generate"
+                    className={inputCls}
+                    onKeyDown={e => { if (e.key === "Enter") handleSubmit(); }}
+                  />
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Generate any random string — it becomes part of the Answer URL you'll copy after connecting.
+                </p>
+              </div>
+            </>
           ) : isHostaway ? (
             <>
               <div>
@@ -498,7 +546,7 @@ function ConnectModal({
                     />
                   </div>
                   <p className="text-[11px] text-gray-400 mt-1">
-                    {provider === "mcube" || provider === "vobiz"
+                    {provider === "mcube"
                       ? "Generate any random string — it becomes part of the webhook URL you'll copy after connecting."
                       : `Generate any random string, then paste the same value into your ${providerName} dashboard → Webhooks → Secret.`}
                   </p>

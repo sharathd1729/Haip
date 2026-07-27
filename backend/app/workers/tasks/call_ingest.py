@@ -153,6 +153,20 @@ def _do_fetch_recording(task_self, call_id: str, recording_url: str, tenant_id: 
         db.commit()
 
         adapter = get_ivr_adapter(ivr_provider)
+        if ivr_provider == "vobiz":
+            # Vobiz is the client's own account, not a shared HAIP server
+            # credential like CallerDesk/Acefone/Mcube -- fetch_recording()
+            # needs this tenant's own auth_id/auth_token, not the adapter's
+            # (empty) global-settings fallback.
+            from app.adapters.ivr.vobiz import VobizAdapter
+            from app.models.integration import Integration
+            from app.core.encryption import get_credential
+            integration = db.query(Integration).filter_by(tenant_id=tenant_id, kind="vobiz").first()
+            if integration and integration.credentials_kms_blob:
+                adapter = VobizAdapter(
+                    auth_id=get_credential(integration.credentials_kms_blob, "api_key"),
+                    auth_token=get_credential(integration.credentials_kms_blob, "api_secret"),
+                )
         audio_bytes = asyncio.run(adapter.fetch_recording(recording_url))
 
         s3_key = f"{tenant_id}/calls/{call_id}/recording.mp3"
