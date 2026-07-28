@@ -24,6 +24,7 @@ import secrets
 from fastapi import APIRouter, Request, HTTPException, Depends, Response
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.cache import get_cached, set_cached
 from app.adapters.ivr import get_ivr_adapter
@@ -130,7 +131,14 @@ async def vobiz_answer_webhook(
             media_type="application/xml",
         )
 
-    base = str(request.base_url).rstrip("/")
+    # request.base_url resolves to plain "http://" behind the reverse proxy --
+    # Uvicorn doesn't trust X-Forwarded-Proto by default, so it ignores the
+    # proxy's (correct) "https" and falls back to the raw ASGI connection
+    # scheme. A callbackUrl handed to Vobiz over http:// against an
+    # https-only domain means the recording-completion callback silently
+    # never lands. Use settings.API_BASE_URL (already correct, same pattern
+    # integrations.py's webhook-info endpoints use) instead.
+    base = (settings.API_BASE_URL or str(request.base_url).rstrip("/")).rstrip("/")
     recording_callback_url = f"{base}/api/v1/webhooks/vobiz/{tenant_slug}/{url_secret}/recording"
     log.info(
         "vobiz_answer_xml_built",
