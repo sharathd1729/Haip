@@ -122,6 +122,11 @@ async def vobiz_answer_webhook(
     base = str(request.base_url).rstrip("/")
     recording_callback_url = f"{base}/api/v1/webhooks/vobiz/{tenant_slug}/{url_secret}/recording"
     to_number = data.get("To", "")
+    # Plivo-compatible <Number> expects bare E.164 digits, no leading "+" --
+    # a "+"-prefixed destination on the Dial leg gets rejected by the carrier
+    # (confirmed live: outbound leg showed "Call rejected" while the inbound
+    # leg answered fine, before this fix).
+    dial_number = forward_number.lstrip("+")
 
     xml = (
         '<?xml version="1.0" encoding="UTF-8"?>'
@@ -129,7 +134,7 @@ async def vobiz_answer_webhook(
         f'<Record fileFormat="mp3" recordSession="true" maxLength="3600" '
         f'callbackUrl="{recording_callback_url}" redirect="false" playBeep="false"/>'
         f'<Dial callerId="{to_number}" timeout="30" timeLimit="1800" redirect="false">'
-        f"<Number>{forward_number}</Number>"
+        f"<Number>{dial_number}</Number>"
         "</Dial>"
         "<Hangup/>"
         "</Response>"
