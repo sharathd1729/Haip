@@ -132,6 +132,16 @@ async def vobiz_answer_webhook(
 
     base = str(request.base_url).rstrip("/")
     recording_callback_url = f"{base}/api/v1/webhooks/vobiz/{tenant_slug}/{url_secret}/recording"
+    log.info(
+        "vobiz_answer_xml_built",
+        tenant=tenant_slug,
+        call_uuid=call_uuid,
+        request_base_url=str(request.base_url),
+        callback_url=recording_callback_url,
+        forwarded_proto=request.headers.get("x-forwarded-proto"),
+        forwarded_host=request.headers.get("x-forwarded-host"),
+        host_header=request.headers.get("host"),
+    )
     # Vobiz's own docs (vobiz.ai/docs/call/transfer-call) show <Number> and
     # callerId in full "+"-prefixed E.164, and warn that callerId must be a
     # number "owned or authorized by your account" -- the raw "To" value
