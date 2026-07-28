@@ -43,6 +43,17 @@ def _cache_key(tenant_id: str, call_uuid: str) -> str:
     return f"haip:vobiz:call:{tenant_id}:{call_uuid}"
 
 
+def _to_e164_in(number: str) -> str:
+    """Normalize a domestic-format Indian number (e.g. "08071581336") to
+    full E.164 ("+918071581336"). Vobiz's own DID/callerId records are
+    E.164 -- posting back a domestic-format number as callerId fails their
+    account-ownership check silently (CALL_REJECTED, no SIP code)."""
+    number = (number or "").strip()
+    if number.startswith("+"):
+        return number
+    return "+91" + number.lstrip("0")
+
+
 def _resolve_tenant_and_creds(db: Session, tenant_slug: str, url_secret: str) -> tuple[Tenant, dict]:
     """
     Resolves tenant + validates the URL-path secret, and returns the tenant's
@@ -121,19 +132,22 @@ async def vobiz_answer_webhook(
 
     base = str(request.base_url).rstrip("/")
     recording_callback_url = f"{base}/api/v1/webhooks/vobiz/{tenant_slug}/{url_secret}/recording"
-    to_number = data.get("To", "")
-    # Plivo-compatible <Number> expects bare E.164 digits, no leading "+" --
-    # a "+"-prefixed destination on the Dial leg gets rejected by the carrier
-    # (confirmed live: outbound leg showed "Call rejected" while the inbound
-    # leg answered fine, before this fix).
-    dial_number = forward_number.lstrip("+")
+    # Vobiz's own docs (vobiz.ai/docs/call/transfer-call) show <Number> and
+    # callerId in full "+"-prefixed E.164, and warn that callerId must be a
+    # number "owned or authorized by your account" -- the raw "To" value
+    # Vobiz posts back (e.g. "08071581336", domestic format, no country code)
+    # doesn't match how the DID is registered on their side, so it was
+    # silently failing account-ownership validation (CALL_REJECTED, no SIP
+    # code, confirmed via the account's own CDR export).
+    caller_id = _to_e164_in(data.get("To", ""))
+    dial_number = forward_number if forward_number.startswith("+") else _to_e164_in(forward_number)
 
     xml = (
         '<?xml version="1.0" encoding="UTF-8"?>'
         "<Response>"
         f'<Record fileFormat="mp3" recordSession="true" maxLength="3600" '
         f'callbackUrl="{recording_callback_url}" redirect="false" playBeep="false"/>'
-        f'<Dial callerId="{to_number}" timeout="30" timeLimit="1800" redirect="false">'
+        f'<Dial callerId="{caller_id}" timeout="30" timeLimit="1800" redirect="false">'
         f"<Number>{dial_number}</Number>"
         "</Dial>"
         "<Hangup/>"
