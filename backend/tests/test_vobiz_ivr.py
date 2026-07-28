@@ -111,6 +111,30 @@ async def test_fetch_recording_accepts_api_vobiz_ai(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_fetch_recording_accepts_media_vobiz_ai(monkeypatch):
+    """Confirmed live: RecordFile/RecordUrl actually point at media.vobiz.ai,
+    not api.vobiz.ai as the docs implied -- the allowlist must include it or
+    every real recording fetch gets rejected as SSRF."""
+    class _FakeResponse:
+        content = b"fake-audio-bytes"
+        def raise_for_status(self): pass
+
+    class _FakeAsyncClient:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def get(self, *a, **kw): return _FakeResponse()
+
+    import httpx
+    monkeypatch.setattr(httpx, "AsyncClient", lambda: _FakeAsyncClient())
+
+    adapter = VobizAdapter()
+    result = await adapter.fetch_recording(
+        "https://media.vobiz.ai/v1/Account/MA123/Recording/rec-1.mp3"
+    )
+    assert result == b"fake-audio-bytes"
+
+
+@pytest.mark.asyncio
 async def test_fetch_recording_uses_per_tenant_credentials_in_headers(monkeypatch):
     """Vobiz is the client's own account -- fetch_recording must send THIS
     tenant's auth_id/auth_token, not a shared/global one."""

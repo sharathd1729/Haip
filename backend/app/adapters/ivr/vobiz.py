@@ -8,9 +8,12 @@ import httpx
 from app.adapters.ivr.base import IVRAdapter, CallWebhookPayload
 from app.core.config import settings
 
-# Confirmed via Vobiz's own docs (vobiz.ai/docs/recording): the Recordings
-# API and its download links are both scoped to api.vobiz.ai.
-_ALLOWED_RECORDING_HOSTS = frozenset({"api.vobiz.ai"})
+# Confirmed live against a real recording callback: RecordFile/RecordUrl
+# actually point at media.vobiz.ai (e.g.
+# https://media.vobiz.ai/v1/Account/{auth_id}/Recording/{id}.mp3), not
+# api.vobiz.ai as the docs implied -- api.vobiz.ai kept too since it's the
+# documented general API host and may still serve some recording links.
+_ALLOWED_RECORDING_HOSTS = frozenset({"api.vobiz.ai", "media.vobiz.ai"})
 
 
 class VobizAdapter(IVRAdapter):
