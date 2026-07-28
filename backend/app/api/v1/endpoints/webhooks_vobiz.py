@@ -181,8 +181,18 @@ async def vobiz_recording_webhook(
     tenant, creds = _resolve_tenant_and_creds(db, tenant_slug, url_secret)
     form = await request.form()
     data = dict(form)
+    # Field names for the recording-completion callback aren't confirmed from
+    # docs (their REST-triggered /Record/ endpoint uses different snake_case
+    # names than the XML <Record> verb's Plivo-style PascalCase we assumed) --
+    # log the raw payload once so we can see ground truth instead of guessing.
+    log.info(
+        "vobiz_recording_raw_payload",
+        tenant=tenant_slug,
+        raw_form=data,
+        raw_query=dict(request.query_params),
+    )
 
-    call_uuid = data.get("CallUUID", "")
+    call_uuid = data.get("CallUUID") or request.query_params.get("CallUUID", "")
     if not call_uuid:
         log.warning("vobiz_recording_missing_call_uuid", tenant=tenant_slug)
         return {"status": "ignored"}
