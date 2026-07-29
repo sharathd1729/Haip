@@ -28,6 +28,7 @@ interface DashboardData {
   calls_this_week: number;
   scored_calls: number;
   chat_response_p95_seconds: number;
+  chat_response_avg_seconds: number;
   recent_calls: Array<{
     id: string;
     guest_phone: string;
@@ -48,8 +49,12 @@ function greeting() {
 
 function formatSeconds(seconds: number): string {
   if (!seconds || seconds <= 0) return "—";
-  const m = Math.floor(seconds / 60);
+  // Roll over into hours — without this a slow week rendered as "851m 10s"
+  // rather than "14h 11m", which reads like a broken number.
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
   const s = Math.round(seconds % 60);
+  if (h > 0) return `${h}h ${m}m`;
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
@@ -564,8 +569,8 @@ function LiveDashboard({ dash, firstName }: { dash: DashboardData; firstName: st
           <MetricCard
             accent="gold"
             icon={<Clock size={15} />}
-            value={formatSeconds(dash.chat_response_p95_seconds)}
-            label="Chat response p95"
+            value={formatSeconds(dash.chat_response_avg_seconds ?? dash.chat_response_p95_seconds)}
+            label="Avg response time"
           />
           <MetricCard
             accent="purple"

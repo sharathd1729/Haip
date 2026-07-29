@@ -130,8 +130,12 @@ def get_dashboard(
         .scalar() or 0
     )
 
-    from app.services.message_metrics import chat_response_p95_seconds as _chat_p95
+    from app.services.message_metrics import (
+        chat_response_p95_seconds as _chat_p95,
+        chat_response_avg_seconds as _chat_avg,
+    )
     chat_response_p95_seconds = _chat_p95(db, tid, week_ago)
+    chat_response_avg_seconds = _chat_avg(db, tid, week_ago)
 
     return {
         "total_calls": total_calls,
@@ -141,7 +145,10 @@ def get_dashboard(
         "open_conversations": open_conversations,
         "scored_calls": scored_calls,
         "avg_qa_score": avg_qa_score,
+        # p95 kept for callers that want the tail; the dashboard headline
+        # tile reads the average, which is what an owner actually asks for.
         "chat_response_p95_seconds": chat_response_p95_seconds,
+        "chat_response_avg_seconds": chat_response_avg_seconds,
         "recent_calls": recent_calls,
     }
 
