@@ -46,30 +46,41 @@ function StageColumn({
 
   return (
     <div
-      className="flex-shrink-0 w-[264px] flex flex-col rounded-xl"
-      style={{ background: "var(--muted)", opacity: 1 }}
+      className="flex-shrink-0 w-[264px] flex flex-col rounded-lg p-2.5"
+      style={{ background: "var(--haip-surface)" }}
     >
-      {/* Column header */}
-      <div className="px-3 pt-3 pb-2.5 flex-shrink-0">
+      {/* Column header — uppercase name + white count pill over a 2px rule,
+          per the prototype's .k-col-head / .k-col-name / .k-col-count */}
+      <div
+        className="px-1.5 pt-1 pb-2 mb-1 flex-shrink-0"
+        style={{ borderBottom: "2px solid var(--haip-border)" }}
+      >
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
             <span
               className="w-2 h-2 rounded-full flex-shrink-0"
               style={{ background: stage.color }}
             />
-            <span className="text-xs font-medium truncate" style={{ color: "var(--haip-fg)" }}>
+            <span
+              className="text-[12px] font-bold uppercase tracking-[0.06em] truncate"
+              style={{ color: "var(--haip-fg)" }}
+            >
               {stage.label}
             </span>
           </div>
           <span
-            className="rounded-full px-2 py-0.5 text-[10px] font-medium tabular-nums flex-shrink-0"
-            style={{ background: "var(--haip-border)", color: "var(--haip-fg-subtle)" }}
+            className="rounded-full px-[7px] py-px text-[11px] font-semibold tabular-nums flex-shrink-0 border"
+            style={{
+              background: "var(--haip-card)",
+              borderColor: "var(--haip-border)",
+              color: "var(--haip-fg-muted)",
+            }}
           >
             {count}
           </span>
         </div>
         {revenue > 0 && (
-          <p className="text-[10px] mt-0.5" style={{ color: "var(--haip-fg-subtle)" }}>
+          <p className="text-[10px] mt-1" style={{ color: "var(--haip-fg-subtle)" }}>
             ₹{Number(revenue).toLocaleString("en-IN")} potential
           </p>
         )}
@@ -77,7 +88,7 @@ function StageColumn({
 
       {/* Cards scroll area */}
       <div
-        className="flex-1 overflow-y-auto px-2 pb-3 space-y-2 haip-scrollbar"
+        className="flex-1 overflow-y-auto px-0.5 pb-1 space-y-2 haip-scrollbar"
         style={{ maxHeight: "calc(100vh - 180px)" }}
       >
         {loading ? (
@@ -128,21 +139,27 @@ export default function Leads360Page() {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-background">
+    <div className="flex flex-col h-full overflow-hidden">
 
       {/* ── Page header ─────────────────────────────────────────────────── */}
       <div
         className="flex-shrink-0 flex items-center justify-between px-5 py-3.5"
-        style={{ borderBottom: "1px solid var(--haip-border)" }}
+        style={{
+          background: "var(--haip-card)",
+          borderBottom: "1px solid var(--haip-border)",
+        }}
       >
         {/* Title */}
         <div className="flex items-center gap-2.5">
           <Target size={16} style={{ color: "var(--primary)" }} />
           <div>
-            <h1 className="text-xl font-semibold tracking-tight" style={{ color: "var(--haip-fg)" }}>
+            <h1
+              className="text-[22px] font-bold tracking-tight"
+              style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}
+            >
               Leads360
             </h1>
-            <p className="text-xs" style={{ color: "var(--haip-fg-subtle)" }}>
+            <p className="text-xs" style={{ color: "var(--haip-fg-muted)" }}>
               {total} active leads
             </p>
           </div>

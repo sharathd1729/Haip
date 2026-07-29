@@ -221,7 +221,11 @@ export function ConversationList({
             }
             className={cn(
               "w-full text-left px-3 py-3 border-b border-gray-50 transition-all group",
-              channelBorder,
+              // Left rail: channel colour normally, but the selected row takes
+              // it over with a thicker teal rail (prototype .conv-item.active).
+              // A bg tint alone was a weak selected state next to the
+              // always-on channel colours.
+              isActive ? "border-l-[3px] border-l-teal-500" : channelBorder,
               isActive
                 ? "bg-teal-50/80"
                 : "hover:bg-gray-50/80",

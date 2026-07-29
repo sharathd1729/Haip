@@ -459,11 +459,13 @@ export default function InboxPage() {
       ).slice(0, 5)
     : [];
 
+  // Three-pane inbox: white panes over the shell's grey canvas, per the
+  // prototype's .inbox (grey) / .inbox-pane (white) split.
   return (
-    <div className="h-full flex overflow-hidden bg-background">
+    <div className="h-full flex overflow-hidden">
       {/* Left: conversation list — full-width on mobile when mobileView==="list", sidebar on md+ */}
       <div className={cn(
-        "flex-col bg-background",
+        "flex-col bg-card",
         "border-r",
         mobileView === "list" ? "flex w-full" : "hidden",
         "md:flex md:w-[280px] md:flex-shrink-0",
@@ -557,7 +559,7 @@ export default function InboxPage() {
 
       {/* Center: message thread — full-width on mobile when mobileView==="thread" */}
       <div className={cn(
-        "flex-col overflow-hidden",
+        "flex-col overflow-hidden bg-card",
         mobileView === "thread" ? "flex flex-1" : "hidden",
         "md:flex md:flex-1",
       )}>
@@ -740,7 +742,14 @@ export default function InboxPage() {
               </div>
             )}
 
-            <div className="flex-1 overflow-y-auto px-3 md:px-5 py-4 space-y-3">
+            {/* Thread body sits a shade below the white pane so the message
+                column reads as its own surface (prototype .thread-body).
+                --haip-surface, not a literal gradient: it resolves to #F8FAFC
+                in light and the page bg in dark, so this doesn't invert. */}
+            <div
+              className="flex-1 overflow-y-auto px-3 md:px-5 py-4 space-y-3"
+              style={{ background: "var(--haip-surface)" }}
+            >
               {detailLoading ? (
                 <div className="space-y-4">
                   {Array.from({ length: 4 }).map((_, i) => (

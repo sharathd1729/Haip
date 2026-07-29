@@ -220,9 +220,20 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
 
   const property = lead.property_interest?.[0] ?? null;
 
+  // Left accent rail (prototype .k-card.urgent / .warm). Driven by the two
+  // signals the card already carries: a breached SLA is urgent, a guest still
+  // waiting on a reply is warm. Everything else stays unaccented so the
+  // colour actually means something when it does appear.
+  const accent = lead.sla_breached
+    ? "var(--haip-red)"
+    : lead.response_time_status === "waiting"
+    ? "var(--haip-gold)"
+    : null;
+
   return (
     <div
-      className="bg-card rounded-xl p-4 cursor-pointer shadow-sm dark:shadow-none hover:shadow-md transition-shadow duration-150 space-y-2.5"
+      className="haip-card p-3 cursor-pointer hover:shadow-md transition-shadow duration-150 space-y-2.5"
+      style={accent ? { borderLeft: `3px solid ${accent}` } : undefined}
       onClick={() => router.push(`/dashboard/leads/${lead.inquiry_id}`)}
     >
       {/* Row 1: Guest name + source icon */}

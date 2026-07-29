@@ -41,7 +41,7 @@ export function GuestPanel({ detail }: { detail: ConversationDetail }) {
 
   return (
     <div
-      className="hidden md:flex md:flex-col w-[300px] flex-shrink-0 overflow-y-auto haip-scrollbar bg-background"
+      className="hidden md:flex md:flex-col w-[300px] flex-shrink-0 overflow-y-auto haip-scrollbar bg-card"
       style={{ borderLeft: "1px solid var(--haip-border)" }}
     >
       {/* Header */}
