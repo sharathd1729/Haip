@@ -100,7 +100,7 @@ export default function OccupancyForecastPage() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900 tracking-tight">Occupancy Forecast</h1>
+          <h1 className="haip-page-title">Occupancy Forecast</h1>
           <p className="text-[12px] mt-0.5 text-gray-400">Trend-based projection for the next {rangeDays} days</p>
         </div>
         <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
@@ -130,7 +130,7 @@ export default function OccupancyForecastPage() {
 
       {/* Portfolio chart */}
       {s.properties.length > 0 && (
-        <div className="bg-white border border-gray-100 rounded-2xl p-5">
+        <div className="haip-card p-5">
           <h2 className="text-sm font-semibold text-gray-800 mb-4">
             {s.properties[0].property_name} â€” Occupancy Trend & Forecast
           </h2>
@@ -149,7 +149,7 @@ export default function OccupancyForecastPage() {
       )}
 
       {/* Property table */}
-      <div className="bg-white border border-gray-100 rounded-2xl p-5 overflow-x-auto">
+      <div className="haip-card p-5 overflow-x-auto">
         <h2 className="text-sm font-semibold text-gray-800 mb-4">Property Breakdown</h2>
         {s.properties.length === 0 ? (
           <p className="text-xs text-gray-400 text-center py-8">No property data available.</p>

@@ -74,7 +74,7 @@ export default function RevenueForecastPage() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900 tracking-tight">Revenue Forecast</h1>
+        <h1 className="haip-page-title">Revenue Forecast</h1>
         <p className="text-[12px] mt-0.5 text-gray-400">MTD actuals + trend-based 12-month projection</p>
       </div>
 
@@ -89,7 +89,7 @@ export default function RevenueForecastPage() {
           icon={<Star size={14} className="text-amber-500" />} />
       </div>
 
-      <div className="bg-white border border-gray-100 rounded-2xl p-5">
+      <div className="haip-card p-5">
         <h2 className="text-sm font-semibold text-gray-800 mb-4">12-Month Revenue â€” Actuals & Forecast</h2>
         <ResponsiveContainer width="100%" height={300}>
           <ComposedChart data={chartData} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>

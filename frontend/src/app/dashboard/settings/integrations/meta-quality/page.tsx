@@ -171,7 +171,7 @@ export default function MetaQualityPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2.5">
+          <h1 className="haip-page-title flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-[#1877F2]/10 flex items-center justify-center">
               <Wifi size={16} className="text-[#1877F2]" />
             </div>
@@ -314,7 +314,7 @@ export default function MetaQualityPage() {
           )}
 
           {/* ── 30-day trend chart ── */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
+          <div className="haip-card p-5 shadow-sm">
             <p className="text-sm font-semibold text-gray-800 mb-1">30-day Quality Trend</p>
             <p className="text-xs text-gray-400 mb-5">
               3 = Green · 2 = Yellow · 1 = Red · Polled hourly

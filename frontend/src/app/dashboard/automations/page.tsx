@@ -568,7 +568,7 @@ export default function AutomationsPage() {
   const failedCount = runs.filter(r => r.status === "failed").length;
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className="h-full flex flex-col">
 
       {/* Header */}
       <div className="flex-shrink-0 px-6 py-5 bg-white border-b border-gray-100">

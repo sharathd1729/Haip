@@ -329,7 +329,7 @@ function CampaignCard({ campaign, onLaunch, onDelete }: {
   const read = parseInt(campaign.read_count) || 0;
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-5 hover:shadow-sm transition-shadow">
+    <div className="haip-card p-5 hover:shadow-sm transition-shadow">
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
@@ -426,11 +426,11 @@ export default function CampaignsPage() {
   const totalRead = campaigns.reduce((s, c) => s + (parseInt(c.read_count) || 0), 0);
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className="h-full flex flex-col">
       <div className="px-6 py-5 bg-white border-b border-gray-100 flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Campaigns</h1>
+            <h1 className="haip-page-title">Campaigns</h1>
             <p className="text-sm text-gray-400 mt-0.5">Broadcast WhatsApp messages to opted-in guests using approved templates.</p>
           </div>
           <button onClick={() => setShowCreate(true)}

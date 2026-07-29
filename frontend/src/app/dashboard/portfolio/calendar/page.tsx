@@ -958,7 +958,7 @@ export default function PortfolioCalendarPage() {
   const goToToday  = useCallback(() => { setStartDate(new Date()); }, []);
 
   return (
-    <div className="h-full flex flex-col bg-gray-50 overflow-hidden">
+    <div className="h-full flex flex-col overflow-hidden">
 
       {/* ── Top summary bar ──────────────────────────────────── */}
       {stats && todaySummary && (

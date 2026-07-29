@@ -240,7 +240,7 @@ export default function McpAccessPage() {
   const revokedTokens = tokens.filter(t => t.revoked_at);
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className="h-full flex flex-col">
       <div className="px-6 py-5 bg-white border-b border-gray-100 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -248,7 +248,7 @@ export default function McpAccessPage() {
               <Bot size={18} className="text-teal-600" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900">External Assistant Access</h1>
+              <h1 className="haip-page-title">External Assistant Access</h1>
               <p className="text-sm text-gray-400 mt-0.5">
                 Connect Perisclaw or another AI assistant to your HAIP data via MCP.
               </p>

@@ -144,12 +144,12 @@ export default function BillingPage() {
   const [tab, setTab] = useState<"overview" | "plans" | "invoices">("overview");
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className="h-full flex flex-col">
       {/* Header */}
       <div className="px-6 py-5 bg-white border-b border-gray-100 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Billing</h1>
+            <h1 className="haip-page-title">Billing</h1>
             <p className="text-sm text-gray-400 mt-0.5">Manage your plan, usage, and payment details</p>
           </div>
           <div className="flex items-center gap-2 bg-teal-50 border border-teal-200 rounded-xl px-3 py-1.5">

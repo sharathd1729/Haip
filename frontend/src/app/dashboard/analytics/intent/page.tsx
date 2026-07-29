@@ -107,7 +107,7 @@ export default function IntentAnalyticsPage() {
             <div className="flex items-center gap-2">
               <span className="text-xs px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 font-bold">âœ¦ Hospitality Intelligence</span>
             </div>
-            <h1 className="text-[20px] font-bold mt-1" style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}>
+            <h1 className="haip-page-title mt-1">
               Guest Intent Analytics
             </h1>
             <p className="text-[12px] mt-0.5 text-gray-400">Why guests travel Â· What drives conversion Â· Booking value by intent</p>

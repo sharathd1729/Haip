@@ -171,12 +171,12 @@ export default function SubscribersPage() {
   const optedOutCount = subscribers.filter(s => !s.opted_in).length;
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className="h-full flex flex-col">
       {/* Header */}
       <div className="px-6 py-5 bg-white border-b border-gray-100 flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Subscribers</h1>
+            <h1 className="haip-page-title">Subscribers</h1>
             <p className="text-sm text-gray-400 mt-0.5">Manage opt-in/opt-out status for your WhatsApp marketing list.</p>
           </div>
           <div className="flex items-center gap-2">

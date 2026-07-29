@@ -360,12 +360,12 @@ export default function TemplatesPage() {
   const filtered = filter === "all" ? templates : templates.filter(t => t.status === filter);
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className="h-full flex flex-col">
       {/* Header */}
       <div className="px-6 py-5 bg-white border-b border-gray-100 flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Message Templates</h1>
+            <h1 className="haip-page-title">Message Templates</h1>
             <p className="text-sm text-gray-400 mt-0.5">Create and manage WhatsApp Business templates for campaigns and automated messages.</p>
           </div>
           <button onClick={() => setShowCreate(true)}
@@ -419,7 +419,7 @@ export default function TemplatesPage() {
             {filtered.map(tmpl => {
               const sc = STATUS_CFG[tmpl.status] ?? STATUS_CFG.draft;
               return (
-                <div key={tmpl.id} className="bg-white border border-gray-100 rounded-2xl p-4 hover:shadow-sm transition-shadow">
+                <div key={tmpl.id} className="haip-card p-4 hover:shadow-sm transition-shadow">
                   <div className="flex items-start gap-4">
                     <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0">
                       <MessageSquare size={18} className="text-green-600" />
@@ -467,7 +467,7 @@ export default function TemplatesPage() {
         )}
 
         {/* Info card */}
-        <div className="mt-8 bg-white border border-gray-100 rounded-2xl p-5 flex gap-4">
+        <div className="mt-8 haip-card p-5 flex gap-4">
           <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
             <Tag size={18} className="text-amber-600" />
           </div>

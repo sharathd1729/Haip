@@ -1012,12 +1012,12 @@ export default function IntegrationsPage() {
   const isLoading = catalogLoading;
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className="h-full flex flex-col">
       {/* Header */}
       <div className="px-6 py-5 bg-white border-b border-gray-100 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Integrations</h1>
+            <h1 className="haip-page-title">Integrations</h1>
             <p className="text-sm text-gray-400 mt-0.5">
               Connect your tools directly — each client uses their own API credentials.
             </p>
@@ -1127,7 +1127,7 @@ export default function IntegrationsPage() {
         )}
 
         {/* Security footer */}
-        <div className="mt-8 bg-white border border-gray-100 rounded-2xl p-4 flex items-start gap-3">
+        <div className="mt-8 haip-card p-4 flex items-start gap-3">
           <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center flex-shrink-0 mt-0.5">
             <Shield size={16} className="text-teal-600" />
           </div>

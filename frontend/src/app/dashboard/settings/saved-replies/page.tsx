@@ -74,7 +74,7 @@ export default function SavedRepliesPage() {
           <MessageSquare size={18} className="text-teal-600" />
         </div>
         <div>
-          <h1 className="text-lg font-bold text-gray-900">Saved replies</h1>
+          <h1 className="haip-page-title">Saved replies</h1>
           <p className="text-xs text-gray-400">Canned responses · trigger with / in composer</p>
         </div>
         <div className="ml-auto flex items-center gap-2">

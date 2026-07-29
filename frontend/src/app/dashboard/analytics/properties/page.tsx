@@ -101,7 +101,7 @@ export default function PropertyAnalyticsPage() {
       <div className="flex-shrink-0 px-6 py-4 border-b bg-white" style={{ borderColor: "var(--haip-border)" }}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-[20px] font-bold" style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}>Property Analytics</h1>
+            <h1 className="haip-page-title">Property Analytics</h1>
             <p className="text-[12px] mt-0.5 text-gray-400">RevPAR, ADR, occupancy & revenue comparison matrix</p>
           </div>
           <div className="flex gap-2">

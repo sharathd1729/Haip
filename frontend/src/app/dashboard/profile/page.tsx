@@ -13,7 +13,7 @@ export default function ProfilePage() {
   return (
     <div className="h-full overflow-y-auto bg-gray-50">
       <div className="px-6 py-5 bg-white border-b border-gray-100">
-        <h1 className="text-xl font-bold text-gray-900">Your Profile</h1>
+        <h1 className="haip-page-title">Your Profile</h1>
         <p className="text-sm text-gray-400 mt-0.5">Manage your personal information, password, and preferences</p>
       </div>
       <div className="p-6 max-w-2xl space-y-6">

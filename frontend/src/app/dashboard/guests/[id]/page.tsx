@@ -76,11 +76,11 @@ export default function GuestDetailPage() {
         {/* Left: profile card + stats */}
         <div className="col-span-12 lg:col-span-4 space-y-5">
           {/* Profile */}
-          <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+          <div className="haip-card p-5 shadow-sm">
             <div className="flex items-start gap-4 mb-5">
               <GuestAvatar name={guest.full_name} phone={guest.phone} size="lg" />
               <div className="flex-1 min-w-0">
-                <h1 className="text-lg font-bold text-gray-900 truncate">{guest.full_name || guest.phone}</h1>
+                <h1 className="haip-page-title truncate">{guest.full_name || guest.phone}</h1>
                 <div className="flex items-center gap-1.5 mt-1">
                   <Phone size={12} className="text-gray-400" />
                   <span className="text-sm text-gray-500">{guest.phone}</span>
@@ -129,7 +129,7 @@ export default function GuestDetailPage() {
           </div>
 
           {/* Inquiries */}
-          <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+          <div className="haip-card p-5 shadow-sm">
             <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
               <Star size={14} className="text-amber-400" /> Inquiries
             </h3>
@@ -153,7 +153,7 @@ export default function GuestDetailPage() {
           </div>
 
           {/* Stays */}
-          <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+          <div className="haip-card p-5 shadow-sm">
             <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
               <Home size={14} className="text-purple-400" /> Stays
             </h3>
@@ -203,7 +203,7 @@ export default function GuestDetailPage() {
             automations). Stays don't emit ledger events yet, so they stay
             visible via the "Stays" list card on the left instead of here. */}
         <div className="col-span-12 lg:col-span-8 space-y-5">
-          <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+          <div className="haip-card p-5 shadow-sm">
             <h2 className="text-sm font-semibold text-gray-900 mb-5">Guest journey</h2>
             <GuestJourney guestId={id} />
           </div>

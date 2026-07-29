@@ -852,10 +852,7 @@ export default function GuestsPage() {
         style={{ background: "#FFFFFF", borderBottom: "1px solid #E5E7EB" }}
       >
         <div className="flex items-center gap-3 mb-2.5">
-          <h1
-            className="text-base font-bold"
-            style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}
-          >
+          <h1 className="haip-page-title">
             Guests &amp; Bookings
           </h1>
         </div>

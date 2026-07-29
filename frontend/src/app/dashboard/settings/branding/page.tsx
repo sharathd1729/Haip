@@ -268,12 +268,12 @@ export default function BrandingPage() {
   const bright = brightness(local.primaryColor) > 160;
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className="h-full flex flex-col">
       {/* Header */}
       <div className="px-6 py-5 bg-white border-b border-gray-100 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Brand & Theme</h1>
+            <h1 className="haip-page-title">Brand & Theme</h1>
             <p className="text-sm text-gray-400 mt-0.5">
               Tailor HAIP's look to match your brand — colours, logo, fonts, and shape. Changes apply instantly.
             </p>

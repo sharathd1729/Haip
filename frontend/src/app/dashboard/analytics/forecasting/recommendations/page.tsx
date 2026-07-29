@@ -162,7 +162,7 @@ export default function RecommendationsPage() {
       <div className="flex items-center gap-3">
         <Sparkles size={18} className="text-teal-500" />
         <div>
-          <h1 className="text-xl font-semibold text-gray-900 tracking-tight">AI Recommendations</h1>
+          <h1 className="haip-page-title">AI Recommendations</h1>
           <p className="text-[12px] text-gray-400 mt-0.5">
             {active.length} active insight{active.length !== 1 ? "s" : ""} Â· auto-refreshes every 15 min
           </p>
@@ -187,7 +187,7 @@ export default function RecommendationsPage() {
       </div>
 
       {sorted.length === 0 ? (
-        <div className="bg-white border border-gray-100 rounded-2xl p-10 text-center">
+        <div className="haip-card p-10 text-center">
           <CheckCircle2 size={32} className="text-teal-400 mx-auto mb-3" />
           <p className="text-sm font-semibold text-gray-700">All clear</p>
           <p className="text-xs text-gray-400 mt-1">No active recommendations right now. Check back later.</p>

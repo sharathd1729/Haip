@@ -77,9 +77,9 @@ export default function ReportsAnalyticsPage() {
   });
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className="h-full flex flex-col">
       <div className="px-6 py-5 bg-white border-b border-gray-100 flex-shrink-0">
-        <h1 className="text-xl font-bold text-gray-900">Analytics</h1>
+        <h1 className="haip-page-title">Analytics</h1>
         <p className="text-sm text-gray-400 mt-0.5">
           Lead source, daily funnel, and occupancy trends. For row-level exports, use{" "}
           <a href="/dashboard/reports" className="text-teal-600 hover:underline">Reports</a>.

@@ -446,6 +446,16 @@
   letter-spacing: -0.02em;
   color: var(--haip-fg);
 }
+/* Page title — the one place page <h1>s should get their type from.
+   Replaces a spread of ad-hoc `text-xl font-bold text-gray-900` variants,
+   which also hardcoded a light-mode-only colour. */
+.haip-page-title {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--haip-fg);
+}
 .haip-label {
   font-size: 0.6875rem;
   font-weight: 600;

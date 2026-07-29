@@ -14,7 +14,7 @@ interface SkeletonCardProps {
 export function SkeletonCard({ className }: SkeletonCardProps) {
   return (
     <div
-      className={cn("bg-card rounded-xl p-4 space-y-3 shadow-sm dark:shadow-none", className)}
+      className={cn("haip-card p-4 space-y-3", className)}
     >
       {/* Row 1: Guest name + source icon */}
       <div className="flex items-center justify-between">

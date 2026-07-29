@@ -74,7 +74,7 @@ export default function ChurnPage() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900 tracking-tight">Guest Churn Risk</h1>
+        <h1 className="haip-page-title">Guest Churn Risk</h1>
         <p className="text-[12px] mt-0.5 text-gray-400">Returning guests with no recent contact and no open inquiry</p>
       </div>
 
@@ -90,7 +90,7 @@ export default function ChurnPage() {
       </div>
 
       {/* Bucket chart */}
-      <div className="bg-white border border-gray-100 rounded-2xl p-5">
+      <div className="haip-card p-5">
         <h2 className="text-sm font-semibold text-gray-800 mb-4">At-Risk Guest Buckets by Days Silent</h2>
         {bucketChart.length === 0 ? (
           <p className="text-xs text-gray-400 text-center py-8">No at-risk guests found.</p>
@@ -112,7 +112,7 @@ export default function ChurnPage() {
       </div>
 
       {/* Guest table */}
-      <div className="bg-white border border-gray-100 rounded-2xl p-5 overflow-x-auto">
+      <div className="haip-card p-5 overflow-x-auto">
         <h2 className="text-sm font-semibold text-gray-800 mb-4">At-Risk Guest List</h2>
         {s.at_risk_guests.length === 0 ? (
           <p className="text-xs text-gray-400 text-center py-8">No at-risk guests.</p>

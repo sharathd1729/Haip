@@ -162,7 +162,7 @@ export default function IVRPage() {
             <Phone size={18} className="text-teal-600" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold text-gray-900">IVR Call Routing</h1>
+            <h1 className="haip-page-title">IVR Call Routing</h1>
             <p className="text-xs text-gray-500">Configure your Vobiz SIP number & menu</p>
           </div>
         </div>
@@ -440,7 +440,7 @@ const inputCls = "w-full text-sm px-3 py-2 bg-white border border-gray-200 round
 
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4">
+    <div className="haip-card p-5 space-y-4">
       <div className="flex items-center gap-2">
         <span className="text-teal-500">{icon}</span>
         <h2 className="text-sm font-semibold text-gray-800">{title}</h2>

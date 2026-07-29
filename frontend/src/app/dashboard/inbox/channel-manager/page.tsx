@@ -663,8 +663,7 @@ export default function ChannelManagerPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1
-              className="text-[20px] font-bold leading-tight"
-              style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}
+              className="haip-page-title leading-tight"
             >
               Channel Manager
             </h1>

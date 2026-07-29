@@ -187,7 +187,7 @@ export default function AttributionPage() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900 tracking-tight">Revenue Attribution</h1>
+          <h1 className="haip-page-title">Revenue Attribution</h1>
           <p className="text-[12px] mt-0.5 text-gray-400">First-touch & last-touch channel credit, journey paths</p>
         </div>
         <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
@@ -236,7 +236,7 @@ export default function AttributionPage() {
       <AIInsightsPanel />
 
       {/* First-touch breakdown */}
-      <div className="bg-white border border-gray-100 rounded-2xl p-5">
+      <div className="haip-card p-5">
         <h2 className="text-sm font-semibold text-gray-800 mb-4">First-Touch Revenue by Channel</h2>
         {firstRows.length === 0 ? (
           <p className="text-xs text-gray-400 text-center py-8">No data for this period.</p>
@@ -270,7 +270,7 @@ export default function AttributionPage() {
       </div>
 
       {/* Last-touch breakdown */}
-      <div className="bg-white border border-gray-100 rounded-2xl p-5">
+      <div className="haip-card p-5">
         <h2 className="text-sm font-semibold text-gray-800 mb-4">Last-Touch Revenue by Channel</h2>
         {lastRows.length === 0 ? (
           <p className="text-xs text-gray-400 text-center py-8">No data for this period.</p>
@@ -304,7 +304,7 @@ export default function AttributionPage() {
       </div>
 
       {/* Comparison table: first vs last touch */}
-      <div className="bg-white border border-gray-100 rounded-2xl p-5 overflow-x-auto">
+      <div className="haip-card p-5 overflow-x-auto">
         <h2 className="text-sm font-semibold text-gray-800 mb-4">Channel Comparison</h2>
         <table className="w-full text-xs">
           <thead>
@@ -345,7 +345,7 @@ export default function AttributionPage() {
       </div>
 
       {/* Journey paths */}
-      <div className="bg-white border border-gray-100 rounded-2xl p-5">
+      <div className="haip-card p-5">
         <h2 className="text-sm font-semibold text-gray-800 mb-4">Top Booking Journeys</h2>
         {paths.length === 0 ? (
           <p className="text-xs text-gray-400 text-center py-8">No journey data yet.</p>

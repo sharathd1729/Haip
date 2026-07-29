@@ -138,7 +138,7 @@ export function Hotspot({
         <div
           ref={tooltipRef}
           className={cn(
-            "absolute z-30 w-64 bg-white border border-gray-200 rounded-2xl shadow-xl p-4",
+            "absolute z-30 w-64 haip-card shadow-xl p-4",
             TOOLTIP_POSITIONS[position]
           )}
         >

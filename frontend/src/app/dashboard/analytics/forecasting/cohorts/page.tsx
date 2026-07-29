@@ -75,7 +75,7 @@ export default function CohortsPage() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900 tracking-tight">Guest Cohorts</h1>
+        <h1 className="haip-page-title">Guest Cohorts</h1>
         <p className="text-[12px] mt-0.5 text-gray-400">Acquisition quarter retention & LTV analysis</p>
       </div>
 
@@ -91,7 +91,7 @@ export default function CohortsPage() {
       </div>
 
       {/* Retention chart */}
-      <div className="bg-white border border-gray-100 rounded-2xl p-5">
+      <div className="haip-card p-5">
         <h2 className="text-sm font-semibold text-gray-800 mb-4">Retention Rate by Acquisition Cohort</h2>
         {retentionChart.length === 0 ? (
           <p className="text-xs text-gray-400 text-center py-8">No cohort data yet.</p>
@@ -111,7 +111,7 @@ export default function CohortsPage() {
       </div>
 
       {/* Cohort table */}
-      <div className="bg-white border border-gray-100 rounded-2xl p-5 overflow-x-auto">
+      <div className="haip-card p-5 overflow-x-auto">
         <h2 className="text-sm font-semibold text-gray-800 mb-4">Cohort Breakdown</h2>
         <table className="w-full text-xs">
           <thead>

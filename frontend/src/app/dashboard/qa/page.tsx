@@ -84,7 +84,7 @@ export default function QAPage() {
             <Star size={18} className="text-amber-500" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-gray-900">QA & Coaching</h1>
+            <h1 className="haip-page-title">QA & Coaching</h1>
             <p className="text-xs text-gray-400">Agent leaderboard · rubric editor · coaching nudges</p>
           </div>
         </div>
@@ -121,7 +121,7 @@ export default function QAPage() {
               {[...agents].sort((a, b) => b.avg_score - a.avg_score).map((agent, idx) => (
                 <div
                   key={agent.agent_id}
-                  className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow"
+                  className="haip-card p-4 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow"
                 >
                   {/* Rank */}
                   <div className={cn(
@@ -194,7 +194,7 @@ export default function QAPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {[...agents].sort((a, b) => a.avg_score - b.avg_score).slice(0, 4).map(agent => (
               agent.weak_criteria.length > 0 && (
-                <div key={agent.agent_id} className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+                <div key={agent.agent_id} className="haip-card p-5 shadow-sm">
                   <div className="flex items-center gap-3 mb-3">
                     <ScoreRing score={agent.avg_score} size={40} strokeWidth={4} />
                     <div>

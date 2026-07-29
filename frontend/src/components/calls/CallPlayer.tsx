@@ -118,7 +118,7 @@ export function CallPlayer({
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       className={cn(
-        "flex flex-col gap-3 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm outline-none",
+        "flex flex-col gap-3 haip-card p-4 shadow-sm outline-none",
         focused && "ring-2 ring-teal-300",
         className
       )}

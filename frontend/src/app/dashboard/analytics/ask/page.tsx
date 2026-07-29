@@ -279,7 +279,7 @@ function PathCard({
   }
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-4">
+    <div className="haip-card p-4">
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
@@ -384,7 +384,7 @@ function AgentPanel({ agents }: { agents: Record<string, AgentOutput> }) {
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {agentList.map(agent => (
-          <div key={agent.agent} className="bg-white border border-gray-100 rounded-2xl p-4">
+          <div key={agent.agent} className="haip-card p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-semibold text-gray-800">
                 {DOMAIN_LABELS[agent.domain] ?? agent.domain}
@@ -455,7 +455,7 @@ function SignalPanel({ signals }: { signals: Signal[] }) {
   const positives= signals.filter(s => s.severity === "positive");
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-3">
+    <div className="haip-card p-5 space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold text-gray-800">Cross-Agent Signals</p>
         <div className="flex gap-2 text-[10px]">
@@ -695,7 +695,7 @@ export default function AskHaipPage() {
             <Sparkles size={16} className="text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-gray-900 tracking-tight">Ask HAIP</h1>
+            <h1 className="haip-page-title">Ask HAIP</h1>
             <p className="text-[12px] text-gray-400 mt-0.5">Hospitality Intelligence Analyst</p>
           </div>
           {result && (
@@ -711,7 +711,7 @@ export default function AskHaipPage() {
         {/* Input */}
         {!result && (
           <>
-            <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+            <div className="haip-card p-4 shadow-sm">
               <textarea
                 ref={inputRef}
                 value={question}
@@ -769,7 +769,7 @@ export default function AskHaipPage() {
 
         {/* Loading state */}
         {mutation.isPending && (
-          <div className="bg-white border border-gray-100 rounded-2xl p-8 text-center">
+          <div className="haip-card p-8 text-center">
             <Loader2 size={24} className="animate-spin text-teal-500 mx-auto mb-3" />
             <p className="text-sm font-medium text-gray-700">Analyzing your data...</p>
             <p className="text-xs text-gray-400 mt-1">Running intelligence agents across all modules</p>
@@ -790,7 +790,7 @@ export default function AskHaipPage() {
         {result && !mutation.isPending && (
           <div className="space-y-5">
             {/* Question echo + summary */}
-            <div className="bg-white border border-gray-100 rounded-2xl p-5">
+            <div className="haip-card p-5">
               <div className="flex items-start gap-3">
                 <div className="w-6 h-6 rounded-lg bg-teal-50 flex items-center justify-center shrink-0 mt-0.5">
                   <Sparkles size={12} className="text-teal-500" />
@@ -903,7 +903,7 @@ export default function AskHaipPage() {
 
             {/* No findings fallback */}
             {result.findings.length === 0 && (
-              <div className="bg-white border border-gray-100 rounded-2xl p-8 text-center">
+              <div className="haip-card p-8 text-center">
                 <Info size={24} className="text-gray-300 mx-auto mb-3" />
                 <p className="text-sm font-medium text-gray-600">No findings generated</p>
                 <p className="text-xs text-gray-400 mt-1">
@@ -914,7 +914,7 @@ export default function AskHaipPage() {
             )}
 
             {/* Follow-up input */}
-            <div className="bg-white border border-gray-200 rounded-2xl p-4">
+            <div className="haip-card p-4">
               <p className="text-[10px] text-gray-400 mb-2">Ask a follow-up question</p>
               <div className="flex gap-2">
                 <textarea

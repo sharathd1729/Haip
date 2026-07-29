@@ -210,10 +210,10 @@ export default function CalculatorPage() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className="h-full flex flex-col">
       {/* Header */}
       <div className="px-5 py-4 bg-white border-b border-gray-100 flex-shrink-0">
-        <h1 className="text-lg font-bold text-gray-900">Rate Calculator</h1>
+        <h1 className="haip-page-title">Rate Calculator</h1>
         <p className="text-xs text-gray-400 mt-0.5">Calculate rates and share quotes instantly on WhatsApp</p>
       </div>
 

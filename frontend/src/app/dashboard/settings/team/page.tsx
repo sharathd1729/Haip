@@ -418,12 +418,12 @@ export default function TeamPage() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className="h-full flex flex-col">
       {/* Header */}
       <div className="px-6 py-5 bg-white border-b border-gray-100 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Team</h1>
+            <h1 className="haip-page-title">Team</h1>
             <p className="text-sm text-gray-400 mt-0.5">
               {activeMembers.length} active member{activeMembers.length !== 1 ? "s" : ""}
               {pendingInvitations.length > 0 && ` · ${pendingInvitations.length} pending invite${pendingInvitations.length !== 1 ? "s" : ""}`}
@@ -527,7 +527,7 @@ export default function TeamPage() {
         )}
 
         {/* Role guide */}
-        <div className="mt-8 bg-white border border-gray-100 rounded-2xl p-5">
+        <div className="mt-8 haip-card p-5">
           <p className="text-xs font-bold text-gray-700 mb-3">Role permissions guide</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
             {ROLES.map(r => (
@@ -565,7 +565,7 @@ function MemberRow({ member, onRoleChanged, onToggleActive }: {
 
   return (
     <div className={cn(
-      "bg-white border border-gray-100 rounded-2xl px-4 py-3.5 flex items-center gap-4 hover:shadow-sm transition-shadow",
+      "haip-card px-4 py-3.5 flex items-center gap-4 hover:shadow-sm transition-shadow",
       !member.is_active && "opacity-60"
     )}>
       <Avatar name={member.name} />
@@ -634,7 +634,7 @@ function InvitationRow({ invitation, onRevoke }: { invitation: Invitation; onRev
     : { label: "Pending", cls: "bg-amber-50 text-amber-700 border-amber-200", icon: <Clock size={10} /> };
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl px-4 py-3.5 flex items-center gap-4 hover:shadow-sm transition-shadow">
+    <div className="haip-card px-4 py-3.5 flex items-center gap-4 hover:shadow-sm transition-shadow">
       <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
         <Mail size={14} className="text-gray-400" />
       </div>

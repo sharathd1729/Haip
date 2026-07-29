@@ -71,7 +71,7 @@ export default function PricingPage() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900 tracking-tight">Dynamic Pricing</h1>
+        <h1 className="haip-page-title">Dynamic Pricing</h1>
         <p className="text-[12px] mt-0.5 text-gray-400">Occupancy-based price suggestions for the next 30 days</p>
       </div>
 
@@ -88,7 +88,7 @@ export default function PricingPage() {
       </div>
 
       {/* Current vs suggested bar chart */}
-      <div className="bg-white border border-gray-100 rounded-2xl p-5">
+      <div className="haip-card p-5">
         <h2 className="text-sm font-semibold text-gray-800 mb-4">Current vs Suggested Price / Night</h2>
         {chartData.length === 0 ? (
           <p className="text-xs text-gray-400 text-center py-8">No pricing data yet.</p>
@@ -117,7 +117,7 @@ export default function PricingPage() {
           const isUp = row.delta_pct > 0;
           const isDown = row.delta_pct < 0;
           return (
-            <div key={row.property_id} className="bg-white border border-gray-100 rounded-2xl p-4">
+            <div key={row.property_id} className="haip-card p-4">
               <div className="flex items-start justify-between mb-2">
                 <p className="text-sm font-semibold text-gray-800">{row.property_name}</p>
                 <span className={cn("text-[10px] font-medium px-2 py-0.5 rounded-full", conf.bg, conf.text)}>

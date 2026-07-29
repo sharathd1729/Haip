@@ -474,8 +474,7 @@ export default function AnalyticsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1
-              className="text-[20px] font-bold"
-              style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}
+              className="haip-page-title"
             >
               Executive Dashboard
             </h1>

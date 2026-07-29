@@ -193,7 +193,7 @@ export default function CompliancePage() {
             <Shield size={18} className="text-blue-600" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-gray-900">Compliance centre</h1>
+            <h1 className="haip-page-title">Compliance centre</h1>
             <p className="text-xs text-gray-400">DPDP Act compliance · audit trail · consent registry · incidents</p>
           </div>
         </div>
@@ -468,7 +468,7 @@ export default function CompliancePage() {
           ) : (
             <div className="space-y-3">
               {incidents.map(inc => (
-                <div key={inc.id} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+                <div key={inc.id} className="haip-card p-4 shadow-sm">
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={cn(

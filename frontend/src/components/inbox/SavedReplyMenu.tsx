@@ -81,7 +81,7 @@ export function SavedReplyMenu({ query, context, onSelect, onClose, anchorRef }:
   if (results.length === 0) return null;
 
   return (
-    <div className="absolute bottom-full left-0 mb-1 w-80 bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden z-50">
+    <div className="absolute bottom-full left-0 mb-1 w-80 haip-card shadow-xl overflow-hidden z-50">
       <div className="px-3 py-2 border-b border-gray-100">
         <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Saved replies</span>
       </div>

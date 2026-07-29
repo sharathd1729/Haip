@@ -140,7 +140,7 @@ export default function ReportsPage() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900 tracking-tight">Reports</h1>
+          <h1 className="haip-page-title">Reports</h1>
           <p className="text-[12px] mt-0.5 text-gray-400">
             Generate intelligence reports â€” weekly auto-delivery every Monday
           </p>
@@ -261,7 +261,7 @@ export default function ReportsPage() {
               />
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full min-h-[400px] bg-white border border-gray-100 rounded-2xl">
+            <div className="flex flex-col items-center justify-center h-full min-h-[400px] haip-card">
               <FileText size={32} className="text-gray-200 mb-3" />
               <p className="text-sm font-medium text-gray-500">Select or generate a report</p>
               <p className="text-xs text-gray-400 mt-1">Reports open in preview here</p>

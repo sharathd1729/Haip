@@ -19,10 +19,13 @@ export default function SettingsPage() {
   const router = useRouter();
 
   return (
-    <div className="flex h-full bg-gray-50">
+    <div className="flex h-full">
       {/* Left nav */}
-      <div className="w-56 flex-shrink-0 bg-white border-r border-gray-100 p-3 flex flex-col gap-0.5">
-        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 py-2">Settings</p>
+      <div
+        className="w-56 flex-shrink-0 bg-card p-3 flex flex-col gap-0.5"
+        style={{ borderRight: "1px solid var(--haip-border)" }}
+      >
+        <p className="haip-label px-3 py-2">Settings</p>
         {TABS.map(t => (
           <button
             key={t.id}
@@ -596,7 +599,7 @@ function MFACard() {
 function SectionHeader({ title, sub }: { title: string; sub: string }) {
   return (
     <div>
-      <h1 className="text-xl font-bold text-gray-900">{title}</h1>
+      <h1 className="haip-page-title">{title}</h1>
       <p className="text-sm text-gray-400 mt-0.5">{sub}</p>
     </div>
   );

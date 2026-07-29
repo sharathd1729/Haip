@@ -233,11 +233,11 @@ export default function HelpPage() {
     : null;
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className="h-full flex flex-col">
       {/* Header */}
       <div className="px-6 py-6 bg-white border-b border-gray-100">
         <div className="max-w-2xl">
-          <h1 className="text-xl font-bold text-gray-900">Help & Support</h1>
+          <h1 className="haip-page-title">Help & Support</h1>
           <p className="text-sm text-gray-400 mt-0.5 mb-4">Find answers to common questions, or get in touch with our team</p>
 
           {/* Search */}

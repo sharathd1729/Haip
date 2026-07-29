@@ -435,7 +435,7 @@ function FlowEditor({ flow: initialFlow, onBack, onSaved }: {
   const selectedNode = flow.nodes.find(n => n.id === selectedNodeId) ?? null;
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className="h-full flex flex-col">
       {/* Toolbar */}
       <div className="px-4 py-3 bg-white border-b border-gray-100 flex items-center gap-3 flex-shrink-0">
         <button onClick={onBack} className="text-xs text-gray-500 hover:text-gray-800 flex items-center gap-1 transition-colors">
@@ -529,11 +529,11 @@ export default function FlowsPage() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className="h-full flex flex-col">
       <div className="px-6 py-5 bg-white border-b border-gray-100 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Flow Builder</h1>
+            <h1 className="haip-page-title">Flow Builder</h1>
             <p className="text-sm text-gray-400 mt-0.5">Automate multi-step WhatsApp conversations triggered by guest actions.</p>
           </div>
           <button onClick={() => setShowCreate(true)}
@@ -577,7 +577,7 @@ export default function FlowsPage() {
               const triggerLabel = TRIGGER_OPTIONS.find(t => t.value === triggerNode?.content)?.label ?? triggerNode?.content ?? "No trigger";
 
               return (
-                <div key={flow.id} className="bg-white border border-gray-100 rounded-2xl p-5 hover:shadow-sm transition-shadow">
+                <div key={flow.id} className="haip-card p-5 hover:shadow-sm transition-shadow">
                   <div className="flex items-start gap-4">
                     <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0",
                       flow.is_active ? "bg-teal-50" : "bg-gray-100")}>
@@ -624,7 +624,7 @@ export default function FlowsPage() {
         )}
 
         {/* How it works */}
-        <div className="mt-8 bg-white border border-gray-100 rounded-2xl p-5">
+        <div className="mt-8 haip-card p-5">
           <p className="text-sm font-bold text-gray-800 mb-3">How Flow Builder works</p>
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             {[

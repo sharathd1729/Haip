@@ -247,7 +247,7 @@ export default function CallDetailPage() {
           <ArrowLeft size={16} /> Back to calls
         </Link>
         <div className="flex-1 min-w-0">
-          <h1 className="text-lg font-bold text-gray-900 truncate">
+          <h1 className="haip-page-title truncate">
             Call with {call.guest_name || call.guest_phone}
           </h1>
           <p className="text-xs text-gray-400 mt-0.5">{formatDate(call.started_at)}</p>
