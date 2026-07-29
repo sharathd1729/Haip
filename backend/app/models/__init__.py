@@ -27,6 +27,7 @@ from app.models.dashboard_v2 import (
 )
 from app.api.v1.endpoints.messaging import WATemplate, WACampaign, WASubscriber, WAFlow
 from app.models.flow_execution import FlowPendingExecution, WAFlowRun
+from app.models.mcp_token import PersonalAccessToken
 
 __all__ = [
     "Tenant", "User", "RefreshToken", "UserInvitation",

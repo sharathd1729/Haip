@@ -11,6 +11,13 @@ class ChannelType(str, enum.Enum):
     VOICE = "voice"
     WEBCHAT = "webchat"
     EMAIL = "email"
+    # K15 internal notes (inquiries.py's _get_or_create_notes_conversation)
+    # already relied on channel="internal" for the notes Conversation, but
+    # this member was never added -- any read-back through the ORM (e.g.
+    # db.refresh(), a later query) raised a raw-string-to-enum KeyError.
+    # Column is plain VARCHAR(30) at the DB level (migration 001), not a
+    # native Postgres enum, so no migration is needed to add this.
+    INTERNAL = "internal"
 
 
 class MessageDirection(str, enum.Enum):

@@ -256,6 +256,7 @@ def add_inquiry_note(
         conversation_id=conv.id,
         tenant_id=current_user.tenant_id,
         direction="outbound",
+        channel="internal",  # messages.channel is NOT NULL; matches the parent conversation's channel
         body=body.body,
         sender_id=current_user.id,
         is_internal=True,
@@ -268,6 +269,6 @@ def add_inquiry_note(
         "id": note.id,
         "body": note.body,
         "sender_id": note.sender_id,
-        "sender_name": f"{current_user.first_name or ''} {current_user.last_name or ''}".strip() or current_user.email,
+        "sender_name": current_user.name or current_user.email,
         "created_at": note.created_at.isoformat() if note.created_at else None,
     }

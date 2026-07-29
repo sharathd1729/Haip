@@ -6,6 +6,7 @@ from app.api.v1.endpoints import (
     webhooks_callerdesk, webhooks_acefone, webhooks_mcube, webhooks_whatsapp, webhooks_instagram,
     webhooks_dograh, webhooks_vobiz,
     voice_settings,
+    mcp_tokens,
     grievance, incidents, health, changelog, sample_data, admin_dlq,
     calculator, calendar, bookings,
     leads,
@@ -100,4 +101,5 @@ api_router.include_router(webhooks_whatsapp.router)
 api_router.include_router(webhooks_instagram.router)
 api_router.include_router(webhooks_dograh.router)
 api_router.include_router(webhooks_vobiz.router)
+api_router.include_router(mcp_tokens.router)
 api_router.include_router(voice_settings.router)

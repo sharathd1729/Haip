@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Building2, Users, Shield, QrCode, Loader2, CheckCircle, AlertCircle, Bell, Bot, ChevronRight } from "lucide-react";
+import { Building2, Users, Shield, QrCode, Loader2, CheckCircle, AlertCircle, Bell, Bot, ChevronRight, KeyRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 
@@ -50,6 +50,19 @@ export default function SettingsPage() {
           <div>
             <div className="text-sm font-medium">Team</div>
             <div className="text-[10px] text-gray-400 leading-none mt-0.5">Invite members, manage roles</div>
+          </div>
+          <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-40 transition-opacity" />
+        </button>
+
+        {/* External Assistant Access (Perisclaw / MCP) — separate page */}
+        <button
+          onClick={() => router.push("/dashboard/settings/mcp-access")}
+          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-colors group text-gray-600 hover:bg-gray-50"
+        >
+          <span className="text-gray-400"><KeyRound size={15} /></span>
+          <div>
+            <div className="text-sm font-medium">External Assistant Access</div>
+            <div className="text-[10px] text-gray-400 leading-none mt-0.5">Perisclaw, MCP tokens</div>
           </div>
           <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-40 transition-opacity" />
         </button>

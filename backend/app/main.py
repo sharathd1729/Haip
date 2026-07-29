@@ -11,6 +11,7 @@ from app.core.tenancy import tenant_context_middleware
 from app.core.request_id import request_id_middleware
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.api.v1.router import api_router
+from app.mcp.server import router as mcp_router
 import structlog
 
 configure_logging()
@@ -73,6 +74,7 @@ app.middleware("http")(tenant_context_middleware)     # sets tenant_id on reques
 app.add_middleware(RateLimitMiddleware)               # outermost: rate limit after CORS
 
 app.include_router(api_router)
+app.include_router(mcp_router)
 
 
 @app.exception_handler(Exception)
