@@ -434,8 +434,9 @@ function AdaptiveInsights() {
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-medium uppercase tracking-wider" style={{ color: "var(--haip-fg-subtle)" }}>
-          Insights
+        <p className="haip-label flex items-center gap-1.5">
+          <Sparkles size={12} style={{ color: "var(--primary)" }} />
+          AI insights
         </p>
         <button
           onClick={() => setPickerOpen(true)}
@@ -453,6 +454,27 @@ function AdaptiveInsights() {
           {[...Array(6)].map((_, i) => (
             <div key={i} className="rounded-xl border h-44 animate-pulse" style={{ background: "var(--muted)", borderColor: "var(--haip-border)" }} />
           ))}
+        </div>
+      ) : widgets.length === 0 ? (
+        /* Without this the section rendered an empty grid — a heading with
+           literally nothing under it, indistinguishable from "AI insights
+           are broken". Say so, and give a way out. */
+        <div className="haip-card p-8 text-center">
+          <Sparkles size={20} style={{ color: "var(--haip-fg-subtle)" }} className="mx-auto mb-2" />
+          <p className="text-sm font-medium" style={{ color: "var(--haip-fg)" }}>
+            No insight widgets selected
+          </p>
+          <p className="text-xs mt-1" style={{ color: "var(--haip-fg-muted)" }}>
+            Pick the signals you want tracked and HAIP will keep them current.
+          </p>
+          <button
+            onClick={() => setPickerOpen(true)}
+            className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold"
+            style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
+          >
+            <Settings2 size={12} />
+            Choose widgets
+          </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">

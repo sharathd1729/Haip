@@ -37,13 +37,8 @@ export function WidgetShell({ snap, onRefresh }: Props) {
 
   return (
     <div
-      className="relative flex flex-col rounded-xl border overflow-hidden"
-      style={{
-        background: "var(--card)",
-        borderColor: "var(--haip-border)",
-        minHeight: 180,
-        maxHeight: 280,
-      }}
+      className="haip-card relative flex flex-col overflow-hidden"
+      style={{ minHeight: 180, maxHeight: 280 }}
     >
       {/* Header */}
       <div

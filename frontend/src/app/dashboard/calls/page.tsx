@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EmptyCalls } from "@/components/empty-states/EmptyCalls";
-import { ScoreRing } from "@/components/calls/ScoreRing";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UploadModal } from "@/components/calls/UploadModal";
 import { useCallsStore } from "@/store/calls";
@@ -206,19 +205,45 @@ function CallSlideOver({ callId, onClose }: { callId: string; onClose: () => voi
             <p className="text-sm text-center pt-16" style={{ color: "var(--haip-fg-subtle)" }}>Call not found.</p>
           ) : (
             <>
-              {/* Score + meta */}
-              <div className="flex items-center gap-4 bg-card rounded-xl p-4 shadow-sm dark:shadow-none" style={{ border: "1px solid var(--haip-border)" }}>
+              {/* Score hero — navy gradient with the QA score as the anchor,
+                  per the prototype's .score-hero / .big-score */}
+              <div
+                className="flex items-center gap-[18px] rounded-lg px-[22px] py-[18px]"
+                style={{
+                  background: "linear-gradient(135deg, #0B1F3A 0%, #163458 100%)",
+                  color: "#fff",
+                }}
+              >
                 {call.qa_score != null ? (
-                  <ScoreRing score={call.qa_score} size={64} strokeWidth={6} />
+                  <div
+                    className="w-[84px] h-[84px] rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{
+                      background: "rgba(20,184,166,0.15)",
+                      border: "3px solid var(--haip-sidebar-accent)",
+                      color: "var(--haip-sidebar-accent)",
+                      fontFamily: "var(--font-display), sans-serif",
+                      fontSize: 28,
+                      fontWeight: 800,
+                    }}
+                  >
+                    {call.qa_score}
+                  </div>
                 ) : (
-                  <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "var(--muted)" }}>
-                    <Phone size={22} style={{ color: "var(--haip-fg-subtle)" }} />
+                  <div
+                    className="w-[84px] h-[84px] rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ background: "rgba(255,255,255,0.08)", border: "3px solid rgba(255,255,255,0.15)" }}
+                  >
+                    <Phone size={26} style={{ color: "rgba(255,255,255,0.5)" }} />
                   </div>
                 )}
-                <div>
-                  <p className="text-sm font-semibold" style={{ color: "var(--haip-fg)" }}>{call.guest_name || "Unknown"}</p>
-                  <p className="text-xs tabular-nums" style={{ color: "var(--haip-fg-subtle)" }}>{call.guest_phone}</p>
-                  <div className="flex items-center gap-2 mt-1 text-xs" style={{ color: "var(--haip-fg-subtle)" }}>
+                <div className="min-w-0">
+                  <p className="text-[18px] font-bold truncate" style={{ fontFamily: "var(--font-display), sans-serif" }}>
+                    {call.guest_name || "Unknown"}
+                  </p>
+                  <p className="text-[13px] tabular-nums" style={{ color: "rgba(255,255,255,0.7)" }}>
+                    {call.guest_phone}
+                  </p>
+                  <div className="flex items-center gap-2 mt-2 text-[12px] flex-wrap" style={{ color: "rgba(255,255,255,0.6)" }}>
                     {call.duration_seconds > 0 && <span>{fmt(call.duration_seconds)}</span>}
                     {call.agent_name && <span>· {call.agent_name}</span>}
                     {call.direction && <span>· {call.direction}</span>}
@@ -226,20 +251,34 @@ function CallSlideOver({ callId, onClose }: { callId: string; onClose: () => voi
                 </div>
               </div>
 
-              {/* Recording */}
+              {/* Recording — native <audio> kept (real scrubbing/keyboard
+                  support) but seated on the prototype's navy .wave surface
+                  so it reads as part of the design rather than a raw
+                  browser control floating on the page. */}
               {call.recording_url ? (
-                <audio
-                  controls
-                  className="w-full"
-                  src={
-                    call.recording_url.startsWith("/")
-                      ? `${(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1").replace(/\/api\/v1$/, "")}${call.recording_url}`
-                      : call.recording_url
-                  }
-                />
+                <div
+                  className="rounded-lg px-4 py-3"
+                  style={{ background: "#0B1F3A" }}
+                >
+                  <p
+                    className="text-[10px] font-bold uppercase tracking-[0.08em] mb-2"
+                    style={{ color: "rgba(255,255,255,0.45)" }}
+                  >
+                    Recording
+                  </p>
+                  <audio
+                    controls
+                    className="w-full"
+                    src={
+                      call.recording_url.startsWith("/")
+                        ? `${(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1").replace(/\/api\/v1$/, "")}${call.recording_url}`
+                        : call.recording_url
+                    }
+                  />
+                </div>
               ) : (
-                <div className="rounded-xl p-4 text-center" style={{ background: "var(--muted)" }}>
-                  <p className="text-xs" style={{ color: "var(--haip-fg-subtle)" }}>Recording not yet available</p>
+                <div className="rounded-lg p-4 text-center" style={{ background: "var(--haip-surface)", border: "1px solid var(--haip-border)" }}>
+                  <p className="text-xs" style={{ color: "var(--haip-fg-muted)" }}>Recording not yet available</p>
                 </div>
               )}
 
