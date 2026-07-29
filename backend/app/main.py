@@ -57,6 +57,51 @@ app = FastAPI(
 
 _origins = settings.allowed_origins_list
 
+
+class McpCorsBypassMiddleware:
+    """/mcp is called by arbitrary external MCP clients (Perisclaw, Claude,
+    etc.) authenticated via Bearer token, not cookies -- the dashboard's
+    strict origin allowlist below doesn't apply and, if left in place,
+    intercepts and rejects /mcp's own preflight (confirmed live: Perisclaw's
+    connect-app form failed with a generic error because our own
+    CORSMiddleware returned "Disallowed CORS origin" on the preflight).
+    Must be registered AFTER the strict CORSMiddleware below (most-recently
+    -added add_middleware calls end up OUTERMOST) to actually take effect."""
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or not scope["path"].startswith("/mcp"):
+            return await self.app(scope, receive, send)
+
+        headers = dict(scope.get("headers") or [])
+        origin = headers.get(b"origin", b"*")
+
+        if scope["method"] == "OPTIONS" and b"access-control-request-method" in headers:
+            await send({
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [
+                    (b"access-control-allow-origin", origin),
+                    (b"access-control-allow-methods", b"POST, OPTIONS"),
+                    (b"access-control-allow-headers", b"Authorization, Content-Type"),
+                    (b"access-control-max-age", b"600"),
+                    (b"vary", b"Origin"),
+                ],
+            })
+            await send({"type": "http.response.body", "body": b""})
+            return
+
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                message["headers"] = list(message.get("headers", [])) + [
+                    (b"access-control-allow-origin", origin),
+                ]
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
@@ -66,9 +111,14 @@ app.add_middleware(
     expose_headers=["Content-Length", "X-Request-ID", "Retry-After", "X-RateLimit-Reset"],
 )
 
-# Middleware execution order (last-registered runs first for requests):
-#   CORS → rate_limit → tenant_context → request_id → route handlers
-# Starlette registers middleware as a stack — add in reverse desired order.
+# Starlette's add_middleware() does user_middleware.insert(0, ...), so the
+# MOST RECENTLY registered middleware ends up OUTERMOST (runs first) --
+# this must come after CORSMiddleware above to actually intercept /mcp
+# preflights before the strict allowlist gets a chance.
+app.add_middleware(McpCorsBypassMiddleware)
+
+# Middleware execution order (outermost first):
+#   McpCorsBypass → CORS → rate_limit → tenant_context → request_id → routes
 app.middleware("http")(request_id_middleware)         # inner
 app.middleware("http")(tenant_context_middleware)     # sets tenant_id on request.state
 app.add_middleware(RateLimitMiddleware)               # outermost: rate limit after CORS
