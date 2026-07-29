@@ -175,13 +175,26 @@ class SarvamAdapter(TranscriptionAdapter):
         # Refine by matching phone number / agent IDs later in the pipeline
         seen_speakers: dict[str, str] = {}
 
+        # Diarization sometimes collapses the whole call onto a single raw
+        # speaker id (crossed/noisy audio, very short calls) -- confirmed
+        # live: a call clearly alternating between two people came back
+        # entirely labeled "Agent" because every entry had the same raw
+        # speaker id, and "first speaker == agent" is trivially true when
+        # there's only ever one id. Label honestly as "unknown" instead of
+        # guessing when diarization didn't actually distinguish anyone.
+        unique_raw_speakers = {entry.get("speaker", "SPEAKER_00") for entry in entries}
+        diarization_worked = len(unique_raw_speakers) > 1
+
         for entry in entries:
-            raw_speaker = entry.get("speaker", "SPEAKER_00")
-            if raw_speaker not in seen_speakers:
-                # First speaker encountered → agent, rest → guest
-                role = "agent" if len(seen_speakers) == 0 else "guest"
-                seen_speakers[raw_speaker] = role
-            speaker = seen_speakers[raw_speaker]
+            if diarization_worked:
+                raw_speaker = entry.get("speaker", "SPEAKER_00")
+                if raw_speaker not in seen_speakers:
+                    # First speaker encountered → agent, rest → guest
+                    role = "agent" if len(seen_speakers) == 0 else "guest"
+                    seen_speakers[raw_speaker] = role
+                speaker = seen_speakers[raw_speaker]
+            else:
+                speaker = "unknown"
 
             turns.append(TranscriptTurn(
                 speaker=speaker,

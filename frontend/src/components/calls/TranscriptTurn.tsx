@@ -37,6 +37,15 @@ const SPEAKER_STYLES = {
     label: "Guest",
     bubble: "bg-teal-50 border border-teal-100",
   },
+  // Diarization sometimes can't tell speakers apart at all (crossed/noisy
+  // audio, very short calls) -- the backend labels those turns "unknown"
+  // rather than guessing. Must render distinctly, not silently fall into
+  // "Guest" (a confident-but-wrong label is worse than an honest one).
+  unknown: {
+    avatar: "bg-gray-300 text-gray-600",
+    label: "Unknown speaker",
+    bubble: "bg-gray-50 border border-gray-200",
+  },
 } as const;
 
 export const TranscriptTurn = memo(function TranscriptTurn({
@@ -48,9 +57,11 @@ export const TranscriptTurn = memo(function TranscriptTurn({
   isActive = false,
   onClick,
 }: TranscriptTurnProps) {
-  const key = (speaker === "agent" || speaker === "0") ? "agent" : "guest";
+  const key =
+    speaker === "agent" || speaker === "0" ? "agent" :
+    speaker === "unknown" ? "unknown" : "guest";
   const styles = SPEAKER_STYLES[key];
-  const initial = key === "agent" ? "A" : "G";
+  const initial = key === "agent" ? "A" : key === "unknown" ? "?" : "G";
 
   return (
     <div

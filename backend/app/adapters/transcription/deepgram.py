@@ -37,10 +37,23 @@ class DeepgramAdapter(TranscriptionAdapter):
             results = data["results"]
             detected_language = results.get("channels", [{}])[0].get("detected_language")
             utterances = results.get("utterances") or []
+
+            # Diarization sometimes collapses the whole call onto a single
+            # speaker tag (crossed/noisy audio, very short calls) -- confirmed
+            # live: a call clearly alternating between two people came back
+            # entirely labeled "Agent" because every utterance had the same
+            # speaker id, and "speaker 0 == agent" is trivially true when
+            # there's only ever one id. Label honestly as "unknown" instead
+            # of guessing when diarization didn't actually distinguish anyone.
+            unique_speakers = {utt.get("speaker", 0) for utt in utterances}
+            diarization_worked = len(unique_speakers) > 1
+
             for utt in utterances:
-                speaker_tag = f"speaker_{utt.get('speaker', 0)}"
-                # Map speaker 0 → agent, others → guest (heuristic; refined by agent_id matching later)
-                speaker = "agent" if utt.get("speaker", 0) == 0 else "guest"
+                if diarization_worked:
+                    # Map speaker 0 → agent, others → guest (heuristic; refined by agent_id matching later)
+                    speaker = "agent" if utt.get("speaker", 0) == 0 else "guest"
+                else:
+                    speaker = "unknown"
                 turn = TranscriptTurn(
                     speaker=speaker,
                     t0=utt.get("start", 0.0),

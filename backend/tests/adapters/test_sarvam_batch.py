@@ -44,6 +44,28 @@ def test_parse_prefers_diarized_entries():
     assert result.provider == "sarvam"
 
 
+def test_parse_labels_unknown_when_diarization_collapses_to_one_speaker():
+    """Confirmed live: a call clearly alternating between two people came
+    back with every entry tagged the same raw speaker id -- diarization
+    ran but failed to distinguish anyone. The old "first speaker == agent"
+    heuristic mislabeled the entire transcript as "agent". Must fall back
+    to "unknown" instead of a confident-but-wrong label."""
+    payload = {
+        "transcript": "hello there general kenobi how are you",
+        "language_code": "hi-IN",
+        "diarized_transcript": {
+            "entries": [
+                {"speaker": "SPEAKER_00", "transcript": "hello there", "start": 0.0, "end": 1.2},
+                {"speaker": "SPEAKER_00", "transcript": "general kenobi", "start": 1.2, "end": 2.5},
+                {"speaker": "SPEAKER_00", "transcript": "how are you", "start": 2.5, "end": 3.5},
+            ]
+        },
+    }
+    result = _adapter()._parse(payload, "hi-IN")
+    assert len(result.turns) == 3
+    assert all(t.speaker == "unknown" for t in result.turns)
+
+
 def test_parse_falls_back_to_timestamps_when_no_diarization():
     payload = {
         "transcript": "hello world",
@@ -117,7 +139,10 @@ async def test_transcribe_runs_full_batch_job_flow(tmp_path):
     fake_job.wait_until_complete.assert_called_once()
 
     assert result.raw_text == "namaste, kaise ho"
-    assert result.turns[0].speaker == "agent"
+    # Single entry/single speaker -- can't honestly distinguish agent vs
+    # guest from this alone, so "unknown" is correct (see the dedicated
+    # diarization-collapse regression test above for that specific case).
+    assert result.turns[0].speaker == "unknown"
     assert result.provider == "sarvam"
 
 
