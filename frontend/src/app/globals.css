@@ -85,7 +85,11 @@
   --chart-3: oklch(0.72 0.15 60);
   --chart-4: oklch(0.60 0.18 290);
   --chart-5: oklch(0.60 0.20 25);
-  /* 0.75rem = 12px — rounded-xl lands at a clean 16.8px */
+  /* 0.75rem = 12px — rounded-xl lands at a clean 16.8px.
+     NOTE: inside the dashboard this is overridden at runtime by
+     brandTheme.ts's RADIUS_MAP (tenant-configurable sharp/rounded/pill), so
+     changing it here only affects surfaces outside BrandThemeProvider —
+     the marketing site and auth pages. Change RADIUS_MAP for the app. */
   --radius: 0.75rem;
   --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -354,16 +358,41 @@
    literal values and need a .dark override. Prefer Tailwind utilities
    (bg-card, text-foreground) in new code — see docs/DESIGN.md. */
 :root {
-  /* Layout — sidebar same bg as page, border-r only (Linear style) */
-  --haip-sidebar:       transparent;
-  --haip-sidebar-border:var(--border);
-  --haip-sidebar-hover: color-mix(in srgb, var(--primary) 6%, transparent);
+  /* Layout — deep navy sidebar against a light app canvas (HAIP_Prototype.html).
+     The sidebar is a dark island: it carries its OWN foreground tokens because
+     the page-level --haip-fg-* scale is tuned for light surfaces and is
+     unreadable on navy. Anything rendered inside the sidebar must use the
+     --haip-sidebar-fg-* tokens, not the page ones.
+
+     These alias the --brand-sidebar-* vars that brandTheme.ts already writes
+     onto <html> at runtime (default sidebarColor is #0B1F3A — the prototype
+     navy). That layer existed and was fully wired, but nothing consumed it:
+     --haip-sidebar was hardcoded `transparent`, so every tenant got a white
+     sidebar regardless of their brand. Aliasing here means per-tenant
+     white-labelling drives the sidebar for free. Literals are fallbacks for
+     when the provider hasn't painted yet (SSR/first frame). */
+  --haip-sidebar:            var(--brand-sidebar-bg, #0B1F3A);
+  --haip-sidebar-accent:     var(--brand-sidebar-active, #14B8A6);
+  --haip-sidebar-fg:         var(--brand-sidebar-text, rgba(255,255,255,0.65));
+  --haip-sidebar-fg-active:  #FFFFFF;
+  --haip-sidebar-fg-subtle:  rgba(255,255,255,0.38);
+  --haip-sidebar-border:     rgba(255,255,255,0.07);
+  --haip-sidebar-hover:      rgba(255,255,255,0.06);
+  --haip-sidebar-active-bg:  color-mix(in srgb, var(--haip-sidebar-accent) 16%, transparent);
+
+  /* App canvas — cool grey behind white cards, so cards read as raised
+     surfaces. Deliberately NOT --background: that stays white for the
+     marketing site and auth pages, which have their own palettes. */
+  --haip-app-bg:        #F3F4F6;
 
   /* Brand — follows --primary so per-tenant white-labelling propagates */
   --haip-primary:       var(--primary);
   --haip-primary-hover: color-mix(in srgb, var(--primary) 85%, black);
   --haip-accent:        #5EEAD4;
   --haip-accent-light:  rgba(94,234,212,0.15);
+  /* Secondary accent — used for highlights/warm emphasis alongside teal */
+  --haip-gold:          #F59E0B;
+  --haip-gold-light:    #FEF3C7;
 
   /* Surfaces */
   --haip-surface:       #F8FAFC;
@@ -399,6 +428,11 @@
   --haip-border-strong: rgba(255,255,255,0.12);
   --haip-fg-subtle:     #5a6e8a;
   --haip-text-subtle:   #4e5e7a;
+  /* Sidebar is already dark in light mode; in dark mode sink it slightly
+     BELOW the page so it still reads as a separate plane rather than
+     merging into the content area. */
+  --haip-sidebar:       #080f1a;
+  --haip-app-bg:        var(--background);
   /* No shadow in dark mode */
   --haip-shadow-sm:     none;
   --haip-shadow-md:     none;
@@ -421,9 +455,83 @@
 }
 .haip-card {
   background: var(--haip-card);
-  /* No border — use background contrast only per design spec */
-  border-radius: 12px;
+  /* Bordered card on a grey canvas (HAIP_Prototype.html .card). The previous
+     borderless treatment relied on background contrast alone, which vanished
+     once the page behind it was also near-white. */
+  border: 1px solid var(--haip-border);
+  border-radius: var(--radius);
   box-shadow: var(--haip-shadow-sm);
+}
+/* Card header strip — title row with a teal accent tick, per the prototype's
+   .card-head / .card-title .accent */
+.haip-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--haip-border);
+}
+.haip-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--haip-fg);
+}
+.haip-card-title::before {
+  content: "";
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--primary);
+  flex-shrink: 0;
+}
+
+/* KPI tile — white card with a 3px colour bar across the top edge.
+   Colour is set per-instance via --kpi-accent (defaults to brand teal). */
+.haip-kpi {
+  position: relative;
+  overflow: hidden;
+  background: var(--haip-card);
+  border: 1px solid var(--haip-border);
+  border-radius: var(--radius);
+  box-shadow: var(--haip-shadow-sm);
+  padding: 16px 18px;
+}
+.haip-kpi::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--kpi-accent, var(--primary));
+}
+.haip-kpi-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--haip-fg-muted);
+  margin-bottom: 6px;
+}
+.haip-kpi-value {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--haip-fg);
+  font-variant-numeric: tabular-nums;
+}
+.haip-kpi-delta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 4px;
 }
 /* Status badges */
 .haip-badge-teal {
@@ -462,50 +570,59 @@
   color: #B91C1C;
   border: 1px solid rgba(239,68,68,0.14);
 }
-/* Linear-style sidebar nav — same bg as page, border-r only */
+/* Sidebar nav — sits on the dark navy sidebar, so these use the
+   --haip-sidebar-fg-* scale rather than the page foreground tokens. */
 .haip-nav-item {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 6px 10px;
-  border-radius: 8px;
+  padding: 7px 10px;
+  border-radius: 6px;
   font-size: 13.5px;
   font-weight: 500;
-  color: var(--haip-fg-muted);
-  transition: background 150ms ease, color 150ms ease;
+  color: var(--haip-sidebar-fg);
+  transition: background 120ms ease, color 120ms ease;
   cursor: pointer;
   text-decoration: none;
   position: relative;
   white-space: nowrap;
 }
 .haip-nav-item:hover {
-  background: color-mix(in srgb, var(--primary) 6%, transparent);
-  color: var(--haip-fg);
+  background: var(--haip-sidebar-hover);
+  color: var(--haip-sidebar-fg-active);
 }
 .haip-nav-item.active {
-  background: color-mix(in srgb, var(--primary) 10%, transparent);
-  color: var(--primary);
+  background: var(--haip-sidebar-active-bg);
+  color: var(--haip-sidebar-fg-active);
   font-weight: 600;
 }
+/* Icons sit dimmer than the label until the row is active */
+.haip-nav-item svg { color: var(--haip-sidebar-fg-subtle); transition: color 120ms ease; }
+.haip-nav-item:hover svg { color: var(--haip-sidebar-fg); }
+.haip-nav-item.active svg { color: var(--haip-sidebar-accent); }
+
 /* Sub-items (indented) */
 .haip-nav-sub {
   display: flex;
   align-items: center;
   gap: 9px;
   padding: 5px 10px 5px 30px;
-  border-radius: 8px;
+  border-radius: 6px;
   font-size: 12.5px;
   font-weight: 500;
-  color: var(--haip-fg-subtle);
-  transition: background 150ms ease, color 150ms ease;
+  color: var(--haip-sidebar-fg-subtle);
+  transition: background 120ms ease, color 120ms ease;
   cursor: pointer;
   text-decoration: none;
 }
 .haip-nav-sub:hover {
-  background: color-mix(in srgb, var(--primary) 5%, transparent);
-  color: var(--haip-fg);
+  background: var(--haip-sidebar-hover);
+  color: var(--haip-sidebar-fg);
 }
-.haip-nav-sub.active { color: var(--primary); font-weight: 600; }
+.haip-nav-sub.active {
+  color: var(--haip-sidebar-fg-active);
+  font-weight: 600;
+}
 
 /* Scrollbar styling — adapts to theme */
 .haip-scrollbar::-webkit-scrollbar { width: 4px; }

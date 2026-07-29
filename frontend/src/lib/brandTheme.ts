@@ -111,8 +111,12 @@ export function brightness(hex: string | null | undefined): number {
   return (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
 }
 
-const RADIUS_MAP = { sharp: "4px", rounded: "12px", pill: "9999px" };
-const RADIUS_BTN_MAP = { sharp: "4px", rounded: "10px", pill: "9999px" };
+// "rounded" is the default scale and sets the app's overall corner language.
+// 8px/7px per HAIP_Prototype.html (--radius:8px, .btn{border-radius:7px}) —
+// tighter than the previous 12px/10px, which read softer and more consumer
+// than the dense operator tooling this is.
+const RADIUS_MAP = { sharp: "4px", rounded: "8px", pill: "9999px" };
+const RADIUS_BTN_MAP = { sharp: "4px", rounded: "7px", pill: "9999px" };
 
 /** Build the full CSS variable map from a BrandTheme */
 export function buildCSSVars(theme: BrandTheme): Record<string, string> {

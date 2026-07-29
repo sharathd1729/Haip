@@ -1,17 +1,32 @@
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 
+/** Accent colour for the 3px bar across the top of the tile. Maps to the
+ *  prototype's .kpi / .kpi.green / .kpi.gold / … variants. */
+export type MetricAccent = "teal" | "green" | "gold" | "purple" | "blue" | "red";
+
+const ACCENT_VAR: Record<MetricAccent, string> = {
+  teal:   "var(--primary)",
+  green:  "var(--haip-green)",
+  gold:   "var(--haip-gold)",
+  purple: "#8b5cf6",
+  blue:   "#3b82f6",
+  red:    "var(--haip-red)",
+};
+
 interface MetricCardProps {
-  /** Lucide icon element — will be rendered inside a soft bg-primary/10 container */
-  icon: ReactNode;
+  /** Lucide icon element — rendered small and muted beside the label */
+  icon?: ReactNode;
   /** The big number / value */
   value: string | number;
-  /** Label below the value */
+  /** Label above the value */
   label: string;
   /** Trend text — e.g. "↑ 12%" or "↓ 3%" */
   trend?: string;
   /** Controls trend colour — positive = emerald, negative = rose, neutral = muted */
   trendDir?: "positive" | "negative" | "neutral";
+  /** Colour of the top accent bar. Defaults to brand teal. */
+  accent?: MetricAccent;
   className?: string;
 }
 
@@ -21,6 +36,7 @@ export function MetricCard({
   label,
   trend,
   trendDir = "neutral",
+  accent = "teal",
   className,
 }: MetricCardProps) {
   const trendColor =
@@ -31,29 +47,26 @@ export function MetricCard({
       : "text-muted-foreground";
 
   return (
-    <div className={cn("bg-card rounded-xl p-5 space-y-3 shadow-sm dark:shadow-none", className)}>
-      {/* Icon row */}
-      <div className="flex items-center justify-between">
-        <div
-          className="p-2 rounded-lg flex items-center justify-center"
-          style={{ background: "color-mix(in srgb, var(--primary) 10%, transparent)" }}
-        >
-          <span style={{ color: "var(--primary)" }}>{icon}</span>
-        </div>
-        {trend && (
-          <span className={cn("text-xs font-medium", trendColor)}>{trend}</span>
+    <div
+      className={cn("haip-kpi", className)}
+      style={{ ["--kpi-accent" as string]: ACCENT_VAR[accent] }}
+    >
+      {/* Label row — uppercase micro-label, with the icon kept as a quiet
+          secondary cue rather than the boxed chip it used to be */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="haip-kpi-label">{label}</span>
+        {icon && (
+          <span style={{ color: "var(--haip-fg-subtle)", flexShrink: 0 }}>{icon}</span>
         )}
       </div>
 
-      {/* Value + label */}
-      <div>
-        <p className="text-2xl font-bold tabular-nums" style={{ color: "var(--haip-fg)" }}>
-          {value}
-        </p>
-        <p className="text-xs mt-0.5" style={{ color: "var(--haip-fg-subtle)" }}>
-          {label}
-        </p>
-      </div>
+      {/* Value */}
+      <div className="haip-kpi-value">{value}</div>
+
+      {/* Delta */}
+      {trend && (
+        <div className={cn("haip-kpi-delta", trendColor)}>{trend}</div>
+      )}
     </div>
   );
 }

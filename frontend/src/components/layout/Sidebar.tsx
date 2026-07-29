@@ -215,7 +215,7 @@ export function Sidebar({ user }: SidebarProps) {
       <Link
         href="/dashboard"
         className="px-4 py-[14px] flex items-center gap-3 flex-shrink-0 transition-opacity hover:opacity-80"
-        style={{ borderBottom: "1px solid var(--haip-border)" }}
+        style={{ borderBottom: "1px solid var(--haip-sidebar-border)" }}
       >
         {theme.logoUrl ? (
           <img
@@ -226,10 +226,10 @@ export function Sidebar({ user }: SidebarProps) {
         ) : (
           <>
             <div
-              className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+              className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
               style={{
-                background: "linear-gradient(135deg, var(--haip-primary), #059669)",
-                boxShadow: "0 2px 8px rgba(15,118,110,0.25)",
+                background: "linear-gradient(135deg, var(--haip-sidebar-accent), var(--haip-primary))",
+                boxShadow: "0 2px 8px rgba(20,184,166,0.3)",
               }}
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -244,12 +244,12 @@ export function Sidebar({ user }: SidebarProps) {
                 className="font-bold text-[14px] tracking-tight leading-tight"
                 style={{
                   fontFamily: "var(--font-display), sans-serif",
-                  color: "var(--haip-fg)",
+                  color: "var(--haip-sidebar-fg-active)",
                 }}
               >
                 {companyName}
               </div>
-              <div className="text-[10px] leading-tight mt-0.5" style={{ color: "var(--haip-fg-subtle)" }}>
+              <div className="text-[10px] leading-tight mt-0.5" style={{ color: "var(--haip-sidebar-fg-subtle)" }}>
                 Hospitality AI
               </div>
             </div>
@@ -273,8 +273,8 @@ export function Sidebar({ user }: SidebarProps) {
             sectionLabel = (
               <p
                 key={`section-${item.section}`}
-                className="text-[10px] font-medium uppercase tracking-widest px-3 mb-1 mt-4 first:mt-2"
-                style={{ color: "var(--haip-fg-subtle)" }}
+                className="text-[10px] font-bold uppercase tracking-widest px-3 mb-1 mt-4 first:mt-2"
+                style={{ color: "var(--haip-sidebar-fg-subtle)" }}
               >
                 {item.section}
               </p>
@@ -292,10 +292,9 @@ export function Sidebar({ user }: SidebarProps) {
                   className={cn("haip-nav-item", active && "active")}
                   onClick={() => hasChildren && setExpanded(e => e === item.label ? null : item.label)}
                 >
-                  <span
-                    className="flex-shrink-0"
-                    style={{ color: active ? "var(--primary)" : "var(--haip-fg-subtle)" }}
-                  >
+                  {/* Icon colour is driven by .haip-nav-item svg rules in
+                      globals.css so hover/active states stay in one place */}
+                  <span className="flex-shrink-0">
                     <Icon size={15} />
                   </span>
                   <span className="flex-1 truncate">{item.label}</span>
@@ -305,8 +304,8 @@ export function Sidebar({ user }: SidebarProps) {
                     <span
                       className="flex-shrink-0 min-w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10px] font-bold"
                       style={{
-                        background: "var(--primary)",
-                        color: "var(--primary-foreground)",
+                        background: "var(--haip-sidebar-accent)",
+                        color: "#0B1F3A",
                         padding: "0 4px",
                       }}
                     >
@@ -316,7 +315,7 @@ export function Sidebar({ user }: SidebarProps) {
 
                   {/* Expand chevron */}
                   {hasChildren && (
-                    <span style={{ color: "var(--haip-fg-subtle)" }}>
+                    <span style={{ color: "var(--haip-sidebar-fg-subtle)" }}>
                       {isExpanded
                         ? <ChevronDown size={12} />
                         : <ChevronRight size={12} />}
@@ -338,7 +337,7 @@ export function Sidebar({ user }: SidebarProps) {
                         className={cn("haip-nav-sub", childActive && "active")}
                       >
                         {ChildIcon && (
-                          <span style={{ color: childActive ? "var(--primary)" : "var(--haip-fg-subtle)" }}>
+                          <span style={{ color: childActive ? "var(--haip-sidebar-accent)" : "var(--haip-sidebar-fg-subtle)" }}>
                             <ChildIcon size={12} />
                           </span>
                         )}
@@ -356,7 +355,7 @@ export function Sidebar({ user }: SidebarProps) {
       {/* ── Bottom section ────────────────────────────────────────────────── */}
       <div
         className="px-3 pb-3 pt-2 space-y-0.5"
-        style={{ borderTop: "1px solid var(--haip-border)" }}
+        style={{ borderTop: "1px solid var(--haip-sidebar-border)" }}
       >
         {BOTTOM_ITEMS.map(item => {
           const Icon = item.icon;
@@ -367,7 +366,7 @@ export function Sidebar({ user }: SidebarProps) {
               href={item.href}
               className={cn("haip-nav-item", active && "active")}
             >
-              <span style={{ color: active ? "var(--primary)" : "var(--haip-fg-subtle)" }}>
+              <span>
                 <Icon size={14} />
               </span>
               <span>{item.label}</span>
@@ -378,14 +377,14 @@ export function Sidebar({ user }: SidebarProps) {
         {/* User row */}
         <div
           className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg mt-1 cursor-default"
-          style={{ color: "var(--haip-fg-muted)" }}
+          style={{ color: "var(--haip-sidebar-fg)" }}
         >
           {/* Avatar */}
           <div
             className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
             style={{
-              background: "var(--primary)",
-              color: "var(--primary-foreground)",
+              background: "linear-gradient(135deg, var(--haip-sidebar-accent), var(--haip-primary))",
+              color: "#0B1F3A",
             }}
           >
             {user?.name?.[0]?.toUpperCase() ?? "U"}
@@ -393,14 +392,14 @@ export function Sidebar({ user }: SidebarProps) {
 
           {/* Name + role pill */}
           <div className="flex-1 min-w-0">
-            <div className="text-[12.5px] font-semibold truncate" style={{ color: "var(--haip-fg)" }}>
+            <div className="text-[12.5px] font-semibold truncate" style={{ color: "var(--haip-sidebar-fg-active)" }}>
               {user?.name ?? "User"}
             </div>
             <span
               className="inline-block text-[9px] font-medium capitalize px-1.5 py-0.5 rounded-full mt-0.5"
               style={{
-                background: "color-mix(in srgb, var(--primary) 10%, transparent)",
-                color: "var(--primary)",
+                background: "var(--haip-sidebar-active-bg)",
+                color: "var(--haip-sidebar-accent)",
               }}
             >
               {user?.role ?? "concierge"}
@@ -411,9 +410,9 @@ export function Sidebar({ user }: SidebarProps) {
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
             className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded transition-colors duration-150"
-            style={{ color: "var(--haip-fg-subtle)" }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "var(--haip-fg)"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "var(--haip-fg-subtle)"; }}
+            style={{ color: "var(--haip-sidebar-fg-subtle)" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "var(--haip-sidebar-fg-active)"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "var(--haip-sidebar-fg-subtle)"; }}
             title="Sign out"
           >
             <LogOut size={13} />

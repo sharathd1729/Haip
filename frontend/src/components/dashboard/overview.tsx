@@ -300,17 +300,12 @@ function Card({ title, action, children, noPad }: {
   noPad?: boolean;
 }) {
   return (
-    <div className="bg-card rounded-xl overflow-hidden shadow-sm dark:shadow-none flex flex-col">
-      <div
-        className="flex items-center justify-between px-5 py-3.5 flex-shrink-0"
-        style={{ borderBottom: "1px solid var(--haip-border)" }}
-      >
-        <p className="text-xs font-medium uppercase tracking-wider" style={{ color: "var(--haip-fg-subtle)" }}>
-          {title}
-        </p>
+    <div className="haip-card overflow-hidden flex flex-col">
+      <div className="haip-card-head flex-shrink-0">
+        <p className="haip-card-title">{title}</p>
         {action}
       </div>
-      <div className={noPad ? "" : "p-5 flex-1"}>{children}</div>
+      <div className={noPad ? "" : "p-[18px] flex-1"}>{children}</div>
     </div>
   );
 }
@@ -319,7 +314,7 @@ function Card({ title, action, children, noPad }: {
 
 function DashboardSkeleton() {
   return (
-    <div className="h-full overflow-y-auto haip-scrollbar bg-background">
+    <div className="h-full overflow-y-auto haip-scrollbar">
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
         <div className="space-y-1.5">
           <Skeleton className="h-7 w-56 rounded-lg" />
@@ -347,24 +342,27 @@ function DashboardSkeleton() {
 function GettingStarted({ firstName }: { firstName: string }) {
   const router = useRouter();
   return (
-    <div className="h-full overflow-y-auto haip-scrollbar bg-background">
+    <div className="h-full overflow-y-auto haip-scrollbar">
       <div className="max-w-2xl mx-auto px-6 py-8">
         <div className="mb-8">
           <p className="text-xs font-medium mb-1" style={{ color: "var(--primary)" }}>
             {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
           </p>
-          <h1 className="text-xl font-semibold tracking-tight" style={{ color: "var(--haip-fg)" }}>
+          <h1
+            className="text-[26px] font-bold tracking-tight"
+            style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}
+          >
             {greeting()}, {firstName}.
           </h1>
-          <p className="text-sm mt-1" style={{ color: "var(--haip-fg-subtle)" }}>
+          <p className="text-sm mt-1" style={{ color: "var(--haip-fg-muted)" }}>
             Your workspace is ready. Complete setup to activate intelligence.
           </p>
         </div>
 
-        <div className="bg-card rounded-xl overflow-hidden shadow-sm dark:shadow-none">
-          <div className="flex items-center gap-2 px-5 py-3.5" style={{ borderBottom: "1px solid var(--haip-border)" }}>
-            <Sparkles size={14} style={{ color: "var(--primary)" }} />
-            <span className="text-xs font-medium uppercase tracking-wider" style={{ color: "var(--haip-fg-subtle)" }}>
+        <div className="haip-card overflow-hidden">
+          <div className="haip-card-head">
+            <span className="haip-card-title">
+              <Sparkles size={13} style={{ color: "var(--primary)" }} />
               3 steps to activate HAIP
             </span>
           </div>
@@ -376,8 +374,8 @@ function GettingStarted({ firstName }: { firstName: string }) {
             ].map((a, i) => (
               <div
                 key={i}
-                className="flex items-center gap-4 p-4 rounded-xl transition-colors duration-150"
-                style={{ background: "var(--muted)" }}
+                className="flex items-center gap-4 p-4 rounded-lg border transition-colors duration-150"
+                style={{ background: "var(--haip-surface)", borderColor: "var(--haip-border)" }}
               >
                 <div
                   className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
@@ -512,14 +510,19 @@ function LiveDashboard({ dash, firstName }: { dash: DashboardData; firstName: st
   const lostThemes: LostTheme[] = ownerDaily?.lost_reason_themes ?? [];
   const agents: AgentRow[] = leaderboard?.agents ?? [];
 
+  // No bg on the wrapper — the dashboard shell paints --haip-app-bg (grey)
+  // behind the white cards; a bg-background (white) wrapper would cancel it.
   return (
-    <div className="h-full overflow-y-auto haip-scrollbar bg-background">
+    <div className="h-full overflow-y-auto haip-scrollbar">
       <div className="max-w-7xl mx-auto px-4 py-4 md:px-6 md:py-6 space-y-6">
 
         {/* ── Greeting ─────────────────────────────────────────────────── */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-xl font-semibold tracking-tight" style={{ color: "var(--haip-fg)" }}>
+            <h1
+              className="text-[26px] font-bold tracking-tight"
+              style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}
+            >
               {greeting()}, {firstName}.
             </h1>
             <p className="text-sm mt-0.5" style={{ color: "var(--haip-fg-subtle)" }}>
@@ -543,26 +546,30 @@ function LiveDashboard({ dash, firstName }: { dash: DashboardData; firstName: st
         {/* ── Row 1: 4 Metric cards ────────────────────────────────────── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard
-            icon={<Phone size={16} />}
+            accent="teal"
+            icon={<Phone size={15} />}
             value={dash.calls_this_week}
             label="Calls this week"
             trend={`↑ ${dash.calls_this_week}`}
             trendDir="positive"
           />
           <MetricCard
-            icon={<Star size={16} />}
+            accent={avgScore >= 70 ? "green" : "red"}
+            icon={<Star size={15} />}
             value={avgScore > 0 ? `${avgScore.toFixed(0)}%` : "—"}
             label="Avg QA score"
             trend={avgScore >= 70 ? "↑ On target" : "↓ Below 70%"}
             trendDir={avgScore >= 70 ? "positive" : "negative"}
           />
           <MetricCard
-            icon={<Clock size={16} />}
+            accent="gold"
+            icon={<Clock size={15} />}
             value={formatSeconds(dash.chat_response_p95_seconds)}
-            label="Chat response time p95"
+            label="Chat response p95"
           />
           <MetricCard
-            icon={<Zap size={16} />}
+            accent="purple"
+            icon={<Zap size={15} />}
             value={dash.active_inquiries}
             label="Active inquiries"
             trend={dash.open_conversations > 0 ? `${dash.open_conversations} open` : undefined}

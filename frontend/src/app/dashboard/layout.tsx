@@ -29,8 +29,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
         Shell elements (sidebar, topbar, bottom nav) are shown/hidden via CSS.
       */}
       <div
-        className="flex bg-background"
-        style={{ minHeight: "100dvh", maxHeight: "100dvh", overflow: "hidden" }}
+        className="flex"
+        style={{
+          minHeight: "100dvh",
+          maxHeight: "100dvh",
+          overflow: "hidden",
+          // Grey app canvas so white cards read as raised surfaces. Scoped
+          // here rather than on --background, which stays white for the
+          // marketing site and auth pages.
+          background: "var(--haip-app-bg)",
+        }}
       >
         {/* ── Sidebar (desktop only) ───────────────────────────────── */}
         <div className="hidden md:flex flex-shrink-0">

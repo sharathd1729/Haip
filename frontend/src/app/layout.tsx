@@ -1,11 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope, Inter } from "next/font/google";
+import { Outfit, Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { PWARegister } from "@/components/PWARegister";
 
-// Display / heading font: Manrope — premium geometric, outstanding at 600–800
-const displayFont = Manrope({
+// Display / heading font: Outfit — per HAIP_Prototype.html, which pairs it
+// with Inter. Geometric with a tighter, more architectural feel than Manrope
+// at the 700–800 weights used for page titles, KPI values and scores.
+const displayFont = Outfit({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
   variable: "--font-display",

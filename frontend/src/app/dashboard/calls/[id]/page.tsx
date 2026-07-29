@@ -397,9 +397,9 @@ export default function CallDetailPage() {
           )}
 
           {/* Transcript */}
-          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-5 py-3.5 border-b border-gray-50 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-900">Transcript</h2>
+          <div className="haip-card overflow-hidden">
+            <div className="haip-card-head">
+              <h2 className="haip-card-title">Transcript</h2>
               {call.guest_phone && (
                 <Link
                   href={`/dashboard/guests?phone=${encodeURIComponent(call.guest_phone)}`}
@@ -570,7 +570,7 @@ export default function CallDetailPage() {
         <div className="col-span-12 lg:col-span-5 space-y-5">
           {/* QA Score card */}
           {call.score ? (
-            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+            <div className="haip-card p-5">
               <div className="flex items-center gap-4 mb-5">
                 <ScoreRing score={(call.score.total_score / call.score.max_score) * 100} size={72} />
                 <div>
@@ -681,14 +681,14 @@ export default function CallDetailPage() {
               )}
             </div>
           ) : (
-            <div className="bg-white border border-dashed border-gray-200 rounded-2xl p-6 text-center">
+            <div className="haip-card p-6 text-center border-dashed">
               <Loader2 size={24} className="text-gray-300 mx-auto mb-2 animate-spin" />
               <p className="text-sm text-gray-400">QA analysis in progress…</p>
             </div>
           )}
 
           {/* Wrap-up panel */}
-          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+          <div className="haip-card p-5">
             <h2 className="text-sm font-semibold text-gray-900 mb-4">Wrap-up</h2>
 
             {/* Disposition */}
@@ -728,49 +728,6 @@ export default function CallDetailPage() {
               />
             </div>
 
-            {/* Suggested next action — clickable when a structured recommended_action
-                exists (currently: a pending AI-drafted WhatsApp reply), otherwise
-                falls back to the free-text next_action as before. */}
-            {call.recommended_action?.type === "send_whatsapp_draft" && call.recommended_action.target_conversation_id ? (
-              <div className="mb-4 p-3 bg-teal-50 border border-teal-100 rounded-xl">
-                <p className="text-xs font-semibold text-teal-700 mb-1">Suggested next action</p>
-                {call.score?.next_action && (
-                  <p className="text-sm text-teal-800 mb-2">{call.score.next_action}</p>
-                )}
-                <button
-                  type="button"
-                  onClick={() => approveAndSendMutation.mutate({
-                    conversationId: call.recommended_action!.target_conversation_id!,
-                    messageId: call.recommended_action!.target,
-                  })}
-                  disabled={approveAndSendMutation.isPending}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition-colors"
-                >
-                  {approveAndSendMutation.isPending ? (
-                    <Loader2 size={12} className="animate-spin" />
-                  ) : (
-                    <MessageSquare size={12} />
-                  )}
-                  {call.recommended_action.label}
-                </button>
-              </div>
-            ) : call.score?.next_action && (
-              <div className="mb-4 p-3 bg-teal-50 border border-teal-100 rounded-xl">
-                <p className="text-xs font-semibold text-teal-700 mb-1">Suggested next action</p>
-                <p className="text-sm text-teal-800">{call.score.next_action}</p>
-              </div>
-            )}
-
-            {/* Missed revenue */}
-            {call.score?.missed_revenue && call.score.missed_revenue > 0 && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-xl">
-                <p className="text-xs font-semibold text-red-600 mb-0.5">Potential missed revenue</p>
-                <p className="text-base font-bold text-red-700">
-                  ₹{call.score.missed_revenue.toLocaleString("en-IN")}
-                </p>
-              </div>
-            )}
-
             <button
               onClick={() => saveMutation.mutate()}
               disabled={saveMutation.isPending}
@@ -784,14 +741,69 @@ export default function CallDetailPage() {
             </button>
           </div>
 
-          {/* ── Layer 2: Intent & Outcome panel ──────────────────────────── */}
-          {call.layer2 && (
-            <Layer2Panel layer2={call.layer2} />
+          {/* ── Recommended actions zone ─────────────────────────────────────
+              Relocated out of Wrap-up so it reads as its own zone rather than
+              a sub-item of the human wrap-up form. Same logic as before:
+              clickable when a structured recommended_action exists (currently
+              only send_whatsapp_draft), otherwise falls back to the free-text
+              next_action. */}
+          {(call.recommended_action?.type === "send_whatsapp_draft" && call.recommended_action.target_conversation_id) || call.score?.next_action ? (
+            <div className="haip-card p-5">
+              <h2 className="text-sm font-semibold text-gray-900 mb-3">Recommended actions</h2>
+              {call.recommended_action?.type === "send_whatsapp_draft" && call.recommended_action.target_conversation_id ? (
+                <div className="p-3 bg-teal-50 border border-teal-100 rounded-xl">
+                  {call.score?.next_action && (
+                    <p className="text-sm text-teal-800 mb-2">{call.score.next_action}</p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => approveAndSendMutation.mutate({
+                      conversationId: call.recommended_action!.target_conversation_id!,
+                      messageId: call.recommended_action!.target,
+                    })}
+                    disabled={approveAndSendMutation.isPending}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition-colors"
+                  >
+                    {approveAndSendMutation.isPending ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <MessageSquare size={12} />
+                    )}
+                    {call.recommended_action.label}
+                  </button>
+                </div>
+              ) : call.score?.next_action ? (
+                <div className="p-3 bg-teal-50 border border-teal-100 rounded-xl">
+                  <p className="text-sm text-teal-800">{call.score.next_action}</p>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {/* ── Insights zone ─────────────────────────────────────────────────
+              Groups Layer 2 intent/outcome data with the missed-revenue
+              signal under one visual heading — both are AI-derived read-only
+              insights, previously split between a standalone Layer2Panel and
+              a box buried inside the Wrap-up form. No data/logic changes,
+              presentation only. */}
+          {(call.layer2 || (call.score?.missed_revenue && call.score.missed_revenue > 0)) && (
+            <div className="space-y-3">
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400 px-1">Insights</h2>
+              {call.score?.missed_revenue && call.score.missed_revenue > 0 && (
+                <div className="p-3 bg-red-50 border border-red-100 rounded-xl">
+                  <p className="text-xs font-semibold text-red-600 mb-0.5">Potential missed revenue</p>
+                  <p className="text-base font-bold text-red-700">
+                    ₹{call.score.missed_revenue.toLocaleString("en-IN")}
+                  </p>
+                </div>
+              )}
+              {call.layer2 && <Layer2Panel layer2={call.layer2} />}
+            </div>
           )}
 
           {/* C8: Bookmarked moments panel */}
           {bookmarks.size > 0 && call.transcript?.turns && (
-            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+            <div className="haip-card p-5">
               <div className="flex items-center gap-2 mb-3">
                 <Star size={14} className="text-amber-400 fill-amber-400" />
                 <h3 className="text-sm font-semibold text-gray-900">

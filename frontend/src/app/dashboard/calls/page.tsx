@@ -356,8 +356,13 @@ export default function CallsPage() {
       <div className="px-5 py-4 flex-shrink-0" style={{ borderBottom: "1px solid var(--haip-border)" }}>
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h1 className="text-xl font-semibold tracking-tight" style={{ color: "var(--haip-fg)" }}>Calls</h1>
-            <p className="text-xs mt-0.5" style={{ color: "var(--haip-fg-subtle)" }}>
+            <h1
+              className="text-[22px] font-bold tracking-tight"
+              style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}
+            >
+              Calls
+            </h1>
+            <p className="text-xs mt-0.5" style={{ color: "var(--haip-fg-muted)" }}>
               {search.trim()
                 ? `${filtered.length} of ${calls.length} on this page match`
                 : `${total} call${total !== 1 ? "s" : ""}`} · click row to inspect
