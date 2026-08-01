@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Send, Sparkles, Loader2, BellOff, Search, X, StickyNote, Reply, ChevronDown, ChevronLeft, CalendarClock, Timer, AlertTriangle, LayoutTemplate } from "lucide-react";
@@ -226,7 +226,18 @@ export default function InboxPage() {
     staleTime: 30_000,
   });
 
-  const conversationData = conversationPages?.pages.flat();
+  // HOTFIX (production incident): .flat() on every render produced a new
+  // array reference each time even when the underlying pages hadn't
+  // changed, so the effect below never saw a stable dependency -- it fired
+  // every render, called setConversations, which re-rendered this
+  // component, which called .flat() again... "Maximum update depth
+  // exceeded" (React error #185), infinite loop, whole Inbox page down in
+  // prod. useMemo keyed on conversationPages (react-query's own stable
+  // reference, unchanged unless the query result actually changed) fixes it.
+  const conversationData = useMemo(
+    () => conversationPages?.pages.flat(),
+    [conversationPages]
+  );
 
   // onSuccess was removed in TanStack Query v5 — use useEffect to sync store
   useEffect(() => {
