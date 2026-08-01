@@ -127,7 +127,18 @@ function CreateTemplateModal({ onClose, onCreated }: { onClose: () => void; onCr
       onCreated();
       onClose();
     } catch (err: any) {
-      setError(err?.response?.data?.detail || "Failed to create template.");
+      // Surface the status when the backend gives no `detail` (a 500 from
+      // response-model validation did exactly that, leaving the user with a
+      // bare "Failed to create template." and nothing to act on).
+      const detail = err?.response?.data?.detail;
+      const status = err?.response?.status;
+      setError(
+        detail
+          ? String(detail)
+          : status
+          ? `Failed to create template (HTTP ${status}). Please retry — if it persists, check the server logs.`
+          : "Failed to create template — could not reach the server."
+      );
     } finally {
       setSubmitting(false);
     }

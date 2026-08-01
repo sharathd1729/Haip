@@ -131,7 +131,12 @@ class TemplateOut(BaseModel):
     components: list
     meta_template_id: Optional[str] = None
     rejection_reason: Optional[str] = None
-    created_at: Optional[str] = None
+    # datetime, NOT str: created_at comes from TimestampMixin and is a
+    # DateTime column. Pydantic v2 will not coerce datetime -> str, so
+    # declaring str here made response validation raise on every template
+    # response (500 on both create and list). Serialises to the same ISO
+    # string on the wire.
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -155,7 +160,8 @@ class CampaignOut(BaseModel):
     delivered_count: str
     read_count: str
     failed_count: str
-    created_at: Optional[str] = None
+    # See TemplateOut.created_at — DateTime column, not a string.
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -191,7 +197,8 @@ class FlowOut(BaseModel):
     edges: list
     is_active: bool
     trigger: Optional[str] = None
-    created_at: Optional[str] = None
+    # See TemplateOut.created_at — DateTime column, not a string.
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
