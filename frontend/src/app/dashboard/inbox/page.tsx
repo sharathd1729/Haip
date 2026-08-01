@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import dynamic from "next/dynamic";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Send, Sparkles, Loader2, BellOff, Search, X, StickyNote, Reply, ChevronDown, ChevronLeft, CalendarClock, Timer, AlertTriangle, LayoutTemplate } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
@@ -17,7 +18,12 @@ import { useInboxStore } from "@/store/inbox";
 import { useAutoGrow } from "@/hooks/useAutoGrow";
 import { useToast } from "@/components/ui/toast";
 import { usePresence } from "@/hooks/usePresence";
-import { TemplatePickerModal } from "@/components/inbox/TemplatePickerModal";
+// B5: only needed once the user opens the template picker (WhatsApp window
+// re-open flow) -- keep it out of this route's initial chunk.
+const TemplatePickerModal = dynamic(
+  () => import("@/components/inbox/TemplatePickerModal").then(m => m.TemplatePickerModal),
+  { ssr: false }
+);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -47,6 +53,8 @@ interface ConversationDetail {
   status: "open" | "resolved" | "snoozed";
   messages: Message[];
   last_inbound_at?: string | null;  // D9: WhatsApp 24h service window
+  total_messages?: number;
+  messages_capped?: boolean;  // true when older history exists beyond `messages`
 }
 
 // D9: compute seconds remaining in 24h WhatsApp service window
@@ -193,12 +201,32 @@ export default function InboxPage() {
     return () => clearInterval(id);
   }, []);
 
-  // Queries must be declared before derived state that references their data
-  const { data: conversationData, isLoading: listLoading } = useQuery<any[]>({
+  // CONVERSATION_PAGE_SIZE keeps each request bounded -- the list used to
+  // fetch with no limit at all (server default 50, uncapped growth as the
+  // conversation table grows), with no way to reach anything past the first
+  // page. Cursor is `last_message_at` of the oldest conversation loaded so
+  // far, matching how the list is already sorted server-side.
+  const CONVERSATION_PAGE_SIZE = 50;
+  const {
+    data: conversationPages,
+    isLoading: listLoading,
+    fetchNextPage: fetchNextConversationPage,
+    hasNextPage: hasMoreConversations,
+    isFetchingNextPage: isLoadingMoreConversations,
+  } = useInfiniteQuery({
     queryKey: ["conversations"],
-    queryFn: () => api.get("/conversations").then(r => r.data),
+    queryFn: ({ pageParam }: { pageParam?: string }) =>
+      api.get("/conversations", { params: { limit: CONVERSATION_PAGE_SIZE, ...(pageParam ? { before: pageParam } : {}) } })
+        .then(r => r.data as any[]),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.length === CONVERSATION_PAGE_SIZE
+        ? lastPage[lastPage.length - 1]?.last_message_at
+        : undefined,
     staleTime: 30_000,
   });
+
+  const conversationData = conversationPages?.pages.flat();
 
   // onSuccess was removed in TanStack Query v5 — use useEffect to sync store
   useEffect(() => {
@@ -212,6 +240,39 @@ export default function InboxPage() {
     enabled: !!activeConversationId,
     staleTime: 30_000,
   });
+
+  // "Load older messages" — get_conversation_detail's initial payload only
+  // carries the most recent 50 (see backend B3 fix); older history is
+  // reached via a separate cursor endpoint, not by widening that payload.
+  // Kept as plain state rather than useInfiniteQuery since the first page
+  // (conversation detail) and subsequent pages (GET /messages) come from
+  // two different endpoints with different response shapes.
+  const [olderMessages, setOlderMessages] = useState<Message[]>([]);
+  const [hasMoreOlderMessages, setHasMoreOlderMessages] = useState(false);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+
+  // Reset older-message state whenever the active conversation changes.
+  useEffect(() => {
+    setOlderMessages([]);
+    setHasMoreOlderMessages(!!detail?.messages_capped);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeConversationId, detail?.messages_capped]);
+
+  const loadOlderMessages = useCallback(async () => {
+    if (!activeConversationId || loadingOlderMessages) return;
+    const oldest = (olderMessages[0] ?? detail?.messages[0])?.timestamp;
+    if (!oldest) return;
+    setLoadingOlderMessages(true);
+    try {
+      const res = await api.get(`/conversations/${activeConversationId}/messages`, {
+        params: { before: oldest, limit: 50 },
+      });
+      setOlderMessages(prev => [...res.data.messages, ...prev]);
+      setHasMoreOlderMessages(res.data.has_more);
+    } finally {
+      setLoadingOlderMessages(false);
+    }
+  }, [activeConversationId, loadingOlderMessages, olderMessages, detail?.messages]);
 
   // Mark as read when conversation detail loads
   useEffect(() => {
@@ -553,6 +614,8 @@ export default function InboxPage() {
               Promise.all(ids.map(id => api.post(`/conversations/${id}/read`)))
                 .then(() => queryClient.invalidateQueries({ queryKey: ["conversations"] }));
             }}
+            onLoadMore={hasMoreConversations ? () => fetchNextConversationPage() : undefined}
+            isLoadingMore={isLoadingMoreConversations}
           />
         )}
       </div>
@@ -760,7 +823,21 @@ export default function InboxPage() {
                 </div>
               ) : (
                 <>
-                  {detail?.messages.map(msg => (
+                  {hasMoreOlderMessages && (
+                    <div className="flex justify-center pb-1">
+                      <button
+                        onClick={loadOlderMessages}
+                        disabled={loadingOlderMessages}
+                        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors duration-150 disabled:opacity-50"
+                        style={{ borderColor: "var(--haip-border)", color: "var(--haip-fg-subtle)", background: "var(--haip-card)" }}
+                      >
+                        {loadingOlderMessages
+                          ? <><Loader2 size={12} className="animate-spin" /> Loading…</>
+                          : "Load older messages"}
+                      </button>
+                    </div>
+                  )}
+                  {[...olderMessages, ...(detail?.messages ?? [])].map(msg => (
                     <MessageBubble
                       key={msg.id}
                       id={msg.id}
@@ -772,7 +849,7 @@ export default function InboxPage() {
                       isAiDraft={!!(msg.ai_drafted && msg.direction === "outbound")}
                       isInternal={msg.is_internal}
                       aiConfidence={msg.ai_confidence}
-                      senderName={msg.direction === "outbound" ? msg.sender_name : (detail.guest_name || detail.guest_phone)}
+                      senderName={msg.direction === "outbound" ? msg.sender_name : (detail?.guest_name || detail?.guest_phone)}
                       mediaUrl={msg.media_url}
                       mediaType={msg.media_type}
                       sharedPostUrl={msg.shared_post_url}

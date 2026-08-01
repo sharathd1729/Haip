@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, usePathname } from "next/navigation";
 import { Building2, Users, Shield, QrCode, Loader2, CheckCircle, AlertCircle, Bell, Bot, ChevronRight, KeyRound } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -93,6 +94,7 @@ export default function SettingsPage() {
 
 /* ── Workspace ─────────────────────────────────────────────────────────────── */
 function WorkspaceSettings() {
+  const queryClient = useQueryClient();
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -104,20 +106,28 @@ function WorkspaceSettings() {
     date_format: "DD/MM/YYYY",
   });
 
-  // Load real tenant data on mount
-  useState(() => {
-    api.get("/tenants/me").then(r => {
-      const t = r.data;
-      setForm(f => ({
-        ...f,
-        name: t.name || "",
-        brand_name: t.brand_config?.brand_name || t.name || "",
-        slug: t.slug || "",
-        timezone: t.brand_config?.timezone || "Asia/Kolkata",
-        language: t.brand_config?.language || "en",
-      }));
-    }).catch(() => {});
+  // Load real tenant data on mount. Was previously a useState(() => {...})
+  // lazy-initializer callback abused to run a fetch once -- that pattern
+  // has no place in React's data model (initializers are for computing
+  // state synchronously, not side effects) and bypassed react-query's
+  // cache entirely, unlike every other data read in this app.
+  const { data: tenant } = useQuery({
+    queryKey: ["tenants", "me"],
+    queryFn: () => api.get("/tenants/me").then(r => r.data),
+    staleTime: 60_000,
   });
+
+  useEffect(() => {
+    if (!tenant) return;
+    setForm(f => ({
+      ...f,
+      name: tenant.name || "",
+      brand_name: tenant.brand_config?.brand_name || tenant.name || "",
+      slug: tenant.slug || "",
+      timezone: tenant.brand_config?.timezone || "Asia/Kolkata",
+      language: tenant.brand_config?.language || "en",
+    }));
+  }, [tenant]);
 
   return (
     <div className="space-y-6">
@@ -223,6 +233,7 @@ function WorkspaceSettings() {
                   language: form.language,
                 },
               });
+              queryClient.invalidateQueries({ queryKey: ["tenants", "me"] });
               setSaved(true);
               setTimeout(() => setSaved(false), 3000);
             } catch {}
@@ -345,23 +356,28 @@ const DEFAULT_PREFS = {
 type NotifPrefs = typeof DEFAULT_PREFS;
 
 function NotificationSettings() {
+  const queryClient = useQueryClient();
   const [prefs, setPrefs] = useState<NotifPrefs>(DEFAULT_PREFS);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // A7: load current prefs + digest_opt_in from backend on mount
+  const { data: me } = useQuery({
+    queryKey: ["users", "me"],
+    queryFn: () => api.get("/users/me").then(r => r.data),
+    staleTime: 60_000,
+  });
+
   useEffect(() => {
-    api.get("/users/me").then(r => {
-      const serverPrefs = r.data.notification_prefs ?? {};
-      setPrefs({
-        ...DEFAULT_PREFS,
-        ...serverPrefs,
-        // digest_opt_in is a first-class DB column; mirror it into the prefs key
-        daily_digest_email: r.data.digest_opt_in ?? DEFAULT_PREFS.daily_digest_email,
-      });
-    }).catch(() => {/* keep defaults if endpoint unavailable */});
-  }, []);
+    if (!me) return;
+    setPrefs({
+      ...DEFAULT_PREFS,
+      ...(me.notification_prefs ?? {}),
+      // digest_opt_in is a first-class DB column; mirror it into the prefs key
+      daily_digest_email: me.digest_opt_in ?? DEFAULT_PREFS.daily_digest_email,
+    });
+  }, [me]);
 
   const toggle = (k: keyof NotifPrefs) => {
     setPrefs(p => ({ ...p, [k]: !p[k] }));
@@ -379,6 +395,7 @@ function NotificationSettings() {
         notification_prefs: rest,
         digest_opt_in: daily_digest_email,  // persisted as dedicated column
       });
+      queryClient.invalidateQueries({ queryKey: ["users", "me"] });
       setSaved(true);
     } catch {
       setError("Failed to save. Please try again.");

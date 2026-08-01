@@ -78,7 +78,7 @@ def list_leads(
     booked_date_from: Optional[str] = Query(None, description="ISO date string"),
     booked_date_to: Optional[str] = Query(None, description="ISO date string"),
     page: int = Query(1, ge=1),
-    page_size: int = Query(25, ge=1, le=1000),
+    page_size: int = Query(25, ge=1, le=200),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> LeadsListResponse:

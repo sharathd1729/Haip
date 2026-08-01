@@ -335,6 +335,61 @@ def get_property_interest(
     return seen
 
 
+def _batch_property_interest(
+    db: Session,
+    tenant_id: str,
+    inquiry_ids: list[str],
+) -> dict[str, list[str]]:
+    """Same extraction as get_property_interest(), batched across many
+    inquiries in one query instead of one query per inquiry.
+
+    get_leads_pipeline() used to call get_property_interest() inside a
+    per-inquiry dict comprehension -- looked like a batch step (it's built
+    into the same dict-comprehension block as the real _batch_* helpers
+    below) but was actually N individual queries. Against Ratha's real data
+    (683 inquiries) that alone made page_size=25 take ~2s and page_size=1000
+    take ~36s, both wildly outside CLAUDE.md's <200ms budget for this
+    endpoint -- confirmed by direct timing before this fix, not assumed.
+    """
+    from app.models.call import Call
+
+    if not inquiry_ids:
+        return {}
+
+    rows = (
+        db.query(Call.inquiry_id, Call.ai_score)
+        .filter(Call.tenant_id == tenant_id, Call.inquiry_id.in_(inquiry_ids))
+        .order_by(Call.inquiry_id, desc(Call.created_at))
+        .all()
+    )
+
+    result: dict[str, list[str]] = {}
+    examined: dict[str, int] = {}
+    for inquiry_id, ai_score in rows:
+        seen = result.setdefault(inquiry_id, [])
+        if len(seen) >= 3:
+            continue
+        # Same "look at up to 10 most recent calls" cap as the single-inquiry
+        # version's .limit(10), reimplemented per-group since a single query
+        # can't apply a per-group LIMIT portably.
+        n = examined.get(inquiry_id, 0)
+        if n >= 10:
+            continue
+        examined[inquiry_id] = n + 1
+        if not ai_score:
+            continue
+        try:
+            data = ai_score if isinstance(ai_score, dict) else json.loads(ai_score)
+        except Exception:
+            continue
+        for p in data.get("property_interest", []):
+            if p and p not in seen:
+                seen.append(p)
+            if len(seen) >= 3:
+                break
+    return result
+
+
 # ── Timeline builder ──────────────────────────────────────────────────────────
 
 def build_timeline(
@@ -678,10 +733,7 @@ def get_leads_pipeline(
     signals_map = _batch_signals(db, tenant_id, guest_ids)
 
     # Batch-fetch property interest per inquiry (calls.ai_score)
-    prop_interest_map: dict[str, list[str]] = {
-        inq.id: get_property_interest(db, tenant_id, inq.id)
-        for inq in inquiries
-    }
+    prop_interest_map = _batch_property_interest(db, tenant_id, [inq.id for inq in inquiries])
 
     response_time_map = _batch_response_time(db, tenant_id, [inq.id for inq in inquiries])
     pending_draft_map = _batch_pending_drafts(db, tenant_id, [inq.id for inq in inquiries])

@@ -1,4 +1,5 @@
 "use client";
+import { clearTokenCache } from "@/lib/api";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -332,7 +333,7 @@ function UserMenu({ user }: { user?: TopBarProps["user"] }) {
               <div className="h-px my-1" style={{ background: "var(--haip-border)" }} />
 
               <button
-                onClick={() => signOut({ callbackUrl: "/login" })}
+                onClick={() => { clearTokenCache(); signOut({ callbackUrl: "/login" }); }}
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-xs rounded-lg transition-colors duration-150"
                 style={{ color: "var(--haip-red)" }}
                 onMouseEnter={e => {

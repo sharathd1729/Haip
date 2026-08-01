@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 import {
@@ -14,7 +15,12 @@ import {
 import { timeAgo, cn, formatPhone } from "@/lib/utils";
 import { EmptyGuests } from "@/components/empty-states/EmptyGuests";
 import { useRWBookings, useLocalBookings } from "@/hooks/useRentalWise";
-import { CreateBookingModal } from "@/components/bookings/CreateBookingModal";
+// B5: only needed once the user creates/edits a booking -- keep it out of
+// this route's initial chunk.
+const CreateBookingModal = dynamic(
+  () => import("@/components/bookings/CreateBookingModal").then(m => m.CreateBookingModal),
+  { ssr: false }
+);
 import {
   type RWBooking, type RWBookingStatus, type RWPaymentStatus,
   type RWBookingFilters,

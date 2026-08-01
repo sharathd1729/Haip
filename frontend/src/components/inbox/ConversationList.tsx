@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { ChannelIcon } from "./ChannelIcon";
 import {
   Sparkles, ArrowUpDown, CheckSquare, Square, CheckCheck,
-  Archive, X, Star, Bed, Phone,
+  Archive, X, Star, Bed, Phone, Loader2,
 } from "lucide-react";
 import type { ConversationSummary } from "@/store/inbox";
 
@@ -35,6 +35,10 @@ interface ConversationListProps {
   onBulkResolve?: (ids: string[]) => void;
   onBulkMarkRead?: (ids: string[]) => void;
   onBulkAssign?: (ids: string[]) => void;
+  /** Present (non-undefined) whenever another page of older conversations
+   * exists to fetch -- absent once the list has reached the end. */
+  onLoadMore?: () => void;
+  isLoadingMore?: boolean;
 }
 
 // Deterministic color from a string (for guest avatar backgrounds)
@@ -83,6 +87,8 @@ export function ConversationList({
   onBulkResolve,
   onBulkMarkRead,
   onBulkAssign,
+  onLoadMore,
+  isLoadingMore,
 }: ConversationListProps) {
   const [sort, setSort] = useState<SortMode>(() => {
     if (typeof window !== "undefined") {
@@ -342,6 +348,21 @@ export function ConversationList({
           </button>
         );
       })}
+
+      {/* Load more — only meaningful when unfiltered; a channel filter narrows
+          the already-loaded page client-side and doesn't reflect whether more
+          pages exist server-side. */}
+      {onLoadMore && !channelFilter && (
+        <div className="flex justify-center py-3 flex-shrink-0">
+          <button
+            onClick={onLoadMore}
+            disabled={isLoadingMore}
+            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors duration-150 disabled:opacity-50"
+          >
+            {isLoadingMore ? <><Loader2 size={12} className="animate-spin" /> Loading…</> : "Load more"}
+          </button>
+        </div>
+      )}
 
       {/* Bottom padding for mobile nav */}
       <div className="h-4 flex-shrink-0" />

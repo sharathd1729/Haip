@@ -3,8 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/set-build-id.js",
     "dev": "next dev",
     "dev:preview": "next dev -p 3001",
+    "prebuild": "node scripts/set-build-id.js",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

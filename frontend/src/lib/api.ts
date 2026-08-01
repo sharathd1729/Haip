@@ -12,10 +12,89 @@ const api = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+// ─── Access-token cache ───────────────────────────────────────────────────────
+// getSession() from next-auth/react is a NETWORK round-trip to
+// /api/auth/session and is not cached. Calling it in the request interceptor
+// meant every API call made an extra auth round-trip first: a dashboard page
+// firing 8 queries did 8 sequential session fetches before any data request
+// started. Each of those also runs the server-side jwt callback, which is
+// where refresh happens — so 8 concurrent callbacks would race to rotate a
+// single-use refresh token and kill the session.
+//
+// Cache the token in memory and decode its own exp to know when to refetch.
+// `inflight` makes concurrent callers share one fetch (single-flight) rather
+// than stampeding.
+
+let cachedToken: string | null = null;
+let cachedExp = 0; // ms epoch, decoded from the JWT
+let inflight: Promise<string | null> | null = null;
+
+/** Read `exp` out of a JWT payload without verifying it — we only need the
+ *  expiry to decide when to refetch; the server is the one that validates. */
+function decodeExp(jwt: string): number {
+  try {
+    const payload = jwt.split(".")[1];
+    if (!payload) return 0;
+    // base64url → base64 before atob
+    const b64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const exp = JSON.parse(atob(b64)).exp;
+    return typeof exp === "number" ? exp * 1000 : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Fallback cache lifetime for tokens we can't read an `exp` out of — opaque
+ *  tokens, or the dev-only "demo"/"owner-bypass" sentinels. Without this,
+ *  decodeExp() returns 0, the freshness check never passes, and we go
+ *  straight back to a getSession() per request. */
+const OPAQUE_TOKEN_TTL_MS = 60_000;
+
+async function getToken(force = false): Promise<string | null> {
+  // 30s skew so we never send a token that expires mid-flight
+  if (!force && cachedToken && Date.now() < cachedExp - 30_000) return cachedToken;
+  // `force` only means "don't trust the cached token's freshness" — it must
+  // NOT skip in-flight dedup too. Without this, N concurrent 401s (e.g. every
+  // request failing at once because the token just expired) each called
+  // getToken(true) and each bypassed both fast paths, so N requests produced
+  // N independent getSession() calls instead of sharing one. Reusing inflight
+  // here regardless of force means a burst of forced callers still collapses
+  // to a single fetch.
+  if (inflight) return inflight;
+
+  inflight = (async () => {
+    const session = await getSession();
+    const token = (session as { accessToken?: string } | null)?.accessToken ?? null;
+    cachedToken = token;
+    if (!token) {
+      cachedExp = 0;
+    } else {
+      const exp = decodeExp(token);
+      // +30s so the skew subtraction above still leaves a usable window
+      cachedExp = exp > 0 ? exp : Date.now() + OPAQUE_TOKEN_TTL_MS + 30_000;
+    }
+    return token;
+  })();
+
+  try {
+    return await inflight;
+  } finally {
+    inflight = null;
+  }
+}
+
+/** Drop the cached token — call on sign-out so a subsequent sign-in as a
+ *  different user can't reuse the previous session's token. */
+export function clearTokenCache() {
+  cachedToken = null;
+  cachedExp = 0;
+  inflight = null;
+}
+
 api.interceptors.request.use(async (config) => {
-  const session = await getSession();
-  if (session?.accessToken) {
-    config.headers.Authorization = `Bearer ${session.accessToken}`;
+  const token = await getToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
@@ -27,23 +106,35 @@ api.interceptors.response.use(
 
     // On 401: the JWT callback may have already refreshed the token — retry once.
     // Guard with _retry to prevent infinite loops.
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      // Re-fetch session — the JWT callback auto-refreshes if token was stale
+      // Force past the cache — the cached token is the one that just 401'd.
+      const token = await getToken(true);
       const session = await getSession();
 
-      if (!session || (session as any).error === "RefreshAccessTokenError") {
-        // Refresh failed or session gone — sign out cleanly
+      // Only tear the whole session down when it is genuinely unrecoverable.
+      // Previously ANY surviving 401 called signOut(), so a single
+      // permission-denied endpoint or one bad widget query logged the user
+      // out of the entire app.
+      const sessionError = (session as { error?: string } | null)?.error;
+      const unrecoverable =
+        !token && (!session || sessionError === "RefreshAccessTokenError" || sessionError === "SessionExpired");
+
+      if (unrecoverable) {
+        clearTokenCache();
         signOut({ callbackUrl: "/login" });
         return Promise.reject(error);
       }
 
-      // Attach the fresh token and retry the original request
-      if ((session as any).accessToken) {
-        originalRequest.headers = originalRequest.headers ?? {};
-        originalRequest.headers.Authorization = `Bearer ${(session as any).accessToken}`;
+      if (!token) {
+        // No token but the session isn't dead — let the caller render an
+        // error state rather than bouncing the user to /login.
+        return Promise.reject(error);
       }
+
+      originalRequest.headers = originalRequest.headers ?? {};
+      originalRequest.headers.Authorization = `Bearer ${token}`;
       return api(originalRequest);
     }
 

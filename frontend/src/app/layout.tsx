@@ -3,6 +3,7 @@ import { Outfit, Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { PWARegister } from "@/components/PWARegister";
+import { UpdateBanner } from "@/components/UpdateBanner";
 
 // Display / heading font: Outfit — per HAIP_Prototype.html, which pairs it
 // with Inter. Geometric with a tighter, more architectural feel than Manrope
@@ -82,6 +83,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${displayFont.variable} ${sansFont.variable} min-h-full bg-background`}>
         <Providers>{children}</Providers>
         <PWARegister />
+        <UpdateBanner />
       </body>
     </html>
   );

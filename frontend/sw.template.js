@@ -1,11 +1,19 @@
-// HAIP Service Worker v6
-// Bump these on every deploy that changes shipped CSS/JS. The activate
-// handler below deletes any cache whose name doesn't match, so bumping is
-// what actually evicts stale bundles from clients that already installed
-// the SW. Without a bump, returning users keep being served the previous
-// build's /_next/static chunks and never see the new UI.
-const CACHE_NAME = 'haip-shell-v6';
-const STATIC_CACHE_NAME = 'haip-static-v6';
+// HAIP Service Worker
+// __BUILD_ID__ is replaced at build time by scripts/set-build-id.js (npm
+// `prebuild`/`predev`) with a git-short-SHA (or timestamp fallback) -- this
+// file's own bytes now change on every real deploy automatically, which is
+// what makes the browser's periodic byte-diff update check actually fire.
+// Previously this was a hand-edited "v4" -> "v5" -> "v6" string; forgetting
+// to bump it was the direct cause of several "why isn't my change showing
+// up" service-worker cache-staleness sessions. The activate handler below
+// deletes any cache whose name doesn't match, so a changed name is what
+// evicts stale bundles from clients that already installed the old SW.
+//
+// This is the source of truth -- public/sw.js is generated from this file
+// and gitignored. Edit this file, never public/sw.js directly (it gets
+// overwritten on the next `npm run dev`/`npm run build`).
+const CACHE_NAME = 'haip-shell-__BUILD_ID__';
+const STATIC_CACHE_NAME = 'haip-static-__BUILD_ID__';
 
 // App shell assets to cache on install — everything a cold offline load needs
 // besides the hashed /_next/static bundles (those get cached as they're
@@ -19,11 +27,27 @@ const PRECACHE = [
 ];
 
 self.addEventListener('install', (event) => {
+  // No self.skipWaiting() here anymore -- a newly-installed SW now sits in
+  // "waiting" (the browser's normal behavior) until the page explicitly
+  // asks it to take over (see the message listener below). Previously this
+  // called skipWaiting() unconditionally, so a new SW activated the moment
+  // it finished installing -- combined with clients.claim() in activate and
+  // the controllerchange->reload listener in PWARegister.tsx, that meant
+  // every open tab got silently, forcibly reloaded on every deploy with no
+  // warning, mid-keystroke if the user happened to be typing. C3's
+  // UpdateBanner now owns that decision instead.
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => cache.addAll(PRECACHE).catch(() => {}))
-      .then(() => self.skipWaiting())
   );
+});
+
+// C4: the update banner's "Update now" click posts this to the waiting
+// worker (via registration.waiting.postMessage) -- this is the only path
+// that now triggers activation. Letting the SW activate on its own without
+// this message is what the removed self.skipWaiting() call used to do.
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {

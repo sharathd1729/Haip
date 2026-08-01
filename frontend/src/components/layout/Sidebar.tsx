@@ -1,6 +1,7 @@
 "use client";
+import { clearTokenCache } from "@/lib/api";
 import { useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import {
@@ -174,6 +175,7 @@ interface SidebarProps {
 export function Sidebar({ user }: SidebarProps) {
   const businessType = useBusinessType();
   const pathname = usePathname();
+  const router = useRouter();
   const role = user?.role ?? "";
   const { theme } = useBrandTheme();
   const { conversations } = useInboxStore();
@@ -185,6 +187,16 @@ export function Sidebar({ user }: SidebarProps) {
     if (href === "/dashboard") return pathname === "/dashboard";
     const hrefPath = href.split("?")[0];
     return pathname === hrefPath || pathname.startsWith(hrefPath + "/");
+  }
+
+  // B7: prefetch on hover/focus instead of eagerly. Every nav Link here is
+  // always in the viewport (the sidebar never scrolls out of view), so
+  // Next's default viewport-triggered prefetch fires for the full nav list
+  // (main items + expanded children + bottom items) on every mount --
+  // prefetch={false} below turns that off; this fires it back on, but only
+  // for the one link the user is actually about to click.
+  function prefetchOnHover(href: string) {
+    router.prefetch(href);
   }
 
   const companyName = theme.companyName ?? "HAIP";
@@ -289,6 +301,9 @@ export function Sidebar({ user }: SidebarProps) {
               <div className="mb-0.5">
                 <Link
                   href={item.href}
+                  prefetch={false}
+                  onMouseEnter={() => prefetchOnHover(item.href)}
+                  onFocus={() => prefetchOnHover(item.href)}
                   className={cn("haip-nav-item", active && "active")}
                   onClick={() => hasChildren && setExpanded(e => e === item.label ? null : item.label)}
                 >
@@ -334,6 +349,9 @@ export function Sidebar({ user }: SidebarProps) {
                       <Link
                         key={child.href}
                         href={child.href}
+                        prefetch={false}
+                        onMouseEnter={() => prefetchOnHover(child.href)}
+                        onFocus={() => prefetchOnHover(child.href)}
                         className={cn("haip-nav-sub", childActive && "active")}
                       >
                         {ChildIcon && (
@@ -364,6 +382,9 @@ export function Sidebar({ user }: SidebarProps) {
             <Link
               key={item.href}
               href={item.href}
+              prefetch={false}
+              onMouseEnter={() => prefetchOnHover(item.href)}
+              onFocus={() => prefetchOnHover(item.href)}
               className={cn("haip-nav-item", active && "active")}
             >
               <span>
@@ -408,7 +429,7 @@ export function Sidebar({ user }: SidebarProps) {
 
           {/* Sign out */}
           <button
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            onClick={() => { clearTokenCache(); signOut({ callbackUrl: "/login" }); }}
             className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded transition-colors duration-150"
             style={{ color: "var(--haip-sidebar-fg-subtle)" }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "var(--haip-sidebar-fg-active)"; }}

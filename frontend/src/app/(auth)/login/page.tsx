@@ -21,7 +21,7 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
-  const [remember, setRemember] = useState(false);
+  const [remember, setRemember] = useState(true);
 
   // Phone+OTP
   const [loginMode, setLoginMode] = useState<"email" | "phone">("email");
@@ -61,6 +61,7 @@ function LoginForm() {
       const res = await signIn("credentials", {
         preAuthAccessToken: data.access_token,
         preAuthRefreshToken: data.refresh_token,
+        remember: remember ? "1" : "0",
         redirect: false,
       });
       setLoading(false);
@@ -78,7 +79,7 @@ function LoginForm() {
       }
       // Backend unreachable — fall back to the legacy authorize() path,
       // which still allows the dev-only demo bypass when applicable.
-      const res = await signIn("credentials", { email, password, redirect: false });
+      const res = await signIn("credentials", { email, password, remember: remember ? "1" : "0", redirect: false });
       setLoading(false);
       if (res?.error) {
         setError("Invalid email or password. Please try again.");
@@ -99,6 +100,7 @@ function LoginForm() {
       const res = await signIn("credentials", {
         preAuthAccessToken: data.access_token,
         preAuthRefreshToken: data.refresh_token,
+        remember: remember ? "1" : "0",
         redirect: false,
       });
       setLoading(false);
@@ -143,6 +145,7 @@ function LoginForm() {
       const res = await signIn("credentials", {
         preAuthAccessToken: data.access_token,
         preAuthRefreshToken: data.refresh_token,
+        remember: remember ? "1" : "0",
         redirect: false,
       });
       if (res?.error) {

@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -9,7 +10,12 @@ import {
 } from "lucide-react";
 import { useDashboardWidgets, useInvalidateDashboardWidgets, type WidgetSnapshot } from "@/hooks/useDashboardWidgets";
 import { WidgetShell } from "@/components/dashboard/WidgetShell";
-import { WidgetLibraryModal } from "@/components/dashboard/WidgetLibraryModal";
+// B5: this is the app's highest-traffic landing page -- only needed once
+// the user opens "Add Widget", so keep it out of the initial chunk.
+const WidgetLibraryModal = dynamic(
+  () => import("@/components/dashboard/WidgetLibraryModal").then(m => m.WidgetLibraryModal),
+  { ssr: false }
+);
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { MetricCard } from "@/components/ui/MetricCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";

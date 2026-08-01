@@ -12,6 +12,7 @@ from app.core.security import (
 )
 from app.models.user import User, RefreshToken, UserInvitation, UserRole
 from app.models.tenant import Tenant
+from app.core.audit import append_audit
 import uuid, hashlib, secrets
 from datetime import datetime, timezone, timedelta
 import structlog
@@ -170,34 +171,135 @@ async def register(req: RegisterRequest, db: Session = Depends(get_db)):
     )
 
 
+def _user_token(user_id: str) -> str:
+    """Hash a user_id for safe log correlation. Never log raw PII/identifiers at INFO."""
+    return hashlib.sha256(user_id.encode()).hexdigest()[:12]
+
+
+def _as_aware(dt):
+    """Postgres returns tz-aware datetimes for TIMESTAMPTZ columns; SQLite
+    (used in tests) always returns naive ones. Normalize to UTC-aware so
+    subtracting against datetime.now(timezone.utc) never raises."""
+    if dt is None:
+        return None
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+
+
+# Reuse of an already-rotated refresh token within this window is treated as a
+# race between concurrent requests (dashboard pages fire several in parallel;
+# two can each decide to proactively refresh the same stale token at once) and
+# is answered with the successor token that rotation already produced, rather
+# than as theft. Reuse after this window has elapsed is treated as genuine
+# token theft: the user's entire refresh-token family is revoked.
+_REFRESH_GRACE_WINDOW_SECONDS = 60
+
+
 @router.post("/refresh")
 def refresh_token(body: dict, db: Session = Depends(get_db)):
     token = body.get("refresh_token", "")
     decoded = decode_token(token)
     if not decoded or decoded.get("type") != "refresh":
+        log.info("refresh_outcome", outcome="invalid_token")
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
+    user_tok = _user_token(decoded.get("sub", ""))
     token_hash = hashlib.sha256(token.encode()).hexdigest()
-    stored = db.query(RefreshToken).filter_by(token_hash=token_hash, is_revoked=False).first()
+    stored = db.query(RefreshToken).filter_by(token_hash=token_hash).first()
+
     if not stored:
+        log.info("refresh_outcome", outcome="not_found", user=user_tok)
         raise HTTPException(status_code=401, detail="Token revoked or not found")
 
-    # Rotate: revoke old, issue new
-    stored.is_revoked = True
-    new_payload = {"sub": decoded["sub"], "tenant_id": decoded["tenant_id"], "role": decoded.get("role")}
-    new_access = create_access_token(new_payload)
-    new_refresh = create_refresh_token(new_payload)
+    now = datetime.now(timezone.utc)
+    created_at = _as_aware(stored.created_at)
+    seconds_since_issued = (now - created_at).total_seconds() if created_at else None
 
-    new_hash = hashlib.sha256(new_refresh.encode()).hexdigest()
-    db.add(RefreshToken(
-        id=str(uuid.uuid4()),
-        user_id=decoded["sub"],
+    if not stored.is_revoked:
+        # Happy path: first (and so far only) presentation of this token — rotate.
+        stored.is_revoked = True
+        stored.revoked_at = now
+        new_payload = {"sub": decoded["sub"], "tenant_id": decoded["tenant_id"], "role": decoded.get("role")}
+        new_access = create_access_token(new_payload)
+        new_refresh = create_refresh_token(new_payload)
+
+        new_hash = hashlib.sha256(new_refresh.encode()).hexdigest()
+        stored.replaced_by_token_hash = new_hash
+        db.add(RefreshToken(
+            id=str(uuid.uuid4()),
+            user_id=decoded["sub"],
+            tenant_id=decoded["tenant_id"],
+            token_hash=new_hash,
+        ))
+        db.commit()
+
+        log.info("refresh_outcome", outcome="rotated", user=user_tok, seconds_since_issued=seconds_since_issued)
+        return {"access_token": new_access, "refresh_token": new_refresh, "token_type": "bearer"}
+
+    # Token was already rotated. Distinguish a same-client race from reuse.
+    revoked_at = _as_aware(stored.revoked_at)
+    age_since_revoked = (now - revoked_at).total_seconds() if revoked_at else None
+
+    if (
+        stored.replaced_by_token_hash
+        and age_since_revoked is not None
+        and age_since_revoked <= _REFRESH_GRACE_WINDOW_SECONDS
+    ):
+        # Race: within the grace window and we know this token's rotation
+        # already produced a successor (a concurrent request got there
+        # first). We can't hand back that successor's raw value -- only its
+        # hash was ever stored -- so mint another valid access+refresh pair
+        # instead of erroring. Both this pair and the earlier successor stay
+        # valid; whichever the client uses next rotates normally. Returning
+        # a null/absent refresh_token here would make the client's
+        # `data.refresh_token ?? <old token>` fallback re-present the
+        # already-revoked token on its next refresh, which would eventually
+        # fall outside the grace window and trip false reuse-detection.
+        successor = db.query(RefreshToken).filter_by(
+            token_hash=stored.replaced_by_token_hash, is_revoked=False
+        ).first()
+        if successor:
+            new_payload = {"sub": decoded["sub"], "tenant_id": decoded["tenant_id"], "role": decoded.get("role")}
+            new_access = create_access_token(new_payload)
+            new_refresh = create_refresh_token(new_payload)
+            new_hash = hashlib.sha256(new_refresh.encode()).hexdigest()
+            db.add(RefreshToken(
+                id=str(uuid.uuid4()),
+                user_id=decoded["sub"],
+                tenant_id=decoded["tenant_id"],
+                token_hash=new_hash,
+            ))
+            db.commit()
+            log.info(
+                "refresh_outcome", outcome="race_reissued", user=user_tok,
+                seconds_since_issued=seconds_since_issued, age_since_revoked=age_since_revoked,
+            )
+            return {"access_token": new_access, "refresh_token": new_refresh, "token_type": "bearer"}
+
+    # Reuse outside the grace window (or no known successor) — genuine reuse
+    # of a dead token. Treat as theft: kill every active refresh token for
+    # this user, forcing a full re-login on all devices/tabs.
+    revoked_count = (
+        db.query(RefreshToken)
+        .filter_by(user_id=decoded["sub"], is_revoked=False)
+        .update({"is_revoked": True, "revoked_at": now})
+    )
+    append_audit(
+        db,
         tenant_id=decoded["tenant_id"],
-        token_hash=new_hash,
-    ))
+        action="auth.refresh_token_reuse_detected",
+        actor_user_id=decoded.get("sub"),
+        target_type="user",
+        target_id=decoded.get("sub"),
+        payload={"revoked_count": revoked_count, "age_since_revoked": age_since_revoked},
+    )
     db.commit()
 
-    return {"access_token": new_access, "refresh_token": new_refresh, "token_type": "bearer"}
+    log.info(
+        "refresh_outcome", outcome="reuse_detected", user=user_tok,
+        seconds_since_issued=seconds_since_issued, age_since_revoked=age_since_revoked,
+        revoked_count=revoked_count,
+    )
+    raise HTTPException(status_code=401, detail="Token revoked or not found")
 
 
 @router.post("/logout")
@@ -207,6 +309,7 @@ def logout(body: dict, db: Session = Depends(get_db)):
     stored = db.query(RefreshToken).filter_by(token_hash=token_hash).first()
     if stored:
         stored.is_revoked = True
+        stored.revoked_at = datetime.now(timezone.utc)
         db.commit()
     return {"status": "logged_out"}
 

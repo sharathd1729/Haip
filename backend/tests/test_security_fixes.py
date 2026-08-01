@@ -8,6 +8,7 @@ Covers:
   PERF-1 — Analytics _p95_seconds uses SQL percentile_cont (no Python sort)
   PERF-2 — Instagram DM task uses JSONB containment query (no table scan)
   PERF-3 — reports.fetch_team uses aggregate query (no per-user N+1)
+  PERF-4 — leads_service.get_leads_pipeline batches property-interest lookup (no per-inquiry N+1)
 """
 
 import inspect
@@ -320,6 +321,43 @@ class TestReportsTeamNoN1:
 
         assert not visitor.violations, (
             f"fetch_team has db.query() inside for loop (N+1): {visitor.violations}"
+        )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PERF-4: leads_service.get_leads_pipeline batches property-interest lookup
+# ──────────────────────────────────────────────────────────────────────────────
+# get_leads_pipeline() used to build its property-interest map via
+#     {inq.id: get_property_interest(db, tenant_id, inq.id) for inq in inquiries}
+# -- a dict comprehension calling a single-inquiry function that issues its
+# own db.query() per call. It sat right next to the real _batch_* helpers
+# and was named prop_interest_map, so it read like a batch step but was
+# actually N individual queries. Direct timing against Ratha's real data
+# (683 inquiries) showed page_size=25 taking ~2s and page_size=1000 taking
+# ~36s, both wildly outside CLAUDE.md's <200ms budget for this endpoint.
+# Fixed via _batch_property_interest(), one query for all inquiry_ids.
+
+class TestLeadsPipelineNoN1:
+    def test_get_leads_pipeline_uses_batched_property_interest(self):
+        """get_leads_pipeline must call the batched helper, not loop-call the
+        single-inquiry get_property_interest per row."""
+        import app.services.leads_service as leads_service
+        source = inspect.getsource(leads_service.get_leads_pipeline)
+        assert "_batch_property_interest(" in source, (
+            "get_leads_pipeline must build its property-interest map via _batch_property_interest()"
+        )
+        assert "get_property_interest(" not in source, (
+            "get_leads_pipeline must not call the single-inquiry get_property_interest() per row (N+1)"
+        )
+
+    def test_batch_property_interest_issues_single_query(self):
+        """_batch_property_interest must fetch all inquiries' calls in one
+        query via .in_(inquiry_ids), not one query per inquiry."""
+        import app.services.leads_service as leads_service
+        source = inspect.getsource(leads_service._batch_property_interest)
+        assert ".in_(" in source
+        assert source.count("db.query(") == 1, (
+            "_batch_property_interest must issue exactly one db.query() call, not one per inquiry"
         )
 
 

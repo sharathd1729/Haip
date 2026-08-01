@@ -20,6 +20,8 @@ declare module "next-auth" {
     tenantId: string;
     accessToken?: string;
     refreshToken?: string;
+    /** "Keep me signed in" — defaults to true when omitted. */
+    remember?: boolean;
   }
 }
 
@@ -30,5 +32,9 @@ declare module "next-auth/jwt" {
     tenantId?: string;
     accessToken?: string;
     refreshToken?: string;
+    /** "Keep me signed in" — see auth.ts's jwt callback. */
+    remember?: boolean;
+    /** ms epoch hard cutoff for remember=false sessions; undefined when remembered. */
+    hardExpiry?: number;
   }
 }

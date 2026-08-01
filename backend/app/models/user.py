@@ -66,6 +66,9 @@ class RefreshToken(Base, TimestampMixin):
     tenant_id = Column(String, nullable=False, index=True)
     token_hash = Column(String(255), nullable=False, index=True)
     is_revoked = Column(Boolean, default=False, nullable=False)
+    # Grace-window reuse detection (migration 056) -- see auth.py's refresh_token().
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    replaced_by_token_hash = Column(String(255), nullable=True, index=True)
 
     user = relationship("User", back_populates="refresh_tokens")
 

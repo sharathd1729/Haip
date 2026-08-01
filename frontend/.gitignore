@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# C5 (perf/auth plan): generated per-build from sw.template.js + a build id
+# -- never hand-edit, never commit. See scripts/set-build-id.js.
+/public/sw.js
+/public/build-id.json

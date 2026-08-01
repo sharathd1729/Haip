@@ -1,46 +1,101 @@
 "use client";
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Target, RefreshCw, Settings2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
+import { useInfiniteQuery, useIsFetching, useQueryClient } from "@tanstack/react-query";
+import { Target, RefreshCw, Settings2, ChevronDown } from "lucide-react";
 import api from "@/lib/api";
 import { LeadCard, type LeadCard as LeadCardType } from "@/components/leads/LeadCard";
 import { SkeletonCard } from "@/components/ui/SkeletonCard";
 import { cn } from "@/lib/utils";
 import { usePipelineStages, type PipelineStageRow } from "@/hooks/usePipelineStages";
-import { PipelineSettingsModal } from "@/components/leads/PipelineSettingsModal";
 import { LeadsFilterBar, type LeadsFilters } from "@/components/leads/LeadsFilterBar";
 
+// B5: only needed once the user opens pipeline settings -- keep it out of
+// this route's initial chunk.
+const PipelineSettingsModal = dynamic(
+  () => import("@/components/leads/PipelineSettingsModal").then(m => m.PipelineSettingsModal),
+  { ssr: false }
+);
+
 const ALL_STAGES_ID = "__all__";
+const LEADS_PAGE_SIZE = 30;
+
+interface StageMetaEntry {
+  count: number;
+  potential_revenue: number;
+}
+
+interface LeadsApiPage {
+  total: number;
+  page: number;
+  page_size: number;
+  stages: Record<string, StageMetaEntry>;
+  leads: LeadCardType[];
+}
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
+// One bounded query PER stage column, not one big fetch for the whole board.
+// The Kanban needs every visible column populated at once (client-side
+// bucketing by stage_key doesn't work with a single flat page), which is why
+// this used to request page_size=1000 in a single call -- against Ratha's
+// real 683 inquiries that made the endpoint take >30s (see B8/leads_service's
+// N+1 fix). Fetching each column separately, bounded and independently
+// paginated, keeps every request small regardless of total pipeline size.
+//
+// The `stages` field in the response is a full count+revenue summary across
+// ALL stages (see leads_service._build_stage_summary), not just the one this
+// call filtered to -- so any one column's response carries everything the
+// header/badges need; no separate aggregate endpoint required.
 
-async function fetchLeads(stage: string | undefined, filters: LeadsFilters, page = 1) {
-  // The board is a single Kanban view bucketed client-side by stage, not an
-  // incremental-scroll list -- there's no "load more" affordance anywhere in
-  // this component. A page_size of 50 silently truncated the whole pipeline
-  // once total leads passed 50, burying entire stage columns (their count
-  // badge -- a separate unpaginated query -- still showed the true count,
-  // while the card list underneath rendered "No leads here"). Request enough
-  // to cover realistic tenant sizes in one shot.
-  const params: Record<string, string | number> = { page, page_size: 1000, ...filters };
-  if (stage && stage !== ALL_STAGES_ID) params.stage = stage;
+async function fetchStageLeads(stageKey: string, filters: LeadsFilters, page: number) {
+  const params: Record<string, string | number> = {
+    page, page_size: LEADS_PAGE_SIZE, stage: stageKey, ...filters,
+  };
   const res = await api.get("/leads", { params });
-  return res.data;
+  return res.data as LeadsApiPage;
+}
+
+function useStageLeads(stageKey: string, filters: LeadsFilters, onStagesMeta: (meta: Record<string, StageMetaEntry>) => void) {
+  const query = useInfiniteQuery({
+    queryKey: ["leads", "stage", stageKey, filters],
+    queryFn: ({ pageParam }) => fetchStageLeads(stageKey, filters, pageParam),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      const loaded = lastPage.page * lastPage.page_size;
+      return loaded < lastPage.total ? lastPage.page + 1 : undefined;
+    },
+    refetchInterval: 30_000,
+  });
+
+  const lastPage = query.data?.pages[query.data.pages.length - 1];
+
+  // Bubble the stage summary up to the parent (header total, badge counts on
+  // the other pills) in an effect, not during render -- calling a parent's
+  // setState directly from a child's render body trips React's "Cannot
+  // update a component while rendering a different component" warning.
+  useEffect(() => {
+    if (lastPage) onStagesMeta(lastPage.stages);
+  }, [lastPage, onStagesMeta]);
+
+  const leads = query.data?.pages.flatMap(p => p.leads) ?? [];
+  return { leads, ...query };
 }
 
 // ─── Stage column ─────────────────────────────────────────────────────────────
 
 function StageColumn({
   stage,
-  leads,
-  meta,
-  loading,
+  filters,
+  onStagesMeta,
 }: {
   stage: PipelineStageRow;
-  leads: LeadCardType[];
-  meta?: { count: number; potential_revenue: number };
-  loading: boolean;
+  filters: LeadsFilters;
+  onStagesMeta: (meta: Record<string, StageMetaEntry>) => void;
 }) {
+  const { leads, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage, data } =
+    useStageLeads(stage.key, filters, onStagesMeta);
+
+  const meta = data?.pages[0]?.stages[stage.key];
   const count = meta?.count ?? leads.length;
   const revenue = meta?.potential_revenue ?? 0;
 
@@ -91,7 +146,7 @@ function StageColumn({
         className="flex-1 overflow-y-auto px-0.5 pb-1 space-y-2 haip-scrollbar"
         style={{ maxHeight: "calc(100vh - 180px)" }}
       >
-        {loading ? (
+        {isLoading ? (
           <SkeletonCard />
         ) : leads.length === 0 ? (
           <div
@@ -101,9 +156,87 @@ function StageColumn({
             No leads here
           </div>
         ) : (
-          leads.map(lead => <LeadCard key={lead.inquiry_id} lead={lead} />)
+          <>
+            {leads.map(lead => <LeadCard key={lead.inquiry_id} lead={lead} />)}
+            {hasNextPage && (
+              <button
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+                className="w-full flex items-center justify-center gap-1 text-[10px] font-medium py-2 rounded-lg border transition-colors duration-150 disabled:opacity-50"
+                style={{ borderColor: "var(--haip-border)", color: "var(--haip-fg-subtle)" }}
+              >
+                <ChevronDown size={11} className={isFetchingNextPage ? "animate-spin" : ""} />
+                {isFetchingNextPage ? "Loading…" : `Load more (${count - leads.length} left)`}
+              </button>
+            )}
+          </>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Mobile stage section ──────────────────────────────────────────────────────
+
+function MobileStageSection({
+  stage,
+  filters,
+  onStagesMeta,
+}: {
+  stage: PipelineStageRow;
+  filters: LeadsFilters;
+  onStagesMeta: (meta: Record<string, StageMetaEntry>) => void;
+}) {
+  const { leads, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage, data } =
+    useStageLeads(stage.key, filters, onStagesMeta);
+
+  const meta = data?.pages[0]?.stages[stage.key];
+  const count = meta?.count ?? leads.length;
+  const revenue = meta?.potential_revenue ?? 0;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: stage.color }} />
+          <span className="text-sm font-semibold truncate" style={{ color: "var(--haip-fg)" }}>
+            {stage.label}
+          </span>
+          <span
+            className="rounded-full px-2 py-0.5 text-[10px] font-medium tabular-nums flex-shrink-0"
+            style={{ background: "var(--muted)", color: "var(--haip-fg-subtle)" }}
+          >
+            {count}
+          </span>
+        </div>
+        {revenue > 0 && (
+          <p className="text-[10px] flex-shrink-0" style={{ color: "var(--haip-fg-subtle)" }}>
+            ₹{Number(revenue).toLocaleString("en-IN")}
+          </p>
+        )}
+      </div>
+      {isLoading ? (
+        <SkeletonCard />
+      ) : leads.length === 0 ? (
+        <div className="flex items-center justify-center py-6 text-[11px] rounded-xl" style={{ background: "var(--muted)", color: "var(--haip-fg-subtle)" }}>
+          No leads here
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {leads.map(lead => <LeadCard key={lead.inquiry_id} lead={lead} />)}
+          {hasNextPage && (
+            <button
+              onClick={() => fetchNextPage()}
+              disabled={isFetchingNextPage}
+              className="w-full flex items-center justify-center gap-1 text-[11px] font-medium py-2.5 rounded-xl border transition-colors duration-150 disabled:opacity-50"
+              style={{ borderColor: "var(--haip-border)", color: "var(--haip-fg-subtle)" }}
+            >
+              <ChevronDown size={12} className={isFetchingNextPage ? "animate-spin" : ""} />
+              {isFetchingNextPage ? "Loading…" : `Load more (${count - leads.length} left)`}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -114,29 +247,41 @@ export default function Leads360Page() {
   const [stageFilter, setStageFilter] = useState(ALL_STAGES_ID);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [filters, setFilters] = useState<LeadsFilters>({});
+  const [stageMeta, setStageMeta] = useState<Record<string, StageMetaEntry>>({});
+  const queryClient = useQueryClient();
 
   const { data: pipelineStages = [] } = usePipelineStages();
-  const visibleStages = pipelineStages;
 
-  const { data, isLoading, refetch, isFetching } = useQuery({
-    queryKey: ["leads", stageFilter, filters],
-    queryFn: () => fetchLeads(stageFilter, filters),
-    refetchInterval: 30_000,
-  });
+  // A specific stage pill narrows which column(s) render (and therefore
+  // fetch) at all, on both desktop and mobile -- previously desktop always
+  // rendered every column regardless of the pill (only mobile narrowed),
+  // which meant picking a stage silently emptied every other desktop column
+  // instead of hiding them.
+  const columnsToRender = stageFilter === ALL_STAGES_ID
+    ? pipelineStages
+    : pipelineStages.filter(s => s.key === stageFilter);
 
-  const leads: LeadCardType[] = data?.leads ?? [];
-  const stageMeta: Record<string, { count: number; potential_revenue: number }> = data?.stages ?? {};
-  const total: number = data?.total ?? 0;
+  // Every column's response carries the same full per-stage summary
+  // (leads_service._build_stage_summary isn't scoped to the `stage` filter),
+  // so any one of them keeps this accurate -- merged rather than replaced
+  // since columns resolve at different times.
+  const handleStagesMeta = useCallback((meta: Record<string, StageMetaEntry>) => {
+    setStageMeta(prev => {
+      // Skip the update if nothing actually changed, to avoid a render loop
+      // (this runs on every render of every column while its query is warm).
+      const same = Object.keys(meta).every(k =>
+        prev[k]?.count === meta[k].count && prev[k]?.potential_revenue === meta[k].potential_revenue
+      ) && Object.keys(prev).length === Object.keys(meta).length;
+      return same ? prev : { ...prev, ...meta };
+    });
+  }, []);
 
-  // Group by the tenant's actual pipeline_stages.key -- inquiry_stage is the
-  // legacy enum value (kept only for the detail page's cosmetic display) and
-  // never matches a tenant-custom or new-taxonomy stage key.
-  const leadsByStage: Record<string, LeadCardType[]> = {};
-  for (const s of visibleStages) leadsByStage[s.key] = [];
-  for (const lead of leads) {
-    const key = lead.stage_key;
-    if (key && leadsByStage[key] !== undefined) leadsByStage[key].push(lead);
-  }
+  const total = stageFilter === ALL_STAGES_ID
+    ? Object.values(stageMeta).reduce((sum, m) => sum + m.count, 0)
+    : stageMeta[stageFilter]?.count ?? 0;
+
+  const isFetching = useIsFetching({ queryKey: ["leads"] }) > 0;
+  const refetchAll = () => queryClient.invalidateQueries({ queryKey: ["leads"] });
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -185,7 +330,7 @@ export default function Leads360Page() {
             >
               All
             </button>
-            {visibleStages.map(s => {
+            {pipelineStages.map(s => {
               const active = stageFilter === s.key;
               const cnt = stageMeta[s.key]?.count;
               return (
@@ -217,7 +362,7 @@ export default function Leads360Page() {
 
           {/* Refresh */}
           <button
-            onClick={() => refetch()}
+            onClick={refetchAll}
             className="w-7 h-7 flex items-center justify-center rounded-lg border transition-colors duration-150"
             style={{ borderColor: "var(--haip-border)", color: isFetching ? "var(--primary)" : "var(--haip-fg-subtle)" }}
             title="Refresh"
@@ -232,13 +377,12 @@ export default function Leads360Page() {
       {/* ── Kanban board (desktop) ──────────────────────────────────────── */}
       <div className="hidden md:block flex-1 overflow-x-auto overflow-y-hidden">
         <div className="flex gap-3 p-4 h-full" style={{ minWidth: "max-content" }}>
-          {visibleStages.map(stage => (
+          {columnsToRender.map(stage => (
             <StageColumn
               key={stage.key}
               stage={stage}
-              leads={leadsByStage[stage.key] ?? []}
-              meta={stageMeta[stage.key]}
-              loading={isLoading}
+              filters={filters}
+              onStagesMeta={handleStagesMeta}
             />
           ))}
         </div>
@@ -249,47 +393,14 @@ export default function Leads360Page() {
           above already let you narrow to one stage, so this just stacks
           whichever stage(s) are visible vertically instead. ─────────── */}
       <div className="md:hidden flex-1 overflow-y-auto haip-scrollbar px-3 py-3 space-y-4">
-        {(stageFilter === ALL_STAGES_ID ? visibleStages : visibleStages.filter(s => s.key === stageFilter))
-          .map(stage => {
-            const stageLeads = leadsByStage[stage.key] ?? [];
-            const meta = stageMeta[stage.key];
-            const count = meta?.count ?? stageLeads.length;
-            const revenue = meta?.potential_revenue ?? 0;
-            return (
-              <div key={stage.key}>
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: stage.color }} />
-                    <span className="text-sm font-semibold truncate" style={{ color: "var(--haip-fg)" }}>
-                      {stage.label}
-                    </span>
-                    <span
-                      className="rounded-full px-2 py-0.5 text-[10px] font-medium tabular-nums flex-shrink-0"
-                      style={{ background: "var(--muted)", color: "var(--haip-fg-subtle)" }}
-                    >
-                      {count}
-                    </span>
-                  </div>
-                  {revenue > 0 && (
-                    <p className="text-[10px] flex-shrink-0" style={{ color: "var(--haip-fg-subtle)" }}>
-                      ₹{Number(revenue).toLocaleString("en-IN")}
-                    </p>
-                  )}
-                </div>
-                {isLoading ? (
-                  <SkeletonCard />
-                ) : stageLeads.length === 0 ? (
-                  <div className="flex items-center justify-center py-6 text-[11px] rounded-xl" style={{ background: "var(--muted)", color: "var(--haip-fg-subtle)" }}>
-                    No leads here
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {stageLeads.map(lead => <LeadCard key={lead.inquiry_id} lead={lead} />)}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        {columnsToRender.map(stage => (
+          <MobileStageSection
+            key={stage.key}
+            stage={stage}
+            filters={filters}
+            onStagesMeta={handleStagesMeta}
+          />
+        ))}
       </div>
 
       {/* ── Pipeline settings modal ──────────────────────────────────────── */}

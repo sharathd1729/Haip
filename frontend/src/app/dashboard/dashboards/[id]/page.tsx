@@ -2,11 +2,23 @@
 
 import { useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const ReactGridLayout = require("react-grid-layout").default ?? require("react-grid-layout");
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
+
+// B5: react-grid-layout reads window/document to measure itself, and is
+// only needed on this one dashboard-builder route -- ssr:false + dynamic
+// import (replacing the previous require() workaround for the same
+// SSR-incompatibility) keeps it out of this route's synchronous bundle too.
+// Typed `as any`, matching the untyped `require()` this replaces -- the
+// library's own Layout type and this file's local one disagree on
+// readonly-ness, a pre-existing mismatch require() silently hid; not this
+// change's concern to fix.
+const ReactGridLayout = dynamic(
+  () => import("react-grid-layout").then(mod => mod.default),
+  { ssr: false, loading: () => <div className="flex items-center justify-center h-64"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div> }
+) as any;
 
 type Layout = { i: string; x: number; y: number; w: number; h: number };
 import api from "@/lib/api";

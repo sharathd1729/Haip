@@ -16,6 +16,7 @@
  */
 
 import { useState, useMemo, useCallback, memo } from "react";
+import dynamic from "next/dynamic";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -33,7 +34,12 @@ import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { MetricDrillDown } from "@/components/analytics/MetricDrillDown";
-import { LostReasonModal } from "@/components/analytics/LostReasonModal";
+// B5: only needed once the user drills into a "lost" metric -- keep it out
+// of this route's initial chunk.
+const LostReasonModal = dynamic(
+  () => import("@/components/analytics/LostReasonModal").then(m => m.LostReasonModal),
+  { ssr: false }
+);
 import { AIInsightsPanel } from "@/components/analytics/AIInsightsPanel";
 
 // â”€â”€â”€ Design tokens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

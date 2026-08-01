@@ -1,6 +1,13 @@
 "use client";
 
 import { useEffect } from "react";
+import { setWaitingWorker, useAppUpdateStore } from "@/store/appUpdate";
+
+// C2: how often to re-check for an update while the tab is open and idle.
+// Browsers already do their own occasional SW byte-diff check, but that can
+// go a long time on a backgrounded mobile tab -- this plus the
+// visibilitychange check are the belt-and-suspenders paths.
+const VERSION_POLL_INTERVAL_MS = 15 * 60 * 1000;
 
 // Convert VAPID public key (base64url) to Uint8Array for pushManager.subscribe
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -54,10 +61,13 @@ export function PWARegister() {
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
 
-    // A new service worker calling skipWaiting()/clients.claim() (see
-    // sw.js) fires this once it takes control -- reload so the page picks
-    // up the new app shell instead of staying on stale in-memory JS.
-    // Guarded so it only ever fires once per page load, not a reload loop.
+    const { setUpdateAvailable } = useAppUpdateStore.getState();
+
+    // Once the user clicks "Update now" (or, on the fallback path, once a
+    // build-id.json mismatch triggers a plain reload directly) this fires
+    // as the new worker actually takes over -- reload so the page picks up
+    // the new app shell instead of staying on stale in-memory JS. Guarded
+    // so it only ever fires once per page load, not a reload loop.
     let reloadedForUpdate = false;
     navigator.serviceWorker.addEventListener("controllerchange", () => {
       if (reloadedForUpdate) return;
@@ -65,12 +75,34 @@ export function PWARegister() {
       window.location.reload();
     });
 
+    // C2: a worker sitting in "installed" while something is already
+    // controlling this page is a genuine update (as opposed to this being
+    // the very first SW install for a brand-new visitor, where there's
+    // nothing to update away from and no banner should show).
+    function trackForUpdate(worker: ServiceWorker | null) {
+      if (!worker) return;
+      worker.addEventListener("statechange", () => {
+        if (worker.state === "installed" && navigator.serviceWorker.controller) {
+          setWaitingWorker(worker);
+          setUpdateAvailable(true);
+        }
+      });
+    }
+
     navigator.serviceWorker
       .register("/sw.js", { scope: "/" })
       .then(async (reg) => {
         if (process.env.NODE_ENV === "development") {
           console.log("[HAIP SW] registered, scope:", reg.scope);
         }
+
+        // A worker may already be sitting in "waiting" if it finished
+        // installing while this tab was backgrounded/inactive.
+        if (reg.waiting && navigator.serviceWorker.controller) {
+          setWaitingWorker(reg.waiting);
+          setUpdateAvailable(true);
+        }
+        reg.addEventListener("updatefound", () => trackForUpdate(reg.installing));
 
         // Browsers only check for a new sw.js occasionally on their own
         // (and can go a long time on mobile with backgrounded tabs) --
@@ -94,6 +126,40 @@ export function PWARegister() {
           console.warn("[HAIP SW] registration failed:", err);
         }
       });
+
+    // C2 (defense in depth): poll build-id.json directly, for deploys the
+    // SW's own updatefound path might miss (e.g. SW registration disabled
+    // by browser settings/extensions). Baseline is whatever version this
+    // page load itself was served with; a poll that returns something
+    // different means a newer deploy exists.
+    let baselineVersion: string | null = null;
+    async function pollVersion() {
+      try {
+        const res = await fetch("/build-id.json", { cache: "no-store" });
+        if (!res.ok) return;
+        const { version } = await res.json();
+        if (baselineVersion === null) {
+          baselineVersion = version;
+          return;
+        }
+        if (version !== baselineVersion) {
+          // No SW "waiting" worker exists for this path -- applyUpdate()
+          // falls back to a plain reload when setWaitingWorker was never
+          // called for this update.
+          setUpdateAvailable(true);
+        }
+      } catch {
+        // Offline or endpoint unreachable -- not worth surfacing, the SW
+        // updatefound path is the primary detection mechanism anyway.
+      }
+    }
+    pollVersion();
+    const versionInterval = setInterval(pollVersion, VERSION_POLL_INTERVAL_MS);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") pollVersion();
+    });
+
+    return () => clearInterval(versionInterval);
   }, []);
 
   return null;

@@ -20,12 +20,37 @@ _IDEMPOTENCY_KEY_MAX_LEN = 64
 _IDEMPOTENCY_WINDOW_HOURS = 24
 
 
+def _validate_iso_cursor(value: str, param_name: str) -> None:
+    """Validate a `before` pagination cursor is a real ISO timestamp. 422s on
+    a malformed cursor rather than silently returning an unfiltered (or
+    empty) page. Validation only -- callers compare the raw string, not a
+    parsed datetime, wherever the target column is itself string-typed
+    (Conversation.last_message_at) rather than DateTime."""
+    try:
+        datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        raise HTTPException(status_code=422, detail=f"Invalid `{param_name}` timestamp")
+
+
+def _parse_cursor(value: str, param_name: str) -> datetime:
+    """Same validation as _validate_iso_cursor, returning the parsed
+    datetime -- for comparing against genuine DateTime columns
+    (Message.created_at), unlike Conversation.last_message_at which is
+    string-typed and must be compared as a string (see that column's
+    definition)."""
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        raise HTTPException(status_code=422, detail=f"Invalid `{param_name}` timestamp")
+
+
 @router.get("", response_model=List[ConversationOut])
 def list_conversations(
     channel: str = None,
     is_open: bool = None,
     sort: str = Query(default="smart", pattern="^(smart|recent|unread)$"),
     limit: int = Query(default=50, le=200),
+    before: str | None = Query(None, description="ISO timestamp cursor (last_message_at) -- return conversations older than this, for 'load more'"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -36,6 +61,13 @@ def list_conversations(
         q = q.filter_by(channel=channel)
     if is_open is not None:
         q = q.filter_by(is_open=is_open)
+    if before:
+        # last_message_at is a String column (not DateTime) -- compare the
+        # raw ISO string. Same-format ISO-8601 sorts lexicographically
+        # identically to chronological order, same reasoning leads_service
+        # already relies on for its string-typed date filters.
+        _validate_iso_cursor(before, "before")
+        q = q.filter(Conversation.last_message_at < before)
 
     if sort in ("unread", "smart"):
         # unread_count column not yet in schema — sort by recency until tracking is added
@@ -95,22 +127,80 @@ def list_conversations(
     return result
 
 
-@router.get("/{conversation_id}/messages", response_model=List[MessageOut])
+def _iso(val) -> "str | None":
+    if val is None:
+        return None
+    if isinstance(val, str):
+        return val
+    return val.isoformat()
+
+
+def _resolve_media_url(m: Message) -> "str | None":
+    """WhatsApp media (T1.2) is stored as an object-storage key, not a
+    URL -- Meta's own download links are short-lived and can't be
+    persisted directly. Presign on read. Instagram's media_url is
+    already a direct (long-lived) Meta CDN link, stored as-is -- pass
+    through unchanged."""
+    if not m.media_url:
+        return None
+    if m.media_url.startswith("http://") or m.media_url.startswith("https://"):
+        return m.media_url
+    from app.services.media_storage import get_presigned_media_url
+    return get_presigned_media_url(m.media_url)
+
+
+def _msg_dict(m: Message) -> dict:
+    body = m.body or ""
+    return {
+        "id": m.id,
+        "text": body,
+        "direction": m.direction.value if hasattr(m.direction, "value") else str(m.direction),
+        "channel": m.channel.value if hasattr(m.channel, "value") else str(m.channel),
+        "status": m.delivery_state.value if m.delivery_state and hasattr(m.delivery_state, "value") else str(m.delivery_state or ""),
+        "delivery_state": m.delivery_state.value if m.delivery_state and hasattr(m.delivery_state, "value") else None,
+        "delivery_error": m.delivery_error,
+        "timestamp": _iso(m.created_at) or "",
+        "sender_name": m.sender_name,
+        "ai_drafted": m.is_ai_generated,
+        "ai_confidence": m.ai_confidence,
+        "is_internal": m.is_internal,
+        "replied_to_message_id": m.replied_to_message_id,
+        "media_url": _resolve_media_url(m),   # T0.5 / T1.2
+        "media_type": m.media_type,
+        "shared_post_url": (m.channel_metadata or {}).get("shared_post_url"),
+    }
+
+
+@router.get("/{conversation_id}/messages")
 def get_messages(
     conversation_id: str,
+    before: str | None = Query(None, description="ISO timestamp cursor -- return messages older than this, for 'load older'"),
     limit: int = Query(default=50, le=200),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Cursor-paginated "load older messages". get_conversation_detail's
+    initial payload only carries the most recent `limit` messages -- this is
+    how the thread reaches further back in history on scroll-up.
+
+    Returns {messages, has_more} rather than a bare list (unlike
+    list_conversations) since this endpoint was previously unused by the
+    frontend -- no existing bare-array contract to preserve."""
     conv = db.query(Conversation).filter_by(id=conversation_id, tenant_id=current_user.tenant_id).first()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    return (
-        db.query(Message)
-        .filter_by(conversation_id=conversation_id, tenant_id=current_user.tenant_id)
-        .order_by(Message.created_at.asc())
-        .limit(limit).all()
-    )
+
+    q = db.query(Message).filter_by(conversation_id=conversation_id, tenant_id=current_user.tenant_id)
+    if before:
+        q = q.filter(Message.created_at < _parse_cursor(before, "before"))
+
+    messages = q.order_by(Message.created_at.desc()).limit(limit).all()
+    messages.reverse()  # chronological order for display
+
+    return {
+        "messages": [_msg_dict(m) for m in messages],
+        "has_more": len(messages) == limit,
+    }
 
 
 @router.post("/{conversation_id}/messages", response_model=MessageOut, status_code=201)
@@ -433,13 +523,22 @@ def get_conversation_detail(
 
     guest = db.query(Guest).filter_by(id=conv.guest_id).first()
 
+    # Most recent messages first (chat UIs open at the bottom of history, not
+    # the top) -- fetch newest N then reverse for chronological display.
+    # Used to be .order_by(asc).limit(200), which for any thread with more
+    # than 200 messages silently showed the OLDEST 200 instead of the most
+    # recent ones -- the opposite of what every chat UI should default to.
+    # Older history now reachable via GET /{id}/messages?before=... .
+    _MESSAGES_INITIAL_LIMIT = 50
+    total_messages = db.query(Message).filter_by(conversation_id=conversation_id).count()
     messages = (
         db.query(Message)
         .filter_by(conversation_id=conversation_id)
-        .order_by(Message.created_at.asc())
-        .limit(200)
+        .order_by(Message.created_at.desc())
+        .limit(_MESSAGES_INITIAL_LIMIT)
         .all()
     )
+    messages.reverse()
 
     # D9: compute last_inbound_at — most recent inbound message timestamp
     last_inbound: "Message | None" = (
@@ -448,49 +547,7 @@ def get_conversation_detail(
         .order_by(Message.created_at.desc())
         .first()
     )
-
-    def _iso(val) -> "str | None":
-        if val is None:
-            return None
-        if isinstance(val, str):
-            return val
-        return val.isoformat()
-
     last_inbound_at = _iso(last_inbound.created_at) if last_inbound else None
-
-    def _resolve_media_url(m: Message) -> str | None:
-        """WhatsApp media (T1.2) is stored as an object-storage key, not a
-        URL -- Meta's own download links are short-lived and can't be
-        persisted directly. Presign on read. Instagram's media_url is
-        already a direct (long-lived) Meta CDN link, stored as-is -- pass
-        through unchanged."""
-        if not m.media_url:
-            return None
-        if m.media_url.startswith("http://") or m.media_url.startswith("https://"):
-            return m.media_url
-        from app.services.media_storage import get_presigned_media_url
-        return get_presigned_media_url(m.media_url)
-
-    def _msg_dict(m: Message) -> dict:
-        body = m.body or ""
-        return {
-            "id": m.id,
-            "text": body,
-            "direction": m.direction.value if hasattr(m.direction, "value") else str(m.direction),
-            "channel": m.channel.value if hasattr(m.channel, "value") else str(m.channel),
-            "status": m.delivery_state.value if m.delivery_state and hasattr(m.delivery_state, "value") else str(m.delivery_state or ""),
-            "delivery_state": m.delivery_state.value if m.delivery_state and hasattr(m.delivery_state, "value") else None,
-            "delivery_error": m.delivery_error,
-            "timestamp": _iso(m.created_at) or "",
-            "sender_name": m.sender_name,
-            "ai_drafted": m.is_ai_generated,
-            "ai_confidence": m.ai_confidence,
-            "is_internal": m.is_internal,
-            "replied_to_message_id": m.replied_to_message_id,
-            "media_url": _resolve_media_url(m),   # T0.5 / T1.2
-            "media_type": m.media_type,
-            "shared_post_url": (m.channel_metadata or {}).get("shared_post_url"),
-        }
 
     channel_val = conv.channel.value if hasattr(conv.channel, "value") else str(conv.channel)
     status = "open" if conv.is_open else "resolved"
@@ -503,6 +560,8 @@ def get_conversation_detail(
         "status": status,
         "last_inbound_at": last_inbound_at,
         "messages": [_msg_dict(m) for m in messages],
+        "total_messages": total_messages,
+        "messages_capped": total_messages > len(messages),
     }
 
 

@@ -72,12 +72,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // WhatsApp OTP verification).
         preAuthAccessToken: { label: "", type: "text" },
         preAuthRefreshToken: { label: "", type: "text" },
+        // "Keep me signed in" — "0"/"1" string (Credentials fields are always
+        // strings). Missing/anything-but-"0" defaults to remembered, matching
+        // the login page's checkbox defaulting to checked.
+        remember: { label: "", type: "text" },
       },
       async authorize(credentials) {
         const email = credentials?.email as string;
         const password = credentials?.password as string;
         const preAuthAccessToken = credentials?.preAuthAccessToken as string | undefined;
         const preAuthRefreshToken = credentials?.preAuthRefreshToken as string | undefined;
+        const remember = credentials?.remember !== "0";
         const apiBase = process.env.BACKEND_URL
           ?? process.env.NEXT_PUBLIC_API_URL
           ?? "http://localhost:8000";
@@ -86,6 +91,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // completing an MFA challenge or WhatsApp OTP verification directly
         // against the backend. Trust them, just build the session from /me.
         if (preAuthAccessToken) {
+          // A real backend-issued access token with no refresh token is a
+          // session that can never refresh — it dies silently at 15 minutes
+          // (the jwt callback can't refresh without a refresh token, and
+          // will just keep returning the same expired access token forever
+          // since it can't tell this apart from the intentional demo-bypass
+          // case). Reject the sign-in here instead of minting it, so the
+          // failure is visible at login time, not as a mysterious logout
+          // 15 minutes later. This should never happen for the three real
+          // pre-auth flows (password, MFA, WhatsApp OTP) — all three backend
+          // endpoints they call always return a refresh_token — so reaching
+          // this is a signal of response-schema drift, not a normal case.
+          if (!preAuthRefreshToken) {
+            console.error("[AUTH] pre-auth sign-in missing refresh token — rejecting to avoid an unrefreshable session");
+            return null;
+          }
           try {
             const meRes = await fetch(`${apiBase}/api/v1/auth/me`, {
               headers: { Authorization: `Bearer ${preAuthAccessToken}` },
@@ -96,8 +116,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               id: me.id, name: me.full_name ?? me.name, email: me.email,
               role: me.role, tenantId: me.tenant_id ?? "haip-villa",
               accessToken: preAuthAccessToken,
-              refreshToken: preAuthRefreshToken ?? "",
+              refreshToken: preAuthRefreshToken,
               accessTokenExpires: getTokenExpiry(preAuthAccessToken),
+              remember,
             };
           } catch (e) {
             console.error("[AUTH] pre-auth token session build failed:", e);
@@ -140,6 +161,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                   accessToken,
                 refreshToken: data.refresh_token ?? "",
                 accessTokenExpires: getTokenExpiry(accessToken),
+                remember,
               };
             } else {
               const errText = await meRes.text().catch(() => "");
@@ -167,11 +189,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           };
           if (password === "haip2026" && DEMO_USERS[email]) {
             const u = DEMO_USERS[email];
-            return { id: `demo-${email}`, name: u.name, email, role: u.role, tenantId: "haip-villa", accessToken: "demo", refreshToken: "" };
+            return { id: `demo-${email}`, name: u.name, email, role: u.role, tenantId: "haip-villa", accessToken: "demo", refreshToken: "", remember };
           }
           // Owner fallback — real password, survives DB wipes
           if (email === "dasupatrunisharatchandra@gmail.com" && password === "Raina@1729") {
-            return { id: "sharath-owner", name: "Sharath D.", email, role: "owner", tenantId: "haip-villa", accessToken: "owner-bypass", refreshToken: "" };
+            return { id: "sharath-owner", name: "Sharath D.", email, role: "owner", tenantId: "haip-villa", accessToken: "owner-bypass", refreshToken: "", remember };
           }
         }
         return null;
@@ -197,7 +219,37 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.refreshToken = (user as any).refreshToken ?? "";
         token.accessTokenExpires = (user as any).accessTokenExpires ?? 0;
         token.error = undefined;
+
+        // "Keep me signed in" — default true (matches the login checkbox's
+        // default-checked state). When false, the session gets a 12h hard
+        // cutoff enforced below, independent of the access token's own
+        // 15min expiry/refresh cycle. Deliberately NOT implemented as a
+        // shorter cookie maxAge: the cookie's maxAge is a single top-level
+        // NextAuth config value, not something that can vary per sign-in —
+        // enforcing the cutoff inside the token itself is what lets the
+        // same 30-day cookie hold either a remembered or a non-remembered
+        // session.
+        token.remember = (user as any).remember !== false;
+        token.hardExpiry = token.remember ? undefined : Date.now() + 12 * 60 * 60 * 1000;
+
+        // A real (non-demo/bypass) access token with no refresh token is a
+        // session that can never refresh: it'll just keep returning the
+        // same, increasingly-stale access token forever instead of either
+        // refreshing or failing loudly. The authorize() pre-auth branch
+        // already rejects this at sign-in time — this is a defense-in-depth
+        // net for any other path (present or future) that might mint one.
+        const at = token.accessToken as string ?? "";
+        if (at && at !== "demo" && at !== "owner-bypass" && !token.refreshToken) {
+          console.error("[AUTH] session_without_refresh_token", { userId: token.id });
+        }
         return token;
+      }
+
+      // Not-remembered session past its 12h hard cutoff — stop here
+      // regardless of token type (demo/bypass tokens never hit the refresh
+      // logic below at all, so this has to be checked before that skip).
+      if (token.hardExpiry && Date.now() > (token.hardExpiry as number)) {
+        return { ...token, error: "SessionExpired" };
       }
 
       // Skip refresh for demo/bypass tokens — they don't have a real refresh_token
@@ -238,6 +290,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   pages: {
     signIn: "/login",
   },
-  session: { strategy: "jwt" },
+  // 30 days — the outer bound for a "keep me signed in" session's cookie.
+  // Deliberately a single fixed value, not varied per sign-in: a
+  // non-remembered session is cut short by the in-token hardExpiry check
+  // in the jwt callback (12h), not by a shorter cookie maxAge.
+  session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
   trustHost: true,
 });

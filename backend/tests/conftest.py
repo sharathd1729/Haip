@@ -90,4 +90,18 @@ def tenant_and_user(db):
     access_token = create_access_token(payload)
     refresh_token = create_refresh_token(payload)
 
+    # Persist the RefreshToken DB row -- /auth/refresh and /auth/logout look
+    # tokens up by hash in the DB, not just by decoding the JWT. Without this
+    # row, every refresh/logout test 401s with "not found" regardless of the
+    # endpoint's actual logic (this was previously missing, silently making
+    # test_refresh_token and test_logout vacuous).
+    from app.models.user import RefreshToken
+    db.add(RefreshToken(
+        id=str(uuid.uuid4()),
+        user_id=user.id,
+        tenant_id=tenant.id,
+        token_hash=hashlib.sha256(refresh_token.encode()).hexdigest(),
+    ))
+    db.commit()
+
     return {"tenant": tenant, "user": user, "access_token": access_token, "refresh_token": refresh_token}

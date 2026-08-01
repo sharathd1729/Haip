@@ -1,5 +1,6 @@
 "use client";
 
+import { clearTokenCache } from "@/lib/api";
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -257,7 +258,7 @@ export function MobileNav({ user }: MobileNavProps) {
                 </div>
               </div>
               <button
-                onClick={() => signOut({ callbackUrl: "/login" })}
+                onClick={() => { clearTokenCache(); signOut({ callbackUrl: "/login" }); }}
                 className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/8 rounded-xl transition-colors"
               >
                 <LogOut size={15} />

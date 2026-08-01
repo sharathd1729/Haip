@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import {
@@ -10,7 +11,12 @@ import {
 import { cn } from "@/lib/utils";
 import { EmptyCalls } from "@/components/empty-states/EmptyCalls";
 import { Skeleton } from "@/components/ui/skeleton";
-import { UploadModal } from "@/components/calls/UploadModal";
+// B5: only needed once the user opens the upload dialog -- keep it out of
+// this route's initial chunk.
+const UploadModal = dynamic(
+  () => import("@/components/calls/UploadModal").then(m => m.UploadModal),
+  { ssr: false }
+);
 import { useCallsStore } from "@/store/calls";
 import { useToast } from "@/components/ui/toast";
 
