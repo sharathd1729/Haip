@@ -1,11 +1,11 @@
-// HAIP Service Worker v5
+// HAIP Service Worker v6
 // Bump these on every deploy that changes shipped CSS/JS. The activate
 // handler below deletes any cache whose name doesn't match, so bumping is
 // what actually evicts stale bundles from clients that already installed
 // the SW. Without a bump, returning users keep being served the previous
 // build's /_next/static chunks and never see the new UI.
-const CACHE_NAME = 'haip-shell-v5';
-const STATIC_CACHE_NAME = 'haip-static-v5';
+const CACHE_NAME = 'haip-shell-v6';
+const STATIC_CACHE_NAME = 'haip-static-v6';
 
 // App shell assets to cache on install — everything a cold offline load needs
 // besides the hashed /_next/static bundles (those get cached as they're
