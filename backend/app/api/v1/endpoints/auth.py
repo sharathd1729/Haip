@@ -127,6 +127,9 @@ async def register(req: RegisterRequest, db: Session = Depends(get_db)):
     from app.services.pipeline_stage_service import seed_default_pipeline_stages
     seed_default_pipeline_stages(db, tenant.id)
 
+    from app.services.authz_service import seed_default_capabilities
+    seed_default_capabilities(db, tenant.id)
+
     from app.models.user import UserRole
     user = User(
         id=str(uuid.uuid4()),

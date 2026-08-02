@@ -7,6 +7,7 @@ from app.api.v1.endpoints import (
     webhooks_dograh, webhooks_vobiz,
     voice_settings,
     mcp_tokens,
+    capabilities,
     grievance, incidents, health, changelog, sample_data, admin_dlq,
     calculator, calendar, bookings,
     leads,
@@ -102,4 +103,5 @@ api_router.include_router(webhooks_instagram.router)
 api_router.include_router(webhooks_dograh.router)
 api_router.include_router(webhooks_vobiz.router)
 api_router.include_router(mcp_tokens.router)
+api_router.include_router(capabilities.router)
 api_router.include_router(voice_settings.router)

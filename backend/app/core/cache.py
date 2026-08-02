@@ -78,16 +78,37 @@ def set_cached(key: str, value: Any, ttl: int = 300) -> None:
         log.debug("Cache SET failed for %s: %s", key, exc)
 
 
+def idem_check_and_set(key: str, ttl: int = 86400) -> bool:
+    """Atomic idempotency check for MCP write tools (HAIP_MCP_Connector_Plan.md
+    ticket 3.6). Returns True the first time a key is seen (caller should
+    proceed), False if it's been seen before within `ttl` seconds (caller
+    should treat the call as a duplicate and skip re-executing the write).
+    Fails open -- returns True (proceed) -- if Redis is unavailable, same
+    as this module's other non-critical-path Redis usage; a missed dedup
+    on a Redis blip is preferable to blocking every write tool call."""
+    r = _client()
+    if r is None:
+        return True
+    try:
+        return bool(r.set(key, "1", nx=True, ex=ttl))
+    except Exception as exc:
+        log.debug("Idempotency check failed for %s: %s", key, exc)
+        return True
+
+
 def invalidate_tenant(tenant_id: str) -> None:
-    """Delete all analytics cache keys for a tenant (call on data-changing events)."""
+    """Delete all analytics + capability cache keys for a tenant (call on
+    data-changing events). Capability keys included so authz_service edits
+    (role_capabilities matrix changes) have one invalidation path to call,
+    not a parallel one -- see HAIP_MCP_Connector_Plan.md ticket 1.4."""
     r = _client()
     if r is None:
         return
     try:
-        pattern = f"haip:analytics:*:{tenant_id}:*"
-        keys = list(r.scan_iter(pattern, count=100))
-        if keys:
-            r.delete(*keys)
+        for pattern in (f"haip:analytics:*:{tenant_id}:*", f"cap:{tenant_id}:*"):
+            keys = list(r.scan_iter(pattern, count=100))
+            if keys:
+                r.delete(*keys)
     except Exception as exc:
         log.debug("Cache invalidation failed for tenant %s: %s", tenant_id, exc)
 

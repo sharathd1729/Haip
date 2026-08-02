@@ -5,6 +5,10 @@ from pydantic import BaseModel
 
 class PersonalAccessTokenCreate(BaseModel):
     name: str
+    # 0.5: caller may request a shorter expiry than the 90-day default
+    # (token_service.generate_token); validated against a sane max in the
+    # endpoint, not here -- this schema just carries the value through.
+    expires_at: Optional[datetime] = None
 
 
 class PersonalAccessTokenCreated(BaseModel):
@@ -14,6 +18,7 @@ class PersonalAccessTokenCreated(BaseModel):
     name: str
     token: str
     scopes: list[str]
+    expires_at: Optional[datetime] = None
     created_at: datetime
 
 

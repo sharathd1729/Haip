@@ -9,7 +9,24 @@ from unittest.mock import patch
 
 from tests.conftest import *  # noqa: F401,F403
 
-from app.services import token_service
+from app.models.capability import Capability
+from app.services import authz_service, token_service
+
+_TOOL_CAPS = [
+    ("leads.read", "Leads read", "leads", False, "low"),
+    ("leads.write", "Leads write", "leads", True, "medium"),
+]
+
+
+def _seed_capabilities(db, tenant_id):
+    """Phase 2 (HAIP_MCP_Connector_Plan.md) put a capability gate on every
+    tools/call -- this pre-Phase-2 test file needs a provisioned matrix or
+    every real tool call 403s before reaching the behavior under test."""
+    if db.query(Capability.key).first() is None:
+        for key, label, category, is_write, risk in _TOOL_CAPS:
+            db.add(Capability(key=key, label=label, category=category, is_write=is_write, risk=risk))
+        db.commit()
+    authz_service.seed_default_capabilities(db, tenant_id)
 
 
 class _NoCloseSessionWrapper:
@@ -72,6 +89,7 @@ def test_tools_list_rejects_revoked_token(client, db, tenant_and_user):
 def test_tools_list_returns_read_and_write_tools(client, db, tenant_and_user):
     tenant = tenant_and_user["tenant"]
     user = tenant_and_user["user"]
+    _seed_capabilities(db, tenant.id)
     raw_token, _ = token_service.generate_token(db, tenant.id, user.id, "Perisclaw")
 
     with patch("app.mcp.server.SessionLocal", return_value=_NoCloseSessionWrapper(db)):
@@ -110,6 +128,7 @@ def test_read_tool_list_leads(client, db, tenant_and_user):
     tenant = tenant_and_user["tenant"]
     user = tenant_and_user["user"]
     _create_lead(db, tenant.id)
+    _seed_capabilities(db, tenant.id)
     raw_token, _ = token_service.generate_token(db, tenant.id, user.id, "Perisclaw")
 
     with patch("app.mcp.server.SessionLocal", return_value=_NoCloseSessionWrapper(db)):
@@ -123,12 +142,16 @@ def test_write_tool_add_note(client, db, tenant_and_user):
     tenant = tenant_and_user["tenant"]
     user = tenant_and_user["user"]
     inquiry_id = _create_lead(db, tenant.id)
+    _seed_capabilities(db, tenant.id)
     raw_token, _ = token_service.generate_token(db, tenant.id, user.id, "Perisclaw")
 
     with patch("app.mcp.server.SessionLocal", return_value=_NoCloseSessionWrapper(db)):
         resp = _rpc(
             client, "tools/call",
-            {"name": "add_note", "arguments": {"inquiry_id": inquiry_id, "note": "Called back, follow up Monday"}},
+            {"name": "add_note", "arguments": {
+                "inquiry_id": inquiry_id, "note": "Called back, follow up Monday",
+                "confirm": True, "idempotency_key": "test-add-note-1",
+            }},
             token=raw_token,
         )
     result = resp.json()["result"]
@@ -148,6 +171,7 @@ def test_tenant_isolation_lead_detail_not_visible_across_tenants(client, db, ten
     db.flush()
     db.commit()
     inquiry_b_id = _create_lead(db, tenant_b.id)
+    _seed_capabilities(db, tenant_a.id)
 
     raw_token_a, _ = token_service.generate_token(db, tenant_a.id, user_a.id, "Perisclaw")
 

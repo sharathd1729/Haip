@@ -3,14 +3,21 @@ access, e.g. Perisclaw). Modeled on RefreshToken's hash-only storage --
 see auth.py's token_hash usage for the same hashing convention."""
 import hashlib
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy.orm import Session
 
+from app.models.capability import Capability
 from app.models.mcp_token import PersonalAccessToken
 
 _TOKEN_PREFIX = "haip_pat_"
+
+# 0.5: generate_token never set expires_at before this -- every PAT was
+# immortal. 90 days matches nothing in particular except "long enough to not
+# be annoying, short enough that a token nobody's rotated in three months
+# is worth re-issuing" -- revisit if that tradeoff is wrong in practice.
+_DEFAULT_TOKEN_LIFETIME = timedelta(days=90)
 
 
 def _hash(raw_token: str) -> str:
@@ -23,9 +30,14 @@ def generate_token(
     user_id: str,
     name: str,
     scopes: Optional[list[str]] = None,
+    expires_at: Optional[datetime] = None,
 ) -> tuple[str, PersonalAccessToken]:
     """Creates a new PAT. Returns (raw_token, record) -- raw_token is never
-    persisted and must be shown to the caller exactly once."""
+    persisted and must be shown to the caller exactly once.
+
+    expires_at defaults to _DEFAULT_TOKEN_LIFETIME from now if not given --
+    pass it explicitly only when the caller wants a specific expiry
+    (validated against a sane max in the endpoint layer, not here)."""
     raw_token = _TOKEN_PREFIX + secrets.token_urlsafe(32)
     record = PersonalAccessToken(
         tenant_id=tenant_id,
@@ -33,6 +45,7 @@ def generate_token(
         name=name,
         token_hash=_hash(raw_token),
         scopes=scopes or ["read", "write"],
+        expires_at=expires_at or (datetime.now(timezone.utc) + _DEFAULT_TOKEN_LIFETIME),
     )
     db.add(record)
     db.commit()
@@ -60,9 +73,50 @@ def verify_token(db: Session, raw_token: str) -> Optional[PersonalAccessToken]:
         if expires_at < datetime.now(timezone.utc):
             return None
 
-    record.last_used_at = datetime.now(timezone.utc)
-    db.commit()
+    # 0.4: this runs on every JSON-RPC call (initialize, tools/list, and each
+    # tools/call), and an MCP client can fire several of those per user
+    # action -- committing every time was a real write on every request.
+    # last_used_at only needs to be accurate to "roughly how recently", so
+    # skip the write (and the commit) if it was already updated within the
+    # last minute.
+    now = datetime.now(timezone.utc)
+    last_used = record.last_used_at
+    if last_used is not None and last_used.tzinfo is None:
+        last_used = last_used.replace(tzinfo=timezone.utc)
+    if last_used is None or (now - last_used).total_seconds() > 60:
+        record.last_used_at = now
+        db.commit()
     return record
+
+
+def expand_scopes(db: Session, scopes: list[str]) -> set[str]:
+    """D2 fix: PersonalAccessToken.scopes was written at issuance time but
+    never read anywhere -- every PAT was effectively full access regardless
+    of what it said. Expands the legacy scope values into real capability
+    keys so callers (server.py) can intersect against the role's granted
+    capabilities: token narrows, never widens.
+
+    Legacy tokens store scopes=["read","write"] (generate_token's default).
+    "write" means every capability; "read" means every non-write capability.
+    A scope value that already matches a real capability key (future
+    tokens minted with fine-grained scopes) passes through as-is."""
+    if not scopes:
+        return set()
+
+    all_caps = db.query(Capability.key, Capability.is_write).all()
+    if not all_caps:
+        return set()
+
+    expanded: set[str] = set()
+    known_keys = {k for k, _ in all_caps}
+    for scope in scopes:
+        if scope == "write":
+            expanded |= known_keys
+        elif scope == "read":
+            expanded |= {k for k, is_write in all_caps if not is_write}
+        elif scope in known_keys:
+            expanded.add(scope)
+    return expanded
 
 
 def list_tokens(db: Session, tenant_id: str, user_id: str) -> list[PersonalAccessToken]:

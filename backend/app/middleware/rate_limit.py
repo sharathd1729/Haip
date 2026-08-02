@@ -7,11 +7,13 @@ Default limits:
   Authenticated routes:   600 req/min per tenant
   Unauthenticated routes:  60 req/min per IP
   Send endpoints:          30 req/min per tenant
+  MCP endpoint:           120 req/min per PAT (fail-open on Redis outage)
 
 Implementation: Redis sliding-window counter (INCR + EXPIRE).
 Returns 429 with Retry-After header when limit exceeded.
 """
 
+import hashlib
 import time
 import json
 from typing import Optional, Tuple
@@ -30,6 +32,12 @@ _DEFAULT_IP     : Tuple[int, int] = (60, 60)    # 60/min per IP (unauth)
 _STRICT_AUTH    : Tuple[int, int] = (10, 60)    # 10/min per IP — login/register
 _SEND_LIMIT     : Tuple[int, int] = (30, 60)    # 30/min per tenant — send endpoints
 _WEBHOOK_LIMIT  : Tuple[int, int] = (300, 60)   # 300/min per IP — webhook endpoints
+# D5: a leaked PAT had no throttle of its own -- it just fell through to the
+# generic 60/min-per-IP unauthenticated tier (MCP requests never populate
+# request.state.tenant_id, since that's set from a JWT, not a PAT). Keyed on
+# the token itself, not IP, since one office NATs to one IP and would
+# otherwise throttle every legitimate user there together.
+_MCP_LIMIT      : Tuple[int, int] = (120, 60)   # 120/min per PAT
 
 # Routes with tighter per-IP limits (fail-CLOSED: Redis outage blocks these)
 _STRICT_PREFIXES = (
@@ -132,6 +140,27 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 if not allowed:
                     log.warning("rate_limit_exceeded", path=path, ip=ip, key=key)
                     return _rate_limit_response(retry_after)
+            return await call_next(request)
+
+        # ── MCP endpoint: per-PAT limit, not per-IP/tenant (D5) ───────────────
+        # request.state.tenant_id is never set here -- MCP auth is a PAT in
+        # the Authorization header, resolved inside mcp_endpoint itself, not
+        # the JWT tenant_context_middleware reads. Hash the raw bearer value
+        # directly rather than doing a DB lookup in middleware (keeps this
+        # cheap, and throttles a bad/expired token attempt same as a valid
+        # one -- both are "someone hammering this endpoint").
+        if path.startswith("/mcp"):
+            if r is not None:
+                auth_header = request.headers.get("authorization", "")
+                raw_token = auth_header[7:] if auth_header.lower().startswith("bearer ") else ""
+                if raw_token:
+                    limit, window = _MCP_LIMIT
+                    token_key = hashlib.sha256(raw_token.encode()).hexdigest()[:16]
+                    key = f"rl:pat:{token_key}"
+                    allowed, retry_after = _check_limit(r, key, limit, window, strict=False)
+                    if not allowed:
+                        log.warning("rate_limit_exceeded", path=path, key=key)
+                        return _rate_limit_response(retry_after)
             return await call_next(request)
 
         if r is None:

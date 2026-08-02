@@ -22,6 +22,20 @@ interface CreatedToken extends McpToken {
   token: string;
 }
 
+interface CapabilityOut {
+  key: string;
+  label: string;
+  category: string;
+  is_write: boolean;
+  risk: string;
+}
+
+const EXPIRY_OPTIONS = [
+  { label: "90 days (default)", days: null as number | null },
+  { label: "30 days", days: 30 },
+  { label: "1 year", days: 365 },
+] as const;
+
 function Toast({ msg, type, onDismiss }: { msg: string; type: "success" | "error"; onDismiss: () => void }) {
   return (
     <div className={cn(
@@ -37,8 +51,15 @@ function Toast({ msg, type, onDismiss }: { msg: string; type: "success" | "error
 
 function CreateTokenModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (t: CreatedToken) => void }) {
   const [name, setName] = useState("");
+  const [expiryDays, setExpiryDays] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  const { data: myCapabilities = [], isLoading: capsLoading } = useQuery<CapabilityOut[]>({
+    queryKey: ["capabilities-mine"],
+    queryFn: () => api.get("/capabilities/mine").then(r => r.data),
+    staleTime: 60_000,
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,7 +67,11 @@ function CreateTokenModal({ onClose, onSuccess }: { onClose: () => void; onSucce
     setError("");
     setSubmitting(true);
     try {
-      const res = await api.post("/mcp-tokens", { name });
+      const body: { name: string; expires_at?: string } = { name };
+      if (expiryDays !== null) {
+        body.expires_at = new Date(Date.now() + expiryDays * 86_400_000).toISOString();
+      }
+      const res = await api.post("/mcp-tokens", body);
       onSuccess(res.data);
     } catch (err: any) {
       setError(err?.response?.data?.detail || "Failed to create token.");
@@ -75,6 +100,44 @@ function CreateTokenModal({ onClose, onSuccess }: { onClose: () => void; onSucce
               autoFocus
               className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"
             />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-700 block mb-1.5">Expires</label>
+            <select
+              value={expiryDays ?? ""}
+              onChange={e => setExpiryDays(e.target.value === "" ? null : Number(e.target.value))}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white"
+            >
+              {EXPIRY_OPTIONS.map(opt => (
+                <option key={opt.label} value={opt.days ?? ""}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-700 mb-1.5">What this token can do</p>
+            <div className="bg-gray-50 rounded-xl border border-gray-200 px-3 py-2.5 max-h-32 overflow-y-auto">
+              {capsLoading ? (
+                <p className="text-xs text-gray-400">Loading...</p>
+              ) : myCapabilities.length === 0 ? (
+                <p className="text-xs text-gray-400">No capabilities granted to your role yet.</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {myCapabilities.map(cap => (
+                    <span
+                      key={cap.key}
+                      title={cap.key}
+                      className={cn(
+                        "text-[10px] font-medium px-2 py-1 rounded-full",
+                        cap.is_write ? "bg-amber-50 text-amber-700" : "bg-teal-50 text-teal-700"
+                      )}
+                    >
+                      {cap.label}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <p className="text-[11px] text-gray-400 mt-1">Matches your own role's permissions -- this token can never do more than you can.</p>
           </div>
           {error && (
             <div className="flex items-center gap-2 text-xs text-red-700 bg-red-50 rounded-lg px-3 py-2">
@@ -169,6 +232,15 @@ function timeAgo(iso: string | null): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+function expiryLabel(iso: string | null): string | null {
+  if (!iso) return null;
+  const diffMs = new Date(iso).getTime() - Date.now();
+  if (diffMs <= 0) return "Expired";
+  const days = Math.ceil(diffMs / 86_400_000);
+  if (days <= 7) return `Expires in ${days}d`;
+  return `Expires ${new Date(iso).toLocaleDateString()}`;
+}
+
 function TokenRow({ token, onRevoke, revoking }: { token: McpToken; onRevoke: () => void; revoking: boolean }) {
   const isRevoked = !!token.revoked_at;
   return (
@@ -184,9 +256,12 @@ function TokenRow({ token, onRevoke, revoking }: { token: McpToken; onRevoke: ()
         </div>
         <div className="min-w-0">
           <p className="text-sm font-semibold text-gray-800 truncate">{token.name}</p>
-          <p className="text-xs text-gray-400 flex items-center gap-1">
-            <Clock size={11} />
-            {isRevoked ? "Revoked" : timeAgo(token.last_used_at)}
+          <p className="text-xs text-gray-400 flex items-center gap-1.5">
+            <span className="flex items-center gap-1"><Clock size={11} />{isRevoked ? "Revoked" : timeAgo(token.last_used_at)}</span>
+            {!isRevoked && expiryLabel(token.expires_at) && (
+              <span className="text-gray-300">·</span>
+            )}
+            {!isRevoked && expiryLabel(token.expires_at) && <span>{expiryLabel(token.expires_at)}</span>}
           </p>
         </div>
       </div>

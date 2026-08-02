@@ -2,7 +2,8 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, usePathname } from "next/navigation";
-import { Building2, Users, Shield, QrCode, Loader2, CheckCircle, AlertCircle, Bell, Bot, ChevronRight, KeyRound } from "lucide-react";
+import { Building2, Users, Shield, QrCode, Loader2, CheckCircle, AlertCircle, Bell, Bot, ChevronRight, KeyRound, Lock } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 
@@ -18,6 +19,8 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode; desc: string }[] = 
 export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>("workspace");
   const router = useRouter();
+  const { data: session } = useSession();
+  const isOwner = session?.user?.role === "owner";
 
   return (
     <div className="flex h-full">
@@ -70,6 +73,21 @@ export default function SettingsPage() {
           </div>
           <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-40 transition-opacity" />
         </button>
+
+        {/* Roles & Permissions (capability matrix) — owner-only */}
+        {isOwner && (
+          <button
+            onClick={() => router.push("/dashboard/settings/permissions")}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-colors group text-gray-600 hover:bg-gray-50"
+          >
+            <span className="text-gray-400"><Lock size={15} /></span>
+            <div>
+              <div className="text-sm font-medium">Roles &amp; Permissions</div>
+              <div className="text-[10px] text-gray-400 leading-none mt-0.5">What each role can access</div>
+            </div>
+            <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-40 transition-opacity" />
+          </button>
+        )}
 
         <div className="mt-auto pt-4 border-t border-gray-100">
           <p className="text-[10px] text-gray-400 px-3">

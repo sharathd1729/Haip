@@ -15,6 +15,7 @@ established explicitly rather than relying on a request-scoped dependency.
 from typing import Any
 from sqlalchemy.orm import Session
 
+from app.mcp import redaction
 from app.models.user import User
 
 
@@ -22,11 +23,41 @@ class ToolError(Exception):
     """Raised by a tool handler for a user-facing error (maps to MCP isError)."""
 
 
+# 3.6: every write tool's inputSchema advertises these two params -- actual
+# enforcement (block until confirm:true, dedup on idempotency_key for 24h)
+# lives in server.py's tools/call dispatch, applied uniformly to every tool
+# whose annotations.readOnlyHint is False. Merge this into a write tool's
+# own `properties`/`required` rather than duplicating it by hand.
+_CONFIRM_PROPS = {
+    "confirm": {"type": "boolean", "description": "Must be true -- this is a real write action."},
+    "idempotency_key": {"type": "string", "description": "Any client-generated unique string identifying this specific action; retries with the same key are deduped for 24h."},
+}
+_CONFIRM_REQUIRED = ["confirm", "idempotency_key"]
+
+
+def _write_schema(properties: dict, required: list[str]) -> dict:
+    return {
+        "type": "object",
+        "properties": {**properties, **_CONFIRM_PROPS},
+        "required": [*required, *_CONFIRM_REQUIRED],
+    }
+
+
 def _dump(obj) -> Any:
     if isinstance(obj, list):
         return [_dump(o) for o in obj]
     if hasattr(obj, "model_dump"):
         return obj.model_dump(mode="json")
+    if hasattr(obj, "__table__"):
+        # Raw SQLAlchemy ORM instance (e.g. list_guests has no
+        # response_model -- over real HTTP, FastAPI's jsonable_encoder
+        # handles this implicitly; called directly like every other tool
+        # here, that pipeline is bypassed, so column values need pulling
+        # out explicitly or the caller gets `str(guest_object)` and no
+        # actual data at all).
+        return {c.name: getattr(obj, c.name) for c in obj.__table__.columns}
+    if isinstance(obj, dict):
+        return {k: _dump(v) for k, v in obj.items()}
     return obj
 
 
@@ -49,14 +80,17 @@ def _get_conversation_thread(db: Session, user: User, tenant_id: str, args: dict
     from app.api.v1.endpoints.conversations import get_conversation_detail
     from fastapi import HTTPException
     try:
-        return get_conversation_detail(conversation_id=args["conversation_id"], current_user=user, db=db)
+        result = get_conversation_detail(conversation_id=args["conversation_id"], current_user=user, db=db)
     except HTTPException as exc:
         raise ToolError(exc.detail) from exc
+    # 3.3: message bodies are guest-authored, attacker-controlled text.
+    return redaction.wrap_untrusted(_dump(result), key="conversation")
 
 
 def _search_conversations(db: Session, user: User, tenant_id: str, args: dict) -> Any:
     from app.api.v1.endpoints.conversations import search_conversations
-    return search_conversations(q=args["query"], limit=args.get("limit", 20), current_user=user, db=db)
+    result = search_conversations(q=args["query"], limit=args.get("limit", 20), current_user=user, db=db)
+    return redaction.wrap_untrusted(_dump(result), key="results")
 
 
 def _list_leads(db: Session, user: User, tenant_id: str, args: dict) -> Any:
@@ -88,6 +122,135 @@ def _search_guests(db: Session, user: User, tenant_id: str, args: dict) -> Any:
         current_user=user,
         db=db,
     )
+    return _dump(result)
+
+
+def _reveal_guest_contact(db: Session, user: User, tenant_id: str, args: dict) -> Any:
+    """3.2: the one tool that deliberately returns UNMASKED phone/email --
+    gated on guests.pii.reveal and given its own distinct audit action
+    (mcp.pii.reveal, see server.py) rather than the generic
+    mcp.tool.<name> pattern, since this is specifically the DPDP paper
+    trail the plan requires (§4.2)."""
+    from app.models.guest import Guest
+    guest = db.query(Guest).filter_by(id=args["guest_id"], tenant_id=tenant_id, is_deleted=False).first()
+    if not guest:
+        raise ToolError(f"Guest {args['guest_id']!r} not found")
+    return {"guest_id": guest.id, "name": guest.name, "phone": guest.phone, "email": guest.email}
+
+
+def _check_module(db: Session, user: User, *module_codes: str) -> None:
+    """Some wrapped endpoints gate on workspace_context.active_modules (a
+    plan-tier/billing entitlement, separate from the capability-registry
+    RBAC axis Phase 1/2 built). Calling the endpoint function directly
+    skips its Depends(require_module(...)) chain the same way it already
+    skips Depends(get_current_user)/Depends(get_db) defaults -- resolve it
+    explicitly here rather than silently letting a tool bypass a paid-tier
+    gate the REST equivalent enforces."""
+    from app.api.v1.deps import get_workspace_context
+    ctx = get_workspace_context(current_user=user, db=db)
+    missing = [m for m in module_codes if m not in ctx.active_modules]
+    if missing:
+        raise ToolError(f"This feature requires modules: {', '.join(missing)}. Contact your HAIP account manager to upgrade.")
+
+
+def _list_calls(db: Session, user: User, tenant_id: str, args: dict) -> Any:
+    from app.api.v1.endpoints.calls import list_calls
+    result = list_calls(
+        page=args.get("page", 1), limit=args.get("limit", 20),
+        direction=args.get("direction"), agent_id=args.get("agent_id"),
+        db=db, current_user=user,
+    )
+    return _dump(result)
+
+
+def _get_call_analysis(db: Session, user: User, tenant_id: str, args: dict) -> Any:
+    from app.api.v1.endpoints.calls import get_call
+    from fastapi import HTTPException
+    try:
+        detail = get_call(call_id=args["call_id"], db=db, current_user=user)
+    except HTTPException as exc:
+        raise ToolError(exc.detail) from exc
+    return {
+        "id": detail["id"],
+        "disposition": detail["disposition"],
+        "ai_summary": detail["ai_summary"],
+        "ai_next_action": detail["ai_next_action"],
+        "recommended_action": detail["recommended_action"],
+        "score": detail["score"],
+        "layer2": detail["layer2"],
+    }
+
+
+def _get_call_transcript(db: Session, user: User, tenant_id: str, args: dict) -> Any:
+    from app.api.v1.endpoints.calls import get_call
+    from fastapi import HTTPException
+    try:
+        detail = get_call(call_id=args["call_id"], db=db, current_user=user)
+    except HTTPException as exc:
+        raise ToolError(exc.detail) from exc
+    # 3.3: transcript text is the guest's own recorded speech -- same
+    # untrusted-content class as message bodies.
+    return redaction.wrap_untrusted(
+        {"call_id": detail["id"], "transcript": detail["transcript"], "transcript_text": detail["transcript_text"]},
+        key="transcript",
+    )
+
+
+def _list_bookings(db: Session, user: User, tenant_id: str, args: dict) -> Any:
+    from app.api.v1.endpoints.bookings import list_bookings
+    result = list_bookings(
+        search=args.get("search"), status=args.get("status"), channel=args.get("channel"),
+        sort=args.get("sort", "newest"), page=args.get("page", 1), per_page=args.get("per_page", 25),
+        current_user=user, db=db,
+    )
+    return _dump(result)
+
+
+def _get_revenue_summary(db: Session, user: User, tenant_id: str, args: dict) -> Any:
+    _check_module(db, user, "analytics")
+    from app.api.v1.endpoints.analytics_executive import executive_dashboard
+    detail = _dump(executive_dashboard(
+        range_days=args.get("range_days", 30), property_ids=args.get("property_ids"),
+        current_user=user, db=db,
+    ))
+    return {
+        "revenue_mtd": detail["revenue_mtd"],
+        "revenue_mtd_prev": detail["revenue_mtd_prev"],
+        "revenue_chart": detail["revenue_chart"],
+    }
+
+
+def _get_dashboard_metrics(db: Session, user: User, tenant_id: str, args: dict) -> Any:
+    _check_module(db, user, "analytics")
+    from app.api.v1.endpoints.analytics_executive import executive_dashboard
+    result = executive_dashboard(
+        range_days=args.get("range_days", 30), property_ids=args.get("property_ids"),
+        current_user=user, db=db,
+    )
+    return _dump(result)
+
+
+def _get_agent_scorecard(db: Session, user: User, tenant_id: str, args: dict) -> Any:
+    _check_module(db, user, "calls")
+    from app.api.v1.endpoints.analytics import personal_scorecard
+    result = personal_scorecard(period=args.get("period", "this_week"), current_user=user, db=db)
+    return _dump(result)
+
+
+async def _ask_haip(db: Session, user: User, tenant_id: str, args: dict) -> Any:
+    from app.models.user import UserRole
+    # ask_freeform_endpoint (the REST equivalent) is explicitly owner-only
+    # "for this initial rollout ... expand roles once real usage/audit logs
+    # have been reviewed" -- MCP access being owner/manager-only doesn't
+    # override that narrower, deliberate product decision.
+    if user.role != UserRole.OWNER:
+        raise ToolError("Ask HAIP free-form analyst is owner-only for this rollout.")
+    _check_module(db, user, "ask_haip")
+    from app.services.ask_haip_freeform_service import answer_freeform_question
+    question = (args.get("question") or "").strip()
+    if not question:
+        raise ToolError("question is required")
+    result = await answer_freeform_question(db=db, tenant_id=tenant_id, user_id=user.id, question=question)
     return _dump(result)
 
 
@@ -134,6 +297,72 @@ def _add_note(db: Session, user: User, tenant_id: str, args: dict) -> Any:
         raise ToolError(exc.detail) from exc
 
 
+def _assign_lead(db: Session, user: User, tenant_id: str, args: dict) -> Any:
+    from app.api.v1.endpoints.inquiries import update_inquiry
+    from app.schemas.inquiry import InquiryUpdateRequest
+    from fastapi import HTTPException
+    try:
+        result = update_inquiry(
+            inquiry_id=args["inquiry_id"], body=InquiryUpdateRequest(assigned_to=args["assigned_to"]),
+            current_user=user, db=db,
+        )
+    except HTTPException as exc:
+        raise ToolError(exc.detail) from exc
+    return _dump(result)
+
+
+# Deliberately excludes stage/stage_id (move_lead_stage's job, state-machine
+# guarded) and assigned_to (assign_lead's job) -- one write tool per concern
+# keeps each tool's blast radius narrow and its capability check meaningful.
+_UPDATABLE_LEAD_FIELDS = {
+    "property_id", "lost_reason", "lost_note", "check_in", "check_out",
+    "adults", "children", "occasion", "budget", "quoted_amount",
+}
+
+
+def _update_lead_fields(db: Session, user: User, tenant_id: str, args: dict) -> Any:
+    from app.api.v1.endpoints.inquiries import update_inquiry
+    from app.schemas.inquiry import InquiryUpdateRequest
+    from fastapi import HTTPException
+    fields = args.get("fields") or {}
+    unknown = set(fields) - _UPDATABLE_LEAD_FIELDS
+    if unknown:
+        raise ToolError(
+            f"Unsupported field(s): {', '.join(sorted(unknown))}. "
+            "Use move_lead_stage for stage changes and assign_lead for assignment."
+        )
+    try:
+        result = update_inquiry(inquiry_id=args["inquiry_id"], body=InquiryUpdateRequest(**fields), current_user=user, db=db)
+    except HTTPException as exc:
+        raise ToolError(exc.detail) from exc
+    return _dump(result)
+
+
+def _add_guest_signal(db: Session, user: User, tenant_id: str, args: dict) -> Any:
+    from app.services import identity_service
+    try:
+        confidence = identity_service.add_signal(
+            db, tenant_id=tenant_id, guest_id=args["guest_id"], signal_type=args["signal_type"],
+            value=args["value"], source="mcp", actor_user_id=user.id,
+        )
+    except ValueError as exc:
+        raise ToolError(str(exc)) from exc
+    db.commit()
+    # Deliberately not echoing the raw value back -- the caller already has
+    # it (they just sent it); no reason to round-trip PII through the
+    # response too.
+    return {"guest_id": args["guest_id"], "signal_type": args["signal_type"], "confidence": confidence}
+
+
+# create_task: NOT implemented. The plan lists this as a Phase 3 write
+# tool, but no Task model/service exists anywhere in this codebase (only
+# `add_note`'s free-text inquiry notes) -- building one is a net-new
+# feature (model + migration + RLS + service), not something this
+# MCP-hardening plan's own scope covers, and CLAUDE.md is explicit against
+# expanding scope on a plan like this one without being asked. Skipped;
+# flagged for the user to decide whether it's worth a separate ticket.
+
+
 # ── Tool registry ────────────────────────────────────────────────────────────
 # annotations.readOnlyHint tells the MCP client (Perisclaw) which tools are
 # safe to call without a real-action confirmation prompt (their own
@@ -152,6 +381,7 @@ TOOLS: list[dict] = [
             },
         },
         "annotations": {"readOnlyHint": True},
+        "capability": "conversations.read",
         "handler": _list_recent_conversations,
     },
     {
@@ -163,6 +393,7 @@ TOOLS: list[dict] = [
             "required": ["conversation_id"],
         },
         "annotations": {"readOnlyHint": True},
+        "capability": "conversations.read",
         "handler": _get_conversation_thread,
     },
     {
@@ -174,6 +405,7 @@ TOOLS: list[dict] = [
             "required": ["query"],
         },
         "annotations": {"readOnlyHint": True},
+        "capability": "conversations.read",
         "handler": _search_conversations,
     },
     {
@@ -188,6 +420,7 @@ TOOLS: list[dict] = [
             },
         },
         "annotations": {"readOnlyHint": True},
+        "capability": "leads.read",
         "handler": _list_leads,
     },
     {
@@ -199,6 +432,7 @@ TOOLS: list[dict] = [
             "required": ["inquiry_id"],
         },
         "annotations": {"readOnlyHint": True},
+        "capability": "leads.read",
         "handler": _get_lead_detail,
     },
     {
@@ -210,44 +444,224 @@ TOOLS: list[dict] = [
             "required": ["query"],
         },
         "annotations": {"readOnlyHint": True},
+        "capability": "guests.read",
         "handler": _search_guests,
     },
     {
-        "name": "approve_and_send_draft",
-        "description": "Approve and send a pending AI-drafted WhatsApp reply. This is a real action -- confirm with the user before calling.",
+        "name": "reveal_guest_contact",
+        "description": "Reveal a guest's unmasked phone/email (masked by default everywhere else). Every call is separately audited (mcp.pii.reveal) -- use only when the raw contact info is actually needed.",
         "inputSchema": {
             "type": "object",
-            "properties": {"conversation_id": {"type": "string"}, "message_id": {"type": "string"}},
-            "required": ["conversation_id", "message_id"],
+            "properties": {"guest_id": {"type": "string", "description": "HAIP Guest ID (GID)"}},
+            "required": ["guest_id"],
         },
-        "annotations": {"readOnlyHint": False, "destructiveHint": False},
+        "annotations": {"readOnlyHint": True},
+        "capability": "guests.pii.reveal",
+        "audit_action": "mcp.pii.reveal",
+        "skip_redaction": True,
+        "handler": _reveal_guest_contact,
+    },
+    {
+        "name": "list_calls",
+        "description": "List calls for this tenant, optionally filtered by direction or agent.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "page": {"type": "integer", "default": 1},
+                "limit": {"type": "integer", "default": 20},
+                "direction": {"type": "string", "description": "inbound | outbound"},
+                "agent_id": {"type": "string"},
+            },
+        },
+        "annotations": {"readOnlyHint": True},
+        "capability": "calls.read",
+        "handler": _list_calls,
+    },
+    {
+        "name": "get_call_analysis",
+        "description": "Get AI scoring, summary, and recommended next action for one call (no transcript text -- use get_call_transcript for that).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"call_id": {"type": "string"}},
+            "required": ["call_id"],
+        },
+        "annotations": {"readOnlyHint": True},
+        "capability": "calls.read",
+        "handler": _get_call_analysis,
+    },
+    {
+        "name": "get_call_transcript",
+        "description": "Get the full transcript for one call. Transcript text is guest-authored -- treated as untrusted content.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"call_id": {"type": "string"}},
+            "required": ["call_id"],
+        },
+        "annotations": {"readOnlyHint": True},
+        "capability": "calls.transcript.read",
+        "handler": _get_call_transcript,
+    },
+    {
+        "name": "list_bookings",
+        "description": "List bookings/stays, optionally filtered by status or channel.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "search": {"type": "string"},
+                "status": {"type": "string"},
+                "channel": {"type": "string"},
+                "sort": {"type": "string", "default": "newest"},
+                "page": {"type": "integer", "default": 1},
+                "per_page": {"type": "integer", "default": 25},
+            },
+        },
+        "annotations": {"readOnlyHint": True},
+        "capability": "bookings.read",
+        "handler": _list_bookings,
+    },
+    {
+        "name": "get_revenue_summary",
+        "description": "Revenue MTD (and prior-period comparison) plus the revenue chart series. Requires the analytics module.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "range_days": {"type": "integer", "default": 30},
+                "property_ids": {"type": "string", "description": "Comma-separated property IDs"},
+            },
+        },
+        "annotations": {"readOnlyHint": True},
+        "capability": "revenue.read",
+        "handler": _get_revenue_summary,
+    },
+    {
+        "name": "get_dashboard_metrics",
+        "description": "Executive dashboard: 6 KPI cards (revenue, occupancy, active inquiries, QA, SLA, AI draft rate) plus chart datasets. Requires the analytics module.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "range_days": {"type": "integer", "default": 30},
+                "property_ids": {"type": "string", "description": "Comma-separated property IDs"},
+            },
+        },
+        "annotations": {"readOnlyHint": True},
+        "capability": "analytics.read",
+        "handler": _get_dashboard_metrics,
+    },
+    {
+        "name": "get_agent_scorecard",
+        "description": "The calling user's own personal QA scorecard for a period. Requires the calls module.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"period": {"type": "string", "default": "this_week", "description": "e.g. this_week, last_week, this_month"}},
+        },
+        "annotations": {"readOnlyHint": True},
+        "capability": "qa.read",
+        "handler": _get_agent_scorecard,
+    },
+    {
+        "name": "ask_haip",
+        "description": "Ask HAIP's free-form analyst any ad-hoc business question (NL -> SQL against a read-only role). Owner-only, requires the ask_haip module.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"question": {"type": "string"}},
+            "required": ["question"],
+        },
+        "annotations": {"readOnlyHint": True},
+        "capability": "analytics.read",
+        "handler": _ask_haip,
+    },
+    {
+        "name": "approve_and_send_draft",
+        "description": "Approve and send a pending AI-drafted WhatsApp reply. This is a real action -- confirm with the user before calling. Requires confirm:true and idempotency_key.",
+        "inputSchema": _write_schema(
+            {"conversation_id": {"type": "string"}, "message_id": {"type": "string"}},
+            ["conversation_id", "message_id"],
+        ),
+        # A sent WhatsApp message can't be unsent -- genuinely irreversible,
+        # unlike the other write tools here.
+        "annotations": {"readOnlyHint": False, "destructiveHint": True},
+        "capability": "conversations.send",
         "handler": _approve_and_send_draft,
     },
     {
         "name": "move_lead_stage",
-        "description": "Move a lead/inquiry to a different pipeline stage. This is a real action -- confirm with the user before calling. Moving backward requires a reason and owner/manager role.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
+        "description": "Move a lead/inquiry to a different pipeline stage. This is a real action -- confirm with the user before calling. Moving backward requires a reason and owner/manager role. Requires confirm:true and idempotency_key.",
+        "inputSchema": _write_schema(
+            {
                 "inquiry_id": {"type": "string"},
                 "new_stage_id": {"type": "string"},
                 "reason": {"type": "string", "description": "Required for backward moves"},
             },
-            "required": ["inquiry_id", "new_stage_id"],
-        },
+            ["inquiry_id", "new_stage_id"],
+        ),
         "annotations": {"readOnlyHint": False, "destructiveHint": False},
+        "capability": "leads.write",
         "handler": _move_lead_stage,
     },
     {
         "name": "add_note",
-        "description": "Add an internal note to a lead/inquiry. This is a real action -- confirm with the user before calling.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {"inquiry_id": {"type": "string"}, "note": {"type": "string"}},
-            "required": ["inquiry_id", "note"],
-        },
+        "description": "Add an internal note to a lead/inquiry. This is a real action -- confirm with the user before calling. Requires confirm:true and idempotency_key.",
+        "inputSchema": _write_schema(
+            {"inquiry_id": {"type": "string"}, "note": {"type": "string"}},
+            ["inquiry_id", "note"],
+        ),
         "annotations": {"readOnlyHint": False, "destructiveHint": False},
+        "capability": "leads.write",
         "handler": _add_note,
+    },
+    {
+        "name": "assign_lead",
+        "description": "Assign a lead/inquiry to a team member. This is a real action -- confirm with the user before calling. Requires confirm:true and idempotency_key.",
+        "inputSchema": _write_schema(
+            {"inquiry_id": {"type": "string"}, "assigned_to": {"type": "string", "description": "User ID of the assignee"}},
+            ["inquiry_id", "assigned_to"],
+        ),
+        "annotations": {"readOnlyHint": False, "destructiveHint": False},
+        "capability": "leads.write",
+        "handler": _assign_lead,
+    },
+    {
+        "name": "update_lead_fields",
+        "description": (
+            "Update descriptive fields on a lead/inquiry (property, dates, occasion, budget, quoted amount, "
+            "lost reason). Not for stage (use move_lead_stage) or assignment (use assign_lead). "
+            "This is a real action -- confirm with the user before calling. Requires confirm:true and idempotency_key."
+        ),
+        "inputSchema": _write_schema(
+            {
+                "inquiry_id": {"type": "string"},
+                "fields": {
+                    "type": "object",
+                    "description": f"Any of: {', '.join(sorted(_UPDATABLE_LEAD_FIELDS))}",
+                },
+            },
+            ["inquiry_id", "fields"],
+        ),
+        "annotations": {"readOnlyHint": False, "destructiveHint": False},
+        "capability": "leads.write",
+        "handler": _update_lead_fields,
+    },
+    {
+        "name": "add_guest_signal",
+        "description": (
+            "Add an identity signal (phone, email, etc.) to a guest -- auto-writes DPDP consent for PII "
+            "signal types. Can trigger identity-resolution merge detection as a side effect. This is a real "
+            "action -- confirm with the user before calling. Requires confirm:true and idempotency_key."
+        ),
+        "inputSchema": _write_schema(
+            {
+                "guest_id": {"type": "string", "description": "HAIP Guest ID (GID)"},
+                "signal_type": {"type": "string", "description": "e.g. phone, email, whatsapp_number, instagram"},
+                "value": {"type": "string"},
+            },
+            ["guest_id", "signal_type", "value"],
+        ),
+        # Can trigger a silent guest-identity merge via enrich_guest's merge
+        # detection -- treat as destructive even though it's framed as an
+        # additive "add a signal" action.
+        "annotations": {"readOnlyHint": False, "destructiveHint": True},
+        "capability": "leads.write",  # no dedicated guests.write key in the v1 catalogue (§2.2) -- this is the closest fit, documented gap.
+        "handler": _add_guest_signal,
     },
 ]
 

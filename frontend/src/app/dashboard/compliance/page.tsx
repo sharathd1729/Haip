@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Shield, Search, Filter, Download, Trash2, CheckCircle2,
   AlertTriangle, Clock, ExternalLink, RefreshCw, RotateCcw,
-  Wifi, WifiOff, FileWarning, Users,
+  Wifi, WifiOff, FileWarning, Users, Bot,
 } from "lucide-react";
 import Link from "next/link";
 import api from "@/lib/api";
@@ -240,6 +240,21 @@ export default function CompliancePage() {
               <option value="user">User</option>
               <option value="incident">Incident</option>
             </select>
+            {/* 4.4: "what the AI did, per user, per day" -- one click into
+                the same action filter (already ilike-matched server-side)
+                rather than requiring the owner to know to type "mcp." */}
+            <button
+              onClick={() => { setSearch(search === "mcp." ? "" : "mcp."); setOffset(0); }}
+              className={cn(
+                "flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors",
+                search === "mcp."
+                  ? "bg-teal-50 border-teal-200 text-teal-700"
+                  : "bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100"
+              )}
+            >
+              <Bot size={12} />
+              MCP activity
+            </button>
             <span className="text-xs text-gray-400 ml-auto">{auditEvents.length} events</span>
           </div>
 
