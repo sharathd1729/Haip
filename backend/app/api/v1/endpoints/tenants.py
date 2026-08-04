@@ -122,22 +122,23 @@ def update_branding(
 # ─── Pipeline config endpoints ────────────────────────────────────────────────
 
 _VALID_STAGE_KEYS = {
-    "general_enquiry", "rnr", "active", "unsuitable",
+    "unqualified", "general_enquiry", "rnr", "active", "unsuitable",
     "lost", "sold", "collaboration_engagement",
 }
 
-# Leads360 default taxonomy (migration 049 / pipeline_stage_service.
+# Leads360 default taxonomy (migration 049/062 / pipeline_stage_service.
 # seed_default_pipeline_stages) -- this legacy /tenants/me/pipeline-config
 # fallback is kept in sync for tenants that somehow have no pipeline_stages
 # rows at all, even though the leads board itself reads /pipeline-stages.
 DEFAULT_PIPELINE_STAGES = [
-    {"key": "general_enquiry",          "label": "General Enquiry",          "color": "#6b7280", "visible": True, "order": 0},
-    {"key": "rnr",                      "label": "RNR",                      "color": "#f59e0b", "visible": True, "order": 1},
-    {"key": "active",                   "label": "Active",                   "color": "#6366f1", "visible": True, "order": 2},
-    {"key": "unsuitable",               "label": "Unsuitable",               "color": "#8b5cf6", "visible": True, "order": 3},
-    {"key": "lost",                     "label": "Lost",                     "color": "#ef4444", "visible": True, "order": 4},
-    {"key": "sold",                     "label": "Sold",                     "color": "#22c55e", "visible": True, "order": 5},
-    {"key": "collaboration_engagement", "label": "Collaboration Engagement", "color": "#06b6d4", "visible": True, "order": 6},
+    {"key": "unqualified",              "label": "Unqualified",              "color": "#94a3b8", "visible": True, "order": 0},
+    {"key": "general_enquiry",          "label": "General Enquiry",          "color": "#6b7280", "visible": True, "order": 1},
+    {"key": "rnr",                      "label": "RNR",                      "color": "#f59e0b", "visible": True, "order": 2},
+    {"key": "active",                   "label": "Active",                   "color": "#6366f1", "visible": True, "order": 3},
+    {"key": "unsuitable",               "label": "Unsuitable",               "color": "#8b5cf6", "visible": True, "order": 4},
+    {"key": "lost",                     "label": "Lost",                     "color": "#ef4444", "visible": True, "order": 5},
+    {"key": "sold",                     "label": "Sold",                     "color": "#22c55e", "visible": True, "order": 6},
+    {"key": "collaboration_engagement", "label": "Collaboration Engagement", "color": "#06b6d4", "visible": True, "order": 7},
 ]
 
 

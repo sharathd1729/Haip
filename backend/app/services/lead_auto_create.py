@@ -10,9 +10,10 @@ Business rules (confirmed by user, see LEADS360_RESTRUCTURE_PLAN.md follow-up):
   - Otherwise, a phone number is present -- always true on WhatsApp (the
     channel identity itself is a phone number); detected via regex in the
     message text on Instagram -- -> the tenant's is_valid_lead_entry stage
-    (category="valid").
+    (category="valid", e.g. "General Enquiry").
   - Otherwise -> the tenant's is_default_entry stage (category="invalid",
-    e.g. "General Enquiry").
+    e.g. "Unqualified" -- doesn't count as a lead in dashboards/metrics
+    until an agent moves it, or a phone signal gets added later).
   - No further automatic stage movement after creation -- agents move
     leads through subsequent stages manually.
 

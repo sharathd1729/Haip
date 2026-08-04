@@ -106,15 +106,21 @@ def test_seed_default_pipeline_stages_creates_full_taxonomy(db):
     stages = svc.seed_default_pipeline_stages(db, t.id)
     keys = {s.key for s in stages}
     assert keys == {
-        "general_enquiry", "rnr", "active", "unsuitable",
+        "unqualified", "general_enquiry", "rnr", "active", "unsuitable",
         "lost", "sold", "collaboration_engagement",
     }
 
     by_key = {s.key: s for s in stages}
-    assert by_key["general_enquiry"].category == "invalid"
-    assert by_key["general_enquiry"].is_default_entry is True
+    # 2026-08-05: default-entry moved off General Enquiry onto the new
+    # Unqualified stage (no-phone DMs no longer count as real leads); phone
+    # present now routes to General Enquiry instead of Active.
+    assert by_key["unqualified"].category == "invalid"
+    assert by_key["unqualified"].is_default_entry is True
+    assert by_key["general_enquiry"].category == "valid"
+    assert by_key["general_enquiry"].is_default_entry is False
+    assert by_key["general_enquiry"].is_valid_lead_entry is True
     assert by_key["active"].category == "valid"
-    assert by_key["active"].is_valid_lead_entry is True
+    assert by_key["active"].is_valid_lead_entry is False
     assert by_key["sold"].is_closed_won is True
     assert by_key["lost"].is_closed_lost is True
     assert by_key["collaboration_engagement"].category == "marketing"
@@ -127,7 +133,7 @@ def test_seed_default_pipeline_stages_is_idempotent(db):
     first_count = len(svc.list_stages(db, t.id))
     svc.seed_default_pipeline_stages(db, t.id)
     second_count = len(svc.list_stages(db, t.id))
-    assert first_count == second_count == 7
+    assert first_count == second_count == 8
 
 
 def test_seed_default_pipeline_stages_tenant_isolation(db):

@@ -19,10 +19,22 @@ class PipelineStageError(Exception):
 # Leads360 default taxonomy (chat/call/collab auto-create routing rides on
 # these keys/flags -- see app/services/lead_auto_create.py). "valid" stages
 # count as real leads in dashboards/metrics; "invalid" and "marketing" don't.
+#
+# 2026-08-05: split the single "General Enquiry" default-entry stage into
+# two. A message with no phone signal (the common case for a first IG DM --
+# text_contains_phone() only fires if the guest literally typed digits)
+# used to land in "General Enquiry" same as a real phone-qualified lead,
+# flooding that column with everything. Now: no phone -> "Unqualified"
+# (is_default_entry, invalid -- doesn't count as a lead); phone present ->
+# "General Enquiry" (is_valid_lead_entry, now counts as a real lead). Agents
+# then move a General Enquiry card into Active/Unsuitable/etc. manually
+# based on actual interest, same as before -- "Active" itself is no longer
+# an auto-landing target. See migration 062 for the existing-tenant backfill.
 _DEFAULT_TAXONOMY = [
-    {"key": "general_enquiry",           "label": "General Enquiry",           "color": "#6b7280", "category": "invalid",    "is_default_entry": True},
+    {"key": "unqualified",               "label": "Unqualified",               "color": "#94a3b8", "category": "invalid",    "is_default_entry": True},
+    {"key": "general_enquiry",           "label": "General Enquiry",           "color": "#6b7280", "category": "valid",      "is_valid_lead_entry": True},
     {"key": "rnr",                       "label": "RNR",                       "color": "#f59e0b", "category": "invalid"},
-    {"key": "active",                    "label": "Active",                    "color": "#6366f1", "category": "valid",      "is_valid_lead_entry": True},
+    {"key": "active",                    "label": "Active",                    "color": "#6366f1", "category": "valid"},
     {"key": "unsuitable",                "label": "Unsuitable",                "color": "#8b5cf6", "category": "valid"},
     {"key": "lost",                      "label": "Lost",                      "color": "#ef4444", "category": "valid",      "is_closed_lost": True},
     {"key": "sold",                      "label": "Sold",                      "color": "#22c55e", "category": "valid",      "is_closed_won": True},
