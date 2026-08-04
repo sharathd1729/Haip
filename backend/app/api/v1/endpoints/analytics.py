@@ -11,7 +11,7 @@ GET /analytics/lost-reasons/{theme}/inquiries — A4: inquiries for a theme
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from sqlalchemy import func, cast, Float, Integer, true as sa_true, false as sa_false
+from sqlalchemy import func, cast, Float, Integer, TIMESTAMP, true as sa_true, false as sa_false
 from datetime import datetime, timezone, timedelta, date as date_type
 from typing import List, Optional
 import structlog
@@ -46,6 +46,17 @@ router = APIRouter(prefix="/analytics", tags=["analytics"])
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
+# Call.started_at is a VARCHAR column (ISO-format strings, written via
+# .isoformat() at call-ingest time), not a real timestamp column. Comparing
+# it directly against a Python datetime binds the parameter as timestamptz,
+# and Postgres has no `character varying >= timestamp with time zone`
+# operator -- every query below that did this was 503ing in production
+# (confirmed from live logs, not from tests: SQLite's untyped columns never
+# catch this class of bug). Casting the column to a real timestamp at every
+# comparison/date-function site fixes both the comparisons and func.date()/
+# func.extract(), which need a real temporal type to begin with.
+_STARTED_AT_TS = cast(Call.started_at, TIMESTAMP(timezone=True))
+
 def _date_range(days_back: int, now: datetime):
     """Return (start, end) as UTC datetimes for the last `days_back` days."""
     end = now
@@ -56,13 +67,13 @@ def _date_range(days_back: int, now: datetime):
 def _calls_week_series(db: Session, tid: str, start: datetime, end: datetime,
                         property_ids: Optional[List[str]] = None) -> List[CallsWeekPoint]:
     q = db.query(
-        func.date(Call.started_at).label("d"),
+        func.date(_STARTED_AT_TS).label("d"),
         func.count(Call.id).label("cnt"),
         func.coalesce(func.avg(Call.ai_score), 0.0).label("avg_score"),
     ).filter(
         Call.tenant_id == tid,
-        Call.started_at >= start,
-        Call.started_at < end,
+        _STARTED_AT_TS >= start,
+        _STARTED_AT_TS < end,
     )
     if property_ids:
         q = q.filter(Call.property_id.in_(property_ids))
@@ -133,7 +144,7 @@ def owner_daily(
     # ── Current period stats ─────────────────────────────────────────────────
     calls_today = db.query(func.count(Call.id)).filter(
         Call.tenant_id == tid,
-        Call.started_at >= now.date().isoformat(),
+        _STARTED_AT_TS >= now.date(),
     ).scalar() or 0
 
     from app.services.pipeline_stage_service import get_stage_ids_by_flag
@@ -147,7 +158,7 @@ def owner_daily(
 
     qa_q = db.query(func.avg(Call.ai_score)).filter(
         Call.tenant_id == tid, Call.ai_score.isnot(None),
-        Call.started_at >= start,
+        _STARTED_AT_TS >= start,
     )
     if prop_ids:
         qa_q = qa_q.filter(Call.property_id.in_(prop_ids))
@@ -201,7 +212,7 @@ def owner_daily(
 
         prev_qa_q = db.query(func.avg(Call.ai_score)).filter(
             Call.tenant_id == tid, Call.ai_score.isnot(None),
-            Call.started_at >= prev_start, Call.started_at < prev_end,
+            _STARTED_AT_TS >= prev_start, _STARTED_AT_TS < prev_end,
         )
         if prop_ids:
             prev_qa_q = prev_qa_q.filter(Call.property_id.in_(prop_ids))
@@ -209,7 +220,7 @@ def owner_daily(
         prev_p95 = _p95_seconds(db, tid, prev_start, prev_end, prop_ids)
         prev_calls = db.query(func.count(Call.id)).filter(
             Call.tenant_id == tid,
-            Call.started_at >= prev_start, Call.started_at < prev_end,
+            _STARTED_AT_TS >= prev_start, _STARTED_AT_TS < prev_end,
         ).scalar() or 0
 
         deltas = {
@@ -308,7 +319,7 @@ def metric_drill(
         func.coalesce(func.avg(Call.ai_score), 0).label("avg_val"),
     ).join(Call, Call.property_id == Property.id, isouter=True).filter(
         Call.tenant_id == tid,
-        Call.started_at >= start,
+        _STARTED_AT_TS >= start,
     ).group_by(Property.name).order_by(func.count(Call.id).desc()).limit(10).all()
 
     by_property = [
@@ -323,7 +334,7 @@ def metric_drill(
         func.coalesce(func.avg(Call.ai_score), 0).label("avg_val"),
     ).join(User, Call.agent_id == User.id, isouter=True).filter(
         Call.tenant_id == tid,
-        Call.started_at >= start,
+        _STARTED_AT_TS >= start,
     ).group_by(User.name).order_by(func.count(Call.id).desc()).limit(10).all()
 
     by_agent = [
@@ -333,12 +344,12 @@ def metric_drill(
 
     # ── By hour of day ────────────────────────────────────────────────────────
     hour_rows = db.query(
-        func.extract("hour", Call.started_at).label("hr"),
+        func.extract("hour", _STARTED_AT_TS).label("hr"),
         func.count(Call.id).label("cnt"),
         func.coalesce(func.avg(Call.ai_score), 0).label("avg_val"),
     ).filter(
         Call.tenant_id == tid,
-        Call.started_at >= start,
+        _STARTED_AT_TS >= start,
     ).group_by("hr").order_by("hr").all()
 
     by_hour = [
@@ -460,7 +471,7 @@ def agent_leaderboard(
         func.avg(Call.ai_score).label("avg_score"),
     ).filter(
         Call.tenant_id == tid,
-        Call.started_at >= start,
+        _STARTED_AT_TS >= start,
         Call.agent_id.isnot(None),
         Call.ai_score.isnot(None),
     ).group_by(Call.agent_id).order_by(func.avg(Call.ai_score).desc()).limit(5).all()
