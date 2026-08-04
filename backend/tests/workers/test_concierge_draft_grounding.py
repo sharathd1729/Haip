@@ -64,7 +64,7 @@ class TestGroundReply:
         monkeypatch.setattr("app.workers.tasks.concierge_draft.get_llm", lambda task: _FakeLLM())
 
         with patch("app.services.calculator_service.calculator_service.search") as mock_search:
-            intent, facts = await _ground_reply(db=MagicMock(), tenant_id="t1", latest_message="Hi there!", inquiry=None)
+            intent, facts, actions = await _ground_reply(db=MagicMock(), tenant_id="t1", latest_message="Hi there!", inquiry=None)
 
         assert intent == "general"
         assert facts == []
@@ -87,7 +87,7 @@ class TestGroundReply:
             price_per_night=10000, nights=2, currency="INR",
         )
         with patch("app.services.calculator_service.calculator_service.search", return_value=[fake_result]) as mock_search:
-            intent, facts = await _ground_reply(db=MagicMock(), tenant_id="t1", latest_message="Is the villa free Dec 10-12 for 2 adults?", inquiry=None)
+            intent, facts, actions = await _ground_reply(db=MagicMock(), tenant_id="t1", latest_message="Is the villa free Dec 10-12 for 2 adults?", inquiry=None)
 
         assert intent == "availability_check"
         assert mock_search.called
@@ -112,12 +112,17 @@ class TestGroundReply:
 
         with patch("app.services.calculator_service.calculator_service.search", return_value=[fake_result]), \
              patch("app.services.calculator_service.calculator_service.build_quote", return_value=fake_quote) as mock_quote:
-            intent, facts = await _ground_reply(db=MagicMock(), tenant_id="t1", latest_message="What would 2 nights cost?", inquiry=None)
+            intent, facts, actions = await _ground_reply(db=MagicMock(), tenant_id="t1", latest_message="What would 2 nights cost?", inquiry=None)
 
         assert intent == "price_quote"
         assert mock_quote.called
         tools_called = [f["tool"] for f in facts]
         assert tools_called == ["check_availability", "get_quote"]
+        # Ticket 4 (HAIP Inbox plan): a real quote was fetched, so a
+        # send_quote suggested_action should be offered.
+        assert len(actions) == 1
+        assert actions[0]["action_type"] == "send_quote"
+        assert actions[0]["action_config"]["property_id"] == "p1"
 
     @pytest.mark.asyncio
     async def test_grounded_intent_without_dates_returns_no_facts(self, monkeypatch):
@@ -128,7 +133,7 @@ class TestGroundReply:
         monkeypatch.setattr("app.workers.tasks.concierge_draft.get_llm", lambda task: _FakeLLM())
 
         with patch("app.services.calculator_service.calculator_service.search") as mock_search:
-            intent, facts = await _ground_reply(db=MagicMock(), tenant_id="t1", latest_message="Do you have anything free?", inquiry=None)
+            intent, facts, actions = await _ground_reply(db=MagicMock(), tenant_id="t1", latest_message="Do you have anything free?", inquiry=None)
 
         assert facts == []
         mock_search.assert_not_called()

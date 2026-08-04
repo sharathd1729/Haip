@@ -136,13 +136,16 @@ async def _classify_and_extract(latest_message: str) -> dict:
     return result.get("tool_use") or {"intent": "general"}
 
 
-async def _ground_reply(db, tenant_id: str, latest_message: str, inquiry) -> tuple[str, list]:
-    """Returns (intent, grounded_facts). grounded_facts is [] whenever
-    grounding wasn't attempted or found nothing -- never fabricated."""
+async def _ground_reply(db, tenant_id: str, latest_message: str, inquiry) -> tuple[str, list, list]:
+    """Returns (intent, grounded_facts, suggested_actions). grounded_facts is
+    [] whenever grounding wasn't attempted or found nothing -- never
+    fabricated. suggested_actions is the RecommendedAction[] shape
+    (HAIP Inbox prototype-wiring plan, ticket 4), populated only when a real
+    quote was fetched -- never a guess at what the guest wants."""
     classification = await _classify_and_extract(latest_message)
     intent = classification.get("intent", "general")
     if intent not in GROUNDED_INTENTS:
-        return intent, []
+        return intent, [], []
 
     check_in = classification.get("check_in") or (inquiry.check_in if inquiry else None)
     check_out = classification.get("check_out") or (inquiry.check_out if inquiry else None)
@@ -152,11 +155,12 @@ async def _ground_reply(db, tenant_id: str, latest_message: str, inquiry) -> tup
     if not check_in or not check_out:
         # Can't ground without dates -- the prompt already instructs the
         # model to ask a clarifying question when context is insufficient.
-        return intent, []
+        return intent, [], []
 
     from app.services.calculator_service import calculator_service
 
     grounded_facts: list = []
+    suggested_actions: list = []
     property_id = inquiry.property_id if inquiry else None
 
     # check_availability -- same underlying service the MCP tool of the same
@@ -173,7 +177,7 @@ async def _ground_reply(db, tenant_id: str, latest_message: str, inquiry) -> tup
         )
     except Exception as exc:
         log.warning("concierge_grounding_availability_failed", tenant_id=tenant_id, error=str(exc))
-        return intent, []
+        return intent, [], []
 
     grounded_facts.append({
         "tool": "check_availability",
@@ -212,8 +216,21 @@ async def _ground_reply(db, tenant_id: str, latest_message: str, inquiry) -> tup
                         "currency": quote.currency,
                     },
                 })
+                # Ticket 4: a real quote exists -- offer it as a one-click
+                # send_quote card in the thread, same dispatch path
+                # automation_engine.py::_action_send_quote already uses.
+                suggested_actions.append({
+                    "action_type": "send_quote",
+                    "label": "Send full quote",
+                    "action_config": {
+                        "property_id": target.property_id,
+                        "checkin": check_in, "checkout": check_out,
+                        "adults": adults, "children": children,
+                    },
+                    "confirm": True,
+                })
 
-    return intent, grounded_facts
+    return intent, grounded_facts, suggested_actions
 
 
 def _check_grounding(reply_text: str, grounded_facts: list) -> tuple[bool, "str | None"]:
@@ -266,10 +283,11 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         # ── Ticket 4: bounded grounding, budget-limited to 8s total ────────
         triggering_message = db.query(Message).filter_by(id=message_id, tenant_id=tenant_id).first()
         grounded_facts: list = []
+        suggested_actions: list = []
         if triggering_message and triggering_message.body:
             start = time.monotonic()
             try:
-                _intent, grounded_facts = _run_async(
+                _intent, grounded_facts, suggested_actions = _run_async(
                     asyncio.wait_for(
                         _ground_reply(db, tenant_id, triggering_message.body, inquiry),
                         timeout=MAX_GROUNDING_SECONDS,
@@ -346,6 +364,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             was_approved=True if should_auto_send else None,
             sender_name="AI Concierge",
             grounded_facts=grounded_facts,
+            suggested_actions=suggested_actions,
         )
         db.add(draft_message)
         db.commit()

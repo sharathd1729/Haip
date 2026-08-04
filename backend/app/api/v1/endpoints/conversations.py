@@ -7,7 +7,7 @@ from app.core.database import get_db
 from app.api.v1.deps import get_current_user
 from app.models.user import User
 from app.models.conversation import Conversation, Message, MessageDeliveryState
-from app.schemas.conversation import MessageOut, SendMessageRequest, AIDraftRequest, ConversationOut, SendTemplateRequest, ApproveDraftRequest
+from app.schemas.conversation import MessageOut, SendMessageRequest, AIDraftRequest, ConversationOut, SendTemplateRequest, ApproveDraftRequest, RewriteDraftRequest
 from app.workers.tasks.concierge_draft import concierge_draft
 from app.services import ai_draft_outcomes_service
 import structlog
@@ -169,6 +169,7 @@ def _msg_dict(m: Message) -> dict:
         "media_url": _resolve_media_url(m),   # T0.5 / T1.2
         "media_type": m.media_type,
         "shared_post_url": (m.channel_metadata or {}).get("shared_post_url"),
+        "suggested_actions": m.suggested_actions or [],
     }
 
 
@@ -202,6 +203,23 @@ def get_messages(
         "messages": [_msg_dict(m) for m in messages],
         "has_more": len(messages) == limit,
     }
+
+
+@router.get("/{conversation_id}/timeline")
+def get_conversation_timeline_endpoint(
+    conversation_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """HAIP Inbox prototype-wiring plan, ticket 2: messages + calls for this
+    conversation's guest, merged into one chronological feed -- the data
+    behind the inbox thread's Sarvam call-log cards alongside chat bubbles."""
+    from app.services.conversation_timeline_service import get_conversation_timeline
+
+    result = get_conversation_timeline(db, tenant_id=current_user.tenant_id, conversation_id=conversation_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return result
 
 
 @router.post("/{conversation_id}/messages", response_model=MessageOut, status_code=201)
@@ -387,6 +405,37 @@ def request_ai_draft(
     return {"status": "draft_queued", "draft_id": draft_id}
 
 
+@router.post("/{conversation_id}/messages/{message_id}/rewrite")
+def rewrite_draft_endpoint(
+    conversation_id: str,
+    message_id: str,
+    body: RewriteDraftRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """HAIP Inbox prototype-wiring plan, ticket 3: real translate/tone-fix.
+    Queues rewrite_draft, which updates the same Message.body in place --
+    frontend refetches the conversation the same way it already does for
+    ai-draft, rather than tracking a second draft id."""
+    from app.workers.tasks.rewrite_draft import rewrite_draft
+
+    msg = db.query(Message).filter_by(
+        id=message_id, conversation_id=conversation_id, tenant_id=current_user.tenant_id
+    ).first()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if not msg.is_ai_generated or msg.was_approved is not None:
+        raise HTTPException(status_code=409, detail="Only a pending AI draft can be rewritten")
+
+    rewrite_draft.delay(
+        message_id=message_id,
+        tenant_id=current_user.tenant_id,
+        tone=body.tone,
+        target_language=body.target_language,
+    )
+    return {"status": "rewrite_queued"}
+
+
 @router.post("/{conversation_id}/messages/{message_id}/retry", response_model=MessageOut)
 def retry_failed_message(
     conversation_id: str,
@@ -554,8 +603,27 @@ def get_conversation_detail(
     channel_val = conv.channel.value if hasattr(conv.channel, "value") else str(conv.channel)
     status = "open" if conv.is_open else "resolved"
 
+    # HAIP Inbox prototype-wiring plan, ticket 5: the frontend needs
+    # guest_id/inquiry_id for the profile-completeness widget, follow-up
+    # tasks, and the "add phone signal" action -- none of these were
+    # exposed here before (only guest_name/guest_phone, no ids at all).
+    inquiry_id = None
+    if conv.inquiry_id:
+        inquiry_id = conv.inquiry_id
+    else:
+        from app.models.inquiry import Inquiry
+        latest_inquiry = (
+            db.query(Inquiry.id)
+            .filter_by(guest_id=conv.guest_id, tenant_id=current_user.tenant_id)
+            .order_by(Inquiry.created_at.desc())
+            .first()
+        )
+        inquiry_id = latest_inquiry.id if latest_inquiry else None
+
     return {
         "id": conv.id,
+        "guest_id": conv.guest_id,
+        "inquiry_id": inquiry_id,
         "guest_name": guest.name if guest else None,
         "guest_phone": guest.phone if guest else "",
         "channel": channel_val,

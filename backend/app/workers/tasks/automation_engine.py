@@ -505,68 +505,105 @@ def _action_hold_dates(db, cfg: dict, context: dict, tenant_id: str) -> str:
 
 def _action_send_quote(db, cfg: dict, context: dict, tenant_id: str) -> str:
     """
-    Text-message quote send. The plan's table says "PDF/WA" -- no PDF
-    library exists anywhere in this codebase's requirements, and adding one
-    for a single action handler isn't a call to make unprompted (CLAUDE.md:
-    no new dependencies without justification). Sends the same figures a
-    human would read off calculator_service's breakdown as WhatsApp text via
-    the tested send_whatsapp pipeline (24h-session-window handling included)
-    rather than a raw adapter call, by writing a Message row and queueing it
-    exactly the way send_whatsapp_draft already does.
+    Text-message quote send -- either a per-night property quote or (HAIP
+    Inbox prototype-wiring plan, ticket 4) a distance/route quote for
+    caravan properties, whichever cfg asks for. The plan's table says
+    "PDF/WA" -- no PDF library exists anywhere in this codebase's
+    requirements, and adding one for a single action handler isn't a call
+    to make unprompted (CLAUDE.md: no new dependencies without
+    justification). Sends the same figures a human would read off
+    calculator_service's breakdown as chat text via the tested
+    send_whatsapp/send_instagram_dm pipelines (24h-session-window handling
+    included) rather than a raw adapter call, by writing a Message row and
+    queueing it exactly the way send_whatsapp_draft already does.
+
+    Channel-aware: sends on whichever channel (WhatsApp or Instagram) the
+    guest's most recently active open conversation is on, the same way
+    concierge_draft already branches WhatsApp vs. Instagram -- not
+    hardcoded to WhatsApp.
     """
     from app.models.base import gen_uuid
-    from app.models.conversation import Conversation, Message, ChannelType, MessageDeliveryState
+    from app.models.conversation import Conversation, Message, MessageDeliveryState
     from app.models.guest import Guest
     from app.services.calculator_service import calculator_service
 
     property_id = cfg.get("property_id") or context.get("property_id")
-    checkin = cfg.get("checkin")
-    checkout = cfg.get("checkout")
-    adults = cfg.get("adults") or 1
-    children = cfg.get("children") or 0
     guest_id = context.get("guest_id")
-    if not (property_id and checkin and checkout and guest_id):
-        return "skipped — action_config.property_id/checkin/checkout and entity_refs.guest_id are all required"
+    if not (property_id and guest_id):
+        return "skipped — action_config.property_id and entity_refs.guest_id are both required"
 
     guest = db.query(Guest).filter_by(id=guest_id, tenant_id=tenant_id).first()
     if not guest or not guest.phone:
         return "skipped — guest has no phone number"
 
-    try:
-        quote = calculator_service.build_quote(
-            db, tenant_id=tenant_id, property_id=property_id,
-            checkin=checkin, checkout=checkout, adults=adults, children=children,
-        )
-    except Exception as exc:
-        return f"skipped — could not build quote: {exc}"
-    if not quote:
-        return "skipped — property not available for those dates"
+    from_city = cfg.get("from_city")
+    to_city = cfg.get("to_city")
 
-    text = (
-        f"Here's your quote for {checkin} to {checkout}:\n"
-        f"Subtotal: ₹{quote.subtotal}\n"
-        f"GST: ₹{quote.gst}\n"
-        f"Total: ₹{quote.total}\n"
-        f"Advance due: ₹{quote.advance_amount}"
-    )
+    if from_city and to_city:
+        # Route/km quote (caravan properties).
+        route_quote = calculator_service.build_route_quote(
+            db, tenant_id=tenant_id, property_id=property_id, from_city=from_city, to_city=to_city,
+        )
+        if not route_quote:
+            return f"skipped — no route quote available for {property_id} ({from_city} to {to_city})"
+        text = (
+            f"Here's your quote for {from_city} to {to_city} (~{route_quote['km']} km):\n"
+            f"Subtotal: ₹{route_quote['subtotal']}\n"
+            f"GST: ₹{route_quote['gst']}\n"
+            f"Total: ₹{route_quote['total']}\n"
+            f"Advance due: ₹{route_quote['advance_amount']}"
+        )
+        total = route_quote["total"]
+    else:
+        checkin = cfg.get("checkin")
+        checkout = cfg.get("checkout")
+        adults = cfg.get("adults") or 1
+        children = cfg.get("children") or 0
+        if not (checkin and checkout):
+            return "skipped — action_config.checkin/checkout are required (or from_city/to_city for a route quote)"
+
+        try:
+            quote = calculator_service.build_quote(
+                db, tenant_id=tenant_id, property_id=property_id,
+                checkin=checkin, checkout=checkout, adults=adults, children=children,
+            )
+        except Exception as exc:
+            return f"skipped — could not build quote: {exc}"
+        if not quote:
+            return "skipped — property not available for those dates"
+
+        text = (
+            f"Here's your quote for {checkin} to {checkout}:\n"
+            f"Subtotal: ₹{quote.subtotal}\n"
+            f"GST: ₹{quote.gst}\n"
+            f"Total: ₹{quote.total}\n"
+            f"Advance due: ₹{quote.advance_amount}"
+        )
+        total = quote.total
 
     conv = (
         db.query(Conversation)
-        .filter_by(tenant_id=tenant_id, guest_id=guest_id, channel=ChannelType.WHATSAPP, is_open=True)
+        .filter_by(tenant_id=tenant_id, guest_id=guest_id, is_open=True)
         .order_by(Conversation.updated_at.desc())
         .first()
     )
     if not conv:
-        return "skipped — no open WhatsApp conversation for this guest"
+        return "skipped — no open conversation for this guest"
+
+    channel_val = str(conv.channel.value if hasattr(conv.channel, "value") else conv.channel)
 
     msg = Message(
         id=gen_uuid(), tenant_id=tenant_id, conversation_id=conv.id,
-        direction="outbound", channel=ChannelType.WHATSAPP, body=text,
+        direction="outbound", channel=conv.channel, body=text,
         is_ai_generated=False, was_approved=True, delivery_state=MessageDeliveryState.QUEUED,
     )
     db.add(msg)
     db.commit()
 
-    from app.workers.tasks.send_whatsapp import send_whatsapp
-    send_whatsapp.delay(message_id=msg.id, tenant_id=tenant_id)
-    return f"Quote sent to guest: total ₹{quote.total}"
+    if channel_val == "instagram":
+        from app.workers.tasks.send_instagram_dm import send_instagram_dm
+        send_instagram_dm.delay(message_id=msg.id, tenant_id=tenant_id)
+    else:
+        from app.workers.tasks.send_whatsapp import send_whatsapp
+        send_whatsapp.delay(message_id=msg.id, tenant_id=tenant_id)
+    return f"Quote sent to guest via {channel_val}: total ₹{total}"

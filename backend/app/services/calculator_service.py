@@ -288,6 +288,57 @@ class CalculatorService:
             currency="INR",
         )
 
+    def build_route_quote(
+        self,
+        db: Session,
+        tenant_id: str,
+        property_id: str,
+        from_city: str,
+        to_city: str,
+    ) -> dict | None:
+        """
+        Distance/route-based quote for caravan properties (Ratha), separate
+        from build_quote()'s per-night model -- search()/build_quote() only
+        ever price caravans per-night despite carrying an is_caravan flag
+        (verified: no existing code path does km-based pricing). Looks up
+        the matching entry in Property.routes ([{"from","to","km"}]) and
+        prices it at Property.price_per_km, same GST/advance shape as
+        build_quote() for a consistent guest-facing breakdown.
+
+        Returns None if the property isn't a caravan, has no matching route,
+        or has no price_per_km set.
+        """
+        from app.models.property import Property
+
+        prop = db.query(Property).filter_by(id=property_id, tenant_id=tenant_id).first()
+        if not prop or prop.type != "caravan" or not prop.price_per_km:
+            return None
+
+        route = next(
+            (
+                r for r in (prop.routes or [])
+                if str(r.get("from", "")).strip().lower() == from_city.strip().lower()
+                and str(r.get("to", "")).strip().lower() == to_city.strip().lower()
+            ),
+            None,
+        )
+        if not route or not route.get("km"):
+            return None
+
+        km = Decimal(str(route["km"]))
+        subtotal = (km * prop.price_per_km).quantize(Decimal("1"))
+        gst = (subtotal * GST_RATE).quantize(Decimal("1"))
+        total = subtotal + gst
+        advance = (total * Decimal(30) / 100).quantize(Decimal("1"))
+
+        return {
+            "property_id": str(prop.id), "property_name": prop.name,
+            "from_city": from_city, "to_city": to_city, "km": route["km"],
+            "price_per_km": prop.price_per_km,
+            "subtotal": subtotal, "gst": gst, "total": total,
+            "advance_amount": advance, "advance_percent": 30, "currency": "INR",
+        }
+
     # ── Internal helpers ──────────────────────────────────────────────────────
 
     def _is_available(

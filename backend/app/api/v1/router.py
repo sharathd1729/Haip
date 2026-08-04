@@ -14,6 +14,7 @@ from app.api.v1.endpoints import (
     pipeline_stages,
     lead_fields,
     automations,
+    tasks,
     ivr,
     push,
     dashboards, metrics, widgets_api, goals,
@@ -87,6 +88,9 @@ api_router.include_router(admin_dlq.router)
 
 # Automations
 api_router.include_router(automations.router)
+
+# Follow-up tasks
+api_router.include_router(tasks.router)
 
 # IVR call routing
 api_router.include_router(ivr.router)

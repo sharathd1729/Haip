@@ -66,6 +66,11 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     "ask_haip_freeform_sql":     ("nvidia", "nvidia/nemotron-3-ultra-550b-a55b"),
     "ask_haip_freeform_summary": ("nvidia", "meta/llama-3.1-8b-instruct"),
     "fallback":        ("nvidia",  "mistralai/mistral-medium-3.5-128b"),
+    # HAIP Inbox prototype-wiring plan, ticket 3: rewrite an existing AI
+    # draft in a new tone or language. Narrower/cheaper than a full
+    # concierge_draft (no context gathering, no grounding), same cost tier
+    # as quick_classify.
+    "concierge_rewrite": ("nvidia", "meta/llama-3.1-8b-instruct"),
     # ── Claude kept for tone-sensitive tasks ──────────────────────────────────
     "concierge_draft": ("claude",  "claude-haiku-4-5"),
 }

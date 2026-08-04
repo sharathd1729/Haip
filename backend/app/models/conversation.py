@@ -115,6 +115,13 @@ class Message(Base, TimestampMixin, TenantMixin):
     # or the grounding budget was exhausted).
     grounded_facts = Column(JSON, nullable=True)
 
+    # HAIP Inbox prototype-wiring plan, ticket 4: a structured one-click
+    # action (e.g. send_quote) alongside this draft, when the grounded loop
+    # produced a full quote worth offering as a button -- RecommendedAction[]
+    # shape, same as next_action_service.get_call_actions(). Null/empty
+    # otherwise, never fabricated when no real quote was fetched.
+    suggested_actions = Column(JSON, nullable=True)
+
     # Idempotency — prevents duplicate sends on network retry
     # Partial unique index (tenant_id, idempotency_key WHERE NOT NULL) added in migration 005
     idempotency_key = Column(String(64), nullable=True, index=False)

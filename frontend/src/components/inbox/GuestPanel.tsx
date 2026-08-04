@@ -3,10 +3,14 @@ import { useQuery } from "@tanstack/react-query";
 import { Bed, ExternalLink, Star } from "lucide-react";
 import { ChannelIcon } from "./ChannelIcon";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ProfileCompletenessWidget } from "./ProfileCompletenessWidget";
+import { FollowUpTasksPanel } from "./FollowUpTasksPanel";
 import api from "@/lib/api";
 
 interface ConversationDetail {
   id: string;
+  guest_id?: string;
+  inquiry_id?: string | null;
   guest_name?: string;
   guest_phone: string;
   channel: string;
@@ -188,6 +192,10 @@ export function GuestPanel({ detail }: { detail: ConversationDetail }) {
                 </span>
               </div>
             )}
+
+            {/* HAIP Inbox prototype-wiring plan, ticket 5 */}
+            <ProfileCompletenessWidget inquiryId={detail.inquiry_id ?? null} />
+            <FollowUpTasksPanel conversationId={detail.id} />
           </>
         )}
       </div>

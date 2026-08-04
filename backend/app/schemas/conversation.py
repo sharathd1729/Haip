@@ -64,6 +64,15 @@ class AIDraftRequest(BaseModel):
     tone: Optional[str] = None  # "warm" | "formal" | "brief" | "persuasive"
 
 
+class RewriteDraftRequest(BaseModel):
+    """HAIP Inbox prototype-wiring plan, ticket 3: real translate/tone-fix
+    of an existing pending AI draft. At least one of tone/target_language
+    is expected -- validated in the endpoint, not here, since "polish only"
+    (both absent) is a legitimate no-op-instructions case the task handles."""
+    tone: Optional[str] = None
+    target_language: Optional[str] = None
+
+
 class SendTemplateRequest(BaseModel):
     """T3.2: send an approved WhatsApp template -- required when the 24h
     service window is closed, since Meta rejects free-form messages then."""

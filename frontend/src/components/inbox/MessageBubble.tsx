@@ -1,7 +1,17 @@
 "use client";
-import { CheckCheck, Check, Clock, RotateCw, Sparkles, ThumbsUp, ThumbsDown, Edit2, Reply, StickyNote } from "lucide-react";
+import { CheckCheck, Check, Clock, RotateCw, Sparkles, ThumbsUp, ThumbsDown, Edit2, Reply, StickyNote, Languages, Wand2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { memo, useState } from "react";
+import { AIRecommendationCard, type RecommendedAction } from "@/components/ai/AIRecommendationCard";
+
+// HAIP Inbox prototype-wiring plan, ticket 3: real translate/tone-fix,
+// scoped to the pending draft's own message id -- not the composer-level
+// AIDraftPanel (that's for regenerating a whole new draft, a different
+// concept). A small fixed list rather than free text input: keeps this
+// action row compact and matches the guest languages HAIP's hospitality
+// tenants actually see.
+const REWRITE_LANGUAGES = ["Hindi", "Kannada", "Tamil", "Telugu", "Malayalam"];
+const REWRITE_TONES = ["warm", "formal", "brief", "persuasive"] as const;
 
 export type MessageDirection = "inbound" | "outbound";
 export type MessageStatus = "pending" | "queued" | "sent" | "delivered" | "read" | "failed";
@@ -20,11 +30,15 @@ export interface MessageBubbleProps {
   mediaUrl?: string | null;              // T0.5
   mediaType?: string | null;             // image/video/audio/document
   sharedPostUrl?: string | null;         // Instagram post/ad share — permalink, not fetchable media
+  suggestedActions?: RecommendedAction[]; // ticket 4: inline one-click action card
+  entityRefs?: { guest_id?: string; inquiry_id?: string };
   onApprove?: (id: string) => void;
   onEdit?: (id: string, text: string) => void;
   onReject?: (id: string) => void;
   onRetry?: (id: string) => void;
   onReply?: (id: string) => void;        // W5
+  onRewrite?: (id: string, opts: { tone?: string; target_language?: string }) => void;
+  isRewriting?: boolean;
   className?: string;
 }
 
@@ -96,16 +110,22 @@ export const MessageBubble = memo(function MessageBubble({
   mediaUrl,
   mediaType,
   sharedPostUrl,
+  suggestedActions,
+  entityRefs,
   onApprove,
   onEdit,
   onReject,
   onRetry,
   onReply,
+  onRewrite,
+  isRewriting,
   className,
 }: MessageBubbleProps) {
   const isOut    = direction === "outbound";
   const isFailed = status === "failed";
   const [hovered, setHovered] = useState(false);
+  const [showLangPicker, setShowLangPicker] = useState(false);
+  const [showTonePicker, setShowTonePicker] = useState(false);
   // Note: this component is wrapped in React.memo — it only re-renders when props change.
 
   // W24: Internal notes always centered with amber styling
@@ -236,6 +256,71 @@ export const MessageBubble = memo(function MessageBubble({
             >
               <ThumbsDown size={11} /> Reject
             </button>
+
+            {/* Ticket 3: real translate/tone-fix, scoped to this draft */}
+            {onRewrite && (
+              <>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowTonePicker(v => !v)}
+                    disabled={isRewriting}
+                    title="Rewrite tone"
+                    className="flex items-center gap-1 text-xs text-gray-500 bg-white hover:bg-gray-50 border border-gray-200 px-2 py-1 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    <Wand2 size={11} /> Tone
+                  </button>
+                  {showTonePicker && (
+                    <div className="absolute z-10 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[110px]">
+                      {REWRITE_TONES.map(t => (
+                        <button
+                          key={t}
+                          onClick={() => { onRewrite(id, { tone: t }); setShowTonePicker(false); }}
+                          className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 capitalize"
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowLangPicker(v => !v)}
+                    disabled={isRewriting}
+                    title="Translate"
+                    className="flex items-center gap-1 text-xs text-gray-500 bg-white hover:bg-gray-50 border border-gray-200 px-2 py-1 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    <Languages size={11} /> Translate
+                  </button>
+                  {showLangPicker && (
+                    <div className="absolute z-10 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[110px]">
+                      {REWRITE_LANGUAGES.map(lang => (
+                        <button
+                          key={lang}
+                          onClick={() => { onRewrite(id, { target_language: lang }); setShowLangPicker(false); }}
+                          className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                        >
+                          {lang}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Ticket 4: inline one-click action card alongside a grounded draft */}
+        {isAiDraft && suggestedActions && suggestedActions.length > 0 && (
+          <div className="mt-1.5 w-full">
+            <AIRecommendationCard
+              title="Suggested action"
+              summary="A live quote is ready to send."
+              entityRefs={entityRefs ?? {}}
+              actions={suggestedActions}
+              source="inbox_thread"
+            />
           </div>
         )}
       </div>

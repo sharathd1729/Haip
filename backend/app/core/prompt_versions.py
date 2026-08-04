@@ -56,6 +56,9 @@ PROMPT_VERSIONS: dict[str, str] = {
     # AI Autonomy Plan Phase 1 ticket 4: new intent classify+extract step
     # gating the grounded tool loop.
     "concierge_intent": "concierge-intent-v1",
+    # HAIP Inbox prototype-wiring plan, ticket 3: real translate/tone-fix
+    # rewrite of an existing pending AI draft.
+    "concierge_rewrite": "concierge-rewrite-v1",
 }
 
 UNKNOWN = "unregistered"

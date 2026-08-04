@@ -12,6 +12,8 @@ import { AIDraftPanel } from "@/components/inbox/AIDraftPanel";
 import { TypingDots } from "@/components/inbox/TypingDots";
 import { ChannelIcon } from "@/components/inbox/ChannelIcon";
 import { GuestPanel } from "@/components/inbox/GuestPanel";
+import { CallLogCard, type CallTimelineItem } from "@/components/inbox/CallLogCard";
+import type { RecommendedAction } from "@/components/ai/AIRecommendationCard";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useInboxStore } from "@/store/inbox";
@@ -43,10 +45,13 @@ interface Message {
   media_url?: string | null;   // T0.5
   media_type?: string | null;
   shared_post_url?: string | null;
+  suggested_actions?: RecommendedAction[];  // ticket 4
 }
 
 interface ConversationDetail {
   id: string;
+  guest_id?: string;
+  inquiry_id?: string | null;
   guest_name?: string;
   guest_phone: string;
   channel: string;
@@ -56,6 +61,22 @@ interface ConversationDetail {
   total_messages?: number;
   messages_capped?: boolean;  // true when older history exists beyond `messages`
 }
+
+// HAIP Inbox prototype-wiring plan, ticket 2/5: the call side of the merged
+// timeline. Messages keep coming from ConversationDetail/olderMessages
+// (already paginated, tested) -- only calls are pulled in from the new
+// timeline endpoint and interleaved by timestamp, to avoid disturbing that
+// working pagination state machine.
+interface TimelineCallItem {
+  type: "call";
+  occurred_at: string;
+  call: CallTimelineItem;
+}
+interface TimelineMessageItem {
+  type: "message";
+  occurred_at: string;
+}
+type TimelineItem = TimelineCallItem | TimelineMessageItem;
 
 // D9: compute seconds remaining in 24h WhatsApp service window
 function getWindowSecondsLeft(last_inbound_at?: string | null): number {
@@ -250,6 +271,41 @@ export default function InboxPage() {
     queryFn: () => api.get(`/conversations/${activeConversationId}`).then(r => r.data),
     enabled: !!activeConversationId,
     staleTime: 30_000,
+  });
+
+  // HAIP Inbox prototype-wiring plan, ticket 2: call side of the merged
+  // timeline -- messages keep coming from `detail`/`olderMessages` above
+  // (already paginated), only the call items are pulled from here and
+  // interleaved by timestamp below.
+  const { data: timeline } = useQuery<{ items: TimelineItem[] }>({
+    queryKey: ["conversation-timeline", activeConversationId],
+    queryFn: () => api.get(`/conversations/${activeConversationId}/timeline`).then(r => r.data),
+    enabled: !!activeConversationId,
+    staleTime: 30_000,
+  });
+  const callItems = (timeline?.items ?? []).filter(
+    (i): i is TimelineCallItem => i.type === "call"
+  );
+
+  // HAIP Inbox prototype-wiring plan, ticket 3: real translate/tone-fix of
+  // a pending draft, scoped to its own message id.
+  const [rewritingMessageId, setRewritingMessageId] = useState<string | null>(null);
+  const rewriteDraft = useMutation({
+    mutationFn: ({ messageId, tone, targetLanguage }: { messageId: string; tone?: string; targetLanguage?: string }) =>
+      api.post(`/conversations/${activeConversationId}/messages/${messageId}/rewrite`, {
+        tone, target_language: targetLanguage,
+      }),
+    onMutate: ({ messageId }) => setRewritingMessageId(messageId),
+    onSettled: () => setRewritingMessageId(null),
+    onSuccess: () => {
+      // Draft rewrite is async (Celery) -- refetch after a short delay
+      // rather than immediately, same pattern as AI draft generation.
+      setTimeout(() => queryClient.invalidateQueries({ queryKey: ["conversation", activeConversationId] }), 1500);
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.detail ?? "Rewrite failed";
+      toast({ variant: "error", title: "Could not rewrite draft", description: msg });
+    },
   });
 
   // "Load older messages" — get_conversation_detail's initial payload only
@@ -848,32 +904,53 @@ export default function InboxPage() {
                       </button>
                     </div>
                   )}
-                  {[...olderMessages, ...(detail?.messages ?? [])].map(msg => (
-                    <MessageBubble
-                      key={msg.id}
-                      id={msg.id}
-                      text={msg.text}
-                      direction={msg.direction}
-                      status={(msg.delivery_state ?? msg.status) as any}
-                      deliveryError={msg.delivery_error}
-                      timestamp={msg.timestamp}
-                      isAiDraft={!!(msg.ai_drafted && msg.direction === "outbound")}
-                      isInternal={msg.is_internal}
-                      aiConfidence={msg.ai_confidence}
-                      senderName={msg.direction === "outbound" ? msg.sender_name : (detail?.guest_name || detail?.guest_phone)}
-                      mediaUrl={msg.media_url}
-                      mediaType={msg.media_type}
-                      sharedPostUrl={msg.shared_post_url}
-                      onApprove={handleApprove}
-                      onEdit={(id, text) => { setEditingDraftId(id); setEditText(text); }}
-                      onReject={handleReject}
-                      onRetry={handleRetry}
-                      onReply={(id) => {
-                        setReplyToMsg(msg);
-                        textareaRef.current?.focus();
-                      }}
-                    />
-                  ))}
+                  {(() => {
+                    const msgs = [...olderMessages, ...(detail?.messages ?? [])];
+                    // Interleave calls (ticket 2) by timestamp -- messages
+                    // keep their own tested render path, calls are spliced
+                    // in purely for chronological display.
+                    type Row = { key: string; at: number } & (
+                      | { kind: "message"; msg: Message }
+                      | { kind: "call"; call: CallTimelineItem }
+                    );
+                    const rows: Row[] = [
+                      ...msgs.map(m => ({ key: `m-${m.id}`, at: new Date(m.timestamp).getTime(), kind: "message" as const, msg: m })),
+                      ...callItems.map(c => ({ key: `c-${c.call.id}`, at: new Date(c.occurred_at).getTime(), kind: "call" as const, call: c.call })),
+                    ].sort((a, b) => a.at - b.at);
+
+                    return rows.map(row => row.kind === "call" ? (
+                      <CallLogCard key={row.key} call={row.call} />
+                    ) : (
+                      <MessageBubble
+                        key={row.key}
+                        id={row.msg.id}
+                        text={row.msg.text}
+                        direction={row.msg.direction}
+                        status={(row.msg.delivery_state ?? row.msg.status) as any}
+                        deliveryError={row.msg.delivery_error}
+                        timestamp={row.msg.timestamp}
+                        isAiDraft={!!(row.msg.ai_drafted && row.msg.direction === "outbound")}
+                        isInternal={row.msg.is_internal}
+                        aiConfidence={row.msg.ai_confidence}
+                        senderName={row.msg.direction === "outbound" ? row.msg.sender_name : (detail?.guest_name || detail?.guest_phone)}
+                        mediaUrl={row.msg.media_url}
+                        mediaType={row.msg.media_type}
+                        sharedPostUrl={row.msg.shared_post_url}
+                        suggestedActions={row.msg.suggested_actions}
+                        entityRefs={{ guest_id: detail?.guest_id, inquiry_id: detail?.inquiry_id ?? undefined }}
+                        onApprove={handleApprove}
+                        onEdit={(id, text) => { setEditingDraftId(id); setEditText(text); }}
+                        onReject={handleReject}
+                        onRetry={handleRetry}
+                        onReply={(id) => {
+                          setReplyToMsg(row.msg);
+                          textareaRef.current?.focus();
+                        }}
+                        onRewrite={(id, opts) => rewriteDraft.mutate({ messageId: id, tone: opts.tone, targetLanguage: opts.target_language })}
+                        isRewriting={rewritingMessageId === row.msg.id}
+                      />
+                    ));
+                  })()}
                   {aiTyping && <div className="flex justify-start"><TypingDots /></div>}
                   <div ref={bottomRef} />
                 </>
