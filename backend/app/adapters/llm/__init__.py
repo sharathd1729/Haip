@@ -20,7 +20,7 @@ Routing rules:
   bulk_batch       → nvidia   meta/llama-3.1-8b-instruct
   deep_reason      → nvidia   nvidia/nemotron-3-ultra-550b-a55b  (thinking=True)
   report_gen       → nvidia   nvidia/nemotron-3-ultra-550b-a55b
-  concierge_draft  → claude   claude-haiku-4-5   (kept — Indian hospitality tone)
+  concierge_draft  → nvidia   nvidia/llama-3.3-nemotron-super-49b-v1.5
   ruflo_domain     → nvidia   nvidia/llama-3.3-nemotron-super-49b-v1.5
   ruflo_synthesis  → nvidia   nvidia/llama-3.3-nemotron-super-49b-v1.5
   fallback         → nvidia   mistralai/mistral-medium-3.5-128b
@@ -71,8 +71,11 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # concierge_draft (no context gathering, no grounding), same cost tier
     # as quick_classify.
     "concierge_rewrite": ("nvidia", "meta/llama-3.1-8b-instruct"),
-    # ── Claude kept for tone-sensitive tasks ──────────────────────────────────
-    "concierge_draft": ("claude",  "claude-haiku-4-5"),
+    # Moved off Claude to NVIDIA-only per deployment requirement (2026-08-05):
+    # prod runs on NVIDIA keys only, no ANTHROPIC_API_KEY provisioned. Same
+    # tier as lead_summary/ruflo_domain -- the strongest NVIDIA model this
+    # router has, since this is guest-facing text.
+    "concierge_draft": ("nvidia",  "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
 }
 
 

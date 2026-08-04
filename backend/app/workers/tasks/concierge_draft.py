@@ -37,8 +37,6 @@ from app.services.concierge_service import build_concierge_context, _kb_search
 from app.core.database import set_tenant_context
 import structlog
 
-MODEL_HAIKU = "claude-haiku-4-5"
-
 log = structlog.get_logger()
 
 PROMPTS_DIR = Path(__file__).parent.parent.parent / "prompts"
@@ -329,12 +327,16 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             guest_missing_phone=guest_missing_phone,
         )
 
+        # No explicit model= here: NVIDIA-only routing (2026-08-05) means the
+        # routed default_model set by get_llm("concierge_draft") is what
+        # should fire -- an explicit override here previously hardcoded the
+        # Claude model string, which would silently break once this task
+        # moved to the NVIDIA adapter.
         adapter = get_llm("concierge_draft")
         result = _run_async(
             adapter.complete(
                 system_prompt=system_prompt,
                 user_message="Draft a reply for this guest.",
-                model=MODEL_HAIKU,
                 tools=[CONCIERGE_TOOL],
             )
         )
