@@ -298,36 +298,55 @@ def submit_template(
     if not tmpl:
         raise HTTPException(status_code=404, detail="Template not found")
 
-    # Try to submit via Meta Graph API if WhatsApp is connected
+    # Look up the tenant's WhatsApp integration -- kind="whatsapp_meta" is
+    # primary, but every other WhatsApp code path (send_whatsapp.py,
+    # sync_wa_templates.py, run_campaign.py, automation_engine.py) also
+    # falls back to kind="whatsapp". This endpoint didn't, which silently
+    # skipped Meta submission entirely for any tenant whose integration row
+    # uses the "whatsapp" kind -- the template just sat at "Pending" in our
+    # DB forever, never actually created on Meta's side.
     from app.models.integration import Integration
-    wa_int = db.query(Integration).filter_by(tenant_id=current_user.tenant_id, kind="whatsapp_meta", status="active").first()
+    wa_int = db.query(Integration).filter_by(
+        tenant_id=current_user.tenant_id, kind="whatsapp_meta", status="active",
+    ).first()
+    if not wa_int:
+        wa_int = db.query(Integration).filter_by(
+            tenant_id=current_user.tenant_id, kind="whatsapp", status="active",
+        ).first()
 
-    if wa_int and wa_int.config.get("access_token") and wa_int.config.get("waba_id"):
-        try:
-            resp = httpx.post(
-                f"https://graph.facebook.com/v18.0/{wa_int.config['waba_id']}/message_templates",
-                headers={"Authorization": f"Bearer {wa_int.config['access_token']}"},
-                json={
-                    "name": tmpl.name,
-                    "language": tmpl.language,
-                    "category": tmpl.category.value,
-                    "components": tmpl.components,
-                },
-                timeout=15,
-            )
-            data = resp.json()
-            if "id" in data:
-                tmpl.meta_template_id = data["id"]
-                tmpl.status = TemplateStatus.PENDING
-            else:
-                tmpl.rejection_reason = data.get("error", {}).get("message", "Unknown error")
-                tmpl.status = TemplateStatus.REJECTED
-        except Exception as e:
-            log.error("wa_template_submission_failed", template_id=template_id, error=str(e))
-            tmpl.status = TemplateStatus.SUBMISSION_FAILED
-            tmpl.rejection_reason = f"Submission request failed: {e}"[:500]
-    else:
-        tmpl.status = TemplateStatus.PENDING
+    if not wa_int or not wa_int.config.get("access_token") or not wa_int.config.get("waba_id"):
+        # Fail loudly instead of silently marking the template "Pending" --
+        # that used to return 200 with no indication nothing was actually
+        # submitted to Meta.
+        raise HTTPException(
+            status_code=400,
+            detail="WhatsApp Business API is not connected for this workspace. "
+                    "Connect it under Settings -> Integrations before submitting a template.",
+        )
+
+    try:
+        resp = httpx.post(
+            f"https://graph.facebook.com/v18.0/{wa_int.config['waba_id']}/message_templates",
+            headers={"Authorization": f"Bearer {wa_int.config['access_token']}"},
+            json={
+                "name": tmpl.name,
+                "language": tmpl.language,
+                "category": tmpl.category.value,
+                "components": tmpl.components,
+            },
+            timeout=15,
+        )
+        data = resp.json()
+        if "id" in data:
+            tmpl.meta_template_id = data["id"]
+            tmpl.status = TemplateStatus.PENDING
+        else:
+            tmpl.rejection_reason = data.get("error", {}).get("message", "Unknown error")
+            tmpl.status = TemplateStatus.REJECTED
+    except Exception as e:
+        log.error("wa_template_submission_failed", template_id=template_id, error=str(e))
+        tmpl.status = TemplateStatus.SUBMISSION_FAILED
+        tmpl.rejection_reason = f"Submission request failed: {e}"[:500]
 
     db.commit()
     return {"status": tmpl.status.value, "meta_template_id": tmpl.meta_template_id, "rejection_reason": tmpl.rejection_reason}
