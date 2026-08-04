@@ -353,7 +353,6 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
                     "message_id": message.id,
                     "conversation_id": conversation.id,
                     "tenant_id": tenant.id,
-                    "channel": "whatsapp",
                 },
                 countdown=2,  # 2s delay so the DB commit completes first
             )

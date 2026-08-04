@@ -10,6 +10,7 @@ from typing import Optional
 import logging
 
 from app.adapters.llm.base import LLMAdapter
+from app.adapters.llm.tools import to_provider_tools
 from app.core.config import settings
 
 log = logging.getLogger(__name__)
@@ -49,7 +50,7 @@ class OpenAIAdapter(LLMAdapter):
             max_tokens=max_tokens,
         )
         if tools:
-            kwargs["tools"] = tools
+            kwargs["tools"] = to_provider_tools(tools, "openai")
             kwargs["tool_choice"] = "auto"
 
         resp = await client.chat.completions.create(**kwargs)

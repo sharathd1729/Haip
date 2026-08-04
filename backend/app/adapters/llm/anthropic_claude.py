@@ -5,6 +5,7 @@ Wraps the SDK with structured tool-use output and prompt-cache prefix support.
 import anthropic
 from typing import Optional
 from app.adapters.llm.base import LLMAdapter
+from app.adapters.llm.tools import to_provider_tools
 from app.core.config import settings
 import structlog
 
@@ -42,7 +43,7 @@ class ClaudeAdapter(LLMAdapter):
             messages=[{"role": "user", "content": user_message}],
         )
         if tools:
-            kwargs["tools"] = tools
+            kwargs["tools"] = to_provider_tools(tools, "claude")
 
         try:
             response = self._client.messages.create(**kwargs)

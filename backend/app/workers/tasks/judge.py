@@ -38,38 +38,36 @@ _jinja_env = Environment(loader=FileSystemLoader(str(PROMPTS_DIR)))
 
 CONFIDENCE_THRESHOLD = 0.78
 
-# OpenAI/NVIDIA function-calling shape — see note in classify.py's CLASSIFY_TOOL.
+# Canonical ToolSpec shape (adapters/llm/tools.py) — see note in
+# classify.py's CLASSIFY_TOOL.
 JUDGE_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "judge_call",
-        "description": "Return structured QA scoring of the call",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "criterion_scores": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "id":        {"type": "string"},
-                            "score":     {"type": "number"},
-                            "evidence":  {"type": "string"},  # plain string, no nested arrays
-                        },
-                        "required": ["id", "score", "evidence"],
+    "name": "judge_call",
+    "description": "Return structured QA scoring of the call",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "criterion_scores": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id":        {"type": "string"},
+                        "score":     {"type": "number"},
+                        "evidence":  {"type": "string"},  # plain string, no nested arrays
                     },
+                    "required": ["id", "score", "evidence"],
                 },
-                "has_auto_fail":      {"type": "boolean"},
-                "sentiment":          {"type": "string", "enum": ["positive", "neutral", "negative"]},
-                "intent":             {"type": "string"},
-                "language":           {"type": "string"},
-                "themes":             {"type": "array", "items": {"type": "string"}},
-                "confidence":         {"type": "number"},
-                "agent_strengths":    {"type": "string"},
-                "agent_growth_areas": {"type": "string"},
             },
-            "required": ["criterion_scores", "confidence", "sentiment"],
+            "has_auto_fail":      {"type": "boolean"},
+            "sentiment":          {"type": "string", "enum": ["positive", "neutral", "negative"]},
+            "intent":             {"type": "string"},
+            "language":           {"type": "string"},
+            "themes":             {"type": "array", "items": {"type": "string"}},
+            "confidence":         {"type": "number"},
+            "agent_strengths":    {"type": "string"},
+            "agent_growth_areas": {"type": "string"},
         },
+        "required": ["criterion_scores", "confidence", "sentiment"],
     },
 }
 

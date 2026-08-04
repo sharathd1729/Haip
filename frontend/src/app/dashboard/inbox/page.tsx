@@ -388,7 +388,7 @@ export default function InboxPage() {
 
   const draftMutation = useMutation({
     mutationFn: () =>
-      api.post(`/conversations/${activeConversationId}/messages/ai-draft`, {}),
+      api.post(`/conversations/${activeConversationId}/messages/ai-draft`, { tone: aiTone }),
     onMutate: () => setAiTyping(true),
     onSettled: () => setAiTyping(false),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["conversation", activeConversationId] }),

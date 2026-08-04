@@ -107,6 +107,13 @@ class Message(Base, TimestampMixin, TenantMixin):
     is_ai_generated = Column(Boolean, default=False)
     ai_confidence = Column(String(10), nullable=True)
     was_approved = Column(Boolean, nullable=True)  # null = not AI, True/False = approved/rejected
+    # AI Autonomy Plan Phase 1 ticket 4: what the bounded tool loop actually
+    # fetched (check_availability/get_quote calls + results) while drafting
+    # this message, if any -- carried through to ai_draft_outcomes at
+    # approve/reject time. Null/empty for non-AI messages and for AI
+    # messages drafted without grounding (intent wasn't availability/price,
+    # or the grounding budget was exhausted).
+    grounded_facts = Column(JSON, nullable=True)
 
     # Idempotency — prevents duplicate sends on network retry
     # Partial unique index (tenant_id, idempotency_key WHERE NOT NULL) added in migration 005

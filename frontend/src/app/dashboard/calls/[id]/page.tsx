@@ -17,6 +17,7 @@ import { ScoreRing } from "@/components/calls/ScoreRing";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
+import { AIRecommendationCard, type RecommendedAction } from "@/components/ai/AIRecommendationCard";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -75,13 +76,7 @@ interface CallDetail {
     next_action?: string;
     ai_summary?: string;
   };
-  recommended_action?: {
-    type: string;
-    label: string;
-    target_field: string;
-    target: string;
-    target_conversation_id?: string | null;
-  } | null;
+  recommended_actions?: RecommendedAction[];
 }
 
 const DISPOSITION_OPTIONS = [
@@ -193,21 +188,6 @@ export default function CallDetailPage() {
     },
     onError: () => {
       toast({ variant: "error", title: "Save failed", description: "Please try again." });
-    },
-  });
-
-  // M5+ WS1/WS3: reuses the existing approve-and-queue endpoint
-  // (conversations.py::approve_ai_draft) rather than a new one.
-  const approveAndSendMutation = useMutation({
-    mutationFn: ({ conversationId, messageId }: { conversationId: string; messageId: string }) =>
-      api.post(`/conversations/${conversationId}/messages/${messageId}/approve`),
-    onSuccess: () => {
-      toast({ variant: "success", title: "Draft sent", description: "The WhatsApp reply is on its way." });
-      queryClient.invalidateQueries({ queryKey: ["call", id] });
-    },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.detail ?? "Could not send the draft";
-      toast({ variant: "error", title: "Send failed", description: msg });
     },
   });
 
@@ -742,36 +722,23 @@ export default function CallDetailPage() {
           </div>
 
           {/* ── Recommended actions zone ─────────────────────────────────────
-              Relocated out of Wrap-up so it reads as its own zone rather than
-              a sub-item of the human wrap-up form. Same logic as before:
-              clickable when a structured recommended_action exists (currently
-              only send_whatsapp_draft), otherwise falls back to the free-text
-              next_action. */}
-          {(call.recommended_action?.type === "send_whatsapp_draft" && call.recommended_action.target_conversation_id) || call.score?.next_action ? (
+              AI Autonomy Plan Phase 2 ticket 5: AIRecommendationCard is the
+              one action contract, everywhere -- this replaces the bespoke
+              approve-and-send button that used to live here. Falls back to
+              the free-text next_action when next_action_service found
+              nothing structured to act on. */}
+          {(call.recommended_actions && call.recommended_actions.length > 0) || call.score?.next_action ? (
             <div className="haip-card p-5">
               <h2 className="text-sm font-semibold text-gray-900 mb-3">Recommended actions</h2>
-              {call.recommended_action?.type === "send_whatsapp_draft" && call.recommended_action.target_conversation_id ? (
-                <div className="p-3 bg-teal-50 border border-teal-100 rounded-xl">
-                  {call.score?.next_action && (
-                    <p className="text-sm text-teal-800 mb-2">{call.score.next_action}</p>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => approveAndSendMutation.mutate({
-                      conversationId: call.recommended_action!.target_conversation_id!,
-                      messageId: call.recommended_action!.target,
-                    })}
-                    disabled={approveAndSendMutation.isPending}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition-colors"
-                  >
-                    {approveAndSendMutation.isPending ? (
-                      <Loader2 size={12} className="animate-spin" />
-                    ) : (
-                      <MessageSquare size={12} />
-                    )}
-                    {call.recommended_action.label}
-                  </button>
-                </div>
+              {call.recommended_actions && call.recommended_actions.length > 0 ? (
+                <AIRecommendationCard
+                  title="Suggested next step"
+                  summary={call.score?.next_action ?? "AI found something worth acting on from this call."}
+                  entityRefs={{ call_id: call.id }}
+                  actions={call.recommended_actions}
+                  source="call_detail"
+                  invalidateKeys={[["call", id]]}
+                />
               ) : call.score?.next_action ? (
                 <div className="p-3 bg-teal-50 border border-teal-100 rounded-xl">
                   <p className="text-sm text-teal-800">{call.score.next_action}</p>

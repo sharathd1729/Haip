@@ -33,79 +33,77 @@ log = structlog.get_logger()
 PROMPTS_DIR = Path(__file__).parent.parent.parent / "prompts"
 _jinja_env = Environment(loader=FileSystemLoader(str(PROMPTS_DIR)))
 
-# OpenAI/NVIDIA function-calling shape: {"type": "function", "function": {...}}.
-# NOT Anthropic's flat {name, description, input_schema} — get_llm("quick_classify")
-# now routes to NVIDIA, whose OpenAI-compatible endpoint rejects the Anthropic
-# shape with "missing field `type`".
+# Canonical ToolSpec shape (adapters/llm/tools.py) -- get_llm("quick_classify")
+# routes to NVIDIA's OpenAI-compatible endpoint, which needs a different
+# wire dialect than this; NvidiaNIMAdapter.complete() renders that
+# conversion internally now via to_provider_tools(), so this file (and
+# every other task file) only ever declares tools in this one shape.
 CLASSIFY_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "classify_call",
-        "description": "Return structured classification of the call including Layer 2 intent and outcome signals",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                # ── Layer 1: Basic classification ────────────────────────────
-                "sentiment": {
-                    "type": "string",
-                    "enum": ["positive", "neutral", "negative"],
-                    "description": "Overall guest sentiment during the call",
-                },
-                "intent": {
-                    "type": "string",
-                    "description": "Primary intent: booking_inquiry, price_query, availability_query, experience_interest, complaint, cancellation, general",
-                },
-                "language": {
-                    "type": "string",
-                    "description": "Primary language spoken (en, hi, kn, ta, te, mr, etc.)",
-                },
-                "is_code_mixed": {
-                    "type": "boolean",
-                    "description": "True if guest mixed languages (e.g. Hinglish)",
-                },
-                "themes": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Key topics discussed: pricing, availability, amenities, location, upsell, objection, etc.",
-                },
-                "confidence": {
-                    "type": "number",
-                    "description": "Model confidence 0.0–1.0 in the classification",
-                },
-                # ── Layer 2: Intent & Outcome signals ────────────────────────
-                "occasion": {
-                    "type": "string",
-                    "description": "Trip occasion if mentioned. One of: honeymoon, anniversary, birthday, corporate, family, solo, wedding, other. Empty string if not mentioned.",
-                },
-                "budget_signal": {
-                    "type": "string",
-                    "description": "Guest's reaction to price if any price was discussed. E.g. 'That\\'s high', 'Okay works for us', 'Can you do better?', 'Seems reasonable'. Empty string if price not discussed.",
-                },
-                "decision_stage": {
-                    "type": "string",
-                    "description": "Where the guest is in their decision journey. One of: first_inquiry, comparing, ready_to_book. Empty string if unclear.",
-                },
-                "competitor_mentioned": {
-                    "type": "string",
-                    "description": "Name of any competitor or alternative property mentioned (e.g. StayVista, Airbnb, another villa name). Empty string if none.",
-                },
-                "conversion_probability": {
-                    "type": "number",
-                    "description": "Estimated probability (0–100) that this guest will book based on their engagement, intent signals, and decision stage.",
-                },
-                "lost_reason": {
-                    "type": "string",
-                    "description": "If the call ended without converting, the likely reason. One of: price, dates_unavailable, still_comparing, no_response, wrong_property, other. Empty string if not lost.",
-                },
-                "guest_name": {
-                    "type": "string",
-                    "description": "The guest/caller's first name if they state it themselves during the call (e.g. \"This is Priya calling\", \"Meera here\"). Do NOT use the agent's name. Empty string if the guest never states their name.",
-                },
+    "name": "classify_call",
+    "description": "Return structured classification of the call including Layer 2 intent and outcome signals",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            # ── Layer 1: Basic classification ────────────────────────────
+            "sentiment": {
+                "type": "string",
+                "enum": ["positive", "neutral", "negative"],
+                "description": "Overall guest sentiment during the call",
             },
-            "required": ["sentiment", "intent", "language", "is_code_mixed", "themes", "confidence",
-                         "occasion", "budget_signal", "decision_stage", "competitor_mentioned",
-                         "conversion_probability", "lost_reason", "guest_name"],
+            "intent": {
+                "type": "string",
+                "description": "Primary intent: booking_inquiry, price_query, availability_query, experience_interest, complaint, cancellation, general",
+            },
+            "language": {
+                "type": "string",
+                "description": "Primary language spoken (en, hi, kn, ta, te, mr, etc.)",
+            },
+            "is_code_mixed": {
+                "type": "boolean",
+                "description": "True if guest mixed languages (e.g. Hinglish)",
+            },
+            "themes": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Key topics discussed: pricing, availability, amenities, location, upsell, objection, etc.",
+            },
+            "confidence": {
+                "type": "number",
+                "description": "Model confidence 0.0–1.0 in the classification",
+            },
+            # ── Layer 2: Intent & Outcome signals ────────────────────────
+            "occasion": {
+                "type": "string",
+                "description": "Trip occasion if mentioned. One of: honeymoon, anniversary, birthday, corporate, family, solo, wedding, other. Empty string if not mentioned.",
+            },
+            "budget_signal": {
+                "type": "string",
+                "description": "Guest's reaction to price if any price was discussed. E.g. 'That\\'s high', 'Okay works for us', 'Can you do better?', 'Seems reasonable'. Empty string if price not discussed.",
+            },
+            "decision_stage": {
+                "type": "string",
+                "description": "Where the guest is in their decision journey. One of: first_inquiry, comparing, ready_to_book. Empty string if unclear.",
+            },
+            "competitor_mentioned": {
+                "type": "string",
+                "description": "Name of any competitor or alternative property mentioned (e.g. StayVista, Airbnb, another villa name). Empty string if none.",
+            },
+            "conversion_probability": {
+                "type": "number",
+                "description": "Estimated probability (0–100) that this guest will book based on their engagement, intent signals, and decision stage.",
+            },
+            "lost_reason": {
+                "type": "string",
+                "description": "If the call ended without converting, the likely reason. One of: price, dates_unavailable, still_comparing, no_response, wrong_property, other. Empty string if not lost.",
+            },
+            "guest_name": {
+                "type": "string",
+                "description": "The guest/caller's first name if they state it themselves during the call (e.g. \"This is Priya calling\", \"Meera here\"). Do NOT use the agent's name. Empty string if the guest never states their name.",
+            },
         },
+        "required": ["sentiment", "intent", "language", "is_code_mixed", "themes", "confidence",
+                     "occasion", "budget_signal", "decision_stage", "competitor_mentioned",
+                     "conversion_probability", "lost_reason", "guest_name"],
     },
 }
 

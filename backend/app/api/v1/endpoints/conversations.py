@@ -7,8 +7,9 @@ from app.core.database import get_db
 from app.api.v1.deps import get_current_user
 from app.models.user import User
 from app.models.conversation import Conversation, Message, MessageDeliveryState
-from app.schemas.conversation import MessageOut, SendMessageRequest, AIDraftRequest, ConversationOut, SendTemplateRequest
+from app.schemas.conversation import MessageOut, SendMessageRequest, AIDraftRequest, ConversationOut, SendTemplateRequest, ApproveDraftRequest
 from app.workers.tasks.concierge_draft import concierge_draft
+from app.services import ai_draft_outcomes_service
 import structlog
 
 log = structlog.get_logger()
@@ -381,6 +382,7 @@ def request_ai_draft(
         message_id=draft_id,
         conversation_id=conversation_id,
         tenant_id=current_user.tenant_id,
+        tone=body.tone,
     )
     return {"status": "draft_queued", "draft_id": draft_id}
 
@@ -569,6 +571,7 @@ def get_conversation_detail(
 def approve_ai_draft(
     conversation_id: str,
     message_id: str,
+    body: ApproveDraftRequest = ApproveDraftRequest(),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -578,14 +581,58 @@ def approve_ai_draft(
     if not msg:
         raise HTTPException(status_code=404, detail="Message not found")
 
+    # AI Autonomy Plan §0.1: this used to ignore any edited text entirely --
+    # the inbox UI's edit-then-send flow already posted {text: editText}
+    # here, but with no body param declared FastAPI silently dropped it and
+    # the ORIGINAL AI draft always went out to the guest, edit or not.
+    original_body = msg.body
+    was_edited = body.text is not None and body.text != original_body
+    if body.text is not None:
+        msg.body = body.text
+
     msg.was_approved = True
     msg.sender_id = current_user.id
     msg.delivery_state = MessageDeliveryState.QUEUED
+
+    ai_draft_outcomes_service.record_outcome(
+        db, tenant_id=current_user.tenant_id, draft=msg,
+        outcome="sent_edited" if was_edited else "sent_verbatim",
+        original_body=original_body if was_edited else None,
+        sent_body=msg.body if was_edited else None,
+    )
     db.commit()
 
     from app.workers.tasks.send_whatsapp import send_whatsapp
     send_whatsapp.delay(message_id=message_id, tenant_id=current_user.tenant_id)
     return {"status": "approved_and_queued"}
+
+
+@router.post("/{conversation_id}/messages/{message_id}/reject")
+def reject_ai_draft(
+    conversation_id: str,
+    message_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Was previously missing entirely -- the inbox UI's reject button has
+    called this exact path since it was built, always 404ing silently
+    (caught and swallowed client-side), so a rejected draft never actually
+    got was_approved=False and never left any record of the rejection."""
+    msg = db.query(Message).filter_by(
+        id=message_id, conversation_id=conversation_id, tenant_id=current_user.tenant_id
+    ).first()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    msg.was_approved = False
+    msg.delivery_state = None
+
+    ai_draft_outcomes_service.record_outcome(
+        db, tenant_id=current_user.tenant_id, draft=msg, outcome="rejected",
+    )
+    db.commit()
+
+    return {"status": "rejected"}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

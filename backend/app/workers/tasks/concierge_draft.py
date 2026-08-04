@@ -2,10 +2,18 @@
 AI Concierge draft task — generates WhatsApp reply using brand-voice + KB RAG.
 In shadow mode: stores as ai_drafted=True, awaits agent approval.
 In autonomous mode: queues send_whatsapp directly.
+
+AI Autonomy Plan Phase 1, ticket 4: drafts for availability/price-quote
+intents are now grounded in real inventory (check_availability/get_quote)
+via a bounded loop, with a deterministic hallucination guard on the
+output. See _ground_reply() and _check_grounding() below.
 """
 import asyncio
 import json
+import re
+import time
 import uuid
+from datetime import date
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
 from app.workers.celery_app import celery_app
@@ -36,6 +44,8 @@ log = structlog.get_logger()
 PROMPTS_DIR = Path(__file__).parent.parent.parent / "prompts"
 _jinja_env = Environment(loader=FileSystemLoader(str(PROMPTS_DIR)))
 
+# Already the canonical ToolSpec shape (adapters/llm/tools.py) -- concierge_draft
+# routes to Claude, whose native dialect this shape already is.
 CONCIERGE_TOOL = {
     "name": "concierge_reply",
     "description": "Draft a WhatsApp reply for the guest",
@@ -56,9 +66,185 @@ CONCIERGE_TOOL = {
 # is read below and takes precedence whenever the tenant row has a value.
 CONFIDENCE_THRESHOLD = 0.78
 
+# ── Ticket 4: intent gating + bounded grounding loop ────────────────────────
+#
+# The plan assumed an existing per-message intent classifier decides when to
+# run the grounded tool loop. It doesn't exist (verified against the real
+# codebase -- classify_intent.py is a nightly keyword job over
+# Inquiry/Call.occasion, unrelated to chat messages). This is the real one,
+# scoped to exactly this decision: is this message worth spending tool
+# calls on, and if so what dates/pax does it imply.
+INTENT_TOOL = {
+    "name": "classify_and_extract",
+    "description": "Classify the guest's message intent and extract any stay dates/party size mentioned",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "intent": {
+                "type": "string",
+                "enum": ["availability_check", "price_quote", "faq_answer", "complaint", "general"],
+                "description": (
+                    "availability_check: asking if specific dates are free. "
+                    "price_quote: asking cost/pricing for a stay. "
+                    "faq_answer: policy, amenity, or location question. "
+                    "complaint: expressing dissatisfaction. "
+                    "general: greeting, unclear, or anything else."
+                ),
+            },
+            "check_in": {"type": ["string", "null"], "description": "YYYY-MM-DD if a check-in date is stated or clearly inferable, else null"},
+            "check_out": {"type": ["string", "null"], "description": "YYYY-MM-DD if a check-out date is stated or clearly inferable, else null"},
+            "adults": {"type": ["integer", "null"]},
+            "children": {"type": ["integer", "null"]},
+        },
+        "required": ["intent"],
+    },
+}
+
+# Per plan §1 "DECISIONS TO LOCK": these are the only two intents worth
+# grounding in v1 -- deterministic, verifiable, high volume. faq_answer
+# pattern-matches over KB text (no inventory needed); complaint needs a
+# human, not a price lookup.
+GROUNDED_INTENTS = {"availability_check", "price_quote"}
+
+# Hard rule (plan §1.2): max 4 tool calls, 8s wall clock. On exhaustion,
+# degrade to the ungrounded path and force needs_human=True -- never leave
+# a guest unanswered because the loop hung.
+MAX_GROUNDING_SECONDS = 8
+MAX_TOOL_CALLS = 4
+
+_MONEY_RE = re.compile(r"₹\s?[\d,]+(?:\.\d+)?")
+_AVAILABILITY_WORDS_RE = re.compile(
+    r"\b(available|unavailable|booked out|fully booked|not available|is free|are free)\b",
+    re.IGNORECASE,
+)
+
+
+async def _classify_and_extract(latest_message: str) -> dict:
+    adapter = get_llm("quick_classify")
+    today = date.today().isoformat()
+    result = await adapter.complete(
+        system_prompt=(
+            f"Today's date is {today}. Classify this WhatsApp message from a "
+            "hospitality guest and extract any stay details mentioned. "
+            "Resolve relative dates (e.g. 'next weekend', 'the 14th') against "
+            "today's date. If no year is given, assume the next future "
+            "occurrence of that date."
+        ),
+        user_message=latest_message,
+        tools=[INTENT_TOOL],
+    )
+    return result.get("tool_use") or {"intent": "general"}
+
+
+async def _ground_reply(db, tenant_id: str, latest_message: str, inquiry) -> tuple[str, list]:
+    """Returns (intent, grounded_facts). grounded_facts is [] whenever
+    grounding wasn't attempted or found nothing -- never fabricated."""
+    classification = await _classify_and_extract(latest_message)
+    intent = classification.get("intent", "general")
+    if intent not in GROUNDED_INTENTS:
+        return intent, []
+
+    check_in = classification.get("check_in") or (inquiry.check_in if inquiry else None)
+    check_out = classification.get("check_out") or (inquiry.check_out if inquiry else None)
+    adults = classification.get("adults") or (inquiry.adults if inquiry else None) or 1
+    children = classification.get("children") or (inquiry.children if inquiry else 0) or 0
+
+    if not check_in or not check_out:
+        # Can't ground without dates -- the prompt already instructs the
+        # model to ask a clarifying question when context is insufficient.
+        return intent, []
+
+    from app.services.calculator_service import calculator_service
+
+    grounded_facts: list = []
+    property_id = inquiry.property_id if inquiry else None
+
+    # check_availability -- same underlying service the MCP tool of the same
+    # name wraps (app/mcp/tools.py), called directly here rather than
+    # through the MCP dispatch path: that path is scoped to external
+    # assistants with a real authenticated user identity and its own audit
+    # trail (action="mcp.tool.*"); this internal loop has neither, and
+    # routing it through MCP's audit log would misrepresent an internal
+    # HAIP task as an external client's tool call.
+    try:
+        results = calculator_service.search(
+            db, tenant_id=tenant_id, checkin=check_in, checkout=check_out,
+            adults=adults, children=children, property_id=property_id,
+        )
+    except Exception as exc:
+        log.warning("concierge_grounding_availability_failed", tenant_id=tenant_id, error=str(exc))
+        return intent, []
+
+    grounded_facts.append({
+        "tool": "check_availability",
+        "args": {"checkin": check_in, "checkout": check_out, "adults": adults, "children": children, "property_id": property_id},
+        "result": [
+            {
+                "property_id": r.property_id, "property_name": r.property_name,
+                "available": r.available, "price_per_night": str(r.price_per_night),
+                "nights": r.nights, "currency": r.currency,
+            }
+            for r in results
+        ],
+    })
+
+    # get_quote -- only for a price_quote intent, and only when there's an
+    # unambiguous single property to quote (already scoped by the inquiry,
+    # or exactly one match came back).
+    if intent == "price_quote" and len(grounded_facts) < MAX_TOOL_CALLS and results:
+        target = next((r for r in results if r.property_id == property_id), None) or (results[0] if len(results) == 1 else None)
+        if target:
+            try:
+                quote = calculator_service.build_quote(
+                    db, tenant_id=tenant_id, property_id=target.property_id,
+                    checkin=check_in, checkout=check_out, adults=adults, children=children,
+                )
+            except Exception as exc:
+                log.warning("concierge_grounding_quote_failed", tenant_id=tenant_id, error=str(exc))
+                quote = None
+            if quote:
+                grounded_facts.append({
+                    "tool": "get_quote",
+                    "args": {"property_id": target.property_id, "checkin": check_in, "checkout": check_out},
+                    "result": {
+                        "subtotal": str(quote.subtotal), "gst": str(quote.gst),
+                        "total": str(quote.total), "advance_amount": str(quote.advance_amount),
+                        "currency": quote.currency,
+                    },
+                })
+
+    return intent, grounded_facts
+
+
+def _check_grounding(reply_text: str, grounded_facts: list) -> tuple[bool, "str | None"]:
+    """Deterministic post-check (plan §1.3): every ₹ figure the draft cites
+    must appear somewhere in grounded_facts' results, and an availability
+    claim must not be made with zero grounding attempted at all. Not full
+    NLP understanding -- a conservative, literal check on the highest-risk
+    claim types (a wrong price is the worst-case outcome)."""
+    money_mentions = _MONEY_RE.findall(reply_text)
+    availability_mentions = _AVAILABILITY_WORDS_RE.findall(reply_text)
+
+    if not grounded_facts:
+        if money_mentions or availability_mentions:
+            return False, f"cites price/availability with zero grounded_facts: {money_mentions or availability_mentions}"
+        return True, None
+
+    grounded_blob = json.dumps(grounded_facts, default=str)
+    for money in money_mentions:
+        digits = re.sub(r"[^\d]", "", money)
+        if digits and digits not in grounded_blob:
+            return False, f"cites {money!r}, not present in grounded_facts"
+    return True, None
+
+
+# ── Task ─────────────────────────────────────────────────────────────────────
+
+_VALID_TONES = {"warm", "formal", "brief", "persuasive"}
+
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=10, name="tasks.concierge_draft")
-def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str):
+def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str, tone: str | None = None):
     from app.workers.tasks.send_whatsapp import send_whatsapp
     from app.workers.tasks.send_instagram_dm import send_instagram_dm
 
@@ -77,6 +263,25 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str)
         tenant = ctx["tenant"]
         inquiry = ctx["inquiry"]
 
+        # ── Ticket 4: bounded grounding, budget-limited to 8s total ────────
+        triggering_message = db.query(Message).filter_by(id=message_id, tenant_id=tenant_id).first()
+        grounded_facts: list = []
+        if triggering_message and triggering_message.body:
+            start = time.monotonic()
+            try:
+                _intent, grounded_facts = _run_async(
+                    asyncio.wait_for(
+                        _ground_reply(db, tenant_id, triggering_message.body, inquiry),
+                        timeout=MAX_GROUNDING_SECONDS,
+                    )
+                )
+            except asyncio.TimeoutError:
+                log.warning("concierge_grounding_timed_out", conversation_id=conversation_id, elapsed_sec=round(time.monotonic() - start, 2))
+                grounded_facts = []
+            except Exception as exc:
+                log.warning("concierge_grounding_failed", conversation_id=conversation_id, error=str(exc))
+                grounded_facts = []
+
         template = _jinja_env.get_template("concierge_reply.jinja")
 
         # Render with context
@@ -93,6 +298,8 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str)
             recent_messages=ctx["recent_messages"],
             call_summaries=ctx["call_summaries"],
             kb_snippets=ctx["kb_snippets"],
+            grounded_facts=grounded_facts,
+            tone=tone if tone in _VALID_TONES else None,
         )
 
         adapter = get_llm("concierge_draft")
@@ -108,6 +315,16 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str)
         confidence = draft.get("confidence", 0.0)
         reply_text = draft.get("reply", "")
         needs_human = draft.get("needs_human", True)
+
+        # ── Ticket 4: deterministic hallucination guard ────────────────────
+        is_grounded, violation = _check_grounding(reply_text, grounded_facts)
+        if not is_grounded:
+            log.warning(
+                "draft_ungrounded_claim", conversation_id=conversation_id,
+                message_id=message_id, reason=violation,
+            )
+            needs_human = True
+            confidence = 0.0
 
         # Determine mode
         ai_mode = conversation.ai_mode or "shadow"
@@ -128,12 +345,13 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str)
             ai_confidence=confidence,
             was_approved=True if should_auto_send else None,
             sender_name="AI Concierge",
+            grounded_facts=grounded_facts,
         )
         db.add(draft_message)
         db.commit()
 
         log.info("concierge_draft_stored", message_id=draft_message.id, confidence=confidence,
-                 auto_send=should_auto_send, **stamp("concierge_reply"))
+                 auto_send=should_auto_send, grounded=bool(grounded_facts), **stamp("concierge_reply"))
 
         if should_auto_send:
             channel_val = str(conversation.channel.value if hasattr(conversation.channel, "value") else conversation.channel)

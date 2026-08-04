@@ -145,13 +145,19 @@ def _fire_matching_flows(db, event: str, tenant_id: str, context: dict) -> None:
 
 # ─── Action dispatchers ────────────────────────────────────────────────────────
 
-def dispatch_action(db, action: str, cfg: dict, context: dict, tenant_id: str) -> str:
+def dispatch_action(db, action: str, cfg: dict, context: dict, tenant_id: str, actor=None) -> str:
     """
     Shared action layer -- both automation_rules (rule-based) and the Flow
     Builder (visual, workers/tasks/flow_engine.py) execute through this
     same function, per the WhatsApp module build plan's Architecture
     Decision #2. The two automation surfaces differ only in trigger/graph-
     walking logic, not in what an action actually does.
+
+    `actor` (a real User row) is only passed by the human one-click endpoint
+    (automations.py::execute_recommended_action) -- rule/flow triggers have
+    no human clicking, so it's None there. move_stage/assign_to require a
+    real actor for their audit trail and are gated to ONE_CLICK_ACTIONS only
+    (not VALID_ACTIONS), so a rule can never reach them with actor=None.
     """
     if action == "send_whatsapp_template":
         return _action_send_wa_template(db, cfg, context, tenant_id)
@@ -163,6 +169,16 @@ def dispatch_action(db, action: str, cfg: dict, context: dict, tenant_id: str) -
         return _action_move_followup(db, cfg, context, tenant_id)
     elif action == "tag_guest":
         return _action_tag_guest(db, cfg, context, tenant_id)
+    elif action == "send_whatsapp_draft":
+        return _action_send_whatsapp_draft(db, cfg, context, tenant_id)
+    elif action == "move_stage":
+        return _action_move_stage(db, cfg, context, tenant_id, actor)
+    elif action == "assign_to":
+        return _action_assign_to(db, cfg, context, tenant_id, actor)
+    elif action == "hold_dates":
+        return _action_hold_dates(db, cfg, context, tenant_id)
+    elif action == "send_quote":
+        return _action_send_quote(db, cfg, context, tenant_id)
     else:
         raise ValueError(f"Unknown action: {action}")
 
@@ -263,7 +279,6 @@ def _action_create_draft(db, cfg: dict, context: dict, tenant_id: str) -> str:
         "message_id": latest_msg.id,
         "conversation_id": conversation_id,
         "tenant_id": tenant_id,
-        "channel": latest_msg.channel.value if hasattr(latest_msg.channel, "value") else "whatsapp",
     })
     return "AI draft queued for conversation"
 
@@ -357,3 +372,201 @@ def _action_tag_guest(db, cfg: dict, context: dict, tenant_id: str) -> str:
     sub.tags = list(current | set(tags))
     db.commit()
     return f"Tags added: {', '.join(tags)}"
+
+
+def _action_send_whatsapp_draft(db, cfg: dict, context: dict, tenant_id: str) -> str:
+    """
+    Approve + queue-send a pending AI draft. Same effect as the inbox's
+    approve-draft endpoint (conversations.py::approve_ai_draft), but
+    self-contained here rather than imported from it: that endpoint is
+    FastAPI-request-scoped (reads current_user, raises HTTPException) and
+    also handles inbox-specific edit-before-send text, neither of which
+    applies to a one-click "send it as drafted" action fired from
+    next_action_service's recommendation.
+    """
+    from app.models.conversation import Message, MessageDeliveryState
+    from app.services import ai_draft_outcomes_service
+
+    message_id = cfg.get("message_id")
+    if not message_id:
+        return "skipped — action_config.message_id is required for send_whatsapp_draft"
+
+    msg = db.query(Message).filter_by(id=message_id, tenant_id=tenant_id).first()
+    if not msg:
+        return f"skipped — message {message_id} not found"
+    if msg.was_approved is not None:
+        return "skipped — draft already actioned"
+
+    msg.was_approved = True
+    msg.delivery_state = MessageDeliveryState.QUEUED
+
+    ai_draft_outcomes_service.record_outcome(
+        db, tenant_id=tenant_id, draft=msg, outcome="sent_verbatim",
+    )
+    db.commit()
+
+    from app.workers.tasks.send_whatsapp import send_whatsapp
+    send_whatsapp.delay(message_id=message_id, tenant_id=tenant_id)
+    return "Draft approved and queued for send"
+
+
+def _action_move_stage(db, cfg: dict, context: dict, tenant_id: str, actor) -> str:
+    """
+    Move an inquiry to a new pipeline stage (Leads360's tenant-owned
+    pipeline_stages catalog, stage_id-driven -- the modern path, same one
+    app/mcp/tools.py::_move_lead_stage already uses). ONE_CLICK_ACTIONS-only
+    (not in VALID_ACTIONS): a stage move needs a real accountable actor for
+    update_stage_by_id's backward-move guardrails, which an anonymous
+    automation-rule trigger doesn't have.
+    """
+    from app.services.inquiry_service import update_stage_by_id, InvalidStageTransition
+
+    if actor is None:
+        return "skipped — move_stage requires a human actor"
+
+    inquiry_id = context.get("inquiry_id")
+    new_stage_id = cfg.get("new_stage_id")
+    if not inquiry_id or not new_stage_id:
+        return "skipped — inquiry_id (entity_refs) and action_config.new_stage_id are both required"
+
+    actor_role = actor.role.value if hasattr(actor.role, "value") else str(actor.role)
+    try:
+        inquiry = update_stage_by_id(
+            db, tenant_id=tenant_id, inquiry_id=inquiry_id, new_stage_id=new_stage_id,
+            actor_user_id=actor.id, actor_role=actor_role, reason=cfg.get("reason"),
+        )
+    except InvalidStageTransition as exc:
+        return f"skipped — {exc.detail}"
+    except ValueError as exc:
+        return f"skipped — {exc}"
+    db.commit()
+    return f"Inquiry moved to stage {inquiry.stage_id}"
+
+
+def _action_assign_to(db, cfg: dict, context: dict, tenant_id: str, actor) -> str:
+    """
+    Assign an inquiry to a user. Reuses update_inquiry() the same way
+    app/mcp/tools.py::_assign_lead does, rather than re-implementing the
+    assignment write path a third time. ONE_CLICK_ACTIONS-only: update_inquiry
+    needs a real authenticated User for its own authz/role checks.
+    """
+    from app.api.v1.endpoints.inquiries import update_inquiry
+    from app.schemas.inquiry import InquiryUpdateRequest
+    from fastapi import HTTPException
+
+    if actor is None:
+        return "skipped — assign_to requires a human actor"
+
+    inquiry_id = context.get("inquiry_id")
+    assignee_id = cfg.get("user_id")
+    if not inquiry_id or not assignee_id:
+        return "skipped — inquiry_id (entity_refs) and action_config.user_id are both required"
+
+    try:
+        update_inquiry(
+            inquiry_id=inquiry_id, body=InquiryUpdateRequest(assigned_to=assignee_id),
+            current_user=actor, db=db,
+        )
+    except HTTPException as exc:
+        return f"skipped — {exc.detail}"
+    return f"Inquiry assigned to user {assignee_id}"
+
+
+def _action_hold_dates(db, cfg: dict, context: dict, tenant_id: str) -> str:
+    """
+    Manual date block for a property, reusing the same BlockedDate row
+    calendar.py's create_block endpoint writes. NOTE: the plan's table calls
+    this a "TTL" hold, but no expiry column or scheduled-cleanup job exists
+    anywhere in this codebase -- this is a manual-release-only hold for V1,
+    not a real TTL. Flagging rather than silently shipping the TTL claim.
+    """
+    from app.models.base import gen_uuid
+    from app.models.property import Property, BlockedDate
+
+    property_id = cfg.get("property_id") or context.get("property_id")
+    date_from = cfg.get("from")
+    date_to = cfg.get("to")
+    if not property_id or not date_from or not date_to:
+        return "skipped — action_config.property_id/from/to are all required"
+
+    prop = db.query(Property).filter_by(id=property_id, tenant_id=tenant_id).first()
+    if not prop:
+        return f"skipped — property {property_id} not found"
+
+    block = BlockedDate(
+        id=gen_uuid(), tenant_id=tenant_id, property_id=property_id,
+        blocked_from=date_from, blocked_to=date_to,
+        reason="hold", notes=cfg.get("notes"), is_active=True,
+    )
+    db.add(block)
+    db.commit()
+    return f"{prop.name} held {date_from} to {date_to} (manual release only -- no auto-expiry)"
+
+
+def _action_send_quote(db, cfg: dict, context: dict, tenant_id: str) -> str:
+    """
+    Text-message quote send. The plan's table says "PDF/WA" -- no PDF
+    library exists anywhere in this codebase's requirements, and adding one
+    for a single action handler isn't a call to make unprompted (CLAUDE.md:
+    no new dependencies without justification). Sends the same figures a
+    human would read off calculator_service's breakdown as WhatsApp text via
+    the tested send_whatsapp pipeline (24h-session-window handling included)
+    rather than a raw adapter call, by writing a Message row and queueing it
+    exactly the way send_whatsapp_draft already does.
+    """
+    from app.models.base import gen_uuid
+    from app.models.conversation import Conversation, Message, ChannelType, MessageDeliveryState
+    from app.models.guest import Guest
+    from app.services.calculator_service import calculator_service
+
+    property_id = cfg.get("property_id") or context.get("property_id")
+    checkin = cfg.get("checkin")
+    checkout = cfg.get("checkout")
+    adults = cfg.get("adults") or 1
+    children = cfg.get("children") or 0
+    guest_id = context.get("guest_id")
+    if not (property_id and checkin and checkout and guest_id):
+        return "skipped — action_config.property_id/checkin/checkout and entity_refs.guest_id are all required"
+
+    guest = db.query(Guest).filter_by(id=guest_id, tenant_id=tenant_id).first()
+    if not guest or not guest.phone:
+        return "skipped — guest has no phone number"
+
+    try:
+        quote = calculator_service.build_quote(
+            db, tenant_id=tenant_id, property_id=property_id,
+            checkin=checkin, checkout=checkout, adults=adults, children=children,
+        )
+    except Exception as exc:
+        return f"skipped — could not build quote: {exc}"
+    if not quote:
+        return "skipped — property not available for those dates"
+
+    text = (
+        f"Here's your quote for {checkin} to {checkout}:\n"
+        f"Subtotal: ₹{quote.subtotal}\n"
+        f"GST: ₹{quote.gst}\n"
+        f"Total: ₹{quote.total}\n"
+        f"Advance due: ₹{quote.advance_amount}"
+    )
+
+    conv = (
+        db.query(Conversation)
+        .filter_by(tenant_id=tenant_id, guest_id=guest_id, channel=ChannelType.WHATSAPP, is_open=True)
+        .order_by(Conversation.updated_at.desc())
+        .first()
+    )
+    if not conv:
+        return "skipped — no open WhatsApp conversation for this guest"
+
+    msg = Message(
+        id=gen_uuid(), tenant_id=tenant_id, conversation_id=conv.id,
+        direction="outbound", channel=ChannelType.WHATSAPP, body=text,
+        is_ai_generated=False, was_approved=True, delivery_state=MessageDeliveryState.QUEUED,
+    )
+    db.add(msg)
+    db.commit()
+
+    from app.workers.tasks.send_whatsapp import send_whatsapp
+    send_whatsapp.delay(message_id=msg.id, tenant_id=tenant_id)
+    return f"Quote sent to guest: total ₹{quote.total}"

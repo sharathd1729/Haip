@@ -12,5 +12,11 @@ class LLMAdapter(ABC):
         max_tokens: int = 1024,
         tools: Optional[list] = None,
     ) -> dict:
-        """Return dict with 'content' (str) and optional 'tool_use' (dict)."""
+        """Return dict with 'content' (str) and optional 'tool_use' (dict).
+
+        `tools`, when given, must be a list of `adapters.llm.tools.ToolSpec`
+        (the canonical/Anthropic shape: {name, description, input_schema}) --
+        never a provider-specific dialect. Every implementation renders its
+        own wire format internally via `adapters.llm.tools.to_provider_tools`
+        before calling its SDK; callers declare tools exactly once."""
         ...

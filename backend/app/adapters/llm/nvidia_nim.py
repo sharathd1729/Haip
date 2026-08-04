@@ -15,6 +15,7 @@ import structlog
 from typing import Optional
 
 from app.adapters.llm.base import LLMAdapter
+from app.adapters.llm.tools import to_provider_tools
 from app.core.config import settings
 
 log = structlog.get_logger()
@@ -97,7 +98,7 @@ class NvidiaNIMAdapter(LLMAdapter):
             kwargs["top_p"] = 0.95
 
         if tools:
-            kwargs["tools"] = tools
+            kwargs["tools"] = to_provider_tools(tools, "nvidia")
             kwargs["tool_choice"] = "auto"
 
         resp = await client.chat.completions.create(**kwargs)

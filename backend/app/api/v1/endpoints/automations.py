@@ -141,6 +141,9 @@ VALID_ACTIONS = {
     # fire_trigger (Architecture Decision #2) -- registered here so it
     # passes CRUD validation when a rule is created via the API.
     "send_instagram_quick_reply",
+    # AI Autonomy Plan Phase 2 ticket 5: approve + queue-send a pending AI
+    # draft (next_action_service.get_call_actions' one recognized action).
+    "send_whatsapp_draft",
 }
 
 
@@ -148,9 +151,18 @@ VALID_ACTIONS = {
 #: Deliberately a subset of VALID_ACTIONS, not the whole set: a rule author
 #: configuring an automation is a different trust context from a one-click
 #: button, so new actions are opted in here explicitly rather than by default.
+#:
+#: move_stage/assign_to/hold_dates/send_quote (AI Autonomy Plan Phase 2,
+#: broader action-set expansion) are deliberately NOT added to VALID_ACTIONS:
+#: move_stage and assign_to need a real accountable human actor (their
+#: dispatch_action handlers take one explicitly, which only this endpoint
+#: supplies), and hold_dates/send_quote are new enough not to expose in the
+#: rule-authoring UI yet.
 ONE_CLICK_ACTIONS = {
     "send_whatsapp_template", "create_draft_reply",
     "notify_team", "move_to_followup", "tag_guest",
+    "send_whatsapp_draft",
+    "move_stage", "assign_to", "hold_dates", "send_quote",
 }
 
 
@@ -318,7 +330,7 @@ def execute_recommended_action(
     status_str, detail, error = "success", "", None
     try:
         from app.workers.tasks.automation_engine import dispatch_action
-        detail = dispatch_action(db, payload.action_type, payload.action_config, context, tenant_id)
+        detail = dispatch_action(db, payload.action_type, payload.action_config, context, tenant_id, actor=current_user)
     except Exception as exc:
         status_str, error = "failed", str(exc)
         detail = f"Action failed: {exc}"

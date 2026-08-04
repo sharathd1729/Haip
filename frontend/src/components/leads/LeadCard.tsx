@@ -191,12 +191,24 @@ function StageSelect({ lead }: { lead: LeadCard }) {
 // M5+ WS3: reuses the existing approve-and-queue endpoint
 // (conversations.py::approve_ai_draft) rather than a new one — same one
 // the call detail page's recommended-action button uses.
-function useApproveAndSendDraft() {
+// AI Autonomy Plan Phase 2, 2.3: "one action contract, everywhere" -- this
+// used to post straight to /conversations/{id}/messages/{id}/approve, a
+// third copy of the same "approve + send a pending AI draft" logic (the
+// other two: conversations.py's own endpoint, and automation_engine.py's
+// send_whatsapp_draft handler used by AIRecommendationCard). Redirected to
+// the shared one-click action endpoint so all three surfaces share one
+// dispatch path and one audit trail; the compact card UI is unchanged.
+function useApproveAndSendDraft(inquiryId: string) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   return useMutation({
     mutationFn: ({ conversationId, messageId }: { conversationId: string; messageId: string }) =>
-      api.post(`/conversations/${conversationId}/messages/${messageId}/approve`),
+      api.post("/automations/actions/execute", {
+        action_type: "send_whatsapp_draft",
+        entity_refs: { inquiry_id: inquiryId },
+        action_config: { message_id: messageId, conversation_id: conversationId },
+        source: "leads360_card",
+      }),
     onSuccess: () => {
       toast({ variant: "success", title: "Draft sent", description: "The WhatsApp reply is on its way." });
       queryClient.invalidateQueries({ queryKey: ["leads"] });
@@ -212,7 +224,7 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
   const router = useRouter();
   const src = lead.source ?? lead.primary_channel ?? "";
   const hasPhone = lead.identity_signals?.includes("phone");
-  const approveAndSend = useApproveAndSendDraft();
+  const approveAndSend = useApproveAndSendDraft(lead.inquiry_id);
 
   const budget = lead.quoted_amount ?? lead.budget_estimate;
   const budgetLabel = lead.budget_range_label

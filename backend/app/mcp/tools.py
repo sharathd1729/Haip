@@ -254,6 +254,65 @@ async def _ask_haip(db: Session, user: User, tenant_id: str, args: dict) -> Any:
     return _dump(result)
 
 
+def _check_availability(db: Session, user: User, tenant_id: str, args: dict) -> Any:
+    """AI Autonomy Plan Phase 1, ticket 3. Wraps CalculatorService.search()
+    -- the same function backing POST /calculator/search -- which already
+    resolves rates (seasonal > rate plan > base, including live RentalWise
+    rates for channel-managed properties) AND filters out any property
+    with a confirmed Stay or active BlockedDate overlapping the requested
+    dates. The plan lists RentalWise as a separate data source this tool
+    needs; it's actually already folded into this same search path."""
+    from dataclasses import asdict
+    from app.services.calculator_service import calculator_service
+
+    results = calculator_service.search(
+        db=db, tenant_id=tenant_id,
+        checkin=args["from_date"], checkout=args["to_date"],
+        adults=args.get("adults", 1), children=args.get("children", 0),
+        city=args.get("city"), property_id=args.get("property_id"),
+        property_type=args.get("property_type"),
+    )
+    return {
+        "checkin": args["from_date"],
+        "checkout": args["to_date"],
+        "matching_properties": [asdict(r) for r in results],
+        "note": (
+            "Only properties with a resolved rate AND no booking/block "
+            "conflict for these exact dates and party size are returned. "
+            "An empty list means nothing is available -- do not assume "
+            "availability for any property not in this list."
+        ),
+    }
+
+
+def _get_quote(db: Session, user: User, tenant_id: str, args: dict) -> Any:
+    """AI Autonomy Plan Phase 1, ticket 3. Wraps CalculatorService.build_quote()
+    -- the actual guest-facing quote path (POST /calculator/quote), which
+    includes GST and advance-amount breakdown. NOTE: this does NOT call
+    dynamic_pricing_service, despite the plan listing both together --
+    verified against the real code: build_quote() never references it, and
+    the REST /calculator/dynamic-price endpoint is a wholly separate,
+    unconnected revenue-management path. This tool reflects what a guest
+    would actually be quoted today, not a theoretical merge of the two."""
+    from dataclasses import asdict
+    from app.services.calculator_service import calculator_service
+
+    quote = calculator_service.build_quote(
+        db=db, tenant_id=tenant_id, property_id=args["property_id"],
+        checkin=args["from_date"], checkout=args["to_date"],
+        adults=args.get("adults", 1), children=args.get("children", 0),
+        selected_addon_ids=args.get("addon_ids"),
+        advance_percent=args.get("advance_percent", 30),
+    )
+    if quote is None:
+        raise ToolError(
+            "No quote available for this property/date range -- either the "
+            "property has no rate configured, party size exceeds capacity, "
+            "or the dates are unavailable. Use check_availability first."
+        )
+    return asdict(quote)
+
+
 # ── Write tools ─────────────────────────────────────────────────────────────
 
 def _approve_and_send_draft(db: Session, user: User, tenant_id: str, args: dict) -> Any:
@@ -569,6 +628,46 @@ TOOLS: list[dict] = [
         "annotations": {"readOnlyHint": True},
         "capability": "analytics.read",
         "handler": _ask_haip,
+    },
+    {
+        "name": "check_availability",
+        "description": "Check which properties are available for given dates and party size, with resolved rates. Only returns properties with a real rate AND no booking/block conflict for the exact dates.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "from_date": {"type": "string", "description": "Check-in date, YYYY-MM-DD"},
+                "to_date": {"type": "string", "description": "Check-out date, YYYY-MM-DD"},
+                "adults": {"type": "integer", "default": 1},
+                "children": {"type": "integer", "default": 0},
+                "property_id": {"type": "string", "description": "Restrict to one property"},
+                "city": {"type": "string"},
+                "property_type": {"type": "string", "description": "villa | caravan | hotel | apartment"},
+            },
+            "required": ["from_date", "to_date"],
+        },
+        "annotations": {"readOnlyHint": True},
+        "capability": "bookings.read",
+        "handler": _check_availability,
+    },
+    {
+        "name": "get_quote",
+        "description": "Build a real, bookable quote for one property -- accommodation + selected add-ons + GST + advance amount. Call check_availability first to find a valid property_id.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "property_id": {"type": "string"},
+                "from_date": {"type": "string", "description": "Check-in date, YYYY-MM-DD"},
+                "to_date": {"type": "string", "description": "Check-out date, YYYY-MM-DD"},
+                "adults": {"type": "integer", "default": 1},
+                "children": {"type": "integer", "default": 0},
+                "addon_ids": {"type": "array", "items": {"type": "string"}, "description": "Selected add-on IDs from the property's addon list"},
+                "advance_percent": {"type": "integer", "default": 30},
+            },
+            "required": ["property_id", "from_date", "to_date"],
+        },
+        "annotations": {"readOnlyHint": True},
+        "capability": "revenue.read",
+        "handler": _get_quote,
     },
     {
         "name": "approve_and_send_draft",

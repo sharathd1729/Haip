@@ -241,6 +241,7 @@ _TARGET_ID_PRIORITY = (
     ("inquiry_id", "inquiry"),
     ("conversation_id", "conversation"),
     ("guest_id", "guest"),
+    ("property_id", "property"),
 )
 
 

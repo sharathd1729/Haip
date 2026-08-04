@@ -28,10 +28,22 @@ from typing import Any, Optional
 # prompt key -> current version. Keys are stable identifiers; values change.
 PROMPT_VERSIONS: dict[str, str] = {
     # Jinja templates in app/prompts/
-    "call_classify":   "call-classify-v1",      # classify.jinja
-    "call_judge":      "call-judge-v1",         # judge.jinja
-    "call_wrap_up":    "call-wrap-up-v1",       # wrap_up.jinja
-    "concierge_reply": "concierge-reply-v1",    # concierge_reply.jinja
+    # v2 on these four (AI Autonomy Plan Phase 0 ticket 2): the tool-calling
+    # contract that shapes each task's output changed from a hand-written
+    # provider-specific dialect to the canonical ToolSpec shape rendered
+    # per-provider by adapters/llm/tools.py -- same semantic fields, but the
+    # code path producing a stored/logged result is genuinely different now.
+    "call_classify":   "call-classify-v2",      # classify.jinja
+    "call_judge":      "call-judge-v2",         # judge.jinja
+    "call_wrap_up":    "call-wrap-up-v2",       # wrap_up.jinja
+    # v3 (AI Autonomy Plan Phase 1 ticket 4): concierge_reply.jinja now
+    # renders a grounded_facts section (real availability/pricing from the
+    # bounded tool loop) instead of the always-empty kb_snippets it relied
+    # on before.
+    # v4 (AI Autonomy Plan Phase 2): renders a tone instruction -- fixes
+    # AIDraftPanel's tone chips, which were fully wired UI with no effect on
+    # the actual draft (the frontend never sent the selection at all).
+    "concierge_reply": "concierge-reply-v4",    # concierge_reply.jinja
     "lost_reason":     "lost-reason-v1",        # lost_reason.jinja
 
     # Inline prompts built in Python
@@ -41,6 +53,9 @@ PROMPT_VERSIONS: dict[str, str] = {
     "ask_haip_report":        "ask-haip-report-v1",
     "ask_haip_freeform_sql":  "ask-haip-freeform-sql-v1",
     "ask_haip_freeform_summary": "ask-haip-freeform-summary-v1",
+    # AI Autonomy Plan Phase 1 ticket 4: new intent classify+extract step
+    # gating the grounded tool loop.
+    "concierge_intent": "concierge-intent-v1",
 }
 
 UNKNOWN = "unregistered"

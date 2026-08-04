@@ -58,6 +58,10 @@ class SendMessageRequest(BaseModel):
 class AIDraftRequest(BaseModel):
     """Ask the AI concierge to draft a reply for a conversation."""
     context_hint: Optional[str] = None  # optional instruction override
+    # AI Autonomy Plan Phase 2: matches AIDraftPanel.tsx's AiTone type. Was
+    # captured in frontend state but never sent to the backend at all --
+    # the tone chips were fully wired UI with no effect on the actual draft.
+    tone: Optional[str] = None  # "warm" | "formal" | "brief" | "persuasive"
 
 
 class SendTemplateRequest(BaseModel):
@@ -65,3 +69,11 @@ class SendTemplateRequest(BaseModel):
     service window is closed, since Meta rejects free-form messages then."""
     template_id: str
     variables: Optional[list[str]] = None
+
+
+class ApproveDraftRequest(BaseModel):
+    """Approve an AI draft, optionally with edited text. `text` omitted or
+    equal to the stored draft means sent verbatim; a different value means
+    the agent edited it before sending -- distinguishing the two is the
+    whole point of this endpoint accepting a body at all."""
+    text: Optional[str] = None
