@@ -43,7 +43,10 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v4 (AI Autonomy Plan Phase 2): renders a tone instruction -- fixes
     # AIDraftPanel's tone chips, which were fully wired UI with no effect on
     # the actual draft (the frontend never sent the selection at all).
-    "concierge_reply": "concierge-reply-v4",    # concierge_reply.jinja
+    # v5 (HAIP Inbox UI-fidelity pass, ticket 3): renders a guest_missing_phone
+    # instruction so the draft naturally asks for a phone number when the
+    # guest's profile has none on file yet.
+    "concierge_reply": "concierge-reply-v5",    # concierge_reply.jinja
     "lost_reason":     "lost-reason-v1",        # lost_reason.jinja
 
     # Inline prompts built in Python

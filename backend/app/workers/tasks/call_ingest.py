@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.models.call import Call
 from app.models.guest import Guest
 from app.models.inquiry import Inquiry, InquiryStage, InquirySource
+from app.models.conversation import Conversation, ChannelType
 from app.adapters.ivr import get_ivr_adapter
 from app.services import identity_service
 from app.models.call import RecordingStatus
@@ -54,6 +55,11 @@ def ingest_call(self, payload: dict, tenant_id: str, ivr_provider: str):
 
             # Dedup / upsert guest by phone
             guest = _dedup_guest(db, tenant_id, normalized.from_number)
+
+            # HAIP Inbox UI-fidelity pass, ticket 1: a guest whose only
+            # touchpoint is a phone call had no Conversation row at all
+            # before this -- nothing to click into anywhere in the inbox.
+            _find_or_create_voice_conversation(db, tenant_id, guest)
 
             # Find or create open inquiry for this guest, routed via the
             # same Leads360 auto-create taxonomy WhatsApp/Instagram use --
@@ -268,6 +274,38 @@ def _dedup_guest(db: Session, tenant_id: str, phone: str) -> Guest:
         db, tenant_id, signal_type="phone", value=e164, source="ivr_call",
     )
     return db.query(Guest).filter_by(id=guest_id).one()
+
+
+def _find_or_create_voice_conversation(db: Session, tenant_id: str, guest: Guest) -> "Conversation | None":
+    """
+    HAIP Inbox UI-fidelity pass, ticket 1. The inbox's left-panel list only
+    ever queries the Conversation table (see conversations.py::list_conversations)
+    -- a guest whose only touchpoint is a phone call never got one, so they
+    were invisible in the inbox no matter which conversation you opened.
+
+    Only creates a channel=voice Conversation when the guest has ZERO
+    conversations of any channel yet -- once a real WhatsApp/Instagram
+    thread exists (even later), that's the conversation the call shows up
+    inside via the merged timeline (GET /conversations/{id}/timeline);
+    this fallback only covers the gap before that happens. Checked before
+    create (not per-call), so this is idempotent across repeat calls from
+    the same guest.
+    """
+    existing = db.query(Conversation.id).filter_by(tenant_id=tenant_id, guest_id=guest.id).first()
+    if existing:
+        return None
+
+    conv = Conversation(
+        id=str(uuid.uuid4()),
+        tenant_id=tenant_id,
+        guest_id=guest.id,
+        channel=ChannelType.VOICE,
+        is_open=True,
+    )
+    db.add(conv)
+    db.commit()
+    log.info("voice_conversation_created", conversation_id=conv.id, tenant_id=tenant_id)
+    return conv
 
 
 def _find_or_create_inquiry(db: Session, tenant_id: str, guest: Guest) -> Inquiry:

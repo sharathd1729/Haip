@@ -1,10 +1,11 @@
 "use client";
-import { useQuery } from "@tanstack/react-query";
-import { Bed, ExternalLink, Star } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Bed, ExternalLink, Star, UserCheck } from "lucide-react";
 import { ChannelIcon } from "./ChannelIcon";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProfileCompletenessWidget } from "./ProfileCompletenessWidget";
 import { FollowUpTasksPanel } from "./FollowUpTasksPanel";
+import { useToast } from "@/components/ui/toast";
 import api from "@/lib/api";
 
 interface ConversationDetail {
@@ -15,6 +16,23 @@ interface ConversationDetail {
   guest_phone: string;
   channel: string;
   status: "open" | "resolved" | "snoozed";
+}
+
+// HAIP Inbox UI-fidelity pass, ticket 5: same GET /leads/{inquiry_id} query
+// ProfileCompletenessWidget already fetches (identical queryKey below, so
+// react-query dedupes this into the same network call) -- carries
+// assigned_agent_name/stage_key, which conversations.py's own detail
+// endpoint doesn't serialize.
+interface LeadOwnerStage {
+  inquiry_id: string;
+  assigned_agent_name?: string | null;
+  stage_key?: string | null;
+}
+
+interface PipelineStage {
+  id: string;
+  key: string;
+  label: string;
 }
 
 interface GuestSummary {
@@ -31,6 +49,42 @@ interface GuestSummary {
 }
 
 export function GuestPanel({ detail }: { detail: ConversationDetail }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const inquiryId = detail.inquiry_id ?? null;
+
+  const { data: leadOwnerStage } = useQuery<LeadOwnerStage>({
+    queryKey: ["lead-detail", inquiryId],
+    queryFn: () => api.get(`/leads/${inquiryId}`).then(r => r.data),
+    enabled: !!inquiryId,
+    staleTime: 30_000,
+  });
+
+  const { data: stages } = useQuery<PipelineStage[]>({
+    queryKey: ["pipeline-stages"],
+    queryFn: () => api.get("/pipeline-stages").then(r => r.data),
+    staleTime: 60_000,
+  });
+
+  const moveStage = useMutation({
+    mutationFn: (newStageId: string) =>
+      api.post("/automations/actions/execute", {
+        action_type: "move_stage",
+        entity_refs: { inquiry_id: inquiryId },
+        action_config: { new_stage_id: newStageId },
+        source: "inbox_guest_panel",
+      }),
+    onSuccess: () => {
+      toast({ title: "Lead stage updated" });
+      qc.invalidateQueries({ queryKey: ["lead-detail", inquiryId] });
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+    },
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast({ variant: "error", title: "Could not update stage", description: typeof msg === "string" ? msg : "Please try again." });
+    },
+  });
+
   const { data: guest, isLoading } = useQuery<GuestSummary>({
     queryKey: ["guest-by-phone", detail.guest_phone],
     queryFn: () =>
@@ -152,6 +206,48 @@ export function GuestPanel({ detail }: { detail: ConversationDetail }) {
                 {detail.status}
               </span>
             </div>
+
+            {/* HAIP Inbox UI-fidelity pass, ticket 5: Guest Overview --
+                Assigned Owner (read-only) + Lead Stage (dropdown, wired to
+                the existing move_stage one-click action). Both were
+                confirmed gaps: assigned_to lives on Conversation, stage on
+                Inquiry, neither was shown anywhere in this panel before. */}
+            {inquiryId && (
+              <div
+                className="p-3 rounded-xl border space-y-2 text-[11px]"
+                style={{ borderColor: "var(--haip-border)", background: "var(--muted)" }}
+              >
+                <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--haip-fg-subtle)" }}>
+                  Guest Overview
+                </p>
+                <div className="flex items-center justify-between">
+                  <span style={{ color: "var(--haip-fg-subtle)" }}>Assigned Owner</span>
+                  <span className="font-semibold flex items-center gap-1" style={{ color: "var(--haip-fg)" }}>
+                    <UserCheck size={11} style={{ color: "var(--primary)" }} />
+                    {leadOwnerStage?.assigned_agent_name || "Unassigned"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span style={{ color: "var(--haip-fg-subtle)" }}>Lead Stage</span>
+                  <select
+                    value={stages?.find(s => s.key === leadOwnerStage?.stage_key)?.id ?? ""}
+                    onChange={e => e.target.value && moveStage.mutate(e.target.value)}
+                    disabled={moveStage.isPending || !stages?.length}
+                    className="font-semibold text-[11px] rounded-md px-1.5 py-0.5 border outline-none disabled:opacity-60"
+                    style={{ borderColor: "var(--haip-border)", background: "var(--card)", color: "var(--primary)" }}
+                  >
+                    {!stages?.some(s => s.key === leadOwnerStage?.stage_key) && (
+                      <option value="" disabled>
+                        {leadOwnerStage?.stage_key ?? "Not set"}
+                      </option>
+                    )}
+                    {(stages ?? []).map(s => (
+                      <option key={s.id} value={s.id}>{s.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
 
             {/* Recent stays */}
             {(guest?.recent_stays ?? []).length > 0 && (

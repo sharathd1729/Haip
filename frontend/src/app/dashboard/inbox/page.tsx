@@ -2,7 +2,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Send, Sparkles, Loader2, BellOff, Search, X, StickyNote, Reply, ChevronDown, ChevronLeft, CalendarClock, Timer, AlertTriangle, LayoutTemplate } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { Send, Sparkles, Loader2, BellOff, Search, X, StickyNote, Reply, ChevronDown, ChevronLeft, CalendarClock, Timer, AlertTriangle, LayoutTemplate, Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { ConversationList } from "@/components/inbox/ConversationList";
@@ -12,6 +13,7 @@ import { AIDraftPanel } from "@/components/inbox/AIDraftPanel";
 import { TypingDots } from "@/components/inbox/TypingDots";
 import { ChannelIcon } from "@/components/inbox/ChannelIcon";
 import { GuestPanel } from "@/components/inbox/GuestPanel";
+import { PinnedInquiryBanner } from "@/components/inbox/PinnedInquiryBanner";
 import { CallLogCard, type CallTimelineItem } from "@/components/inbox/CallLogCard";
 import type { RecommendedAction } from "@/components/ai/AIRecommendationCard";
 import { Badge } from "@/components/ui/badge";
@@ -169,6 +171,8 @@ function ChannelFilterRow({
 export default function InboxPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { data: session } = useSession();
+  const currentUserId = (session?.user as { id?: string } | undefined)?.id ?? null;
   const {
     conversations,
     activeConversationId,
@@ -356,6 +360,13 @@ export default function InboxPage() {
   // Block free-form send when window is closed and this is a WhatsApp thread (not internal note)
   const windowBlocked = isWhatsApp && !windowOpen && !isInternalNote;
   void windowTick; // consumed by re-render cycle to refresh countdown
+
+  // HAIP Inbox UI-fidelity pass, ticket 1/5: a channel="voice" conversation
+  // (call_ingest.py's fallback for a guest whose only touchpoint is a
+  // phone call) has no chat send path -- no WhatsApp/Instagram dispatcher
+  // exists for it. Show a clear disabled state instead of a composer that
+  // would silently fail to send.
+  const isVoiceOnly = detail?.channel === "voice";
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -683,6 +694,7 @@ export default function InboxPage() {
             }}
             onLoadMore={hasMoreConversations ? () => fetchNextConversationPage() : undefined}
             isLoadingMore={isLoadingMoreConversations}
+            currentUserId={currentUserId}
           />
         )}
       </div>
@@ -838,6 +850,10 @@ export default function InboxPage() {
               </div>
             )}
 
+            {/* HAIP Inbox UI-fidelity pass, ticket 5: pinned-inquiry banner
+                (dates/guests/budget + lead score) above the thread. */}
+            <PinnedInquiryBanner inquiryId={detail?.inquiry_id ?? null} />
+
             {/* W17: search overlay */}
             {showSearch && (
               <div className="px-4 py-3 space-y-2 flex-shrink-0" style={{ borderBottom: "1px solid var(--haip-border)", background: "var(--muted)" }}>
@@ -980,8 +996,23 @@ export default function InboxPage() {
               </div>
             )}
 
+            {/* HAIP Inbox UI-fidelity pass, ticket 5: no chat composer for a
+                voice-only conversation -- there's no WhatsApp/Instagram
+                thread to send into, only the call log above. */}
+            {isVoiceOnly && (
+              <div
+                className="px-4 py-4 flex items-center gap-3 flex-shrink-0"
+                style={{ borderTop: "1px solid var(--haip-border)", background: "var(--muted)" }}
+              >
+                <Phone size={16} style={{ color: "var(--haip-fg-subtle)" }} />
+                <p className="text-xs font-medium" style={{ color: "var(--haip-fg-subtle)" }}>
+                  No chat channel yet — call log only
+                </p>
+              </div>
+            )}
+
             {/* D9: Window-closed blocker — shown instead of composer when 24h window expired */}
-            {windowBlocked && (
+            {!isVoiceOnly && windowBlocked && (
               <div
                 className="px-4 py-4 flex-shrink-0"
                 style={{
@@ -1029,7 +1060,7 @@ export default function InboxPage() {
 
             {/* Composer */}
             <div
-              className={cn("px-3 md:px-4 pt-2 pb-2 md:pb-1 flex-shrink-0", windowBlocked && !isInternalNote && "hidden")}
+              className={cn("px-3 md:px-4 pt-2 pb-2 md:pb-1 flex-shrink-0", (isVoiceOnly || (windowBlocked && !isInternalNote)) && "hidden")}
               style={{
                 borderTop: isInternalNote
                   ? "1px solid color-mix(in srgb, var(--haip-amber) 30%, transparent)"

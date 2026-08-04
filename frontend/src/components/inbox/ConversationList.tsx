@@ -4,7 +4,8 @@ import { cn } from "@/lib/utils";
 import { ChannelIcon } from "./ChannelIcon";
 import {
   Sparkles, ArrowUpDown, CheckSquare, Square, CheckCheck,
-  Archive, X, Star, Bed, Phone, Loader2,
+  Archive, X, Star, Bed, Phone, Loader2, UserCheck, Clock, Bot,
+  PhoneMissed, AlertTriangle, Flame,
 } from "lucide-react";
 import type { ConversationSummary } from "@/store/inbox";
 
@@ -16,12 +17,21 @@ const SORT_LABELS: Record<SortMode, string> = {
   unread: "Unread first",
 };
 
+// HAIP Inbox UI-fidelity pass, ticket 4: prototype's quick-filter chip row
+// (Assigned to Me / Waiting Reply / AI Needs Review / Missed Calls).
+type QuickFilter = "all" | "assigned_to_me" | "waiting_reply" | "ai_needs_review" | "missed_calls";
+type CompletenessTab = "all" | "complete" | "needs_info";
+
+// Below this, a lead has at most an Instagram handle -- no real channel
+// identity yet. Matches _COMPLETENESS_MAP's whatsapp_number tier (60) on
+// the backend (leads_service.py).
+const COMPLETE_THRESHOLD = 60;
+
 // Extended summary with optional enrichment fields
 export interface ConversationSummaryExt extends ConversationSummary {
   is_vip?: boolean;
   has_active_booking?: boolean;
   needs_attention?: boolean;
-  assigned_to?: string;
   property_name?: string;
 }
 
@@ -39,6 +49,8 @@ interface ConversationListProps {
    * exists to fetch -- absent once the list has reached the end. */
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
+  /** Signed-in user's id, for the "Assigned to Me" quick filter. */
+  currentUserId?: string | null;
 }
 
 // Deterministic color from a string (for guest avatar backgrounds)
@@ -74,6 +86,7 @@ const CHANNEL_BORDER: Record<string, string> = {
   whatsapp:  "border-l-2 border-l-green-400",
   instagram: "border-l-2 border-l-pink-400",
   web:       "border-l-2 border-l-blue-400",
+  voice:     "border-l-2 border-l-blue-400",
   sms:       "border-l-2 border-l-amber-400",
 };
 
@@ -89,6 +102,7 @@ export function ConversationList({
   onBulkAssign,
   onLoadMore,
   isLoadingMore,
+  currentUserId,
 }: ConversationListProps) {
   const [sort, setSort] = useState<SortMode>(() => {
     if (typeof window !== "undefined") {
@@ -99,6 +113,8 @@ export function ConversationList({
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const isSelecting = selected.size > 0;
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>("all");
+  const [completenessTab, setCompletenessTab] = useState<CompletenessTab>("all");
 
   const toggleSelect = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -117,12 +133,44 @@ export function ConversationList({
     onSortChange?.(sort);
   }, [sort, onSortChange]);
 
-  const filtered = useMemo(
+  const channelFiltered = useMemo(
     () => channelFilter
       ? conversations.filter(c => c.channel === channelFilter)
       : conversations,
     [conversations, channelFilter]
   );
+
+  // HAIP Inbox UI-fidelity pass, ticket 4: quick-filter chip counts are
+  // computed off channelFiltered (after the existing channel-select control,
+  // before the tab/quick-filter itself) -- so a count reflects "how many if
+  // I picked this filter right now", same scope the prototype's counts use.
+  const quickFilterCounts = useMemo(() => ({
+    assigned_to_me:  channelFiltered.filter(c => !!currentUserId && c.assigned_to === currentUserId).length,
+    waiting_reply:   channelFiltered.filter(c => c.is_waiting_reply).length,
+    ai_needs_review: channelFiltered.filter(c => c.has_ai_draft).length,
+    missed_calls:    channelFiltered.filter(c => c.channel === "voice").length,
+  }), [channelFiltered, currentUserId]);
+
+  const completenessCounts = useMemo(() => ({
+    complete:   channelFiltered.filter(c => (c.profile_completeness_pct ?? 0) >= COMPLETE_THRESHOLD).length,
+    needs_info: channelFiltered.filter(c => (c.profile_completeness_pct ?? 0) < COMPLETE_THRESHOLD).length,
+  }), [channelFiltered]);
+
+  const tabFiltered = useMemo(() => {
+    if (completenessTab === "complete") return channelFiltered.filter(c => (c.profile_completeness_pct ?? 0) >= COMPLETE_THRESHOLD);
+    if (completenessTab === "needs_info") return channelFiltered.filter(c => (c.profile_completeness_pct ?? 0) < COMPLETE_THRESHOLD);
+    return channelFiltered;
+  }, [channelFiltered, completenessTab]);
+
+  const filtered = useMemo(() => {
+    switch (quickFilter) {
+      case "assigned_to_me":  return tabFiltered.filter(c => !!currentUserId && c.assigned_to === currentUserId);
+      case "waiting_reply":   return tabFiltered.filter(c => c.is_waiting_reply);
+      case "ai_needs_review": return tabFiltered.filter(c => c.has_ai_draft);
+      case "missed_calls":    return tabFiltered.filter(c => c.channel === "voice");
+      default:                return tabFiltered;
+    }
+  }, [tabFiltered, quickFilter, currentUserId]);
 
   const sorted = useMemo(() => [...filtered].sort((a, b) => {
     if (sort === "unread") {
@@ -141,6 +189,62 @@ export function ConversationList({
 
   return (
     <div className={cn("flex flex-col overflow-y-auto haip-scrollbar", className)}>
+      {/* HAIP Inbox UI-fidelity pass, ticket 4: completeness tabs (prototype's
+          CRM Leads/Unqualified, reframed around live profile-completeness
+          rather than a fabricated "CRM lead" conversion event). */}
+      <div className="px-3 py-2 border-b flex gap-1 overflow-x-auto scrollbar-hide flex-shrink-0" style={{ borderColor: "var(--haip-border)" }}>
+        {([
+          { key: "all" as const,        label: `All (${channelFiltered.length})` },
+          { key: "complete" as const,   label: `Complete (${completenessCounts.complete})` },
+          { key: "needs_info" as const, label: `Needs Info (${completenessCounts.needs_info})` },
+        ]).map(t => (
+          <button
+            key={t.key}
+            onClick={() => setCompletenessTab(t.key)}
+            className="flex-shrink-0 px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors"
+            style={completenessTab === t.key
+              ? { background: "var(--primary)", color: "var(--primary-foreground)" }
+              : { color: "var(--haip-fg-muted)" }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Quick-filter chips: Assigned to Me / Waiting Reply / AI Needs Review / Missed Calls */}
+      <div className="p-2 border-b grid grid-cols-2 gap-1 flex-shrink-0" style={{ borderColor: "var(--haip-border)" }}>
+        {([
+          { key: "assigned_to_me" as const,  label: "Assigned to Me",  icon: UserCheck,    count: quickFilterCounts.assigned_to_me },
+          { key: "waiting_reply" as const,   label: "Waiting Reply",   icon: Clock,        count: quickFilterCounts.waiting_reply },
+          { key: "ai_needs_review" as const, label: "AI Needs Review", icon: Bot,          count: quickFilterCounts.ai_needs_review },
+          { key: "missed_calls" as const,    label: "Missed Calls",    icon: PhoneMissed,  count: quickFilterCounts.missed_calls },
+        ]).map(f => {
+          const Icon = f.icon;
+          const isActive = quickFilter === f.key;
+          return (
+            <button
+              key={f.key}
+              onClick={() => setQuickFilter(isActive ? "all" : f.key)}
+              className="px-2 py-1.5 rounded-lg text-left flex items-center justify-between gap-1 text-[11px] font-medium transition-colors"
+              style={isActive
+                ? { background: "color-mix(in srgb, var(--primary) 12%, transparent)", color: "var(--primary)" }
+                : { color: "var(--haip-fg-muted)" }}
+            >
+              <span className="flex items-center gap-1.5 truncate">
+                <Icon size={13} className="flex-shrink-0" />
+                {f.label}
+              </span>
+              <span
+                className="font-mono text-[10px] font-bold px-1.5 rounded flex-shrink-0"
+                style={{ background: "var(--muted)", color: "inherit" }}
+              >
+                {f.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Bulk action toolbar */}
       {isSelecting && (
         <div className="px-3 py-2 border-b border-teal-100 bg-teal-50 flex items-center gap-2 flex-shrink-0">
@@ -311,7 +415,25 @@ export function ConversationList({
                 </p>
 
                 {/* Row 4: Status badges + unread pill */}
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 flex-wrap">
+                  {conv.sla_status === "breached" && (
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 flex items-center gap-0.5 flex-shrink-0">
+                      <AlertTriangle size={7} />SLA breached
+                    </span>
+                  )}
+                  {conv.sla_status === "warning" && (
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 flex-shrink-0">
+                      SLA due soon
+                    </span>
+                  )}
+                  {conv.profile_completeness_pct != null && conv.profile_completeness_pct > 0 && (
+                    <span
+                      title="Lead profile completeness"
+                      className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-teal-50 text-teal-700 flex items-center gap-0.5 flex-shrink-0"
+                    >
+                      <Flame size={7} />{conv.profile_completeness_pct}%
+                    </span>
+                  )}
                   {conv.has_active_booking && (
                     <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 flex items-center gap-0.5 flex-shrink-0">
                       <Bed size={7} />Booked

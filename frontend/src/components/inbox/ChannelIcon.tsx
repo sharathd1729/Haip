@@ -52,6 +52,7 @@ const CONFIGS: Record<string, ChannelConfig> = {
   inbound_call:  { icon: <Phone size={14} />, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950" },
   outbound_call: { icon: <Phone size={14} />, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950" },
   call:          { icon: <Phone size={14} />, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950" },
+  voice:         { icon: <Phone size={14} />, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950" },
 
   // OTA Airbnb — rose
   ota_airbnb:   { icon: <Building2 size={14} />, color: "text-rose-600 dark:text-rose-400", bg: "bg-rose-50 dark:bg-rose-950" },

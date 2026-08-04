@@ -7,13 +7,24 @@ export interface ConversationSummary {
   id: string;
   guest_name: string;
   guest_phone: string;
-  channel: "whatsapp" | "instagram" | "web" | "sms";
+  channel: "whatsapp" | "instagram" | "web" | "voice" | "sms";
   last_message: string;
   last_message_at: string;
   unread_count: number;
   has_ai_draft: boolean;
   status: "open" | "resolved" | "snoozed";
   ad_title?: string | null;  // T0.5: set when this conversation originated from a Click-to-Instagram ad
+
+  // HAIP Inbox UI-fidelity pass, ticket 2: lead owner/stage/score/SLA,
+  // batch-fetched by list_conversations from data that was already joined
+  // in memory but never serialized before.
+  assigned_to?: string | null;
+  assigned_owner_name?: string | null;
+  stage_key?: string | null;
+  stage_label?: string | null;
+  profile_completeness_pct?: number | null;
+  is_waiting_reply?: boolean;
+  sla_status?: "on_time" | "warning" | "breached" | null;
 }
 
 interface InboxState {

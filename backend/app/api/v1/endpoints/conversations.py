@@ -87,15 +87,72 @@ def list_conversations(
         return []
 
     # Batch-fetch the latest message per conversation in one query (avoids N+1).
+    # HAIP Inbox UI-fidelity pass, ticket 2: also carries direction, so
+    # is_waiting_reply (latest message is inbound) is a free read off the
+    # same row instead of a second query.
     conv_ids = [c.id for c in conversations]
     latest_rows = (
-        db.query(Message.conversation_id, Message.body)
+        db.query(Message.conversation_id, Message.body, Message.direction)
         .filter(Message.conversation_id.in_(conv_ids), Message.tenant_id == current_user.tenant_id)
         .order_by(Message.conversation_id, Message.created_at.desc())
         .distinct(Message.conversation_id)
         .all()
     )
     preview_by_conv = {row.conversation_id: row.body for row in latest_rows}
+    waiting_reply_by_conv = {
+        row.conversation_id: (row.direction.value if hasattr(row.direction, "value") else str(row.direction)) == "inbound"
+        for row in latest_rows
+    }
+
+    # HAIP Inbox UI-fidelity pass, ticket 2: batch owner/stage/completeness/SLA.
+    from app.models.user import User
+    from app.models.pipeline_stage import PipelineStage
+    from app.services import leads_service
+
+    owner_ids = {c.assigned_to for c in conversations if c.assigned_to}
+    owner_name_by_id = {}
+    if owner_ids:
+        owner_name_by_id = {
+            row.id: row.name
+            for row in db.query(User.id, User.name)
+            .filter(User.tenant_id == current_user.tenant_id, User.id.in_(owner_ids))
+            .all()
+        }
+
+    stage_ids = {c.inquiry.stage_id for c in conversations if c.inquiry and c.inquiry.stage_id}
+    stage_by_id = {}
+    if stage_ids:
+        stage_by_id = {
+            row.id: (row.key, row.label)
+            for row in db.query(PipelineStage.id, PipelineStage.key, PipelineStage.label)
+            .filter(PipelineStage.tenant_id == current_user.tenant_id, PipelineStage.id.in_(stage_ids))
+            .all()
+        }
+
+    guest_ids = [c.guest_id for c in conversations]
+    completeness_by_guest = leads_service._batch_completeness(db, current_user.tenant_id, guest_ids)
+
+    def _sla_status(inquiry) -> "str | None":
+        """Same 30-min/80%-elapsed threshold as insight_detector.py's A2
+        detector -- never Inquiry.sla_breached, which is written nowhere."""
+        if not inquiry:
+            return None
+        if inquiry.first_response_at:
+            return "on_time"
+        created = inquiry.created_at
+        if created is None:
+            return None
+        if isinstance(created, str):
+            created = datetime.fromisoformat(created.replace("Z", "+00:00"))
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        elapsed_minutes = (datetime.now(timezone.utc) - created).total_seconds() / 60
+        sla_minutes = 30
+        if elapsed_minutes >= sla_minutes:
+            return "breached"
+        if elapsed_minutes >= sla_minutes * 0.8:
+            return "warning"
+        return "on_time"
 
     # T0.5: batch-fetch ad_title from each conversation's earliest message
     # carrying ad-attribution metadata (Meta only sets referral on the
@@ -124,6 +181,14 @@ def list_conversations(
         out.guest_name = c.guest.name if c.guest else None
         out.last_message = preview_by_conv.get(c.id)
         out.ad_title = ad_title_by_conv.get(c.id)
+        out.is_waiting_reply = waiting_reply_by_conv.get(c.id, False)
+        out.profile_completeness_pct = completeness_by_guest.get(c.guest_id)
+        if c.assigned_to:
+            out.assigned_owner_name = owner_name_by_id.get(c.assigned_to)
+        if c.inquiry:
+            if c.inquiry.stage_id and c.inquiry.stage_id in stage_by_id:
+                out.stage_key, out.stage_label = stage_by_id[c.inquiry.stage_id]
+            out.sla_status = _sla_status(c.inquiry)
         result.append(out)
     return result
 

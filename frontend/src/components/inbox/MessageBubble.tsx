@@ -311,16 +311,31 @@ export const MessageBubble = memo(function MessageBubble({
           </div>
         )}
 
-        {/* Ticket 4: inline one-click action card alongside a grounded draft */}
+        {/* Ticket 4/HAIP Inbox UI-fidelity pass ticket 5: inline one-click
+            action card alongside a grounded draft -- restyled here (wrapper
+            only, not the shared AIRecommendationCard used by Calls/Leads360/
+            GuestJourney/Ask HAIP) to the prototype's denser, more prominent
+            treatment, still in HAIP teal rather than the prototype's indigo. */}
         {isAiDraft && suggestedActions && suggestedActions.length > 0 && (
-          <div className="mt-1.5 w-full">
-            <AIRecommendationCard
-              title="Suggested action"
-              summary="A live quote is ready to send."
-              entityRefs={entityRefs ?? {}}
-              actions={suggestedActions}
-              source="inbox_thread"
-            />
+          <div
+            className="mt-1.5 w-full rounded-xl p-0.5"
+            style={{ background: "linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 40%, transparent))" }}
+          >
+            <div className="rounded-[10px]" style={{ background: "var(--card)" }}>
+              <AIRecommendationCard
+                title="AI recommendation"
+                summary={
+                  suggestedActions.some(a => a.action_type === "send_quote")
+                    ? "A live quote is ready to send."
+                    : suggestedActions.some(a => a.action_type === "send_whatsapp_draft")
+                      ? "This draft asks the guest for their phone number."
+                      : "The AI has a suggested next step."
+                }
+                entityRefs={entityRefs ?? {}}
+                actions={suggestedActions}
+                source="inbox_thread"
+              />
+            </div>
           </div>
         )}
       </div>

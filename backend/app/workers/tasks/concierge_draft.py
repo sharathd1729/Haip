@@ -300,6 +300,14 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
                 log.warning("concierge_grounding_failed", conversation_id=conversation_id, error=str(exc))
                 grounded_facts = []
 
+        # HAIP Inbox UI-fidelity pass, ticket 3: widen the AI card trigger
+        # beyond price_quote-only. One query, checked alongside the rest of
+        # the context-building above.
+        from app.models.guest_identity import GuestIdentity, IdentityType
+        guest_missing_phone = db.query(GuestIdentity.id).filter_by(
+            tenant_id=tenant_id, guest_id=guest_id, identity_type=IdentityType.PHONE.value,
+        ).first() is None
+
         template = _jinja_env.get_template("concierge_reply.jinja")
 
         # Render with context
@@ -318,6 +326,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             kb_snippets=ctx["kb_snippets"],
             grounded_facts=grounded_facts,
             tone=tone if tone in _VALID_TONES else None,
+            guest_missing_phone=guest_missing_phone,
         )
 
         adapter = get_llm("concierge_draft")
@@ -351,9 +360,27 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             confidence_threshold = CONFIDENCE_THRESHOLD
         should_auto_send = (ai_mode == "autonomous" and confidence >= confidence_threshold and not needs_human)
 
+        draft_message_id = str(uuid.uuid4())
+
+        # HAIP Inbox UI-fidelity pass, ticket 3: offer the drafted reply
+        # itself as a one-click card when it's carrying a phone-number ask --
+        # reuses send_whatsapp_draft (same action next_action_service.py
+        # already recommends for calls), not a new action type. Additive to
+        # any send_quote suggestion _ground_reply() already produced.
+        if guest_missing_phone and not needs_human and not should_auto_send:
+            suggested_actions = suggested_actions + [{
+                "action_type": "send_whatsapp_draft",
+                "label": "Send (asks for phone number)",
+                "action_config": {
+                    "message_id": draft_message_id,
+                    "conversation_id": conversation_id,
+                },
+                "confirm": True,
+            }]
+
         # Store the drafted message
         draft_message = Message(
-            id=str(uuid.uuid4()),
+            id=draft_message_id,
             tenant_id=tenant_id,
             conversation_id=conversation_id,
             direction="outbound",

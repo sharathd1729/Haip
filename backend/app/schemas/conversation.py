@@ -43,6 +43,18 @@ class ConversationOut(BaseModel):
     last_message: Optional[str] = None
     ad_title: Optional[str] = None  # T0.5: set when the conversation originated from a Click-to-Instagram ad
 
+    # HAIP Inbox UI-fidelity pass, ticket 2: lead owner/stage/score/SLA were
+    # already joined in memory (Conversation.assigned_to, Conversation.inquiry)
+    # but never serialized -- this is what the prototype's left-list card and
+    # Guest Overview panel actually need.
+    assigned_to: Optional[str] = None  # raw user id -- for "assigned to me" comparison client-side
+    assigned_owner_name: Optional[str] = None
+    stage_key: Optional[str] = None
+    stage_label: Optional[str] = None
+    profile_completeness_pct: Optional[int] = None
+    is_waiting_reply: bool = False
+    sla_status: Optional[str] = None  # "on_time" | "warning" | "breached" | None (no open inquiry)
+
     class Config:
         from_attributes = True
 
