@@ -162,6 +162,19 @@ function CallSlideOver({ callId, onClose }: { callId: string; onClose: () => voi
     staleTime: 60_000,
   });
 
+  // Mcube-disconnect + outbound-calling pass: same POST /calls/click-to-call
+  // Inbox's GuestPanel/ConversationList use -- Vobiz (or whichever IVR is
+  // active) rings the agent's registered mobile first, then bridges to the
+  // guest. No audio in the browser.
+  const clickToCall = useMutation({
+    mutationFn: (guest_number: string) => api.post("/calls/click-to-call", { guest_number }),
+    onSuccess: () => toast({ variant: "success", title: "Calling…", description: "Your phone will ring shortly." }),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.detail ?? "Could not start call";
+      toast({ variant: "error", title: "Call failed", description: msg });
+    },
+  });
+
   // M5+ WS1/WS3: reuses the existing approve-and-queue endpoint
   // (conversations.py::approve_ai_draft) rather than a new one.
   const approveAndSendMutation = useMutation({
@@ -246,9 +259,26 @@ function CallSlideOver({ callId, onClose }: { callId: string; onClose: () => voi
                   <p className="text-[18px] font-bold truncate" style={{ fontFamily: "var(--font-display), sans-serif" }}>
                     {call.guest_name || "Unknown"}
                   </p>
-                  <p className="text-[13px] tabular-nums" style={{ color: "rgba(255,255,255,0.7)" }}>
-                    {call.guest_phone}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[13px] tabular-nums" style={{ color: "rgba(255,255,255,0.7)" }}>
+                      {call.guest_phone}
+                    </p>
+                    {call.guest_phone && (
+                      <button
+                        type="button"
+                        onClick={() => clickToCall.mutate(call.guest_phone)}
+                        disabled={clickToCall.isPending}
+                        title="Call via IVR"
+                        className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold disabled:opacity-50"
+                        style={{ background: "rgba(20,184,166,0.2)", color: "var(--haip-sidebar-accent)" }}
+                      >
+                        {clickToCall.isPending
+                          ? <Loader2 size={11} className="animate-spin" />
+                          : <Phone size={11} />}
+                        Call
+                      </button>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 mt-2 text-[12px] flex-wrap" style={{ color: "rgba(255,255,255,0.6)" }}>
                     {call.duration_seconds > 0 && <span>{fmt(call.duration_seconds)}</span>}
                     {call.agent_name && <span>· {call.agent_name}</span>}
