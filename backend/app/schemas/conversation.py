@@ -85,6 +85,14 @@ class RewriteDraftRequest(BaseModel):
     target_language: Optional[str] = None
 
 
+class ComposerRewriteRequest(BaseModel):
+    """HAIP Inbox full-parity pass, ticket 5: Translate/Tone-Fix on the
+    composer's free-typed text -- no Message row exists yet for this text."""
+    text: str
+    tone: Optional[str] = None
+    target_language: Optional[str] = None
+
+
 class SendTemplateRequest(BaseModel):
     """T3.2: send an approved WhatsApp template -- required when the 24h
     service window is closed, since Meta rejects free-form messages then."""

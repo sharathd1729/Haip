@@ -1,7 +1,9 @@
 "use client";
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { Phone, ChevronDown, TrendingUp } from "lucide-react";
 import Link from "next/link";
+import { CallPlayer } from "@/components/calls/CallPlayer";
 
 /** HAIP Inbox prototype-wiring plan, ticket 2/5: renders one call item from
  * GET /conversations/{id}/timeline in the merged thread. Only real fields --
@@ -13,6 +15,7 @@ export interface CallTimelineItem {
   direction: "inbound" | "outbound";
   duration_seconds: number;
   started_at?: string | null;
+  recording_url?: string | null;
   ai_summary?: string | null;
   conversion_probability?: number | null;
   turns: { speaker: string; text: string; t0: number; t1: number }[];
@@ -26,6 +29,22 @@ function formatDuration(seconds: number): string {
 
 export function CallLogCard({ call }: { call: CallTimelineItem }) {
   const [expanded, setExpanded] = useState(false);
+  const { data: session } = useSession();
+
+  // HAIP Inbox full-parity pass, ticket 6: reuses the exact same local-file
+  // token-append pattern /dashboard/calls/[id]/page.tsx already uses --
+  // local recordings come back as a relative /api/v1/... path and need the
+  // session token as a query param so the bare <audio> element (no custom
+  // headers) can authenticate.
+  const resolvedRecordingUrl = call.recording_url
+    ? call.recording_url.startsWith("/")
+      ? (() => {
+          const base = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1").replace(/\/api\/v1$/, "");
+          const tok = (session as any)?.accessToken ?? "demo";
+          return `${base}${call.recording_url}?token=${encodeURIComponent(tok)}`;
+        })()
+      : call.recording_url
+    : null;
 
   return (
     <div className="my-2 max-w-2xl mx-auto w-full">
@@ -51,6 +70,12 @@ export function CallLogCard({ call }: { call: CallTimelineItem }) {
             </span>
           )}
         </div>
+
+        {resolvedRecordingUrl && (
+          <div className="mt-2">
+            <CallPlayer recordingUrl={resolvedRecordingUrl} duration={call.duration_seconds} className="p-2.5" />
+          </div>
+        )}
 
         {call.ai_summary && (
           <p className="mt-2 text-xs text-gray-600 leading-relaxed">{call.ai_summary}</p>

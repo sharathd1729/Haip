@@ -123,13 +123,23 @@ class McubeAdapter(IVRAdapter):
             return resp.content
 
     def _normalize_phone(self, phone: str) -> str:
-        """Ensure E.164 format."""
+        """Ensure E.164 format. Guards against Mcube sending a number
+        already country-code-prefixed but without "+" (e.g. "917816999444")
+        -- naively prepending "+91" to that produced "+91917816999444",
+        which never matched the guest's correctly-formatted WhatsApp/other
+        signal ("+917816999444") in identity_resolution's exact-value match,
+        so a call from that number created a fresh Guest every time instead
+        of merging into the guest's real thread (HAIP Inbox full-parity
+        pass, ticket 1)."""
         if not phone:
             return ""
         phone = phone.strip().replace(" ", "").replace("-", "")
-        if not phone.startswith("+"):
-            phone = "+91" + phone.lstrip("0")
-        return phone
+        if phone.startswith("+"):
+            return phone
+        digits = phone.lstrip("0")
+        if digits.startswith("91") and len(digits) == 12:
+            return "+" + digits
+        return "+91" + digits
 
     @staticmethod
     def _parse_hms_duration(raw: str) -> int:

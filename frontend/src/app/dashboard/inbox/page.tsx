@@ -3,7 +3,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { Send, Sparkles, Loader2, BellOff, Search, X, StickyNote, Reply, ChevronDown, ChevronLeft, CalendarClock, Timer, AlertTriangle, LayoutTemplate, Phone } from "lucide-react";
+import { Send, Sparkles, Loader2, BellOff, Search, X, StickyNote, Reply, ChevronDown, ChevronLeft, CalendarClock, Timer, AlertTriangle, LayoutTemplate, Phone, Languages, Wand2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { ConversationList } from "@/components/inbox/ConversationList";
@@ -95,10 +95,17 @@ function formatWindowCountdown(secs: number): string {
   return `${m}m left`;
 }
 
+// HAIP Inbox full-parity pass, ticket 5: same option sets MessageBubble.tsx
+// uses for the stored-draft rewrite pickers -- duplicated here (not
+// exported there) since this is the composer's own free-text version.
+const COMPOSER_REWRITE_LANGUAGES = ["Hindi", "Kannada", "Tamil", "Telugu", "Malayalam"];
+const COMPOSER_REWRITE_TONES = ["warm", "formal", "brief", "persuasive"] as const;
+
 const CHANNEL_FILTERS = [
   { value: "",          label: "All" },
   { value: "whatsapp",  label: "WhatsApp" },
   { value: "instagram", label: "Instagram" },
+  { value: "voice",     label: "Voice" },
   { value: "web",       label: "Web" },
 ];
 
@@ -277,6 +284,17 @@ export default function InboxPage() {
     staleTime: 30_000,
   });
 
+  // HAIP Inbox full-parity pass, ticket 5: same lead-detail query
+  // GuestPanel/ProfileCompletenessWidget/PinnedInquiryBanner already fetch
+  // (identical queryKey, dedupes) -- just need profile_completeness_pct
+  // here for the thread-header pill.
+  const { data: threadLeadDetail } = useQuery<{ profile_completeness_pct?: number }>({
+    queryKey: ["lead-detail", detail?.inquiry_id],
+    queryFn: () => api.get(`/leads/${detail?.inquiry_id}`).then(r => r.data),
+    enabled: !!detail?.inquiry_id,
+    staleTime: 30_000,
+  });
+
   // HAIP Inbox prototype-wiring plan, ticket 2: call side of the merged
   // timeline -- messages keep coming from `detail`/`olderMessages` above
   // (already paginated), only the call items are pulled from here and
@@ -309,6 +327,36 @@ export default function InboxPage() {
     onError: (err: any) => {
       const msg = err?.response?.data?.detail ?? "Rewrite failed";
       toast({ variant: "error", title: "Could not rewrite draft", description: msg });
+    },
+  });
+
+  // HAIP Inbox full-parity pass, ticket 5: Translate/Tone-Fix on the
+  // composer's free-typed text (not an existing stored draft the way
+  // rewriteDraft above handles) -- kicks off composer_rewrite.delay, then
+  // polls the short-lived job-result endpoint since there's no Message row
+  // to refetch a conversation for.
+  const [isComposerRewriting, setIsComposerRewriting] = useState(false);
+  const [showComposerTonePicker, setShowComposerTonePicker] = useState(false);
+  const [showComposerLangPicker, setShowComposerLangPicker] = useState(false);
+  const composerRewrite = useMutation({
+    mutationFn: async ({ tone, targetLanguage }: { tone?: string; targetLanguage?: string }) => {
+      const { data } = await api.post(`/conversations/${activeConversationId}/composer/rewrite`, {
+        text: replyText, tone, target_language: targetLanguage,
+      });
+      const jobId = data.job_id as string;
+      for (let attempt = 0; attempt < 15; attempt++) {
+        await new Promise(r => setTimeout(r, 700));
+        const status = await api.get(`/conversations/${activeConversationId}/composer/rewrite/${jobId}`).then(r => r.data);
+        if (status.status === "done") return status.rewritten_text as string;
+        if (status.status === "failed") throw new Error("Rewrite failed");
+      }
+      throw new Error("Rewrite timed out");
+    },
+    onMutate: () => setIsComposerRewriting(true),
+    onSettled: () => setIsComposerRewriting(false),
+    onSuccess: (rewrittenText) => setReplyText(rewrittenText),
+    onError: () => {
+      toast({ variant: "error", title: "Could not rewrite message", description: "Please try again." });
     },
   });
 
@@ -687,6 +735,11 @@ export default function InboxPage() {
               Promise.all(ids.map(id => api.patch(`/conversations/${id}`, { is_open: false })))
                 .then(() => queryClient.invalidateQueries({ queryKey: ["conversations"] }));
             }}
+            onArchive={id => {
+              // HAIP Inbox full-parity pass, ticket 2: hover-row Archive action
+              api.patch(`/conversations/${id}`, { is_open: false })
+                .then(() => queryClient.invalidateQueries({ queryKey: ["conversations"] }));
+            }}
             onBulkMarkRead={ids => {
               // W13: mark multiple conversations as read
               Promise.all(ids.map(id => api.post(`/conversations/${id}/read`)))
@@ -739,6 +792,21 @@ export default function InboxPage() {
                       <ChannelIcon channel={detail.channel} className="w-4 h-4" />
                       <span className="text-xs capitalize" style={{ color: "var(--haip-fg-subtle)" }}>{detail.channel}</span>
                       <Badge variant={detail.status === "open" ? "success" : "ghost"} className="text-[10px] py-0 h-4">{detail.status}</Badge>
+                      {/* HAIP Inbox full-parity pass, ticket 5: completeness
+                          pill -- real data (not a fake "convert to lead"
+                          action like the prototype's pill), scrolls to the
+                          existing ProfileCompletenessWidget on click. */}
+                      {threadLeadDetail?.profile_completeness_pct != null && (
+                        <button
+                          type="button"
+                          onClick={() => document.getElementById("profile-completeness-widget")?.scrollIntoView({ behavior: "smooth", block: "center" })}
+                          title="Jump to profile completeness"
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold transition-colors hover:opacity-80"
+                          style={{ background: "color-mix(in srgb, var(--primary) 10%, transparent)", color: "var(--primary)" }}
+                        >
+                          {threadLeadDetail.profile_completeness_pct}% complete
+                        </button>
+                      )}
                       {/* D9: WhatsApp 24h service window indicator */}
                       {isWhatsApp && detail.last_inbound_at && (
                         windowOpen ? (
@@ -1106,6 +1174,61 @@ export default function InboxPage() {
                   </button>
                 </div>
               )}
+              {/* HAIP Inbox full-parity pass, ticket 5: Translate/Tone-Fix on
+                  whatever the agent is currently typing -- distinct from
+                  MessageBubble's pickers, which only operate on an
+                  already-stored AI draft. */}
+              {!isInternalNote && replyText.trim().length > 0 && (
+                <div className="flex items-center gap-1.5 mb-1.5 px-1">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => { setShowComposerTonePicker(v => !v); setShowComposerLangPicker(false); }}
+                      disabled={isComposerRewriting}
+                      className="flex items-center gap-1 text-[11px] text-gray-500 bg-white hover:bg-gray-50 border border-gray-200 px-2 py-1 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {isComposerRewriting ? <Loader2 size={11} className="animate-spin" /> : <Wand2 size={11} />} Tone Fix
+                    </button>
+                    {showComposerTonePicker && (
+                      <div className="absolute z-10 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[110px]">
+                        {COMPOSER_REWRITE_TONES.map(t => (
+                          <button
+                            key={t}
+                            onClick={() => { composerRewrite.mutate({ tone: t }); setShowComposerTonePicker(false); }}
+                            className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 capitalize"
+                          >
+                            {t}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => { setShowComposerLangPicker(v => !v); setShowComposerTonePicker(false); }}
+                      disabled={isComposerRewriting}
+                      className="flex items-center gap-1 text-[11px] text-gray-500 bg-white hover:bg-gray-50 border border-gray-200 px-2 py-1 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      <Languages size={11} /> Translate
+                    </button>
+                    {showComposerLangPicker && (
+                      <div className="absolute z-10 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[110px]">
+                        {COMPOSER_REWRITE_LANGUAGES.map(lang => (
+                          <button
+                            key={lang}
+                            onClick={() => { composerRewrite.mutate({ targetLanguage: lang }); setShowComposerLangPicker(false); }}
+                            className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                          >
+                            {lang}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="relative flex gap-2 items-end">
                 {/* W3: SavedReplyMenu */}
                 {showSavedReplies && (

@@ -82,6 +82,41 @@ class TestConversationTimelineService:
         call_item = next(i for i in result["items"] if i["type"] == "call")
         assert call_item["call"]["turns"] == []
 
+    def test_call_with_no_recording_yields_null_recording_url(self, db, tenant_and_user):
+        tenant_id = _tenant_id(tenant_and_user)
+        guest, conv = _setup(db, tenant_id)
+        call = Call(
+            id=str(uuid.uuid4()), tenant_id=tenant_id, guest_id=guest.id,
+            ivr_provider="callerdesk", ivr_call_id=f"cd-{uuid.uuid4().hex[:8]}",
+            direction=CallDirection.INBOUND, from_number="+918012345678", to_number="+919876543210",
+            duration_seconds=30,
+        )
+        db.add(call); db.commit()
+
+        result = get_conversation_timeline(db, tenant_id=tenant_id, conversation_id=conv.id)
+        call_item = next(i for i in result["items"] if i["type"] == "call")
+        assert call_item["call"]["recording_url"] is None
+        assert "recording_s3_key" not in call_item["call"]  # internal storage path never exposed
+
+    def test_call_with_local_recording_yields_stream_url(self, db, tenant_and_user):
+        """HAIP Inbox full-parity pass, ticket 6: recording_url reuses
+        calls.py's own _get_recording_url resolution -- for a local file
+        path (dev/testing fallback), that resolves to the streaming
+        endpoint, not the raw filesystem path."""
+        tenant_id = _tenant_id(tenant_and_user)
+        guest, conv = _setup(db, tenant_id)
+        call = Call(
+            id=str(uuid.uuid4()), tenant_id=tenant_id, guest_id=guest.id,
+            ivr_provider="callerdesk", ivr_call_id=f"cd-{uuid.uuid4().hex[:8]}",
+            direction=CallDirection.INBOUND, from_number="+918012345678", to_number="+919876543210",
+            duration_seconds=30, recording_s3_key="/var/data/recordings/abc.mp3",
+        )
+        db.add(call); db.commit()
+
+        result = get_conversation_timeline(db, tenant_id=tenant_id, conversation_id=conv.id)
+        call_item = next(i for i in result["items"] if i["type"] == "call")
+        assert call_item["call"]["recording_url"] == f"/api/v1/calls/{call.id}/recording"
+
     def test_unknown_conversation_returns_none(self, db, tenant_and_user):
         tenant_id = _tenant_id(tenant_and_user)
         result = get_conversation_timeline(db, tenant_id=tenant_id, conversation_id=str(uuid.uuid4()))

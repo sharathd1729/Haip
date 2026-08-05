@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, XCircle, Phone, Sparkles } from "lucide-react";
+import { CheckCircle2, XCircle, Phone, Sparkles, PartyPopper } from "lucide-react";
+import confetti from "canvas-confetti";
 import api from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -42,6 +43,7 @@ export function ProfileCompletenessWidget({ inquiryId }: { inquiryId: string | n
   const qc = useQueryClient();
   const [showPhoneInput, setShowPhoneInput] = useState(false);
   const [phoneValue, setPhoneValue] = useState("");
+  const [showSuccessBanner, setShowSuccessBanner] = useState(false);
 
   const { data: lead, isLoading } = useQuery<LeadDetail>({
     queryKey: ["lead-detail", inquiryId],
@@ -54,6 +56,13 @@ export function ProfileCompletenessWidget({ inquiryId }: { inquiryId: string | n
     mutationFn: (phone: string) =>
       api.post(`/leads/${inquiryId}/signals`, { type: "phone", value: phone }),
     onSuccess: () => {
+      // HAIP Inbox full-parity pass, ticket 4: real celebratory moment on a
+      // real event (a phone signal was actually recorded) -- matches the
+      // prototype's confetti pattern, not a fake "converted to CRM lead"
+      // claim (every conversation already has an Inquiry from first touch).
+      confetti({ particleCount: 80, spread: 65, origin: { y: 0.7 } });
+      setShowSuccessBanner(true);
+      setTimeout(() => setShowSuccessBanner(false), 4000);
       toast({ variant: "success", title: "Phone added", description: "Guest signal recorded." });
       qc.invalidateQueries({ queryKey: ["lead-detail", inquiryId] });
       setShowPhoneInput(false);
@@ -87,6 +96,7 @@ export function ProfileCompletenessWidget({ inquiryId }: { inquiryId: string | n
 
   return (
     <div
+      id="profile-completeness-widget"
       className="p-3.5 rounded-xl border space-y-2.5"
       style={{ borderColor: "var(--haip-border)", background: "var(--card)" }}
     >
@@ -99,6 +109,16 @@ export function ProfileCompletenessWidget({ inquiryId }: { inquiryId: string | n
           {lead.profile_completeness_pct}%
         </span>
       </div>
+
+      {showSuccessBanner && (
+        <div
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold"
+          style={{ background: "color-mix(in srgb, var(--haip-green) 12%, transparent)", color: "var(--haip-green)" }}
+        >
+          <PartyPopper size={13} className="flex-shrink-0" />
+          Phone number added — profile updated!
+        </div>
+      )}
 
       <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: "var(--muted)" }}>
         <div

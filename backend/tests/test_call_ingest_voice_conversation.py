@@ -7,7 +7,7 @@ import uuid
 from app.models.conversation import Conversation, ChannelType
 from app.models.guest import Guest
 from app.models.tenant import Tenant
-from app.workers.tasks.call_ingest import _find_or_create_voice_conversation
+from app.workers.tasks.call_ingest import _find_or_create_voice_conversation, _bump_conversation_for_call
 
 
 def _tenant_id(tenant_and_user):
@@ -87,3 +87,55 @@ class TestFindOrCreateVoiceConversation:
         assert conv_b is not None
         assert conv_a.tenant_id == tenant_a
         assert conv_b.tenant_id == tenant_b
+
+
+class TestBumpConversationForCall:
+    """HAIP Inbox full-parity pass, ticket 1: a call for a guest who already
+    has a conversation never bumped Conversation.last_message_at (what
+    list_conversations sorts by) -- this fires unconditionally after
+    _find_or_create_voice_conversation, whether that just created a
+    conversation or one already existed."""
+
+    def test_bumps_last_message_at_on_existing_conversation(self, db, tenant_and_user):
+        tenant_id = _tenant_id(tenant_and_user)
+        guest = _make_guest(db, tenant_id)
+        conv = Conversation(
+            id=str(uuid.uuid4()), tenant_id=tenant_id, guest_id=guest.id,
+            channel=ChannelType.WHATSAPP, is_open=True, last_message_at="2020-01-01T00:00:00+00:00",
+        )
+        db.add(conv); db.commit()
+
+        _bump_conversation_for_call(db, tenant_id, guest.id, "2026-08-05T10:00:00+00:00")
+
+        db.refresh(conv)
+        assert conv.last_message_at == "2026-08-05T10:00:00+00:00"
+
+    def test_bumps_freshly_created_voice_conversation(self, db, tenant_and_user):
+        tenant_id = _tenant_id(tenant_and_user)
+        guest = _make_guest(db, tenant_id)
+        _find_or_create_voice_conversation(db, tenant_id, guest)
+
+        _bump_conversation_for_call(db, tenant_id, guest.id, "2026-08-05T10:00:00+00:00")
+
+        conv = db.query(Conversation).filter_by(guest_id=guest.id, tenant_id=tenant_id).one()
+        assert conv.last_message_at == "2026-08-05T10:00:00+00:00"
+
+    def test_falls_back_to_now_when_call_has_no_timestamp(self, db, tenant_and_user):
+        tenant_id = _tenant_id(tenant_and_user)
+        guest = _make_guest(db, tenant_id)
+        _find_or_create_voice_conversation(db, tenant_id, guest)
+
+        _bump_conversation_for_call(db, tenant_id, guest.id, "")
+
+        conv = db.query(Conversation).filter_by(guest_id=guest.id, tenant_id=tenant_id).one()
+        assert conv.last_message_at  # non-empty, some ISO timestamp was set
+
+    def test_no_op_when_guest_has_no_conversation_at_all(self, db, tenant_and_user):
+        """Shouldn't happen in the real ingest_call flow (voice-conversation
+        creation always runs first), but must not raise if it somehow did."""
+        tenant_id = _tenant_id(tenant_and_user)
+        guest = _make_guest(db, tenant_id)
+
+        _bump_conversation_for_call(db, tenant_id, guest.id, "2026-08-05T10:00:00+00:00")
+
+        assert db.query(Conversation).filter_by(guest_id=guest.id, tenant_id=tenant_id).count() == 0

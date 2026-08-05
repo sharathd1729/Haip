@@ -77,6 +77,12 @@ def get_conversation_timeline(
         for t in db.query(Transcript).filter(Transcript.call_id.in_(call_ids)).all()
     } if call_ids else {}
 
+    # HAIP Inbox full-parity pass, ticket 6: reuse calls.py's own recording-
+    # URL resolution (deferred import -- a service module importing an
+    # endpoint module's helper at top-level would invert the normal
+    # dependency direction).
+    from app.api.v1.endpoints.calls import _get_recording_url
+
     items = []
     for m in messages:
         items.append({
@@ -107,7 +113,12 @@ def get_conversation_timeline(
                 "direction": c.direction.value if hasattr(c.direction, "value") else c.direction,
                 "duration_seconds": c.duration_seconds or 0,
                 "started_at": c.started_at,
-                "recording_s3_key": c.recording_s3_key,
+                # HAIP Inbox full-parity pass, ticket 6: same presigned/local
+                # URL resolution calls.py's own /calls/{id} detail endpoint
+                # already uses -- reused here rather than exposing the raw
+                # recording_s3_key (an internal storage path) to the
+                # frontend directly.
+                "recording_url": _get_recording_url(c.recording_s3_key, call_id=c.id),
                 "ai_summary": c.ai_summary,
                 "conversion_probability": c.conversion_probability,
                 "turns": _normalise_turns(transcript.turns if transcript else None),

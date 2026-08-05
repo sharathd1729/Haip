@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check, Plus, ClipboardList } from "lucide-react";
+import { Check, Plus, ClipboardList, CalendarClock } from "lucide-react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +42,12 @@ export function FollowUpTasksPanel({ conversationId }: { conversationId: string 
 
   const doneCount = tasks.filter(t => t.is_done).length;
 
+  const PRIORITY_COLOR: Record<string, string> = {
+    high: "#ef4444",
+    medium: "#f59e0b",
+    low: "#6b7280",
+  };
+
   return (
     <div
       className="p-3.5 rounded-xl border space-y-2.5"
@@ -78,8 +84,19 @@ export function FollowUpTasksPanel({ conversationId }: { conversationId: string 
                 >
                   {t.is_done && <Check size={11} />}
                 </span>
+                <span
+                  title={`Priority: ${t.priority}`}
+                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                  style={{ background: PRIORITY_COLOR[t.priority] ?? PRIORITY_COLOR.medium }}
+                />
                 <span className={cn("truncate", t.is_done && "line-through opacity-50")}>{t.title}</span>
               </span>
+              {t.due_date && (
+                <span className="flex items-center gap-1 text-[10px] flex-shrink-0" style={{ color: "var(--haip-fg-subtle)" }}>
+                  <CalendarClock size={10} />
+                  {new Date(t.due_date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                </span>
+              )}
             </button>
           ))}
         </div>

@@ -61,6 +61,14 @@ def ingest_call(self, payload: dict, tenant_id: str, ivr_provider: str):
             # before this -- nothing to click into anywhere in the inbox.
             _find_or_create_voice_conversation(db, tenant_id, guest)
 
+            # HAIP Inbox full-parity pass, ticket 1: list_conversations sorts
+            # by Conversation.last_message_at and previews off the latest
+            # Message -- neither was ever touched by a call, so a call for a
+            # guest who already has a conversation never bumped it up the
+            # list or hinted a call happened. Bump it here regardless of
+            # whether the conversation above is brand new or pre-existing.
+            _bump_conversation_for_call(db, tenant_id, guest.id, normalized.started_at)
+
             # Find or create open inquiry for this guest, routed via the
             # same Leads360 auto-create taxonomy WhatsApp/Instagram use --
             # unanswered calls land on RNR, connected calls on Active.
@@ -306,6 +314,22 @@ def _find_or_create_voice_conversation(db: Session, tenant_id: str, guest: Guest
     db.commit()
     log.info("voice_conversation_created", conversation_id=conv.id, tenant_id=tenant_id)
     return conv
+
+
+def _bump_conversation_for_call(db: Session, tenant_id: str, guest_id: str, call_started_at: str) -> None:
+    """HAIP Inbox full-parity pass, ticket 1: nothing in the call pipeline
+    ever touched Conversation.last_message_at, which is exactly what
+    list_conversations sorts by -- a call for a guest who already has a
+    conversation (WA/IG/voice) never bumped it up the list. Fires
+    unconditionally, after _find_or_create_voice_conversation has already
+    guaranteed a conversation row exists for this guest one way or another.
+    Timestamp-only; the list preview text itself is derived separately in
+    list_conversations by comparing this against the latest Message."""
+    conv = db.query(Conversation).filter_by(tenant_id=tenant_id, guest_id=guest_id).first()
+    if not conv:
+        return
+    conv.last_message_at = call_started_at or datetime.now(timezone.utc).isoformat()
+    db.commit()
 
 
 def _find_or_create_inquiry(db: Session, tenant_id: str, guest: Guest) -> Inquiry:

@@ -7,7 +7,7 @@ from app.core.database import get_db
 from app.api.v1.deps import get_current_user
 from app.models.user import User
 from app.models.conversation import Conversation, Message, MessageDeliveryState
-from app.schemas.conversation import MessageOut, SendMessageRequest, AIDraftRequest, ConversationOut, SendTemplateRequest, ApproveDraftRequest, RewriteDraftRequest
+from app.schemas.conversation import MessageOut, SendMessageRequest, AIDraftRequest, ConversationOut, SendTemplateRequest, ApproveDraftRequest, RewriteDraftRequest, ComposerRewriteRequest
 from app.workers.tasks.concierge_draft import concierge_draft
 from app.services import ai_draft_outcomes_service
 import structlog
@@ -92,17 +92,59 @@ def list_conversations(
     # same row instead of a second query.
     conv_ids = [c.id for c in conversations]
     latest_rows = (
-        db.query(Message.conversation_id, Message.body, Message.direction)
+        db.query(Message.conversation_id, Message.body, Message.direction, Message.created_at)
         .filter(Message.conversation_id.in_(conv_ids), Message.tenant_id == current_user.tenant_id)
         .order_by(Message.conversation_id, Message.created_at.desc())
         .distinct(Message.conversation_id)
         .all()
     )
     preview_by_conv = {row.conversation_id: row.body for row in latest_rows}
+    msg_time_by_conv = {row.conversation_id: row.created_at for row in latest_rows}
     waiting_reply_by_conv = {
         row.conversation_id: (row.direction.value if hasattr(row.direction, "value") else str(row.direction)) == "inbound"
         for row in latest_rows
     }
+
+    # HAIP Inbox full-parity pass, ticket 1: a call never created a Message
+    # row, so a guest's most recent touchpoint being a call (rather than a
+    # chat message) never showed up as the list preview -- even once the
+    # conversation itself correctly bumped to the top via
+    # call_ingest.py::_bump_conversation_for_call. Batch-fetch the latest
+    # Call per guest and use it as the preview whenever it's more recent
+    # than the latest Message.
+    from app.models.call import Call
+
+    guest_ids_for_calls = [c.guest_id for c in conversations]
+    latest_call_by_guest = {}
+    if guest_ids_for_calls:
+        call_rows = (
+            db.query(Call.guest_id, Call.direction, Call.duration_seconds, Call.started_at)
+            .filter(Call.guest_id.in_(guest_ids_for_calls), Call.tenant_id == current_user.tenant_id)
+            .order_by(Call.guest_id, Call.started_at.desc())
+            .distinct(Call.guest_id)
+            .all()
+        )
+        latest_call_by_guest = {row.guest_id: row for row in call_rows}
+
+    def _parse_dt(value) -> "datetime | None":
+        if value is None:
+            return None
+        if isinstance(value, str):
+            try:
+                value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                return None
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value
+
+    def _call_preview_text(direction, duration_seconds) -> str:
+        dir_str = direction.value if hasattr(direction, "value") else str(direction)
+        if not duration_seconds:
+            return "\U0001F4DE Missed call" if dir_str == "inbound" else "\U0001F4DE Call not answered"
+        m, s = divmod(int(duration_seconds), 60)
+        label = "Inbound" if dir_str == "inbound" else "Outbound"
+        return f"\U0001F4DE {label} call · {m}m {s}s"
 
     # HAIP Inbox UI-fidelity pass, ticket 2: batch owner/stage/completeness/SLA.
     from app.models.user import User
@@ -180,6 +222,12 @@ def list_conversations(
         out = ConversationOut.model_validate(c)
         out.guest_name = c.guest.name if c.guest else None
         out.last_message = preview_by_conv.get(c.id)
+        call_row = latest_call_by_guest.get(c.guest_id)
+        if call_row:
+            call_time = _parse_dt(call_row.started_at)
+            msg_time = _parse_dt(msg_time_by_conv.get(c.id))
+            if call_time and (not msg_time or call_time > msg_time):
+                out.last_message = _call_preview_text(call_row.direction, call_row.duration_seconds)
         out.ad_title = ad_title_by_conv.get(c.id)
         out.is_waiting_reply = waiting_reply_by_conv.get(c.id, False)
         out.profile_completeness_pct = completeness_by_guest.get(c.guest_id)
@@ -501,6 +549,56 @@ def rewrite_draft_endpoint(
     return {"status": "rewrite_queued"}
 
 
+@router.post("/{conversation_id}/composer/rewrite")
+def composer_rewrite_endpoint(
+    conversation_id: str,
+    body: ComposerRewriteRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """HAIP Inbox full-parity pass, ticket 5: Translate/Tone-Fix on the
+    composer's free-typed text, before it's ever sent -- unlike
+    /messages/{id}/rewrite, there's no Message row to update in place, so
+    the result is handed back via a short-lived Redis-cached job id
+    (GET .../composer/rewrite/{job_id}) instead of a conversation refetch."""
+    from app.workers.tasks.composer_rewrite import composer_rewrite
+
+    conv = db.query(Conversation).filter_by(id=conversation_id, tenant_id=current_user.tenant_id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    if not body.text.strip():
+        raise HTTPException(status_code=422, detail="text must not be empty")
+
+    job_id = str(uuid.uuid4())
+    composer_rewrite.delay(
+        job_id=job_id,
+        tenant_id=current_user.tenant_id,
+        text=body.text,
+        tone=body.tone,
+        target_language=body.target_language,
+    )
+    return {"status": "rewrite_queued", "job_id": job_id}
+
+
+@router.get("/{conversation_id}/composer/rewrite/{job_id}")
+def composer_rewrite_status(
+    conversation_id: str,
+    job_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    from app.core.cache import get_cached
+
+    conv = db.query(Conversation).filter_by(id=conversation_id, tenant_id=current_user.tenant_id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    cached = get_cached(f"composer_rewrite:{current_user.tenant_id}:{job_id}")
+    if cached is None:
+        return {"status": "pending"}
+    return cached
+
+
 @router.post("/{conversation_id}/messages/{message_id}/retry", response_model=MessageOut)
 def retry_failed_message(
     conversation_id: str,
@@ -544,6 +642,28 @@ def retry_failed_message(
 
     db.refresh(msg)
     return msg
+
+
+@router.patch("/{conversation_id}")
+def update_conversation(
+    conversation_id: str,
+    body: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """HAIP Inbox full-parity pass, ticket 1: this route never existed --
+    ConversationList.tsx's Bulk Resolve button has called
+    `PATCH /conversations/{id} {is_open: false}` since it was built, always
+    404ing silently client-side (the request's .catch() swallowed it, same
+    class of bug as the pre-fix reject-draft endpoint). Only `is_open` is
+    accepted for now, matching the one field the frontend actually sends."""
+    conv = db.query(Conversation).filter_by(id=conversation_id, tenant_id=current_user.tenant_id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    if "is_open" in body:
+        conv.is_open = bool(body["is_open"])
+    db.commit()
+    return {"status": "updated", "is_open": conv.is_open}
 
 
 @router.post("/{conversation_id}/snooze")

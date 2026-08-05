@@ -5,7 +5,7 @@ import { ChannelIcon } from "./ChannelIcon";
 import {
   Sparkles, ArrowUpDown, CheckSquare, Square, CheckCheck,
   Archive, X, Star, Bed, Phone, Loader2, UserCheck, Clock, Bot,
-  PhoneMissed, AlertTriangle, Flame,
+  PhoneMissed, AlertTriangle, Flame, Search, Reply,
 } from "lucide-react";
 import type { ConversationSummary } from "@/store/inbox";
 
@@ -51,6 +51,9 @@ interface ConversationListProps {
   isLoadingMore?: boolean;
   /** Signed-in user's id, for the "Assigned to Me" quick filter. */
   currentUserId?: string | null;
+  /** HAIP Inbox full-parity pass, ticket 2: archive a single conversation
+   * from the hover quick-actions row (PATCH /conversations/{id}). */
+  onArchive?: (id: string) => void;
 }
 
 // Deterministic color from a string (for guest avatar backgrounds)
@@ -103,6 +106,7 @@ export function ConversationList({
   onLoadMore,
   isLoadingMore,
   currentUserId,
+  onArchive,
 }: ConversationListProps) {
   const [sort, setSort] = useState<SortMode>(() => {
     if (typeof window !== "undefined") {
@@ -115,6 +119,7 @@ export function ConversationList({
   const isSelecting = selected.size > 0;
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("all");
   const [completenessTab, setCompletenessTab] = useState<CompletenessTab>("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const toggleSelect = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -140,27 +145,43 @@ export function ConversationList({
     [conversations, channelFilter]
   );
 
+  // HAIP Inbox full-parity pass, ticket 2: search filters over the
+  // already-loaded page client-side (guest name/phone, last message
+  // preview, property name) -- same idiom as channelFiltered. Sits right
+  // after the channel select so every downstream count (tabs, quick
+  // filters) reflects the search term too.
+  const searchFiltered = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return channelFiltered;
+    return channelFiltered.filter(c =>
+      (c.guest_name ?? "").toLowerCase().includes(q) ||
+      (c.guest_phone ?? "").toLowerCase().includes(q) ||
+      (c.last_message ?? "").toLowerCase().includes(q) ||
+      (c.property_name ?? "").toLowerCase().includes(q)
+    );
+  }, [channelFiltered, searchQuery]);
+
   // HAIP Inbox UI-fidelity pass, ticket 4: quick-filter chip counts are
-  // computed off channelFiltered (after the existing channel-select control,
-  // before the tab/quick-filter itself) -- so a count reflects "how many if
-  // I picked this filter right now", same scope the prototype's counts use.
+  // computed off searchFiltered (after channel-select + search, before the
+  // tab/quick-filter itself) -- so a count reflects "how many if I picked
+  // this filter right now", same scope the prototype's counts use.
   const quickFilterCounts = useMemo(() => ({
-    assigned_to_me:  channelFiltered.filter(c => !!currentUserId && c.assigned_to === currentUserId).length,
-    waiting_reply:   channelFiltered.filter(c => c.is_waiting_reply).length,
-    ai_needs_review: channelFiltered.filter(c => c.has_ai_draft).length,
-    missed_calls:    channelFiltered.filter(c => c.channel === "voice").length,
-  }), [channelFiltered, currentUserId]);
+    assigned_to_me:  searchFiltered.filter(c => !!currentUserId && c.assigned_to === currentUserId).length,
+    waiting_reply:   searchFiltered.filter(c => c.is_waiting_reply).length,
+    ai_needs_review: searchFiltered.filter(c => c.has_ai_draft).length,
+    missed_calls:    searchFiltered.filter(c => c.channel === "voice").length,
+  }), [searchFiltered, currentUserId]);
 
   const completenessCounts = useMemo(() => ({
-    complete:   channelFiltered.filter(c => (c.profile_completeness_pct ?? 0) >= COMPLETE_THRESHOLD).length,
-    needs_info: channelFiltered.filter(c => (c.profile_completeness_pct ?? 0) < COMPLETE_THRESHOLD).length,
-  }), [channelFiltered]);
+    complete:   searchFiltered.filter(c => (c.profile_completeness_pct ?? 0) >= COMPLETE_THRESHOLD).length,
+    needs_info: searchFiltered.filter(c => (c.profile_completeness_pct ?? 0) < COMPLETE_THRESHOLD).length,
+  }), [searchFiltered]);
 
   const tabFiltered = useMemo(() => {
-    if (completenessTab === "complete") return channelFiltered.filter(c => (c.profile_completeness_pct ?? 0) >= COMPLETE_THRESHOLD);
-    if (completenessTab === "needs_info") return channelFiltered.filter(c => (c.profile_completeness_pct ?? 0) < COMPLETE_THRESHOLD);
-    return channelFiltered;
-  }, [channelFiltered, completenessTab]);
+    if (completenessTab === "complete") return searchFiltered.filter(c => (c.profile_completeness_pct ?? 0) >= COMPLETE_THRESHOLD);
+    if (completenessTab === "needs_info") return searchFiltered.filter(c => (c.profile_completeness_pct ?? 0) < COMPLETE_THRESHOLD);
+    return searchFiltered;
+  }, [searchFiltered, completenessTab]);
 
   const filtered = useMemo(() => {
     switch (quickFilter) {
@@ -189,12 +210,28 @@ export function ConversationList({
 
   return (
     <div className={cn("flex flex-col overflow-y-auto haip-scrollbar", className)}>
+      {/* HAIP Inbox full-parity pass, ticket 2: search over the already-loaded
+          page -- guest name/phone, last message preview, property name. */}
+      <div className="px-3 py-2 border-b flex-shrink-0" style={{ borderColor: "var(--haip-border)" }}>
+        <div className="relative">
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: "var(--haip-fg-subtle)" }} />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search guest, message or property…"
+            className="w-full pl-8 pr-3 py-1.5 rounded-lg text-xs outline-none border"
+            style={{ borderColor: "var(--haip-border)", background: "var(--card)", color: "var(--haip-fg)" }}
+          />
+        </div>
+      </div>
+
       {/* HAIP Inbox UI-fidelity pass, ticket 4: completeness tabs (prototype's
           CRM Leads/Unqualified, reframed around live profile-completeness
           rather than a fabricated "CRM lead" conversion event). */}
       <div className="px-3 py-2 border-b flex gap-1 overflow-x-auto scrollbar-hide flex-shrink-0" style={{ borderColor: "var(--haip-border)" }}>
         {([
-          { key: "all" as const,        label: `All (${channelFiltered.length})` },
+          { key: "all" as const,        label: `All (${searchFiltered.length})` },
           { key: "complete" as const,   label: `Complete (${completenessCounts.complete})` },
           { key: "needs_info" as const, label: `Needs Info (${completenessCounts.needs_info})` },
         ]).map(t => (
@@ -330,7 +367,7 @@ export function ConversationList({
               : onSelect(conv.id)
             }
             className={cn(
-              "w-full text-left px-3 py-3 border-b border-gray-50 transition-all group",
+              "w-full text-left px-3 py-3 border-b border-gray-50 transition-all group relative",
               // Left rail: channel colour normally, but the selected row takes
               // it over with a thicker teal rail (prototype .conv-item.active).
               // A bg tint alone was a weak selected state next to the
@@ -343,6 +380,46 @@ export function ConversationList({
               conv.needs_attention && !isActive && "bg-amber-50/40"
             )}
           >
+            {/* HAIP Inbox full-parity pass, ticket 2: hover quick-actions.
+                Quick Call opens the device's own dialer (tel: link) --
+                HAIP doesn't originate calls itself, per CLAUDE.md (agents
+                take calls on their personal mobile via IVR). */}
+            {!isSelecting && (
+              <div
+                className="absolute right-2 top-2 hidden group-hover:flex items-center gap-1 rounded-lg border shadow-sm px-1 py-1 z-10"
+                style={{ background: "var(--card)", borderColor: "var(--haip-border)" }}
+              >
+                {conv.guest_phone && (
+                  <a
+                    href={`tel:${conv.guest_phone}`}
+                    onClick={e => e.stopPropagation()}
+                    title="Quick call"
+                    className="p-1 rounded hover:bg-gray-100 text-emerald-600"
+                  >
+                    <Phone size={12} />
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); onSelect(conv.id); }}
+                  title="Quick reply"
+                  className="p-1 rounded hover:bg-gray-100 text-teal-600"
+                >
+                  <Reply size={12} />
+                </button>
+                {onArchive && (
+                  <button
+                    type="button"
+                    onClick={e => { e.stopPropagation(); onArchive(conv.id); }}
+                    title="Archive"
+                    className="p-1 rounded hover:bg-gray-100 text-gray-400"
+                  >
+                    <Archive size={12} />
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className="flex items-start gap-2.5">
               {/* Checkbox / Avatar */}
               <div className="flex-shrink-0 relative mt-0.5">
