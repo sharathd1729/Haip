@@ -615,6 +615,39 @@ def get_ivr_webhook_info(
     }
 
 
+@router.patch("/vobiz/did-number")
+def update_vobiz_did_number(
+    body: dict,
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """
+    Adds/updates just the DID number on an already-connected Vobiz
+    integration, without touching auth_id/auth_token/forward_number/
+    webhook_secret. Needed because the main connect form only appears
+    pre-connection (see IntegrationCard's isConnected branching) --
+    tenants connected before the DID field existed have no other way to
+    add it short of disconnecting (which would rotate webhook_secret and
+    break the live inbound Answer URL already pasted into their Vobiz
+    Console).
+    """
+    did_number = (body.get("did_number") or "").strip()
+    if not did_number:
+        raise HTTPException(status_code=400, detail="did_number is required")
+
+    integration = db.query(Integration).filter_by(
+        tenant_id=current_user.tenant_id, kind="vobiz"
+    ).first()
+    if not integration or not integration.credentials_kms_blob:
+        raise HTTPException(status_code=404, detail="Vobiz integration not connected yet")
+
+    creds = decrypt_credentials(integration.credentials_kms_blob)
+    creds["did_number"] = did_number
+    integration.credentials_kms_blob = encrypt_credentials(creds)
+    db.commit()
+    return {"status": "updated"}
+
+
 # ─── Retalwise ───────────────────────────────────────────────────────────────
 
 @router.get("/retalwise/credentials")

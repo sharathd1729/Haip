@@ -674,6 +674,55 @@ function WebhookUrlCopy({ provider }: { provider: string }) {
 // Integration Card
 // ---------------------------------------------------------------------------
 
+// Mcube-disconnect + outbound-calling pass: the main connect form only
+// renders pre-connection (see IntegrationCard's isConnected branching
+// below), so tenants that connected Vobiz before the DID field existed
+// have no way to add it without this -- a full disconnect/reconnect would
+// rotate webhook_secret and break the live inbound Answer URL already
+// pasted into their Vobiz Console.
+function VobizDidNumberEditor() {
+  const [value, setValue] = useState("");
+  const [savedMsg, setSavedMsg] = useState<string | null>(null);
+
+  const save = useMutation({
+    mutationFn: (did_number: string) => api.patch("/integrations/vobiz/did-number", { did_number }),
+    onSuccess: () => { setSavedMsg("Saved — outbound calling is ready."); setValue(""); },
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setSavedMsg(typeof msg === "string" ? msg : "Could not save — please try again.");
+    },
+  });
+
+  return (
+    <div className="bg-teal-50/60 border border-teal-100 rounded-xl p-3 space-y-2">
+      <p className="text-[11px] font-semibold text-gray-700">Vobiz Phone Number (DID)</p>
+      <p className="text-[10px] text-gray-500 leading-relaxed">
+        Required for agents to click-to-call guests. Not needed for inbound. From the Vobiz Console → Numbers.
+      </p>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={value}
+          onChange={e => { setValue(e.target.value); setSavedMsg(null); }}
+          placeholder="+9122XXXXXXXX"
+          className="flex-1 px-2.5 py-1.5 rounded-lg text-xs border border-gray-200 outline-none focus:border-teal-400"
+        />
+        <button
+          type="button"
+          onClick={() => value.trim() && save.mutate(value.trim())}
+          disabled={save.isPending || !value.trim()}
+          className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-teal-500 hover:bg-teal-600 disabled:opacity-50"
+        >
+          {save.isPending ? <Loader2 size={12} className="animate-spin" /> : "Save"}
+        </button>
+      </div>
+      {savedMsg && (
+        <p className={cn("text-[10px]", save.isError ? "text-red-600" : "text-teal-700")}>{savedMsg}</p>
+      )}
+    </div>
+  );
+}
+
 function IntegrationCard({
   item,
   integration,
@@ -860,6 +909,11 @@ function IntegrationCard({
       {isConnected && item.category === "telephony" && (
         <WebhookUrlCopy provider={item.provider} />
       )}
+
+      {/* Mcube-disconnect + outbound-calling pass: DID number editor for
+          already-connected Vobiz integrations (see VobizDidNumberEditor
+          docstring for why this can't just be part of the connect form). */}
+      {isConnected && item.provider === "vobiz" && <VobizDidNumberEditor />}
 
       {/* Webhook info panel for WhatsApp / Instagram after connect */}
       {isConnected && isMessaging && (
