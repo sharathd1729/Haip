@@ -474,6 +474,16 @@ function ConnectModal({
                 <p className="text-[10px] text-gray-400 mt-1">Every inbound call rings this mobile number while the whole session records. E.164 format.</p>
               </div>
               <div>
+                <label className="text-xs font-semibold text-gray-700 block mb-1.5">Vobiz Phone Number (DID)</label>
+                <div className="relative">
+                  <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input type="text" value={fields.did_number ?? ""} onChange={e => set("did_number", e.target.value)} placeholder="+9122XXXXXXXX" className={inputCls} />
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Optional for inbound — required for agents to click-to-call guests. From the Vobiz Console → Numbers.
+                </p>
+              </div>
+              <div>
                 <label className="text-xs font-semibold text-gray-700 block mb-1.5">
                   Webhook Secret <span className="text-red-500">*</span>
                 </label>

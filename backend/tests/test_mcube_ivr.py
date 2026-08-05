@@ -164,6 +164,22 @@ def test_webhook_rejects_when_not_configured(client, tenant_and_user):
     assert res.status_code == 401
 
 
+def test_webhook_rejects_when_integration_disconnected(client, tenant_and_user, db):
+    """Ratha-style disconnect: Integration row + past Call rows stay in the
+    DB, but status='disconnected' makes the webhook reject future posts even
+    if Mcube's own dashboard is still pointed at this URL."""
+    tenant = tenant_and_user["tenant"]
+    integration = _connect_mcube(db, tenant.id, webhook_secret="correct-secret")
+    integration.status = "disconnected"
+    db.commit()
+
+    res = client.post(
+        f"/api/v1/webhooks/mcube/{tenant.slug}/correct-secret",
+        content=json.dumps(_SAMPLE_INBOUND_PAYLOAD),
+    )
+    assert res.status_code == 401
+
+
 def test_webhook_accepts_correct_secret_and_dispatches(client, tenant_and_user, db, monkeypatch):
     tenant = tenant_and_user["tenant"]
     _connect_mcube(db, tenant.id, webhook_secret="correct-secret")

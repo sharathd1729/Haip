@@ -161,6 +161,132 @@ async def test_fetch_recording_uses_per_tenant_credentials_in_headers(monkeypatc
     assert captured_headers["X-Auth-Token"] == "tenant-auth-token"
 
 
+# ── initiate_click_to_call ───────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_initiate_click_to_call_requires_did_number_and_answer_url():
+    adapter = VobizAdapter(auth_id="MA123", auth_token="tok")
+    with pytest.raises(ValueError):
+        await adapter.initiate_click_to_call("+919000000000", "+919876543210")
+
+
+@pytest.mark.asyncio
+async def test_initiate_click_to_call_requires_credentials():
+    adapter = VobizAdapter()  # no auth_id/auth_token
+    with pytest.raises(ValueError):
+        await adapter.initiate_click_to_call(
+            "+919000000000", "+919876543210",
+            did_number="+912271264296", answer_url="https://example.test/answer",
+        )
+
+
+@pytest.mark.asyncio
+async def test_initiate_click_to_call_posts_expected_fields_and_returns_call_id(monkeypatch):
+    captured = {}
+
+    class _FakeResponse:
+        def raise_for_status(self): pass
+        def json(self): return {"request_uuid": "req-uuid-123", "message": "call fired"}
+
+    class _FakeAsyncClient:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def post(self, url, auth=None, data=None, timeout=None):
+            captured["url"] = url
+            captured["auth"] = auth
+            captured["data"] = data
+            return _FakeResponse()
+
+    import httpx
+    monkeypatch.setattr(httpx, "AsyncClient", lambda: _FakeAsyncClient())
+
+    adapter = VobizAdapter(auth_id="MA123", auth_token="tenant-token")
+    call_id = await adapter.initiate_click_to_call(
+        "+919000000000", "+919876543210",
+        did_number="+912271264296", answer_url="https://example.test/outbound-answer?guest_number=%2B919876543210",
+    )
+    assert call_id == "req-uuid-123"
+    assert captured["url"] == "https://api.vobiz.ai/api/v1/Account/MA123/Call/"
+    assert captured["auth"] == ("MA123", "tenant-token")
+    assert captured["data"]["from"] == "+912271264296"
+    assert captured["data"]["to"] == "+919000000000"
+    assert captured["data"]["answer_url"].startswith("https://example.test/outbound-answer")
+
+
+@pytest.mark.asyncio
+async def test_initiate_click_to_call_raises_on_unrecognized_response(monkeypatch):
+    class _FakeResponse:
+        def raise_for_status(self): pass
+        def json(self): return {"message": "ok"}  # no recognizable call-id field
+
+    class _FakeAsyncClient:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def post(self, *a, **kw): return _FakeResponse()
+
+    import httpx
+    monkeypatch.setattr(httpx, "AsyncClient", lambda: _FakeAsyncClient())
+
+    adapter = VobizAdapter(auth_id="MA123", auth_token="tok")
+    with pytest.raises(ValueError):
+        await adapter.initiate_click_to_call(
+            "+919000000000", "+919876543210",
+            did_number="+912271264296", answer_url="https://example.test/answer",
+        )
+
+
+# ── outbound-answer webhook ──────────────────────────────────────────────────
+
+def test_outbound_answer_webhook_requires_guest_number(client, tenant_and_user, db):
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret", forward_number="+919000000000")
+
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/outbound-answer",
+        data={"CallUUID": "call-out-1"},
+    )
+    assert res.status_code == 422  # missing required query param
+
+
+def test_outbound_answer_webhook_returns_dial_xml_to_guest(client, tenant_and_user, db):
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz(
+        db, tenant.id, webhook_secret="correct-secret", forward_number="+919000000000",
+    )
+    # did_number isn't in the _connect_vobiz helper's default creds -- set directly.
+    from app.core.encryption import get_credential, encrypt_credentials
+    integration = db.query(Integration).filter_by(tenant_id=tenant.id, kind="vobiz").first()
+    integration.credentials_kms_blob = encrypt_credentials({
+        "webhook_secret": "correct-secret", "api_key": "MA123", "api_secret": "tok",
+        "forward_number": "+919000000000", "did_number": "+912271264296",
+    })
+    db.commit()
+
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/outbound-answer"
+        "?guest_number=%2B919876543210",
+        data={"CallUUID": "call-out-1"},
+    )
+    assert res.status_code == 200
+    assert res.headers["content-type"].startswith("application/xml")
+    assert "<Record" in res.text
+    assert 'callerId="+912271264296"' in res.text
+    assert "<Number>+919876543210</Number>" in res.text
+    assert f"/webhooks/vobiz/{tenant.slug}/correct-secret/recording" in res.text
+
+
+def test_outbound_answer_webhook_requires_call_uuid(client, tenant_and_user, db):
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret", forward_number="+919000000000")
+
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/outbound-answer"
+        "?guest_number=%2B919876543210",
+        data={},
+    )
+    assert res.status_code == 400
+
+
 # ── verify_vobiz_signature (ported HMAC scheme) ──────────────────────────────
 
 def test_verify_vobiz_signature_v3_accepts_valid_signature_and_strips_query():

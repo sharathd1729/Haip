@@ -36,7 +36,11 @@ MAX_FILE_MB = 200
 
 class ClickToCallRequest(BaseModel):
     guest_number: str
-    agent_number: str
+    # Optional: for vobiz this defaults server-side to the tenant's
+    # registered forward_number (same number the inbound flow already
+    # bridges to) -- HAIP has no per-agent phone number on file, only one
+    # forwarding number per tenant, so there's nothing else to default to.
+    agent_number: Optional[str] = None
     inquiry_id: Optional[str] = None
 
 
@@ -61,7 +65,16 @@ def list_calls(
     current_user: User = Depends(get_current_user),
 ):
     """List calls for the current tenant."""
+    from app.models.tenant import Tenant
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+
     q = db.query(Call).filter_by(tenant_id=current_user.tenant_id)
+    # Once a tenant has a single designated active IVR provider, calls from
+    # a provider that's been disconnected (e.g. Mcube, replaced by Vobiz for
+    # Ratha) stay in the DB untouched but drop out of the dashboard --
+    # nothing here deletes or mutates Call rows.
+    if tenant and tenant.ivr_provider:
+        q = q.filter(Call.ivr_provider == tenant.ivr_provider)
 
     if direction:
         q = q.filter(Call.direction == direction)
@@ -88,8 +101,14 @@ def list_calls(
 
 @router.get("/{call_id}")
 def get_call(call_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from app.models.tenant import Tenant
     call = db.query(Call).filter_by(id=call_id, tenant_id=current_user.tenant_id).first()
     if not call:
+        raise HTTPException(status_code=404, detail="Call not found")
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    if tenant and tenant.ivr_provider and call.ivr_provider != tenant.ivr_provider:
+        # Same as list_calls: a call from a disconnected provider stays in
+        # the DB but is hidden from the dashboard -- 404, not a data error.
         raise HTTPException(status_code=404, detail="Call not found")
     return _serialize_call_detail(call, db)
 
@@ -353,16 +372,65 @@ async def click_to_call(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Trigger outbound call via IVR provider."""
+    """
+    Trigger outbound call via IVR provider — agent clicks a number, Vobiz
+    (or whichever provider is active) rings the agent's registered mobile
+    first, then bridges to the guest once picked up. No audio ever touches
+    the browser; this is a provider API trigger, not a softphone.
+    """
     from app.models.tenant import Tenant
+    from app.models.integration import Integration
+    from app.core.encryption import get_credential
+    from urllib.parse import quote
+    from app.adapters.ivr.vobiz import VobizAdapter
+
     tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
     if not tenant or not tenant.ivr_provider:
         raise HTTPException(status_code=400, detail="IVR provider not configured")
 
-    adapter = get_ivr_adapter(tenant.ivr_provider)
-    call_id = await adapter.initiate_click_to_call(req.agent_number, req.guest_number)
+    provider = tenant.ivr_provider.lower()
 
-    log.info("click_to_call_initiated", tenant=current_user.tenant_id, call_id=call_id)
+    if provider == "vobiz":
+        integration = db.query(Integration).filter_by(tenant_id=tenant.id, kind="vobiz").first()
+        if not integration or not integration.credentials_kms_blob:
+            raise HTTPException(status_code=400, detail="Vobiz integration not configured")
+        blob = integration.credentials_kms_blob
+        auth_id = get_credential(blob, "api_key")
+        auth_token = get_credential(blob, "api_secret")
+        did_number = get_credential(blob, "did_number")
+        webhook_secret = get_credential(blob, "webhook_secret")
+        forward_number = get_credential(blob, "forward_number")
+        agent_number = req.agent_number or forward_number
+        missing = [
+            name for name, val in [
+                ("did_number", did_number), ("webhook_secret", webhook_secret), ("agent_number", agent_number),
+            ] if not val
+        ]
+        if missing:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Vobiz outbound calling isn't fully configured yet — missing: {', '.join(missing)}. "
+                       "Add these in Settings → Integrations → Vobiz.",
+            )
+
+        base = settings.API_BASE_URL.rstrip("/") if settings.API_BASE_URL else ""
+        if not base:
+            raise HTTPException(status_code=500, detail="API_BASE_URL not configured")
+        answer_url = (
+            f"{base}/api/v1/webhooks/vobiz/{tenant.slug}/{webhook_secret}"
+            f"/outbound-answer?guest_number={quote(req.guest_number)}"
+        )
+        adapter = VobizAdapter(auth_id=auth_id, auth_token=auth_token)
+        call_id = await adapter.initiate_click_to_call(
+            agent_number, req.guest_number, did_number=did_number, answer_url=answer_url,
+        )
+    else:
+        if not req.agent_number:
+            raise HTTPException(status_code=400, detail="agent_number is required for this provider")
+        adapter = get_ivr_adapter(provider)
+        call_id = await adapter.initiate_click_to_call(req.agent_number, req.guest_number)
+
+    log.info("click_to_call_initiated", tenant=current_user.tenant_id, provider=provider, call_id=call_id)
     return {"status": "initiated", "provider_call_id": call_id}
 
 

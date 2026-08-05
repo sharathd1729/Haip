@@ -791,6 +791,13 @@ def connect_via_api_key(
     api_secret = (body.get("api_secret") or "").strip()
     webhook_secret = (body.get("webhook_secret") or "").strip()
     forward_number = (body.get("forward_number") or "").strip()
+    # Vobiz's own DID/virtual number -- not needed for inbound (Vobiz tells
+    # us the number on every inbound webhook via "To"), but outbound
+    # click-to-call has no inbound payload to read it from, so it must be
+    # on file. Optional at connect time so existing inbound-only Vobiz
+    # tenants aren't forced to reconnect; click-to-call itself 400s with a
+    # clear message if it's missing when actually needed.
+    did_number = (body.get("did_number") or "").strip()
     if not api_key:
         raise HTTPException(status_code=400, detail="api_key is required")
 
@@ -842,6 +849,8 @@ def connect_via_api_key(
         creds["webhook_secret"] = webhook_secret
     if forward_number:
         creds["forward_number"] = forward_number
+    if did_number:
+        creds["did_number"] = did_number
     row.credentials_kms_blob = encrypt_credentials(creds)
     row.status = "active"
     row.installed_at = _now()

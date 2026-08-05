@@ -80,10 +80,60 @@ class VobizAdapter(IVRAdapter):
             raw=payload,
         )
 
-    async def initiate_click_to_call(self, agent_number: str, guest_number: str) -> str:
-        """Not wired to any endpoint yet — out of scope for this pass, same as
-        the other three adapters' equivalent methods."""
-        raise NotImplementedError("Vobiz click-to-call is out of scope for this pass")
+    async def initiate_click_to_call(
+        self,
+        agent_number: str,
+        guest_number: str,
+        *,
+        did_number: str = "",
+        answer_url: str = "",
+    ) -> str:
+        """
+        Fires Vobiz's REST Call API (POST .../Account/{auth_id}/Call/, Basic
+        auth with auth_id/auth_token — confirmed against vobiz.ai/docs/
+        quick-start). This dials `agent_number` (leg A) first; `answer_url`
+        is a HAIP webhook that fires once the agent picks up and returns XML
+        dialing the guest as leg B (see webhooks_vobiz.py's
+        outbound-answer endpoint) — Vobiz has no single "bridge two numbers"
+        call primitive, only sequential-leg dialing driven by AnswerURL XML,
+        same pattern as the inbound flow's Answer→Dial cycle.
+
+        did_number/answer_url are keyword-only and required here (unlike
+        the shared IVRAdapter signature) because, unlike CallerDesk/Acefone/
+        Mcube's single shared HAIP account, every field this call needs is
+        per-tenant — the caller (calls.py's click-to-call endpoint) is the
+        only place that has that context.
+        """
+        if not did_number or not answer_url:
+            raise ValueError("Vobiz click-to-call requires did_number and answer_url")
+        if not self.auth_id or not self.auth_token:
+            raise ValueError("Vobiz auth_id/auth_token not configured for this tenant")
+
+        url = f"https://api.vobiz.ai/api/v1/Account/{self.auth_id}/Call/"
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                url,
+                auth=(self.auth_id, self.auth_token),
+                data={"from": did_number, "to": agent_number, "answer_url": answer_url},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+
+        # Response field name for the call UUID isn't confirmed from docs
+        # (same situation as the recording-callback payload — see
+        # webhooks_vobiz.py's vobiz_recording_raw_payload log) — try the
+        # likely candidates and fail loudly rather than silently returning "".
+        call_id = (
+            body.get("request_uuid")
+            or body.get("call_uuid")
+            or body.get("RequestUUID")
+            or body.get("CallUUID")
+            or ""
+        )
+        if not call_id:
+            raise ValueError(f"Vobiz Call API returned no recognizable call id: {body!r}")
+        return call_id
 
     async def fetch_recording(self, recording_url: str) -> bytes:
         """Download the recording from Vobiz's Recordings API. Requires the

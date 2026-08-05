@@ -37,6 +37,13 @@ async def mcube_webhook(tenant_slug: str, url_secret: str, request: Request, db:
     if not integration or not integration.credentials_kms_blob:
         log.warning("mcube_integration_not_configured", tenant=tenant_slug)
         raise HTTPException(status_code=401, detail="Mcube integration not configured for this tenant")
+    if integration.status != "active":
+        # Deliberately disconnected (e.g. Ratha moved to Vobiz-only) -- the
+        # Integration row and any past Call rows stay in the DB, but new
+        # webhook posts are rejected even if Mcube's own dashboard is still
+        # pointed at this URL.
+        log.warning("mcube_integration_disconnected", tenant=tenant_slug)
+        raise HTTPException(status_code=401, detail="Mcube integration is disconnected for this tenant")
 
     tenant_secret = get_credential(integration.credentials_kms_blob, "webhook_secret")
     if not tenant_secret or not secrets.compare_digest(url_secret, tenant_secret):

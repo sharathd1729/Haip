@@ -54,6 +54,13 @@ interface ConversationListProps {
   /** HAIP Inbox full-parity pass, ticket 2: archive a single conversation
    * from the hover quick-actions row (PATCH /conversations/{id}). */
   onArchive?: (id: string) => void;
+  /** Mcube-disconnect + outbound-calling pass: trigger a real IVR-mediated
+   * outbound call (POST /calls/click-to-call) instead of opening the
+   * device's own dialer. */
+  onCall?: (guestNumber: string) => void;
+  /** guest_number currently mid-flight, to show a spinner on that row's
+   * call button and prevent double-firing. */
+  callingNumber?: string | null;
 }
 
 // Deterministic color from a string (for guest avatar backgrounds)
@@ -107,6 +114,8 @@ export function ConversationList({
   isLoadingMore,
   currentUserId,
   onArchive,
+  onCall,
+  callingNumber,
 }: ConversationListProps) {
   const [sort, setSort] = useState<SortMode>(() => {
     if (typeof window !== "undefined") {
@@ -380,24 +389,28 @@ export function ConversationList({
               conv.needs_attention && !isActive && "bg-amber-50/40"
             )}
           >
-            {/* HAIP Inbox full-parity pass, ticket 2: hover quick-actions.
-                Quick Call opens the device's own dialer (tel: link) --
-                HAIP doesn't originate calls itself, per CLAUDE.md (agents
-                take calls on their personal mobile via IVR). */}
+            {/* Mcube-disconnect + outbound-calling pass: Quick Call now
+                triggers a real IVR-mediated outbound call (agent's phone
+                rings first, then bridges to the guest) instead of opening
+                the device's own dialer -- still no audio in the browser,
+                still compliant with CLAUDE.md's "not a softphone" rule. */}
             {!isSelecting && (
               <div
                 className="absolute right-2 top-2 hidden group-hover:flex items-center gap-1 rounded-lg border shadow-sm px-1 py-1 z-10"
                 style={{ background: "var(--card)", borderColor: "var(--haip-border)" }}
               >
-                {conv.guest_phone && (
-                  <a
-                    href={`tel:${conv.guest_phone}`}
-                    onClick={e => e.stopPropagation()}
-                    title="Quick call"
-                    className="p-1 rounded hover:bg-gray-100 text-emerald-600"
+                {conv.guest_phone && onCall && (
+                  <button
+                    type="button"
+                    onClick={e => { e.stopPropagation(); onCall(conv.guest_phone); }}
+                    disabled={callingNumber === conv.guest_phone}
+                    title="Call via IVR"
+                    className="p-1 rounded hover:bg-gray-100 text-emerald-600 disabled:opacity-50"
                   >
-                    <Phone size={12} />
-                  </a>
+                    {callingNumber === conv.guest_phone
+                      ? <Loader2 size={12} className="animate-spin" />
+                      : <Phone size={12} />}
+                  </button>
                 )}
                 <button
                   type="button"

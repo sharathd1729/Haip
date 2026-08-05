@@ -1,6 +1,6 @@
 "use client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Bed, ExternalLink, Star, UserCheck, Sparkles, Calendar, Users, Wallet, Building2, Phone, Mail } from "lucide-react";
+import { Bed, ExternalLink, Star, UserCheck, Sparkles, Calendar, Users, Wallet, Building2, Phone, Mail, Loader2 } from "lucide-react";
 import { ChannelIcon } from "./ChannelIcon";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProfileCompletenessWidget } from "./ProfileCompletenessWidget";
@@ -99,6 +99,19 @@ export function GuestPanel({ detail }: { detail: ConversationDetail }) {
     onError: (e: unknown) => {
       const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       toast({ variant: "error", title: "Could not update stage", description: typeof msg === "string" ? msg : "Please try again." });
+    },
+  });
+
+  // Mcube-disconnect + outbound-calling pass: same POST /calls/click-to-call
+  // ConversationList's hover Quick Call button uses -- Vobiz (or whichever
+  // IVR is active) rings the agent's registered mobile first, then bridges
+  // to the guest. No audio in the browser.
+  const clickToCall = useMutation({
+    mutationFn: (guest_number: string) => api.post("/calls/click-to-call", { guest_number }),
+    onSuccess: () => toast({ variant: "success", title: "Calling…", description: "Your phone will ring shortly." }),
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast({ variant: "error", title: "Could not start call", description: typeof msg === "string" ? msg : "Please try again." });
     },
   });
 
@@ -239,10 +252,26 @@ export function GuestPanel({ detail }: { detail: ConversationDetail }) {
                 </p>
                 <div className="flex items-center justify-between">
                   <span style={{ color: "var(--haip-fg-subtle)" }}>Phone</span>
-                  <span className="font-semibold flex items-center gap-1" style={{ color: guest?.phone ? "var(--haip-fg)" : "var(--haip-amber, #d97706)" }}>
-                    <Phone size={11} style={{ color: guest?.phone ? "var(--primary)" : "var(--haip-amber, #d97706)" }} />
-                    {guest?.phone || "Not on file"}
-                  </span>
+                  {guest?.phone ? (
+                    <button
+                      type="button"
+                      onClick={() => clickToCall.mutate(guest.phone!)}
+                      disabled={clickToCall.isPending}
+                      title="Call via IVR"
+                      className="font-semibold flex items-center gap-1 hover:underline disabled:opacity-50"
+                      style={{ color: "var(--haip-fg)" }}
+                    >
+                      {clickToCall.isPending
+                        ? <Loader2 size={11} className="animate-spin" style={{ color: "var(--primary)" }} />
+                        : <Phone size={11} style={{ color: "var(--primary)" }} />}
+                      {guest.phone}
+                    </button>
+                  ) : (
+                    <span className="font-semibold flex items-center gap-1" style={{ color: "var(--haip-amber, #d97706)" }}>
+                      <Phone size={11} style={{ color: "var(--haip-amber, #d97706)" }} />
+                      Not on file
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center justify-between">
                   <span style={{ color: "var(--haip-fg-subtle)" }}>Email</span>

@@ -21,7 +21,7 @@ for authorization since it signs the URL, not the body.
 """
 import secrets
 
-from fastapi import APIRouter, Request, HTTPException, Depends, Response
+from fastapi import APIRouter, Request, HTTPException, Depends, Response, Query
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -82,6 +82,7 @@ def _resolve_tenant_and_creds(db: Session, tenant_slug: str, url_secret: str) ->
         "auth_id": get_credential(blob, "api_key"),
         "auth_token": get_credential(blob, "api_secret"),
         "forward_number": get_credential(blob, "forward_number"),
+        "did_number": get_credential(blob, "did_number"),
     }
     return tenant, creds
 
@@ -167,6 +168,66 @@ async def vobiz_answer_webhook(
         f'callbackUrl="{recording_callback_url}" redirect="false" playBeep="false"/>'
         f'<Dial callerId="{caller_id}" timeout="30" timeLimit="1800" redirect="false">'
         f"<Number>{dial_number}</Number>"
+        "</Dial>"
+        "<Hangup/>"
+        "</Response>"
+    )
+    return Response(content=xml, media_type="application/xml")
+
+
+@router.post("/vobiz/{tenant_slug}/{url_secret}/outbound-answer")
+async def vobiz_outbound_answer_webhook(
+    tenant_slug: str,
+    url_secret: str,
+    request: Request,
+    guest_number: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    """
+    AnswerURL for the click-to-call leg (calls.py::click_to_call ->
+    VobizAdapter.initiate_click_to_call). Vobiz dials the agent's forwarding
+    number first; once they pick up, this fires and returns XML that
+    records the bridged session and dials the guest as the second leg --
+    same Record+Dial shape as the inbound answer webhook, just with the
+    guest number coming from the query string (baked into the answer_url at
+    call-initiation time) instead of the inbound payload's "To" field.
+    """
+    tenant, creds = _resolve_tenant_and_creds(db, tenant_slug, url_secret)
+    form = await request.form()
+    data = dict(form)
+
+    call_uuid = data.get("CallUUID", "")
+    if not call_uuid:
+        log.warning("vobiz_outbound_answer_missing_call_uuid", tenant=tenant_slug)
+        raise HTTPException(status_code=400, detail="Missing CallUUID")
+
+    did_number = creds.get("did_number") or ""
+    guest_e164 = _to_e164_in(guest_number)
+    caller_id = did_number if did_number.startswith("+") else _to_e164_in(did_number) if did_number else guest_e164
+
+    log.info("vobiz_outbound_answer_received", tenant=tenant_slug, call_uuid=call_uuid, guest_number=guest_e164)
+
+    set_cached(
+        _cache_key(tenant.id, call_uuid),
+        {
+            "From": did_number,
+            "To": guest_e164,
+            "Direction": "outbound",
+            "started_at": data.get("StartTime", ""),
+        },
+        ttl=_CACHE_TTL,
+    )
+
+    base = (settings.API_BASE_URL or str(request.base_url).rstrip("/")).rstrip("/")
+    recording_callback_url = f"{base}/api/v1/webhooks/vobiz/{tenant_slug}/{url_secret}/recording"
+
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        "<Response>"
+        f'<Record fileFormat="mp3" recordSession="true" maxLength="3600" '
+        f'callbackUrl="{recording_callback_url}" redirect="false" playBeep="false"/>'
+        f'<Dial callerId="{caller_id}" timeout="30" timeLimit="1800" redirect="false">'
+        f"<Number>{guest_e164}</Number>"
         "</Dial>"
         "<Hangup/>"
         "</Response>"

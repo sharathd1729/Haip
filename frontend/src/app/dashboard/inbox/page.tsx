@@ -482,6 +482,18 @@ export default function InboxPage() {
     onError: () => toast({ variant: "error", title: "Retry failed" }),
   });
 
+  // Mcube-disconnect + outbound-calling pass: agent clicks a guest's number,
+  // Vobiz (or whichever IVR is active) rings the agent's registered mobile
+  // first, then bridges to the guest -- no audio in the browser.
+  const clickToCallMutation = useMutation({
+    mutationFn: (guest_number: string) => api.post("/calls/click-to-call", { guest_number }),
+    onSuccess: () => toast({ variant: "success", title: "Calling…", description: "Your phone will ring shortly." }),
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast({ variant: "error", title: "Could not start call", description: typeof msg === "string" ? msg : "Please try again." });
+    },
+  });
+
   // W14: snooze
   const snoozeMutation = useMutation({
     mutationFn: (snooze_until: string | null) =>
@@ -748,6 +760,8 @@ export default function InboxPage() {
             onLoadMore={hasMoreConversations ? () => fetchNextConversationPage() : undefined}
             isLoadingMore={isLoadingMoreConversations}
             currentUserId={currentUserId}
+            onCall={guestNumber => clickToCallMutation.mutate(guestNumber)}
+            callingNumber={clickToCallMutation.isPending ? (clickToCallMutation.variables ?? null) : null}
           />
         )}
       </div>
