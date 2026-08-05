@@ -161,6 +161,35 @@ async def test_fetch_recording_uses_per_tenant_credentials_in_headers(monkeypatc
     assert captured_headers["X-Auth-Token"] == "tenant-auth-token"
 
 
+# ── _to_e164_in double-prefix defense ────────────────────────────────────────
+
+def test_to_e164_in_strips_accidental_double_country_code():
+    """Confirmed live on Ratha's prod: a guest number saved as
+    "+91917249066854" (real number +917249066854 with an extra "91" baked
+    into the local part by an upstream ingestion bug) got dialed literally,
+    instantly rejected by Vobiz (RecordingDurationMs ~20)."""
+    from app.api.v1.endpoints.webhooks_vobiz import _to_e164_in
+    assert _to_e164_in("+91917249066854") == "+917249066854"
+
+
+def test_to_e164_in_leaves_normal_e164_number_untouched():
+    from app.api.v1.endpoints.webhooks_vobiz import _to_e164_in
+    assert _to_e164_in("+917249066854") == "+917249066854"
+
+
+def test_to_e164_in_normalizes_domestic_format():
+    from app.api.v1.endpoints.webhooks_vobiz import _to_e164_in
+    assert _to_e164_in("07249066854") == "+917249066854"
+
+
+def test_to_e164_in_does_not_mangle_a_genuine_12_digit_non_91_local_part():
+    """Only the exact double-prefix shape (12 digits starting with '91')
+    triggers the strip -- a real 12-digit local part not starting with '91'
+    (however unlikely) must pass through unchanged."""
+    from app.api.v1.endpoints.webhooks_vobiz import _to_e164_in
+    assert _to_e164_in("+91827249066854") == "+91827249066854"
+
+
 # ── initiate_click_to_call ───────────────────────────────────────────────────
 
 @pytest.mark.asyncio
@@ -273,6 +302,30 @@ def test_outbound_answer_webhook_returns_dial_xml_to_guest(client, tenant_and_us
     assert 'callerId="+912271264296"' in res.text
     assert "<Number>+919876543210</Number>" in res.text
     assert f"/webhooks/vobiz/{tenant.slug}/correct-secret/recording" in res.text
+
+
+def test_outbound_answer_webhook_repairs_double_prefixed_guest_number(client, tenant_and_user, db):
+    """Regression for the exact bug hit live on Ratha: a stored guest number
+    with an accidental double country-code prefix must still get dialed as
+    the real 10-digit number, not the malformed one."""
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret", forward_number="+919000000000")
+    from app.core.encryption import encrypt_credentials
+    integration = db.query(Integration).filter_by(tenant_id=tenant.id, kind="vobiz").first()
+    integration.credentials_kms_blob = encrypt_credentials({
+        "webhook_secret": "correct-secret", "api_key": "MA123", "api_secret": "tok",
+        "forward_number": "+919000000000", "did_number": "+912271264296",
+    })
+    db.commit()
+
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/outbound-answer"
+        "?guest_number=%2B91917249066854",
+        data={"CallUUID": "call-out-2"},
+    )
+    assert res.status_code == 200
+    assert "<Number>+917249066854</Number>" in res.text
+    assert "+91917249066854" not in res.text
 
 
 def test_outbound_answer_webhook_requires_call_uuid(client, tenant_and_user, db):

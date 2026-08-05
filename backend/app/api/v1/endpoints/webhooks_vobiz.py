@@ -50,9 +50,23 @@ def _to_e164_in(number: str) -> str:
     E.164 -- posting back a domestic-format number as callerId fails their
     account-ownership check silently (CALL_REJECTED, no SIP code)."""
     number = (number or "").strip()
-    if number.startswith("+"):
-        return number
-    return "+91" + number.lstrip("0")
+    if not number.startswith("+"):
+        number = "+91" + number.lstrip("0")
+
+    # Defensive dedup: some guest phone numbers were saved with an accidental
+    # double country-code prefix by an upstream ingestion bug (same shape as
+    # McubeAdapter._normalize_phone's historical bug, fixed going forward but
+    # never backfilled) -- "+91" followed by 12 digits that themselves start
+    # with "91" is never a real Indian mobile number (those start 6/7/8/9),
+    # only ever this bug's signature. Confirmed live: dialing the raw
+    # (unrepaired) value gets instantly rejected by Vobiz (RecordingDurationMs
+    # ~20 -- the call drops the moment the agent picks up).
+    if number.startswith("+91"):
+        local = number[3:]
+        if len(local) == 12 and local.startswith("91"):
+            number = "+91" + local[2:]
+
+    return number
 
 
 def _resolve_tenant_and_creds(db: Session, tenant_slug: str, url_secret: str) -> tuple[Tenant, dict]:
