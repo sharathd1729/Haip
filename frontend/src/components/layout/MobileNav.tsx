@@ -7,44 +7,58 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
   LayoutDashboard, Inbox, Phone, Users, Menu, X,
-  Zap, Home, MessageSquare, Megaphone, UserCheck,
-  GitBranch, BarChart2, FileDown, Star, Shield,
+  Home, Target, Building2, Calendar, Calculator,
+  MessageSquare, Megaphone, UserCheck, GitBranch,
+  BarChart2, Sparkles, FileDown, Star, Shield, Zap,
   Settings, Plug2, CreditCard, UserCircle, HelpCircle,
-  Palette, LogOut,
+  Palette, FileText, LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canSeeNav, type Resource } from "@/lib/permissions";
 import { useBrandTheme } from "@/components/providers/BrandThemeProvider";
 import { useBusinessType } from "@/components/providers/WorkspaceProvider";
+import { useInboxStore } from "@/store/inbox";
 
 interface MobileNavProps {
   user?: { name?: string | null; email?: string | null; role?: string };
 }
 
-// The 4 bottom-tab items (always visible)
+// The 4 bottom-tab items (always visible). Leads360 sits here rather than
+// Guests because it's the flagship M4 pipeline view and had zero mobile
+// entry point before this — Guests is still one tap away under Sales below.
 const BOTTOM_TABS = [
-  { label: "Home",   href: "/dashboard",        icon: LayoutDashboard, resource: "dashboard" as Resource },
-  { label: "Inbox",  href: "/dashboard/inbox",  icon: Inbox,           resource: "inbox"     as Resource, badge: "3" },
-  { label: "Calls",  href: "/dashboard/calls",  icon: Phone,           resource: "calls"     as Resource },
-  { label: "Guests", href: "/dashboard/guests", icon: Users,           resource: "guests"    as Resource },
+  { label: "Home",     href: "/dashboard",       icon: Home,   resource: "dashboard" as Resource },
+  { label: "Inbox",    href: "/dashboard/inbox", icon: Inbox,  resource: "inbox"     as Resource },
+  { label: "Calls",    href: "/dashboard/calls", icon: Phone,  resource: "calls"     as Resource },
+  { label: "Leads360", href: "/dashboard/leads", icon: Target, resource: "guests"    as Resource },
 ];
 
-// Full nav for the "More" sheet — mirrors Sidebar
+// Full nav for the "More" sheet — mirrors Sidebar's NAV_ITEMS/sections so
+// nothing reachable on desktop is mobile-only-via-URL.
 const ALL_SECTIONS = [
   {
     label: "Workspace",
     items: [
-      { label: "Dashboard",  href: "/dashboard",           icon: LayoutDashboard, resource: "dashboard"  as Resource },
-      { label: "Inbox",      href: "/dashboard/inbox",     icon: Inbox,           resource: "inbox"      as Resource, badge: "3" },
-      { label: "Calls",      href: "/dashboard/calls",     icon: Phone,           resource: "calls"      as Resource },
+      { label: "Dashboard",     href: "/dashboard",             icon: Home,           resource: "dashboard" as Resource },
+      { label: "My Dashboards", href: "/dashboard/dashboards",  icon: LayoutDashboard, resource: "dashboard" as Resource },
+      { label: "Inbox",         href: "/dashboard/inbox",       icon: Inbox,          resource: "inbox"     as Resource, live: "inbox" as const },
+      { label: "Calls",         href: "/dashboard/calls",       icon: Phone,          resource: "calls"     as Resource },
     ],
   },
   {
-    label: "CRM",
+    label: "Sales",
     items: [
-      { label: "Inquiries",  href: "/dashboard/inquiries",  icon: Zap,     resource: "inquiries"  as Resource },
-      { label: "Guests",     href: "/dashboard/guests",     icon: Users,   resource: "guests"     as Resource },
-      { label: "Properties", href: "/dashboard/properties", icon: Home,    resource: "properties" as Resource, hideForBusinessTypes: ["caravan"] },
+      { label: "Leads360",  href: "/dashboard/leads",      icon: Target,   resource: "guests"     as Resource },
+      { label: "Guests",    href: "/dashboard/guests",     icon: Users,    resource: "guests"     as Resource },
+      { label: "Inquiries", href: "/dashboard/inquiries",  icon: FileText, resource: "inquiries"  as Resource },
+    ],
+  },
+  {
+    label: "Portfolio",
+    items: [
+      { label: "Properties",      href: "/dashboard/properties",          icon: Building2,  resource: "properties" as Resource, hideForBusinessTypes: ["caravan"] },
+      { label: "Calendar",        href: "/dashboard/portfolio/calendar",  icon: Calendar,   resource: "properties" as Resource },
+      { label: "Rate Calculator", href: "/dashboard/calculator",          icon: Calculator, resource: "properties" as Resource, hideForBusinessTypes: ["caravan"] },
     ],
   },
   {
@@ -59,22 +73,29 @@ const ALL_SECTIONS = [
   {
     label: "Intelligence",
     items: [
-      { label: "Analytics",   href: "/dashboard/analytics",  icon: BarChart2, resource: "analytics"   as Resource },
-      { label: "Reports",     href: "/dashboard/reports",    icon: FileDown,  resource: "reports"     as Resource },
-      { label: "QA & Scores", href: "/dashboard/qa",         icon: Star,      resource: "qa"          as Resource },
-      { label: "Compliance",  href: "/dashboard/compliance", icon: Shield,    resource: "compliance"  as Resource },
+      { label: "Analytics",   href: "/dashboard/analytics",     icon: BarChart2, resource: "analytics"   as Resource },
+      { label: "Ask HAIP",    href: "/dashboard/analytics/ask", icon: Sparkles,  resource: "analytics"   as Resource },
+      { label: "Reports",     href: "/dashboard/reports",       icon: FileDown,  resource: "reports"     as Resource },
+      { label: "QA & Scores", href: "/dashboard/qa",            icon: Star,      resource: "qa"          as Resource },
+      { label: "Compliance",  href: "/dashboard/compliance",    icon: Shield,    resource: "compliance"  as Resource },
+    ],
+  },
+  {
+    label: "Configure",
+    items: [
+      { label: "Automations",  href: "/dashboard/automations",           icon: Zap,     resource: "settings"     as Resource },
+      { label: "Integrations", href: "/dashboard/settings/integrations", icon: Plug2,   resource: "integrations" as Resource },
+      { label: "Settings",     href: "/dashboard/settings",              icon: Settings, resource: "settings"    as Resource },
     ],
   },
   {
     label: "Account",
     items: [
-      { label: "Settings",      href: "/dashboard/settings",              icon: Settings,    resource: "settings"     as Resource },
-      { label: "Integrations",  href: "/dashboard/settings/integrations", icon: Plug2,       resource: "integrations" as Resource },
-      { label: "Team",          href: "/dashboard/settings/team",         icon: Users,       resource: "users"        as Resource },
-      { label: "Branding",      href: "/dashboard/settings/branding",     icon: Palette,     resource: "branding"     as Resource },
-      { label: "Billing",       href: "/dashboard/billing",               icon: CreditCard,  resource: "billing"      as Resource },
-      { label: "Profile",       href: "/dashboard/profile",               icon: UserCircle,  resource: "profile"      as Resource },
-      { label: "Help & Support",href: "/dashboard/help",                  icon: HelpCircle,  resource: "help"         as Resource },
+      { label: "Team",           href: "/dashboard/settings/team",     icon: Users,      resource: "users"    as Resource },
+      { label: "Branding",       href: "/dashboard/settings/branding", icon: Palette,    resource: "branding" as Resource },
+      { label: "Billing",        href: "/dashboard/billing",           icon: CreditCard, resource: "billing"  as Resource },
+      { label: "Profile",        href: "/dashboard/profile",           icon: UserCircle, resource: "profile"  as Resource },
+      { label: "Help & Support", href: "/dashboard/help",              icon: HelpCircle, resource: "help"     as Resource },
     ],
   },
 ];
@@ -85,8 +106,10 @@ export function MobileNav({ user }: MobileNavProps) {
   const businessType = useBusinessType();
   const [sheetOpen, setSheetOpen] = useState(false);
   const { theme } = useBrandTheme();
+  const { conversations } = useInboxStore();
 
   const primary = theme.primaryColor || "#14b8a6";
+  const unreadCount = conversations.filter(c => (c as any).unread_count > 0).length;
 
   function isActive(href: string) {
     return pathname === href || (href !== "/dashboard" && pathname.startsWith(href + "/"));
@@ -106,6 +129,9 @@ export function MobileNav({ user }: MobileNavProps) {
         {BOTTOM_TABS.filter(t => canSeeNav(role, t.resource)).map((tab) => {
           const Icon = tab.icon;
           const active = isActive(tab.href);
+          const badge = tab.href === "/dashboard/inbox" && unreadCount > 0
+            ? (unreadCount > 9 ? "9+" : String(unreadCount))
+            : null;
           return (
             <Link
               key={tab.href}
@@ -117,12 +143,12 @@ export function MobileNav({ user }: MobileNavProps) {
                   size={22}
                   style={{ color: active ? primary : "rgba(255,255,255,0.35)" }}
                 />
-                {tab.badge && (
+                {badge && (
                   <span
                     className="absolute -top-1 -right-2 text-[9px] font-bold px-1 rounded-full leading-tight"
                     style={{ backgroundColor: primary, color: "#0a1b30" }}
                   >
-                    {tab.badge}
+                    {badge}
                   </span>
                 )}
               </span>
@@ -205,6 +231,9 @@ export function MobileNav({ user }: MobileNavProps) {
                     {visible.map((item) => {
                       const Icon = item.icon;
                       const active = isActive(item.href);
+                      const badge = "live" in item && item.live === "inbox" && unreadCount > 0
+                        ? (unreadCount > 9 ? "9+" : String(unreadCount))
+                        : null;
                       return (
                         <Link
                           key={item.href + item.label}
@@ -221,12 +250,12 @@ export function MobileNav({ user }: MobileNavProps) {
                             style={{ color: active ? primary : "rgba(255,255,255,0.30)" }}
                           />
                           <span className="flex-1">{item.label}</span>
-                          {"badge" in item && item.badge && (
+                          {badge && (
                             <span
                               className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
                               style={{ backgroundColor: `rgba(${hexToRgb(primary)}, 0.2)`, color: primary }}
                             >
-                              {item.badge}
+                              {badge}
                             </span>
                           )}
                         </Link>
