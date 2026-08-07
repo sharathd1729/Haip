@@ -233,6 +233,97 @@ def get_or_create_from_call(
     return inquiry
 
 
+def create_manual_lead(
+    db: Session, tenant_id: str, actor_user_id: str, *,
+    guest_name: str,
+    phone: Optional[str] = None,
+    email: Optional[str] = None,
+    source: str = "walk_in",
+    property_id: Optional[str] = None,
+    check_in: Optional[str] = None,
+    check_out: Optional[str] = None,
+    adults: Optional[int] = None,
+    children: Optional[int] = None,
+    occasion: Optional[str] = None,
+    budget: Optional[float] = None,
+    assigned_to: Optional[str] = None,
+) -> Inquiry:
+    """
+    Leads360 manual lead entry -- an agent typing a guest's details straight
+    into the pipeline, no inbound message/call to auto-create from. Routed
+    through the same identity_service GID resolution and lead_auto_create
+    entry-stage logic every other creation path uses (CLAUDE.md: identity_
+    service is the only place for GID ops), so a manually-added lead who
+    later messages/calls in resolves to the same guest instead of a
+    duplicate, and lands in the tenant's real "valid lead" stage rather
+    than a hardcoded key that may not exist for this tenant's taxonomy.
+    """
+    from app.services import identity_service
+    from app.services.lead_auto_create import resolve_entry_stage_id
+    from app.services.assignment import get_next_assignee
+
+    if not phone and not email:
+        raise ValueError("Provide at least a phone number or email to add a lead.")
+
+    primary_type = "phone" if phone else "email"
+    primary_value = phone or email
+    guest_id, created = identity_service.resolve_gid(
+        db, tenant_id, signal_type=primary_type, value=primary_value,
+        source="agent_manual", guest_fields={"name": guest_name},
+    )
+    if created:
+        # resolve_gid's own guest-creation path (_create_guest) doesn't
+        # write DPDP consent -- only identity_service.add_signal() does
+        # (CLAUDE.md SECURITY: "Agent-added phone/email signals: auto-write
+        # Consent row"). Reusing that same private helper here rather than
+        # duplicating the consent-writing logic.
+        identity_service._write_consent(
+            db, tenant_id=tenant_id, guest_id=guest_id,
+            signal_type=primary_type, actor_user_id=actor_user_id,
+        )
+    if phone and email:
+        # Second signal on the same guest -- add_signal's own consent path
+        # covers this one directly.
+        identity_service.add_signal(
+            db, tenant_id=tenant_id, guest_id=guest_id,
+            signal_type="email", value=email, source="agent_manual",
+            actor_user_id=actor_user_id,
+        )
+
+    try:
+        src = InquirySource(source)
+    except ValueError:
+        src = InquirySource.WALK_IN
+
+    stage_id = resolve_entry_stage_id(db, tenant_id, is_collab=False, has_phone=bool(phone))
+    resolved_assignee = assigned_to or get_next_assignee(db, tenant_id)
+
+    inquiry = Inquiry(
+        id=str(uuid.uuid4()),
+        tenant_id=tenant_id,
+        guest_id=guest_id,
+        property_id=property_id,
+        stage=InquiryStage.NEW,
+        stage_id=stage_id or _stage_id_for(db, tenant_id, InquiryStage.NEW),
+        source=src,
+        check_in=check_in,
+        check_out=check_out,
+        adults=adults,
+        children=children,
+        occasion=occasion,
+        budget=budget,
+        assigned_to=resolved_assignee,
+    )
+    db.add(inquiry)
+    db.commit()
+    db.refresh(inquiry)
+    log.info(
+        "lead_manually_created", inquiry_id=inquiry.id, guest_id=guest_id,
+        tenant_id=tenant_id, actor_user_id=actor_user_id, stage_id=inquiry.stage_id,
+    )
+    return inquiry
+
+
 def update_stage(
     db: Session,
     *,

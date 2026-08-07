@@ -221,6 +221,26 @@ def process_instagram_dm(self, payload: dict) -> dict:
         except Exception as _sse_exc:
             logger.warning("sse_publish_failed: %s", _sse_exc)
 
+        # Push notification (for staff with PWA on mobile / browser closed).
+        # WhatsApp/wrap_up/automation_engine inbound events already did this
+        # (see whatsapp.py) -- Instagram DMs never did, so a new IG message
+        # showed up in the in-app bell (SSE, only reaches an already-open
+        # tab) but never reached a phone with the app backgrounded/closed.
+        try:
+            from app.services.push_service import send_to_tenant
+            guest_name = guest.name if guest else display_name
+            send_to_tenant(
+                db=db,
+                tenant_id=tenant_id,
+                title="New Instagram DM",
+                body=f"{guest_name}: {(body or '')[:80]}",
+                url=f"/dashboard/inbox?id={conversation.id}",
+                tag="haip-message",
+                user_id=conversation.assigned_to or None,
+            )
+        except Exception as _push_exc:
+            logger.warning("push_send_failed: %s", _push_exc)
+
         # ── T2/T3: keyword-match first; AI concierge draft is fallback only ──
         # Priority 3 requirement: auto-reply always wins when both would
         # otherwise fire. AI is strictly for messages no rule matched.

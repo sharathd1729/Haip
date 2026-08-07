@@ -189,3 +189,28 @@ class ManualMergeResponse(BaseModel):
     merged: bool = True
     survivor_inquiry_id: str
     deprecated_inquiry_id: str
+
+
+# ─── Manual Lead Entry ────────────────────────────────────────────────────────
+
+class ManualLeadCreateRequest(BaseModel):
+    guest_name: str = Field(..., min_length=1, max_length=255)
+    # At least one of phone/email required -- validated in the service layer,
+    # since identity_service needs a real signal to resolve/create the guest.
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    source: str = "walk_in"   # InquirySource value -- agent picks the real one in the form
+    property_id: Optional[str] = None
+    check_in: Optional[str] = None
+    check_out: Optional[str] = None
+    adults: Optional[int] = None
+    children: Optional[int] = None
+    occasion: Optional[str] = None
+    budget: Optional[float] = None
+    assigned_to: Optional[str] = None
+
+
+class ManualLeadCreateResponse(BaseModel):
+    inquiry_id: str
+    guest_id: str
+    stage_key: Optional[str] = None

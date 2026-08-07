@@ -114,6 +114,17 @@ def get_default_widgets(modules: set[str]) -> list[str]:
     return _DEFAULTS["fresh"]
 
 
+# Once a tenant has a single designated active IVR provider, calls from a
+# disconnected one (e.g. Mcube, replaced by Vobiz for Ratha) must stay out
+# of every calls-derived widget number, matching calls.py's list/detail
+# filtering and dashboard.py's summary counts -- confirmed live: Mcube
+# recordings were still being counted into call_volume/sentiment/
+# objections/intent_mix/agent_leaderboard months after the disconnect.
+def _active_ivr_provider(db: Session, tid: str) -> Optional[str]:
+    row = db.query(Tenant.ivr_provider).filter(Tenant.id == tid).first()
+    return row.ivr_provider if row else None
+
+
 # ─── State computation ────────────────────────────────────────────────────────
 
 def compute_widget_state(
@@ -143,10 +154,14 @@ def _count_rows(db: Session, tid: str, widget_key: str) -> int:
     start_30d = now - timedelta(days=30)
     if widget_key in ("call_volume", "sentiment", "missed_revenue", "objections",
                        "intent_mix", "agent_leaderboard"):
-        return db.query(func.count(Call.id)).filter(
+        provider = _active_ivr_provider(db, tid)
+        q = db.query(func.count(Call.id)).filter(
             Call.tenant_id == tid,
             Call.started_at >= start_30d,
-        ).scalar() or 0
+        )
+        if provider:
+            q = q.filter(Call.ivr_provider == provider)
+        return q.scalar() or 0
     if widget_key in ("response_time", "channel_mix", "campaign_performance"):
         return db.query(func.count(Message.id)).filter(
             Message.tenant_id == tid,
@@ -208,12 +223,16 @@ def _call_volume(db, tid, start, end, now):
 
 def _sentiment(db, tid, start, end, now):
     from sqlalchemy import case
-    rows = db.query(
+    q = db.query(
         func.count(Call.id).label("total"),
         func.sum(case((Call.sentiment == "positive", 1), else_=0)).label("pos"),
         func.sum(case((Call.sentiment == "negative", 1), else_=0)).label("neg"),
         func.sum(case((Call.sentiment == "neutral",  1), else_=0)).label("neu"),
-    ).filter(Call.tenant_id == tid, Call.started_at >= start, Call.sentiment.isnot(None)).first()
+    ).filter(Call.tenant_id == tid, Call.started_at >= start, Call.sentiment.isnot(None))
+    provider = _active_ivr_provider(db, tid)
+    if provider:
+        q = q.filter(Call.ivr_provider == provider)
+    rows = q.first()
     if not rows or not rows.total:
         return {"positive": 0, "negative": 0, "neutral": 0, "total": 0}, "No sentiment data yet."
     total = rows.total
@@ -247,11 +266,15 @@ def _missed_revenue(db, tid, start, end, now):
 
 def _objections(db, tid, start, end, now):
     from app.models.call import Call
-    rows = db.query(Call.objections).filter(
+    q = db.query(Call.objections).filter(
         Call.tenant_id == tid,
         Call.started_at >= start,
         Call.objections.isnot(None),
-    ).all()
+    )
+    provider = _active_ivr_provider(db, tid)
+    if provider:
+        q = q.filter(Call.ivr_provider == provider)
+    rows = q.all()
     counts: dict[str, int] = {}
     for (obj_list,) in rows:
         if isinstance(obj_list, list):
@@ -265,11 +288,15 @@ def _objections(db, tid, start, end, now):
 
 def _intent_mix(db, tid, start, end, now):
     from app.models.call import Call
-    rows = db.query(Call.intent).filter(
+    q = db.query(Call.intent).filter(
         Call.tenant_id == tid,
         Call.started_at >= start,
         Call.intent.isnot(None),
-    ).all()
+    )
+    provider = _active_ivr_provider(db, tid)
+    if provider:
+        q = q.filter(Call.ivr_provider == provider)
+    rows = q.all()
     counts: dict[str, int] = {}
     for (intent,) in rows:
         counts[intent] = counts.get(intent, 0) + 1
@@ -296,7 +323,7 @@ def _response_time(db, tid, start, end, now):
 
 def _agent_leaderboard(db, tid, start, end, now):
     from app.models.user import User
-    rows = db.query(
+    q = db.query(
         Call.assigned_to.label("user_id"),
         func.count(Call.id).label("total"),
         func.avg(Call.ai_score).label("avg_score"),
@@ -304,7 +331,11 @@ def _agent_leaderboard(db, tid, start, end, now):
         Call.tenant_id == tid,
         Call.started_at >= start,
         Call.assigned_to.isnot(None),
-    ).group_by(Call.assigned_to).order_by(func.avg(Call.ai_score).desc()).limit(5).all()
+    )
+    provider = _active_ivr_provider(db, tid)
+    if provider:
+        q = q.filter(Call.ivr_provider == provider)
+    rows = q.group_by(Call.assigned_to).order_by(func.avg(Call.ai_score).desc()).limit(5).all()
     user_ids = [r.user_id for r in rows]
     users = {u.id: u.full_name for u in db.query(User).filter(User.id.in_(user_ids)).all()}
     data = {"agents": [

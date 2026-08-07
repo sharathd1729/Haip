@@ -75,6 +75,14 @@ def _calls_week_series(db: Session, tid: str, start: datetime, end: datetime,
         _STARTED_AT_TS >= start,
         _STARTED_AT_TS < end,
     )
+    # Once a tenant has a single designated active IVR provider, calls from
+    # a disconnected one (e.g. Mcube, replaced by Vobiz for Ratha) must stay
+    # out of every calls-derived analytics number, matching calls.py's
+    # list/detail filtering and dashboard.py's summary counts.
+    from app.models.tenant import Tenant
+    tenant = db.query(Tenant.ivr_provider).filter(Tenant.id == tid).first()
+    if tenant and tenant.ivr_provider:
+        q = q.filter(Call.ivr_provider == tenant.ivr_provider)
     if property_ids:
         q = q.filter(Call.property_id.in_(property_ids))
     rows = q.group_by("d").order_by("d").all()

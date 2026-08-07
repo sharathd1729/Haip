@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { useInfiniteQuery, useIsFetching, useQueryClient } from "@tanstack/react-query";
-import { Target, RefreshCw, Settings2, ChevronDown } from "lucide-react";
+import { Target, RefreshCw, Settings2, ChevronDown, Plus } from "lucide-react";
 import api from "@/lib/api";
 import { LeadCard, type LeadCard as LeadCardType } from "@/components/leads/LeadCard";
 import { SkeletonCard } from "@/components/ui/SkeletonCard";
@@ -14,6 +14,10 @@ import { LeadsFilterBar, type LeadsFilters } from "@/components/leads/LeadsFilte
 // this route's initial chunk.
 const PipelineSettingsModal = dynamic(
   () => import("@/components/leads/PipelineSettingsModal").then(m => m.PipelineSettingsModal),
+  { ssr: false }
+);
+const AddLeadModal = dynamic(
+  () => import("@/components/leads/AddLeadModal").then(m => m.AddLeadModal),
   { ssr: false }
 );
 
@@ -246,6 +250,7 @@ function MobileStageSection({
 export default function Leads360Page() {
   const [stageFilter, setStageFilter] = useState(ALL_STAGES_ID);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [addLeadOpen, setAddLeadOpen] = useState(false);
   const [filters, setFilters] = useState<LeadsFilters>({});
   const [stageMeta, setStageMeta] = useState<Record<string, StageMetaEntry>>({});
   const queryClient = useQueryClient();
@@ -350,6 +355,17 @@ export default function Leads360Page() {
             })}
           </div>
 
+          {/* Add lead manually */}
+          <button
+            onClick={() => setAddLeadOpen(true)}
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors duration-150"
+            style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
+            title="Add a lead manually"
+          >
+            <Plus size={12} />
+            <span className="hidden sm:inline">Add Lead</span>
+          </button>
+
           {/* Pipeline settings */}
           <button
             onClick={() => setSettingsOpen(true)}
@@ -416,6 +432,14 @@ export default function Leads360Page() {
         <PipelineSettingsModal
           stages={pipelineStages}
           onClose={() => setSettingsOpen(false)}
+        />
+      )}
+
+      {/* ── Add lead modal ──────────────────────────────────────────────── */}
+      {addLeadOpen && (
+        <AddLeadModal
+          onClose={() => setAddLeadOpen(false)}
+          onCreated={() => setAddLeadOpen(false)}
         />
       )}
     </div>

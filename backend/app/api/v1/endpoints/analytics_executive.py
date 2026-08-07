@@ -102,6 +102,8 @@ def executive_dashboard(
     Redis-cached for 5 minutes per (tenant, params).
     """
     tid = current_user.tenant_id
+    from app.models.tenant import Tenant
+    tenant = db.query(Tenant).filter_by(id=tid).first()
     prop_ids: Optional[List[str]] = (
         [p.strip() for p in property_ids.split(",") if p.strip()] if property_ids else None
     )
@@ -169,6 +171,11 @@ def executive_dashboard(
             Call.ai_score.isnot(None),
             Call.started_at >= start.isoformat(),
         )
+        # Calls from a disconnected IVR provider (e.g. Mcube, replaced by
+        # Vobiz for Ratha) must stay out of every calls-derived executive
+        # number, matching dashboard.py/widget_service.py's same filter.
+        if tenant and tenant.ivr_provider:
+            q = q.filter(Call.ivr_provider == tenant.ivr_provider)
         if prop_ids:
             q = q.filter(Call.property_id.in_(prop_ids))
         return round(float(q.scalar() or 0), 1)

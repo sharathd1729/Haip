@@ -54,32 +54,44 @@ def get_dashboard(
     now = datetime.now(timezone.utc)
     week_ago = now - timedelta(days=7)
 
+    # Once a tenant has a single designated active IVR provider, calls from
+    # a disconnected one (e.g. Mcube, replaced by Vobiz for Ratha) must stay
+    # out of every dashboard number -- not just the Calls list page
+    # (calls.py already did this; these queries never matched that filter,
+    # so "Calls this week" / avg QA score kept counting Mcube recordings
+    # for months after the disconnect). Nothing here deletes or mutates
+    # Call rows.
+    tenant = db.query(Tenant).filter_by(id=tid).first()
+
+    def _active_provider_only(q):
+        if tenant and tenant.ivr_provider:
+            return q.filter(Call.ivr_provider == tenant.ivr_provider)
+        return q
+
     # ── Counts ────────────────────────────────────────────────────────────────
-    total_calls = db.query(func.count(Call.id)).filter_by(tenant_id=tid).scalar() or 0
-    calls_this_week = (
+    total_calls = _active_provider_only(
+        db.query(func.count(Call.id)).filter(Call.tenant_id == tid)
+    ).scalar() or 0
+    calls_this_week = _active_provider_only(
         db.query(func.count(Call.id))
         .filter(Call.tenant_id == tid, Call.created_at >= week_ago)
-        .scalar() or 0
-    )
+    ).scalar() or 0
     total_guests = db.query(func.count(Guest.id)).filter_by(tenant_id=tid).scalar() or 0
 
     # ── QA avg ────────────────────────────────────────────────────────────────
-    scored_calls = (
+    scored_calls = _active_provider_only(
         db.query(func.count(Call.id))
         .filter(Call.tenant_id == tid, Call.ai_score_status == "done", Call.ai_score.isnot(None))
-        .scalar() or 0
-    )
-    avg_qa_row = (
+    ).scalar() or 0
+    avg_qa_row = _active_provider_only(
         db.query(func.avg(Call.ai_score))
         .filter(Call.tenant_id == tid, Call.ai_score.isnot(None))
-        .scalar()
-    )
+    ).scalar()
     avg_qa_score = float(avg_qa_row) if avg_qa_row else None
 
     # ── Recent calls (last 20) ────────────────────────────────────────────────
     recent_raw = (
-        db.query(Call)
-        .filter_by(tenant_id=tid)
+        _active_provider_only(db.query(Call).filter(Call.tenant_id == tid))
         .order_by(Call.created_at.desc())
         .limit(20)
         .all()

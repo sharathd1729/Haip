@@ -160,3 +160,47 @@ def test_tenant_ai_config_columns_are_isolated(db):
     assert refreshed_b.ig_ai_mode_default == "shadow"
     assert refreshed_a.ig_ai_confidence_threshold == 0.78
     assert refreshed_b.ig_ai_confidence_threshold == 0.78
+
+
+# ── Push notification (regression: SSE-only, mobile never got notified) ─────
+
+def test_inbound_dm_sends_push_notification(db):
+    """SSE alone only reaches an already-open tab -- confirmed live, an
+    inbound Instagram DM showed up in the in-app bell but never reached a
+    phone with the app backgrounded/closed, because this call was missing
+    entirely (present for WhatsApp -- see whatsapp.py -- never for
+    Instagram)."""
+    from app.workers.tasks import process_instagram_dm as mod
+
+    tenant = _make_tenant(db, ig_ai_mode_default="off")
+    integration = _make_ig_integration(db, tenant.id)
+
+    class _NoCloseSessionWrapper:
+        def __init__(self, real_session):
+            self._s = real_session
+        def __getattr__(self, name):
+            return getattr(self._s, name)
+        def close(self):
+            pass
+
+    payload = {
+        "ig_account_id": integration.config["instagram_business_account_id"],
+        "sender_id": "guest-push-001",
+        "message_id": f"mid-{uuid.uuid4().hex[:8]}",
+        "text": "hi, are villas available this weekend?",
+        "attachments": [],
+    }
+
+    with patch.object(mod, "SessionLocal", return_value=_NoCloseSessionWrapper(db)), \
+         patch("app.adapters.instagram.meta_graph.InstagramGraphAdapter") as mock_adapter_cls, \
+         patch.object(mod, "backfill_instagram_guest_name"), \
+         patch("app.services.push_service.send_to_tenant") as mock_push:
+        mock_adapter_cls.return_value.send_text.return_value = {"message_id": "wamid.x"}
+        result = mod.process_instagram_dm.run(payload)
+
+    assert result["status"] == "ok"
+    mock_push.assert_called_once()
+    _, kwargs = mock_push.call_args
+    assert kwargs["tenant_id"] == tenant.id
+    assert kwargs["title"] == "New Instagram DM"
+    assert "hi, are villas available" in kwargs["body"]

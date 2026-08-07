@@ -158,6 +158,7 @@ def resolve_or_create(
     candidate_gid, score = _find_best_candidate(db, tenant_id, identity_type, value)
     if candidate_gid and score >= MERGE_THRESHOLD:
         _attach_signal(db, tenant_id, candidate_gid, identity_type, value, source, score)
+        _backfill_guest_phone(db, tenant_id, candidate_gid, identity_type, value)
         log.info("identity_resolved_probabilistic",
                  tenant_id=tenant_id, type=identity_type, score=score, gid=candidate_gid)
         return candidate_gid, False
@@ -204,6 +205,7 @@ def enrich_guest(
     if not conflict:
         conf = SIGNAL_CONFIDENCE.get(identity_type, 0.60)
         _attach_signal(db, tenant_id, guest_id, identity_type, value, source, conf)
+        _backfill_guest_phone(db, tenant_id, guest_id, identity_type, value)
         log.info("identity_signal_added",
                  tenant_id=tenant_id, guest_id=guest_id, type=identity_type)
         return conf
@@ -286,6 +288,25 @@ def _create_guest(
     log.info("guest_created", tenant_id=tenant_id, guest_id=guest.id,
              source=source, signal_type=identity_type)
     return guest.id
+
+
+def _backfill_guest_phone(db: Session, tenant_id: str, guest_id: str, identity_type: str, value: str) -> None:
+    """A phone/whatsapp_number signal attached to an ALREADY-EXISTING guest
+    (Stage 2 probabilistic match in resolve_or_create, or enrich_guest --
+    e.g. a guest who first showed up via Instagram and later calls) never
+    backfilled Guest.phone, unlike _create_guest's own new-guest path. The
+    convenience column stayed permanently empty even though the phone was
+    fully resolvable via guest_identities, which is what every list
+    endpoint that reads g.phone directly (list_conversations, calls list,
+    etc.) actually displays -- confirmed live: a voice-only inbox card with
+    no prior conversation showed no name AND no phone number at all."""
+    if identity_type not in (IdentityType.PHONE, IdentityType.WHATSAPP_NUMBER):
+        return
+    from app.models.guest import Guest
+    guest = db.query(Guest).filter_by(id=guest_id, tenant_id=tenant_id).first()
+    if guest and not guest.phone:
+        guest.phone = value
+        db.add(guest)
 
 
 def _attach_signal(

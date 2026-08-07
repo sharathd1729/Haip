@@ -29,10 +29,11 @@ from app.models.user import User, UserRole
 from app.schemas.leads import (
     AddSignalRequest, AddSignalResponse,
     LeadDetailSchema, LeadsListResponse,
+    ManualLeadCreateRequest, ManualLeadCreateResponse,
     ManualMergeRequest, ManualMergeResponse,
     RefreshSummaryResponse,
 )
-from app.services import identity_service, leads_service
+from app.services import identity_service, inquiry_service, leads_service
 from app.services.date_presets import resolve_range, VALID_PRESETS
 
 router = APIRouter(prefix="/leads", tags=["leads360"])
@@ -114,6 +115,53 @@ def list_leads(
         booked_date_to=booked_date_to,
         page=page,
         page_size=page_size,
+    )
+
+
+# ── POST /leads — manual lead entry ──────────────────────────────────────────
+
+@router.post("", response_model=ManualLeadCreateResponse, status_code=status.HTTP_201_CREATED)
+def create_manual_lead(
+    body: ManualLeadCreateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ManualLeadCreateResponse:
+    """
+    Agent-entered lead -- no inbound message/call to auto-create from.
+    Resolves/creates the guest via identity_service (same GID resolution
+    every other creation path uses) and routes the new inquiry to the
+    tenant's real "valid lead" pipeline stage.
+    """
+    if not body.phone and not body.email:
+        raise HTTPException(
+            status_code=422,
+            detail="Provide at least a phone number or email to add a lead.",
+        )
+    try:
+        inquiry = inquiry_service.create_manual_lead(
+            db=db,
+            tenant_id=current_user.tenant_id,
+            actor_user_id=current_user.id,
+            guest_name=body.guest_name,
+            phone=body.phone,
+            email=body.email,
+            source=body.source,
+            property_id=body.property_id,
+            check_in=body.check_in,
+            check_out=body.check_out,
+            adults=body.adults,
+            children=body.children,
+            occasion=body.occasion,
+            budget=body.budget,
+            assigned_to=body.assigned_to,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    return ManualLeadCreateResponse(
+        inquiry_id=inquiry.id,
+        guest_id=inquiry.guest_id,
+        stage_key=inquiry.pipeline_stage.key if inquiry.pipeline_stage else None,
     )
 
 
