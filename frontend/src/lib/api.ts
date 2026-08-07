@@ -1,6 +1,6 @@
 import axios from "axios";
 import { getSession, signOut } from "next-auth/react";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, QUERY_PERSIST_STORAGE_KEY } from "@/lib/queryClient";
 import { useConnectionStatusStore } from "@/store/connectionStatus";
 
 // Ensure base URL always ends with /api/v1 regardless of how NEXT_PUBLIC_API_URL is set.
@@ -95,11 +95,29 @@ async function getToken(force = false): Promise<string | null> {
 }
 
 /** Drop the cached token — call on sign-out so a subsequent sign-in as a
- *  different user can't reuse the previous session's token. */
+ *  different user can't reuse the previous session's token.
+ *
+ *  Also wipes the persisted react-query cache (Fix 4, PWA-blank-data-fix
+ *  plan) -- Sharath's explicit PII scope decision was "persist everything,
+ *  wipe on sign-out", so a device shared between staff (or simply
+ *  recovered/resold) must never have one concierge's guest conversations,
+ *  phone numbers, or call transcripts still readable in localStorage after
+ *  they've signed out. queryClient.clear() empties the in-memory cache;
+ *  removing the localStorage key directly is the belt-and-suspenders half,
+ *  since the persister writes on a debounce and sign-out is immediately
+ *  followed by navigation away. */
 export function clearTokenCache() {
   cachedToken = null;
   cachedExp = 0;
   inflight = null;
+  queryClient.clear();
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage.removeItem(QUERY_PERSIST_STORAGE_KEY);
+    } catch {
+      // Storage unavailable (private browsing, quota) -- in-memory clear above still applied.
+    }
+  }
 }
 
 api.interceptors.request.use(async (config) => {
