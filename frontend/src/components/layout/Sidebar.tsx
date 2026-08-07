@@ -15,6 +15,7 @@ import { canSeeNav, type Resource } from "@/lib/permissions";
 import { useBrandTheme } from "@/components/providers/BrandThemeProvider";
 import { useBusinessType } from "@/components/providers/WorkspaceProvider";
 import { useInboxStore } from "@/store/inbox";
+import { AppVersionRow } from "@/components/AppVersionRow";
 
 // ─── Nav structure ────────────────────────────────────────────────────────────
 
@@ -439,6 +440,8 @@ export function Sidebar({ user }: SidebarProps) {
             <LogOut size={13} />
           </button>
         </div>
+
+        <AppVersionRow />
       </div>
     </aside>
   );

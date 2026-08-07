@@ -18,6 +18,7 @@ import { canSeeNav, type Resource } from "@/lib/permissions";
 import { useBrandTheme } from "@/components/providers/BrandThemeProvider";
 import { useBusinessType } from "@/components/providers/WorkspaceProvider";
 import { useInboxStore } from "@/store/inbox";
+import { AppVersionRow } from "@/components/AppVersionRow";
 
 interface MobileNavProps {
   user?: { name?: string | null; email?: string | null; role?: string };
@@ -293,6 +294,9 @@ export function MobileNav({ user }: MobileNavProps) {
                 <LogOut size={15} />
                 Sign out
               </button>
+              <div className="mt-1 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+                <AppVersionRow dark />
+              </div>
             </div>
           </div>
         </div>

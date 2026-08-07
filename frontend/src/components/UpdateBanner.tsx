@@ -37,7 +37,7 @@ export function UpdateBanner() {
           A new version of HAIP is available
         </p>
         <p className="text-xs" style={{ color: "var(--haip-fg-subtle)" }}>
-          Reload when convenient — any unsent message text will be lost.
+          Updates automatically in a few seconds if you're not typing — reload now to do it right away.
         </p>
       </div>
 
