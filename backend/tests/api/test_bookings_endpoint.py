@@ -100,6 +100,77 @@ def test_list_bookings_cross_tenant_isolation(client, db):
     assert resp.json()["meta"]["total"] == 0
 
 
+# ── GET /bookings date_from/date_to ──────────────────────────────────────────
+
+def test_list_bookings_date_range_excludes_non_overlapping_stay(client, db):
+    tenant = _make_tenant(db, "DateFilterTenant")
+    user = _make_user(db, tenant.id)
+    prop = _make_property(db, tenant.id)
+    guest = _make_guest(db, tenant.id)
+    _make_stay(db, tenant.id, guest.id, prop.id, check_in="2026-08-01", check_out="2026-08-03")
+    _make_stay(db, tenant.id, guest.id, prop.id, check_in="2026-09-10", check_out="2026-09-12")
+    db.commit()
+
+    resp = client.get(
+        "/api/v1/bookings?date_from=2026-08-01&date_to=2026-08-31",
+        headers=_auth(_token(user)),
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["meta"]["total"] == 1
+    assert body["data"][0]["checkin"] == "2026-08-01"
+
+
+def test_list_bookings_date_range_includes_stay_spanning_the_window(client, db):
+    """A stay that started before date_from and ends after it (still overlaps
+    the filtered window) must still show up -- not just stays strictly
+    contained inside [date_from, date_to]."""
+    tenant = _make_tenant(db, "SpanningTenant")
+    user = _make_user(db, tenant.id)
+    prop = _make_property(db, tenant.id)
+    guest = _make_guest(db, tenant.id)
+    _make_stay(db, tenant.id, guest.id, prop.id, check_in="2026-08-05", check_out="2026-08-20")
+    db.commit()
+
+    resp = client.get(
+        "/api/v1/bookings?date_from=2026-08-10&date_to=2026-08-15",
+        headers=_auth(_token(user)),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["meta"]["total"] == 1
+
+
+def test_list_bookings_date_from_only(client, db):
+    tenant = _make_tenant(db, "DateFromOnlyTenant")
+    user = _make_user(db, tenant.id)
+    prop = _make_property(db, tenant.id)
+    guest = _make_guest(db, tenant.id)
+    _make_stay(db, tenant.id, guest.id, prop.id, check_in="2026-07-01", check_out="2026-07-03")
+    _make_stay(db, tenant.id, guest.id, prop.id, check_in="2026-09-01", check_out="2026-09-03")
+    db.commit()
+
+    resp = client.get("/api/v1/bookings?date_from=2026-08-01", headers=_auth(_token(user)))
+    assert resp.status_code == 200
+    assert resp.json()["meta"]["total"] == 1
+
+
+def test_list_bookings_date_range_tenant_isolation(client, db):
+    tenant_a = _make_tenant(db, "DateTenantA")
+    tenant_b = _make_tenant(db, "DateTenantB")
+    user_b = _make_user(db, tenant_b.id)
+    prop_a = _make_property(db, tenant_a.id)
+    guest_a = _make_guest(db, tenant_a.id)
+    _make_stay(db, tenant_a.id, guest_a.id, prop_a.id, check_in="2026-08-01", check_out="2026-08-03")
+    db.commit()
+
+    resp = client.get(
+        "/api/v1/bookings?date_from=2026-08-01&date_to=2026-08-31",
+        headers=_auth(_token(user_b)),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["meta"]["total"] == 0
+
+
 # ── GET /bookings/properties ─────────────────────────────────────────────────
 
 def test_list_bookable_properties_includes_active_rate_plans(client, db):

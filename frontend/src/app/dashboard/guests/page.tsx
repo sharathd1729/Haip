@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { timeAgo, cn, formatPhone } from "@/lib/utils";
 import { EmptyGuests } from "@/components/empty-states/EmptyGuests";
+import { MobileFilterSheet, MobileFilterTrigger } from "@/components/ui/MobileFilterSheet";
 import { useRWBookings, useLocalBookings } from "@/hooks/useRentalWise";
 // B5: only needed once the user creates/edits a booking -- keep it out of
 // this route's initial chunk.
@@ -407,15 +408,100 @@ function exportToCsv(bookings: RWBooking[]) {
 
 // ─── Bookings table ────────────────────────────────────────────────────────────
 
+// Mobile card equivalent of BookingsTable's <tr> -- same 8 fields, same
+// BookingStatusBadge/PaymentBadge/ChannelPill sub-components, just stacked
+// instead of columned. Matches Leads360's hidden md:block / md:hidden
+// responsive-split pattern (the only other table<->card split in the app).
+function BookingCard({
+  booking: b, usingLocal, onEdit,
+}: {
+  booking: RWBooking;
+  usingLocal: boolean;
+  onEdit: (b: RWBooking) => void;
+}) {
+  const guestName = b.main_guest
+    ? `${localStr(b.main_guest.first_name)} ${localStr(b.main_guest.last_name)}`.trim() || "Unknown"
+    : "Unknown";
+  const nights = Math.ceil((new Date(b.checkout).getTime() - new Date(b.checkin).getTime()) / 86400000);
+  const channelName = getChannelName(b);
+  const currencySymbol = getCurrencySymbol(b);
+
+  return (
+    <div className="rounded-xl border p-3.5 space-y-2.5" style={{ borderColor: "#E5E7EB", background: "#FFFFFF" }}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0">
+          {b.property?.image ? (
+            <img src={b.property.image} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0 border border-gray-100" />
+          ) : (
+            <div className="w-10 h-10 rounded-lg flex-shrink-0 flex items-center justify-center" style={{ background: "rgba(15,118,110,0.08)" }}>
+              <Bed size={16} style={{ color: "#0F766E" }} />
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="text-[13px] font-semibold truncate" style={{ color: "#111827" }}>{guestName}</p>
+            {b.property && (
+              <p className="text-[11px] truncate" style={{ color: "#6B7280" }}>
+                {localStr(b.property.name)}
+                {b.property.type && <span className="ml-1 text-gray-400">· {localStr(b.property.type)}</span>}
+              </p>
+            )}
+          </div>
+        </div>
+        <span className="text-[11px] font-mono font-semibold flex-shrink-0" style={{ color: "#0F766E" }}>
+          #{b.external_id ?? b.id}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <BookingStatusBadge status={b.status} />
+        <PaymentBadge status={b.payment_status} />
+        <ChannelPill channel={channelName} />
+      </div>
+
+      <div className="flex items-center justify-between text-[12px]" style={{ color: "#374151" }}>
+        <div>
+          <p>
+            {new Date(b.checkin).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" })}
+            {" → "}
+            {new Date(b.checkout).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" })}
+          </p>
+          <p className="text-[10px]" style={{ color: "#9CA3AF" }}>
+            {nights}n · {Number(b.adults) || 0} adult{Number(b.adults) !== 1 ? "s" : ""}
+            {(Number(b.children) || 0) > 0 ? `, ${b.children} child${Number(b.children) !== 1 ? "ren" : ""}` : ""}
+          </p>
+        </div>
+        <p className="text-[14px] font-bold flex-shrink-0" style={{ color: "#111827", fontFamily: "var(--font-display), sans-serif" }}>
+          {currencySymbol}{(Number(b.total) || 0).toLocaleString("en-IN")}
+        </p>
+      </div>
+
+      <div className="flex items-center justify-between pt-1.5 border-t" style={{ borderColor: "#F3F4F6" }}>
+        <p className="text-[10px]" style={{ color: "#9CA3AF" }}>{b.source_name && typeof b.source_name === "string" ? b.source_name : ""}</p>
+        {usingLocal ? (
+          <button onClick={() => onEdit(b)} className="flex items-center gap-1 text-[11px] font-medium" style={{ color: "#6B7280" }}>
+            <Pencil size={11} /> Edit
+          </button>
+        ) : (
+          <button className="flex items-center gap-1 text-[11px] font-medium" style={{ color: "#6B7280" }}>
+            <ExternalLink size={11} /> View in RentalWise
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function BookingsTable() {
   const [search, setSearch]               = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter]   = useState<RWBookingStatus | "">("");
   const [paymentFilter, setPaymentFilter] = useState<RWPaymentStatus | "">("");
   const [channelFilter, setChannelFilter] = useState("");
+  const [checkInFrom, setCheckInFrom]     = useState("");
+  const [checkInTo, setCheckInTo]         = useState("");
   const [sort, setSort]                   = useState<RWBookingFilters["sort"]>("newest");
   const [page, setPage]                   = useState(1);
-  const [showFilters, setShowFilters]     = useState(false);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingBooking, setEditingBooking] = useState<RWBooking | null>(null);
 
@@ -426,13 +512,15 @@ function BookingsTable() {
   }, [search]);
 
   // Reset page on filter changes
-  useEffect(() => { setPage(1); }, [statusFilter, paymentFilter, channelFilter, sort]);
+  useEffect(() => { setPage(1); }, [statusFilter, paymentFilter, channelFilter, checkInFrom, checkInTo, sort]);
 
   const filters: RWBookingFilters = {
     search:         debouncedSearch || undefined,
     status:         statusFilter    || undefined,
     payment_status: paymentFilter   || undefined,
     channel:        channelFilter   || undefined,
+    check_in_from:  checkInFrom     || undefined,
+    check_in_to:    checkInTo       || undefined,
     sort,
     page,
     per_page: 25,
@@ -456,9 +544,10 @@ function BookingsTable() {
   const meta = data?.meta;
 
   function clearFilters() {
-    setSearch(""); setDebouncedSearch(""); setStatusFilter(""); setPaymentFilter(""); setChannelFilter(""); setSort("newest"); setPage(1);
+    setSearch(""); setDebouncedSearch(""); setStatusFilter(""); setPaymentFilter(""); setChannelFilter("");
+    setCheckInFrom(""); setCheckInTo(""); setSort("newest"); setPage(1);
   }
-  const hasFilters = !!(statusFilter || paymentFilter || channelFilter || debouncedSearch);
+  const hasFilters = !!(statusFilter || paymentFilter || channelFilter || checkInFrom || checkInTo || debouncedSearch);
 
   return (
     <div className="flex flex-col h-full">
@@ -487,65 +576,80 @@ function BookingsTable() {
           )}
         </div>
 
-        {/* Status */}
-        <select
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value as RWBookingStatus | "")}
-          className="py-1.5 px-2.5 rounded-xl text-[12px] font-medium focus:outline-none"
-          style={{ background: "#F8FAFC", border: "1px solid #E5E7EB", color: "#374151" }}
-        >
-          <option value="">All statuses</option>
-          {(Object.keys(BOOKING_STATUS_CFG) as RWBookingStatus[]).map(s => (
-            <option key={s} value={s}>{BOOKING_STATUS_CFG[s].label}</option>
-          ))}
-        </select>
+        {/* Desktop-only inline filters -- Status/Payment/Channel/dates/Sort.
+            These previously always rendered inline and wrapped across
+            several lines on narrow screens; now collapsed into the mobile
+            sheet below instead. */}
+        <div className="hidden md:flex items-center gap-2 flex-wrap">
+          <select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value as RWBookingStatus | "")}
+            className="py-1.5 px-2.5 rounded-xl text-[12px] font-medium focus:outline-none"
+            style={{ background: "#F8FAFC", border: "1px solid #E5E7EB", color: "#374151" }}
+          >
+            <option value="">All statuses</option>
+            {(Object.keys(BOOKING_STATUS_CFG) as RWBookingStatus[]).map(s => (
+              <option key={s} value={s}>{BOOKING_STATUS_CFG[s].label}</option>
+            ))}
+          </select>
 
-        {/* Payment */}
-        <select
-          value={paymentFilter}
-          onChange={e => setPaymentFilter(e.target.value as RWPaymentStatus | "")}
-          className="py-1.5 px-2.5 rounded-xl text-[12px] font-medium focus:outline-none"
-          style={{ background: "#F8FAFC", border: "1px solid #E5E7EB", color: "#374151" }}
-        >
-          <option value="">All payments</option>
-          {(Object.keys(PAYMENT_STATUS_CFG) as RWPaymentStatus[]).map(s => (
-            <option key={s} value={s}>{PAYMENT_STATUS_CFG[s].label}</option>
-          ))}
-        </select>
+          <select
+            value={paymentFilter}
+            onChange={e => setPaymentFilter(e.target.value as RWPaymentStatus | "")}
+            className="py-1.5 px-2.5 rounded-xl text-[12px] font-medium focus:outline-none"
+            style={{ background: "#F8FAFC", border: "1px solid #E5E7EB", color: "#374151" }}
+          >
+            <option value="">All payments</option>
+            {(Object.keys(PAYMENT_STATUS_CFG) as RWPaymentStatus[]).map(s => (
+              <option key={s} value={s}>{PAYMENT_STATUS_CFG[s].label}</option>
+            ))}
+          </select>
 
-        {/* Channel */}
-        <select
-          value={channelFilter}
-          onChange={e => setChannelFilter(e.target.value)}
-          className="py-1.5 px-2.5 rounded-xl text-[12px] font-medium focus:outline-none"
-          style={{ background: "#F8FAFC", border: "1px solid #E5E7EB", color: "#374151" }}
-        >
-          <option value="">All channels</option>
-          {["airbnb", "booking-com", "homeaway", "direct", "email"].map(c => (
-            <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1).replace("-",".")}</option>
-          ))}
-        </select>
+          <select
+            value={channelFilter}
+            onChange={e => setChannelFilter(e.target.value)}
+            className="py-1.5 px-2.5 rounded-xl text-[12px] font-medium focus:outline-none"
+            style={{ background: "#F8FAFC", border: "1px solid #E5E7EB", color: "#374151" }}
+          >
+            <option value="">All channels</option>
+            {["airbnb", "booking-com", "homeaway", "direct", "email"].map(c => (
+              <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1).replace("-",".")}</option>
+            ))}
+          </select>
 
-        {/* Sort */}
-        <select
-          value={sort}
-          onChange={e => setSort(e.target.value as RWBookingFilters["sort"])}
-          className="py-1.5 px-2.5 rounded-xl text-[12px] font-medium focus:outline-none"
-          style={{ background: "#F8FAFC", border: "1px solid #E5E7EB", color: "#374151" }}
-        >
-          <option value="newest">Newest first</option>
-          <option value="oldest">Oldest first</option>
-          <option value="check_in">Check-in date</option>
-          <option value="check_out">Check-out date</option>
-          <option value="total_desc">Highest revenue</option>
-          <option value="total_asc">Lowest revenue</option>
-        </select>
+          <div className="flex items-center gap-1.5">
+            <Calendar size={12} style={{ color: "#9CA3AF" }} />
+            <input type="date" value={checkInFrom} onChange={e => setCheckInFrom(e.target.value)}
+              className="py-1.5 px-2 rounded-xl text-[12px] focus:outline-none"
+              style={{ background: "#F8FAFC", border: "1px solid #E5E7EB", color: "#374151" }} />
+            <span className="text-[11px]" style={{ color: "#9CA3AF" }}>–</span>
+            <input type="date" value={checkInTo} onChange={e => setCheckInTo(e.target.value)}
+              className="py-1.5 px-2 rounded-xl text-[12px] focus:outline-none"
+              style={{ background: "#F8FAFC", border: "1px solid #E5E7EB", color: "#374151" }} />
+          </div>
+
+          <select
+            value={sort}
+            onChange={e => setSort(e.target.value as RWBookingFilters["sort"])}
+            className="py-1.5 px-2.5 rounded-xl text-[12px] font-medium focus:outline-none"
+            style={{ background: "#F8FAFC", border: "1px solid #E5E7EB", color: "#374151" }}
+          >
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="check_in">Check-in date</option>
+            <option value="check_out">Check-out date</option>
+            <option value="total_desc">Highest revenue</option>
+            <option value="total_asc">Lowest revenue</option>
+          </select>
+        </div>
+
+        <MobileFilterTrigger onClick={() => setShowMobileFilters(true)} hasActiveFilters={hasFilters} />
 
         <div className="flex items-center gap-1.5 ml-auto">
           {hasFilters && (
             <button
               onClick={clearFilters}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-medium text-gray-500 hover:bg-gray-100 transition-colors"
+              className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-medium text-gray-500 hover:bg-gray-100 transition-colors"
             >
               <X size={11} /> Clear
             </button>
@@ -559,7 +663,7 @@ function BookingsTable() {
           <button
             onClick={() => exportToCsv(bookings)}
             disabled={bookings.length === 0}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11.5px] font-semibold transition-colors disabled:opacity-40"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11.5px] font-semibold transition-colors disabled:opacity-40"
             style={{ background: "#0F766E", color: "#fff" }}
             onMouseEnter={e => { if (!bookings.length) return; (e.currentTarget as HTMLElement).style.background = "#0d6660"; }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#0F766E"; }}
@@ -577,6 +681,77 @@ function BookingsTable() {
           </button>
         </div>
       </div>
+
+      {/* ── Filters — mobile bottom sheet ──────────────────────────────────── */}
+      <MobileFilterSheet open={showMobileFilters} onOpenChange={setShowMobileFilters} hasActiveFilters={hasFilters}>
+        <div className="flex flex-col gap-2.5">
+          <select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value as RWBookingStatus | "")}
+            className="w-full py-1.5 px-2.5 rounded-xl text-[12px] font-medium focus:outline-none"
+            style={{ background: "#F8FAFC", border: "1px solid #E5E7EB", color: "#374151" }}
+          >
+            <option value="">All statuses</option>
+            {(Object.keys(BOOKING_STATUS_CFG) as RWBookingStatus[]).map(s => (
+              <option key={s} value={s}>{BOOKING_STATUS_CFG[s].label}</option>
+            ))}
+          </select>
+          <select
+            value={paymentFilter}
+            onChange={e => setPaymentFilter(e.target.value as RWPaymentStatus | "")}
+            className="w-full py-1.5 px-2.5 rounded-xl text-[12px] font-medium focus:outline-none"
+            style={{ background: "#F8FAFC", border: "1px solid #E5E7EB", color: "#374151" }}
+          >
+            <option value="">All payments</option>
+            {(Object.keys(PAYMENT_STATUS_CFG) as RWPaymentStatus[]).map(s => (
+              <option key={s} value={s}>{PAYMENT_STATUS_CFG[s].label}</option>
+            ))}
+          </select>
+          <select
+            value={channelFilter}
+            onChange={e => setChannelFilter(e.target.value)}
+            className="w-full py-1.5 px-2.5 rounded-xl text-[12px] font-medium focus:outline-none"
+            style={{ background: "#F8FAFC", border: "1px solid #E5E7EB", color: "#374151" }}
+          >
+            <option value="">All channels</option>
+            {["airbnb", "booking-com", "homeaway", "direct", "email"].map(c => (
+              <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1).replace("-",".")}</option>
+            ))}
+          </select>
+          <div className="flex flex-col gap-1.5">
+            <label className="flex items-center gap-1.5 text-[11px]" style={{ color: "#6B7280" }}>
+              <Calendar size={11} /> Check-in from
+              <input type="date" value={checkInFrom} onChange={e => setCheckInFrom(e.target.value)}
+                className="ml-auto py-1 px-2 rounded-xl text-[12px] focus:outline-none"
+                style={{ background: "#F8FAFC", border: "1px solid #E5E7EB", color: "#374151" }} />
+            </label>
+            <label className="flex items-center gap-1.5 text-[11px]" style={{ color: "#6B7280" }}>
+              <Calendar size={11} /> to
+              <input type="date" value={checkInTo} onChange={e => setCheckInTo(e.target.value)}
+                className="ml-auto py-1 px-2 rounded-xl text-[12px] focus:outline-none"
+                style={{ background: "#F8FAFC", border: "1px solid #E5E7EB", color: "#374151" }} />
+            </label>
+          </div>
+          <select
+            value={sort}
+            onChange={e => setSort(e.target.value as RWBookingFilters["sort"])}
+            className="w-full py-1.5 px-2.5 rounded-xl text-[12px] font-medium focus:outline-none"
+            style={{ background: "#F8FAFC", border: "1px solid #E5E7EB", color: "#374151" }}
+          >
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="check_in">Check-in date</option>
+            <option value="check_out">Check-out date</option>
+            <option value="total_desc">Highest revenue</option>
+            <option value="total_asc">Lowest revenue</option>
+          </select>
+          {hasFilters && (
+            <button onClick={clearFilters} className="flex items-center justify-center gap-1 text-[12px] font-medium py-1.5" style={{ color: "#6B7280" }}>
+              <X size={12} /> Clear filters
+            </button>
+          )}
+        </div>
+      </MobileFilterSheet>
 
       {showCreateModal && (
         <CreateBookingModal
@@ -621,7 +796,8 @@ function BookingsTable() {
             )}
           </div>
         ) : (
-          <table className="w-full text-left border-collapse">
+          <>
+          <table className="hidden md:table w-full text-left border-collapse">
             <thead>
               <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E5E7EB" }}>
                 {["Booking", "Guest / Property", "Status", "Dates", "Guests", "Total", "Payment", "Channel", ""].map(h => (
@@ -748,6 +924,14 @@ function BookingsTable() {
               })}
             </tbody>
           </table>
+
+          {/* Mobile card list -- same data, stacked instead of columned */}
+          <div className="md:hidden p-3 space-y-2.5">
+            {bookings.map(b => (
+              <BookingCard key={b.id} booking={b} usingLocal={usingLocal} onEdit={setEditingBooking} />
+            ))}
+          </div>
+          </>
         )}
       </div>
 

@@ -110,6 +110,8 @@ def list_bookings(
     status: Optional[str] = Query(None),
     channel: Optional[str] = Query(None),
     sort: str = Query("newest"),
+    date_from: Optional[str] = Query(None, description="ISO date -- stays overlapping [date_from, date_to]"),
+    date_to: Optional[str] = Query(None, description="ISO date -- stays overlapping [date_from, date_to]"),
     page: int = Query(1, ge=1),
     per_page: int = Query(25, ge=1, le=100),
     current_user: User = Depends(get_current_user),
@@ -140,6 +142,16 @@ def list_bookings(
         q = q.filter(Stay.status == status)
     if channel:
         q = q.filter(Stay.channel_source == channel)
+    # Range overlap, not "check_in falls inside the range" -- a booking that
+    # spans across the filtered window (e.g. checked in before date_from,
+    # still staying through it) should still show up. check_in/check_out
+    # are String ISO ("YYYY-MM-DD") columns; lexical comparison sorts
+    # correctly for that format, same convention already used elsewhere in
+    # this codebase (Call.started_at).
+    if date_from:
+        q = q.filter(Stay.check_out >= date_from)
+    if date_to:
+        q = q.filter(Stay.check_in <= date_to)
     if search:
         like = f"%{search}%"
         q = (

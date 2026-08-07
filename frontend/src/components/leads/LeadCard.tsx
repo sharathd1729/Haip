@@ -2,10 +2,9 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Clock, Sparkles, AlertCircle, ChevronDown, MessageSquare, Loader2 } from "lucide-react";
+import { Clock, AlertCircle, ChevronDown, MessageSquare, Loader2, Calendar } from "lucide-react";
 import { cn, timeAgo } from "@/lib/utils";
 import { ChannelIcon } from "@/components/inbox/ChannelIcon";
-import { Skeleton } from "@/components/ui/skeleton";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { useToast } from "@/components/ui/toast";
 import api from "@/lib/api";
@@ -44,6 +43,11 @@ export interface LeadCard {
   response_time_status?: "waiting" | "responded" | null;
   // M5+ WS3: most recent pending AI draft for this lead, if any.
   pending_draft?: { message_id: string; conversation_id: string; preview: string } | null;
+}
+
+function formatCardDate(iso?: string): string | null {
+  if (!iso) return null;
+  return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
 // ─── Response time badge ─────────────────────────────────────────────────────
@@ -231,6 +235,8 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
     ?? (budget ? `₹${Number(budget).toLocaleString("en-IN")}` : null);
 
   const property = lead.property_interest?.[0] ?? null;
+  const checkInLabel = formatCardDate(lead.check_in);
+  const checkOutLabel = formatCardDate(lead.check_out);
 
   // Left accent rail (prototype .k-card.urgent / .warm). Driven by the two
   // signals the card already carries: a breached SLA is urgent, a guest still
@@ -258,7 +264,7 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
             <AlertCircle size={10} style={{ color: "var(--haip-fg-subtle)", flexShrink: 0 }} />
           )}
         </div>
-        <ChannelIcon channel={src} className="flex-shrink-0" />
+        <ChannelIcon channel={src} showLabel className="flex-shrink-0" />
       </div>
 
       {/* Row 1b: stage dropdown on its own line so it never squeezes the name */}
@@ -274,12 +280,22 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
         </div>
       )}
 
-      {/* Row 3: Property name */}
+      {/* Row 3: Property name + budget */}
       {(property || budgetLabel) && (
         <p className="text-xs truncate" style={{ color: "var(--haip-fg-subtle)" }}>
           {property ?? ""}
           {property && budgetLabel ? " · " : ""}
           {budgetLabel ?? ""}
+        </p>
+      )}
+
+      {/* Row 3b: Check-in / check-out dates, only when at least one is set */}
+      {(checkInLabel || checkOutLabel) && (
+        <p className="text-xs flex items-center gap-1" style={{ color: "var(--haip-fg-subtle)" }}>
+          <Calendar size={10} className="flex-shrink-0" />
+          {checkInLabel ?? "?"}
+          {checkInLabel && checkOutLabel ? " – " : ""}
+          {checkOutLabel ?? ""}
         </p>
       )}
 
@@ -295,30 +311,17 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
         <ResponseTimeBadge seconds={lead.response_time_seconds} status={lead.response_time_status} />
       </div>
 
-      {/* Row 6: Agent avatar + AI summary */}
-      <div className="flex items-start gap-1.5 pt-0.5" style={{ borderTop: "1px solid var(--haip-border)" }}>
-        {lead.assigned_agent_name && (
+      {/* Row 6: Assigned agent — AI summary intentionally removed from this
+          card (kept on the lead detail page); the card now stays scoped to
+          source/name/dates/budget the agent needs at a glance. */}
+      {lead.assigned_agent_name && (
+        <div className="flex items-center gap-1.5 pt-0.5" style={{ borderTop: "1px solid var(--haip-border)" }}>
           <AgentAvatar name={lead.assigned_agent_name} />
-        )}
-        {lead.ai_summary ? (
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] leading-relaxed line-clamp-2" style={{ color: "var(--haip-fg-subtle)" }}>
-              <Sparkles size={9} className="inline mr-1" style={{ color: "var(--primary)" }} />
-              {lead.ai_summary}
-            </p>
-            {lead.ai_next_action && (
-              <p className="text-[10px] font-medium line-clamp-1 mt-0.5" style={{ color: "var(--primary)" }}>
-                → {lead.ai_next_action}
-              </p>
-            )}
-          </div>
-        ) : (
-          <div className="flex-1 space-y-1">
-            <Skeleton className="h-2.5 w-full rounded" />
-            <Skeleton className="h-2.5 w-3/4 rounded" />
-          </div>
-        )}
-      </div>
+          <span className="text-[10px] truncate" style={{ color: "var(--haip-fg-subtle)" }}>
+            {lead.assigned_agent_name}
+          </span>
+        </div>
+      )}
 
       {/* Row 7: pending AI draft — one-click send */}
       {lead.pending_draft && (

@@ -11,7 +11,7 @@ import { MessageBubble } from "@/components/inbox/MessageBubble";
 import { SavedReplyMenu } from "@/components/inbox/SavedReplyMenu";
 import { AIDraftPanel } from "@/components/inbox/AIDraftPanel";
 import { TypingDots } from "@/components/inbox/TypingDots";
-import { ChannelIcon } from "@/components/inbox/ChannelIcon";
+import { ChannelIcon, channelLabel } from "@/components/inbox/ChannelIcon";
 import { GuestPanel } from "@/components/inbox/GuestPanel";
 import { PinnedInquiryBanner } from "@/components/inbox/PinnedInquiryBanner";
 import { CallLogCard, type CallTimelineItem } from "@/components/inbox/CallLogCard";
@@ -105,7 +105,7 @@ const CHANNEL_FILTERS = [
   { value: "",          label: "All" },
   { value: "whatsapp",  label: "WhatsApp" },
   { value: "instagram", label: "Instagram" },
-  { value: "voice",     label: "Voice" },
+  { value: "voice",     label: "Call" },
   { value: "web",       label: "Web" },
 ];
 
@@ -804,7 +804,7 @@ export default function InboxPage() {
                     <div className="text-sm font-semibold" style={{ color: "var(--haip-fg)" }}>{detail.guest_name || detail.guest_phone}</div>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <ChannelIcon channel={detail.channel} className="w-4 h-4" />
-                      <span className="text-xs capitalize" style={{ color: "var(--haip-fg-subtle)" }}>{detail.channel}</span>
+                      <span className="text-xs" style={{ color: "var(--haip-fg-subtle)" }}>{channelLabel(detail.channel)}</span>
                       <Badge variant={detail.status === "open" ? "success" : "ghost"} className="text-[10px] py-0 h-4">{detail.status}</Badge>
                       {/* HAIP Inbox full-parity pass, ticket 5: completeness
                           pill -- real data (not a fake "convert to lead"

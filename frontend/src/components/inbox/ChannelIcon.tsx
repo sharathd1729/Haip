@@ -80,6 +80,29 @@ const FALLBACK: ChannelConfig = {
   bg: "bg-zinc-100 dark:bg-zinc-800",
 };
 
+// Human-facing label per channel/source key — kept separate from CONFIGS so
+// every raw backend value (call/inbound_call/outbound_call/voice, etc.) maps
+// to one short word instead of the raw key leaking into the UI as literal
+// text (e.g. "voice" showing where an agent expects "Call").
+const LABELS: Record<string, string> = {
+  wa_direct: "WhatsApp", whatsapp: "WhatsApp", click_to_wa: "WhatsApp",
+  meta_ig: "Instagram", instagram: "Instagram",
+  inbound_call: "Call", outbound_call: "Call", call: "Call", voice: "Call",
+  ota_airbnb: "Airbnb", airbnb: "Airbnb",
+  ota_mmt: "MakeMyTrip", ota_booking: "Booking.com", ota_vrbo: "Vrbo", ota_goibibo: "Goibibo",
+  channel_manager: "Channel Manager", referral: "Referral", walk_in: "Walk-in",
+  website: "Website", web_chat: "Website", web: "Website", sms: "SMS",
+};
+const FALLBACK_LABEL = "Other";
+
+/** Human-facing label for a channel/source key — same normalization
+ * ChannelIcon uses internally, exported so non-icon contexts (e.g. a plain
+ * text list) can stay consistent without duplicating the map. */
+export function channelLabel(channel: string): string {
+  const key = channel.toLowerCase().replace(/ /g, "_");
+  return LABELS[key] ?? FALLBACK_LABEL;
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface ChannelIconProps {
@@ -87,31 +110,41 @@ interface ChannelIconProps {
   channel: string;
   /** Show as a larger pill with visible container (default: true) */
   showBg?: boolean;
+  /** Render the human-facing label ("Call", "WhatsApp", …) next to the icon */
+  showLabel?: boolean;
   className?: string;
 }
 
-export function ChannelIcon({ channel, showBg = true, className }: ChannelIconProps) {
+export function ChannelIcon({ channel, showBg = true, showLabel = false, className }: ChannelIconProps) {
   const key = channel.toLowerCase().replace(/ /g, "_");
   const cfg = CONFIGS[key] ?? FALLBACK;
+  const label = LABELS[key] ?? FALLBACK_LABEL;
 
-  if (!showBg) {
-    return (
-      <span className={cn("inline-flex items-center flex-shrink-0", cfg.color, className)}>
-        {cfg.icon}
-      </span>
-    );
-  }
-
-  return (
+  const iconEl = !showBg ? (
+    <span className={cn("inline-flex items-center flex-shrink-0", cfg.color, !showLabel && className)}>
+      {cfg.icon}
+    </span>
+  ) : (
     <span
       className={cn(
         "inline-flex w-[22px] h-[22px] rounded-md items-center justify-center flex-shrink-0",
         cfg.bg,
         cfg.color,
-        className,
+        !showLabel && className,
       )}
     >
       {cfg.icon}
+    </span>
+  );
+
+  if (!showLabel) {
+    return iconEl;
+  }
+
+  return (
+    <span className={cn("inline-flex items-center gap-1.5", className)}>
+      {iconEl}
+      <span className="text-xs font-medium" style={{ color: "var(--haip-fg-muted)" }}>{label}</span>
     </span>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Bed, ExternalLink, Star, UserCheck, Sparkles, Calendar, Users, Wallet, Building2, Phone, Mail, Loader2 } from "lucide-react";
-import { ChannelIcon } from "./ChannelIcon";
+import { ChannelIcon, channelLabel } from "./ChannelIcon";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProfileCompletenessWidget } from "./ProfileCompletenessWidget";
 import { FollowUpTasksPanel } from "./FollowUpTasksPanel";
@@ -220,8 +220,8 @@ export function GuestPanel({ detail }: { detail: ConversationDetail }) {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <ChannelIcon channel={detail.channel} />
-                <span className="text-[11px] capitalize" style={{ color: "var(--haip-fg-muted)" }}>
-                  {detail.channel}
+                <span className="text-[11px]" style={{ color: "var(--haip-fg-muted)" }}>
+                  {channelLabel(detail.channel)}
                 </span>
               </div>
               <span

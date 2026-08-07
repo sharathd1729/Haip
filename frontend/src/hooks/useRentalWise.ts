@@ -79,6 +79,11 @@ export function useLocalBookings(filters: RWBookingFilters = {}) {
           sort: filters.sort,
           page: filters.page,
           per_page: filters.per_page,
+          // Backend param names are date_from/date_to (bookings.py) --
+          // reusing check_in_from/to here just to keep one filter-field
+          // vocabulary across both the RentalWise proxy path and this one.
+          date_from: filters.check_in_from || undefined,
+          date_to: filters.check_in_to || undefined,
         },
       }).then(r => r.data),
     placeholderData: keepPreviousData,

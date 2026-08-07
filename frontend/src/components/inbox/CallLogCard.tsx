@@ -56,7 +56,7 @@ export function CallLogCard({ call }: { call: CallTimelineItem }) {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 text-xs font-bold text-gray-900">
-                Voice call · {call.direction}
+Call · {call.direction}
                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100">
                   Sarvam AI
                 </span>

@@ -25,7 +25,7 @@ export interface CallSummary {
   has_wrap_up: boolean;
 }
 
-interface CallFilters {
+export interface CallFilters {
   dateFrom?: string;
   dateTo?: string;
   disposition?: CallDisposition | "";

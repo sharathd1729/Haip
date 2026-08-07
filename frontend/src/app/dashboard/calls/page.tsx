@@ -18,8 +18,9 @@ const UploadModal = dynamic(
   () => import("@/components/calls/UploadModal").then(m => m.UploadModal),
   { ssr: false }
 );
-import { useCallsStore } from "@/store/calls";
+import { useCallsStore, type CallFilters } from "@/store/calls";
 import { useToast } from "@/components/ui/toast";
+import { MobileFilterSheet, MobileFilterTrigger } from "@/components/ui/MobileFilterSheet";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -508,12 +509,57 @@ function DialerModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ─── Filters panel content — shared between the desktop inline panel and
+// the mobile bottom sheet so there's one definition of these controls. ────
+
+function CallsFiltersContent({
+  filters, setFilters, hasFilters, resetFilters, layout,
+}: {
+  filters: CallFilters;
+  setFilters: (f: Partial<CallFilters>) => void;
+  hasFilters: boolean;
+  resetFilters: () => void;
+  layout: "row" | "column";
+}) {
+  return (
+    <div className={layout === "row" ? "flex flex-wrap items-center gap-2" : "flex flex-col gap-2.5"}>
+      <select
+        value={filters.disposition ?? ""}
+        onChange={e => setFilters({ disposition: e.target.value as any })}
+        className="text-xs rounded-lg px-2.5 py-1.5 focus:outline-none"
+        style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", color: "var(--haip-fg)" }}
+      >
+        <option value="">All dispositions</option>
+        {["pending","qualified","booked","lost","spam","callback"].map(d => (
+          <option key={d} value={d} className="capitalize">{d}</option>
+        ))}
+      </select>
+      <div className={cn("flex items-center gap-1.5", layout === "column" && "flex-wrap")}>
+        <Calendar size={12} style={{ color: "var(--haip-fg-subtle)" }} />
+        <input type="date" value={filters.dateFrom ?? ""} onChange={e => setFilters({ dateFrom: e.target.value })}
+          className="text-xs rounded-lg px-2 py-1.5 focus:outline-none"
+          style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", color: "var(--haip-fg)" }} />
+        <span className="text-xs" style={{ color: "var(--haip-fg-subtle)" }}>–</span>
+        <input type="date" value={filters.dateTo ?? ""} onChange={e => setFilters({ dateTo: e.target.value })}
+          className="text-xs rounded-lg px-2 py-1.5 focus:outline-none"
+          style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", color: "var(--haip-fg)" }} />
+      </div>
+      {hasFilters && (
+        <button onClick={resetFilters} className={cn("text-xs font-medium flex items-center gap-1", layout === "row" && "ml-auto")} style={{ color: "var(--haip-red)" }}>
+          <X size={11} /> Clear
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CallsPage() {
   const queryClient = useQueryClient();
   const { filters, setFilters, resetFilters, wrapUpQueue, dismissWrapUp } = useCallsStore();
   const [showFilters, setShowFilters] = useState(false);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [showDialer, setShowDialer] = useState(false);
   const [search, setSearch] = useState("");
@@ -584,7 +630,7 @@ export default function CallsPage() {
             </button>
             <button
               onClick={() => setShowFilters(v => !v)}
-              className={cn("flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors duration-150 font-medium")}
+              className={cn("hidden md:flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors duration-150 font-medium")}
               style={hasFilters
                 ? { background: "color-mix(in srgb, var(--primary) 8%, transparent)", borderColor: "var(--primary)", color: "var(--primary)" }
                 : { background: "transparent", borderColor: "var(--haip-border)", color: "var(--haip-fg-muted)" }}
@@ -592,6 +638,7 @@ export default function CallsPage() {
               <Filter size={12} /> Filters
               {hasFilters && <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--primary)" }} />}
             </button>
+            <MobileFilterTrigger onClick={() => setShowMobileFilters(true)} hasActiveFilters={hasFilters} />
             <button
               onClick={() => setShowUpload(true)}
               className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium transition-colors duration-150"
@@ -635,35 +682,10 @@ export default function CallsPage() {
           ))}
         </div>
 
-        {/* Filters */}
+        {/* Filters — desktop inline panel */}
         {showFilters && (
-          <div className="mt-3 flex flex-wrap items-center gap-2 p-3 rounded-xl" style={{ background: "var(--muted)" }}>
-            <select
-              value={filters.disposition ?? ""}
-              onChange={e => setFilters({ disposition: e.target.value as any })}
-              className="text-xs rounded-lg px-2.5 py-1.5 focus:outline-none"
-              style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", color: "var(--haip-fg)" }}
-            >
-              <option value="">All dispositions</option>
-              {["pending","qualified","booked","lost","spam","callback"].map(d => (
-                <option key={d} value={d} className="capitalize">{d}</option>
-              ))}
-            </select>
-            <div className="flex items-center gap-1.5">
-              <Calendar size={12} style={{ color: "var(--haip-fg-subtle)" }} />
-              <input type="date" value={filters.dateFrom ?? ""} onChange={e => setFilters({ dateFrom: e.target.value })}
-                className="text-xs rounded-lg px-2 py-1.5 focus:outline-none"
-                style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", color: "var(--haip-fg)" }} />
-              <span className="text-xs" style={{ color: "var(--haip-fg-subtle)" }}>–</span>
-              <input type="date" value={filters.dateTo ?? ""} onChange={e => setFilters({ dateTo: e.target.value })}
-                className="text-xs rounded-lg px-2 py-1.5 focus:outline-none"
-                style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", color: "var(--haip-fg)" }} />
-            </div>
-            {hasFilters && (
-              <button onClick={resetFilters} className="text-xs font-medium ml-auto flex items-center gap-1" style={{ color: "var(--haip-red)" }}>
-                <X size={11} /> Clear
-              </button>
-            )}
+          <div className="hidden md:block mt-3 p-3 rounded-xl" style={{ background: "var(--muted)" }}>
+            <CallsFiltersContent filters={filters} setFilters={setFilters} hasFilters={hasFilters} resetFilters={resetFilters} layout="row" />
           </div>
         )}
 
@@ -791,6 +813,11 @@ export default function CallsPage() {
 
       {/* ── Dialer modal ───────────────────────────────────────────────────── */}
       {showDialer && <DialerModal onClose={() => setShowDialer(false)} />}
+
+      {/* ── Filters — mobile bottom sheet ───────────────────────────────────── */}
+      <MobileFilterSheet open={showMobileFilters} onOpenChange={setShowMobileFilters} hasActiveFilters={hasFilters}>
+        <CallsFiltersContent filters={filters} setFilters={setFilters} hasFilters={hasFilters} resetFilters={resetFilters} layout="column" />
+      </MobileFilterSheet>
     </div>
   );
 }

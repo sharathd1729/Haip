@@ -388,18 +388,26 @@ export default function Leads360Page() {
         </div>
       </div>
 
-      {/* ── Stacked stage list (mobile) — sideways-scrolling sub-300px
-          Kanban columns are unusable on a phone; the stage filter pills
-          above already let you narrow to one stage, so this just stacks
-          whichever stage(s) are visible vertically instead. ─────────── */}
-      <div className="md:hidden flex-1 overflow-y-auto haip-scrollbar px-3 py-3 space-y-4">
+      {/* ── Stage slider (mobile) — sideways-scrolling sub-300px Kanban
+          columns are unusable on a phone, but stacking every stage
+          vertically (the previous approach) meant scrolling through the
+          entire pipeline just to see "Sold". This is a real swipeable
+          slider instead: one stage fills the screen at a time, snap-
+          scrolling horizontally between them. The stage-filter pills
+          above still work exactly as before (narrow columnsToRender to
+          one stage, which just makes this a single-slide view). ─────── */}
+      <div className="md:hidden flex-1 flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory haip-scrollbar-x">
         {columnsToRender.map(stage => (
-          <MobileStageSection
+          <div
             key={stage.key}
-            stage={stage}
-            filters={filters}
-            onStagesMeta={handleStagesMeta}
-          />
+            className="w-full flex-shrink-0 snap-center overflow-y-auto haip-scrollbar px-3 py-3"
+          >
+            <MobileStageSection
+              stage={stage}
+              filters={filters}
+              onStagesMeta={handleStagesMeta}
+            />
+          </div>
         ))}
       </div>
 
