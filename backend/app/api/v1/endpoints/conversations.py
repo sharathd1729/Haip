@@ -634,6 +634,22 @@ def retry_failed_message(
         if age > 86400:
             raise HTTPException(status_code=410, detail="Retry window (24h) has expired")
 
+    # Same bug class as approve_ai_draft (see comment above it): this
+    # unconditionally re-dispatched send_whatsapp regardless of the
+    # conversation's actual channel, so retrying a failed Instagram draft
+    # just failed again against WhatsApp. Route by real channel instead.
+    conversation = db.query(Conversation).filter_by(
+        id=conversation_id, tenant_id=current_user.tenant_id
+    ).first()
+    channel = conversation.channel.value if conversation and hasattr(conversation.channel, "value") else (
+        conversation.channel if conversation else None
+    )
+    if channel not in ("instagram", "whatsapp"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Retrying a send isn't supported for the '{channel}' channel yet.",
+        )
+
     msg.delivery_state = MessageDeliveryState.PENDING
     msg.delivery_error = None
     db.commit()
@@ -643,8 +659,12 @@ def retry_failed_message(
     msg.delivery_state = MessageDeliveryState.QUEUED
     db.commit()
 
-    from app.workers.tasks.send_whatsapp import send_whatsapp
-    send_whatsapp.delay(message_id=message_id, tenant_id=current_user.tenant_id)
+    if channel == "instagram":
+        from app.workers.tasks.send_instagram_dm import send_instagram_dm
+        send_instagram_dm.delay(message_id=message_id, tenant_id=current_user.tenant_id)
+    else:
+        from app.workers.tasks.send_whatsapp import send_whatsapp
+        send_whatsapp.delay(message_id=message_id, tenant_id=current_user.tenant_id)
 
     db.refresh(msg)
     return msg
