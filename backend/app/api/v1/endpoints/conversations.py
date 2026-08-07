@@ -276,6 +276,12 @@ def _msg_dict(m: Message) -> dict:
         "timestamp": _iso(m.created_at) or "",
         "sender_name": m.sender_name,
         "ai_drafted": m.is_ai_generated,
+        # None = still pending a decision, True = approved & sent, False =
+        # rejected. Never serialized before -- the frontend had no way to
+        # tell an already-approved draft from a still-pending one, so the
+        # Approve/Edit/Reject card kept showing forever even after the
+        # reply had actually gone out to the guest.
+        "was_approved": m.was_approved,
         "ai_confidence": m.ai_confidence,
         "is_internal": m.is_internal,
         "replied_to_message_id": m.replied_to_message_id,

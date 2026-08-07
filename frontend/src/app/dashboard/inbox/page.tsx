@@ -41,6 +41,10 @@ interface Message {
   timestamp: string;
   sender_name?: string;
   ai_drafted?: boolean;
+  // null/undefined = still pending a decision, true = approved & sent,
+  // false = rejected -- backend now serializes this (previously omitted
+  // entirely), which is what isAiDraft below gates on.
+  was_approved?: boolean | null;
   ai_confidence?: number;
   is_internal?: boolean;
   replied_to_message_id?: string;
@@ -1027,7 +1031,7 @@ export default function InboxPage() {
                         status={(row.msg.delivery_state ?? row.msg.status) as any}
                         deliveryError={row.msg.delivery_error}
                         timestamp={row.msg.timestamp}
-                        isAiDraft={!!(row.msg.ai_drafted && row.msg.direction === "outbound")}
+                        isAiDraft={!!(row.msg.ai_drafted && row.msg.direction === "outbound" && row.msg.was_approved == null)}
                         isInternal={row.msg.is_internal}
                         aiConfidence={row.msg.ai_confidence}
                         senderName={row.msg.direction === "outbound" ? row.msg.sender_name : (detail?.guest_name || detail?.guest_phone)}
