@@ -23,7 +23,9 @@ replies, unified lead record across every touchpoint.
 **M5 — NEXT** Acefone full integration + Hostaway sync + Owner Daily dashboard
 
 Active clients:
-- Ratha (luxury caravan) — CallerDesk IVR, WhatsApp live
+- Ratha (luxury caravan) — Vobiz IVR, WhatsApp live (migration `064`: moved
+  CallerDesk → Mcube → Vobiz-only; Mcube's Integration row is disconnected
+  but not deleted)
 - Jade (pool villas, Bangalore) — Acefone IVR, onboarding
 
 ---
@@ -40,7 +42,7 @@ Active clients:
 | Transcription | Sarvam AI (primary) → Deepgram (fallback) → Whisper (bulk) |
 | LLM | Router pattern — see LLM routing table below |
 | Auth | NextAuth.js + JWT (15m) + refresh token |
-| IVR | CallerDesk (Ratha) + Acefone (Jade) |
+| IVR | Vobiz (Ratha) + Acefone (Jade) — CallerDesk/Mcube adapters still exist in code (historical Ratha providers, not currently active for any tenant) |
 | WhatsApp | Meta Cloud API via client's own WABA credentials |
 | Region | AWS Mumbai ap-south-1 |
 
@@ -295,7 +297,9 @@ Backend auth is custom JWT (HS256) via `backend/app/api/v1/endpoints/auth.py` �
 `env.py` previously ran two "best-effort" setup statements before every migration transaction (`pg_terminate_backend(...)` and `SET lock_timeout`/`SET statement_timeout`), both wrapped in a silent `except: pass`. A failed statement poisons the rest of that connection's transaction in Postgres — so every migration after it would log "success" via Alembic's step-by-step logging (which fires before each step runs) while nothing ever actually committed, and `alembic_version` would never advance. This cost real time on both Neon (`neondb_owner` lacks `pg_signal_backend` — always failed) and Supabase (session pooler rejected the `SET` calls). Both statements are now removed. **If `alembic upgrade head` ever again logs success without `alembic_version` moving, suspect a silently-swallowed exception earlier in the same transaction, not a "did it really run" mystery** — check `env.py` first.
 
 **Known test debt — but do NOT assume it is all fixture drift.** As of 2026-07-25 the
-suite is **455 passing / 44 failing**. Some genuinely is drift (`test_auth.py` posts
+suite was **455 passing / 44 failing**; that count is now stale (multiple commits since,
+including this file's own Aug 7 pass) and needs a fresh full-suite run before being
+trusted for planning. Some genuinely is drift (`test_auth.py` posts
 OAuth2 form-encoded credentials to a JSON-only `/login`; `test_dashboard_api.py` unpacks
 a 4-key fixture into 3 variables).
 
@@ -318,11 +322,25 @@ use an AST scan for `log.*()` calls carrying non-stdlib kwargs in modules that u
 ## DOGRAH VOICE AI INTEGRATION (M5-Parallel)
 
 ### Active adapters
-- `backend/app/adapters/ivr/` — CallerDesk + Acefone (existing, do not touch)
+- `backend/app/adapters/ivr/` — CallerDesk, Acefone, Mcube, Vobiz (existing,
+  do not touch). Only Acefone (Jade) and Vobiz (Ratha) are live for a
+  tenant today; CallerDesk and Mcube adapters/webhooks remain in the
+  codebase (Mcube's webhook still rejects posts once an Integration is
+  marked disconnected — migration `064`) but aren't any tenant's active
+  provider.
 - `backend/app/adapters/voice/dograh/` — Dograh voice AI adapter (new, M5-parallel)
 
 ### Voice platform routing
-`voice_platform` field on `tenants` table determines which IVR adapter processes calls:
+⚠️ Two separate, similarly-named tenant fields exist — don't conflate them:
+- `tenants.ivr_provider` (`callerdesk`/`acefone`/`mcube`/`vobiz`) — which IVR
+  adapter `calls.py` and `call_ingest.py` use for a tenant's actual call
+  handling. This is the one migration `064` set to `'vobiz'` for Ratha.
+- `tenants.voice_platform` (`callerdesk`/`acefone`/`dograh`, default
+  `callerdesk`) — Dograh-specific routing gate, used only to decide whether
+  `webhooks_dograh.py` is in play for a tenant. Not read by the regular IVR
+  call-handling path at all.
+
+`voice_platform` determines which *Dograh-parallel* path processes calls:
 - `callerdesk` → existing CallerDesk adapter + `webhooks_callerdesk.py`
 - `acefone` → existing Acefone adapter + `webhooks_acefone.py`
 - `dograh` → new Dograh adapter + `webhooks_dograh.py` → `dograh_call_processor` task

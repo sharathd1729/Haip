@@ -20,7 +20,7 @@ class Tenant(Base, TimestampMixin):
     data_region = Column(String(20), default="ap-south-1", nullable=False)
 
     # IVR config
-    ivr_provider = Column(String(50), nullable=True)  # callerdesk / acefone
+    ivr_provider = Column(String(50), nullable=True)  # callerdesk / acefone / mcube / vobiz
     ivr_config = Column(JSON, default=dict)
 
     # WhatsApp config
