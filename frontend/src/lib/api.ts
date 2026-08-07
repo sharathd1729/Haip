@@ -153,7 +153,20 @@ api.interceptors.response.use(
 
       if (unrecoverable) {
         clearTokenCache();
-        signOut({ callbackUrl: "/login" });
+        signOut({ callbackUrl: "/login", redirect: true }).catch(() => {});
+        // PWA-blank-data-fix plan, Fix 2: signOut()'s redirect is a
+        // programmatic navigation fired from inside a promise chain --
+        // mobile browsers are known to throttle/drop exactly that kind of
+        // redirect on a page that was just resumed from background, which
+        // is precisely when this branch is most likely to fire. A direct
+        // location assignment isn't subject to the same throttling; only
+        // fires if the soft redirect above hasn't already landed.
+        setTimeout(() => {
+          if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+            console.warn("[auth] hard redirect fallback fired -- signOut() redirect did not land in time");
+            window.location.href = "/login";
+          }
+        }, 1500);
         return Promise.reject(error);
       }
 

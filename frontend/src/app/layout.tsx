@@ -5,6 +5,7 @@ import { Providers } from "@/components/providers";
 import { PWARegister } from "@/components/PWARegister";
 import { UpdateBanner } from "@/components/UpdateBanner";
 import { ConnectionBanner } from "@/components/ConnectionBanner";
+import { ResumeRevalidator } from "@/components/ResumeRevalidator";
 
 // Display / heading font: Outfit — per HAIP_Prototype.html, which pairs it
 // with Inter. Geometric with a tighter, more architectural feel than Manrope
@@ -86,6 +87,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <PWARegister />
         <UpdateBanner />
         <ConnectionBanner />
+        <ResumeRevalidator />
       </body>
     </html>
   );

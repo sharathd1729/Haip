@@ -26,7 +26,16 @@ export default auth((req: NextRequest & { auth: any }) => {
     }
   }
 
-  const isLoggedIn = !!req.auth;
+  // A session with a dead refresh token (expired past 30 days, revoked by
+  // A2's reuse-detection, or rotated server-side but the new token never
+  // made it back into the client's cookie because the app process was
+  // killed mid-request while backgrounded -- the PWA case) still has a
+  // truthy req.auth object; only session.error distinguishes it. Checking
+  // existence alone let the dashboard shell render fully (sidebar, topbar,
+  // user name -- all readable straight off the still-valid JWT payload)
+  // before every data query 401'd with no valid token to attach, which is
+  // what produced the reported "blank/zero" PWA symptom.
+  const isLoggedIn = !!req.auth && !req.auth.error;
 
   // ── Logged-in users ────────────────────────────────────────────────────────
   if (isLoggedIn) {
@@ -41,6 +50,13 @@ export default auth((req: NextRequest & { auth: any }) => {
   // ── Logged-out users ───────────────────────────────────────────────────────
   // Protect all /dashboard/* routes
   if (!isLoggedIn && pathname.startsWith("/dashboard")) {
+    // PWA-blank-data-fix plan, Section 3: distinguish "never logged in" from
+    // "session died server-side" in the logs -- this is the one signal that
+    // proves the middleware gate is actually catching real dead-refresh-token
+    // cases (and how often) rather than just existing in theory.
+    if (req.auth?.error) {
+      console.warn("[auth] middleware redirect: session.error =", req.auth.error, "path =", pathname);
+    }
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);

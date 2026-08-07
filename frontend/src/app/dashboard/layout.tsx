@@ -12,7 +12,16 @@ import { WorkspaceProvider } from "@/components/providers/WorkspaceProvider";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
-  if (!session) redirect("/login");
+  // A session whose refresh token died (expired, revoked by reuse-detection,
+  // or rotated server-side but never persisted client-side -- the PWA
+  // resume case) still passes `!!session`; only session.error distinguishes
+  // it. Missing this let the full shell (sidebar, topbar, user name -- all
+  // readable off the still-valid JWT payload) render before every data
+  // query 401'd, which is what produced the reported blank/zero PWA state.
+  if (!session || (session as { error?: string }).error) {
+    console.warn("[auth] dashboard layout redirect: session.error =", (session as { error?: string } | null)?.error ?? "no session");
+    redirect("/login");
+  }
 
   const user = session.user as {
     name?: string | null;
