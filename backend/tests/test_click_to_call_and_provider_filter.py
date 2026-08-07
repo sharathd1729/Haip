@@ -14,16 +14,17 @@ from app.models.call import Call, CallDirection
 from app.core.encryption import encrypt_credentials
 
 
-def _make_call(db, tenant_id, ivr_provider, ivr_call_id=None):
+def _make_call(db, tenant_id, ivr_provider, ivr_call_id=None, direction=CallDirection.INBOUND,
+                from_number="+919876543210", to_number="+912271264296", duration_seconds=30):
     call = Call(
         id=str(uuid.uuid4()),
         tenant_id=tenant_id,
         ivr_provider=ivr_provider,
         ivr_call_id=ivr_call_id or str(uuid.uuid4()),
-        direction=CallDirection.INBOUND,
-        from_number="+919876543210",
-        to_number="+912271264296",
-        duration_seconds=30,
+        direction=direction,
+        from_number=from_number,
+        to_number=to_number,
+        duration_seconds=duration_seconds,
     )
     db.add(call)
     db.commit()
@@ -97,6 +98,126 @@ def test_get_call_still_works_for_active_provider_call(client, tenant_and_user, 
         headers={"Authorization": f"Bearer {tenant_and_user['access_token']}"},
     )
     assert res.status_code == 200
+
+
+# ── guest_phone shows the real lead, not the IVR number (direction-aware) ───
+
+def test_list_calls_shows_lead_number_for_outbound_not_ivr_did(client, tenant_and_user, db):
+    """Regression: for an outbound call, from_number is the tenant's own
+    IVR/DID (Vobiz dials FROM the DID TO the guest) -- guest_phone must
+    show to_number (the real lead), not from_number."""
+    tenant = tenant_and_user["tenant"]
+    _make_call(
+        db, tenant.id, "vobiz", direction=CallDirection.OUTBOUND,
+        from_number="+912271264296",  # tenant's IVR/DID
+        to_number="+917249066854",    # the real lead
+    )
+
+    res = client.get(
+        "/api/v1/calls",
+        headers={"Authorization": f"Bearer {tenant_and_user['access_token']}"},
+    )
+    assert res.status_code == 200
+    item = res.json()["items"][0]
+    assert item["guest_phone"] == "+917249066854"
+    assert item["guest_phone"] != "+912271264296"
+
+
+def test_list_calls_shows_caller_number_for_inbound(client, tenant_and_user, db):
+    tenant = tenant_and_user["tenant"]
+    _make_call(
+        db, tenant.id, "vobiz", direction=CallDirection.INBOUND,
+        from_number="+917249066854", to_number="+912271264296",
+    )
+
+    res = client.get(
+        "/api/v1/calls",
+        headers={"Authorization": f"Bearer {tenant_and_user['access_token']}"},
+    )
+    assert res.status_code == 200
+    assert res.json()["items"][0]["guest_phone"] == "+917249066854"
+
+
+def test_get_call_detail_shows_lead_number_for_outbound_when_no_guest_linked(client, tenant_and_user, db):
+    tenant = tenant_and_user["tenant"]
+    call = _make_call(
+        db, tenant.id, "vobiz", direction=CallDirection.OUTBOUND,
+        from_number="+912271264296", to_number="+917249066854",
+    )
+
+    res = client.get(
+        f"/api/v1/calls/{call.id}",
+        headers={"Authorization": f"Bearer {tenant_and_user['access_token']}"},
+    )
+    assert res.status_code == 200
+    assert res.json()["guest_phone"] == "+917249066854"
+
+
+# ── is_missed + ?missed= filter ──────────────────────────────────────────────
+
+def test_missed_call_flagged_is_missed_true(client, tenant_and_user, db):
+    tenant = tenant_and_user["tenant"]
+    _make_call(db, tenant.id, "vobiz", direction=CallDirection.INBOUND, duration_seconds=0)
+
+    res = client.get(
+        "/api/v1/calls",
+        headers={"Authorization": f"Bearer {tenant_and_user['access_token']}"},
+    )
+    assert res.json()["items"][0]["is_missed"] is True
+
+
+def test_answered_inbound_call_is_not_missed(client, tenant_and_user, db):
+    tenant = tenant_and_user["tenant"]
+    _make_call(db, tenant.id, "vobiz", direction=CallDirection.INBOUND, duration_seconds=45)
+
+    res = client.get(
+        "/api/v1/calls",
+        headers={"Authorization": f"Bearer {tenant_and_user['access_token']}"},
+    )
+    assert res.json()["items"][0]["is_missed"] is False
+
+
+def test_outbound_no_answer_is_not_flagged_missed(client, tenant_and_user, db):
+    """An outbound attempt that didn't connect is a failed dial, not a
+    'missed call' in the way agents mean it (that's specifically an
+    unanswered inbound call)."""
+    tenant = tenant_and_user["tenant"]
+    _make_call(db, tenant.id, "vobiz", direction=CallDirection.OUTBOUND, duration_seconds=0)
+
+    res = client.get(
+        "/api/v1/calls",
+        headers={"Authorization": f"Bearer {tenant_and_user['access_token']}"},
+    )
+    assert res.json()["items"][0]["is_missed"] is False
+
+
+def test_missed_filter_returns_only_unanswered_inbound(client, tenant_and_user, db):
+    tenant = tenant_and_user["tenant"]
+    _make_call(db, tenant.id, "vobiz", direction=CallDirection.INBOUND, duration_seconds=0)   # missed
+    _make_call(db, tenant.id, "vobiz", direction=CallDirection.INBOUND, duration_seconds=30)  # answered
+    _make_call(db, tenant.id, "vobiz", direction=CallDirection.OUTBOUND, duration_seconds=0)  # failed dial
+
+    res = client.get(
+        "/api/v1/calls?missed=true",
+        headers={"Authorization": f"Bearer {tenant_and_user['access_token']}"},
+    )
+    body = res.json()
+    assert body["total"] == 1
+    assert body["items"][0]["is_missed"] is True
+
+
+def test_missed_false_with_inbound_returns_only_answered(client, tenant_and_user, db):
+    tenant = tenant_and_user["tenant"]
+    _make_call(db, tenant.id, "vobiz", direction=CallDirection.INBOUND, duration_seconds=0)
+    _make_call(db, tenant.id, "vobiz", direction=CallDirection.INBOUND, duration_seconds=30)
+
+    res = client.get(
+        "/api/v1/calls?missed=false",
+        headers={"Authorization": f"Bearer {tenant_and_user['access_token']}"},
+    )
+    body = res.json()
+    assert body["total"] == 1
+    assert body["items"][0]["duration_seconds"] == 30
 
 
 # ── POST /calls/click-to-call (Vobiz) ────────────────────────────────────────

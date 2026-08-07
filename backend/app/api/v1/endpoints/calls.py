@@ -61,6 +61,7 @@ def list_calls(
     limit: int = 20,
     direction: Optional[str] = None,
     agent_id: Optional[str] = None,
+    missed: Optional[bool] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -80,6 +81,17 @@ def list_calls(
         q = q.filter(Call.direction == direction)
     if agent_id:
         q = q.filter(Call.agent_id == agent_id)
+    # A missed call is specifically an unanswered inbound call -- see
+    # _guest_facing_number's docstring for why outbound no-answers don't
+    # count. Pass missed=true for the Calls page's "Missed" chip, or
+    # missed=false alongside direction=inbound for "Incoming" (answered
+    # inbound only).
+    if missed is not None:
+        q = q.filter(Call.direction == "inbound")
+        if missed:
+            q = q.filter((Call.duration_seconds == None) | (Call.duration_seconds == 0))  # noqa: E711
+        else:
+            q = q.filter(Call.duration_seconds > 0)
 
     total = q.count()
     calls = q.order_by(Call.created_at.desc()).offset((page - 1) * limit).limit(limit).all()
@@ -533,20 +545,35 @@ def _get_recording_url(s3_key: str | None, call_id: str | None = None) -> str | 
     return None
 
 
+def _guest_facing_number(call: Call) -> str:
+    """The lead's own number, regardless of call direction. For outbound
+    calls from_number is the tenant's own IVR/DID (Vobiz dials FROM the DID
+    TO the guest) -- from_number there is never the right number to show a
+    human. See call_ingest.py's _dedup_guest for the matching identity-
+    resolution fix."""
+    direction = call.direction.value if hasattr(call.direction, "value") else call.direction
+    return call.to_number if direction == "outbound" else call.from_number
+
+
 def _serialize_call(call: Call, guest_name: Optional[str] = None) -> dict:
     """Lightweight serializer used in the list endpoint."""
     disp = call.human_disposition or call.ai_disposition
+    direction = call.direction.value if hasattr(call.direction, "value") else call.direction
     return {
         "id": call.id,
-        "direction": call.direction.value if hasattr(call.direction, "value") else call.direction,
+        "direction": direction,
         "from_number": call.from_number,
         "to_number": call.to_number,
         "duration_seconds": call.duration_seconds or 0,
+        # A missed call is specifically an inbound call nobody answered --
+        # an outbound attempt that didn't connect is a failed dial, not a
+        # "missed call" in the way agents mean it.
+        "is_missed": direction == "inbound" and not (call.duration_seconds or 0),
         "started_at": call.started_at,
         "ended_at": call.ended_at,
         "guest_id": call.guest_id,
         "guest_name": guest_name,
-        "guest_phone": call.from_number,
+        "guest_phone": _guest_facing_number(call),
         "inquiry_id": call.inquiry_id,
         "transcription_status": call.transcription_status,
         "ai_score_status": call.ai_score_status,
@@ -635,14 +662,16 @@ def _serialize_call_detail(call: Call, db) -> dict:
     disp = call.human_disposition or call.ai_disposition
     recording_url = _get_recording_url(call.recording_s3_key, call_id=call.id)
 
+    _direction = call.direction.value if hasattr(call.direction, "value") else call.direction
     return {
         "id": call.id,
-        "direction": call.direction.value if hasattr(call.direction, "value") else call.direction,
+        "direction": _direction,
         "duration_seconds": call.duration_seconds or 0,
+        "is_missed": _direction == "inbound" and not (call.duration_seconds or 0),
         "started_at": call.started_at,
         "ended_at": call.ended_at,
         "guest_id": call.guest_id,
-        "guest_phone": guest.phone if guest else call.from_number,
+        "guest_phone": guest.phone if guest else _guest_facing_number(call),
         "guest_name": guest.name if guest else None,
         "agent_name": None,
         "inquiry_id": call.inquiry_id,

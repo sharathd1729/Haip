@@ -63,6 +63,7 @@ def _make_call(call_id="c1", tenant_id="t1"):
     c.recording_url_ivr = "https://ivr.example.com/rec.mp3"
     c.recording_status = RecordingStatus.PENDING
     c.recording_error = None
+    c.duration_seconds = 30  # "normal" call by default; short-call tests override this
     return c
 
 
@@ -153,6 +154,38 @@ class TestFetchAndStoreRecording:
         with pytest.raises(Exception):
             _run_fetch(call, retries=0, s3_side_effect=RuntimeError("specific error"))
         assert "specific error" in (call.recording_error or "")
+
+    def test_short_call_skips_transcription_and_scoring(self):
+        """Calls under 10s never carry a real conversation -- shouldn't
+        burn a transcription/scoring API call, and previously sat at
+        transcription_status='queued' forever since nothing dequeued them."""
+        call = _make_call()
+        call.duration_seconds = 3
+        _run_fetch(call)
+        assert call.transcription_status == "skipped_short_call"
+        assert call.ai_score_status == "skipped_short_call"
+        # Recording itself still gets stored -- only AI processing is skipped.
+        assert call.recording_status == RecordingStatus.AVAILABLE
+
+    def test_call_at_exactly_threshold_is_not_skipped(self):
+        call = _make_call()
+        call.duration_seconds = 10
+        _run_fetch(call)
+        assert call.transcription_status != "skipped_short_call"
+        assert call.transcription_status == "queued"
+
+    def test_call_with_zero_duration_is_skipped(self):
+        call = _make_call()
+        call.duration_seconds = 0
+        _run_fetch(call)
+        assert call.transcription_status == "skipped_short_call"
+        assert call.ai_score_status == "skipped_short_call"
+
+    def test_long_call_still_queues_transcription(self):
+        call = _make_call()
+        call.duration_seconds = 45
+        _run_fetch(call)
+        assert call.transcription_status == "queued"
 
     def test_call_not_found_returns_early(self):
         db = _mock_db(call=None)

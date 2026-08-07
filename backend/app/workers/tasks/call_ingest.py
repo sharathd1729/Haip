@@ -53,8 +53,18 @@ def ingest_call(self, payload: dict, tenant_id: str, ivr_provider: str):
                 log.info("call_already_ingested", call_id=existing.id)
                 return {"call_id": existing.id, "status": "already_exists"}
 
-            # Dedup / upsert guest by phone
-            guest = _dedup_guest(db, tenant_id, normalized.from_number)
+            # Dedup / upsert guest by phone. Direction-aware: for an inbound
+            # call from_number IS the guest, but for outbound click-to-call
+            # from_number is the tenant's own IVR/DID number (see
+            # VobizAdapter.initiate_click_to_call -- Vobiz dials FROM the DID
+            # TO the guest) and to_number is the real lead. Using
+            # from_number unconditionally here resolved every outbound call
+            # to a bogus "guest" whose phone was literally the tenant's own
+            # IVR number, which is also why it showed up as the displayed
+            # number on the Calls page (calls.py's serializers had the same
+            # bug, fixed alongside this).
+            guest_number = normalized.to_number if normalized.direction == "outbound" else normalized.from_number
+            guest = _dedup_guest(db, tenant_id, guest_number)
 
             # HAIP Inbox UI-fidelity pass, ticket 1: a guest whose only
             # touchpoint is a phone call had no Conversation row at all
@@ -100,7 +110,7 @@ def ingest_call(self, payload: dict, tenant_id: str, ivr_provider: str):
             db.commit()
             db.refresh(call)
 
-            log.info("call_created", call_id=call.id, guest_token=_phone_token(normalized.from_number))
+            log.info("call_created", call_id=call.id, guest_token=_phone_token(guest_number))
 
             # Queue recording fetch + transcription
             fetch_and_store_recording.delay(
@@ -125,6 +135,11 @@ def ingest_call(self, payload: dict, tenant_id: str, ivr_provider: str):
 #   attempt 2 failed → retry in +6 h
 #   attempt 3 failed → retry in +24 h
 #   attempt 4 failed → permanently_missing (no further retries)
+# Calls shorter than this never reach transcription/AI scoring -- too short
+# to carry a real conversation (misdial, voicemail beep, an outbound leg
+# that connected for a fraction of a second before hanging up).
+_MIN_DURATION_FOR_AI_SECONDS = 10
+
 _RETRY_DELAYS = [3600, 21600, 86400]   # 1 h, 6 h, 24 h
 _RETRY_STATES = [
     RecordingStatus.MISSING_RETRY_1,
@@ -217,7 +232,18 @@ def _do_fetch_recording(task_self, call_id: str, recording_url: str, tenant_id: 
         call.recording_status = RecordingStatus.AVAILABLE
         call.recording_error = None
 
-        if settings.TRANSCRIPTION_PAUSED:
+        if (call.duration_seconds or 0) < _MIN_DURATION_FOR_AI_SECONDS:
+            # Too short to carry a real conversation -- typically a
+            # misdial, voicemail beep, or an outbound leg that connected
+            # for a fraction of a second before hanging up. Not worth a
+            # transcription/scoring API call, and previously these sat at
+            # transcription_status="queued" forever since nothing ever
+            # dequeued them.
+            call.transcription_status = "skipped_short_call"
+            call.ai_score_status = "skipped_short_call"
+            db.commit()
+            log.info("recording_stored_call_too_short_for_ai", call_id=call_id, duration_seconds=call.duration_seconds)
+        elif settings.TRANSCRIPTION_PAUSED:
             call.transcription_status = "pending"
             db.commit()
             log.info("recording_stored_transcription_paused", call_id=call_id, s3_key=s3_key)

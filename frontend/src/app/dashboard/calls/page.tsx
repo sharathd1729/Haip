@@ -6,7 +6,8 @@ import api from "@/lib/api";
 import {
   Phone, Upload, X, Filter, Calendar, Sparkles,
   Search, ChevronRight, TrendingUp, TrendingDown, Minus, AlertCircle,
-  MessageSquare, Loader2,
+  MessageSquare, Loader2, PhoneIncoming, PhoneOutgoing, PhoneMissed,
+  Delete, PhoneCall,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EmptyCalls } from "@/components/empty-states/EmptyCalls";
@@ -27,6 +28,7 @@ interface CallItem {
   started_at: string;
   duration_seconds: number;
   direction: "inbound" | "outbound";
+  is_missed?: boolean;
   guest_phone: string;
   guest_name?: string;
   agent_name?: string;
@@ -34,6 +36,7 @@ interface CallItem {
   qa_score?: number;
   sentiment?: "positive" | "negative" | "neutral";
   has_transcript: boolean;
+  transcription_status?: string;
   transcript_text?: string;
   ai_summary?: string;
   call_date?: string;
@@ -84,6 +87,17 @@ function SentimentIcon({ s }: { s?: string }) {
   return <Minus size={12} style={{ color: "var(--haip-fg-subtle)" }} />;
 }
 
+function CallDirectionIcon({ call }: { call: Pick<CallItem, "direction" | "is_missed"> }) {
+  if (call.is_missed) return <PhoneMissed size={11} className="text-rose-500" />;
+  if (call.direction === "outbound") return <PhoneOutgoing size={11} className="text-blue-500" />;
+  return <PhoneIncoming size={11} className="text-emerald-500" />;
+}
+
+function callDirectionLabel(call: Pick<CallItem, "direction" | "is_missed">): string {
+  if (call.is_missed) return "Missed";
+  return call.direction === "outbound" ? "Outgoing" : "Incoming";
+}
+
 // ─── Call row ─────────────────────────────────────────────────────────────────
 
 function CallRow({ call, onClick }: { call: CallItem; onClick: () => void }) {
@@ -99,15 +113,24 @@ function CallRow({ call, onClick }: { call: CallItem; onClick: () => void }) {
       style={{ borderBottom: "1px solid var(--haip-border)" }}
     >
       <div className="flex items-center gap-3">
-        {/* Avatar initial */}
-        <div
-          className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
-          style={{
-            background: "color-mix(in srgb, var(--primary) 12%, transparent)",
-            color: "var(--primary)",
-          }}
-        >
-          {name[0].toUpperCase()}
+        {/* Avatar initial, direction badge in the corner */}
+        <div className="relative flex-shrink-0">
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold"
+            style={{
+              background: "color-mix(in srgb, var(--primary) 12%, transparent)",
+              color: "var(--primary)",
+            }}
+          >
+            {name[0].toUpperCase()}
+          </div>
+          <div
+            className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center"
+            style={{ background: "var(--card, #fff)", border: "1px solid var(--haip-border)" }}
+            title={callDirectionLabel(call)}
+          >
+            <CallDirectionIcon call={call} />
+          </div>
         </div>
 
         {/* Left: name + phone token */}
@@ -118,7 +141,9 @@ function CallRow({ call, onClick }: { call: CallItem; onClick: () => void }) {
 
         {/* Center: transcript snippet */}
         <p className="flex-1 text-xs truncate hidden sm:block" style={{ color: "var(--haip-fg-subtle)" }}>
-          {snippet || (call.has_transcript ? "Transcript available" : "No transcript yet")}
+          {snippet
+            || (call.transcription_status === "skipped_short_call" ? "Too short for AI analysis"
+              : call.has_transcript ? "Transcript available" : "No transcript yet")}
         </p>
 
         {/* Right: QA badge + duration + time */}
@@ -382,6 +407,87 @@ function CallSlideOver({ callId, onClose }: { callId: string; onClose: () => voi
   );
 }
 
+// ─── Dialer modal ───────────────────────────────────────────────────────────
+
+const DIAL_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"];
+
+function DialerModal({ onClose }: { onClose: () => void }) {
+  const { toast } = useToast();
+  const [number, setNumber] = useState("");
+
+  const call = useMutation({
+    mutationFn: (guest_number: string) => api.post("/calls/click-to-call", { guest_number }),
+    onSuccess: () => {
+      toast({ variant: "success", title: "Calling…", description: "Your phone will ring shortly." });
+      onClose();
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.detail ?? "Could not start call";
+      toast({ variant: "error", title: "Call failed", description: msg });
+    },
+  });
+
+  const press = (k: string) => setNumber(n => n + k);
+  const backspace = () => setNumber(n => n.slice(0, -1));
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
+      <div
+        className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[300px] rounded-2xl overflow-hidden"
+        style={{ background: "var(--haip-card, #fff)", boxShadow: "0 20px 40px rgba(0,0,0,0.2)" }}
+      >
+        <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid var(--haip-border)" }}>
+          <p className="text-sm font-semibold" style={{ color: "var(--haip-fg)" }}>New call</p>
+          <button onClick={onClose} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-muted" style={{ color: "var(--haip-fg-subtle)" }}>
+            <X size={14} />
+          </button>
+        </div>
+
+        <div className="p-5 flex flex-col items-center gap-4">
+          <div className="w-full flex items-center justify-center gap-2">
+            <input
+              value={number}
+              onChange={e => setNumber(e.target.value.replace(/[^\d+*#]/g, ""))}
+              placeholder="+91 98765 43210"
+              autoFocus
+              className="flex-1 text-center text-lg font-semibold tabular-nums px-2 py-2 rounded-xl outline-none"
+              style={{ color: "var(--haip-fg)", background: "var(--muted)" }}
+            />
+            {number && (
+              <button onClick={backspace} className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-muted flex-shrink-0" style={{ color: "var(--haip-fg-muted)" }}>
+                <Delete size={16} />
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            {DIAL_KEYS.map(k => (
+              <button
+                key={k}
+                onClick={() => press(k)}
+                className="w-14 h-14 rounded-full text-lg font-semibold transition-colors duration-150"
+                style={{ background: "var(--muted)", color: "var(--haip-fg)" }}
+              >
+                {k}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => number.trim() && call.mutate(number.trim())}
+            disabled={call.isPending || !number.trim()}
+            className="w-14 h-14 rounded-full flex items-center justify-center text-white disabled:opacity-50 mt-1"
+            style={{ background: "var(--primary)" }}
+          >
+            {call.isPending ? <Loader2 size={20} className="animate-spin" /> : <PhoneCall size={20} />}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CallsPage() {
@@ -389,19 +495,24 @@ export default function CallsPage() {
   const { filters, setFilters, resetFilters, wrapUpQueue, dismissWrapUp } = useCallsStore();
   const [showFilters, setShowFilters] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
+  const [showDialer, setShowDialer] = useState(false);
   const [search, setSearch] = useState("");
   const [activeCallId, setActiveCallId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [callType, setCallType] = useState<"all" | "missed" | "incoming" | "outgoing">("all");
   const pageSize = 20;
 
   const { data, isLoading, isError, error } = useQuery<{ items: CallItem[]; total: number }>({
-    queryKey: ["calls", filters, page],
+    queryKey: ["calls", filters, page, callType],
     queryFn: () => {
-      const params: Record<string, string | number> = { page, limit: pageSize };
+      const params: Record<string, string | number | boolean> = { page, limit: pageSize };
       if (filters.disposition) params.disposition = filters.disposition;
       if (filters.dateFrom)    params.date_from = filters.dateFrom;
       if (filters.dateTo)      params.date_to = filters.dateTo;
       if (filters.agentId)     params.agent_id = filters.agentId;
+      if (callType === "missed") params.missed = true;
+      if (callType === "incoming") { params.direction = "inbound"; params.missed = false; }
+      if (callType === "outgoing") params.direction = "outbound";
       return api.get("/calls", { params }).then(r => ({
         items: r.data?.items ?? r.data ?? [],
         total: r.data?.total ?? (r.data?.items ?? r.data ?? []).length,
@@ -413,7 +524,7 @@ export default function CallsPage() {
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  useEffect(() => { setPage(1); }, [filters]);
+  useEffect(() => { setPage(1); }, [filters, callType]);
 
   const filtered = search.trim()
     ? calls.filter(c =>
@@ -445,6 +556,13 @@ export default function CallsPage() {
           </div>
           <div className="flex items-center gap-2">
             <button
+              onClick={() => setShowDialer(true)}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium transition-colors duration-150"
+              style={{ background: "var(--haip-sidebar, #0B1F3A)", color: "#fff" }}
+            >
+              <PhoneCall size={12} /> Dial
+            </button>
+            <button
               onClick={() => setShowFilters(v => !v)}
               className={cn("flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors duration-150 font-medium")}
               style={hasFilters
@@ -474,6 +592,27 @@ export default function CallsPage() {
             className="w-full pl-8 pr-4 py-2 text-sm rounded-md focus:outline-none transition-shadow"
             style={{ background: "var(--input-bg)", border: "1px solid var(--haip-border)", color: "var(--haip-fg)" }}
           />
+        </div>
+
+        {/* Call-type chips */}
+        <div className="flex items-center gap-1.5 mt-2.5">
+          {([
+            ["all", "All"],
+            ["missed", "Missed"],
+            ["incoming", "Incoming"],
+            ["outgoing", "Outgoing"],
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setCallType(key)}
+              className="text-xs px-2.5 py-1 rounded-full font-medium border transition-colors duration-150"
+              style={callType === key
+                ? { background: "color-mix(in srgb, var(--primary) 10%, transparent)", borderColor: "var(--primary)", color: "var(--primary)" }
+                : { background: "transparent", borderColor: "var(--haip-border)", color: "var(--haip-fg-muted)" }}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         {/* Filters */}
@@ -606,6 +745,9 @@ export default function CallsPage() {
           onSuccess={() => { queryClient.invalidateQueries({ queryKey: ["calls"] }); setShowUpload(false); }}
         />
       )}
+
+      {/* ── Dialer modal ───────────────────────────────────────────────────── */}
+      {showDialer && <DialerModal onClose={() => setShowDialer(false)} />}
     </div>
   );
 }
