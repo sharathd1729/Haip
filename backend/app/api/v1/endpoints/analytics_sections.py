@@ -33,6 +33,7 @@ from app.models.conversation import Conversation, Message, MessageDirection, Cha
 from app.models.call import Call
 from app.models.property import Stay, Property
 from app.models.integration import Integration
+from app.models.tenant import Tenant
 from app.models.score import CallScore
 from app.core.cache import cache_key, get_cached, set_cached
 
@@ -60,6 +61,14 @@ def _period(range_days: int):
 
 def _safe_pct(num: float | int, den: float | int) -> float:
     return round(num / den * 100, 1) if den else 0.0
+
+
+def _active_ivr_provider(db: Session, tid: str) -> Optional[str]:
+    """A tenant's Call rows may still include a disconnected provider's
+    historical recordings (e.g. Mcube after migration 064) -- callers
+    should filter Call.ivr_provider == this value whenever it's set."""
+    row = db.query(Tenant.ivr_provider).filter(Tenant.id == tid).first()
+    return row.ivr_provider if row else None
 
 
 def _month_start(now: datetime) -> datetime:
@@ -645,6 +654,7 @@ def operations_analytics(
     start, _ = _period(range_days)
     prev_start = start - timedelta(days=range_days)
     today_str = now.date().isoformat()
+    ivr_provider = _active_ivr_provider(db, tid)
 
     from app.models.user import User as UserModel, UserRole
 
@@ -656,10 +666,13 @@ def operations_analytics(
     ).all()
 
     team_size = len(agents)
-    calls_today = db.query(func.count(Call.id)).filter(
+    calls_today_q = db.query(func.count(Call.id)).filter(
         Call.tenant_id == tid,
         Call.started_at >= today_str,
-    ).scalar() or 0
+    )
+    if ivr_provider:
+        calls_today_q = calls_today_q.filter(Call.ivr_provider == ivr_provider)
+    calls_today = calls_today_q.scalar() or 0
 
     # Open conversations
     open_convs = db.query(func.count(Conversation.id)).filter(
@@ -710,16 +723,17 @@ def operations_analytics(
     agent_ids = [a.id for a in agents]
     call_stats_by_agent: dict = {}
     if agent_ids:
-        call_rows = (
+        call_rows_q = (
             db.query(
                 Call.agent_id,
                 func.count(Call.id),
                 func.avg(case((Call.ai_score.isnot(None), Call.ai_score))),
             )
             .filter(Call.tenant_id == tid, Call.agent_id.in_(agent_ids), Call.started_at >= start.isoformat())
-            .group_by(Call.agent_id)
-            .all()
         )
+        if ivr_provider:
+            call_rows_q = call_rows_q.filter(Call.ivr_provider == ivr_provider)
+        call_rows = call_rows_q.group_by(Call.agent_id).all()
         call_stats_by_agent = {row[0]: (row[1] or 0, float(row[2] or 0)) for row in call_rows}
 
     inq_stats_by_agent: dict = {}
@@ -825,6 +839,7 @@ def ai_analytics(
     today_str = now.date().isoformat()
     mtd_start = _month_start(now)
     prev_mtd_start = _prev_month_start(now)
+    ivr_provider = _active_ivr_provider(db, tid)
 
     from app.models.user import User as UserModel
 
@@ -867,15 +882,18 @@ def ai_analytics(
     edit_pct        = _safe_pct(max(0, edited_n), total_drafts)
 
     # Cost MTD
+    def _active_only(q):
+        return q.filter(Call.ivr_provider == ivr_provider) if ivr_provider else q
+
     def _cost(since, end):
-        row = db.query(
+        row = _active_only(db.query(
             func.sum(Call.transcription_cost_usd).label("trans"),
             func.sum(Call.llm_cost_usd).label("llm"),
         ).filter(
             Call.tenant_id == tid,
             Call.created_at >= since.isoformat(),
             Call.created_at < end.isoformat(),
-        ).first()
+        )).first()
         return float(row.trans or 0), float(row.llm or 0)
 
     trans_mtd, llm_mtd = _cost(mtd_start, now)
@@ -883,33 +901,33 @@ def ai_analytics(
     total_cost_mtd  = trans_mtd + llm_mtd
     total_cost_prev = trans_prev + llm_prev
 
-    calls_total = db.query(func.count(Call.id)).filter(
+    calls_total = _active_only(db.query(func.count(Call.id)).filter(
         Call.tenant_id == tid, Call.started_at >= start.isoformat(),
-    ).scalar() or 0
+    )).scalar() or 0
     avg_cost_per_call = round(total_cost_mtd / max(1, calls_total), 4)
 
     # Auto-scored %
-    scored = db.query(func.count(Call.id)).filter(
+    scored = _active_only(db.query(func.count(Call.id)).filter(
         Call.tenant_id == tid, Call.ai_score_status == "done",
         Call.started_at >= start.isoformat(),
-    ).scalar() or 0
+    )).scalar() or 0
     calls_auto_scored_pct = _safe_pct(scored, calls_total)
 
     # Pipeline health
-    pending_trans = db.query(func.count(Call.id)).filter(
+    pending_trans = _active_only(db.query(func.count(Call.id)).filter(
         Call.tenant_id == tid, Call.transcription_status == "pending",
-    ).scalar() or 0
-    pending_score = db.query(func.count(Call.id)).filter(
+    )).scalar() or 0
+    pending_score = _active_only(db.query(func.count(Call.id)).filter(
         Call.tenant_id == tid, Call.ai_score_status == "pending",
-    ).scalar() or 0
-    done_today = db.query(func.count(Call.id)).filter(
+    )).scalar() or 0
+    done_today = _active_only(db.query(func.count(Call.id)).filter(
         Call.tenant_id == tid, Call.ai_score_status == "done",
         Call.updated_at >= today_str,
-    ).scalar() or 0
-    failed_today = db.query(func.count(Call.id)).filter(
+    )).scalar() or 0
+    failed_today = _active_only(db.query(func.count(Call.id)).filter(
         Call.tenant_id == tid, Call.ai_score_status == "failed",
         Call.updated_at >= today_str,
-    ).scalar() or 0
+    )).scalar() or 0
 
     # Acceptance trend (daily)
     trend_rows = db.query(
@@ -936,14 +954,14 @@ def ai_analytics(
     ]
 
     # Cost trend (daily from calls)
-    cost_rows = db.query(
+    cost_rows = _active_only(db.query(
         func.date(Call.started_at).label("d"),
         func.sum(Call.transcription_cost_usd).label("trans"),
         func.sum(Call.llm_cost_usd).label("llm"),
     ).filter(
         Call.tenant_id == tid,
         Call.started_at >= start.isoformat(),
-    ).group_by(func.date(Call.started_at)).order_by(func.date(Call.started_at)).all()
+    )).group_by(func.date(Call.started_at)).order_by(func.date(Call.started_at)).all()
 
     cost_trend = [
         AICostTrendPoint(
