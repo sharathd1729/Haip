@@ -411,6 +411,18 @@ function CallSlideOver({ callId, onClose }: { callId: string; onClose: () => voi
 
 const DIAL_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"];
 
+// Dial pad only collects digits/*/# -- normalize to E.164 before sending so
+// a bare "918179631737" or "8179631737" doesn't reach the backend as
+// something Vobiz's Call API silently rejects. Mirrors the same "+91"
+// convention used throughout the backend's own phone normalization.
+function toE164In(raw: string): string {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("+")) return trimmed;
+  const digits = trimmed.replace(/^0+/, "");
+  if (digits.startsWith("91") && digits.length === 12) return `+${digits}`;
+  return `+91${digits}`;
+}
+
 function DialerModal({ onClose }: { onClose: () => void }) {
   const { toast } = useToast();
   const [number, setNumber] = useState("");
@@ -422,7 +434,15 @@ function DialerModal({ onClose }: { onClose: () => void }) {
       onClose();
     },
     onError: (err: any) => {
-      const msg = err?.response?.data?.detail ?? "Could not start call";
+      // FastAPI validation errors (422) return `detail` as an array of
+      // objects, not a string -- rendering that directly produced the
+      // unhelpful generic fallback instead of the real reason.
+      const raw = err?.response?.data?.detail;
+      const msg = typeof raw === "string"
+        ? raw
+        : Array.isArray(raw)
+          ? raw.map((e: any) => e?.msg ?? JSON.stringify(e)).join("; ")
+          : err?.message || "Could not start call — check the network tab for details";
       toast({ variant: "error", title: "Call failed", description: msg });
     },
   });
@@ -475,7 +495,7 @@ function DialerModal({ onClose }: { onClose: () => void }) {
           </div>
 
           <button
-            onClick={() => number.trim() && call.mutate(number.trim())}
+            onClick={() => number.trim() && call.mutate(toE164In(number))}
             disabled={call.isPending || !number.trim()}
             className="w-14 h-14 rounded-full flex items-center justify-center text-white disabled:opacity-50 mt-1"
             style={{ background: "var(--primary)" }}
