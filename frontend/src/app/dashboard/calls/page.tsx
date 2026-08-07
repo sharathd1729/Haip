@@ -718,7 +718,30 @@ export default function CallsPage() {
             </p>
           </div>
         ) : filtered.length === 0 ? (
-          <EmptyCalls />
+          callType !== "all" || search.trim() ? (
+            // A chip/search filter narrowed a non-empty call log down to
+            // zero rows -- that's not "no IVR connected", it's just "no
+            // matches". EmptyCalls' onboarding card was showing regardless
+            // of which case this was, telling an already-connected tenant
+            // to go connect their IVR provider.
+            <div className="flex flex-col items-center justify-center py-24 text-center gap-1.5">
+              <PhoneMissed size={26} style={{ color: "var(--haip-fg-subtle)" }} />
+              <p className="font-semibold" style={{ color: "var(--haip-fg)" }}>
+                No {callType !== "all" ? callType : ""} calls{search.trim() ? " match your search" : ""}
+              </p>
+              {(callType !== "all" || search.trim()) && (
+                <button
+                  onClick={() => { setCallType("all"); setSearch(""); }}
+                  className="text-xs font-medium mt-1"
+                  style={{ color: "var(--primary)" }}
+                >
+                  Clear filters
+                </button>
+              )}
+            </div>
+          ) : (
+            <EmptyCalls />
+          )
         ) : (
           filtered.map(call => (
             <CallRow key={call.id} call={call} onClick={() => setActiveCallId(call.id)} />
