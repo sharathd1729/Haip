@@ -7,6 +7,7 @@ import mimetypes
 import os
 import uuid
 import boto3
+import httpx
 from botocore.config import Config
 from datetime import datetime, timezone
 from app.core.database import get_db
@@ -433,9 +434,25 @@ async def click_to_call(
             f"/outbound-answer?guest_number={quote(req.guest_number)}"
         )
         adapter = VobizAdapter(auth_id=auth_id, auth_token=auth_token)
-        call_id = await adapter.initiate_click_to_call(
-            agent_number, req.guest_number, did_number=did_number, answer_url=answer_url,
-        )
+        try:
+            call_id = await adapter.initiate_click_to_call(
+                agent_number, req.guest_number, did_number=did_number, answer_url=answer_url,
+            )
+        except httpx.HTTPStatusError as exc:
+            # Confirmed live: Vobiz's Call API returns plain HTTP status
+            # errors for account-level problems (e.g. 402 when the account
+            # balance is exhausted) rather than a structured error body --
+            # translate the ones we've actually seen into something an
+            # agent can act on instead of a raw 500.
+            status = exc.response.status_code
+            if status == 402:
+                detail = "Vobiz account balance is exhausted (402 from Vobiz) — top up the Vobiz account to place outbound calls."
+            elif status in (401, 403):
+                detail = "Vobiz rejected the account credentials (check Auth ID/Auth Secret in Settings → Integrations → Vobiz)."
+            else:
+                detail = f"Vobiz Call API returned {status} — could not start the call."
+            log.warning("vobiz_click_to_call_http_error", tenant=current_user.tenant_id, status=status)
+            raise HTTPException(status_code=502, detail=detail) from exc
     else:
         if not req.agent_number:
             raise HTTPException(status_code=400, detail="agent_number is required for this provider")

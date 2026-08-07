@@ -339,3 +339,58 @@ def test_click_to_call_honors_explicit_agent_number_override(client, tenant_and_
     )
     assert res.status_code == 200
     assert captured["agent_number"] == "+919111111111"
+
+
+def _raise_vobiz_status_error(status_code: int):
+    import httpx
+
+    async def _fake(self, agent_number, guest_number, *, did_number="", answer_url=""):
+        request = httpx.Request("POST", "https://api.vobiz.ai/api/v1/Account/MA123/Call/")
+        response = httpx.Response(status_code, request=request, text="")
+        raise httpx.HTTPStatusError("error", request=request, response=response)
+    return _fake
+
+
+def test_click_to_call_surfaces_clear_message_on_vobiz_402(client, tenant_and_user, db, monkeypatch):
+    """Regression: confirmed live on Ratha -- Vobiz's Call API returns a
+    plain 402 when the account balance is exhausted, which previously
+    crashed as an opaque 500 instead of telling the agent what happened."""
+    tenant = tenant_and_user["tenant"]
+    tenant.ivr_provider = "vobiz"
+    db.commit()
+    _connect_vobiz_full(db, tenant.id)
+
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "API_BASE_URL", "https://haip.example.test")
+
+    from app.adapters.ivr.vobiz import VobizAdapter
+    monkeypatch.setattr(VobizAdapter, "initiate_click_to_call", _raise_vobiz_status_error(402))
+
+    res = client.post(
+        "/api/v1/calls/click-to-call",
+        json={"guest_number": "+919876543210"},
+        headers={"Authorization": f"Bearer {tenant_and_user['access_token']}"},
+    )
+    assert res.status_code == 502
+    assert "balance" in res.json()["detail"].lower()
+
+
+def test_click_to_call_surfaces_clear_message_on_vobiz_401(client, tenant_and_user, db, monkeypatch):
+    tenant = tenant_and_user["tenant"]
+    tenant.ivr_provider = "vobiz"
+    db.commit()
+    _connect_vobiz_full(db, tenant.id)
+
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "API_BASE_URL", "https://haip.example.test")
+
+    from app.adapters.ivr.vobiz import VobizAdapter
+    monkeypatch.setattr(VobizAdapter, "initiate_click_to_call", _raise_vobiz_status_error(401))
+
+    res = client.post(
+        "/api/v1/calls/click-to-call",
+        json={"guest_number": "+919876543210"},
+        headers={"Authorization": f"Bearer {tenant_and_user['access_token']}"},
+    )
+    assert res.status_code == 502
+    assert "credentials" in res.json()["detail"].lower()
