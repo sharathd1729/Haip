@@ -34,7 +34,7 @@ from app.schemas.leads import (
     RefreshSummaryResponse,
 )
 from app.services import identity_service, inquiry_service, leads_service
-from app.services.date_presets import resolve_range, VALID_PRESETS
+from app.services.date_presets import clean_date_str, resolve_range, VALID_PRESETS
 
 router = APIRouter(prefix="/leads", tags=["leads360"])
 
@@ -96,8 +96,13 @@ def list_leads(
         if preset and preset not in VALID_PRESETS:
             raise HTTPException(status_code=422, detail=f"Invalid {name}: {preset}")
 
-    date_from, date_to = resolve_range(enquiry_date_preset, date_from, date_to)
-    checkin_date_from, checkin_date_to = resolve_range(checkin_date_preset, checkin_date_from, checkin_date_to)
+    try:
+        date_from, date_to = resolve_range(enquiry_date_preset, date_from, date_to)
+        checkin_date_from, checkin_date_to = resolve_range(checkin_date_preset, checkin_date_from, checkin_date_to)
+        booked_date_from = clean_date_str(booked_date_from)
+        booked_date_to = clean_date_str(booked_date_to)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid date: {exc}")
 
     return leads_service.get_leads_pipeline(
         db=db,

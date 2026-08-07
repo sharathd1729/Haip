@@ -231,3 +231,51 @@ def test_lead_card_renders_without_phone(client, db):
     assert card is not None
     assert card["display_name"] == "Unknown Guest"
     assert card["profile_completeness_pct"] == 30
+
+
+# ── Regression: malformed/empty custom date-range params ────────────────────
+# A stray empty-string or malformed date_from/date_to used to reach a raw
+# Postgres comparison against Inquiry.created_at (timestamptz), surfacing as
+# an uncaught 503 DataError ("invalid input syntax for type timestamp with
+# time zone") instead of a clean validation error -- confirmed live on
+# Leads360's custom date-range filter.
+
+def test_get_leads_empty_string_date_params_are_ignored(client, db):
+    """?date_from=&date_to= (present but empty) must not 500/503 -- same as
+    omitting the params entirely."""
+    tenant = _make_tenant(db, "EmptyDateTenant")
+    user = _make_user(db, tenant.id, UserRole.OWNER)
+    db.commit()
+
+    resp = client.get(
+        "/api/v1/leads?date_from=&date_to=&checkin_date_from=&booked_date_from=",
+        headers=_auth(_token(user)),
+    )
+    assert resp.status_code == 200
+
+
+def test_get_leads_malformed_date_param_returns_422(client, db):
+    """A non-ISO-date date_from must fail loudly with a 422, not reach the DB."""
+    tenant = _make_tenant(db, "BadDateTenant")
+    user = _make_user(db, tenant.id, UserRole.OWNER)
+    db.commit()
+
+    resp = client.get(
+        "/api/v1/leads?enquiry_date_preset=custom&date_from=not-a-date",
+        headers=_auth(_token(user)),
+    )
+    assert resp.status_code == 422
+
+
+def test_get_leads_whitespace_date_param_ignored(client, db):
+    """A whitespace-only value (e.g. a stray space) must be treated as absent,
+    not passed through to the DB comparison."""
+    tenant = _make_tenant(db, "WhitespaceDateTenant")
+    user = _make_user(db, tenant.id, UserRole.OWNER)
+    db.commit()
+
+    resp = client.get(
+        "/api/v1/leads?enquiry_date_preset=custom&date_from=%20&date_to=%20",
+        headers=_auth(_token(user)),
+    )
+    assert resp.status_code == 200

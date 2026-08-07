@@ -34,6 +34,23 @@ def resolve_preset(preset: Optional[str]) -> tuple[Optional[date], Optional[date
     raise ValueError(f"Unknown date preset: {preset}")
 
 
+def clean_date_str(value: Optional[str]) -> Optional[str]:
+    """Normalise a raw query-param date string to None (empty/whitespace)
+    or a validated 'YYYY-MM-DD' string. Raises ValueError on anything else
+    -- callers should turn that into a 422, not let it reach a raw SQL
+    comparison against a timestamptz column as an uncaught Postgres 503
+    (confirmed live: a stray/malformed value in Leads360's custom date
+    range surfaced as DataError('...invalid input syntax for type
+    timestamp with time zone: ""') instead of a clean validation error)."""
+    if value is None:
+        return None
+    stripped = value.strip()
+    if not stripped:
+        return None
+    date.fromisoformat(stripped)  # raises ValueError if malformed
+    return stripped
+
+
 def resolve_range(
     preset: Optional[str], explicit_from: Optional[str], explicit_to: Optional[str],
 ) -> tuple[Optional[str], Optional[str]]:
@@ -46,4 +63,4 @@ def resolve_range(
     if preset and preset != "custom":
         d_from, d_to = resolve_preset(preset)
         return d_from.isoformat(), d_to.isoformat()
-    return explicit_from, explicit_to
+    return clean_date_str(explicit_from), clean_date_str(explicit_to)
