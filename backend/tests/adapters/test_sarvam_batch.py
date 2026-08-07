@@ -133,6 +133,7 @@ async def test_transcribe_runs_full_batch_job_flow(tmp_path):
     call_kwargs = fake_client.speech_to_text_translate_job.create_job.call_args.kwargs
     assert call_kwargs["model"] == "saaras:v2.5"
     assert call_kwargs["with_diarization"] is True
+    assert call_kwargs["num_speakers"] == 2
 
     fake_job.upload_files.assert_called_once()
     fake_job.start.assert_called_once()

@@ -110,7 +110,7 @@ const CHANNEL_FILTERS = [
   { value: "whatsapp",  label: "WhatsApp" },
   { value: "instagram", label: "Instagram" },
   { value: "voice",     label: "Call" },
-  { value: "web",       label: "Web" },
+  { value: "webchat",   label: "Web" },
 ];
 
 // ─── M1: Channel filter row with scroll-fade ──────────────────────────────────
@@ -243,12 +243,16 @@ export default function InboxPage() {
   // page. Cursor is `last_message_at` of the oldest conversation loaded so
   // far, matching how the list is already sorted server-side.
   const CONVERSATION_PAGE_SIZE = 50;
+
+  // Always-unfiltered feed: source of truth for useInboxStore (Sidebar's
+  // unread badge etc. read the global store, not whatever's currently
+  // rendered here) and what's shown when channelFilter === "" ("All").
   const {
-    data: conversationPages,
-    isLoading: listLoading,
-    fetchNextPage: fetchNextConversationPage,
-    hasNextPage: hasMoreConversations,
-    isFetchingNextPage: isLoadingMoreConversations,
+    data: allConversationPages,
+    isLoading: allListLoading,
+    fetchNextPage: fetchNextAllPage,
+    hasNextPage: hasMoreAllConversations,
+    isFetchingNextPage: isLoadingMoreAllConversations,
   } = useInfiniteQuery({
     queryKey: ["conversations"],
     queryFn: ({ pageParam }: { pageParam?: string }) =>
@@ -262,24 +266,71 @@ export default function InboxPage() {
     staleTime: 30_000,
   });
 
+  // Channel-scoped feed, only fetched while a channel tab is selected.
+  //
+  // Previously channelFilter was applied purely client-side (filtering
+  // whatever the unfiltered fetch above happened to have loaded), while
+  // that fetch always pulled the 50 most recent conversations across EVERY
+  // channel with no channel param at all. As newer Instagram/call/other
+  // traffic filled those 50 slots, older WhatsApp (or any other channel's)
+  // conversations fell out of the loaded window entirely -- and with
+  // "Load more" hidden whenever a channel filter was active (see
+  // ConversationList.tsx), there was no way to ever bring them back. A
+  // WhatsApp tab showing "2 chats" while more genuinely existed was this,
+  // not a data problem. This queries the backend's own channel filter
+  // (conversations.py already supported `channel=`) instead.
+  const {
+    data: filteredConversationPages,
+    isLoading: filteredListLoading,
+    fetchNextPage: fetchNextFilteredPage,
+    hasNextPage: hasMoreFilteredConversations,
+    isFetchingNextPage: isLoadingMoreFilteredConversations,
+  } = useInfiniteQuery({
+    queryKey: ["conversations", channelFilter],
+    queryFn: ({ pageParam }: { pageParam?: string }) =>
+      api.get("/conversations", {
+        params: { limit: CONVERSATION_PAGE_SIZE, channel: channelFilter, ...(pageParam ? { before: pageParam } : {}) },
+      }).then(r => r.data as any[]),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.length === CONVERSATION_PAGE_SIZE
+        ? lastPage[lastPage.length - 1]?.last_message_at
+        : undefined,
+    enabled: !!channelFilter,
+    staleTime: 30_000,
+  });
+
+  const listLoading = channelFilter ? filteredListLoading : allListLoading;
+  const fetchNextConversationPage = channelFilter ? fetchNextFilteredPage : fetchNextAllPage;
+  const hasMoreConversations = channelFilter ? hasMoreFilteredConversations : hasMoreAllConversations;
+  const isLoadingMoreConversations = channelFilter ? isLoadingMoreFilteredConversations : isLoadingMoreAllConversations;
+
   // HOTFIX (production incident): .flat() on every render produced a new
   // array reference each time even when the underlying pages hadn't
   // changed, so the effect below never saw a stable dependency -- it fired
   // every render, called setConversations, which re-rendered this
   // component, which called .flat() again... "Maximum update depth
   // exceeded" (React error #185), infinite loop, whole Inbox page down in
-  // prod. useMemo keyed on conversationPages (react-query's own stable
-  // reference, unchanged unless the query result actually changed) fixes it.
-  const conversationData = useMemo(
-    () => conversationPages?.pages.flat(),
-    [conversationPages]
+  // prod. useMemo keyed on the pages (react-query's own stable reference,
+  // unchanged unless the query result actually changed) fixes it.
+  const allConversationData = useMemo(
+    () => allConversationPages?.pages.flat(),
+    [allConversationPages]
   );
+  const filteredConversationData = useMemo(
+    () => filteredConversationPages?.pages.flat(),
+    [filteredConversationPages]
+  );
+  const displayConversations = channelFilter ? filteredConversationData : allConversationData;
 
-  // onSuccess was removed in TanStack Query v5 — use useEffect to sync store
+  // onSuccess was removed in TanStack Query v5 — use useEffect to sync store.
+  // Always synced from the unfiltered feed, never the channel-scoped one, so
+  // switching to a channel tab doesn't clobber the global store other UI
+  // (Sidebar's unread badge) reads from.
   useEffect(() => {
-    if (conversationData) setConversations(conversationData);
+    if (allConversationData) setConversations(allConversationData);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversationData]);
+  }, [allConversationData]);
 
   const { data: detail, isLoading: detailLoading } = useQuery<ConversationDetail>({
     queryKey: ["conversation", activeConversationId],
@@ -741,7 +792,7 @@ export default function InboxPage() {
           </div>
         ) : (
           <ConversationList
-            conversations={conversations}
+            conversations={displayConversations ?? conversations}
             activeId={activeConversationId}
             onSelect={id => { setActiveConversation(id); setMobileView("thread"); }}
             channelFilter={channelFilter || undefined}

@@ -86,6 +86,17 @@ class SarvamAdapter(TranscriptionAdapter):
             job = client.speech_to_text_translate_job.create_job(
                 model="saaras:v2.5",
                 with_diarization=True,
+                # Every HAIP call is a 2-party conversation (agent + guest).
+                # Left unset, the diarization model has to guess the speaker
+                # count itself -- confirmed live: on shorter/noisier
+                # recordings it frequently guessed 1, collapsing the whole
+                # call onto a single raw speaker id, which
+                # _turns_from_diarized's diarization_worked check then
+                # (correctly) reports as "unknown" rather than lying about
+                # who said what. Pinning the known speaker count gives the
+                # model the one piece of information it was missing instead
+                # of just being more honest about its failure to find it.
+                num_speakers=2,
             )
             job.upload_files([audio_path])
             job.start()

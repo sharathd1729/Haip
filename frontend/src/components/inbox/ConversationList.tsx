@@ -561,10 +561,11 @@ export function ConversationList({
         );
       })}
 
-      {/* Load more — only meaningful when unfiltered; a channel filter narrows
-          the already-loaded page client-side and doesn't reflect whether more
-          pages exist server-side. */}
-      {onLoadMore && !channelFilter && (
+      {/* Load more — the caller now fetches a channel-scoped page from the
+          server whenever channelFilter is set (see inbox/page.tsx), so
+          onLoadMore/isLoadingMore already reflect the right underlying
+          query either way; no need to hide this while filtered anymore. */}
+      {onLoadMore && (
         <div className="flex justify-center py-3 flex-shrink-0">
           <button
             onClick={onLoadMore}
