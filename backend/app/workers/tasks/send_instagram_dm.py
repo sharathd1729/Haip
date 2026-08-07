@@ -13,12 +13,27 @@ from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 from app.core.encryption import decrypt_credentials
 from app.models.integration import Integration
-from app.models.conversation import Message, Conversation
+from app.models.conversation import Message, Conversation, MessageDeliveryState
 from app.models.guest import Guest
 from app.models.guest_identity import GuestIdentity, IdentityType
 from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
+
+
+def _mark_failed(db: Session, message: Message, reason: str) -> None:
+    """Transition message to FAILED and record the reason -- mirrors
+    send_whatsapp.py's _mark_failed so both channels give the inbox UI the
+    same delivery-tick contract instead of leaving the draft stuck at
+    QUEUED forever on any of these early-exit paths."""
+    try:
+        message.delivery_state = MessageDeliveryState.FAILED
+        message.delivery_error = reason[:500]
+        message.channel_status = "failed"
+        db.commit()
+        logger.warning("send_instagram_dm_marked_failed: message=%s reason=%s", message.id, reason)
+    except Exception:
+        pass
 
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=60, name="send_instagram_dm")
@@ -42,6 +57,7 @@ def send_instagram_dm(self, message_id: str, tenant_id: str) -> dict:
         guest = db.query(Guest).filter_by(id=conversation.guest_id).first() if conversation else None
 
         if not guest:
+            _mark_failed(db, message, "Guest not found for conversation")
             return {"status": "error", "reason": "guest not found"}
 
         identity = (
@@ -55,6 +71,7 @@ def send_instagram_dm(self, message_id: str, tenant_id: str) -> dict:
         )
         sender_id = identity.identity_value if identity else ""
         if not sender_id:
+            _mark_failed(db, message, "Guest has no instagram_user_id identity signal")
             return {"status": "error", "reason": "guest has no instagram_user_id identity"}
 
         # Get integration credentials
@@ -62,6 +79,7 @@ def send_instagram_dm(self, message_id: str, tenant_id: str) -> dict:
             tenant_id=tenant_id, kind="instagram", status="active"
         ).first()
         if not integration:
+            _mark_failed(db, message, "Instagram integration not connected")
             return {"status": "error", "reason": "Instagram integration not connected"}
 
         creds = decrypt_credentials(integration.credentials_kms_blob)
@@ -69,6 +87,7 @@ def send_instagram_dm(self, message_id: str, tenant_id: str) -> dict:
         ig_account_id = (integration.config or {}).get("instagram_business_account_id", "")
 
         if not access_token or not ig_account_id:
+            _mark_failed(db, message, "Missing access_token or instagram_business_account_id in integration config")
             return {"status": "error", "reason": "missing access_token or ig_account_id"}
 
         from app.adapters.instagram.meta_graph import InstagramGraphAdapter
@@ -83,9 +102,13 @@ def send_instagram_dm(self, message_id: str, tenant_id: str) -> dict:
         result = adapter.send_text(recipient_id=sender_id, text=message.body)
         ig_message_id = result.get("message_id", "")
 
-        # Mark sent
+        # Mark sent -- delivery_state wasn't set here at all (send_whatsapp's
+        # equivalent sets QUEUED->SENT/FAILED), so an approved Instagram
+        # draft sat at QUEUED forever in the UI even on a successful send.
         message.channel_message_id = ig_message_id
         message.channel_status = "sent"
+        message.delivery_state = MessageDeliveryState.SENT
+        message.delivery_error = None
         db.commit()
 
         # Notify SSE subscribers so the inbox updates the delivery tick without a page refresh
@@ -112,6 +135,13 @@ def send_instagram_dm(self, message_id: str, tenant_id: str) -> dict:
 
     except Exception as exc:
         logger.error("send_instagram_dm failed for message %s: %s", message_id, exc)
+        if self.request.retries >= self.max_retries:
+            try:
+                msg = db.query(Message).filter_by(id=message_id, tenant_id=tenant_id).first()
+                if msg:
+                    _mark_failed(db, msg, f"Max retries exceeded: {exc}")
+            except Exception:
+                pass
         db.rollback()
         raise self.retry(exc=exc)
     finally:

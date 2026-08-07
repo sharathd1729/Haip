@@ -834,10 +834,21 @@ def approve_ai_draft(
     if not msg:
         raise HTTPException(status_code=404, detail="Message not found")
 
-    # AI Autonomy Plan §0.1: this used to ignore any edited text entirely --
-    # the inbox UI's edit-then-send flow already posted {text: editText}
-    # here, but with no body param declared FastAPI silently dropped it and
-    # the ORIGINAL AI draft always went out to the guest, edit or not.
+    # This unconditionally dispatched send_whatsapp regardless of the
+    # conversation's actual channel -- confirmed live: approving a draft on
+    # an Instagram (or any non-WhatsApp) conversation queued a WhatsApp send
+    # against a guest who often has no phone signal at all, which failed
+    # silently in the background task while the UI had already shown
+    # "Draft approved & sent". Route by the conversation's real channel and
+    # fail loudly for channels with no outbound-send task built yet, rather
+    # than misdispatching through WhatsApp.
+    conversation = db.query(Conversation).filter_by(
+        id=conversation_id, tenant_id=current_user.tenant_id
+    ).first()
+    channel = conversation.channel.value if conversation and hasattr(conversation.channel, "value") else (
+        conversation.channel if conversation else None
+    )
+
     original_body = msg.body
     was_edited = body.text is not None and body.text != original_body
     if body.text is not None:
@@ -855,8 +866,21 @@ def approve_ai_draft(
     )
     db.commit()
 
-    from app.workers.tasks.send_whatsapp import send_whatsapp
-    send_whatsapp.delay(message_id=message_id, tenant_id=current_user.tenant_id)
+    if channel == "instagram":
+        from app.workers.tasks.send_instagram_dm import send_instagram_dm
+        send_instagram_dm.delay(message_id=message_id, tenant_id=current_user.tenant_id)
+    elif channel == "whatsapp":
+        from app.workers.tasks.send_whatsapp import send_whatsapp
+        send_whatsapp.delay(message_id=message_id, tenant_id=current_user.tenant_id)
+    else:
+        msg.delivery_state = MessageDeliveryState.FAILED
+        msg.delivery_error = f"Sending an approved draft isn't supported for the '{channel}' channel yet."
+        db.commit()
+        raise HTTPException(
+            status_code=400,
+            detail=f"Sending an approved draft isn't supported for the '{channel}' channel yet.",
+        )
+
     return {"status": "approved_and_queued"}
 
 
