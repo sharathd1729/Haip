@@ -1,15 +1,26 @@
 import axios from "axios";
 import { getSession, signOut } from "next-auth/react";
+import { queryClient } from "@/lib/queryClient";
+import { useConnectionStatusStore } from "@/store/connectionStatus";
 
 // Ensure base URL always ends with /api/v1 regardless of how NEXT_PUBLIC_API_URL is set.
 // e.g. "https://72.61.228.243" → "https://72.61.228.243/api/v1"
 // e.g. "https://72.61.228.243/api/v1" → stays as-is
 const _raw = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
 const API_BASE = _raw.endsWith("/api/v1") ? _raw : `${_raw}/api/v1`;
+// /health lives at the API root, not under /api/v1 -- ConnectionBanner pings
+// this directly to detect recovery rather than reusing an authed endpoint.
+export const API_ROOT = _raw.endsWith("/api/v1") ? _raw.slice(0, -"/api/v1".length) : _raw;
 
 const api = axios.create({
   baseURL: API_BASE,
   headers: { "Content-Type": "application/json" },
+  // Without this, a request that goes out while the API container is
+  // mid-restart (connection accepted but never answered, as opposed to a
+  // fast connection-refused) hangs forever -- axios' default timeout is 0.
+  // react-query's isLoading never flips to false, so every page sits on its
+  // skeleton loader indefinitely until a manual hard refresh.
+  timeout: 20_000,
 });
 
 // ─── Access-token cache ───────────────────────────────────────────────────────
@@ -100,9 +111,28 @@ api.interceptors.request.use(async (config) => {
 });
 
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    // A response came back at all -- the API is reachable. If ConnectionBanner
+    // was showing "trouble connecting", clear it and refetch everything that
+    // may have silently failed/gone stale during the outage, rather than
+    // leaving pages stuck on whatever empty/error state they landed in.
+    if (useConnectionStatusStore.getState().offline) {
+      useConnectionStatusStore.getState().setOffline(false);
+      queryClient.invalidateQueries();
+    }
+    return res;
+  },
   async (error) => {
     const originalRequest = error.config;
+
+    // No `error.response` means the request never got a reply at all --
+    // network error, DNS failure, or (most relevant here) our own 20s
+    // timeout firing while the API container is mid-restart. A 4xx/5xx
+    // *with* a response means the server is up and answering, so that's
+    // deliberately excluded here.
+    if (!error.response) {
+      useConnectionStatusStore.getState().setOffline(true);
+    }
 
     // On 401: the JWT callback may have already refreshed the token — retry once.
     // Guard with _retry to prevent infinite loops.

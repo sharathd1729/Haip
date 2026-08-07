@@ -102,6 +102,22 @@ class McpCorsBypassMiddleware:
         await self.app(scope, receive, send_wrapper)
 
 
+
+# Bug: RateLimitMiddleware used to be add_middleware()'d AFTER CORSMiddleware,
+# which (per Starlette's user_middleware.insert(0, ...) — most-recently-added
+# ends up OUTERMOST) put it *outside* CORS, not inside as the order comment
+# below always claimed. _rate_limit_response() returns a plain Response with
+# no CORS headers of its own, so every 429 -- and, worse, every request from
+# an origin that was simply rate-limited during a reconnect storm (e.g. many
+# tabs retrying at once right after a redeploy) -- came back with no
+# Access-Control-Allow-Origin header at all. The browser then refuses to let
+# JS read the response, which axios (and any other XHR-based client) reports
+# identically to a total network/connectivity failure -- indistinguishable
+# from the API actually being down. Registering it first so CORSMiddleware
+# (added next) wraps it fixes this: rate-limited responses now carry the same
+# CORS headers as everything else.
+app.add_middleware(RateLimitMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
@@ -121,7 +137,6 @@ app.add_middleware(McpCorsBypassMiddleware)
 #   McpCorsBypass → CORS → rate_limit → tenant_context → request_id → routes
 app.middleware("http")(request_id_middleware)         # inner
 app.middleware("http")(tenant_context_middleware)     # sets tenant_id on request.state
-app.add_middleware(RateLimitMiddleware)               # outermost: rate limit after CORS
 
 app.include_router(api_router)
 app.include_router(mcp_router)
