@@ -20,6 +20,23 @@ from app.models.base import gen_uuid
 log = structlog.get_logger()
 
 
+def _tenant_has_any_data(db, tenant_id: str) -> bool:
+    """A tenant with zero rows anywhere metrics could read from genuinely
+    should compute 0 metrics -- that's correct, not a bug. Distinguishes
+    that from the silent-zero bug this guard exists to catch (Dashboard
+    Metrics Plan F1: every metrics_registry row had sql_template=NULL, so
+    compute_for_tenant always computed 0 and logged success regardless of
+    how much real data existed)."""
+    from app.models.call import Call
+    from app.models.inquiry import Inquiry
+    from app.models.conversation import Message
+
+    for model in (Call, Inquiry, Message):
+        if db.query(model.id).filter(model.tenant_id == tenant_id).first():
+            return True
+    return False
+
+
 @shared_task(name="app.workers.tasks.compute_snapshots.run_all_tenants", bind=True, max_retries=2)
 def run_all_tenants(self):
     """Fan-out: spawn one compute_for_tenant per active tenant."""
@@ -89,6 +106,22 @@ def compute_for_tenant(self, tenant_id: str):
                             error=str(exc))
 
         db.commit()
+
+        if computed == 0 and _tenant_has_any_data(db, tenant_id):
+            # Same failure class as the Alembic "logs success, commits
+            # nothing" bug documented in CLAUDE.md -- a tenant with real
+            # data getting zero computed metrics means the registry (e.g.
+            # every row's sql_template is NULL -- the exact F1 bug) or the
+            # templates themselves are broken, not that there's nothing to
+            # report. Deliberately fires even when `metrics` itself is
+            # empty -- that IS the bug this guard exists to catch. Fail
+            # loudly instead of silently logging success.
+            raise RuntimeError(
+                f"compute_snapshots computed 0 metrics for tenant {tenant_id} "
+                f"({len(metrics)} metrics_registry rows had a non-null sql_template) "
+                f"despite existing tenant data"
+            )
+
         log.info("compute_snapshots_done",
                  tenant_id=tenant_id,
                  computed=computed,
