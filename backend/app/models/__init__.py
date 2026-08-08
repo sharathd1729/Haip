@@ -31,6 +31,7 @@ from app.models.mcp_token import PersonalAccessToken
 from app.models.capability import Capability, RoleCapability
 from app.models.ai_draft_outcome import AIDraftOutcome
 from app.models.task import Task
+from app.models.lead_attribution import LeadAttribution
 
 __all__ = [
     "Tenant", "User", "RefreshToken", "UserInvitation",
@@ -49,4 +50,5 @@ __all__ = [
     "FlowPendingExecution", "WAFlowRun",
     "Capability", "RoleCapability",
     "AIDraftOutcome", "Task",
+    "LeadAttribution",
 ]

@@ -166,6 +166,30 @@ def process_instagram_comment(self, payload: dict) -> dict:
             message.id, guest_id, conversation.id, comment_id,
         )
 
+        # Ad attribution -- a comment on a running ad post carries media_ad_id
+        # (Dashboard Metrics Plan Phase 1). No inquiry-linking here: unlike
+        # the DM/WhatsApp paths, this flow doesn't auto-create a lead, so
+        # inquiry_id stays null until/unless a later message on the same
+        # conversation creates one (out of scope to backfill retroactively).
+        if media_ad_id:
+            try:
+                from app.services.attribution_service import record_referral_attribution
+                record_referral_attribution(
+                    db, tenant_id,
+                    conversation_id=conversation.id,
+                    guest_id=guest_id,
+                    destination_channel="instagram",
+                    ad_id=media_ad_id,
+                    source_type="ad",
+                    headline=media_ad_title,
+                    raw_referral={"media_ad_id": media_ad_id, "media_ad_title": media_ad_title, "media_id": media_id},
+                    first_message_at=message.created_at,
+                )
+                db.commit()
+            except Exception as exc:
+                db.rollback()
+                logger.warning("ig_comment_attribution_capture_failed: %s", exc)
+
         # Notify SSE subscribers so the inbox updates without a page refresh
         try:
             import redis as _redis

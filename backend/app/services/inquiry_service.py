@@ -166,9 +166,13 @@ def get_or_create_from_chat(
 
     is_collab = is_collab_message(message_text)
     # WhatsApp's channel identity is itself a phone number -- a phone is
-    # always "given" there. Instagram has no inherent phone signal, so it's
+    # always "given" there, on both the organic (WA_DIRECT) and ad-attributed
+    # (CLICK_TO_WA) paths. Instagram has no inherent phone signal, so it's
     # only true when the message text itself contains one.
-    has_phone = True if source == InquirySource.WA_DIRECT.value else text_contains_phone(message_text)
+    has_phone = (
+        True if source in (InquirySource.WA_DIRECT.value, InquirySource.CLICK_TO_WA.value)
+        else text_contains_phone(message_text)
+    )
 
     stage_id = resolve_entry_stage_id(db, tenant_id, is_collab=is_collab, has_phone=has_phone)
 

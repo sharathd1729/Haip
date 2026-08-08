@@ -188,6 +188,30 @@ def process_instagram_dm(self, payload: dict) -> dict:
             message.id, guest_id, conversation.id,
         )
 
+        # Ad attribution -- captured once, on the thread's first inbound DM
+        # (Dashboard Metrics Plan Phase 1). `referral` is only ever present
+        # on that first message; a repeat message on an existing
+        # conversation never carries one.
+        if referral:
+            try:
+                from app.services.attribution_service import record_referral_attribution
+                record_referral_attribution(
+                    db, tenant_id,
+                    conversation_id=conversation.id,
+                    guest_id=guest_id,
+                    destination_channel="instagram",
+                    ad_id=referral.get("ad_id"),
+                    source_type="ad" if referral.get("ad_id") else "post",
+                    headline=referral.get("headline"),
+                    media_type=referral.get("media_type"),
+                    raw_referral=referral,
+                    first_message_at=message.created_at,
+                )
+                db.commit()
+            except Exception as exc:
+                db.rollback()
+                logger.warning("ig_attribution_capture_failed: %s", exc)
+
         # Leads360 chat auto-create: only on the guest's first DM in this
         # conversation -- phone detection is text-based on Instagram (no
         # inherent phone identity like WhatsApp has).
@@ -199,6 +223,9 @@ def process_instagram_dm(self, payload: dict) -> dict:
                     db, tenant_id, guest_id, source=InquirySource.META_IG.value, message_text=body,
                 )
                 conversation.inquiry_id = lead_inquiry.id
+                if referral:
+                    from app.services.attribution_service import link_attribution_to_inquiry
+                    link_attribution_to_inquiry(db, tenant_id, conversation.id, lead_inquiry.id)
                 db.commit()
             except Exception as exc:
                 db.rollback()

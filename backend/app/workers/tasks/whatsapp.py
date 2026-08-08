@@ -173,6 +173,9 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
     from_number = "+" + msg.get("from", "").lstrip("+")
     wa_msg_id = msg.get("id", "")
     msg_type = msg.get("type", "text")
+    # Click-to-WhatsApp ad attribution -- Meta sends this once, on the
+    # thread's first inbound message only (Dashboard Metrics Plan Phase 1).
+    referral = msg.get("referral")
 
     # Fast-path dedup check (application level)
     existing = db.query(Message).filter_by(channel_message_id=wa_msg_id).first()
@@ -271,6 +274,31 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
 
     log.info("wa_message_stored", guest_token=_phone_token(from_number), conversation=conversation.id)
 
+    # Click-to-WhatsApp ad attribution -- captured once, on the thread's
+    # first inbound message (Dashboard Metrics Plan Phase 1). source_id is
+    # the ad/post id per Meta's referral object; there is no adset/campaign
+    # id on the referral itself, resolved later by joining ad_id against
+    # ad_metrics (Phase 3).
+    if referral:
+        try:
+            from app.services.attribution_service import record_referral_attribution
+            record_referral_attribution(
+                db, tenant.id,
+                conversation_id=conversation.id,
+                guest_id=guest_id,
+                destination_channel="whatsapp",
+                ad_id=referral.get("source_id"),
+                source_type=referral.get("source_type"),
+                source_url=referral.get("source_url"),
+                headline=referral.get("headline"),
+                media_type=referral.get("media_type"),
+                ctwa_clid=referral.get("ctwa_clid"),
+                raw_referral=referral,
+                first_message_at=message.created_at,
+            )
+        except Exception as exc:
+            log.warning("wa_attribution_capture_failed", tenant_id=tenant.id, error=str(exc))
+
     # Leads360 chat auto-create: only fires on the guest's first message in
     # this channel -- a repeat message on an already-open conversation must
     # never spawn a second inquiry (identity_service already dedupes the
@@ -279,11 +307,19 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
         try:
             from app.services.inquiry_service import get_or_create_from_chat
             from app.models.inquiry import InquirySource
+            # A referral-bearing first message is an ad-attributed lead, not
+            # a direct WA_DIRECT inbound -- previously always WA_DIRECT,
+            # which made Click-to-WhatsApp leads indistinguishable from
+            # organic ones anywhere inquiries.source is read.
+            lead_source = InquirySource.CLICK_TO_WA.value if referral else InquirySource.WA_DIRECT.value
             lead_inquiry = get_or_create_from_chat(
-                db, tenant.id, guest_id, source=InquirySource.WA_DIRECT.value, message_text=body,
+                db, tenant.id, guest_id, source=lead_source, message_text=body,
             )
             conversation.inquiry_id = lead_inquiry.id
             db.flush()
+            if referral:
+                from app.services.attribution_service import link_attribution_to_inquiry
+                link_attribution_to_inquiry(db, tenant.id, conversation.id, lead_inquiry.id)
         except Exception as exc:
             log.warning("wa_lead_auto_create_failed", tenant_id=tenant.id, error=str(exc))
 
