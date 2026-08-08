@@ -559,8 +559,10 @@ def property_analytics(
         total = 0
         for s in stays:
             try:
-                ci = date_cls.fromisoformat(s.check_in)
-                co = date_cls.fromisoformat(s.check_out)
+                # migration 071: Stay.check_in/check_out are real DATE
+                # columns now, already datetime.date objects.
+                ci = s.check_in
+                co = s.check_out
                 ov_s = max(ci, start_d)
                 ov_e = min(co, end_d)
                 total += max(0, (ov_e - ov_s).days)

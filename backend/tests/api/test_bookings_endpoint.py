@@ -1,5 +1,6 @@
 """Tests for GET /bookings -- HAIP's own Stay records, independent of RentalWise."""
 import uuid
+from datetime import date
 
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
@@ -41,9 +42,12 @@ def _make_guest(db, tenant_id, name="Guest", phone="+919999999999"):
 
 
 def _make_stay(db, tenant_id, guest_id, property_id, check_in="2026-08-01", check_out="2026-08-03", total_amount=15000, channel_source="direct"):
+    # migration 071: Stay.check_in/check_out are real DATE columns -- callers
+    # still pass YYYY-MM-DD strings (readable test data), parsed here.
     s = Stay(
         id=str(uuid.uuid4()), tenant_id=tenant_id, guest_id=guest_id, property_id=property_id,
-        check_in=check_in, check_out=check_out, total_amount=total_amount, channel_source=channel_source,
+        check_in=date.fromisoformat(check_in), check_out=date.fromisoformat(check_out),
+        total_amount=total_amount, channel_source=channel_source,
     )
     db.add(s); db.flush(); return s
 

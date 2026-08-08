@@ -185,7 +185,10 @@ def intent_analytics(
     stay_by_inq: dict[str, tuple[float, float]] = {}  # inquiry_id → (amount, nights)
     for s in stay_q.all():
         try:
-            nights = max(0, (date_cls.fromisoformat(s.check_out) - date_cls.fromisoformat(s.check_in)).days)
+            # migration 071: Stay.check_in/check_out are real DATE columns
+            # now -- Inquiry.check_in/check_out below are untouched, still
+            # String, still need fromisoformat().
+            nights = max(0, (s.check_out - s.check_in).days)
         except Exception:
             nights = 0
         stay_by_inq[str(s.inquiry_id)] = (float(s.total_amount or 0), nights)

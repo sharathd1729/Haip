@@ -116,8 +116,13 @@ class Stay(Base, TimestampMixin, TenantMixin):
     property_id = Column(String, ForeignKey("properties.id"), nullable=False, index=True)
     inquiry_id = Column(String, ForeignKey("inquiries.id"), nullable=True)
 
-    check_in = Column(String, nullable=False)   # ISO date
-    check_out = Column(String, nullable=False)  # ISO date
+    # Real DATE since migration 071 (Dashboard Metrics Plan F5) -- was a
+    # hand-entered-tolerant ISO string. Callers must treat check_in/
+    # check_out as datetime.date objects now, not strings -- date.fromisoformat()
+    # on a fetched value will raise TypeError; the DB comparisons still
+    # accept ISO strings on the query side (Postgres implicitly casts).
+    check_in = Column(Date, nullable=False)
+    check_out = Column(Date, nullable=False)
     adults = Column(Integer, default=1)
     children = Column(Integer, default=0)
 

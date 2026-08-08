@@ -124,8 +124,10 @@ def test_won_transition_creates_stay_when_booking_fields_present(db):
     assert stay.tenant_id == t.id
     assert stay.guest_id == inq.guest_id
     assert stay.property_id == "prop-1"
-    assert stay.check_in == "2026-08-01"
-    assert stay.check_out == "2026-08-03"
+    # migration 071: Stay.check_in/check_out are real date objects now,
+    # parsed from Inquiry.check_in/check_out (still plain ISO strings).
+    assert stay.check_in.isoformat() == "2026-08-01"
+    assert stay.check_out.isoformat() == "2026-08-03"
     assert stay.total_amount == 15000
     assert stay.channel_source == "direct"
     assert stay.hostaway_booking_id is None

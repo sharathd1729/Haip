@@ -55,8 +55,10 @@ def _occ_nights(db, tid, prop_ids, start, end):
     total = 0
     for r in q.all():
         try:
-            ci = date_cls.fromisoformat(r.check_in)
-            co = date_cls.fromisoformat(r.check_out)
+            # migration 071: check_in/check_out are real DATE columns now,
+            # already datetime.date objects -- no fromisoformat() needed.
+            ci = r.check_in
+            co = r.check_out
             s = max(ci, start.date())
             e = min(co, end.date())
             total += max(0, (e - s).days)
@@ -77,8 +79,10 @@ def _occ_nights_prop(db, tid, prop_id, start, end):
     total = 0
     for r in q.all():
         try:
-            ci = date_cls.fromisoformat(r.check_in)
-            co = date_cls.fromisoformat(r.check_out)
+            # migration 071: check_in/check_out are real DATE columns now,
+            # already datetime.date objects -- no fromisoformat() needed.
+            ci = r.check_in
+            co = r.check_out
             s = max(ci, start.date())
             e = min(co, end.date())
             total += max(0, (e - s).days)

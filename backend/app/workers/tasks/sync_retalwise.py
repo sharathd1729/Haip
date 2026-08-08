@@ -295,6 +295,22 @@ def _upsert_stay(db: Session, tenant_id: str, r: dict):
         logger.debug("RentalWise: skipping reservation %s — property not found", external_id)
         return
 
+    # migration 071: Stay.check_in/check_out are real DATE columns, NOT
+    # NULL -- parse before creating/touching the row so a bad reservation
+    # is skipped cleanly, same guard as the guest/property checks above.
+    from datetime import date as _date
+    check_in_str = r.get("check_in") or ""
+    check_out_str = r.get("check_out") or ""
+    try:
+        check_in = _date.fromisoformat(check_in_str)
+        check_out = _date.fromisoformat(check_out_str)
+    except ValueError:
+        logger.warning(
+            "RentalWise: skipping reservation %s — unparseable dates check_in=%r check_out=%r",
+            external_id, check_in_str, check_out_str,
+        )
+        return
+
     # Use hostaway_booking_id to store the RentalWise reservation ID (prefixed)
     rw_booking_id = f"rw_{external_id}"
     row = db.query(Stay).filter_by(
@@ -315,8 +331,8 @@ def _upsert_stay(db: Session, tenant_id: str, r: dict):
         row.guest_id = guest.id
         row.property_id = property_row.id
 
-    row.check_in = r.get("check_in") or ""
-    row.check_out = r.get("check_out") or ""
+    row.check_in = check_in
+    row.check_out = check_out
     row.status = r.get("status", "confirmed")
     row.channel_source = r.get("channel", "rentalwise")
     row.total_amount = r.get("total_amount", 0)

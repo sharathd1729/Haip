@@ -311,8 +311,8 @@ def create_booking(
         tenant_id=tenant_id,
         guest_id=guest_id,
         property_id=prop.id,
-        check_in=payload.check_in,
-        check_out=payload.check_out,
+        check_in=check_in_date,
+        check_out=check_out_date,
         adults=payload.adults,
         children=payload.children,
         status=payload.status,
@@ -365,13 +365,17 @@ def update_booking(
             raise HTTPException(status_code=404, detail="Property not found")
         stay.property_id = prop.id
 
-    new_check_in = payload.check_in if payload.check_in is not None else stay.check_in
-    new_check_out = payload.check_out if payload.check_out is not None else stay.check_out
+    # migration 071: stay.check_in/check_out are real date objects now;
+    # payload.check_in/check_out (if provided) are still plain YYYY-MM-DD
+    # strings off the wire -- parse to date before comparing/assigning so
+    # both branches end up with the same type.
     try:
-        if date.fromisoformat(new_check_out) < date.fromisoformat(new_check_in):
-            raise HTTPException(status_code=422, detail="check_out cannot be before check_in")
+        new_check_in = date.fromisoformat(payload.check_in) if payload.check_in is not None else stay.check_in
+        new_check_out = date.fromisoformat(payload.check_out) if payload.check_out is not None else stay.check_out
     except ValueError:
         raise HTTPException(status_code=422, detail="check_in/check_out must be YYYY-MM-DD")
+    if new_check_out < new_check_in:
+        raise HTTPException(status_code=422, detail="check_out cannot be before check_in")
     stay.check_in = new_check_in
     stay.check_out = new_check_out
 

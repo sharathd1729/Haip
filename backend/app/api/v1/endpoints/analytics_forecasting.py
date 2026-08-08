@@ -60,12 +60,12 @@ def _prop_ids_list(property_ids: Optional[str]) -> Optional[List[str]]:
 
 
 def _occupied_nights_for_date(stays: list, target_date: date_cls) -> int:
-    """Count how many stays cover target_date."""
+    """Count how many stays cover target_date. `stays` tuples come from
+    Stay.check_in/check_out -- real DATE columns since migration 071, no
+    fromisoformat() needed (or possible: these are already date objects)."""
     count = 0
-    for ci_str, co_str in stays:
+    for ci, co in stays:
         try:
-            ci = date_cls.fromisoformat(ci_str)
-            co = date_cls.fromisoformat(co_str)
             if ci <= target_date < co:
                 count += 1
         except Exception:
@@ -286,8 +286,9 @@ def revenue_forecast(
     monthly: dict[str, float] = defaultdict(float)
     for s in stays:
         try:
-            ci = date_cls.fromisoformat(s.check_in)
-            month_key = ci.strftime("%Y-%m")
+            # migration 071: check_in is a real DATE column now, already a
+            # datetime.date -- no fromisoformat() needed (or possible).
+            month_key = s.check_in.strftime("%Y-%m")
             monthly[month_key] += float(s.total_amount or 0)
         except Exception:
             pass
@@ -305,8 +306,7 @@ def revenue_forecast(
     past_90_revenue = 0.0
     for s in stays:
         try:
-            ci = date_cls.fromisoformat(s.check_in)
-            if ci < today.replace(day=1):
+            if s.check_in < today.replace(day=1):
                 past_90_revenue += float(s.total_amount or 0)
         except Exception:
             pass
@@ -333,7 +333,7 @@ def revenue_forecast(
         else:
             series.append(RevenueForecastPoint(month=mk, actual=round(actual_v or 0.0, 2)))
 
-    ytd_start = today.replace(month=1, day=1).isoformat()
+    ytd_start = today.replace(month=1, day=1)
     ytd_actual = sum(
         float(s.total_amount or 0) for s in stays
         if s.check_in and s.check_in >= ytd_start
@@ -431,8 +431,8 @@ def pricing_suggestions(
         booked_nights = 0
         for s in upcoming_stays:
             try:
-                ci = max(date_cls.fromisoformat(s.check_in), today)
-                co = min(date_cls.fromisoformat(s.check_out), month_end)
+                ci = max(s.check_in, today)
+                co = min(s.check_out, month_end)
                 booked_nights += max(0, (co - ci).days)
             except Exception:
                 pass

@@ -698,6 +698,21 @@ def _create_stay_for_won_inquiry(db: Session, inquiry: Inquiry) -> None:
         )
         return
 
+    # migration 071: Stay.check_in/check_out are real DATE columns;
+    # Inquiry.check_in/check_out are untouched (still ISO strings) -- parse
+    # before constructing Stay. Same "skip, log, don't block the stage
+    # move" treatment as the missing-field case above for a malformed one.
+    from datetime import date as _date
+    try:
+        stay_check_in = _date.fromisoformat(inquiry.check_in)
+        stay_check_out = _date.fromisoformat(inquiry.check_out)
+    except ValueError:
+        log.warning(
+            "won_inquiry_unparseable_dates_no_stay_created",
+            inquiry_id=inquiry.id, check_in=inquiry.check_in, check_out=inquiry.check_out,
+        )
+        return
+
     from app.models.property import Stay
     from app.models.base import gen_uuid
 
@@ -712,8 +727,8 @@ def _create_stay_for_won_inquiry(db: Session, inquiry: Inquiry) -> None:
         guest_id=inquiry.guest_id,
         property_id=inquiry.property_id,
         inquiry_id=inquiry.id,
-        check_in=inquiry.check_in,
-        check_out=inquiry.check_out,
+        check_in=stay_check_in,
+        check_out=stay_check_out,
         adults=inquiry.adults or 1,
         children=inquiry.children or 0,
         status="confirmed",

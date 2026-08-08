@@ -134,6 +134,24 @@ def _upsert_stay(db: Session, tenant_id: str, res: dict):
         except Exception:
             pass
 
+    # migration 071: Stay.check_in/check_out are real DATE columns, NOT
+    # NULL -- a bare string (or "") assignment that worked against the old
+    # String column now fails at flush. Parse before touching `row` at all
+    # so a bad reservation is skipped cleanly (not the whole sync batch,
+    # and not a half-built row left dangling in the session).
+    from datetime import date as _date
+    arrival = res.get("arrivalDate") or ""
+    departure = res.get("departureDate") or ""
+    try:
+        check_in = _date.fromisoformat(arrival)
+        check_out = _date.fromisoformat(departure)
+    except ValueError:
+        logger.warning(
+            "Hostaway: skipping reservation %s -- unparseable dates arrival=%r departure=%r",
+            external_id, arrival, departure,
+        )
+        return
+
     row = db.query(Stay).filter_by(
         tenant_id=tenant_id, hostaway_booking_id=external_id
     ).first()
@@ -147,8 +165,8 @@ def _upsert_stay(db: Session, tenant_id: str, res: dict):
 
     if guest:
         row.guest_id = guest.id
-    row.check_in = res.get("arrivalDate", "") or ""
-    row.check_out = res.get("departureDate", "") or ""
+    row.check_in = check_in
+    row.check_out = check_out
     row.status = res.get("status", "confirmed")
     row.channel_source = res.get("channelName", "hostaway")
     row.total_amount = float(res.get("totalPrice", 0) or 0)

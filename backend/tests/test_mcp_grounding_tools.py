@@ -2,6 +2,7 @@
 and get_quote MCP tools.
 """
 import uuid
+from datetime import date
 from unittest.mock import patch
 
 import pytest
@@ -109,7 +110,7 @@ class TestCheckAvailability:
         db.add(guest); db.flush()
         db.add(Stay(
             id=str(uuid.uuid4()), tenant_id=tenant.id, guest_id=guest.id, property_id=prop.id,
-            check_in="2026-12-10", check_out="2026-12-12", status="confirmed",
+            check_in=date(2026, 12, 10), check_out=date(2026, 12, 12), status="confirmed",
         ))
         db.commit()
 

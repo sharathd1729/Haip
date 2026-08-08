@@ -132,8 +132,14 @@ def get_timeline(db: Session, tenant_id: str, guest_id: str) -> dict:
             "disposition": c.human_disposition or (c.ai_disposition.value if c.ai_disposition else None),
         }})
     for s in stays:
-        events.append({"type": "stay", "id": s.id, "at": s.check_in, "data": {
-            "check_in": s.check_in, "check_out": s.check_out,
+        # migration 071: Stay.check_in/check_out are real DATE columns now
+        # -- isoformat() so "at" stays a string across every event type
+        # (calls' "at" is a string); events.sort() below compares "at"
+        # values against each other and raises TypeError mixing str/date.
+        ci_str = s.check_in.isoformat() if s.check_in else None
+        co_str = s.check_out.isoformat() if s.check_out else None
+        events.append({"type": "stay", "id": s.id, "at": ci_str, "data": {
+            "check_in": ci_str, "check_out": co_str,
             "property_id": s.property_id, "amount": float(s.total_amount) if s.total_amount else None,
         }})
 

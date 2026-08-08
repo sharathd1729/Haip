@@ -168,8 +168,12 @@ def get_calendar(
                 "id":           str(s.id),
                 "external_id":  (getattr(s, "hostaway_booking_id", None) or
                                  f"BK-{str(s.id)[:8].upper()}"),
-                "check_in":     s.check_in,
-                "check_out":    s.check_out,
+                # migration 071: Stay.check_in/check_out are real DATE
+                # columns now -- .isoformat() to keep this dict's values
+                # ISO strings, matching blocks' (BlockedDate, untouched by
+                # 071) date-string comparisons throughout this file.
+                "check_in":     s.check_in.isoformat(),
+                "check_out":    s.check_out.isoformat(),
                 "status":       s.status,
                 "guest_id":     str(s.guest_id) if s.guest_id else None,
                 "guest_name":   guest_names.get(str(s.guest_id), "")  if s.guest_id else "",
@@ -562,7 +566,7 @@ def get_occupancy_summary(
         )
         for s in stays_all:
             stays_by_prop.setdefault(s.property_id, []).append(
-                {"check_in": s.check_in, "check_out": s.check_out, "status": s.status}
+                {"check_in": s.check_in.isoformat(), "check_out": s.check_out.isoformat(), "status": s.status}
             )
 
     blocks_by_prop: dict = {pid: [] for pid in all_pids}
