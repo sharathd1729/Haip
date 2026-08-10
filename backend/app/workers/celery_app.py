@@ -217,14 +217,13 @@ celery_app.conf.beat_schedule = {
         "task": "app.workers.tasks.owner_digest.orchestrate",
         "schedule": crontab(minute=0),
     },
-    # Phase 1: AI Insights — every 15 min, business hours only (6am-10pm IST).
-    # Was 24/7; reduced steady-state DB/connection load overnight when new
-    # urgent-detector-worthy activity is unlikely anyway (confirmed with
-    # product owner).
-    "run-insights-every-15min": {
-        "task": "app.workers.tasks.run_insights.run_all_tenants",
-        "schedule": crontab(minute="*/15", hour="6-22"),
-    },
+    # Phase 1: AI Insights -- DEACTIVATED 2026-08-08, dashboard/analytics/
+    # intelligence hub being rebuilt from scratch. Task code + insights
+    # table untouched; uncomment to reactivate.
+    # "run-insights-every-15min": {
+    #     "task": "app.workers.tasks.run_insights.run_all_tenants",
+    #     "schedule": crontab(minute="*/15", hour="6-22"),
+    # },
     # Phase 3: Intent classification — nightly at 03:00 IST
     "classify-intent-nightly": {
         "task": "app.workers.tasks.classify_intent.run",
@@ -245,20 +244,21 @@ celery_app.conf.beat_schedule = {
         "task": "app.workers.tasks.check_alerts.check_all_tenants",
         "schedule": crontab(minute=45),
     },
-    # Metrics Engine — nightly snapshot computation at 01:00 IST (19:30 UTC prev day)
-    "compute-snapshots-nightly": {
-        "task": "app.workers.tasks.compute_snapshots.run_all_tenants",
-        "schedule": crontab(hour=19, minute=30),
-    },
-    # Goal evaluator — daily at 08:00 IST (02:30 UTC)
-    "evaluate-goals-daily": {
-        "task": "app.workers.tasks.evaluate_goals.run_all_tenants",
-        "schedule": crontab(hour=2, minute=30),
-    },
-    # Adaptive dashboard widgets — daily at 06:00 IST (00:30 UTC)
-    "generate-all-widgets-daily": {
-        "task": "tasks.generate_widgets",
-        "schedule": crontab(hour=0, minute=30),
-        "kwargs": {"tenant_id": "__all__"},
-    },
+    # Metrics Engine / Goal evaluator / Adaptive dashboard widgets --
+    # DEACTIVATED 2026-08-08, dashboard/analytics/intelligence hub being
+    # rebuilt from scratch. Task code + underlying tables untouched;
+    # uncomment to reactivate.
+    # "compute-snapshots-nightly": {
+    #     "task": "app.workers.tasks.compute_snapshots.run_all_tenants",
+    #     "schedule": crontab(hour=19, minute=30),
+    # },
+    # "evaluate-goals-daily": {
+    #     "task": "app.workers.tasks.evaluate_goals.run_all_tenants",
+    #     "schedule": crontab(hour=2, minute=30),
+    # },
+    # "generate-all-widgets-daily": {
+    #     "task": "tasks.generate_widgets",
+    #     "schedule": crontab(hour=0, minute=30),
+    #     "kwargs": {"tenant_id": "__all__"},
+    # },
 }

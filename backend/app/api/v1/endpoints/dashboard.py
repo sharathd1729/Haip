@@ -10,7 +10,7 @@ import redis
 
 from app.core.database import get_db
 from app.core.config import settings
-from app.api.v1.deps import get_current_user, require_roles
+from app.api.v1.deps import get_current_user, require_roles, require_module
 from app.models.user import User, UserRole
 from app.models.call import Call, CallDisposition
 from app.models.guest import Guest
@@ -24,7 +24,12 @@ from app.services.widget_service import (
 )
 from app.workers.tasks.generate_widgets import generate_widgets
 
-router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+# Owner dashboard summary/widget system deactivated (2026-08-08) -- being
+# rebuilt from scratch. Router-level dependency 403s every route here
+# (get_dashboard, /widgets, /widget-library); code untouched, reversible.
+# Frontend's /dashboard root page redirects elsewhere so login doesn't land
+# on a 403.
+router = APIRouter(prefix="/dashboard", tags=["dashboard"], dependencies=[Depends(require_module("analytics"))])
 
 _redis = redis.from_url(settings.REDIS_URL, decode_responses=True)
 

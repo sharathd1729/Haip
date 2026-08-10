@@ -15,7 +15,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Search, LayoutDashboard, MessageSquare, Phone, Users,
+  Search, MessageSquare, Phone, Users,
   Settings, BarChart2, Shield, FileText, Inbox,
   ArrowRight, Clock, User, Building2, HelpCircle,
 } from "lucide-react";
@@ -25,13 +25,13 @@ import api from "@/lib/api";
 // ── Static page items ──────────────────────────────────────────────────────────
 
 const PAGES = [
-  { id: "dashboard",    label: "Dashboard",         href: "/dashboard",                  icon: <LayoutDashboard size={14} />,  group: "Pages" },
+  // "dashboard" and "analytics" entries removed 2026-08-08 -- deactivated,
+  // being rebuilt from scratch.
   { id: "inbox",        label: "Inbox",              href: "/dashboard/inbox",            icon: <Inbox size={14} />,            group: "Pages" },
   { id: "calls",        label: "Calls",              href: "/dashboard/calls",            icon: <Phone size={14} />,            group: "Pages" },
   { id: "inquiries",    label: "Inquiries",          href: "/dashboard/inquiries",        icon: <FileText size={14} />,         group: "Pages" },
   { id: "guests",       label: "Guests",             href: "/dashboard/guests",           icon: <Users size={14} />,            group: "Pages" },
   { id: "properties",   label: "Properties",         href: "/dashboard/properties",       icon: <Building2 size={14} />,        group: "Pages" },
-  { id: "analytics",    label: "Analytics",          href: "/dashboard/analytics",        icon: <BarChart2 size={14} />,        group: "Pages" },
   { id: "qa",           label: "QA Scores",          href: "/dashboard/qa",               icon: <BarChart2 size={14} />,        group: "Pages" },
   { id: "compliance",   label: "Compliance",         href: "/dashboard/compliance",       icon: <Shield size={14} />,           group: "Pages" },
   { id: "settings",     label: "Settings",           href: "/dashboard/settings",         icon: <Settings size={14} />,         group: "Pages" },

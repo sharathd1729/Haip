@@ -25,7 +25,7 @@ from sqlalchemy import func, and_, or_, case
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.api.v1.deps import get_current_user
+from app.api.v1.deps import get_current_user, require_module
 from app.models.user import User
 from app.models.guest import Guest
 from app.models.inquiry import Inquiry, InquiryStage
@@ -46,7 +46,10 @@ from app.schemas.analytics import (
     AIAnalyticsStats, AIAcceptanceTrendPoint, AICostTrendPoint, AIAcceptanceByAgentRow,
 )
 
-router = APIRouter(prefix="/analytics", tags=["analytics"])
+# Guests/Channels/Campaigns/Properties/Operations/AI analytics sections
+# deactivated (2026-08-08) -- being rebuilt from scratch. Router-level
+# dependency 403s all 6 routes here; code untouched, reversible.
+router = APIRouter(prefix="/analytics", tags=["analytics"], dependencies=[Depends(require_module("analytics"))])
 
 # ─── Shared helpers ────────────────────────────────────────────────────────────
 

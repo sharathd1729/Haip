@@ -6,10 +6,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
-  LayoutDashboard, Inbox, Phone, Users, Menu, X,
+  Inbox, Phone, Users, Menu, X,
   Home, Target, Building2, Calendar, Calculator,
   MessageSquare, Megaphone, UserCheck, GitBranch,
-  BarChart2, Sparkles, FileDown, Star, Shield, Zap,
+  Sparkles, FileDown, Star, Shield, Zap,
   Settings, Plug2, CreditCard, UserCircle, HelpCircle,
   Palette, FileText, LogOut,
 } from "lucide-react";
@@ -38,10 +38,11 @@ const BOTTOM_TABS = [
 // nothing reachable on desktop is mobile-only-via-URL.
 const ALL_SECTIONS = [
   {
+    // "Dashboard" and "My Dashboards" removed 2026-08-08 -- deactivated,
+    // being rebuilt from scratch. "Home" bottom-tab (below) still points at
+    // /dashboard, which now redirects elsewhere.
     label: "Workspace",
     items: [
-      { label: "Dashboard",     href: "/dashboard",             icon: Home,           resource: "dashboard" as Resource },
-      { label: "My Dashboards", href: "/dashboard/dashboards",  icon: LayoutDashboard, resource: "dashboard" as Resource },
       { label: "Inbox",         href: "/dashboard/inbox",       icon: Inbox,          resource: "inbox"     as Resource, live: "inbox" as const },
       { label: "Calls",         href: "/dashboard/calls",       icon: Phone,          resource: "calls"     as Resource },
     ],
@@ -72,9 +73,10 @@ const ALL_SECTIONS = [
     ],
   },
   {
+    // "Analytics" removed 2026-08-08 -- deactivated, being rebuilt from
+    // scratch. "Ask HAIP" is a separate module, unaffected.
     label: "Intelligence",
     items: [
-      { label: "Analytics",   href: "/dashboard/analytics",     icon: BarChart2, resource: "analytics"   as Resource },
       { label: "Ask HAIP",    href: "/dashboard/analytics/ask", icon: Sparkles,  resource: "analytics"   as Resource },
       { label: "Reports",     href: "/dashboard/reports",       icon: FileDown,  resource: "reports"     as Resource },
       { label: "QA & Scores", href: "/dashboard/qa",            icon: Star,      resource: "qa"          as Resource },

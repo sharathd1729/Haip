@@ -23,7 +23,7 @@ from sqlalchemy import func, case
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.api.v1.deps import get_current_user
+from app.api.v1.deps import get_current_user, require_module
 from app.models.user import User
 from app.models.inquiry import Inquiry, InquiryStage
 from app.models.call import Call
@@ -38,7 +38,10 @@ from app.schemas.analytics import (
     AttributionAnalyticsStats, AttributionSourceRow, JourneyPathRow,
 )
 
-router = APIRouter(prefix="/analytics", tags=["analytics"])
+# Intent/Objections/Attribution intelligence deactivated (2026-08-08) --
+# being rebuilt from scratch. Router-level dependency 403s all 3 routes
+# here; code untouched, reversible.
+router = APIRouter(prefix="/analytics", tags=["analytics"], dependencies=[Depends(require_module("analytics"))])
 
 # ─── Shared helpers ────────────────────────────────────────────────────────────
 

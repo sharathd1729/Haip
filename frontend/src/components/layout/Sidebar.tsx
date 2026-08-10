@@ -5,10 +5,10 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import {
-  Home, Inbox, Phone, Users, Building2,
+  Inbox, Phone, Users, Building2,
   Sparkles, BarChart2, Zap, Link2, Settings,
   HelpCircle, LogOut, ChevronDown, ChevronRight,
-  MessageSquare, AtSign, Bot, Target, Megaphone, UserCheck, GitBranch, FileText, LayoutDashboard,
+  MessageSquare, AtSign, Bot, Target, Megaphone, UserCheck, GitBranch, FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canSeeNav, type Resource } from "@/lib/permissions";
@@ -41,19 +41,11 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  {
-    label: "Dashboard",
-    href: "/dashboard",
-    icon: Home,
-    resource: "dashboard",
-    section: "Workspace",
-  },
-  {
-    label: "My Dashboards",
-    href: "/dashboard/dashboards",
-    icon: LayoutDashboard,
-    resource: "dashboard",
-  },
+  // "Dashboard" (/dashboard) and "My Dashboards" (/dashboard/dashboards)
+  // deactivated 2026-08-08 -- Owner Dashboard + widget builder being rebuilt
+  // from scratch. Backend router-level require_module("analytics") 403s
+  // both; removed from nav so there's no dead link. Restore alongside
+  // re-adding "analytics" to DEFAULT_MODULE_CODES.
   {
     label: "Inbox",
     href: "/dashboard/inbox",
@@ -116,16 +108,14 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
+    // "Analytics" and "Charts" children removed 2026-08-08 -- analytics
+    // pages deactivated, being rebuilt from scratch. "Exports" (raw report
+    // generation, not "analytics") is unaffected and kept.
     label: "Reports",
     href: "/dashboard/reports",
     icon: BarChart2,
     resource: "analytics",
     section: "Intelligence",
-    children: [
-      { label: "Analytics",  href: "/dashboard/analytics" },
-      { label: "Charts",     href: "/dashboard/reports/analytics" },
-      { label: "Exports",    href: "/dashboard/reports" },
-    ],
   },
   {
     label: "Ask HAIP",

@@ -48,9 +48,14 @@ PLAN_GATED_FLAGS: dict[str, list[str]] = {
 # flow exists yet — see Phase 1 "Choose Modules" onboarding step). Used both
 # to backfill pre-existing tenants (migration 035) and to provision new
 # tenants at registration, so no workspace is ever left with zero rows.
+#
+# "analytics" deliberately excluded (2026-08-08) -- Owner Dashboard,
+# analytics pages, and AI insights are deactivated pending a from-scratch
+# rebuild (migration 072 disabled it for existing tenants). Re-add here
+# once the rebuild ships.
 DEFAULT_MODULE_CODES: list[str] = [
     "whatsapp", "instagram", "calls", "leads360", "channel_manager",
-    "analytics", "ask_haip", "ai_concierge", "campaigns", "flow_builder",
+    "ask_haip", "ai_concierge", "campaigns", "flow_builder",
 ]
 
 

@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.api.v1.deps import get_current_user, get_db, get_workspace_context
+from app.api.v1.deps import get_current_user, get_db, get_workspace_context, require_module
 from app.models.user import User
 from app.models.dashboard_v2 import (
     Dashboard, DashboardWidgetInstance, DashboardShare, DashboardTemplate
@@ -22,7 +22,12 @@ from app.services.workspace_context import (
     available_widgets_for_context, available_templates_for_context
 )
 
-router = APIRouter(prefix="/dashboards", tags=["dashboards"])
+# Owner Dashboard + widget builder deactivated (2026-08-08) -- being rebuilt
+# from scratch. Router-level dependency 403s every route here rather than
+# touching each of the ~13 route functions individually; code and DB tables
+# (dashboards, dashboard_widget_instances, dashboard_shares) are untouched,
+# reversible by removing this one dependency.
+router = APIRouter(prefix="/dashboards", tags=["dashboards"], dependencies=[Depends(require_module("analytics"))])
 
 
 # ── Schemas ──────────────────────────────────────────────────────────────────
