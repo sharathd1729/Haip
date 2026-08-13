@@ -358,8 +358,21 @@ export default function TemplatesPage() {
 
   const submitMutation = useMutation({
     mutationFn: (id: string) => api.post(`/messaging/templates/${id}/submit`),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["wa-templates"] }); showToast("Template submitted for Meta review!", "success"); },
-    onError: () => showToast("Submission failed.", "error"),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ["wa-templates"] });
+      if (res.data?.status === "pending") {
+        showToast("Template submitted for Meta review!", "success");
+      } else {
+        // submit_template returns 200 even when Meta rejected it or the
+        // request itself failed (status: rejected/submission_failed) --
+        // treat that the same as an error instead of a false "success".
+        showToast(res.data?.rejection_reason || "Submission failed.", "error");
+      }
+    },
+    onError: (err) => {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      showToast(msg || "Submission failed.", "error");
+    },
   });
 
   const deleteMutation = useMutation({
