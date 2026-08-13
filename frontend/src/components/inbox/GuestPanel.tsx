@@ -252,26 +252,34 @@ export function GuestPanel({ detail }: { detail: ConversationDetail }) {
                 </p>
                 <div className="flex items-center justify-between">
                   <span style={{ color: "var(--haip-fg-subtle)" }}>Phone</span>
-                  {guest?.phone ? (
-                    <button
-                      type="button"
-                      onClick={() => clickToCall.mutate(guest.phone!)}
-                      disabled={clickToCall.isPending}
-                      title="Call via IVR"
-                      className="font-semibold flex items-center gap-1 hover:underline disabled:opacity-50"
-                      style={{ color: "var(--haip-fg)" }}
-                    >
-                      {clickToCall.isPending
-                        ? <Loader2 size={11} className="animate-spin" style={{ color: "var(--primary)" }} />
-                        : <Phone size={11} style={{ color: "var(--primary)" }} />}
-                      {guest.phone}
-                    </button>
-                  ) : (
-                    <span className="font-semibold flex items-center gap-1" style={{ color: "var(--haip-amber, #d97706)" }}>
-                      <Phone size={11} style={{ color: "var(--haip-amber, #d97706)" }} />
-                      Not on file
-                    </span>
-                  )}
+                  {(() => {
+                    // guest?.phone comes from a separate /guests?phone= lookup that
+                    // can miss (e.g. Guest.phone unbackfilled) even though the
+                    // conversation itself already carries the number -- fall back
+                    // to detail.guest_phone (proven present, it's what the masked
+                    // header renders) instead of showing "Not on file" wrongly.
+                    const phone = guest?.phone || detail.guest_phone;
+                    return phone ? (
+                      <button
+                        type="button"
+                        onClick={() => clickToCall.mutate(phone)}
+                        disabled={clickToCall.isPending}
+                        title="Call via IVR"
+                        className="font-semibold flex items-center gap-1 hover:underline disabled:opacity-50"
+                        style={{ color: "var(--haip-fg)" }}
+                      >
+                        {clickToCall.isPending
+                          ? <Loader2 size={11} className="animate-spin" style={{ color: "var(--primary)" }} />
+                          : <Phone size={11} style={{ color: "var(--primary)" }} />}
+                        {phone}
+                      </button>
+                    ) : (
+                      <span className="font-semibold flex items-center gap-1" style={{ color: "var(--haip-amber, #d97706)" }}>
+                        <Phone size={11} style={{ color: "var(--haip-amber, #d97706)" }} />
+                        Not on file
+                      </span>
+                    );
+                  })()}
                 </div>
                 <div className="flex items-center justify-between">
                   <span style={{ color: "var(--haip-fg-subtle)" }}>Email</span>
