@@ -65,7 +65,7 @@ interface GuestSummary {
   recent_stays?: { property_name?: string; check_in?: string; check_out?: string }[];
 }
 
-export function GuestPanel({ detail }: { detail: ConversationDetail }) {
+export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDetail; mobileVariant?: boolean }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const inquiryId = detail.inquiry_id ?? null;
@@ -129,8 +129,12 @@ export function GuestPanel({ detail }: { detail: ConversationDetail }) {
 
   return (
     <div
-      className="hidden md:flex md:flex-col w-[300px] flex-shrink-0 overflow-y-auto haip-scrollbar bg-card"
-      style={{ borderLeft: "1px solid var(--haip-border)" }}
+      className={
+        mobileVariant
+          ? "flex flex-col w-full h-full overflow-y-auto haip-scrollbar bg-card"
+          : "hidden md:flex md:flex-col w-[300px] flex-shrink-0 overflow-y-auto haip-scrollbar bg-card"
+      }
+      style={mobileVariant ? undefined : { borderLeft: "1px solid var(--haip-border)" }}
     >
       {/* Header */}
       <div className="px-4 py-4 flex-shrink-0" style={{ borderBottom: "1px solid var(--haip-border)" }}>

@@ -3,7 +3,8 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { Send, Sparkles, Loader2, BellOff, Search, X, StickyNote, Reply, ChevronDown, ChevronLeft, CalendarClock, Timer, AlertTriangle, LayoutTemplate, Phone, Languages, Wand2 } from "lucide-react";
+import { Send, Sparkles, Loader2, BellOff, Search, X, StickyNote, Reply, ChevronDown, ChevronLeft, CalendarClock, Timer, AlertTriangle, LayoutTemplate, Phone, Languages, Wand2, User } from "lucide-react";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { ConversationList } from "@/components/inbox/ConversationList";
@@ -195,6 +196,9 @@ export default function InboxPage() {
 
   // Mobile: single-panel navigation ("list" | "thread")
   const [mobileView, setMobileView] = useState<"list" | "thread">("list");
+  // Guest 360 panel is desktop-only (hidden md:flex on GuestPanel) -- on
+  // mobile it opens as a sheet from the thread header instead.
+  const [showGuestSheet, setShowGuestSheet] = useState(false);
 
   const [channelFilter, setChannelFilter] = useState("");
   const [replyText, setReplyText] = useState("");
@@ -907,6 +911,17 @@ export default function InboxPage() {
                       )}
                     </div>
                   </div>
+                  {/* Guest 360 -- desktop shows it as a permanent right panel
+                      (GuestPanel is `hidden md:flex`); mobile opens it as a
+                      sheet since there's no room for a third panel. */}
+                  <button
+                    onClick={() => setShowGuestSheet(true)}
+                    className="md:hidden w-8 h-8 rounded-lg flex items-center justify-center transition-colors duration-150 hover:bg-muted"
+                    style={{ color: "var(--haip-fg-subtle)" }}
+                    title="Guest 360"
+                  >
+                    <User size={14} />
+                  </button>
                   {/* W17: search */}
                   <button
                     onClick={() => setShowSearch(s => !s)}
@@ -1444,8 +1459,15 @@ export default function InboxPage() {
         )}
       </div>
 
-      {/* Right: Guest 360 panel — hidden on mobile */}
+      {/* Right: Guest 360 panel — hidden on mobile (see mobile sheet below) */}
       {detail && <GuestPanel detail={detail} />}
+
+      {/* Mobile: Guest 360 as a sheet instead of a permanent panel */}
+      <Sheet open={showGuestSheet} onOpenChange={setShowGuestSheet}>
+        <SheetContent side="right" className="p-0 w-[85vw] sm:max-w-sm">
+          {detail && <GuestPanel detail={detail} mobileVariant />}
+        </SheetContent>
+      </Sheet>
 
       {showTemplatePicker && activeConversationId && (
         <TemplatePickerModal
