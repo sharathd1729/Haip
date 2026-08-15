@@ -176,6 +176,25 @@ def test_duplicate_message_dedup(tenant_with_wa, db, client):
     assert count == 1, "Duplicate wa message should be deduped"
 
 
+def test_text_message_records_automation_outcome(tenant_with_wa, db, client):
+    """Phase 2.5 (HAIP_Agent_Analytics_Dashboard_Plan_1.md #2.5.2): a
+    non-empty inbound message that reaches the AI-draft branch gets
+    automation_outcome="no_match_ai_drafted" -- WhatsApp has no keyword-rule
+    engine (that's Instagram-only), so every message here is "no_match"."""
+    from app.models.conversation import Message
+
+    msg = _text_msg("Do you have availability next weekend?")
+    payload = _meta_payload(messages=[msg])
+
+    with _mock_concierge():
+        client.post("/api/v1/webhooks/whatsapp", json=payload,
+                    headers={"X-Hub-Signature-256": "sha256=mock"})
+
+    stored = db.query(Message).filter_by(channel_message_id=msg["id"]).first()
+    assert stored is not None
+    assert stored.automation_outcome == "no_match_ai_drafted"
+
+
 def test_media_message_stored(tenant_with_wa, db, client):
     """Image message with caption is stored with media_type=image."""
     from app.models.conversation import Message

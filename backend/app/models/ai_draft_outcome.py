@@ -36,3 +36,11 @@ class AIDraftOutcome(Base, TimestampMixin):
 
     # Phase 3 backfills this via nightly fact-replay -- null until then.
     fact_verdict = Column(String(20), nullable=True)  # correct | incorrect | unverified
+
+    # Phase 2.5 agent-accountability instrumentation
+    # (HAIP_Agent_Analytics_Dashboard_Plan_1.md #2.5.4): the agent who
+    # approved/rejected this draft. Previously uncaptured anywhere --
+    # approve_ai_draft set Message.sender_id on approve only, and
+    # reject_ai_draft recorded no actor at all. Nullable: outcome="expired"
+    # (no human ever acted) has no actor by definition.
+    actor_user_id = Column(String, ForeignKey("users.id"), nullable=True)

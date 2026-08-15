@@ -889,6 +889,7 @@ def approve_ai_draft(
         outcome="sent_edited" if was_edited else "sent_verbatim",
         original_body=original_body if was_edited else None,
         sent_body=msg.body if was_edited else None,
+        actor_user_id=current_user.id,
     )
     db.commit()
 
@@ -932,6 +933,7 @@ def reject_ai_draft(
 
     ai_draft_outcomes_service.record_outcome(
         db, tenant_id=current_user.tenant_id, draft=msg, outcome="rejected",
+        actor_user_id=current_user.id,
     )
     db.commit()
 

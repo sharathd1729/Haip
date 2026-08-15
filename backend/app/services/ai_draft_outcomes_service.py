@@ -20,6 +20,7 @@ def record_outcome(
     outcome: str,
     original_body: Optional[str] = None,
     sent_body: Optional[str] = None,
+    actor_user_id: Optional[str] = None,
 ) -> AIDraftOutcome:
     """
     outcome: "sent_verbatim" | "sent_edited" | "rejected"
@@ -28,6 +29,9 @@ def record_outcome(
     since callers typically mutate draft.body to the edited text *before*
     calling this (so it can be committed in the same transaction), which
     would otherwise leave nothing to diff against.
+    actor_user_id: the agent who approved/rejected this draft (Phase 2.5,
+    HAIP_Agent_Analytics_Dashboard_Plan_1.md #2.5.4). None for outcomes with
+    no human actor (e.g. "expired").
     """
     edit_distance_pct = None
     if outcome == "sent_edited" and original_body and sent_body is not None:
@@ -55,6 +59,7 @@ def record_outcome(
         # loop actually fetched while drafting this message (empty for
         # ungrounded intents, or drafts written before ticket 4 shipped).
         grounded_facts=draft.grounded_facts or [],
+        actor_user_id=actor_user_id,
     )
     db.add(row)
     return row

@@ -276,13 +276,24 @@ def process_instagram_dm(self, payload: dict) -> dict:
             from app.services.ig_keyword_match import find_matching_rule
             matched_rule = find_matching_rule(db, tenant_id, "ig_dm_received", body)
 
+        # Phase 2.5 agent-accountability instrumentation
+        # (HAIP_Agent_Analytics_Dashboard_Plan_1.md #2.5.2): record which of
+        # this decision's branches fired, since find_matching_rule() returns
+        # None with no side effect by design and an unmatched, un-drafted
+        # message otherwise leaves no trace it was ever missed. Only the 3
+        # outcomes this if/elif can actually produce are used here --
+        # "matched_ai_drafted" from the plan doc's naming has no reachable
+        # branch in this mutually-exclusive if/elif (a matched rule always
+        # takes the auto-reply path, never the AI-draft one).
         if matched_rule:
             from app.services.ig_quick_reply import dispatch_quick_reply
             dispatch_quick_reply(
                 db, tenant_id, matched_rule,
                 recipient_id=sender_id, guest_id=guest_id, conversation_id=conversation.id,
             )
+            message.automation_outcome = "matched_auto_replied"
         elif body and body.strip() and not body.startswith("[") and conversation.ai_mode != "off":
+            message.automation_outcome = "no_match_ai_drafted"
             try:
                 from app.workers.tasks.concierge_draft import concierge_draft
                 concierge_draft.apply_async(
@@ -295,6 +306,9 @@ def process_instagram_dm(self, payload: dict) -> dict:
                 )
             except Exception as exc:
                 logger.error("Failed to queue Instagram concierge draft: %s", exc)
+        else:
+            message.automation_outcome = "no_match_no_response"
+        db.commit()
 
         return {
             "status": "ok",

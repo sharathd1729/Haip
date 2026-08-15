@@ -61,6 +61,15 @@ class Call(Base, TimestampMixin, TenantMixin):
     started_at = Column(String, nullable=True)
     ended_at = Column(String, nullable=True)
 
+    # Phase 2.5 agent-accountability instrumentation
+    # (HAIP_Agent_Analytics_Dashboard_Plan_1.md #2.5.3): self-referential
+    # link from a missed inbound call to the later outbound call (to the
+    # same guest, within the matching window) that recovered it. Nullable —
+    # unset until a matching outbound call is recorded, and stays null
+    # forever for calls that were never missed or never recovered. Answers
+    # "did we call them back" without which the schema has no way to.
+    recovered_by_call_id = Column(String, ForeignKey("calls.id"), nullable=True)
+
     # Recording
     recording_url_ivr = Column(Text, nullable=True)  # IVR provider URL
     recording_s3_key = Column(Text, nullable=True)   # Our S3 key

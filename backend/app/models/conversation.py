@@ -151,5 +151,16 @@ class Message(Base, TimestampMixin, TenantMixin):
     sender_id = Column(String, ForeignKey("users.id"), nullable=True)
     sender_name = Column(String(255), nullable=True)
 
+    # Phase 2.5 agent-accountability instrumentation
+    # (HAIP_Agent_Analytics_Dashboard_Plan_1.md #2.5.2): set once per inbound
+    # message at the point the automation-routing decision is made
+    # (ig_keyword_match / WhatsApp equivalent) -- matched_auto_replied |
+    # matched_ai_drafted | no_match_ai_drafted | no_match_no_response.
+    # ig_keyword_match.find_matching_rule() returns None with no side effect
+    # by design, so a "no rule matched, no AI reply either" miss was
+    # otherwise unrecoverable after the fact. Null for outbound messages and
+    # for inbound messages ingested before this column existed.
+    automation_outcome = Column(String(30), nullable=True)
+
     conversation = relationship("Conversation", back_populates="messages")
     sender = relationship("User", foreign_keys=[sender_id])

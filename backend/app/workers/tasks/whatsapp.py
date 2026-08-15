@@ -381,6 +381,12 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
 
     # ── Trigger AI Concierge ───────────────────────────────────────────────
     # Only trigger for text/interactive messages (not raw media without caption)
+    # Phase 2.5 agent-accountability instrumentation
+    # (HAIP_Agent_Analytics_Dashboard_Plan_1.md #2.5.2): WhatsApp has no
+    # keyword-rule engine (that's Instagram-only, ig_keyword_match.py), so
+    # every inbound message here is effectively "no_match" -- outcome is
+    # just AI-drafted vs no response, same vocabulary as the IG side so
+    # downstream queries don't need a per-channel case split.
     if body and body.strip():
         try:
             from app.workers.tasks.concierge_draft import concierge_draft
@@ -397,8 +403,13 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
                 message_id=message.id,
                 conversation=conversation.id,
             )
+            message.automation_outcome = "no_match_ai_drafted"
         except Exception as exc:
             log.error("failed_to_queue_concierge_draft", error=str(exc))
+            message.automation_outcome = "no_match_no_response"
+    else:
+        message.automation_outcome = "no_match_no_response"
+    db.commit()
 
 
 def _handle_status_update(db, tenant: Tenant, status_obj: dict):

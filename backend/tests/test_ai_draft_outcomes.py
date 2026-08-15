@@ -64,6 +64,9 @@ class TestApproveVerbatim:
         assert outcomes[0].edit_distance_pct is None
         assert outcomes[0].ai_confidence == "0.82"
         assert outcomes[0].time_to_action_sec is not None
+        # Phase 2.5 (HAIP_Agent_Analytics_Dashboard_Plan_1.md #2.5.4)
+        actor_id = tenant_and_user["user"]["id"] if isinstance(tenant_and_user["user"], dict) else tenant_and_user["user"].id
+        assert outcomes[0].actor_user_id == actor_id
 
 
 class TestApproveEdited:
@@ -130,6 +133,10 @@ class TestReject:
         assert len(outcomes) == 1
         assert outcomes[0].outcome == "rejected"
         assert outcomes[0].edit_distance_pct is None
+        # Phase 2.5 (HAIP_Agent_Analytics_Dashboard_Plan_1.md #2.5.4) --
+        # previously reject_ai_draft captured no actor at all.
+        actor_id = tenant_and_user["user"]["id"] if isinstance(tenant_and_user["user"], dict) else tenant_and_user["user"].id
+        assert outcomes[0].actor_user_id == actor_id
 
 
 class TestTenantIsolation:

@@ -10,7 +10,7 @@ import phonenumbers
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 from app.core.config import settings
-from app.models.call import Call
+from app.models.call import Call, CallDirection
 from app.models.guest import Guest
 from app.models.inquiry import Inquiry, InquiryStage, InquirySource
 from app.models.conversation import Conversation, ChannelType
@@ -20,7 +20,7 @@ from app.models.call import RecordingStatus
 from app.workers.celery_app import celery_app
 import structlog
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 
 def _phone_token(phone: str) -> str:
@@ -28,6 +28,40 @@ def _phone_token(phone: str) -> str:
     return hashlib.sha256(phone.encode()).hexdigest()[:12]
 
 log = structlog.get_logger()
+
+_RECOVERY_WINDOW_HOURS = 24
+
+
+def _link_recovered_call(db: Session, tenant_id: str, guest_id: str, outbound_call: Call) -> None:
+    """
+    Phase 2.5 agent-accountability instrumentation
+    (HAIP_Agent_Analytics_Dashboard_Plan_1.md #2.5.3): when an outbound call
+    lands for a guest with an unrecovered missed inbound call in the last
+    24h, link it so "did we call them back" is a query instead of
+    unanswerable. "Missed" = inbound + no duration, same definition
+    calls.py's serializers already use for is_missed. Matches on
+    Call.created_at (real DateTime) rather than started_at/ended_at, which
+    are String columns and unreliable for range comparison.
+    """
+    window_start = outbound_call.created_at - timedelta(hours=_RECOVERY_WINDOW_HOURS)
+    missed = (
+        db.query(Call)
+        .filter(
+            Call.tenant_id == tenant_id,
+            Call.guest_id == guest_id,
+            Call.direction == CallDirection.INBOUND,
+            (Call.duration_seconds.is_(None)) | (Call.duration_seconds == 0),
+            Call.recovered_by_call_id.is_(None),
+            Call.created_at >= window_start,
+            Call.created_at < outbound_call.created_at,
+        )
+        .order_by(Call.created_at.desc())
+        .first()
+    )
+    if missed:
+        missed.recovered_by_call_id = outbound_call.id
+        db.commit()
+        log.info("missed_call_recovered", missed_call_id=missed.id, recovery_call_id=outbound_call.id)
 
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=30, name="call_ingest.process")
@@ -111,6 +145,9 @@ def ingest_call(self, payload: dict, tenant_id: str, ivr_provider: str):
             db.refresh(call)
 
             log.info("call_created", call_id=call.id, guest_token=_phone_token(guest_number))
+
+            if normalized.direction == "outbound":
+                _link_recovered_call(db, tenant_id, guest.id, call)
 
             # Queue recording fetch + transcription
             fetch_and_store_recording.delay(

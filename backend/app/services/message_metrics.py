@@ -86,6 +86,91 @@ def chat_response_avg_seconds(
     return float(result) if result is not None else 0.0
 
 
+def chat_response_by_agent(
+    db: Session,
+    tenant_id: str,
+    since: datetime,
+    until: Optional[datetime] = None,
+    property_ids: Optional[List[str]] = None,
+) -> List[dict]:
+    """
+    Same population as chat_response_p95_seconds/avg_seconds, but grouped by
+    the agent who sent the matching outbound reply -- Phase 2.5 agent-
+    accountability instrumentation (HAIP_Agent_Analytics_Dashboard_Plan_1.md).
+
+    The tenant-wide functions above use a correlated scalar subquery that
+    only pulls MIN(created_at) of the next outbound message -- it never
+    identifies WHICH message that was, so there's no sender_id to group by.
+    This uses a LATERAL join instead so we get the actual matched outbound
+    row (timestamp AND sender_id together), not just its timestamp.
+    """
+    until_clause = "AND m.created_at < :until" if until is not None else ""
+    property_clause = "AND c.property_id = ANY(:property_ids)" if property_ids else ""
+    params = {"tid": tenant_id, "since": since}
+    if until is not None:
+        params["until"] = until
+    if property_ids:
+        params["property_ids"] = property_ids
+
+    rows = db.execute(
+        text(f"""
+            SELECT
+                agent_id,
+                AVG(gap_seconds) AS avg_seconds,
+                percentile_cont(0.95) WITHIN GROUP (ORDER BY gap_seconds) AS p95_seconds,
+                COUNT(*) AS response_count
+            FROM (
+                SELECT
+                    nxt.agent_id,
+                    EXTRACT(EPOCH FROM (nxt.next_outbound_at - turns.created_at)) AS gap_seconds
+                FROM (
+                    SELECT
+                        m.id,
+                        m.conversation_id,
+                        m.created_at,
+                        m.direction,
+                        LAG(m.direction) OVER (
+                            PARTITION BY m.conversation_id ORDER BY m.created_at
+                        ) AS prev_direction
+                    FROM messages m
+                    JOIN conversations c ON c.id = m.conversation_id
+                    WHERE m.tenant_id = :tid
+                      AND m.created_at >= :since
+                      {until_clause}
+                      {property_clause}
+                      AND c.channel IN ('WHATSAPP', 'INSTAGRAM')
+                ) turns
+                CROSS JOIN LATERAL (
+                    SELECT o.created_at AS next_outbound_at, o.sender_id AS agent_id
+                    FROM messages o
+                    WHERE o.conversation_id = turns.conversation_id
+                      AND o.direction = 'OUTBOUND'
+                      AND o.created_at > turns.created_at
+                    ORDER BY o.created_at ASC
+                    LIMIT 1
+                ) nxt
+                WHERE turns.direction = 'INBOUND'
+                  AND turns.prev_direction IS DISTINCT FROM 'INBOUND'
+                  AND nxt.next_outbound_at IS NOT NULL
+                  AND nxt.agent_id IS NOT NULL
+            ) sub
+            GROUP BY agent_id
+            ORDER BY response_count DESC
+        """),
+        params,
+    ).mappings().all()
+
+    return [
+        {
+            "agent_id": row["agent_id"],
+            "avg_seconds": float(row["avg_seconds"]) if row["avg_seconds"] is not None else 0.0,
+            "p95_seconds": float(row["p95_seconds"]) if row["p95_seconds"] is not None else 0.0,
+            "response_count": row["response_count"],
+        }
+        for row in rows
+    ]
+
+
 def _response_gap_sql(aggregate: str, until_clause: str, property_clause: str) -> str:
     """
     Shared response-gap query, parameterised by aggregate.
