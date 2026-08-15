@@ -57,6 +57,14 @@
    See docs/DESIGN.md.
 ────────────────────────────────────────────────────────────────────────────── */
 :root {
+  /* Body/UI font -- system stack, not next/font/google's Inter fetch.
+     That fetch has started 404ing at build time on both Vercel and the
+     VPS Docker build (fonts.gstatic.com rejecting the specific woff2 URLs
+     Next/Turbopack requests for this Inter subset) -- blocking every
+     deploy. A system stack has near-identical metrics to Inter and zero
+     network dependency at build time. Outfit (--font-display) is
+     untouched -- it wasn't in the failing set. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --background: oklch(1 0 0);
   --foreground: #111827;
   /* Slightly off-white so bg-card is visible on bg-background */

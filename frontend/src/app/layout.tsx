@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Outfit, Inter } from "next/font/google";
+import { Outfit } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { PWARegister } from "@/components/PWARegister";
@@ -14,14 +14,6 @@ const displayFont = Outfit({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
   variable: "--font-display",
-  display: "swap",
-});
-
-// Body / UI font: Inter — industry-standard, maximal legibility at all sizes
-const sansFont = Inter({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  variable: "--font-sans",
   display: "swap",
 });
 
@@ -82,7 +74,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           } catch(e) {}
         `}} />
       </head>
-      <body className={`${displayFont.variable} ${sansFont.variable} min-h-full bg-background`}>
+      <body className={`${displayFont.variable} min-h-full bg-background`}>
         <Providers>{children}</Providers>
         <PWARegister />
         <UpdateBanner />
