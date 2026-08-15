@@ -38,9 +38,9 @@ const BOTTOM_TABS = [
 // nothing reachable on desktop is mobile-only-via-URL.
 const ALL_SECTIONS = [
   {
-    // "Dashboard" and "My Dashboards" removed 2026-08-08 -- deactivated,
-    // being rebuilt from scratch. "Home" bottom-tab (below) still points at
-    // /dashboard, which now redirects elsewhere.
+    // "Dashboard"/"My Dashboards" reactivated 2026-08-16 (migration 077) --
+    // "Home" bottom-tab (below) already points at /dashboard, which is now
+    // the real role-aware dashboard page instead of a redirect.
     label: "Workspace",
     items: [
       { label: "Inbox",         href: "/dashboard/inbox",       icon: Inbox,          resource: "inbox"     as Resource, live: "inbox" as const },
@@ -73,13 +73,13 @@ const ALL_SECTIONS = [
     ],
   },
   {
-    // "Analytics" removed 2026-08-08 -- deactivated, being rebuilt from
-    // scratch. "Ask HAIP" is a separate module, unaffected. "AI Insights"
-    // reactivated 2026-08-15 as its own module ("ai_insights", migration
-    // 075), also independent of the analytics deactivation.
+    // "Analytics" reactivated 2026-08-16 (migration 077) via the new
+    // /dashboard page, which now includes an AI Intelligence section --
+    // the standalone "AI Insights" entry that lived here 2026-08-15 through
+    // 08-16 is folded into that page instead of a separate nav item.
+    // /dashboard/insights still works for direct links, just unlinked.
     label: "Intelligence",
     items: [
-      { label: "AI Insights", href: "/dashboard/insights",      icon: Sparkles,  resource: "dashboard"   as Resource },
       { label: "Ask HAIP",    href: "/dashboard/analytics/ask", icon: Sparkles,  resource: "analytics"   as Resource },
       { label: "Reports",     href: "/dashboard/reports",       icon: FileDown,  resource: "reports"     as Resource },
       { label: "QA & Scores", href: "/dashboard/qa",            icon: Star,      resource: "qa"          as Resource },

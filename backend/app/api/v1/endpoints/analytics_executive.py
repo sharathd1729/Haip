@@ -20,6 +20,7 @@ from app.api.v1.deps import get_current_user, require_module
 from app.models.user import User
 from app.models.call import Call
 from app.models.inquiry import Inquiry, InquiryStage
+from app.models.pipeline_stage import PipelineStage
 from app.models.property import Stay, Property
 from app.models.conversation import Message, MessageDirection
 from app.models.insight import Insight
@@ -153,12 +154,20 @@ def executive_dashboard(
     occupancy_prev = round(occ_pn / max(1, prop_count * prev_days) * 100, 1)
 
     # ── Active inquiries ──────────────────────────────────────────────────────
-    ACTIVE_STAGES = [InquiryStage.NEW, InquiryStage.RESPONDING, InquiryStage.QUOTED, InquiryStage.SITE_VISIT]
-
+    # Every auto-created inquiry permanently leaves the legacy Inquiry.stage
+    # enum at NEW (migration 049 replaced that flow wholesale) -- "active"
+    # is resolved via stage_id joined against pipeline_stages, same pattern
+    # analytics_sections.py's channels endpoint already uses. Only "valid"
+    # category stages that aren't a closed-won/closed-lost terminal count,
+    # per CLAUDE.md: "only valid stages count as real leads."
     def active_inq(start):
-        q = db.query(func.count(Inquiry.id)).filter(
+        q = db.query(func.count(Inquiry.id)).join(
+            PipelineStage, PipelineStage.id == Inquiry.stage_id,
+        ).filter(
             Inquiry.tenant_id == tid,
-            Inquiry.stage.in_(ACTIVE_STAGES),
+            PipelineStage.category == "valid",
+            PipelineStage.is_closed_won.is_(False),
+            PipelineStage.is_closed_lost.is_(False),
             Inquiry.created_at >= start.isoformat(),
         )
         if prop_ids:
@@ -263,25 +272,27 @@ def executive_dashboard(
     ]
 
     # ── Inquiry funnel ────────────────────────────────────────────────────────
+    # Same legacy-enum trap as active_inq() above -- grouped by the tenant's
+    # real pipeline_stages catalog (stage_id), ordered by each stage's own
+    # `order` column, not a hardcoded enum sequence that no longer matches
+    # what a tenant actually configured (migration 049).
     funnel_rows = db.query(
-        Inquiry.stage, func.count(Inquiry.id).label("cnt"),
+        PipelineStage.label, PipelineStage.order, func.count(Inquiry.id).label("cnt"),
+    ).join(
+        Inquiry, Inquiry.stage_id == PipelineStage.id,
     ).filter(
         Inquiry.tenant_id == tid,
         Inquiry.created_at >= period_start.isoformat(),
-    ).group_by(Inquiry.stage).all()
+    ).group_by(PipelineStage.id, PipelineStage.label, PipelineStage.order).order_by(PipelineStage.order).all()
 
     total_inq = sum(r.cnt for r in funnel_rows) or 1
-    # Display order for funnel
-    _STAGE_ORDER = {"NEW": 1, "RESPONDING": 2, "QUOTED": 3, "SITE_VISIT": 4, "BOOKED": 5, "LOST": 6, "GHOSTED": 7}
     funnel = [
         FunnelStage(
-            stage=str(r.stage.value if hasattr(r.stage, "value") else r.stage),
+            stage=r.label,
             count=r.cnt,
             pct=round(r.cnt / total_inq * 100, 1),
         )
-        for r in sorted(funnel_rows, key=lambda x: _STAGE_ORDER.get(
-            x.stage.value if hasattr(x.stage, "value") else str(x.stage), 99
-        ))
+        for r in funnel_rows
     ]
 
     # ── Channel mix ───────────────────────────────────────────────────────────

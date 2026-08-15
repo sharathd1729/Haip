@@ -47,7 +47,10 @@ _DEFAULT_GRANTS: dict[str, set[str]] = {
     "guests.pii.reveal": {"owner", "manager", "reservations", "concierge", "compliance"},
     "bookings.read": {"owner", "manager", "reservations", "concierge", "foh", "read_only"},
     "revenue.read": {"owner", "manager", "marketing"},
-    "analytics.read": {"owner", "manager", "reservations", "marketing", "read_only"},
+    # Role-aware dashboard rebuild: agent-facing roles get their own scoped
+    # view (endpoint scopes internally by current_user.id, this capability
+    # just admits them past the door) instead of being locked out entirely.
+    "analytics.read": {"owner", "manager", "reservations", "concierge", "foh", "marketing", "read_only"},
     "qa.read": {"owner", "manager", "concierge", "compliance", "read_only"},
     "qa.override": {"owner", "manager"},
     "compliance.export": {"owner", "compliance"},

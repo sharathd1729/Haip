@@ -9,6 +9,7 @@ import {
   Sparkles, BarChart2, Zap, Link2, Settings,
   HelpCircle, LogOut, ChevronDown, ChevronRight,
   MessageSquare, AtSign, Bot, Target, Megaphone, UserCheck, GitBranch, FileText,
+  LayoutDashboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canSeeNav, type Resource } from "@/lib/permissions";
@@ -41,11 +42,19 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  // "Dashboard" (/dashboard) and "My Dashboards" (/dashboard/dashboards)
-  // deactivated 2026-08-08 -- Owner Dashboard + widget builder being rebuilt
-  // from scratch. Backend router-level require_module("analytics") 403s
-  // both; removed from nav so there's no dead link. Restore alongside
-  // re-adding "analytics" to DEFAULT_MODULE_CODES.
+  // Role-aware Analytics Dashboard rebuild (2026-08-16, migration 077
+  // re-enables "analytics") -- restores the entry removed 2026-08-08 when
+  // the old Owner Dashboard/widget builder was deactivated pending this
+  // exact rebuild. The standalone "AI Insights" entry (added 2026-08-15,
+  // its own "ai_insights" module) is folded into this page's AI
+  // Intelligence section now instead of being a separate nav item --
+  // /dashboard/insights still works for direct links, just unlinked here.
+  {
+    label: "Dashboard",
+    href: "/dashboard",
+    icon: LayoutDashboard,
+    resource: "dashboard",
+  },
   {
     label: "Inbox",
     href: "/dashboard/inbox",
@@ -58,18 +67,6 @@ const NAV_ITEMS: NavItem[] = [
       { label: "AI Concierge",    href: "/dashboard/inbox?ch=ai",              icon: Bot,       hideForBusinessTypes: ["caravan"] },
       { label: "Channel Manager", href: "/dashboard/inbox/channel-manager",    icon: Building2, hideForBusinessTypes: ["caravan"] },
     ],
-  },
-  // AI Insights feed reactivated 2026-08-15 as its own module ("ai_insights",
-  // migration 075), independent of the still-deactivated "analytics" module
-  // above -- a live feed of AI-generated recommendations/alerts, not tied
-  // to the broader analytics rebuild. resource: "dashboard" (not a new
-  // "insights" Resource type) since it's in every role's visible-resource
-  // list already, matching this feed's intended broad, daily-glance visibility.
-  {
-    label: "AI Insights",
-    href: "/dashboard/insights",
-    icon: Sparkles,
-    resource: "dashboard",
   },
   {
     label: "Calls",

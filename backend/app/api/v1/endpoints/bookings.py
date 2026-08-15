@@ -28,6 +28,7 @@ from app.api.v1.deps import get_current_user, require_roles
 from app.models.property import Property, RatePlan, Stay
 from app.models.guest import Guest
 from app.models.user import User, UserRole
+from app.services.date_presets import VALID_PRESETS, resolve_range
 from app.models.base import gen_uuid
 from app.services.identity_service import resolve_gid
 
@@ -112,12 +113,20 @@ def list_bookings(
     sort: str = Query("newest"),
     date_from: Optional[str] = Query(None, description="ISO date -- stays overlapping [date_from, date_to]"),
     date_to: Optional[str] = Query(None, description="ISO date -- stays overlapping [date_from, date_to]"),
+    date_preset: Optional[str] = Query(None, description="today|yesterday|this_month|last_month|last_7d|last_14d|custom"),
     page: int = Query(1, ge=1),
     per_page: int = Query(25, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     tenant_id = current_user.tenant_id
+
+    if date_preset and date_preset not in VALID_PRESETS:
+        raise HTTPException(status_code=422, detail=f"Invalid date_preset: {date_preset}")
+    try:
+        date_from, date_to = resolve_range(date_preset, date_from, date_to)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid date: {exc}")
 
     # Short, human-friendly booking number (order of creation) instead of the
     # raw UUID -- RentalWise bookings already have a short numeric id; this

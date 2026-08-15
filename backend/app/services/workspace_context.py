@@ -61,6 +61,10 @@ PLAN_GATED_FLAGS: dict[str, list[str]] = {
 DEFAULT_MODULE_CODES: list[str] = [
     "whatsapp", "instagram", "calls", "leads360", "channel_manager",
     "ask_haip", "ai_concierge", "campaigns", "flow_builder", "ai_insights",
+    # Re-added 2026-08-16 -- the role-aware dashboard rebuild (migration 077)
+    # is what migration 072's "removed pending rebuild" comment was waiting
+    # on. New tenants now get it provisioned like everything else above.
+    "analytics",
 ]
 
 

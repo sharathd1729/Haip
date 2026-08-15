@@ -11,7 +11,10 @@ from typing import Optional
 
 IST = ZoneInfo("Asia/Kolkata")
 
-VALID_PRESETS = {"last_7d", "last_14d", "next_7d", "next_14d", "custom"}
+VALID_PRESETS = {
+    "today", "yesterday", "this_month", "last_month",
+    "last_7d", "last_14d", "next_7d", "next_14d", "custom",
+}
 
 
 def today_ist() -> date:
@@ -23,6 +26,17 @@ def resolve_preset(preset: Optional[str]) -> tuple[Optional[date], Optional[date
     if not preset or preset == "custom":
         return None, None
     today = today_ist()
+    if preset == "today":
+        return today, today
+    if preset == "yesterday":
+        yday = today - timedelta(days=1)
+        return yday, yday
+    if preset == "this_month":
+        return today.replace(day=1), today
+    if preset == "last_month":
+        first_of_this_month = today.replace(day=1)
+        last_of_prev_month = first_of_this_month - timedelta(days=1)
+        return last_of_prev_month.replace(day=1), last_of_prev_month
     if preset == "last_7d":
         return today - timedelta(days=6), today
     if preset == "last_14d":

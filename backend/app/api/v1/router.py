@@ -18,6 +18,7 @@ from app.api.v1.endpoints import (
     ivr,
     push,
     dashboards, metrics, widgets_api, goals,
+    dashboard_overview,
 )
 
 api_router = APIRouter(prefix="/api/v1")
@@ -27,6 +28,7 @@ api_router.include_router(auth.router)
 
 # Dashboard
 api_router.include_router(dashboard.router)
+api_router.include_router(dashboard_overview.router)
 api_router.include_router(workspace_context.router)
 api_router.include_router(dashboards.router)
 api_router.include_router(goals.router)
