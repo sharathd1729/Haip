@@ -860,31 +860,34 @@ export default function InboxPage() {
                     {detail.guest_name?.[0]?.toUpperCase() ?? "?"}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold" style={{ color: "var(--haip-fg)" }}>{detail.guest_name || detail.guest_phone}</div>
-                    <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="text-sm font-semibold truncate" style={{ color: "var(--haip-fg)" }}>{detail.guest_name || detail.guest_phone}</div>
+                    <div className="flex items-center gap-1.5 md:flex-wrap">
                       <ChannelIcon channel={detail.channel} className="w-4 h-4" />
-                      <span className="text-xs" style={{ color: "var(--haip-fg-subtle)" }}>{channelLabel(detail.channel)}</span>
+                      <span className="hidden md:inline text-xs" style={{ color: "var(--haip-fg-subtle)" }}>{channelLabel(detail.channel)}</span>
                       <Badge variant={detail.status === "open" ? "success" : "ghost"} className="text-[10px] py-0 h-4">{detail.status}</Badge>
                       {/* HAIP Inbox full-parity pass, ticket 5: completeness
                           pill -- real data (not a fake "convert to lead"
                           action like the prototype's pill), scrolls to the
-                          existing ProfileCompletenessWidget on click. */}
+                          existing ProfileCompletenessWidget on click.
+                          Mobile: dropped from the header row (it wrapped the
+                          header to 4-5 lines) -- same % is already shown in
+                          the ProfileCompletenessWidget footer below. */}
                       {threadLeadDetail?.profile_completeness_pct != null && (
                         <button
                           type="button"
                           onClick={() => document.getElementById("profile-completeness-widget")?.scrollIntoView({ behavior: "smooth", block: "center" })}
                           title="Jump to profile completeness"
-                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold transition-colors hover:opacity-80"
+                          className="hidden md:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold transition-colors hover:opacity-80"
                           style={{ background: "color-mix(in srgb, var(--primary) 10%, transparent)", color: "var(--primary)" }}
                         >
                           {threadLeadDetail.profile_completeness_pct}% complete
                         </button>
                       )}
-                      {/* D9: WhatsApp 24h service window indicator */}
+                      {/* D9: WhatsApp 24h service window indicator -- desktop only, same reasoning as above */}
                       {isWhatsApp && detail.last_inbound_at && (
                         windowOpen ? (
                           <span
-                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium"
+                            className="hidden md:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium"
                             style={{
                               background: "color-mix(in srgb, var(--haip-green) 10%, transparent)",
                               border: "1px solid color-mix(in srgb, var(--haip-green) 30%, transparent)",
@@ -897,7 +900,7 @@ export default function InboxPage() {
                           </span>
                         ) : (
                           <span
-                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium"
+                            className="hidden md:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium"
                             style={{
                               background: "color-mix(in srgb, var(--haip-amber) 10%, transparent)",
                               border: "1px solid color-mix(in srgb, var(--haip-amber) 35%, transparent)",
@@ -922,17 +925,17 @@ export default function InboxPage() {
                   >
                     <User size={14} />
                   </button>
-                  {/* W17: search */}
+                  {/* W17: search -- desktop only, mobile keeps the header to essentials */}
                   <button
                     onClick={() => setShowSearch(s => !s)}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors duration-150 hover:bg-muted"
+                    className="hidden md:flex w-8 h-8 rounded-lg items-center justify-center transition-colors duration-150 hover:bg-muted"
                     style={{ color: "var(--haip-fg-subtle)" }}
                     title="Search messages"
                   >
                     <Search size={14} />
                   </button>
-                  {/* W14: snooze */}
-                  <div className="relative">
+                  {/* W14: snooze -- desktop only, same reasoning as search */}
+                  <div className="relative hidden md:block">
                     <button
                       onClick={() => setShowSnooze(s => !s)}
                       className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors duration-150 hover:bg-muted"
@@ -978,7 +981,7 @@ export default function InboxPage() {
                     }}
                   >
                     {draftMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                    AI draft
+                    <span className="hidden md:inline">AI draft</span>
                   </button>
                 </>
               ) : <Skeleton className="h-6 w-48" />}
