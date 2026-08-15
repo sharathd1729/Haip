@@ -217,13 +217,13 @@ celery_app.conf.beat_schedule = {
         "task": "app.workers.tasks.owner_digest.orchestrate",
         "schedule": crontab(minute=0),
     },
-    # Phase 1: AI Insights -- DEACTIVATED 2026-08-08, dashboard/analytics/
-    # intelligence hub being rebuilt from scratch. Task code + insights
-    # table untouched; uncomment to reactivate.
-    # "run-insights-every-15min": {
-    #     "task": "app.workers.tasks.run_insights.run_all_tenants",
-    #     "schedule": crontab(minute="*/15", hour="6-22"),
-    # },
+    # Phase 1: AI Insights -- reactivated 2026-08-15 as its own module
+    # ("ai_insights", migration 075), decoupled from "analytics" (still off
+    # pending its own rebuild).
+    "run-insights-every-15min": {
+        "task": "app.workers.tasks.run_insights.run_all_tenants",
+        "schedule": crontab(minute="*/15", hour="6-22"),
+    },
     # Phase 3: Intent classification — nightly at 03:00 IST
     "classify-intent-nightly": {
         "task": "app.workers.tasks.classify_intent.run",

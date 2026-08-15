@@ -59,6 +59,18 @@ const NAV_ITEMS: NavItem[] = [
       { label: "Channel Manager", href: "/dashboard/inbox/channel-manager",    icon: Building2, hideForBusinessTypes: ["caravan"] },
     ],
   },
+  // AI Insights feed reactivated 2026-08-15 as its own module ("ai_insights",
+  // migration 075), independent of the still-deactivated "analytics" module
+  // above -- a live feed of AI-generated recommendations/alerts, not tied
+  // to the broader analytics rebuild. resource: "dashboard" (not a new
+  // "insights" Resource type) since it's in every role's visible-resource
+  // list already, matching this feed's intended broad, daily-glance visibility.
+  {
+    label: "AI Insights",
+    href: "/dashboard/insights",
+    icon: Sparkles,
+    resource: "dashboard",
+  },
   {
     label: "Calls",
     href: "/dashboard/calls",

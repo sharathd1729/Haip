@@ -347,7 +347,9 @@ def executive_dashboard(
 def list_insights(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-    _ctx=Depends(require_module("analytics")),
+    # Reactivated 2026-08-15 as its own module, decoupled from "analytics"
+    # (still deliberately off pending its own rebuild) -- see migration 075.
+    _ctx=Depends(require_module("ai_insights")),
 ):
     """Active (non-dismissed, non-resolved) insights for the tenant, severity-sorted."""
     tid = current_user.tenant_id
@@ -384,6 +386,10 @@ def dismiss_insight(
     insight_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    # Previously had no module gate at all -- a stale insight ID let
+    # someone dismiss even with the module off. Closed alongside the
+    # 2026-08-15 ai_insights reactivation (migration 075).
+    _ctx=Depends(require_module("ai_insights")),
 ):
     """Dismiss an insight for the current user."""
     row = db.query(Insight).filter(

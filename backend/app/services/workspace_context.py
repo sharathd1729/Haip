@@ -28,12 +28,15 @@ MODULE_FLAG_MAP: dict[str, list[str]] = {
                        "missed_call_alerts_enabled"],
     "leads360":       ["leads360_enabled", "pipeline_view_enabled", "sla_alerts_enabled"],
     "channel_manager":["channel_manager_enabled", "revenue_reporting_enabled"],
-    "analytics":      ["analytics_enabled", "ai_analytics_enabled", "anomaly_detection_enabled",
-                       "ai_insights_enabled"],
+    "analytics":      ["analytics_enabled", "ai_analytics_enabled", "anomaly_detection_enabled"],
     "ask_haip":       ["ask_haip_enabled"],
     "ai_concierge":   ["ai_concierge_enabled", "ai_drafts_enabled"],
     "campaigns":      ["campaign_builder_enabled"],
     "flow_builder":   ["flow_builder_enabled"],
+    # AI Insights feed reactivated (2026-08-15) as its own switch, decoupled
+    # from "analytics" (still deliberately off pending its own rebuild) --
+    # ai_insights_enabled moved here from analytics's bundle above.
+    "ai_insights":    ["ai_insights_enabled"],
 }
 
 # Flags that require BOTH module AND plan (Scale/Enterprise)
@@ -49,13 +52,15 @@ PLAN_GATED_FLAGS: dict[str, list[str]] = {
 # to backfill pre-existing tenants (migration 035) and to provision new
 # tenants at registration, so no workspace is ever left with zero rows.
 #
-# "analytics" deliberately excluded (2026-08-08) -- Owner Dashboard,
-# analytics pages, and AI insights are deactivated pending a from-scratch
-# rebuild (migration 072 disabled it for existing tenants). Re-add here
-# once the rebuild ships.
+# "analytics" deliberately excluded (2026-08-08) -- Owner Dashboard and
+# analytics pages are deactivated pending a from-scratch rebuild (migration
+# 072 disabled it for existing tenants). Re-add here once the rebuild ships.
+# "ai_insights" is a separate switch (2026-08-15, migration 075) -- the
+# AI Insights feed was reactivated independently of the broader analytics
+# rebuild, so it's back in the default set for new tenants.
 DEFAULT_MODULE_CODES: list[str] = [
     "whatsapp", "instagram", "calls", "leads360", "channel_manager",
-    "ask_haip", "ai_concierge", "campaigns", "flow_builder",
+    "ask_haip", "ai_concierge", "campaigns", "flow_builder", "ai_insights",
 ]
 
 

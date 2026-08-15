@@ -74,9 +74,12 @@ const ALL_SECTIONS = [
   },
   {
     // "Analytics" removed 2026-08-08 -- deactivated, being rebuilt from
-    // scratch. "Ask HAIP" is a separate module, unaffected.
+    // scratch. "Ask HAIP" is a separate module, unaffected. "AI Insights"
+    // reactivated 2026-08-15 as its own module ("ai_insights", migration
+    // 075), also independent of the analytics deactivation.
     label: "Intelligence",
     items: [
+      { label: "AI Insights", href: "/dashboard/insights",      icon: Sparkles,  resource: "dashboard"   as Resource },
       { label: "Ask HAIP",    href: "/dashboard/analytics/ask", icon: Sparkles,  resource: "analytics"   as Resource },
       { label: "Reports",     href: "/dashboard/reports",       icon: FileDown,  resource: "reports"     as Resource },
       { label: "QA & Scores", href: "/dashboard/qa",            icon: Star,      resource: "qa"          as Resource },

@@ -16,11 +16,11 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, or_
+from sqlalchemy import func, and_, or_, case
 
 from app.models.insight import Insight, InsightSeverity, InsightCategory
 from app.models.inquiry import Inquiry, InquiryStage
-from app.models.call import Call
+from app.models.call import Call, CallDirection
 from app.models.conversation import Message, Conversation, MessageDirection
 from app.models.property import Stay, Property
 from app.models.integration import Integration
@@ -187,6 +187,39 @@ def detect_A3(db: Session, tenant_id: str) -> None:
         })
     else:
         _auto_resolve(db, tenant_id, "A3")
+
+
+def detect_A4(db: Session, tenant_id: str) -> None:
+    """A4: Missed calls never recovered by a callback within 24h -- Phase 2.5's
+    calls.recovered_by_call_id (HAIP_Agent_Analytics_Dashboard_Plan_1.md
+    #2.5.3), populated by call_ingest.py's _link_recovered_call(). 7-day
+    lookback so this doesn't dredge up ancient unrecovered calls forever."""
+    window_end = _NOW() - timedelta(hours=24)
+    lookback_start = _NOW() - timedelta(days=7)
+
+    count = db.query(func.count(Call.id)).filter(
+        Call.tenant_id == tenant_id,
+        Call.direction == CallDirection.INBOUND,
+        or_(Call.duration_seconds.is_(None), Call.duration_seconds == 0),
+        Call.recovered_by_call_id.is_(None),
+        Call.created_at >= lookback_start,
+        Call.created_at < window_end,
+    ).scalar() or 0
+
+    if count >= 1:
+        _upsert_insight(db, tenant_id, {
+            "category_code": "A4",
+            "category":      InsightCategory.URGENCY,
+            "severity":      InsightSeverity.HIGH,
+            "title":         f"{count} missed call{'s' if count > 1 else ''} never called back",
+            "body":          f"{count} missed call{'s' if count > 1 else ''} in the last 7 days with no follow-up call within 24 hours.",
+            "cta_label":     "View Calls",
+            "cta_href":      "/dashboard/calls?filter=missed",
+            "data_snapshot": {"count": count},
+            "expires_at":    _NOW() + timedelta(hours=6),
+        })
+    else:
+        _auto_resolve(db, tenant_id, "A4")
 
 
 # ─── CATEGORY B — Occupancy Warnings ─────────────────────────────────────────
@@ -401,9 +434,79 @@ def detect_D3(db: Session, tenant_id: str) -> None:
         _auto_resolve(db, tenant_id, "D3")
 
 
+def detect_D4(db: Session, tenant_id: str) -> None:
+    """D4: Agent AI-draft rejection rate spike -- >=40% rejected over the
+    trailing 7 days, minimum 5 drafts to avoid noise on small samples.
+    Uses Phase 2.5's ai_draft_outcomes.actor_user_id
+    (HAIP_Agent_Analytics_Dashboard_Plan_1.md #2.5.4). One insight per
+    flagged agent (target_id = agent's user_id) -- Insight.target_id's own
+    docstring already anticipates "agent_id" as a valid use, and unlike
+    A1-A4's tenant-wide counts, this condition is inherently per-agent, so
+    each agent's insight needs to resolve independently as their rate
+    improves, not all-or-nothing with the rest.
+    """
+    from app.models.ai_draft_outcome import AIDraftOutcome
+    from app.models.user import User
+
+    _MIN_SAMPLE = 5
+    _THRESHOLD = 0.4
+    cutoff = (_NOW() - timedelta(days=7)).isoformat()
+
+    rows = db.query(
+        AIDraftOutcome.actor_user_id,
+        func.count(AIDraftOutcome.id).label("total"),
+        func.sum(case((AIDraftOutcome.outcome == "rejected", 1), else_=0)).label("rejected"),
+    ).filter(
+        AIDraftOutcome.tenant_id == tenant_id,
+        AIDraftOutcome.actor_user_id.isnot(None),
+        AIDraftOutcome.created_at >= cutoff,
+    ).group_by(AIDraftOutcome.actor_user_id).all()
+
+    flagged_agent_ids: set[str] = set()
+    for row in rows:
+        if row.total < _MIN_SAMPLE:
+            continue
+        rate = row.rejected / row.total
+        if rate < _THRESHOLD:
+            continue
+        flagged_agent_ids.add(row.actor_user_id)
+        agent = db.query(User).filter_by(id=row.actor_user_id, tenant_id=tenant_id).first()
+        agent_name = agent.name if agent else "An agent"
+        _upsert_insight(db, tenant_id, {
+            "category_code": "D4",
+            "target_id":     row.actor_user_id,
+            "category":      InsightCategory.QUALITY,
+            "severity":      InsightSeverity.MEDIUM,
+            "title":         f"{agent_name}'s AI draft rejection rate is unusually high ({rate*100:.0f}%)",
+            "body":          f"{row.rejected} of {row.total} AI drafts rejected in the last 7 days -- worth a quick check-in on draft quality or workflow.",
+            "cta_label":     "Review Drafts",
+            "cta_href":      "/dashboard/inbox",
+            "data_snapshot": {"actor_user_id": row.actor_user_id, "total": row.total, "rejected": row.rejected, "rate": round(rate, 2)},
+            "expires_at":    _NOW() + timedelta(days=1),
+        })
+
+    # Auto-resolve any agent previously flagged who's no longer over
+    # threshold this run (including agents who dropped out of the grouped
+    # rows entirely, e.g. no drafts at all in the trailing window).
+    previously_active = db.query(Insight.target_id).filter(
+        Insight.tenant_id == tenant_id,
+        Insight.category_code == "D4",
+        Insight.is_dismissed == False,
+        Insight.is_auto_resolved == False,
+    ).all()
+    for (target_id,) in previously_active:
+        if target_id not in flagged_agent_ids:
+            _auto_resolve(db, tenant_id, "D4", target_id)
+
+
 # ─── Run all ──────────────────────────────────────────────────────────────────
 
-_DETECTORS = [detect_A1, detect_A2, detect_A3, detect_B1, detect_B3, detect_C1, detect_C2, detect_C3, detect_D3]
+_DETECTORS = [
+    detect_A1, detect_A2, detect_A3, detect_A4,
+    detect_B1, detect_B3,
+    detect_C1, detect_C2, detect_C3,
+    detect_D3, detect_D4,
+]
 
 
 def run_all_detectors(db: Session, tenant_id: str) -> int:
