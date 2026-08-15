@@ -14,7 +14,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, cast, TIMESTAMP
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -35,8 +35,6 @@ from app.services.agent_analytics_service import get_agent_scorecard_rows
 from app.api.v1.endpoints.analytics import _delta
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
-
-_STARTED_AT_TS = cast(Call.started_at, TIMESTAMP(timezone=True))
 
 
 @router.get("/overview")
@@ -127,7 +125,13 @@ def dashboard_overview(
         followups_total = task_q.count()
         followups_completed = task_q.filter(Task.is_done == True).count()  # noqa: E712
 
-        call_q = db.query(Call).filter(Call.tenant_id == tid, _STARTED_AT_TS >= rs_dt, _STARTED_AT_TS <= re_dt)
+        # Call.started_at is a plain String column, not a real timestamp --
+        # cast(..., TIMESTAMP) blows up with InvalidDatetimeFormat on any
+        # row where it's "" (empty, not NULL). Plain string comparison
+        # against the ISO bound (same convention as analytics_executive.py's
+        # qa_avg()/sla()) sorts "" before any real ISO date, so it's
+        # naturally excluded -- no cast, no crash.
+        call_q = db.query(Call).filter(Call.tenant_id == tid, Call.started_at >= rs, Call.started_at <= re_)
         if tenant and tenant.ivr_provider:
             call_q = call_q.filter(Call.ivr_provider == tenant.ivr_provider)
         if scope_user_id:
@@ -176,7 +180,7 @@ def dashboard_overview(
     # Re-derive the query objects the sections below still need (funnel/
     # communication/calls use the current period only -- previous-period
     # comparison is KPI-row-only in V1, matching the plan's scope).
-    call_q = db.query(Call).filter(Call.tenant_id == tid, _STARTED_AT_TS >= range_start_dt, _STARTED_AT_TS <= range_end_dt)
+    call_q = db.query(Call).filter(Call.tenant_id == tid, Call.started_at >= range_start, Call.started_at <= range_end)
     if tenant and tenant.ivr_provider:
         call_q = call_q.filter(Call.ivr_provider == tenant.ivr_provider)
     if scope_user_id:
