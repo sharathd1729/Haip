@@ -153,7 +153,7 @@ def get_agent_scorecard_rows(
         Call.tenant_id == tenant_id,
         Call.agent_id.isnot(None),
         Call.created_at >= range_start,
-        Call.created_at <= range_end,
+        Call.created_at <= range_end_dt,
     )
     if tenant and tenant.ivr_provider:
         call_q = call_q.filter(Call.ivr_provider == tenant.ivr_provider)
