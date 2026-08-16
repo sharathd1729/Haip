@@ -102,6 +102,11 @@ def dashboard_overview(
         closed_won_ids from the enclosing request."""
         inq_q = db.query(Inquiry).filter(
             Inquiry.tenant_id == tid, Inquiry.created_at >= rs, Inquiry.created_at <= re_,
+            # Same exclusion Leads360's own pipeline count applies
+            # (leads_service.py::get_leads_pipeline) -- without it this
+            # count and Leads360's never agree even when scoped to the
+            # same date range, since Leads360 never counts these at all.
+            Inquiry.qualification_status != "unqualified",
         )
         if scope_user_id:
             inq_q = inq_q.filter(Inquiry.assigned_to == scope_user_id)
@@ -199,6 +204,7 @@ def dashboard_overview(
         Inquiry.tenant_id == tid,
         Inquiry.created_at >= range_start,
         Inquiry.created_at <= range_end,
+        Inquiry.qualification_status != "unqualified",
     )
     if scope_user_id:
         funnel_q = funnel_q.filter(Inquiry.assigned_to == scope_user_id)
