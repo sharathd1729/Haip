@@ -12,8 +12,10 @@ from typing import List, Optional, Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, or_
+from sqlalchemy import func, and_, or_, case
 from pydantic import BaseModel
+from openpyxl import Workbook
+from openpyxl.styles import Font
 from app.core.database import get_db
 from app.api.v1.deps import get_current_user, require_roles
 from app.models.user import User, UserRole
@@ -21,7 +23,8 @@ from app.models.call import Call, CallDirection, CallDisposition
 from app.models.inquiry import Inquiry, InquiryStage, InquirySource
 from app.models.guest import Guest
 from app.models.score import CallScore
-from app.models.conversation import Message
+from app.models.conversation import Message, MessageDirection, MessageDeliveryState, ChannelType
+from app.models.property import Stay
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -220,7 +223,26 @@ def _date_range(date_from: Optional[str], date_to: Optional[str]):
     now = datetime.now(timezone.utc)
     df = datetime.fromisoformat(date_from) if date_from else (now - timedelta(days=30))
     dt = datetime.fromisoformat(date_to) if date_to else now
+    # The frontend's date pickers send bare "YYYY-MM-DD" (no time component).
+    # fromisoformat() parses that as midnight at the *start* of that day, so
+    # every fetcher's `created_at <= date_to` filter silently excluded
+    # everything from today except rows created at exactly 00:00:00 --
+    # e.g. picking "today" as the end date returned zero of today's rows.
+    # Bump a bare date to the end of that day so it's actually inclusive.
+    if date_to and len(date_to) <= 10:
+        dt = dt.replace(hour=23, minute=59, second=59, microsecond=999999)
     return df.isoformat(), dt.isoformat()
+
+
+def _fmt_date(value) -> str:
+    """created_at is a real DateTime column (TimestampMixin) on Guest/Inquiry/
+    CallScore, but a plain ISO string column on Call.started_at -- handle
+    both so callers don't need to know which one they've got."""
+    if not value:
+        return ""
+    if isinstance(value, str):
+        return value[:10]
+    return value.strftime("%Y-%m-%d")
 
 
 def fetch_calls(db: Session, tenant_id: str, req: ReportRequest) -> List[Dict]:
@@ -292,7 +314,7 @@ def fetch_inquiries(db: Session, tenant_id: str, req: ReportRequest) -> List[Dic
             except Exception:
                 pass
         row: Dict[str, Any] = {
-            "created_at": inq.created_at[:10] if inq.created_at else "",
+            "created_at": _fmt_date(inq.created_at),
             "guest_name": inq.guest.name if inq.guest else "",
             "guest_phone": inq.guest.phone if inq.guest else "",
             "source": inq.source.value if hasattr(inq.source, "value") else str(inq.source or ""),
@@ -300,7 +322,7 @@ def fetch_inquiries(db: Session, tenant_id: str, req: ReportRequest) -> List[Dic
             "check_in": inq.check_in or "",
             "check_out": inq.check_out or "",
             "nights": nights,
-            "pax": inq.pax or "",
+            "pax": (inq.adults or 0) + (inq.children or 0) or "",
             "budget": inq.budget or "",
             "quoted_amount": inq.quoted_amount or "",
             "lost_reason": inq.lost_reason.value if hasattr(inq.lost_reason, "value") else str(inq.lost_reason or ""),
@@ -324,11 +346,11 @@ def fetch_guests(db: Session, tenant_id: str, req: ReportRequest) -> List[Dict]:
             "name": g.name or "",
             "phone": g.phone or "",
             "email": g.email or "",
-            "created_at": g.created_at[:10] if g.created_at else "",
-            "last_contact": "",
-            "total_inquiries": len(g.inquiries) if hasattr(g, "inquiries") else 0,
-            "total_stays": 0,
-            "lifetime_value": float(g.lifetime_value) if hasattr(g, "lifetime_value") and g.lifetime_value else "",
+            "created_at": _fmt_date(g.created_at),
+            "last_contact": _fmt_date(g.last_contact_at),
+            "total_inquiries": g.total_inquiries or 0,  # denormalized counter, not a live count -- avoids N+1
+            "total_stays": g.total_stays or 0,
+            "lifetime_value": float(g.lifetime_value) if g.lifetime_value else "",
             "tags": ", ".join(g.tags or []),
             "preferred_property": "",
             "nationality": g.nationality or "",
@@ -340,24 +362,43 @@ def fetch_guests(db: Session, tenant_id: str, req: ReportRequest) -> List[Dict]:
 
 def fetch_qa_scores(db: Session, tenant_id: str, req: ReportRequest) -> List[Dict]:
     date_from, date_to = _date_range(req.date_from, req.date_to)
-    scores = db.query(CallScore).join(Call, CallScore.call_id == Call.id).filter(
+    q = db.query(CallScore).join(Call, CallScore.call_id == Call.id).filter(
         Call.tenant_id == tenant_id,
         Call.started_at >= date_from,
         Call.started_at <= date_to,
-    ).order_by(Call.started_at.desc()).limit(req.limit).all()
+    )
+    filters = req.filters or {}
+    if filters.get("min_score"):
+        q = q.filter(CallScore.percentage >= float(filters["min_score"]))
+    scores = q.order_by(Call.started_at.desc()).limit(req.limit).all()
 
     rows = []
     for s in scores:
         call = s.call
-        criteria = s.criteria_scores or {}
-        max_pts = s.max_score or 100
-        pct = round((float(s.total_score or 0) / max_pts) * 100, 1) if max_pts else 0
+        # criterion_scores is [{criterion_id, score, evidence_span, confidence}, ...]
+        # against a tenant-defined rubric -- not a fixed set of named criteria,
+        # so look each expected id up by key rather than assuming it's present.
+        criteria = {c.get("criterion_id"): c.get("score") for c in (s.criterion_scores or [])}
+        pct = float(s.percentage) if s.percentage is not None else 0.0
+        # No stored pass/review/fail verdict on CallScore -- derive one so the
+        # "Verdict" column/filter isn't just blank. 80%/60% are heuristic
+        # thresholds, not a stored business rule.
+        if s.has_auto_fail:
+            verdict = "fail"
+        elif pct >= 80:
+            verdict = "pass"
+        elif pct >= 60:
+            verdict = "review"
+        else:
+            verdict = "fail"
+        if filters.get("verdict") and verdict != filters["verdict"]:
+            continue
         row: Dict[str, Any] = {
-            "date": s.created_at[:10] if s.created_at else "",
+            "date": _fmt_date(s.created_at),
             "agent_name": call.agent.name if call and call.agent else "",
-            "call_date": call.started_at[:10] if call and call.started_at else "",
+            "call_date": _fmt_date(call.started_at) if call else "",
             "total_score": float(s.total_score or 0),
-            "max_score": max_pts,
+            "max_score": float(s.max_score or 0),
             "score_pct": pct,
             "warm_greeting": criteria.get("warm_greeting", ""),
             "needs_discovery": criteria.get("needs_discovery", ""),
@@ -365,8 +406,8 @@ def fetch_qa_scores(db: Session, tenant_id: str, req: ReportRequest) -> List[Dic
             "objection_handling": criteria.get("objection_handling", ""),
             "upsell_attempt": criteria.get("upsell_attempt", ""),
             "dpdp_compliance": criteria.get("dpdp_compliance", ""),
-            "overall_verdict": s.verdict or "",
-            "coaching_flags": ", ".join(s.coaching_flags or []),
+            "overall_verdict": verdict,
+            "coaching_flags": "",  # not tracked on CallScore yet
         }
         rows.append({k: row[k] for k in req.fields if k in row})
     return rows
@@ -417,6 +458,100 @@ def fetch_team(db: Session, tenant_id: str, req: ReportRequest) -> List[Dict]:
     return rows
 
 
+def fetch_whatsapp(db: Session, tenant_id: str, req: ReportRequest) -> List[Dict]:
+    """Daily WhatsApp send/delivery aggregate from real Message rows.
+    There's no Campaign/Template model in the schema yet, so campaign_name
+    and template_name are left blank rather than fabricated -- everything
+    else here is a real count off Message.delivery_state."""
+    date_from, date_to = _date_range(req.date_from, req.date_to)
+    day = func.date(Message.created_at)
+    sent_case = case((Message.direction == MessageDirection.OUTBOUND, 1))
+    delivered_case = case((and_(
+        Message.direction == MessageDirection.OUTBOUND,
+        Message.delivery_state.in_([MessageDeliveryState.DELIVERED, MessageDeliveryState.READ]),
+    ), 1))
+    read_case = case((and_(
+        Message.direction == MessageDirection.OUTBOUND,
+        Message.delivery_state == MessageDeliveryState.READ,
+    ), 1))
+    failed_case = case((and_(
+        Message.direction == MessageDirection.OUTBOUND,
+        Message.delivery_state.in_([MessageDeliveryState.FAILED, MessageDeliveryState.REJECTED]),
+    ), 1))
+    replies_case = case((Message.direction == MessageDirection.INBOUND, 1))
+
+    daily = db.query(
+        day.label("day"),
+        func.count(sent_case).label("sent"),
+        func.count(delivered_case).label("delivered"),
+        func.count(read_case).label("read"),
+        func.count(failed_case).label("failed"),
+        func.count(replies_case).label("replies"),
+    ).filter(
+        Message.tenant_id == tenant_id,
+        Message.channel == ChannelType.WHATSAPP,
+        Message.is_internal.is_(False),
+        Message.created_at >= date_from,
+        Message.created_at <= date_to,
+    ).group_by(day).order_by(day.desc()).limit(req.limit).all()
+
+    rows = []
+    for r in daily:
+        sent = r.sent or 0
+        delivered = r.delivered or 0
+        read = r.read or 0
+        row: Dict[str, Any] = {
+            "date": r.day.isoformat() if hasattr(r.day, "isoformat") else str(r.day),
+            "campaign_name": "",
+            "template_name": "",
+            "sent": sent,
+            "delivered": delivered,
+            "read": read,
+            "failed": r.failed or 0,
+            "delivery_rate": round(delivered / sent * 100, 1) if sent else 0,
+            "read_rate": round(read / sent * 100, 1) if sent else 0,
+            "opt_outs": 0,  # not tracked yet
+            "replies": r.replies or 0,
+        }
+        rows.append({k: row[k] for k in req.fields if k in row})
+    return rows
+
+
+def fetch_revenue(db: Session, tenant_id: str, req: ReportRequest) -> List[Dict]:
+    date_from, date_to = _date_range(req.date_from, req.date_to)
+    q = db.query(Stay).filter(
+        Stay.tenant_id == tenant_id,
+        Stay.created_at >= date_from,
+        Stay.created_at <= date_to,
+    )
+    filters = req.filters or {}
+    if filters.get("source"):
+        q = q.filter(Stay.channel_source == filters["source"])
+    stays = q.order_by(Stay.created_at.desc()).limit(req.limit).all()
+
+    rows = []
+    for s in stays:
+        nights = (s.check_out - s.check_in).days if s.check_in and s.check_out else 0
+        amount = float(s.total_amount) if s.total_amount else 0.0
+        row: Dict[str, Any] = {
+            "booking_date": _fmt_date(s.created_at),
+            "guest_name": s.guest.name if s.guest else "",
+            "property_name": s.property.name if s.property else "",
+            "check_in": s.check_in.isoformat() if s.check_in else "",
+            "check_out": s.check_out.isoformat() if s.check_out else "",
+            "nights": nights,
+            "pax": (s.adults or 0) + (s.children or 0),
+            "room_revenue": amount,
+            "total_revenue": amount,
+            "source": s.channel_source or "direct",
+            "payment_status": "",  # not tracked on Stay yet
+            "commission": "",      # not tracked on Stay yet
+            "net_revenue": "",     # not tracked on Stay yet
+        }
+        rows.append({k: row[k] for k in req.fields if k in row})
+    return rows
+
+
 def fetch_report_data(db: Session, tenant_id: str, req: ReportRequest) -> List[Dict]:
     if req.report_id == "calls":
         return fetch_calls(db, tenant_id, req)
@@ -428,9 +563,30 @@ def fetch_report_data(db: Session, tenant_id: str, req: ReportRequest) -> List[D
         return fetch_qa_scores(db, tenant_id, req)
     elif req.report_id == "team":
         return fetch_team(db, tenant_id, req)
+    elif req.report_id == "whatsapp":
+        return fetch_whatsapp(db, tenant_id, req)
+    elif req.report_id == "revenue":
+        return fetch_revenue(db, tenant_id, req)
     else:
-        # revenue / whatsapp — return empty for now (requires PMS/WA integration data)
         return []
+
+
+def _build_xlsx(fields: List[str], field_labels: Dict[str, str], rows: List[Dict], sheet_name: str) -> io.BytesIO:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = sheet_name[:31] or "Report"
+    ws.append([field_labels.get(f, f) for f in fields])
+    for cell in ws[1]:
+        cell.font = Font(bold=True)
+    for row in rows:
+        ws.append([row.get(f, "") for f in fields])
+    for col in ws.columns:
+        width = max((len(str(c.value)) for c in col if c.value is not None), default=10)
+        ws.column_dimensions[col[0].column_letter].width = min(width + 2, 40)
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
 
 
 # ─── Endpoints ────────────────────────────────────────────────────────────────
@@ -464,11 +620,11 @@ def preview_report(
 @router.post("/download")
 def download_report(
     body: ReportRequest,
-    format: str = Query(default="csv", regex="^(csv|json)$"),
+    format: str = Query(default="csv", regex="^(csv|json|xlsx)$"),
     current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER, UserRole.COMPLIANCE)),
     db: Session = Depends(get_db),
 ):
-    """Stream the full report as CSV or JSON download."""
+    """Stream the full report as CSV, JSON, or XLSX download."""
     rows = fetch_report_data(db, current_user.tenant_id, body)
     catalog_item = next((r for r in REPORT_CATALOG if r["id"] == body.report_id), None)
     report_name = (catalog_item["name"] if catalog_item else body.report_id).replace(" ", "_").lower()
@@ -486,6 +642,15 @@ def download_report(
             io.StringIO(content),
             media_type="application/json",
             headers={"Content-Disposition": f'attachment; filename="{filename}.json"'},
+        )
+
+    if format == "xlsx":
+        field_labels = {f["key"]: f["label"] for f in (catalog_item["fields"] if catalog_item else [])}
+        buf = _build_xlsx(body.fields, field_labels, rows, report_name)
+        return StreamingResponse(
+            buf,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="{filename}.xlsx"'},
         )
 
     # CSV

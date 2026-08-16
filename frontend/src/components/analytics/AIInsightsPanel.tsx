@@ -138,12 +138,27 @@ function InsightCard({
 export function AIInsightsPanel({ className }: { className?: string }) {
   const queryClient = useQueryClient();
 
-  const { data, isLoading, refetch, isFetching } = useQuery<InsightList>({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery<InsightList>({
     queryKey: ["analytics", "insights"],
     queryFn:  () => api.get("/analytics/insights").then(r => r.data),
     staleTime: 5 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
+    retry: 1,
   });
+
+  // Distinguish "genuinely zero insights" from "failed to load" -- this used
+  // to fall through to the same items=[] "All clear" empty state on any
+  // error (a disabled module, a DB timeout, anything), which reads as a
+  // healthy feed with nothing to report instead of a broken one.
+  const errMsg = (() => {
+    if (!isError) return null;
+    const e = error as { response?: { status?: number; data?: { detail?: { message?: string } | string } } };
+    const detail = e?.response?.data?.detail;
+    if (typeof detail === "string") return detail;
+    if (detail?.message) return detail.message;
+    if (e?.response?.status) return `Server returned ${e.response.status}.`;
+    return "Couldn't reach the server.";
+  })();
 
   const dismiss = useMutation({
     mutationFn: (id: string) => api.post(`/analytics/insights/${id}/dismiss`),
@@ -180,6 +195,20 @@ export function AIInsightsPanel({ className }: { className?: string }) {
           {[1, 2, 3].map(i => (
             <Skeleton key={i} className="h-16 rounded-xl" />
           ))}
+        </div>
+      ) : isError ? (
+        <div className="flex flex-col items-center justify-center py-8 text-center px-3">
+          <div className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center mb-2">
+            <AlertCircle size={14} className="text-red-400" />
+          </div>
+          <p className="text-[12px] font-medium text-gray-700">Couldn't load insights</p>
+          <p className="text-[11px] text-gray-400 mt-0.5 max-w-[220px]">{errMsg}</p>
+          <button
+            onClick={() => refetch()}
+            className="mt-2.5 inline-flex items-center gap-1.5 text-[11px] font-semibold text-teal-700 bg-white border border-teal-200 rounded-lg px-2.5 py-1 hover:bg-teal-50 transition-colors"
+          >
+            <RefreshCw size={11} /> Retry
+          </button>
         </div>
       ) : items.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-8 text-center">

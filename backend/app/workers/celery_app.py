@@ -117,6 +117,15 @@ celery_app.conf.update(
         "app.workers.tasks.evaluate_goals.*":       {"queue": "ai_scoring"},
         "app.workers.tasks.invalidate_cache.*":     {"queue": "call_ingest"},
         "app.workers.tasks.module_activation.*":    {"queue": "call_ingest"},
+        # Added 2026-08-16 -- both fell through every glob above with no
+        # exact-name route either, same as the July 2026 incident described
+        # below: they landed in the default "celery" queue, which this
+        # worker doesn't consume, so run-insights-every-15min and
+        # check-alerts-hourly fired on schedule via beat but the worker
+        # never logged receiving either task. AI Insights stayed empty for
+        # every tenant since the 2026-08-15 reactivation; alerts likewise.
+        "app.workers.tasks.run_insights.*":         {"queue": "ai_scoring"},
+        "app.workers.tasks.check_alerts.*":         {"queue": "ai_scoring"},
         #
         # ── Exact-name routes for tasks registered with a short name ──────────
         # (no "app.workers.tasks." module-path prefix) — the glob patterns

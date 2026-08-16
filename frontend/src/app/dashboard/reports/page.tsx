@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import {
   Phone, Users, MessageSquare, BarChart2, Star, Zap,
   Download, Calendar, Filter, CheckSquare, Square,
   Loader2, AlertCircle, ChevronRight, FileText, RefreshCw,
-  Check,
+  Check, FileSpreadsheet,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -24,7 +24,7 @@ interface FieldDef {
 interface FilterDef {
   key: string;
   label: string;
-  type: "select" | "text";
+  type: "select" | "text" | "number" | "boolean";
   options?: string[];
 }
 
@@ -38,147 +38,51 @@ interface ReportDef {
   filters: FilterDef[];
 }
 
-const REPORTS: ReportDef[] = [
-  {
-    id: "calls",
-    name: "Calls",
-    description: "All inbound/outbound calls with transcript summaries, QA scores, dispositions, and agent details.",
-    icon: <Phone size={22} />,
-    gradient: "from-blue-500 to-blue-600",
-    fields: [
-      { key: "call_id",       label: "Call ID",          default: true },
-      { key: "date",          label: "Date & Time",       default: true },
-      { key: "direction",     label: "Direction",         default: true },
-      { key: "caller_phone",  label: "Caller Phone",      default: true },
-      { key: "agent_name",    label: "Agent",             default: true },
-      { key: "duration_sec",  label: "Duration (s)",      default: true },
-      { key: "disposition",   label: "Disposition",       default: true },
-      { key: "qa_score",      label: "QA Score",          default: true },
-      { key: "ai_summary",    label: "AI Summary",        default: false },
-      { key: "property",      label: "Property",          default: false },
-      { key: "ivr_provider",  label: "IVR Provider",      default: false },
-    ],
-    filters: [
-      { key: "disposition", label: "Disposition", type: "select", options: ["All", "inquiry", "support", "spam", "follow_up"] },
-      { key: "agent",       label: "Agent",       type: "text" },
-      { key: "min_score",   label: "Min QA score",type: "text" },
-    ],
-  },
-  {
-    id: "inquiries",
-    name: "Inquiries",
-    description: "Lead pipeline data — stages, sources, values, agents, lost reasons, and conversion timelines.",
-    icon: <Zap size={22} />,
-    gradient: "from-teal-500 to-teal-600",
-    fields: [
-      { key: "inquiry_id",    label: "Inquiry ID",        default: true },
-      { key: "created_at",    label: "Created Date",      default: true },
-      { key: "guest_name",    label: "Guest Name",        default: true },
-      { key: "guest_phone",   label: "Guest Phone",       default: true },
-      { key: "status",        label: "Status",            default: true },
-      { key: "channel",       label: "Channel",           default: true },
-      { key: "property",      label: "Property",          default: true },
-      { key: "check_in",      label: "Check-in",          default: false },
-      { key: "check_out",     label: "Check-out",         default: false },
-      { key: "quoted_value",  label: "Quoted Value",      default: false },
-      { key: "lost_reason",   label: "Lost Reason",       default: false },
-      { key: "agent",         label: "Assigned Agent",    default: false },
-    ],
-    filters: [
-      { key: "status",  label: "Status",  type: "select", options: ["All", "new", "contacted", "quoted", "follow_up", "won", "lost"] },
-      { key: "channel", label: "Channel", type: "select", options: ["All", "whatsapp", "instagram", "call", "web"] },
-    ],
-  },
-  {
-    id: "guests",
-    name: "Guests",
-    description: "Guest CRM export — contact info, stay history, inquiry count, predicted CSAT, and lifetime value.",
-    icon: <Users size={22} />,
-    gradient: "from-violet-500 to-violet-600",
-    fields: [
-      { key: "guest_id",        label: "Guest ID",          default: true },
-      { key: "name",            label: "Name",              default: true },
-      { key: "phone",           label: "Phone",             default: true },
-      { key: "email",           label: "Email",             default: false },
-      { key: "first_seen",      label: "First Contact",     default: true },
-      { key: "last_seen",       label: "Last Contact",      default: true },
-      { key: "total_inquiries", label: "Total Inquiries",   default: true },
-      { key: "total_stays",     label: "Total Stays",       default: false },
-      { key: "lifetime_value",  label: "Lifetime Value",    default: false },
-      { key: "predicted_csat",  label: "Predicted CSAT",    default: false },
-      { key: "tags",            label: "Tags",              default: false },
-    ],
-    filters: [
-      { key: "has_stay",  label: "Has stay",   type: "select", options: ["All", "Yes", "No"] },
-    ],
-  },
-  {
-    id: "qa_scores",
-    name: "QA Scores",
-    description: "Per-call QA breakdown — criterion scores, evidence highlights, coaching flags.",
-    icon: <Star size={22} />,
-    gradient: "from-amber-500 to-amber-600",
-    fields: [
-      { key: "call_id",         label: "Call ID",           default: true },
-      { key: "date",            label: "Date",              default: true },
-      { key: "agent",           label: "Agent",             default: true },
-      { key: "total_score",     label: "Total Score",       default: true },
-      { key: "greeting",        label: "Greeting (1-5)",    default: true },
-      { key: "discovery",       label: "Discovery (1-5)",   default: true },
-      { key: "knowledge",       label: "Knowledge (1-5)",   default: true },
-      { key: "urgency",         label: "Urgency (1-5)",     default: false },
-      { key: "objections",      label: "Objections (1-5)",  default: false },
-      { key: "closing",         label: "Closing (1-5)",     default: false },
-      { key: "compliance",      label: "Compliance (1-5)",  default: false },
-      { key: "ai_model",        label: "Judge Model",       default: false },
-    ],
-    filters: [
-      { key: "agent",     label: "Agent",      type: "text" },
-      { key: "min_score", label: "Min score",  type: "text" },
-      { key: "max_score", label: "Max score",  type: "text" },
-    ],
-  },
-  {
-    id: "revenue",
-    name: "Revenue",
-    description: "Booking and stay revenue by property, channel, and period — occupancy, ADR, total earned.",
-    icon: <BarChart2 size={22} />,
-    gradient: "from-green-500 to-green-600",
-    fields: [
-      { key: "stay_id",       label: "Stay ID",         default: true },
-      { key: "guest_name",    label: "Guest",           default: true },
-      { key: "property",      label: "Property",        default: true },
-      { key: "check_in",      label: "Check-in",        default: true },
-      { key: "check_out",     label: "Check-out",       default: true },
-      { key: "nights",        label: "Nights",          default: true },
-      { key: "total_amount",  label: "Revenue (INR)",   default: true },
-      { key: "channel",       label: "Booking Channel", default: false },
-      { key: "pms_source",    label: "PMS Source",      default: false },
-    ],
-    filters: [
-      { key: "property", label: "Property",       type: "text" },
-      { key: "channel",  label: "Booking channel",type: "select", options: ["All", "direct", "airbnb", "booking.com", "hostaway", "rentalwise"] },
-    ],
-  },
-  {
-    id: "whatsapp",
-    name: "WhatsApp",
-    description: "All WhatsApp conversations — messages sent/received, AI drafts, approvals, delivery status.",
-    icon: <MessageSquare size={22} />,
-    gradient: "from-emerald-500 to-emerald-600",
-    fields: [
-      { key: "conversation_id", label: "Conversation ID",   default: true },
-      { key: "date",            label: "Date",              default: true },
-      { key: "guest_name",      label: "Guest",             default: true },
-      { key: "guest_phone",     label: "Phone",             default: true },
-      { key: "messages_count",  label: "Message Count",     default: true },
-      { key: "ai_drafted",      label: "AI Drafted",        default: false },
-      { key: "agent",           label: "Assigned Agent",    default: false },
-      { key: "resolved_at",     label: "Resolved At",       default: false },
-    ],
-    filters: [],
-  },
-];
+// Raw shape returned by GET /reports/catalog -- the backend is the single
+// source of truth for report ids/fields/filters. We used to keep a second,
+// hand-maintained copy of this catalog here with different field keys than
+// the backend's fetch_* functions actually produce, so every preview/download
+// silently dropped almost every column. Deriving REPORTS from the API
+// response instead of duplicating it keeps the two in sync by construction.
+interface CatalogEntry {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  fields: FieldDef[];
+  filters: { key: string; label: string; type: string; options?: string[] }[];
+}
+
+const ICON_MAP: Record<string, React.ReactNode> = {
+  phone: <Phone size={22} />,
+  zap: <Zap size={22} />,
+  users: <Users size={22} />,
+  star: <Star size={22} />,
+  "bar-chart": <BarChart2 size={22} />,
+  "message-square": <MessageSquare size={22} />,
+};
+
+const GRADIENT_MAP: Record<string, string> = {
+  calls: "from-blue-500 to-blue-600",
+  inquiries: "from-teal-500 to-teal-600",
+  guests: "from-violet-500 to-violet-600",
+  qa_scores: "from-amber-500 to-amber-600",
+  revenue: "from-green-500 to-green-600",
+  whatsapp: "from-emerald-500 to-emerald-600",
+  team: "from-indigo-500 to-indigo-600",
+};
+
+function catalogToReportDef(entry: CatalogEntry): ReportDef {
+  return {
+    id: entry.id,
+    name: entry.name,
+    description: entry.description,
+    icon: ICON_MAP[entry.icon] ?? <FileText size={22} />,
+    gradient: GRADIENT_MAP[entry.id] ?? "from-gray-500 to-gray-600",
+    fields: entry.fields,
+    filters: (entry.filters as FilterDef[]) ?? [],
+  };
+}
 
 const QUICK_RANGES = [
   { label: "Today",       days: 0 },
@@ -194,6 +98,14 @@ function isoMinus(days: number) {
   const d = new Date();
   d.setDate(d.getDate() - days);
   return d.toISOString().split("T")[0];
+}
+
+function extractErrorMessage(err: unknown): string {
+  const e = err as { response?: { status?: number; data?: { detail?: string } }; message?: string } | null;
+  return e?.response?.data?.detail
+    || (e?.response?.status ? `Server returned ${e.response.status}` : undefined)
+    || e?.message
+    || "Unknown error — check your connection and try again.";
 }
 
 // ---------------------------------------------------------------------------
@@ -226,7 +138,19 @@ export default function ReportsPage() {
   const [filterVals, setFilterVals]     = useState<Record<string, string>>({});
   const [preview, setPreview]           = useState<Record<string, unknown>[] | null>(null);
   const [previewCols, setPreviewCols]   = useState<string[]>([]);
-  const [downloadFmt, setDownloadFmt]   = useState<"csv" | "json">("csv");
+
+  const {
+    data: catalogData, isLoading: catalogLoading, isError: catalogIsError, error: catalogError, refetch: refetchCatalog,
+  } = useQuery({
+    queryKey: ["reports-catalog"],
+    queryFn: () => api.get<CatalogEntry[]>("/reports/catalog").then(r => r.data),
+    staleTime: 5 * 60 * 1000,
+    // Default is 3 retries with exponential backoff -- against a 20s axios
+    // timeout that's several minutes of a silent spinner with no way out
+    // before the user ever sees an error. One retry, then show it.
+    retry: 1,
+  });
+  const REPORTS = useMemo(() => (catalogData ?? []).map(catalogToReportDef), [catalogData]);
 
   // Init fields when report changes
   function selectReport(r: ReportDef) {
@@ -250,7 +174,11 @@ export default function ReportsPage() {
     setDateFrom(days === 0 ? isoToday() : isoMinus(days));
   }
 
-  // Preview mutation
+  // Preview mutation — no mock-data fallback. This used to silently swap in
+  // generateMockRows() on any error (including a plain network blip), which
+  // rendered fabricated numbers indistinguishable from real ones with zero
+  // indication anything was wrong. An owner could easily read fake revenue/
+  // guest data as real. Surface the failure instead.
   const previewMutation = useMutation({
     mutationFn: () => api.post("/reports/preview", {
       report_id: selectedReport!.id,
@@ -261,30 +189,25 @@ export default function ReportsPage() {
       limit: 10,
     }),
     onSuccess: (res) => {
-      const rows: Record<string, unknown>[] = res.data?.rows ?? generateMockRows(selectedReport!, Array.from(activeFields), 10);
-      setPreview(rows);
-      setPreviewCols(Array.from(activeFields));
-      setStep(4);
-    },
-    onError: () => {
-      // Fallback to mock for preview
-      const rows = generateMockRows(selectedReport!, Array.from(activeFields), 10);
+      const rows: Record<string, unknown>[] = res.data?.rows ?? [];
       setPreview(rows);
       setPreviewCols(Array.from(activeFields));
       setStep(4);
     },
   });
 
-  // Download mutation
+  // Download mutation — `format` must go on the query string: the backend
+  // endpoint reads it via FastAPI's Query(), not from the JSON body, so
+  // passing it inside the POST body was silently dropped and every download
+  // came back as CSV regardless of which button was clicked.
   const downloadMutation = useMutation({
-    mutationFn: (fmt: "csv" | "json") =>
-      api.post("/reports/download", {
+    mutationFn: (fmt: "csv" | "json" | "xlsx") =>
+      api.post(`/reports/download?format=${fmt}`, {
         report_id: selectedReport!.id,
         fields: Array.from(activeFields),
         date_from: dateFrom,
         date_to: dateTo,
         filters: filterVals,
-        format: fmt,
       }, { responseType: "blob" }),
     onSuccess: (res, fmt) => {
       const url = window.URL.createObjectURL(new Blob([res.data]));
@@ -294,6 +217,9 @@ export default function ReportsPage() {
       a.click();
       window.URL.revokeObjectURL(url);
     },
+    // No onSuccess-only feedback before this meant a failed download just
+    // sat there silently — button re-enables, nothing downloads, no
+    // indication why. isError below surfaces it instead.
   });
 
   const canPreview = !!selectedReport && activeFields.size > 0;
@@ -352,6 +278,25 @@ export default function ReportsPage() {
             onEdit={() => setStep(1)}
             summary={selectedReport?.name}
           >
+            {catalogLoading ? (
+              <div className="flex items-center gap-2 text-sm text-gray-400 py-6">
+                <Loader2 size={14} className="animate-spin" /> Loading report types…
+              </div>
+            ) : catalogIsError ? (
+              <div className="flex items-start gap-3 px-4 py-3.5 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+                <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-medium">Couldn't load report types.</p>
+                  <p className="text-xs text-red-600/80 mt-0.5">{extractErrorMessage(catalogError)}</p>
+                </div>
+                <button
+                  onClick={() => refetchCatalog()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-red-300 text-red-700 rounded-lg text-xs font-semibold hover:bg-red-100 transition-colors flex-shrink-0"
+                >
+                  <RefreshCw size={12} /> Retry
+                </button>
+              </div>
+            ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {REPORTS.map(r => (
                 <button
@@ -374,6 +319,7 @@ export default function ReportsPage() {
                 </button>
               ))}
             </div>
+            )}
           </Section>
 
           {/* STEP 2 — Date range */}
@@ -474,11 +420,22 @@ export default function ReportsPage() {
                               onChange={e => setFilterVals(v => ({...v, [f.key]: e.target.value}))}
                               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
                             >
-                              {f.options?.map(o => <option key={o} value={o === "All" ? "" : o}>{o}</option>)}
+                              <option value="">All</option>
+                              {f.options?.filter(o => o !== "All").map(o => <option key={o} value={o}>{o}</option>)}
+                            </select>
+                          ) : f.type === "boolean" ? (
+                            <select
+                              value={filterVals[f.key] ?? ""}
+                              onChange={e => setFilterVals(v => ({...v, [f.key]: e.target.value}))}
+                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                            >
+                              <option value="">All</option>
+                              <option value="true">Yes</option>
+                              <option value="false">No</option>
                             </select>
                           ) : (
                             <input
-                              type="text"
+                              type={f.type === "number" ? "number" : "text"}
                               value={filterVals[f.key] ?? ""}
                               onChange={e => setFilterVals(v => ({...v, [f.key]: e.target.value}))}
                               placeholder={`Filter by ${f.label.toLowerCase()}`}
@@ -499,6 +456,18 @@ export default function ReportsPage() {
                   {previewMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
                   Preview first 10 rows
                 </button>
+
+                {previewMutation.isError && (
+                  <div className="flex items-start gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+                    <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium">Couldn't load preview.</p>
+                      <p className="text-xs text-red-600/80 mt-0.5">
+                        {extractErrorMessage(previewMutation.error)}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </Section>
@@ -521,6 +490,14 @@ export default function ReportsPage() {
                     CSV
                   </button>
                   <button
+                    onClick={() => downloadMutation.mutate("xlsx")}
+                    disabled={downloadMutation.isPending}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white rounded-xl text-xs font-semibold hover:bg-green-700 transition-colors disabled:opacity-50"
+                  >
+                    {downloadMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <FileSpreadsheet size={12} />}
+                    Excel
+                  </button>
+                  <button
                     onClick={() => downloadMutation.mutate("json")}
                     disabled={downloadMutation.isPending}
                     className="flex items-center gap-1.5 px-4 py-2 bg-[#0F766E] text-white rounded-xl text-xs font-semibold hover:bg-[#0d6660] transition-colors disabled:opacity-50"
@@ -531,7 +508,24 @@ export default function ReportsPage() {
                 </div>
               </div>
 
+              {downloadMutation.isError && (
+                <div className="flex items-start gap-2 mx-5 mt-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+                  <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium">Download failed.</p>
+                    <p className="text-xs text-red-600/80 mt-0.5">{extractErrorMessage(downloadMutation.error)}</p>
+                  </div>
+                </div>
+              )}
+
+              {preview.length === 0 && (
+                <div className="mx-5 mt-4 px-4 py-6 text-center text-sm text-gray-400 bg-gray-50 rounded-xl">
+                  No records match this date range and filters — nothing to download.
+                </div>
+              )}
+
               {/* Table */}
+              {preview.length > 0 && (
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead className="bg-gray-50 border-b border-gray-100">
@@ -556,6 +550,7 @@ export default function ReportsPage() {
                   </tbody>
                 </table>
               </div>
+              )}
 
               <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
                 <p className="text-[11px] text-gray-400">Preview limited to 10 rows. The full download contains all matching records.</p>
@@ -607,70 +602,4 @@ function Section({
       )}
     </div>
   );
-}
-
-/* ── Mock preview data ───────────────────────────────────────────────────────── */
-function generateMockRows(report: ReportDef, fields: string[], count: number): Record<string, unknown>[] {
-  const MOCK: Record<string, () => unknown> = {
-    call_id:         () => `CALL-${Math.floor(Math.random() * 90000 + 10000)}`,
-    date:            () => `2026-05-${String(Math.floor(Math.random() * 13 + 1)).padStart(2, "0")}`,
-    direction:       () => Math.random() > 0.3 ? "inbound" : "outbound",
-    caller_phone:    () => `+9198${Math.floor(Math.random() * 100000000).toString().padStart(8, "0")}`,
-    agent_name:      () => ["Ravi Kumar", "Priya S.", "Amit T.", "Divya R."][Math.floor(Math.random() * 4)],
-    duration_sec:    () => Math.floor(Math.random() * 480 + 30),
-    disposition:     () => ["inquiry", "inquiry", "support", "follow_up", "spam"][Math.floor(Math.random() * 5)],
-    qa_score:        () => Math.floor(Math.random() * 35 + 60),
-    ai_summary:      () => "Guest enquired about villa availability for upcoming weekend. Quoted ₹12,000/night.",
-    property:        () => ["Ratha Villa Coorg", "Jade Stays Goa", "Ratha Ooty"][Math.floor(Math.random() * 3)],
-    ivr_provider:    () => "callerdesk",
-    inquiry_id:      () => `INQ-${Math.floor(Math.random() * 9000 + 1000)}`,
-    created_at:      () => `2026-05-${String(Math.floor(Math.random() * 13 + 1)).padStart(2, "0")}`,
-    guest_name:      () => ["Arjun Sharma", "Priya Nair", "Vikram R.", "Meera P.", "Kiran D."][Math.floor(Math.random() * 5)],
-    guest_phone:     () => `+9198${Math.floor(Math.random() * 100000000).toString().padStart(8, "0")}`,
-    status:          () => ["new", "contacted", "quoted", "won", "lost"][Math.floor(Math.random() * 5)],
-    channel:         () => ["whatsapp", "call", "instagram"][Math.floor(Math.random() * 3)],
-    check_in:        () => `2026-06-${String(Math.floor(Math.random() * 20 + 1)).padStart(2, "0")}`,
-    check_out:       () => `2026-06-${String(Math.floor(Math.random() * 10 + 22)).padStart(2, "0")}`,
-    quoted_value:    () => `₹${(Math.floor(Math.random() * 50 + 10) * 1000).toLocaleString()}`,
-    lost_reason:     () => ["price_too_high", "dates_unavailable", "went_with_competitor", ""][Math.floor(Math.random() * 4)],
-    agent:           () => ["Ravi Kumar", "Priya S.", "Amit T."][Math.floor(Math.random() * 3)],
-    guest_id:        () => `G-${Math.floor(Math.random() * 9000 + 1000)}`,
-    name:            () => ["Arjun Sharma", "Priya Nair", "Vikram R.", "Meera P."][Math.floor(Math.random() * 4)],
-    phone:           () => `+9198${Math.floor(Math.random() * 100000000).toString().padStart(8, "0")}`,
-    email:           () => "guest@example.com",
-    first_seen:      () => "2025-11-12",
-    last_seen:       () => `2026-05-${String(Math.floor(Math.random() * 13 + 1)).padStart(2, "0")}`,
-    total_inquiries: () => Math.floor(Math.random() * 8 + 1),
-    total_stays:     () => Math.floor(Math.random() * 5),
-    lifetime_value:  () => `₹${(Math.floor(Math.random() * 200 + 20) * 1000).toLocaleString()}`,
-    predicted_csat:  () => (Math.random() * 2 + 3).toFixed(1),
-    tags:            () => ["repeat_guest", "vip", ""][Math.floor(Math.random() * 3)],
-    has_stay:        () => Math.random() > 0.3 ? "Yes" : "No",
-    total_score:     () => Math.floor(Math.random() * 35 + 60),
-    greeting:        () => Math.floor(Math.random() * 3 + 3),
-    discovery:       () => Math.floor(Math.random() * 3 + 2),
-    knowledge:       () => Math.floor(Math.random() * 3 + 3),
-    urgency:         () => Math.floor(Math.random() * 4 + 1),
-    objections:      () => Math.floor(Math.random() * 4 + 1),
-    closing:         () => Math.floor(Math.random() * 4 + 1),
-    compliance:      () => Math.floor(Math.random() * 2 + 4),
-    ai_model:        () => Math.random() > 0.7 ? "claude-3-5-sonnet" : "claude-3-haiku",
-    min_score:       () => "",
-    max_score:       () => "",
-    stay_id:         () => `STAY-${Math.floor(Math.random() * 9000 + 1000)}`,
-    nights:          () => Math.floor(Math.random() * 6 + 1),
-    total_amount:    () => `₹${(Math.floor(Math.random() * 80 + 12) * 1000).toLocaleString()}`,
-    pms_source:      () => Math.random() > 0.5 ? "hostaway" : "rentalwise",
-    booking_channel: () => ["direct", "airbnb", "booking.com"][Math.floor(Math.random() * 3)],
-    conversation_id: () => `CONV-${Math.floor(Math.random() * 90000 + 10000)}`,
-    messages_count:  () => Math.floor(Math.random() * 20 + 3),
-    ai_drafted:      () => Math.random() > 0.4 ? "Yes" : "No",
-    resolved_at:     () => `2026-05-${String(Math.floor(Math.random() * 13 + 1)).padStart(2, "0")} ${Math.floor(Math.random() * 12 + 9)}:30`,
-  };
-
-  return Array.from({ length: count }, () => {
-    const row: Record<string, unknown> = {};
-    fields.forEach(f => { row[f] = (MOCK[f] ?? (() => "—"))(); });
-    return row;
-  });
 }

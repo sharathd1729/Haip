@@ -30,6 +30,7 @@ celery-batches==0.9
 flower==2.0.1
 pyotp==2.9.0
 qrcode[pil]==7.4.2
+openpyxl==3.1.5
 
 # ── Push notifications ───────────────────────────────────────────────────────
 pywebpush>=2.0.0
