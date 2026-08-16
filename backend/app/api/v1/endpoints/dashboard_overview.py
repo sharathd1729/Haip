@@ -29,7 +29,7 @@ from app.models.conversation import Conversation, Message, MessageDirection, Cha
 from app.models.task import Task
 from app.models.ai_draft_outcome import AIDraftOutcome
 from app.models.insight import Insight
-from app.services.date_presets import VALID_PRESETS, resolve_range
+from app.services.date_presets import VALID_PRESETS, resolve_range, ist_range_to_utc
 from app.services.message_metrics import chat_response_avg_seconds
 from app.services.agent_analytics_service import get_agent_scorecard_rows
 from app.api.v1.endpoints.analytics import _delta
@@ -75,10 +75,12 @@ def dashboard_overview(
         except ValueError:
             raise HTTPException(status_code=422, detail=f"Invalid channel: {channel}")
 
-    range_start = f"{d_from}T00:00:00"
-    range_end = f"{d_to}T23:59:59"
-    range_start_dt = datetime.fromisoformat(range_start).replace(tzinfo=timezone.utc)
-    range_end_dt = datetime.fromisoformat(range_end).replace(tzinfo=timezone.utc)
+    # d_from/d_to are IST calendar dates (date_presets.resolve_range) --
+    # ist_range_to_utc() converts IST midnight-to-end-of-day into the
+    # correct UTC instants. Previously this stamped the naive date string
+    # with tzinfo=UTC directly, shifting every preset window (including
+    # "Today") by IST's +5:30 offset.
+    range_start, range_end, range_start_dt, range_end_dt = ist_range_to_utc(d_from, d_to)
 
     # Agent scoping: an agent role always sees only their own data, no matter
     # what agent_id they pass. Owner/manager can optionally narrow to one
@@ -172,9 +174,7 @@ def dashboard_overview(
     prev_to = date.fromisoformat(d_from) - timedelta(days=1)
     prev_from = prev_to - timedelta(days=period_days - 1)
     prev_kpi = _kpi_snapshot(
-        f"{prev_from.isoformat()}T00:00:00", f"{prev_to.isoformat()}T23:59:59",
-        datetime.combine(prev_from, datetime.min.time(), tzinfo=timezone.utc),
-        datetime.combine(prev_to, datetime.max.time(), tzinfo=timezone.utc),
+        *ist_range_to_utc(prev_from.isoformat(), prev_to.isoformat()),
         prev_from.isoformat(), prev_to.isoformat(),
     )
     kpi_deltas = {

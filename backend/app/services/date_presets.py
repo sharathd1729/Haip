@@ -5,7 +5,7 @@ Resolved server-side in IST always -- HAIP is India-only, and computing
 "last 7 days" client-side risks a preset silently shifting by a day when
 the browser's local timezone isn't IST.
 """
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from typing import Optional
 
@@ -63,6 +63,28 @@ def clean_date_str(value: Optional[str]) -> Optional[str]:
         return None
     date.fromisoformat(stripped)  # raises ValueError if malformed
     return stripped
+
+
+def ist_range_to_utc(d_from: str, d_to: str) -> tuple[str, str, datetime, datetime]:
+    """Convert an inclusive IST calendar-date range (as returned by
+    resolve_range/resolve_preset) into the equivalent UTC instants.
+
+    Every stored timestamp in this app is UTC (DateTime(timezone=True)
+    columns, or plain UTC ISO strings for the handful of string-typed
+    timestamp columns like Call.started_at). Several call sites instead did
+    `datetime.fromisoformat(f"{d}T00:00:00").replace(tzinfo=timezone.utc)`
+    -- which stamps the IST calendar boundary as if it already were a UTC
+    boundary, silently shifting every date-preset window ("Today" included)
+    by IST's +5:30 offset: the first 5.5h of the real IST day get excluded,
+    and the first 5.5h of the following UTC day get pulled in instead. This
+    is why the dashboard's "Today" totals could undercount activity that
+    Inbox (which queries actual timestamps, not this broken window) showed
+    correctly. Found 2026-08-16 investigating a "today" undercount report;
+    see dashboard_overview.py and agent_analytics_service.py.
+    """
+    start_dt = datetime.combine(date.fromisoformat(d_from), datetime.min.time(), tzinfo=IST).astimezone(timezone.utc)
+    end_dt = datetime.combine(date.fromisoformat(d_to), datetime.max.time(), tzinfo=IST).astimezone(timezone.utc)
+    return start_dt.isoformat(), end_dt.isoformat(), start_dt, end_dt
 
 
 def resolve_range(

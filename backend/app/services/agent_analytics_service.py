@@ -6,7 +6,6 @@ captures changed_by=actor_user_id|"system" on every stage transition,
 through both inquiry_service.py transition paths (_apply_stage,
 _apply_stage_by_id). This module just reads it.
 """
-from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import func, Integer, cast
@@ -18,6 +17,7 @@ from app.models.pipeline_stage import PipelineStage
 from app.models.call import Call, CallDirection
 from app.models.task import Task
 from app.models.ai_draft_outcome import AIDraftOutcome
+from app.services.date_presets import ist_range_to_utc
 from app.models.user import User
 from app.models.tenant import Tenant
 
@@ -76,11 +76,15 @@ def get_agent_scorecard_rows(
     user_id -- deliberately not one giant multi-join (fan-out risk across
     5 unrelated tables with very different cardinalities per user).
 
-    date_from/date_to are inclusive ISO date strings (YYYY-MM-DD), already
-    resolved by date_presets.resolve_range() upstream.
+    date_from/date_to are inclusive IST calendar-date strings (YYYY-MM-DD),
+    already resolved by date_presets.resolve_range() upstream.
     """
-    range_start = f"{date_from}T00:00:00"
-    range_end_dt = f"{date_to}T23:59:59"
+    # ist_range_to_utc() converts the IST calendar-day boundary into the
+    # correct UTC instants -- this previously built a naive
+    # "{date}T00:00:00" string with no timezone conversion at all, which
+    # every *.created_at/*.changed_at comparison below then interpreted as
+    # UTC, shifting the window by IST's +5:30 offset (see date_presets.py).
+    range_start, range_end_dt, range_start_dt, range_end_dt_obj = ist_range_to_utc(date_from, date_to)
 
     users = (
         db.query(User)
@@ -118,8 +122,6 @@ def get_agent_scorecard_rows(
     # locally to avoid a circular import, same pattern as elsewhere in this
     # service file's sibling endpoints)
     from app.services.message_metrics import chat_response_by_agent
-    range_start_dt = datetime.fromisoformat(range_start).replace(tzinfo=timezone.utc)
-    range_end_dt_obj = datetime.fromisoformat(range_end_dt).replace(tzinfo=timezone.utc)
     for r in chat_response_by_agent(db, tenant_id, since=range_start_dt, until=range_end_dt_obj):
         if r["agent_id"] in rows:
             rows[r["agent_id"]]["avg_response_seconds"] = r["avg_seconds"]
