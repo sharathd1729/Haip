@@ -141,6 +141,12 @@ class Message(Base, TimestampMixin, TenantMixin):
     # O2: sample data flag
     is_sample = Column(Boolean, default=False, nullable=False, index=True)
 
+    # True only when the AI sent this by itself, with no human in the loop.
+    # Distinct from was_approved, which the inbox approve handler, the
+    # one-click action and the auto-send path all set to True -- so it alone
+    # cannot answer "what did the AI send unsupervised?" (migration 081).
+    sent_autonomously = Column(Boolean, default=False, nullable=False)
+
     # Reply-to-message — W5: quoted reply threading
     replied_to_message_id = Column(String, ForeignKey("messages.id"), nullable=True)
 

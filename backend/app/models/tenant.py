@@ -94,6 +94,13 @@ class Tenant(Base, TimestampMixin):
     # replacement for it.
     ai_escalation_keywords = Column(JSON, nullable=True)
 
+    # Autonomous-send rate limits (migration 081). Guard against message
+    # loops rather than against legitimate volume -- a real conversation
+    # rarely needs more than a few AI replies an hour.
+    ai_max_sends_per_conversation_hour = Column(Integer, nullable=False, server_default="6", default=6)
+    ai_max_consecutive_replies = Column(Integer, nullable=False, server_default="3", default=3)
+    ai_max_sends_per_tenant_hour = Column(Integer, nullable=False, server_default="60", default=60)
+
     users = relationship("User", back_populates="tenant", lazy="dynamic")
     guests = relationship("Guest", back_populates="tenant", lazy="dynamic")
     properties = relationship("Property", back_populates="tenant", lazy="dynamic")

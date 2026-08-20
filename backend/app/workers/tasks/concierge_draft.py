@@ -493,6 +493,25 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             confidence_threshold = CONFIDENCE_THRESHOLD
         should_auto_send = (ai_mode == "autonomous" and confidence >= confidence_threshold and not needs_human)
 
+        # Rate limit -- the last gate before a message leaves unsupervised.
+        # Blocking only withholds the automatic send: the draft is still
+        # written and still visible to agents, so a rate-limited guest gets
+        # a slower human reply rather than no reply.
+        rate_limited_reason = None
+        if should_auto_send:
+            from app.services import ai_rate_limit_service
+            allowed, rate_limited_reason = ai_rate_limit_service.check_send_allowed(
+                db, tenant, conversation,
+            )
+            if not allowed:
+                should_auto_send = False
+                needs_human = True
+                log.warning(
+                    "ai_send_rate_limited",
+                    conversation_id=conversation_id, tenant_id=tenant_id,
+                    reason=rate_limited_reason,
+                )
+
         draft_message_id = str(uuid.uuid4())
 
         # HAIP Inbox UI-fidelity pass, ticket 3: offer the drafted reply
@@ -522,6 +541,10 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             is_ai_generated=True,
             ai_confidence=confidence,
             was_approved=True if should_auto_send else None,
+            # was_approved alone cannot answer "what did the AI send with no
+            # human involved?" -- the inbox approve handler and the one-click
+            # action set it too. This is what the rate limiter counts.
+            sent_autonomously=bool(should_auto_send),
             sender_name="AI Concierge",
             grounded_facts=grounded_facts,
             suggested_actions=suggested_actions,
@@ -531,6 +554,22 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
 
         log.info("concierge_draft_stored", message_id=draft_message.id, confidence=confidence,
                  auto_send=should_auto_send, grounded=bool(grounded_facts), **stamp("concierge_reply"))
+
+        # ── Rate-limit alert ───────────────────────────────────────────────
+        # A silent rate limit hides the loop it just caught. Someone needs to
+        # look at why the AI wanted to send that many messages.
+        if rate_limited_reason:
+            try:
+                from app.services.push_service import send_to_tenant
+                _label = (getattr(guest, "name", None) or "A guest").strip()
+                send_to_tenant(
+                    db, tenant_id,
+                    title="AI send paused",
+                    body=f"{_label}: {rate_limited_reason}. Reply waiting for review.",
+                    url=f"/dashboard/inbox?conversation={conversation_id}",
+                )
+            except Exception as exc:
+                log.warning("rate_limit_push_failed", conversation_id=conversation_id, error=str(exc))
 
         # ── Escalation alert ───────────────────────────────────────────────
         # These are time-sensitive by definition -- a refund demand sitting

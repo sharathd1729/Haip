@@ -176,6 +176,25 @@ class KillSwitchRequest(BaseModel):
     reason: Optional[str] = None
 
 
+class AIRateLimits(BaseModel):
+    ai_max_sends_per_conversation_hour: Optional[int] = None
+    ai_max_consecutive_replies: Optional[int] = None
+    ai_max_sends_per_tenant_hour: Optional[int] = None
+
+    @field_validator(
+        "ai_max_sends_per_conversation_hour",
+        "ai_max_consecutive_replies",
+        "ai_max_sends_per_tenant_hour",
+    )
+    @classmethod
+    def _sane_limit(cls, v):
+        # 0 would disable autonomous sending by the back door; that is what
+        # the kill switch is for, and it should be visible as such.
+        if v is not None and not (1 <= v <= 1000):
+            raise ValueError("limit must be between 1 and 1000")
+        return v
+
+
 class AISafetyOut(BaseModel):
     ai_kill_switch: bool
     ai_kill_switch_at: Optional[str] = None
@@ -183,6 +202,9 @@ class AISafetyOut(BaseModel):
     ai_kill_switch_reason: Optional[str] = None
     ai_escalation_keywords: list[str] = []
     default_escalation_categories: dict = {}
+    ai_max_sends_per_conversation_hour: int = 6
+    ai_max_consecutive_replies: int = 3
+    ai_max_sends_per_tenant_hour: int = 60
 
 
 def _safety_out(tenant) -> "AISafetyOut":
@@ -194,6 +216,9 @@ def _safety_out(tenant) -> "AISafetyOut":
         ai_kill_switch_reason=tenant.ai_kill_switch_reason,
         ai_escalation_keywords=list(tenant.ai_escalation_keywords or []),
         default_escalation_categories={k: list(v) for k, v in DEFAULT_ESCALATION_KEYWORDS.items()},
+        ai_max_sends_per_conversation_hour=tenant.ai_max_sends_per_conversation_hour or 6,
+        ai_max_consecutive_replies=tenant.ai_max_consecutive_replies or 3,
+        ai_max_sends_per_tenant_hour=tenant.ai_max_sends_per_tenant_hour or 60,
     )
 
 
@@ -238,6 +263,27 @@ def set_kill_switch(
         tenant_id=tenant.id, actor_user_id=current_user.id,
         enabled=bool(body.enabled), reason=body.reason,
     )
+    return _safety_out(tenant)
+
+
+@router.patch("/tenants/me/ai-rate-limits", response_model=AISafetyOut)
+def set_ai_rate_limits(
+    body: AIRateLimits,
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """Tune the caps on autonomous sending."""
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    for field in ("ai_max_sends_per_conversation_hour", "ai_max_consecutive_replies",
+                  "ai_max_sends_per_tenant_hour"):
+        val = getattr(body, field)
+        if val is not None:
+            setattr(tenant, field, val)
+    db.commit()
+    db.refresh(tenant)
     return _safety_out(tenant)
 
 

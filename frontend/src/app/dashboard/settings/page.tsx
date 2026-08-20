@@ -284,6 +284,9 @@ interface AISafety {
   ai_kill_switch_reason?: string | null;
   ai_escalation_keywords: string[];
   default_escalation_categories: Record<string, string[]>;
+  ai_max_sends_per_conversation_hour: number;
+  ai_max_consecutive_replies: number;
+  ai_max_sends_per_tenant_hour: number;
 }
 
 function KillSwitchCard() {
@@ -424,7 +427,82 @@ function KillSwitchCard() {
           onClick={() => saveKeywords.mutate(keywords)}
         />
       </Card>
+
+      <RateLimitCard safety={safety} />
     </>
+  );
+}
+
+function RateLimitCard({ safety }: { safety?: AISafety }) {
+  const queryClient = useQueryClient();
+  const [draft, setDraft] = useState<Record<string, number> | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  const save = useMutation({
+    mutationFn: (payload: Record<string, number>) =>
+      api.patch("/tenants/me/ai-rate-limits", payload).then(r => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ai-safety"] });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+      setDraft(null);
+    },
+  });
+
+  const FIELDS = [
+    {
+      key: "ai_max_consecutive_replies",
+      label: "Replies in a row without the guest answering",
+      hint: "A real conversation goes back and forth. Several AI messages stacked with no reply usually means something is looping.",
+      fallback: 3,
+    },
+    {
+      key: "ai_max_sends_per_conversation_hour",
+      label: "Messages per guest, per hour",
+      hint: "Caps how much the AI can send to one person in an hour.",
+      fallback: 6,
+    },
+    {
+      key: "ai_max_sends_per_tenant_hour",
+      label: "Messages across all guests, per hour",
+      hint: "Catches a problem affecting many conversations at once, which no single chat would reveal.",
+      fallback: 60,
+    },
+  ];
+
+  const valueFor = (k: string, fallback: number) =>
+    draft?.[k] ?? (safety ? (safety as unknown as Record<string, number>)[k] : undefined) ?? fallback;
+
+  return (
+    <Card title="Limits on automatic sending">
+      <p className="text-xs text-gray-500 mb-4">
+        If the AI hits one of these, it stops sending automatically and leaves the reply for your team instead —
+        the guest still gets an answer, just from a person. You&apos;ll get an alert when it happens.
+      </p>
+      <div className="space-y-4">
+        {FIELDS.map(f => (
+          <div key={f.key}>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{f.label}</label>
+            <input
+              type="number"
+              min={1}
+              max={1000}
+              value={valueFor(f.key, f.fallback)}
+              onChange={e => setDraft({ ...(draft ?? {}), [f.key]: Number(e.target.value) })}
+              className="w-28 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+            />
+            <p className="text-[11px] text-gray-400 mt-1 max-w-lg">{f.hint}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4">
+        <SaveButton
+          saved={saved}
+          loading={save.isPending}
+          onClick={() => save.mutate(draft ?? {})}
+        />
+      </div>
+    </Card>
   );
 }
 
