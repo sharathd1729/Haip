@@ -49,6 +49,12 @@ def _channel_key(channel) -> Optional[str]:
 
 def resolve_mode(tenant, conversation) -> str:
     """Effective mode for this conversation's next AI reply."""
+    # Emergency stop wins over everything. Downgrades to shadow rather than
+    # off deliberately: the owner pulling this wants the AI to stop talking
+    # to guests, not to lose the drafting assist their agents are using.
+    if tenant is not None and getattr(tenant, "ai_kill_switch", False):
+        return "shadow"
+
     if conversation is not None and (conversation.ai_mode or "").lower() == "off":
         return "off"
 

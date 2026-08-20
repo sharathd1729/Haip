@@ -276,6 +276,158 @@ function WorkspaceSettings() {
   );
 }
 
+/* ── Emergency stop + escalation keywords ──────────────────────────────────── */
+interface AISafety {
+  ai_kill_switch: boolean;
+  ai_kill_switch_at?: string | null;
+  ai_kill_switch_by?: string | null;
+  ai_kill_switch_reason?: string | null;
+  ai_escalation_keywords: string[];
+  default_escalation_categories: Record<string, string[]>;
+}
+
+function KillSwitchCard() {
+  const queryClient = useQueryClient();
+  const [kwInput, setKwInput] = useState("");
+  const [kwDraft, setKwDraft] = useState<string[] | null>(null);
+  const [kwSaved, setKwSaved] = useState(false);
+
+  const { data: safety } = useQuery<AISafety>({
+    queryKey: ["ai-safety"],
+    queryFn: () => api.get("/tenants/me/ai-safety").then(r => r.data),
+    retry: 1,
+  });
+
+  const toggleKill = useMutation({
+    mutationFn: (enabled: boolean) =>
+      api.post("/tenants/me/ai-kill-switch", { enabled }).then(r => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ai-safety"] });
+      queryClient.invalidateQueries({ queryKey: ["ai-mode"] });
+    },
+  });
+
+  const saveKeywords = useMutation({
+    mutationFn: (keywords: string[]) =>
+      api.put("/tenants/me/ai-escalation-keywords", { keywords }).then(r => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ai-safety"] });
+      setKwSaved(true);
+      setTimeout(() => setKwSaved(false), 2500);
+    },
+  });
+
+  const stopped = !!safety?.ai_kill_switch;
+  const keywords = kwDraft ?? safety?.ai_escalation_keywords ?? [];
+  const defaultCount = Object.values(safety?.default_escalation_categories ?? {})
+    .reduce((n, arr) => n + arr.length, 0);
+
+  const addKeyword = () => {
+    const v = kwInput.trim().toLowerCase();
+    if (v.length < 3 || keywords.includes(v)) { setKwInput(""); return; }
+    setKwDraft([...keywords, v]);
+    setKwInput("");
+  };
+
+  return (
+    <>
+      {/* Emergency stop */}
+      <div className={cn(
+        "rounded-xl border-2 p-5 transition-colors",
+        stopped ? "border-red-300 bg-red-50" : "border-gray-100 bg-white",
+      )}>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <AlertCircle size={16} className={stopped ? "text-red-600" : "text-gray-400"} />
+              <p className="text-sm font-semibold text-gray-900">
+                {stopped ? "AI is stopped" : "Emergency stop"}
+              </p>
+            </div>
+            <p className="text-xs text-gray-500 mt-1 max-w-md">
+              {stopped
+                ? "The AI is not sending anything to guests. It still writes drafts for your team to review and send."
+                : "Immediately stops the AI sending messages to guests on every channel. Drafts keep appearing for your team, so nothing is lost."}
+            </p>
+            {stopped && safety?.ai_kill_switch_at && (
+              <p className="text-[11px] text-red-700 mt-1.5">
+                Stopped {new Date(safety.ai_kill_switch_at).toLocaleString()}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={() => {
+              if (stopped) { toggleKill.mutate(false); return; }
+              if (confirm("Stop the AI from sending any messages to guests?\n\nDrafts will still be created for your team to review.")) {
+                toggleKill.mutate(true);
+              }
+            }}
+            disabled={toggleKill.isPending}
+            className={cn(
+              "px-4 py-2 rounded-xl text-sm font-semibold transition-colors flex-shrink-0 disabled:opacity-50",
+              stopped
+                ? "bg-white border border-red-300 text-red-700 hover:bg-red-100"
+                : "bg-red-600 text-white hover:bg-red-700",
+            )}
+          >
+            {toggleKill.isPending ? "…" : stopped ? "Resume AI" : "Stop AI now"}
+          </button>
+        </div>
+      </div>
+
+      {/* Escalation keywords */}
+      <Card title="Always send to a human">
+        <p className="text-xs text-gray-500 mb-3">
+          If a guest&apos;s message mentions any of these, the AI will never reply on its own — it holds the
+          draft for your team and sends an alert. {defaultCount} common triggers (refunds, legal, cancellations,
+          safety, asking for a manager) are built in and always active.
+        </p>
+
+        <div className="flex gap-2 mb-3">
+          <input
+            value={kwInput}
+            onChange={e => setKwInput(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addKeyword(); } }}
+            placeholder="Add your own, e.g. generator"
+            className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+          />
+          <button
+            onClick={addKeyword}
+            className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-xs font-semibold hover:bg-gray-200 transition-colors"
+          >
+            Add
+          </button>
+        </div>
+
+        {keywords.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {keywords.map(k => (
+              <span key={k} className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-800">
+                {k}
+                <button
+                  onClick={() => setKwDraft(keywords.filter(x => x !== k))}
+                  className="text-amber-500 hover:text-amber-700"
+                  title="Remove"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400 mb-3">No extra keywords — the built-in list is still active.</p>
+        )}
+
+        <SaveButton
+          saved={kwSaved}
+          loading={saveKeywords.isPending}
+          onClick={() => saveKeywords.mutate(keywords)}
+        />
+      </Card>
+    </>
+  );
+}
+
 /* ── AI Concierge ──────────────────────────────────────────────────────────── */
 interface AIModeSettings {
   wa_ai_mode_default: string;
@@ -333,6 +485,8 @@ function AISettings() {
   return (
     <div className="space-y-6">
       <SectionHeader title="AI Concierge" sub="Control automation behaviour per channel" />
+
+      <KillSwitchCard />
 
       {/* WhatsApp */}
       <Card title="WhatsApp — AI mode">

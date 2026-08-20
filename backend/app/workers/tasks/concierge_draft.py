@@ -447,6 +447,26 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             needs_human = True
             confidence = 0.0
 
+        # ── Escalation guard ───────────────────────────────────────────────
+        # Refunds, legal threats, cancellations, safety incidents and
+        # "get me a manager" are never answered autonomously. Checked
+        # against the guest's own words (not the draft) so the decision does
+        # not depend on the model having judged the tone correctly.
+        from app.services import escalation_policy
+        escalation = escalation_policy.should_escalate(
+            (triggering_message.body if triggering_message else "") or "",
+            _intent,
+            tenant,
+        )
+        if escalation:
+            log.warning(
+                "draft_escalated_to_human",
+                conversation_id=conversation_id, message_id=message_id,
+                category=escalation["category"], keyword=escalation["keyword"],
+            )
+            needs_human = True
+            confidence = 0.0
+
         # ── Price-disclosure guard (hard policy, not a preference) ─────────
         # The prompt forbids quoting prices; this makes it true even when the
         # model ignores that. A leaked rate sent unreviewed is precisely the
@@ -511,6 +531,22 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
 
         log.info("concierge_draft_stored", message_id=draft_message.id, confidence=confidence,
                  auto_send=should_auto_send, grounded=bool(grounded_facts), **stamp("concierge_reply"))
+
+        # ── Escalation alert ───────────────────────────────────────────────
+        # These are time-sensitive by definition -- a refund demand sitting
+        # unread in the inbox is the failure mode this guard exists to stop.
+        if escalation:
+            try:
+                from app.services.push_service import send_to_tenant
+                _label = (getattr(guest, "name", None) or "A guest").strip()
+                send_to_tenant(
+                    db, tenant_id,
+                    title="Needs a human now",
+                    body=f"{_label}: {escalation['category'].replace('_', ' ')}. AI reply held for review.",
+                    url=f"/dashboard/inbox?conversation={conversation_id}",
+                )
+            except Exception as exc:
+                log.warning("escalation_push_failed", conversation_id=conversation_id, error=str(exc))
 
         # ── Human handoff for pricing ──────────────────────────────────────
         # The concierge never negotiates. Once the lead has asked about cost

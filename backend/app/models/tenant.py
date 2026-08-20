@@ -1,4 +1,5 @@
-from sqlalchemy import Column, String, Boolean, JSON, Integer, LargeBinary, Float
+from sqlalchemy import Column, String, Boolean, JSON, Integer, LargeBinary, Float, DateTime
+from sqlalchemy import text as sa_text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -74,6 +75,24 @@ class Tenant(Base, TimestampMixin):
     # threshold to WhatsApp drafts.
     wa_ai_mode_default = Column(String(20), nullable=False, server_default="shadow")
     wa_ai_confidence_threshold = Column(Float, nullable=False, server_default="0.78")
+
+    # Emergency stop (migration 080). When true the AI stops sending to
+    # guests on every channel immediately, regardless of the mode settings
+    # above. Drafting continues so agents keep the assist -- this halts
+    # delivery, not the feature.
+    # sa.text("false"), not the string "false": a plain string renders as
+    # DEFAULT 'false', which SQLite stores as a non-empty string and reads
+    # back as True -- i.e. the kill switch would default to ON and silently
+    # disable the AI. Postgres coerces it correctly, so this only bites on
+    # SQLite (the test database), which is exactly where it is hardest to
+    # notice.
+    ai_kill_switch = Column(Boolean, nullable=False, server_default=sa_text("false"), default=False)
+    ai_kill_switch_at = Column(DateTime(timezone=True), nullable=True)
+    ai_kill_switch_by = Column(String, nullable=True)
+    ai_kill_switch_reason = Column(String(500), nullable=True)
+    # Tenant additions on top of the built-in escalation list, never a
+    # replacement for it.
+    ai_escalation_keywords = Column(JSON, nullable=True)
 
     users = relationship("User", back_populates="tenant", lazy="dynamic")
     guests = relationship("Guest", back_populates="tenant", lazy="dynamic")

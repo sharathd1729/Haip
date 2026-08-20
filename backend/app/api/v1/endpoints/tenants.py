@@ -169,6 +169,116 @@ def update_ai_mode(
     )
 
 
+# ─── AI safety controls (kill switch + escalation keywords) ──────────────────
+
+class KillSwitchRequest(BaseModel):
+    enabled: bool
+    reason: Optional[str] = None
+
+
+class AISafetyOut(BaseModel):
+    ai_kill_switch: bool
+    ai_kill_switch_at: Optional[str] = None
+    ai_kill_switch_by: Optional[str] = None
+    ai_kill_switch_reason: Optional[str] = None
+    ai_escalation_keywords: list[str] = []
+    default_escalation_categories: dict = {}
+
+
+def _safety_out(tenant) -> "AISafetyOut":
+    from app.services.escalation_policy import DEFAULT_ESCALATION_KEYWORDS
+    return AISafetyOut(
+        ai_kill_switch=bool(tenant.ai_kill_switch),
+        ai_kill_switch_at=tenant.ai_kill_switch_at.isoformat() if tenant.ai_kill_switch_at else None,
+        ai_kill_switch_by=tenant.ai_kill_switch_by,
+        ai_kill_switch_reason=tenant.ai_kill_switch_reason,
+        ai_escalation_keywords=list(tenant.ai_escalation_keywords or []),
+        default_escalation_categories={k: list(v) for k, v in DEFAULT_ESCALATION_KEYWORDS.items()},
+    )
+
+
+@router.get("/tenants/me/ai-safety", response_model=AISafetyOut)
+def get_ai_safety(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    return _safety_out(tenant)
+
+
+@router.post("/tenants/me/ai-kill-switch", response_model=AISafetyOut)
+def set_kill_switch(
+    body: KillSwitchRequest,
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """Emergency stop. When enabled the AI stops sending to guests on every
+    channel immediately; drafting continues so agents keep the assist."""
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    from datetime import datetime, timezone as _tz
+    import structlog
+    _log = structlog.get_logger()
+
+    tenant.ai_kill_switch = bool(body.enabled)
+    tenant.ai_kill_switch_at = datetime.now(_tz.utc) if body.enabled else None
+    tenant.ai_kill_switch_by = current_user.id if body.enabled else None
+    tenant.ai_kill_switch_reason = (body.reason or None) if body.enabled else None
+    db.commit()
+    db.refresh(tenant)
+
+    # Both directions are audit-worthy: switching it back off is the moment
+    # unreviewed messages can start reaching guests again.
+    _log.warning(
+        "ai_kill_switch_changed",
+        tenant_id=tenant.id, actor_user_id=current_user.id,
+        enabled=bool(body.enabled), reason=body.reason,
+    )
+    return _safety_out(tenant)
+
+
+@router.put("/tenants/me/ai-escalation-keywords", response_model=AISafetyOut)
+def set_escalation_keywords(
+    body: dict,
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """Replace the tenant's *additional* escalation keywords.
+
+    These add to the built-in list (refunds, legal, safety, ...) -- they
+    never replace it, so a tenant cannot accidentally disable the defaults
+    by clearing this field.
+    """
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    raw = (body or {}).get("keywords", [])
+    if not isinstance(raw, list):
+        raise HTTPException(status_code=422, detail="keywords must be a list of strings")
+
+    cleaned, seen = [], set()
+    for k in raw:
+        s = str(k or "").strip().lower()
+        # A 1-2 char keyword would match constantly; reject rather than
+        # silently accept a rule that escalates every message.
+        if len(s) < 3 or s in seen:
+            continue
+        seen.add(s)
+        cleaned.append(s)
+    if len(cleaned) > 100:
+        raise HTTPException(status_code=422, detail="At most 100 custom keywords")
+
+    tenant.ai_escalation_keywords = cleaned
+    db.commit()
+    db.refresh(tenant)
+    return _safety_out(tenant)
+
+
 @router.get("/tenants/me/branding", response_model=BrandingTheme)
 def get_branding(
     current_user: User = Depends(get_current_user),
