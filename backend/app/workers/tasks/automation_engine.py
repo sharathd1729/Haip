@@ -402,6 +402,7 @@ def _action_send_whatsapp_draft(db, cfg: dict, context: dict, tenant_id: str) ->
 
     ai_draft_outcomes_service.record_outcome(
         db, tenant_id=tenant_id, draft=msg, outcome="sent_verbatim",
+        intent=msg.ai_intent,
     )
     db.commit()
 

@@ -147,6 +147,13 @@ class Message(Base, TimestampMixin, TenantMixin):
     # cannot answer "what did the AI send unsupervised?" (migration 081).
     sent_autonomously = Column(Boolean, default=False, nullable=False)
 
+    # Per-message intent the concierge classified while drafting
+    # (availability_check | price_quote | faq_answer | complaint | general).
+    # Persisted so the approve/reject paths can record it on the outcome row
+    # too -- it was previously computed and thrown away, which left
+    # ai_draft_outcomes.intent unpopulated by every caller (migration 082).
+    ai_intent = Column(String(50), nullable=True)
+
     # Reply-to-message — W5: quoted reply threading
     replied_to_message_id = Column(String, ForeignKey("messages.id"), nullable=True)
 

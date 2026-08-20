@@ -545,6 +545,9 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             # human involved?" -- the inbox approve handler and the one-click
             # action set it too. This is what the rate limiter counts.
             sent_autonomously=bool(should_auto_send),
+            # Persisted so approve/reject can attribute their outcome rows to
+            # the same intent (migration 082).
+            ai_intent=_intent,
             sender_name="AI Concierge",
             grounded_facts=grounded_facts,
             suggested_actions=suggested_actions,
@@ -554,6 +557,33 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
 
         log.info("concierge_draft_stored", message_id=draft_message.id, confidence=confidence,
                  auto_send=should_auto_send, grounded=bool(grounded_facts), **stamp("concierge_reply"))
+
+        # ── Audit row for autonomous sends ─────────────────────────────────
+        # Human-reviewed drafts get an ai_draft_outcomes row on approve or
+        # reject; autonomous sends previously got nothing at all, so exactly
+        # the messages with no human oversight were the ones missing from the
+        # trust scorecard. `intent` is passed here too -- the column has
+        # existed since migration 058 and no caller has ever populated it,
+        # which made the per-intent accuracy the graduation gate is meant to
+        # be judged on impossible to compute.
+        if should_auto_send:
+            try:
+                from app.services.ai_draft_outcomes_service import record_outcome
+                record_outcome(
+                    db,
+                    tenant_id=tenant_id,
+                    draft=draft_message,
+                    outcome="sent_autonomous",
+                    actor_user_id=None,   # nobody reviewed it, by definition
+                    intent=_intent,
+                )
+                db.commit()
+            except Exception as exc:
+                # Losing the audit row must not cost the guest their reply.
+                log.warning(
+                    "autonomous_outcome_record_failed",
+                    message_id=draft_message.id, error=str(exc),
+                )
 
         # ── Rate-limit alert ───────────────────────────────────────────────
         # A silent rate limit hides the loop it just caught. Someone needs to

@@ -890,6 +890,9 @@ def approve_ai_draft(
         original_body=original_body if was_edited else None,
         sent_body=msg.body if was_edited else None,
         actor_user_id=current_user.id,
+        # Per-intent verbatim rate is the number the autonomy decision hangs
+        # on -- it needs the human-reviewed outcomes most of all.
+        intent=msg.ai_intent,
     )
     db.commit()
 
@@ -934,6 +937,7 @@ def reject_ai_draft(
     ai_draft_outcomes_service.record_outcome(
         db, tenant_id=current_user.tenant_id, draft=msg, outcome="rejected",
         actor_user_id=current_user.id,
+        intent=msg.ai_intent,
     )
     db.commit()
 

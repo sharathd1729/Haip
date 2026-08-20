@@ -13,6 +13,12 @@ from app.models.ai_draft_outcome import AIDraftOutcome
 from app.models.conversation import Message
 
 
+# Outcomes with a human in the loop. Kept explicit because the verbatim and
+# reject *rates* are measures of human review behaviour -- an autonomous send
+# has no reviewer and must not sit in those denominators (see migration 082).
+HUMAN_REVIEWED_OUTCOMES = ("sent_verbatim", "sent_edited", "rejected")
+
+
 def record_outcome(
     db: Session,
     tenant_id: str,
@@ -21,9 +27,10 @@ def record_outcome(
     original_body: Optional[str] = None,
     sent_body: Optional[str] = None,
     actor_user_id: Optional[str] = None,
+    intent: Optional[str] = None,
 ) -> AIDraftOutcome:
     """
-    outcome: "sent_verbatim" | "sent_edited" | "rejected"
+    outcome: "sent_verbatim" | "sent_edited" | "rejected" | "sent_autonomous"
     original_body / sent_body: only meaningful for "sent_edited" -- pass the
     pre-edit and post-edit text explicitly rather than reading draft.body,
     since callers typically mutate draft.body to the edited text *before*
@@ -31,7 +38,11 @@ def record_outcome(
     would otherwise leave nothing to diff against.
     actor_user_id: the agent who approved/rejected this draft (Phase 2.5,
     HAIP_Agent_Analytics_Dashboard_Plan_1.md #2.5.4). None for outcomes with
-    no human actor (e.g. "expired").
+    no human actor ("expired", "sent_autonomous").
+    intent: the per-message intent the concierge classified. Previously never
+    populated by any caller despite the column existing since migration 058,
+    so per-intent accuracy -- the thing the autonomy graduation gate is
+    supposed to be decided on -- could not be computed at all.
     """
     edit_distance_pct = None
     if outcome == "sent_edited" and original_body and sent_body is not None:
@@ -52,6 +63,7 @@ def record_outcome(
         tenant_id=tenant_id,
         draft_message_id=draft.id,
         outcome=outcome,
+        intent=intent,
         edit_distance_pct=edit_distance_pct,
         time_to_action_sec=time_to_action_sec,
         ai_confidence=draft.ai_confidence,
