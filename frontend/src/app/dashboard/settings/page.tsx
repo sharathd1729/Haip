@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useRouter, usePathname } from "next/navigation";
 import { Building2, Users, Shield, QrCode, Loader2, CheckCircle, AlertCircle, Bell, Bot, ChevronRight, KeyRound, Lock, BookOpen } from "lucide-react";
 import { useSession } from "next-auth/react";
@@ -277,11 +277,52 @@ function WorkspaceSettings() {
 }
 
 /* ── AI Concierge ──────────────────────────────────────────────────────────── */
+interface AIModeSettings {
+  wa_ai_mode_default: string;
+  wa_ai_confidence_threshold: number;
+  ig_ai_mode_default: string;
+  ig_ai_confidence_threshold: number;
+}
+
 function AISettings() {
+  const queryClient = useQueryClient();
+  // This form used to be a mock: state initialised from a hardcoded
+  // useState("shadow") and Save only set a local flag, so switching to
+  // Autonomous appeared to work and silently reverted on remount. It now
+  // loads from and writes to /tenants/me/ai-mode.
   const [waModeForm, setWaModeForm] = useState({ mode: "shadow", confidence: "0.78" });
   const [igModeForm, setIgModeForm] = useState({ mode: "shadow", confidence: "0.78" });
   const [savedWA, setSavedWA] = useState(false);
   const [savedIG, setSavedIG] = useState(false);
+  const [loadedOnce, setLoadedOnce] = useState(false);
+
+  const { data: aiMode, isLoading: aiModeLoading, isError: aiModeError } = useQuery<AIModeSettings>({
+    queryKey: ["ai-mode"],
+    queryFn: () => api.get("/tenants/me/ai-mode").then(r => r.data),
+    retry: 1,
+  });
+
+  // Seed the forms once from the server, then let the user edit freely
+  // without a refetch stomping their in-progress selection.
+  useEffect(() => {
+    if (aiMode && !loadedOnce) {
+      setWaModeForm({
+        mode: aiMode.wa_ai_mode_default ?? "shadow",
+        confidence: String(aiMode.wa_ai_confidence_threshold ?? 0.78),
+      });
+      setIgModeForm({
+        mode: aiMode.ig_ai_mode_default ?? "shadow",
+        confidence: String(aiMode.ig_ai_confidence_threshold ?? 0.78),
+      });
+      setLoadedOnce(true);
+    }
+  }, [aiMode, loadedOnce]);
+
+  const saveMode = useMutation({
+    mutationFn: (payload: Partial<AIModeSettings>) =>
+      api.patch("/tenants/me/ai-mode", payload).then(r => r.data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ai-mode"] }),
+  });
 
   const MODE_OPTIONS = [
     { id: "off",        label: "Off",         desc: "No AI — agents handle all replies manually" },
@@ -322,7 +363,27 @@ function AISettings() {
           </div>
         )}
         <p className="text-xs text-gray-400 mb-4">Recommended: start with Shadow for 30 days, then switch to Autonomous.</p>
-        <SaveButton saved={savedWA} onClick={() => setSavedWA(true)} />
+        {aiModeError && (
+          <p className="text-xs text-red-600 mb-2">Couldn&apos;t load current settings — saving may overwrite them.</p>
+        )}
+        <SaveButton
+          saved={savedWA}
+          loading={saveMode.isPending || aiModeLoading}
+          onClick={() => {
+            saveMode.mutate(
+              {
+                wa_ai_mode_default: waModeForm.mode,
+                wa_ai_confidence_threshold: Number(waModeForm.confidence) || 0.78,
+              },
+              {
+                onSuccess: () => {
+                  setSavedWA(true);
+                  setTimeout(() => setSavedWA(false), 2500);
+                },
+              },
+            );
+          }}
+        />
       </Card>
 
       {/* Instagram */}
@@ -352,18 +413,35 @@ function AISettings() {
             />
           </div>
         )}
-        <SaveButton saved={savedIG} onClick={() => setSavedIG(true)} />
+        <SaveButton
+          saved={savedIG}
+          loading={saveMode.isPending || aiModeLoading}
+          onClick={() => {
+            saveMode.mutate(
+              {
+                ig_ai_mode_default: igModeForm.mode,
+                ig_ai_confidence_threshold: Number(igModeForm.confidence) || 0.78,
+              },
+              {
+                onSuccess: () => {
+                  setSavedIG(true);
+                  setTimeout(() => setSavedIG(false), 2500);
+                },
+              },
+            );
+          }}
+        />
       </Card>
 
       {/* Knowledge base note */}
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-xs text-blue-800">
-        <p className="font-semibold mb-1">Autonomous mode requirements</p>
+        <p className="font-semibold mb-1">Before switching to Autonomous</p>
         <ul className="space-y-0.5 list-disc list-inside text-blue-700">
-          <li>At least 10 knowledge-base snippets uploaded per property</li>
-          <li>Shadow mode active for ≥ 14 days (allows model calibration)</li>
-          <li>Average AI confidence score ≥ 0.80 over last 100 messages</li>
+          <li>Add your FAQs, amenities, add-ons and policies to the knowledge base — the AI can only answer from what it knows</li>
+          <li>Use &ldquo;Test what the AI knows&rdquo; on your most common guest questions and confirm each returns the right answer</li>
+          <li>Run Shadow mode long enough to see the drafts it produces for real guests</li>
         </ul>
-        <a href="/dashboard/properties" className="mt-2 inline-block font-medium hover:underline">Manage knowledge base →</a>
+        <a href="/dashboard/settings/knowledge" className="mt-2 inline-block font-medium hover:underline">Manage knowledge base →</a>
       </div>
     </div>
   );

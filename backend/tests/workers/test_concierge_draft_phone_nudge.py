@@ -100,6 +100,13 @@ class TestPhoneNudgeSuggestedAction:
         """Already being sent automatically -- a 'send it' card would be
         redundant/confusing."""
         tenant, guest, conv, inbound = _setup_conversation(db, with_phone_signal=False)
+        # Autonomy is a tenant-level, per-channel policy resolved at draft
+        # time (ai_mode_service), not the snapshot stored on the conversation
+        # at creation. Setting conv.ai_mode alone no longer enables auto-send
+        # -- that was the bug behind "I set Autonomous and it reverts to
+        # Shadow": the tenant setting was never consulted.
+        tenant.wa_ai_mode_default = "autonomous"
+        tenant.wa_ai_confidence_threshold = 0.5
         conv.ai_mode = "autonomous"
         db.commit()
 

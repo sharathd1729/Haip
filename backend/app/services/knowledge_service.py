@@ -187,6 +187,15 @@ def search(
     """
     if not (query or "").strip():
         return []
+
+    # pgvector's `<=>` operator only exists on Postgres. Bail out before
+    # embedding rather than after: the embedding call is a paid network
+    # round-trip, and without this check every test run against the SQLite
+    # test database billed a real NVIDIA request only to then fail on the
+    # SQL and return [] anyway.
+    if db.bind is not None and db.bind.dialect.name != "postgresql":
+        return []
+
     try:
         qvec = embed_one_sync(query, "query")
     except EmbeddingError as exc:

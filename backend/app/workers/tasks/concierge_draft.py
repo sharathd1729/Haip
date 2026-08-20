@@ -278,6 +278,18 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         tenant = ctx["tenant"]
         inquiry = ctx["inquiry"]
 
+        # "Off" must suppress drafting entirely, on every channel. The
+        # Instagram path checked this before dispatching but the WhatsApp
+        # path never did, so a tenant set to Off still accumulated drafts on
+        # WhatsApp. Checking here covers both callers in one place.
+        from app.services import ai_mode_service
+        if ai_mode_service.resolve_mode(tenant, conversation) == "off":
+            log.info(
+                "concierge_draft_skipped_mode_off",
+                conversation_id=conversation_id, tenant_id=tenant_id,
+            )
+            return
+
         # ── Ticket 4: bounded grounding, budget-limited to 8s total ────────
         triggering_message = db.query(Message).filter_by(id=message_id, tenant_id=tenant_id).first()
         grounded_facts: list = []
@@ -355,9 +367,13 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             needs_human = True
             confidence = 0.0
 
-        # Determine mode
-        ai_mode = conversation.ai_mode or "shadow"
-        confidence_threshold = tenant.ig_ai_confidence_threshold
+        # Determine mode. Resolved per-channel from the tenant's current
+        # policy (ai_mode_service), NOT from the snapshot copied into
+        # conversations.ai_mode at creation time -- otherwise switching the
+        # tenant to Autonomous leaves every existing thread in shadow with no
+        # visible reason. A per-conversation "off" still wins.
+        from app.services import ai_mode_service
+        ai_mode, confidence_threshold = ai_mode_service.resolve(tenant, conversation)
         if confidence_threshold is None:
             confidence_threshold = CONFIDENCE_THRESHOLD
         should_auto_send = (ai_mode == "autonomous" and confidence >= confidence_threshold and not needs_human)

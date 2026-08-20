@@ -79,6 +79,96 @@ def update_my_tenant(
 _BRANDING_KEY = "branding_theme"
 
 
+# ─── AI Concierge mode ───────────────────────────────────────────────────────
+# Settings > AI Concierge was a mock: the Save button set a local "saved!"
+# flag and made no request, and the form initialised from a hardcoded
+# useState("shadow") rather than the server. Choosing Autonomous appeared to
+# work and silently reverted on the next mount. These endpoints are what it
+# should have been calling.
+
+class AIModeSettings(BaseModel):
+    wa_ai_mode_default: Optional[str] = None
+    wa_ai_confidence_threshold: Optional[float] = None
+    ig_ai_mode_default: Optional[str] = None
+    ig_ai_confidence_threshold: Optional[float] = None
+
+    @field_validator("wa_ai_mode_default", "ig_ai_mode_default")
+    @classmethod
+    def _valid_mode(cls, v):
+        if v is not None and v not in ("off", "shadow", "autonomous"):
+            raise ValueError("mode must be one of: off, shadow, autonomous")
+        return v
+
+    @field_validator("wa_ai_confidence_threshold", "ig_ai_confidence_threshold")
+    @classmethod
+    def _valid_threshold(cls, v):
+        if v is not None and not (0.5 <= v <= 1.0):
+            raise ValueError("confidence threshold must be between 0.5 and 1.0")
+        return v
+
+
+@router.get("/tenants/me/ai-mode", response_model=AIModeSettings)
+def get_ai_mode(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    return AIModeSettings(
+        wa_ai_mode_default=tenant.wa_ai_mode_default,
+        wa_ai_confidence_threshold=tenant.wa_ai_confidence_threshold,
+        ig_ai_mode_default=tenant.ig_ai_mode_default,
+        ig_ai_confidence_threshold=tenant.ig_ai_confidence_threshold,
+    )
+
+
+@router.patch("/tenants/me/ai-mode", response_model=AIModeSettings)
+def update_ai_mode(
+    body: AIModeSettings,
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """Set the AI concierge mode per channel.
+
+    Takes effect on the next inbound message for every conversation on that
+    channel, not just new ones -- concierge_draft resolves the mode through
+    ai_mode_service at draft time.
+    """
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    import structlog
+    _log = structlog.get_logger()
+
+    changed = {}
+    for field in ("wa_ai_mode_default", "wa_ai_confidence_threshold",
+                  "ig_ai_mode_default", "ig_ai_confidence_threshold"):
+        val = getattr(body, field)
+        if val is not None and getattr(tenant, field) != val:
+            changed[field] = {"from": getattr(tenant, field), "to": val}
+            setattr(tenant, field, val)
+
+    db.commit()
+    db.refresh(tenant)
+
+    if changed:
+        # Turning autonomy on means unreviewed messages start reaching real
+        # guests -- that transition needs to be attributable after the fact.
+        _log.info(
+            "ai_mode_changed",
+            tenant_id=tenant.id, actor_user_id=current_user.id, changes=changed,
+        )
+
+    return AIModeSettings(
+        wa_ai_mode_default=tenant.wa_ai_mode_default,
+        wa_ai_confidence_threshold=tenant.wa_ai_confidence_threshold,
+        ig_ai_mode_default=tenant.ig_ai_mode_default,
+        ig_ai_confidence_threshold=tenant.ig_ai_confidence_threshold,
+    )
+
+
 @router.get("/tenants/me/branding", response_model=BrandingTheme)
 def get_branding(
     current_user: User = Depends(get_current_user),

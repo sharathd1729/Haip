@@ -69,6 +69,12 @@ class Tenant(Base, TimestampMixin):
     ig_ai_mode_default = Column(String(20), nullable=False, server_default="shadow")
     ig_ai_confidence_threshold = Column(Float, nullable=False, server_default="0.78")
 
+    # WhatsApp equivalents (migration 079). Before these existed whatsapp.py
+    # hardcoded ai_mode="shadow" and concierge_draft.py applied the *Instagram*
+    # threshold to WhatsApp drafts.
+    wa_ai_mode_default = Column(String(20), nullable=False, server_default="shadow")
+    wa_ai_confidence_threshold = Column(Float, nullable=False, server_default="0.78")
+
     users = relationship("User", back_populates="tenant", lazy="dynamic")
     guests = relationship("Guest", back_populates="tenant", lazy="dynamic")
     properties = relationship("Property", back_populates="tenant", lazy="dynamic")
