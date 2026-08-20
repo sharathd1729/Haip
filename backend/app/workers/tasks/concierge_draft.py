@@ -33,7 +33,7 @@ def _run_async(coro):
         return loop.run_until_complete(coro)
     finally:
         loop.close()
-from app.services.concierge_service import build_concierge_context, _kb_search
+from app.services.concierge_service import build_concierge_context
 from app.core.database import set_tenant_context
 import structlog
 

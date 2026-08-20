@@ -19,6 +19,7 @@ from app.api.v1.endpoints import (
     push,
     dashboards, metrics, widgets_api, goals,
     dashboard_overview,
+    knowledge,
 )
 
 api_router = APIRouter(prefix="/api/v1")
@@ -45,6 +46,7 @@ api_router.include_router(inquiries.router)
 api_router.include_router(pipeline_stages.router)
 api_router.include_router(lead_fields.router)
 api_router.include_router(conversations.router)
+api_router.include_router(knowledge.router)
 api_router.include_router(saved_replies.router)
 api_router.include_router(saved_views.router)
 api_router.include_router(properties.router)

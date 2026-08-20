@@ -1,0 +1,104 @@
+from datetime import datetime
+from typing import Optional, Literal, List
+from pydantic import BaseModel, Field, model_validator
+
+
+# Categories a tenant files knowledge under. Kept deliberately close to what
+# a hospitality owner actually thinks in ("what are my add-ons?") rather than
+# an abstract taxonomy -- these are surfaced verbatim as filter tabs in the UI.
+KnowledgeCategory = Literal[
+    "pricing", "availability", "amenities", "addons",
+    "location", "routes", "faq", "policy", "other",
+]
+
+KnowledgeSource = Literal["manual", "website", "document", "conversation"]
+
+# Anything not authored by a human on the tenant's team lands in `pending`
+# and is invisible to the concierge until someone approves it. Scraped and
+# conversation-mined content is a suggestion, never truth.
+ReviewStatus = Literal["approved", "pending", "rejected"]
+
+EmbeddingStatus = Literal["pending", "done", "failed"]
+
+
+class KnowledgeEntryCreate(BaseModel):
+    category: KnowledgeCategory = "faq"
+    question: Optional[str] = Field(default=None, max_length=500)
+    content: str = Field(min_length=1, max_length=8000)
+    property_id: Optional[str] = None
+    source_url: Optional[str] = Field(default=None, max_length=2000)
+    # Manual entries outrank scraped/mined ones at equal similarity; see
+    # knowledge_service.search()'s ordering.
+    priority: int = Field(default=0, ge=0, le=100)
+
+    @model_validator(mode="after")
+    def _faq_needs_question(self):
+        if self.category == "faq" and not (self.question or "").strip():
+            raise ValueError("question is required for faq entries")
+        return self
+
+
+class KnowledgeEntryUpdate(BaseModel):
+    category: Optional[KnowledgeCategory] = None
+    question: Optional[str] = Field(default=None, max_length=500)
+    content: Optional[str] = Field(default=None, min_length=1, max_length=8000)
+    property_id: Optional[str] = None
+    priority: Optional[int] = Field(default=None, ge=0, le=100)
+    is_active: Optional[bool] = None
+    review_status: Optional[ReviewStatus] = None
+
+
+class KnowledgeEntryOut(BaseModel):
+    id: str
+    tenant_id: str
+    category: str
+    question: Optional[str] = None
+    content: str
+    property_id: Optional[str] = None
+    source: str
+    source_url: Optional[str] = None
+    source_ref: Optional[str] = None
+    priority: int
+    is_active: bool
+    review_status: str
+    embedding_status: str
+    embedded_at: Optional[datetime] = None
+    created_by: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class KnowledgeEntryList(BaseModel):
+    items: List[KnowledgeEntryOut]
+    total: int
+
+
+class KnowledgeSearchHit(BaseModel):
+    """One retrieval result. `score` is cosine similarity in [0,1]."""
+    id: str
+    category: str
+    question: Optional[str] = None
+    content: str
+    source: str
+    score: float
+
+
+class KnowledgeSearchResponse(BaseModel):
+    query: str
+    hits: List[KnowledgeSearchHit]
+
+
+class WebsiteIngestRequest(BaseModel):
+    url: str = Field(max_length=2000)
+    # Bounded so one call can't crawl an entire site into the embedding bill.
+    max_pages: int = Field(default=10, ge=1, le=50)
+    same_domain_only: bool = True
+
+
+class IngestJobResponse(BaseModel):
+    job_id: str
+    status: str
+    message: str

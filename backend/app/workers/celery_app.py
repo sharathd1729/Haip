@@ -51,6 +51,8 @@ celery_app = Celery(
         "app.workers.tasks.check_alerts",
         # Leads360: async AI summary generation
         "app.workers.tasks.generate_ai_summary",
+        # AI concierge knowledge base: embedding pipeline
+        "app.workers.tasks.embed_knowledge",
         # WhatsApp: campaign runner + template status sync
         "app.workers.tasks.run_campaign",
         "app.workers.tasks.sync_wa_templates",
@@ -179,6 +181,10 @@ celery_app.conf.update(
         # This one DOES use its full dotted module path (not a short-name
         # issue) -- there was simply no glob entry for it at all.
         "app.workers.tasks.generate_ai_summary.generate_ai_summary": {"queue": "ai_scoring"},
+        # KB embedding -- registered as short names ("knowledge.*"), so they
+        # need exact-name routes for the same reason as the block above.
+        "knowledge.embed_entry":   {"queue": "ai_scoring"},
+        "knowledge.embed_pending": {"queue": "ai_scoring"},
     },
 )
 

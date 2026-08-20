@@ -1,10 +1,7 @@
 """
 AI Concierge service — drafts WhatsApp replies using brand-voice + KB RAG.
 """
-import json
-from typing import Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import text
 from app.models.guest import Guest
 from app.models.inquiry import Inquiry
 from app.models.conversation import Conversation, Message
@@ -41,28 +38,6 @@ def _get_call_summaries(db: Session, tenant_id: str, guest_id: str, limit: int =
     return [{"summary": c.ai_summary, "duration": c.duration_seconds} for c in calls if c.ai_summary]
 
 
-def _kb_search(db: Session, tenant_id: str, property_id: Optional[str], query_embedding: list, top_k: int = 5) -> list:
-    """pgvector cosine similarity search over KB embeddings."""
-    try:
-        vec_str = "[" + ",".join(str(x) for x in query_embedding) + "]"
-        filter_clause = f"tenant_id = '{tenant_id}'"
-        if property_id:
-            filter_clause += f" AND (ref_id = '{property_id}' OR namespace = 'global')"
-
-        rows = db.execute(text(f"""
-            SELECT content, metadata,
-                   1 - (embedding <=> '{vec_str}'::vector) AS score
-            FROM embeddings
-            WHERE {filter_clause}
-            ORDER BY embedding <=> '{vec_str}'::vector
-            LIMIT {top_k}
-        """)).fetchall()
-        return [{"text": r.content, "score": float(r.score), "source": json.loads(r.metadata or "{}").get("source", "kb")} for r in rows]
-    except Exception as e:
-        log.warning("kb_search_failed", error=str(e))
-        return []
-
-
 def build_concierge_context(
     db: Session,
     tenant_id: str,
@@ -82,11 +57,38 @@ def build_concierge_context(
     recent_msgs = _get_recent_messages(db, conversation_id)
     call_summaries = _get_call_summaries(db, tenant_id, guest_id)
 
+    # KB retrieval, keyed on the message actually being replied to.
+    #
+    # This section was dead from migration 001 until 2026-08-20: pgvector, the
+    # `embeddings` table and a `_kb_search()` helper all existed, but nothing
+    # ever wrote a vector and nothing ever called the helper -- `kb_snippets`
+    # was hardcoded to [] here, so every draft rendered an empty "KNOWLEDGE
+    # BASE" heading to the model. Grounding (calculator_service) covers live
+    # availability and price; this covers everything else the guest asks
+    # about -- amenities, add-ons, routes, locations, policies.
+    kb_snippets: list = []
+    inbound = db.query(Message).filter_by(id=message_id).first()
+    query_text = (inbound.body if inbound else "") or ""
+    if query_text.strip():
+        try:
+            from app.services import knowledge_service
+            kb_snippets = knowledge_service.search_snippets(
+                db,
+                tenant_id,
+                query_text,
+                property_id=(conversation.property_id if conversation else None),
+            )
+        except Exception as exc:
+            # Retrieval is an enhancement, never a dependency: a KB failure
+            # degrades the draft to ungrounded rather than dropping the reply.
+            log.warning("kb_snippets_failed", tenant_id=tenant_id, error=str(exc))
+            kb_snippets = []
+
     return {
         "guest": guest,
         "tenant": tenant,
         "inquiry": inquiry,
         "recent_messages": recent_msgs,
         "call_summaries": call_summaries,
-        "kb_snippets": [],  # populated by worker after embedding lookup
+        "kb_snippets": kb_snippets,
     }

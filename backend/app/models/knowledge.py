@@ -1,0 +1,66 @@
+"""Tenant knowledge base — the content the AI concierge answers FAQs from.
+
+Until this existed the concierge had no knowledge source at all: pgvector,
+the `embeddings` table and `concierge_service._kb_search()` were all present
+but nothing ever wrote a row, so every draft rendered an empty "KNOWLEDGE
+BASE" section to the model. Grounding (calculator_service) covers live
+availability and price only -- amenities, add-ons, routes, locations and
+policies had no truth source.
+
+One KnowledgeEntry = one retrievable chunk. Long documents and scraped pages
+are split into several entries upstream (knowledge_service.chunk_text) so
+retrieval returns a focused passage rather than a whole page.
+"""
+from sqlalchemy import Column, String, Boolean, Integer, Text, ForeignKey, DateTime, Index
+from app.core.database import Base
+from app.models.base import TimestampMixin, TenantMixin, gen_uuid
+
+
+class KnowledgeEntry(Base, TimestampMixin, TenantMixin):
+    __tablename__ = "knowledge_entries"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+
+    category = Column(String(30), nullable=False, default="faq", index=True)
+    # Only meaningful for category="faq"; the question text is embedded along
+    # with the answer so a guest's phrasing matches the question, not just
+    # whatever vocabulary happens to appear in the answer body.
+    question = Column(String(500), nullable=True)
+    content = Column(Text, nullable=False)
+
+    # NULL = applies to the whole tenant. Set = only offered when the
+    # conversation is about that property.
+    property_id = Column(String, ForeignKey("properties.id"), nullable=True, index=True)
+
+    source = Column(String(20), nullable=False, default="manual", index=True)
+    source_url = Column(String(2000), nullable=True)
+    # Free-form provenance: uploaded filename, or the conversation id a mined
+    # Q&A pair came from. Kept so a wrong answer can be traced to its origin.
+    source_ref = Column(String(255), nullable=True)
+
+    priority = Column(Integer, nullable=False, default=0)
+    is_active = Column(Boolean, nullable=False, default=True, index=True)
+
+    # Machine-generated content (scrape/conversation mining) enters as
+    # "pending" and is never retrievable until a human approves it. Manual
+    # entries are created already-approved.
+    review_status = Column(String(20), nullable=False, default="approved", index=True)
+
+    embedding_status = Column(String(20), nullable=False, default="pending", index=True)
+    embedding_error = Column(Text, nullable=True)
+    embedded_at = Column(DateTime(timezone=True), nullable=True)
+    # Guards against re-embedding unchanged content on every save (embeddings
+    # cost money and rate-limit); set to a hash of question+content at embed
+    # time and compared before re-queueing.
+    content_hash = Column(String(64), nullable=True)
+
+    created_by = Column(String, ForeignKey("users.id"), nullable=True)
+
+    __table_args__ = (
+        # The retrieval hot path: active + approved + embedded, per tenant.
+        Index(
+            "ix_knowledge_entries_tenant_retrievable",
+            "tenant_id", "is_active", "review_status", "embedding_status",
+        ),
+    )
