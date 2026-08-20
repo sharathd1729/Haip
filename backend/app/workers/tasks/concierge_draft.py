@@ -253,6 +253,71 @@ def _check_grounding(reply_text: str, grounded_facts: list) -> tuple[bool, "str 
     return True, None
 
 
+def _maybe_create_price_handoff(
+    db, *, tenant_id: str, conversation, guest, inquiry, intent: str,
+    qualified: bool, price_leak: bool,
+) -> None:
+    """Queue a human callback when pricing is in play.
+
+    Fires when the guest asked about cost, or when we have enough detail to
+    hold a real pricing conversation. Deduplicated per conversation on the
+    open task, so a lead who asks about price four times produces one task,
+    not four.
+    """
+    from app.models.task import Task
+
+    wants_pricing = intent == "price_quote" or price_leak
+    if not (wants_pricing or qualified):
+        return
+    # Nothing to talk about yet -- a callback with no dates and no party size
+    # wastes the agent's call and the guest's time.
+    if not qualified and not wants_pricing:
+        return
+
+    existing = (
+        db.query(Task)
+        .filter_by(
+            tenant_id=tenant_id,
+            conversation_id=conversation.id,
+            is_done=False,
+        )
+        .filter(Task.title.ilike("Call lead about pricing%"))
+        .first()
+    )
+    if existing:
+        return
+
+    guest_label = (getattr(guest, "name", None) or "").strip() or "this lead"
+    task = Task(
+        tenant_id=tenant_id,
+        title=f"Call lead about pricing — {guest_label}",
+        priority="high" if qualified else "medium",
+        guest_id=getattr(guest, "id", None),
+        inquiry_id=getattr(inquiry, "id", None),
+        conversation_id=conversation.id,
+    )
+    db.add(task)
+    db.commit()
+    log.info(
+        "price_handoff_task_created",
+        tenant_id=tenant_id, conversation_id=conversation.id,
+        task_id=task.id, qualified=qualified, intent=intent,
+    )
+
+    # Surface it immediately -- a task nobody sees until they open the list
+    # is not a handoff.
+    try:
+        from app.services.push_service import send_to_tenant
+        send_to_tenant(
+            db, tenant_id,
+            title="Lead waiting on pricing",
+            body=f"{guest_label} asked about pricing. Call to discuss options.",
+            url=f"/dashboard/inbox?conversation={conversation.id}",
+        )
+    except Exception as exc:
+        log.warning("price_handoff_push_failed", tenant_id=tenant_id, error=str(exc))
+
+
 # ── Task ─────────────────────────────────────────────────────────────────────
 
 _VALID_TONES = {"warm", "formal", "brief", "persuasive"}
@@ -294,6 +359,10 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         triggering_message = db.query(Message).filter_by(id=message_id, tenant_id=tenant_id).first()
         grounded_facts: list = []
         suggested_actions: list = []
+        # Initialised up front: _intent is otherwise only bound inside the
+        # try below, so a grounding timeout/failure -- or a message with no
+        # body -- left it undefined for every later reader.
+        _intent: str = "general"
         if triggering_message and triggering_message.body:
             start = time.monotonic()
             try:
@@ -327,6 +396,15 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
                 self.brand_config = t.brand_config or {}
                 self.name = t.name
 
+        # Pricing is never disclosed in chat (price_policy). The concierge
+        # qualifies the lead; a human agent negotiates. Facts are redacted
+        # before rendering so the model is never shown a figure it could
+        # repeat -- instructions alone leave the number one slip away from
+        # the guest's screen.
+        from app.services import price_policy
+        missing_details = price_policy.missing_lead_details(guest, inquiry)
+        qualified = price_policy.is_qualified(guest, inquiry)
+
         system_prompt = template.render(
             tenant=TenantProxy(tenant),
             guest=guest,
@@ -334,9 +412,11 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             recent_messages=ctx["recent_messages"],
             call_summaries=ctx["call_summaries"],
             kb_snippets=ctx["kb_snippets"],
-            grounded_facts=grounded_facts,
+            grounded_facts=price_policy.redact_price_facts(grounded_facts),
             tone=tone if tone in _VALID_TONES else None,
             guest_missing_phone=guest_missing_phone,
+            missing_details=missing_details,
+            qualified=qualified,
         )
 
         # No explicit model= here: NVIDIA-only routing (2026-08-05) means the
@@ -363,6 +443,21 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             log.warning(
                 "draft_ungrounded_claim", conversation_id=conversation_id,
                 message_id=message_id, reason=violation,
+            )
+            needs_human = True
+            confidence = 0.0
+
+        # ── Price-disclosure guard (hard policy, not a preference) ─────────
+        # The prompt forbids quoting prices; this makes it true even when the
+        # model ignores that. A leaked rate sent unreviewed is precisely the
+        # outcome the no-pricing-in-chat rule exists to prevent, so any price
+        # mention drops the draft to human review rather than being sent.
+        price_leak = price_policy.detect_price(reply_text)
+        if price_leak:
+            log.warning(
+                "draft_price_leak_blocked",
+                conversation_id=conversation_id, message_id=message_id,
+                matched=price_leak,
             )
             needs_human = True
             confidence = 0.0
@@ -416,6 +511,21 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
 
         log.info("concierge_draft_stored", message_id=draft_message.id, confidence=confidence,
                  auto_send=should_auto_send, grounded=bool(grounded_facts), **stamp("concierge_reply"))
+
+        # ── Human handoff for pricing ──────────────────────────────────────
+        # The concierge never negotiates. Once the lead has asked about cost
+        # or we hold enough detail to talk properly, a person has to pick it
+        # up -- otherwise "someone will reach out personally" is a promise
+        # nothing in the system is tracking.
+        try:
+            _maybe_create_price_handoff(
+                db, tenant_id=tenant_id, conversation=conversation, guest=guest,
+                inquiry=inquiry, intent=_intent, qualified=qualified,
+                price_leak=bool(price_leak),
+            )
+        except Exception as exc:
+            # A missed task must never cost the guest their reply.
+            log.warning("price_handoff_failed", conversation_id=conversation_id, error=str(exc))
 
         if should_auto_send:
             channel_val = str(conversation.channel.value if hasattr(conversation.channel, "value") else conversation.channel)

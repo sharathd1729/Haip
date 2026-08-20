@@ -46,7 +46,13 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v5 (HAIP Inbox UI-fidelity pass, ticket 3): renders a guest_missing_phone
     # instruction so the draft naturally asks for a phone number when the
     # guest's profile has none on file yet.
-    "concierge_reply": "concierge-reply-v5",    # concierge_reply.jinja
+    # v6 (2026-08-20): pricing is never disclosed in chat. The concierge
+    # qualifies the lead (name/dates/guests/property/requests) and hands off
+    # to a human agent who negotiates personally; price figures are redacted
+    # out of grounded_facts before rendering so the model never sees a number
+    # it could repeat. Replies also tightened to <45 words and explicitly
+    # de-assistant-ified (no "Thank you for reaching out", no lists).
+    "concierge_reply": "concierge-reply-v6",    # concierge_reply.jinja
     "lost_reason":     "lost-reason-v1",        # lost_reason.jinja
 
     # Inline prompts built in Python

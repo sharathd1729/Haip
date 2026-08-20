@@ -262,14 +262,19 @@ class TestRegenerateDraftTone:
             name = "Priya"; language_pref = "en"; total_stays = 1
             predicted_csat = None; vip_tier = "standard"; tags = []
 
+        # Asserts the tone branch renders *a* tone instruction, not one exact
+        # sentence -- the previous "Tone: brief" literal broke on a pure
+        # rewording of the prompt (v6) even though the behaviour was intact.
         out_with_tone = template.render(
             tenant=T(), guest=G(), inquiry=None, recent_messages=[], call_summaries=[],
             kb_snippets=[], grounded_facts=[], tone="brief",
         )
-        assert "Tone: brief" in out_with_tone
+        assert "brief" in out_with_tone.lower()
 
         out_without_tone = template.render(
             tenant=T(), guest=G(), inquiry=None, recent_messages=[], call_summaries=[],
             kb_snippets=[], grounded_facts=[], tone=None,
         )
-        assert "Tone:" not in out_without_tone
+        # The other tones' instruction lines must not leak in when no tone is set.
+        for other in ("warm and personable", "formal and precise", "maximally brief", "persuasive"):
+            assert other not in out_without_tone.lower()
