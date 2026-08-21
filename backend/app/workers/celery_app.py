@@ -53,6 +53,8 @@ celery_app = Celery(
         "app.workers.tasks.generate_ai_summary",
         # AI concierge knowledge base: embedding pipeline
         "app.workers.tasks.embed_knowledge",
+        # Daily owner report email
+        "app.workers.tasks.daily_owner_report",
         # WhatsApp: campaign runner + template status sync
         "app.workers.tasks.run_campaign",
         "app.workers.tasks.sync_wa_templates",
@@ -185,6 +187,10 @@ celery_app.conf.update(
         # need exact-name routes for the same reason as the block above.
         "knowledge.embed_entry":   {"queue": "ai_scoring"},
         "knowledge.embed_pending": {"queue": "ai_scoring"},
+        # Short-name tasks again -- these need exact-name routes or they
+        # land in the unconsumed default "celery" queue.
+        "reports.send_daily_owner_report":      {"queue": "ai_scoring"},
+        "reports.daily_owner_report_all_tenants": {"queue": "ai_scoring"},
     },
 )
 
@@ -238,6 +244,11 @@ celery_app.conf.beat_schedule = {
     "run-insights-every-15min": {
         "task": "app.workers.tasks.run_insights.run_all_tenants",
         "schedule": crontab(minute="*/15", hour="6-22"),
+    },
+    # Daily owner report — 08:00 IST (02:30 UTC; the container runs UTC).
+    "daily-owner-report": {
+        "task": "reports.daily_owner_report_all_tenants",
+        "schedule": crontab(hour=2, minute=30),
     },
     # Phase 3: Intent classification — nightly at 03:00 IST
     "classify-intent-nightly": {

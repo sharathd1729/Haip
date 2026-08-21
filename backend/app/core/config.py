@@ -102,7 +102,12 @@ class Settings(BaseSettings):
 
     # Email
     RESEND_API_KEY: str = ""
-    EMAIL_FROM: str = "notifications@haip.app"
+    # Resend only accepts a sender on a domain verified in the account.
+    # onboarding@resend.dev is Resend's own test sender: it works with no DNS
+    # setup, but ONLY delivers to the address that owns the Resend account.
+    # Switch this to a verified domain (e.g. reports@genhaip.com) before any
+    # real recipient is expected to receive mail.
+    EMAIL_FROM: str = "onboarding@resend.dev"
 
     # Sentry
     SENTRY_DSN: str = ""
@@ -190,6 +195,22 @@ class Settings(BaseSettings):
                 _log.warning(
                     "RESEND_API_KEY not set. Invitation emails will be silently dropped."
                 )
+
+        # Independent of environment: a free-mail EMAIL_FROM cannot work with
+        # Resend, which requires a domain verified in the account. This was
+        # set to a gmail.com address in production, so every outbound email --
+        # invitations, password resets, reports -- failed with a 403 that only
+        # showed up as an `email_send_failed` log line nobody was watching.
+        _sender_domain = (self.EMAIL_FROM or "").split("@")[-1].lower()
+        if self.RESEND_API_KEY and _sender_domain in {
+            "gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com",
+        }:
+            _log.error(
+                "EMAIL_FROM=%s uses a free-mail domain. Resend will reject every send "
+                "(403) because the sender domain cannot be verified. Use a verified "
+                "domain, or onboarding@resend.dev for testing.",
+                self.EMAIL_FROM,
+            )
 
         return self
 

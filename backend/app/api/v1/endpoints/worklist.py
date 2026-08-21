@@ -14,7 +14,7 @@ import structlog
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.api.v1.deps import get_current_user
+from app.api.v1.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.user import User, UserRole
 from app.services import worklist_service
@@ -49,3 +49,37 @@ def get_worklist(
     )
     data["scope"] = "mine" if scope_user_id else "team"
     return data
+
+
+@router.get("/daily-report")
+def preview_daily_report(
+    day: Optional[str] = Query(default=None, description="YYYY-MM-DD (IST). Defaults to yesterday."),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """The daily owner report as JSON -- what the email will contain."""
+    from app.services import daily_report_service
+    return daily_report_service.build_daily_report(db, current_user.tenant_id, day=day)
+
+
+@router.post("/daily-report/send")
+def send_daily_report_now(
+    day: Optional[str] = Query(default=None),
+    to_email: Optional[str] = Query(default=None, description="Override recipient; defaults to you."),
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """Send the daily report immediately, for checking it before 8am.
+
+    Runs inline rather than through Celery so the caller gets the real
+    result -- a queued task would return "accepted" whether or not the mail
+    provider accepted it, which is exactly the false-success this report is
+    meant to replace.
+    """
+    from app.workers.tasks.daily_owner_report import send_daily_owner_report
+    result = send_daily_owner_report.run(
+        tenant_id=current_user.tenant_id,
+        day=day,
+        to_email=to_email or current_user.email,
+    )
+    return result

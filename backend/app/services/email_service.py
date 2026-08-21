@@ -19,15 +19,21 @@ RESEND_API_URL = "https://api.resend.com/emails"
 async def _send(to: str, subject: str, html: str) -> bool:
     """Send via Resend when key is set, otherwise log to console."""
     if not settings.RESEND_API_KEY:
-        log.info(
+        # Returns False, not True. This previously reported success when
+        # nothing had been sent, so every caller counting results -- and the
+        # scheduled report in particular -- logged a healthy "sent" for mail
+        # that never left the process. No current caller checks the return
+        # value, so reporting the truth breaks nothing.
+        log.warning(
             "email_not_sent_no_key",
             to=to,
             subject=subject,
             note="Set RESEND_API_KEY in .env to enable real email sending",
         )
-        # Log the email body in dev so you can still copy the invite link
-        log.info("email_preview", to=to, subject=subject, html_snippet=html[:300])
-        return True  # Treat as success so invite flow doesn't break
+        # Deliberately NOT logging the body: it carries password-reset links
+        # and invite tokens, and application logs are not the place for
+        # either. Use a real key against a test inbox to inspect content.
+        return False
 
     try:
         async with httpx.AsyncClient(timeout=15) as client:
