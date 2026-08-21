@@ -17,7 +17,7 @@ from app.models.call import Call, CallDisposition, CallDirection
 from app.models.guest import Guest
 from app.models.user import User
 from app.adapters.ivr import get_ivr_adapter
-from app.services import next_action_service
+from app.services import next_action_service, call_status_service
 from pydantic import BaseModel
 import structlog
 
@@ -90,9 +90,9 @@ def list_calls(
     if missed is not None:
         q = q.filter(Call.direction == "inbound")
         if missed:
-            q = q.filter((Call.duration_seconds == None) | (Call.duration_seconds == 0))  # noqa: E711
+            q = q.filter(call_status_service.missed_call_sql_filter())
         else:
-            q = q.filter(Call.duration_seconds > 0)
+            q = q.filter(~call_status_service.missed_call_sql_filter())
 
     total = q.count()
     calls = q.order_by(Call.created_at.desc()).offset((page - 1) * limit).limit(limit).all()
@@ -585,7 +585,7 @@ def _serialize_call(call: Call, guest_name: Optional[str] = None) -> dict:
         # A missed call is specifically an inbound call nobody answered --
         # an outbound attempt that didn't connect is a failed dial, not a
         # "missed call" in the way agents mean it.
-        "is_missed": direction == "inbound" and not (call.duration_seconds or 0),
+        "is_missed": call_status_service.is_missed_call(call),
         "started_at": call.started_at,
         "ended_at": call.ended_at,
         "guest_id": call.guest_id,
@@ -684,7 +684,7 @@ def _serialize_call_detail(call: Call, db) -> dict:
         "id": call.id,
         "direction": _direction,
         "duration_seconds": call.duration_seconds or 0,
-        "is_missed": _direction == "inbound" and not (call.duration_seconds or 0),
+        "is_missed": call_status_service.is_missed_call(call),
         "started_at": call.started_at,
         "ended_at": call.ended_at,
         "guest_id": call.guest_id,

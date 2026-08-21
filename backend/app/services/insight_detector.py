@@ -21,6 +21,7 @@ from sqlalchemy import func, and_, or_, case
 from app.models.insight import Insight, InsightSeverity, InsightCategory
 from app.models.inquiry import Inquiry, InquiryStage
 from app.models.call import Call, CallDirection
+from app.services import call_status_service
 from app.models.conversation import Message, Conversation, MessageDirection
 from app.models.property import Stay, Property
 from app.models.integration import Integration
@@ -199,8 +200,7 @@ def detect_A4(db: Session, tenant_id: str) -> None:
 
     count = db.query(func.count(Call.id)).filter(
         Call.tenant_id == tenant_id,
-        Call.direction == CallDirection.INBOUND,
-        or_(Call.duration_seconds.is_(None), Call.duration_seconds == 0),
+        call_status_service.missed_call_sql_filter(),
         Call.recovered_by_call_id.is_(None),
         Call.created_at >= lookback_start,
         Call.created_at < window_end,

@@ -55,6 +55,8 @@ celery_app = Celery(
         "app.workers.tasks.embed_knowledge",
         # Daily owner report email
         "app.workers.tasks.daily_owner_report",
+        # Recovers calls whose classify->judge chain-dispatch silently stalled
+        "app.workers.tasks.call_recovery",
         # WhatsApp: campaign runner + template status sync
         "app.workers.tasks.run_campaign",
         "app.workers.tasks.sync_wa_templates",
@@ -191,6 +193,8 @@ celery_app.conf.update(
         # land in the unconsumed default "celery" queue.
         "reports.send_daily_owner_report":      {"queue": "ai_scoring"},
         "reports.daily_owner_report_all_tenants": {"queue": "ai_scoring"},
+        "calls.recover_stalled_scoring":              {"queue": "ai_scoring"},
+        "calls.recover_stalled_scoring_all_tenants":  {"queue": "ai_scoring"},
     },
 )
 

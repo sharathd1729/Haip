@@ -14,7 +14,10 @@ Query notes (each of these has bitten this codebase before):
     comparisons.
   - Conversation.channel is a bare SAEnum storing the Python member NAME
     ("WHATSAPP"), not the lowercase value. Compare against the enum member.
-  - "Missed call" is derived, not a column: inbound with zero duration.
+  - "Missed call" is derived, not a column -- see call_status_service for
+    the actual rule (disposition first, zero duration as a fallback only).
+    Vobiz's duration is recording length, not talk time, so duration alone
+    reads a voicemail as answered.
 """
 
 from __future__ import annotations
@@ -23,15 +26,16 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import structlog
-from sqlalchemy import func, or_
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
-from app.models.call import Call, CallDirection
+from app.models.call import Call
 from app.models.conversation import Conversation, Message, MessageDirection
 from app.models.guest import Guest
 from app.models.guest_identity import GuestIdentity, IdentityType
 from app.models.inquiry import Inquiry
 from app.models.task import Task
+from app.services import call_status_service
 
 log = structlog.get_logger()
 
@@ -247,18 +251,19 @@ def shared_contact_details(db: Session, tenant_id: str, since: Optional[datetime
 
 
 def missed_calls(db: Session, tenant_id: str, since: Optional[datetime], *, until: Optional[datetime] = None, limit: int = 50) -> list[dict]:
-    """Inbound calls with no talk time and no recorded call-back yet.
+    """Inbound calls not answered by a person, with no recorded call-back yet.
 
-    "Missed" is derived rather than stored: inbound + zero duration. The
-    call-back link (recovered_by_call_id) is a real column, so a lead who has
-    already been rung back drops off this list automatically.
+    Missed status comes from call_status_service (disposition first, zero
+    duration only as a fallback for un-analysed calls) -- not raw duration,
+    which is recording length on Vobiz and reads a voicemail as "answered".
+    The call-back link (recovered_by_call_id) is a real column, so a lead who
+    has already been rung back drops off this list automatically.
     """
     q = (
         db.query(Call)
         .filter(
             Call.tenant_id == tenant_id,
-            Call.direction == CallDirection.INBOUND,
-            or_(Call.duration_seconds.is_(None), Call.duration_seconds == 0),
+            call_status_service.missed_call_sql_filter(),
             Call.recovered_by_call_id.is_(None),
         )
         .order_by(Call.started_at.desc())
@@ -369,8 +374,7 @@ def _totals(
         db.query(func.count(Call.id))
         .filter(
             Call.tenant_id == tenant_id,
-            Call.direction == CallDirection.INBOUND,
-            or_(Call.duration_seconds.is_(None), Call.duration_seconds == 0),
+            call_status_service.missed_call_sql_filter(),
             Call.recovered_by_call_id.is_(None),
         )
     )

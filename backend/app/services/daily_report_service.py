@@ -16,16 +16,16 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import structlog
-from sqlalchemy import func, or_
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.models.call import Call, CallDirection
+from app.models.call import Call
 from app.models.conversation import Conversation, Message, MessageDirection
 from app.models.guest_identity import GuestIdentity
 from app.models.inquiry import Inquiry
 from app.models.insight import Insight
 from app.models.pipeline_stage import PipelineStage
-from app.services import worklist_service
+from app.services import call_status_service, worklist_service
 from app.services.date_presets import IST, ist_range_to_utc
 
 log = structlog.get_logger()
@@ -177,16 +177,12 @@ def build_daily_report(
         .all()
     )
     calls_total = len(call_rows)
-    calls_missed = sum(
-        1 for c in call_rows
-        if c.direction == CallDirection.INBOUND and not (c.duration_seconds or 0)
-    )
+    calls_missed = sum(1 for c in call_rows if call_status_service.is_missed_call(c))
     missed_not_returned = (
         db.query(func.count(Call.id))
         .filter(
             Call.tenant_id == tenant_id,
-            Call.direction == CallDirection.INBOUND,
-            or_(Call.duration_seconds.is_(None), Call.duration_seconds == 0),
+            call_status_service.missed_call_sql_filter(),
             Call.recovered_by_call_id.is_(None),
             Call.started_at >= start_iso,
         )

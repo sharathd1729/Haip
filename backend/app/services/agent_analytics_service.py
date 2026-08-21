@@ -14,10 +14,11 @@ from sqlalchemy.orm import Session
 from app.models.inquiry_360 import InquiryStageLog
 from app.models.inquiry import Inquiry
 from app.models.pipeline_stage import PipelineStage
-from app.models.call import Call, CallDirection
+from app.models.call import Call
 from app.models.task import Task
 from app.models.ai_draft_outcome import AIDraftOutcome
 from app.services.date_presets import ist_range_to_utc
+from app.services import call_status_service
 from app.models.user import User
 from app.models.tenant import Tenant
 
@@ -162,7 +163,7 @@ def get_agent_scorecard_rows(
     for call in call_q.all():
         if call.agent_id not in rows:
             continue
-        is_missed = call.direction == CallDirection.INBOUND and not (call.duration_seconds or 0)
+        is_missed = call_status_service.is_missed_call(call)
         if is_missed:
             rows[call.agent_id]["calls_missed"] += 1
             if call.recovered_by_call_id:
