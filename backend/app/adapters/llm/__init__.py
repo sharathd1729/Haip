@@ -23,7 +23,8 @@ Routing rules:
   concierge_draft  → nvidia   nvidia/llama-3.3-nemotron-super-49b-v1.5
   ruflo_domain     → nvidia   nvidia/llama-3.3-nemotron-super-49b-v1.5
   ruflo_synthesis  → nvidia   nvidia/llama-3.3-nemotron-super-49b-v1.5
-  fallback         → nvidia   mistralai/mistral-medium-3.5-128b
+  fallback         → nvidia   mistralai/mistral-nemotron
+                              (also where unknown task keys land)
 
 Provider priority for get_llm_adapter (legacy path):
   1. Explicit `provider` argument
@@ -65,7 +66,13 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # into a narrative + chart spec is cheap classification-tier work.
     "ask_haip_freeform_sql":     ("nvidia", "nvidia/nemotron-3-ultra-550b-a55b"),
     "ask_haip_freeform_summary": ("nvidia", "meta/llama-3.1-8b-instruct"),
-    "fallback":        ("nvidia",  "mistralai/mistral-medium-3.5-128b"),
+    # mistral-medium-3.5-128b reached end of life on 2026-08-07 and the
+    # endpoint now returns HTTP 410, so this route was dead. mistral-nemotron
+    # is the surviving mid-tier Mistral on NIM and was verified live.
+    # Caveat: like the 8B, it answers tool-call prompts in prose rather than
+    # emitting a tool call, so do not route structured-output work here --
+    # the 49B/ultra models handle that.
+    "fallback":        ("nvidia",  "mistralai/mistral-nemotron"),
     # HAIP Inbox prototype-wiring plan, ticket 3: rewrite an existing AI
     # draft in a new tone or language. Narrower/cheaper than a full
     # concierge_draft (no context gathering, no grounding), same cost tier
@@ -96,7 +103,18 @@ def get_llm(task: str, tenant_id: Optional[str] = None) -> LLMAdapter:
         if override:
             return _build_adapter(override, model=None)
 
-    provider, model = _TASK_ROUTES.get(task, ("claude", "claude-sonnet-4-6"))
+    # Unknown task keys previously defaulted to Claude. Production runs on
+    # NVIDIA keys only with no ANTHROPIC_API_KEY provisioned (see the
+    # concierge_draft note above), so any typo'd or newly-added task key
+    # failed at runtime in prod while working locally for anyone with an
+    # Anthropic key set. Defaulting to the fallback route keeps an unknown
+    # task on the provider the deployment actually has credentials for.
+    provider, model = _TASK_ROUTES.get(task) or _TASK_ROUTES["fallback"]
+    if task not in _TASK_ROUTES:
+        # stdlib logger in this module, not structlog -- structlog-style
+        # kwargs here would raise TypeError instead of logging (the failure
+        # mode CLAUDE.md documents for leads_service/identity_service).
+        log.warning("llm_unknown_task_key: task=%s routed_to=%s", task, model)
     return _build_adapter(provider, model)
 
 

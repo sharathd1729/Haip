@@ -69,8 +69,19 @@ truth; if this table and the code disagree, the code wins and this table is stal
 | `ask_haip_intent` | NVIDIA | meta/llama-3.1-8b-instruct |
 | `ask_haip_freeform_summary` | NVIDIA | meta/llama-3.1-8b-instruct |
 | `quick_classify` · `bulk_batch` | NVIDIA | meta/llama-3.1-8b-instruct |
-| `fallback` | NVIDIA | mistralai/mistral-medium-3.5-128b |
+| `fallback` | NVIDIA | mistralai/mistral-nemotron |
 | `concierge_draft` | Claude | claude-haiku-4-5 |
+
+Unknown task keys route to `fallback` (they previously defaulted to Claude,
+which fails in prod — no `ANTHROPIC_API_KEY` is provisioned there).
+
+⚠️ **NIM models reach end-of-life and start returning HTTP 410.**
+`mistralai/mistral-medium-3.5-128b` died on 2026-08-07 and sat broken in this
+table until 2026-08-20. Verify a model still serves before routing to it:
+`GET https://integrate.api.nvidia.com/v1/models` lists what is currently
+available. Note also that `mistral-nemotron` and `meta/llama-3.1-8b-instruct`
+answer tool-call prompts in prose rather than emitting a tool call — route
+structured-output work to the 49B/ultra models.
 
 Per-tenant override: `tenants.llm_provider_override` (cached 300s).
 
