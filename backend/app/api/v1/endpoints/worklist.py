@@ -11,13 +11,14 @@ currently off for some tenants), which is the opposite of the intent.
 from typing import Optional
 
 import structlog
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.user import User, UserRole
 from app.services import worklist_service
+from app.services.date_presets import ist_range_to_utc
 
 log = structlog.get_logger()
 
@@ -26,7 +27,13 @@ router = APIRouter(prefix="/worklist", tags=["worklist"])
 
 @router.get("")
 def get_worklist(
-    hours: int = Query(default=24, ge=1, le=168),
+    hours: Optional[int] = Query(
+        # ge=0, not ge=1: 0 is the "all time" signal and would otherwise 422.
+        default=24, ge=0, le=8760,
+        description="Rolling window in hours. Pass 0 for all time, or use date_from/date_to.",
+    ),
+    date_from: Optional[str] = Query(default=None, description="YYYY-MM-DD (IST), inclusive"),
+    date_to: Optional[str] = Query(default=None, description="YYYY-MM-DD (IST), inclusive"),
     mine_only: Optional[bool] = Query(
         default=None,
         description="Agents are always scoped to themselves; owners/managers default to tenant-wide.",
@@ -35,6 +42,24 @@ def get_worklist(
     db: Session = Depends(get_db),
 ):
     is_owner_view = current_user.role in (UserRole.OWNER, UserRole.MANAGER)
+
+    # A custom range wins over the rolling window. Resolved through the same
+    # IST helper the dashboard uses, so "1 Aug" means the Indian calendar day
+    # rather than a UTC one shifted by 5.5 hours.
+    since = until = None
+    if date_from or date_to:
+        try:
+            d_from = date_from or date_to
+            d_to = date_to or date_from
+            _, _, since, until = ist_range_to_utc(d_from, d_to)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Dates must be YYYY-MM-DD")
+        if since > until:
+            raise HTTPException(status_code=422, detail="date_from must be on or before date_to")
+        hours = None
+    elif not hours:
+        # hours=0 is the explicit "all time" signal from the UI.
+        hours = None
 
     # An agent always sees only their own assignments, whatever they pass --
     # same rule the dashboard applies. Owners and managers see everything by
@@ -45,7 +70,8 @@ def get_worklist(
         scope_user_id = current_user.id
 
     data = worklist_service.build_worklist(
-        db, current_user.tenant_id, scope_user_id=scope_user_id, hours=hours,
+        db, current_user.tenant_id, scope_user_id=scope_user_id,
+        hours=hours, since=since, until=until,
     )
     data["scope"] = "mine" if scope_user_id else "team"
     return data

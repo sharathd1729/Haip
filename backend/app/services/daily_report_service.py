@@ -169,7 +169,9 @@ def build_daily_report(db: Session, tenant_id: str, *, day: Optional[str] = None
     ) or 0
 
     # ── The backlog (not day-scoped -- this is "right now") ──────────────
-    worklist = worklist_service.build_worklist(db, tenant_id, hours=24)
+    # hours=None means all time: an owner's "how many are waiting on us"
+    # must count the 14-day-old ones too, not just yesterday's.
+    worklist = worklist_service.build_worklist(db, tenant_id, hours=None)
     awaiting = worklist["counts"]["awaiting_reply"]
 
     # Who specifically is waiting longest -- an owner wants names, not a number.

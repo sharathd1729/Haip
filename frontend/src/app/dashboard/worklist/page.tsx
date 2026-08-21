@@ -205,15 +205,40 @@ function LeadRow({ row, sectionKey }: { row: Row; sectionKey: string }) {
   );
 }
 
+const RANGES = [
+  { key: "5h",     label: "Last 5 hours",  hours: 5 },
+  { key: "10h",    label: "Last 10 hours", hours: 10 },
+  { key: "20h",    label: "Last 20 hours", hours: 20 },
+  { key: "24h",    label: "Last 24 hours", hours: 24 },
+  { key: "2d",     label: "Last 2 days",   hours: 48 },
+  { key: "7d",     label: "Last 7 days",   hours: 168 },
+  { key: "all",    label: "All time",      hours: 0 },
+  { key: "custom", label: "Custom dates…", hours: null },
+] as const;
+
+function todayISO() {
+  return new Date().toISOString().split("T")[0];
+}
+
 export default function WorklistPage() {
-  const [hours, setHours] = useState(24);
+  const [range, setRange] = useState<string>("24h");
+  const [from, setFrom] = useState(todayISO());
+  const [to, setTo] = useState(todayISO());
   const [active, setActive] = useState<string>("awaiting_reply");
 
+  const isCustom = range === "custom";
+  const preset = RANGES.find(r => r.key === range);
+  // hours=0 is the explicit "all time" signal the API understands.
+  const params = isCustom
+    ? { date_from: from, date_to: to }
+    : { hours: preset?.hours ?? 24 };
+
   const { data, isLoading, isError, refetch, isFetching } = useQuery<Worklist>({
-    queryKey: ["worklist", hours],
-    queryFn: () => api.get("/worklist", { params: { hours } }).then(r => r.data),
+    queryKey: ["worklist", range, isCustom ? from : null, isCustom ? to : null],
+    queryFn: () => api.get("/worklist", { params }).then(r => r.data),
     retry: 1,
     refetchOnWindowFocus: true,
+    enabled: !isCustom || (!!from && !!to && from <= to),
   });
 
   const rows = (data?.[active as keyof Worklist] as Row[] | undefined) ?? [];
@@ -229,16 +254,37 @@ export default function WorklistPage() {
               Everyone waiting on a reply, in the order they should be dealt with.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <select
-              value={hours}
-              onChange={e => setHours(Number(e.target.value))}
+              value={range}
+              onChange={e => setRange(e.target.value)}
               className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
             >
-              <option value={24}>Last 24 hours</option>
-              <option value={72}>Last 3 days</option>
-              <option value={168}>Last 7 days</option>
+              {RANGES.map(r => (
+                <option key={r.key} value={r.key}>{r.label}</option>
+              ))}
             </select>
+
+            {isCustom && (
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="date"
+                  value={from}
+                  max={to || undefined}
+                  onChange={e => setFrom(e.target.value)}
+                  className="px-2 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                />
+                <span className="text-gray-400 text-xs">→</span>
+                <input
+                  type="date"
+                  value={to}
+                  min={from || undefined}
+                  onChange={e => setTo(e.target.value)}
+                  className="px-2 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                />
+              </div>
+            )}
+
             <button
               onClick={() => refetch()}
               title="Refresh"
@@ -292,7 +338,12 @@ export default function WorklistPage() {
               )}
             </div>
 
-            {isLoading ? (
+            {isCustom && from > to ? (
+              <div className="py-10 text-center">
+                <p className="text-sm font-medium text-gray-600">Check the dates</p>
+                <p className="text-xs text-gray-400 mt-0.5">The start date is after the end date.</p>
+              </div>
+            ) : isLoading ? (
               <div className="p-4 space-y-2">
                 {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 rounded-xl" />)}
               </div>

@@ -99,7 +99,10 @@ def _lead_context(db: Session, tenant_id: str, guest: Optional[Guest], inquiry: 
 
 # ─── Sections ────────────────────────────────────────────────────────────────
 
-def awaiting_reply(db: Session, tenant_id: str, *, scope_user_id: Optional[str] = None, limit: int = 50) -> list[dict]:
+def awaiting_reply(
+    db: Session, tenant_id: str, *, scope_user_id: Optional[str] = None,
+    since: Optional[datetime] = None, until: Optional[datetime] = None, limit: int = 50,
+) -> list[dict]:
     """Conversations whose most recent message is from the guest.
 
     This is the real "nobody has answered them" set. The dashboard's existing
@@ -134,6 +137,15 @@ def awaiting_reply(db: Session, tenant_id: str, *, scope_user_id: Optional[str] 
     )
     if scope_user_id:
         q = q.filter(Conversation.assigned_to == scope_user_id)
+    # Scoped by when the guest's message arrived. Without this the section
+    # ignored the page's time filter entirely, so "Last 24 hours" sat above a
+    # list of items 14 days old -- accurate as a live backlog, but it reads
+    # as a broken filter. `since=None` means all time, which is how the
+    # daily email still gets the full backlog.
+    if since is not None:
+        q = q.filter(Message.created_at >= since)
+    if until is not None:
+        q = q.filter(Message.created_at <= until)
 
     now = datetime.now(timezone.utc)
     out = []
@@ -154,7 +166,7 @@ def awaiting_reply(db: Session, tenant_id: str, *, scope_user_id: Optional[str] 
     return out
 
 
-def new_dms(db: Session, tenant_id: str, since: datetime, *, limit: int = 50) -> list[dict]:
+def new_dms(db: Session, tenant_id: str, since: Optional[datetime], *, until: Optional[datetime] = None, limit: int = 50) -> list[dict]:
     """Inbound WhatsApp/Instagram messages received in the window, newest first."""
     q = (
         db.query(Message, Conversation)
@@ -163,11 +175,14 @@ def new_dms(db: Session, tenant_id: str, since: datetime, *, limit: int = 50) ->
             Message.tenant_id == tenant_id,
             Message.direction == MessageDirection.INBOUND,
             Message.is_internal.is_(False),
-            Message.created_at >= since,
         )
         .options(joinedload(Conversation.guest), joinedload(Conversation.inquiry))
         .order_by(Message.created_at.desc())
     )
+    if since is not None:
+        q = q.filter(Message.created_at >= since)
+    if until is not None:
+        q = q.filter(Message.created_at <= until)
     out = []
     for msg, conv in q.limit(limit).all():
         channel = getattr(conv.channel, "value", conv.channel)
@@ -181,7 +196,7 @@ def new_dms(db: Session, tenant_id: str, since: datetime, *, limit: int = 50) ->
     return out
 
 
-def shared_contact_details(db: Session, tenant_id: str, since: datetime, *, limit: int = 50) -> list[dict]:
+def shared_contact_details(db: Session, tenant_id: str, since: Optional[datetime], *, until: Optional[datetime] = None, limit: int = 50) -> list[dict]:
     """Leads who gave us a phone number or email in the window.
 
     The highest-intent signal in the product: someone who hands over contact
@@ -192,12 +207,14 @@ def shared_contact_details(db: Session, tenant_id: str, since: datetime, *, limi
         .filter(
             GuestIdentity.tenant_id == tenant_id,
             GuestIdentity.identity_type.in_(CONTACT_IDENTITY_TYPES),
-            GuestIdentity.first_seen_at >= since,
         )
         .order_by(GuestIdentity.first_seen_at.desc())
-        .limit(limit)
-        .all()
     )
+    if since is not None:
+        rows = rows.filter(GuestIdentity.first_seen_at >= since)
+    if until is not None:
+        rows = rows.filter(GuestIdentity.first_seen_at <= until)
+    rows = rows.limit(limit).all()
 
     by_guest: dict[str, dict] = {}
     for r in rows:
@@ -229,7 +246,7 @@ def shared_contact_details(db: Session, tenant_id: str, since: datetime, *, limi
     return out
 
 
-def missed_calls(db: Session, tenant_id: str, since: datetime, *, limit: int = 50) -> list[dict]:
+def missed_calls(db: Session, tenant_id: str, since: Optional[datetime], *, until: Optional[datetime] = None, limit: int = 50) -> list[dict]:
     """Inbound calls with no talk time and no recorded call-back yet.
 
     "Missed" is derived rather than stored: inbound + zero duration. The
@@ -243,11 +260,14 @@ def missed_calls(db: Session, tenant_id: str, since: datetime, *, limit: int = 5
             Call.direction == CallDirection.INBOUND,
             or_(Call.duration_seconds.is_(None), Call.duration_seconds == 0),
             Call.recovered_by_call_id.is_(None),
-            # started_at is a String column -- ISO string comparison, never a cast.
-            Call.started_at >= _iso(since),
         )
         .order_by(Call.started_at.desc())
     )
+    # started_at is a String column -- ISO string comparison, never a cast.
+    if since is not None:
+        q = q.filter(Call.started_at >= _iso(since))
+    if until is not None:
+        q = q.filter(Call.started_at <= _iso(until))
     out = []
     for call in q.limit(limit).all():
         guest = call.guest if getattr(call, "guest", None) else None
@@ -298,7 +318,10 @@ def overdue_followups(db: Session, tenant_id: str, *, scope_user_id: Optional[st
 SECTION_LIMIT = 50
 
 
-def _totals(db: Session, tenant_id: str, since: datetime, scope_user_id: Optional[str]) -> dict:
+def _totals(
+    db: Session, tenant_id: str, since: Optional[datetime], until: Optional[datetime],
+    scope_user_id: Optional[str],
+) -> dict:
     """True totals, counted independently of the row cap.
 
     Reporting len(rows) as the count would silently understate a backlog the
@@ -329,6 +352,10 @@ def _totals(db: Session, tenant_id: str, since: datetime, scope_user_id: Optiona
     )
     if scope_user_id:
         awaiting_q = awaiting_q.filter(Conversation.assigned_to == scope_user_id)
+    if since is not None:
+        awaiting_q = awaiting_q.filter(Message.created_at >= since)
+    if until is not None:
+        awaiting_q = awaiting_q.filter(Message.created_at <= until)
 
     dms_q = (
         db.query(func.count(Message.id))
@@ -336,7 +363,6 @@ def _totals(db: Session, tenant_id: str, since: datetime, scope_user_id: Optiona
             Message.tenant_id == tenant_id,
             Message.direction == MessageDirection.INBOUND,
             Message.is_internal.is_(False),
-            Message.created_at >= since,
         )
     )
     missed_q = (
@@ -346,7 +372,6 @@ def _totals(db: Session, tenant_id: str, since: datetime, scope_user_id: Optiona
             Call.direction == CallDirection.INBOUND,
             or_(Call.duration_seconds.is_(None), Call.duration_seconds == 0),
             Call.recovered_by_call_id.is_(None),
-            Call.started_at >= _iso(since),
         )
     )
     shared_q = (
@@ -354,9 +379,16 @@ def _totals(db: Session, tenant_id: str, since: datetime, scope_user_id: Optiona
         .filter(
             GuestIdentity.tenant_id == tenant_id,
             GuestIdentity.identity_type.in_(CONTACT_IDENTITY_TYPES),
-            GuestIdentity.first_seen_at >= since,
         )
     )
+    if since is not None:
+        dms_q = dms_q.filter(Message.created_at >= since)
+        missed_q = missed_q.filter(Call.started_at >= _iso(since))
+        shared_q = shared_q.filter(GuestIdentity.first_seen_at >= since)
+    if until is not None:
+        dms_q = dms_q.filter(Message.created_at <= until)
+        missed_q = missed_q.filter(Call.started_at <= _iso(until))
+        shared_q = shared_q.filter(GuestIdentity.first_seen_at <= until)
     followups_q = (
         db.query(func.count(Task.id))
         .filter(Task.tenant_id == tenant_id, Task.is_done.is_(False), Task.due_date < func.now())
@@ -374,22 +406,33 @@ def _totals(db: Session, tenant_id: str, since: datetime, scope_user_id: Optiona
 
 
 def build_worklist(
-    db: Session, tenant_id: str, *, scope_user_id: Optional[str] = None, hours: int = 24,
+    db: Session, tenant_id: str, *, scope_user_id: Optional[str] = None,
+    hours: Optional[int] = 24,
+    since: Optional[datetime] = None, until: Optional[datetime] = None,
 ) -> dict:
-    """Everything an agent should look at, in priority order."""
-    since = datetime.now(timezone.utc) - timedelta(hours=hours)
+    """Everything an agent should look at, in priority order.
+
+    Window: pass `hours` for a rolling window, or an explicit since/until
+    pair for a custom range. `hours=None` with no since means all time --
+    the full standing backlog, which is what the daily email wants.
+    """
+    if since is None and hours is not None:
+        since = datetime.now(timezone.utc) - timedelta(hours=hours)
 
     sections = {
-        "awaiting_reply": awaiting_reply(db, tenant_id, scope_user_id=scope_user_id, limit=SECTION_LIMIT),
-        "missed_calls": missed_calls(db, tenant_id, since, limit=SECTION_LIMIT),
-        "shared_details": shared_contact_details(db, tenant_id, since, limit=SECTION_LIMIT),
-        "new_dms": new_dms(db, tenant_id, since, limit=SECTION_LIMIT),
+        "awaiting_reply": awaiting_reply(
+            db, tenant_id, scope_user_id=scope_user_id, since=since, until=until, limit=SECTION_LIMIT,
+        ),
+        "missed_calls": missed_calls(db, tenant_id, since, until=until, limit=SECTION_LIMIT),
+        "shared_details": shared_contact_details(db, tenant_id, since, until=until, limit=SECTION_LIMIT),
+        "new_dms": new_dms(db, tenant_id, since, until=until, limit=SECTION_LIMIT),
         "overdue_followups": overdue_followups(db, tenant_id, scope_user_id=scope_user_id, limit=SECTION_LIMIT),
     }
-    counts = _totals(db, tenant_id, since, scope_user_id)
+    counts = _totals(db, tenant_id, since, until, scope_user_id)
     return {
         "window_hours": hours,
-        "since": _iso(since),
+        "since": _iso(since) if since else None,
+        "until": _iso(until) if until else None,
         "counts": counts,
         "truncated": {k: counts[k] > len(v) for k, v in sections.items()},
         "section_limit": SECTION_LIMIT,
