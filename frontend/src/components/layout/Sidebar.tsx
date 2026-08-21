@@ -10,6 +10,7 @@ import {
   HelpCircle, LogOut, ChevronDown, ChevronRight,
   MessageSquare, AtSign, Bot, Target, Megaphone, UserCheck, GitBranch, FileText,
   LayoutDashboard,
+  ListChecks,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canSeeNav, type Resource } from "@/lib/permissions";
@@ -49,6 +50,15 @@ const NAV_ITEMS: NavItem[] = [
   // its own "ai_insights" module) is folded into this page's AI
   // Intelligence section now instead of being a separate nav item --
   // /dashboard/insights still works for direct links, just unlinked here.
+  // First entry deliberately: the dashboard answers "how are we doing",
+  // this answers "who is waiting on me right now" -- which is what an agent
+  // opens the app to find out.
+  {
+    label: "Today",
+    href: "/dashboard/worklist",
+    icon: ListChecks,
+    resource: "inbox",
+  },
   {
     label: "Dashboard",
     href: "/dashboard",
