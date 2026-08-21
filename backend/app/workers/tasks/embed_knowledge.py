@@ -9,11 +9,37 @@ only once this task marks it "done".
 import structlog
 from celery import shared_task
 
+from datetime import datetime, timezone
+
 from app.core.database import SessionLocal, set_tenant_context
 from app.models.knowledge import KnowledgeEntry
 from app.services import knowledge_service
 
 log = structlog.get_logger()
+
+
+def _ensure_phrasings(db, entry: KnowledgeEntry) -> None:
+    """Generate alternate phrasings once per content revision.
+
+    Regenerated only when the embedded text actually changed, so toggling
+    is_active or editing a category never burns a generation call. Failures
+    are non-fatal: an entry without phrasings still works, it just matches
+    fewer wordings.
+    """
+    if entry.alt_phrasings and not knowledge_service.needs_reembed(entry):
+        return
+    try:
+        from app.services.phrasing_service import generate_phrasings_sync
+        phrasings = generate_phrasings_sync(entry.question, entry.content, n=6)
+    except Exception as exc:
+        log.warning("kb_phrasings_failed", entry_id=entry.id, error=str(exc))
+        return
+    if not phrasings:
+        return
+    entry.alt_phrasings = phrasings
+    entry.alt_phrasings_generated_at = datetime.now(timezone.utc)
+    db.commit()
+    log.info("kb_phrasings_generated", entry_id=entry.id, count=len(phrasings))
 
 
 @shared_task(name="knowledge.embed_entry", bind=True, max_retries=3)
@@ -31,6 +57,7 @@ def embed_entry(self, tenant_id: str, entry_id: str):
             log.warning("kb_embed_entry_missing", entry_id=entry_id, tenant_id=tenant_id)
             return {"entry_id": entry_id, "status": "missing"}
 
+        _ensure_phrasings(db, entry)
         ok = knowledge_service.embed_entry(db, entry)
         if not ok and self.request.retries < self.max_retries:
             # embed_entry() already recorded the failure on the row; retry with

@@ -159,9 +159,21 @@ def update_entry(
         if val is not None:
             setattr(entry, field, val.strip() if field == "content" else val)
 
+    # Editing phrasings is an explicit override -- the entry keeps exactly
+    # what the tenant left, and _ensure_phrasings won't regenerate over it
+    # unless the content itself changes.
+    phrasings_changed = False
+    if body.alt_phrasings is not None:
+        cleaned = [p.strip() for p in body.alt_phrasings if p and p.strip()]
+        phrasings_changed = cleaned != list(entry.alt_phrasings or [])
+        entry.alt_phrasings = cleaned
+
     # Only re-embed when the embedded text actually changed; toggling
-    # is_active or review_status must not burn an embedding call.
-    stale = knowledge_service.needs_reembed(entry)
+    # is_active or review_status must not burn an embedding call. Phrasings
+    # each carry their own vector, so editing them changes what is stored
+    # even though the content hash is unaffected -- without this, a deleted
+    # phrasing would keep matching from its stale vector.
+    stale = knowledge_service.needs_reembed(entry) or phrasings_changed
     if stale:
         entry.embedding_status = "pending"
     db.commit()

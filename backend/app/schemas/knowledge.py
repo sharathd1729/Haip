@@ -46,6 +46,9 @@ class KnowledgeEntryUpdate(BaseModel):
     priority: Optional[int] = Field(default=None, ge=0, le=100)
     is_active: Optional[bool] = None
     review_status: Optional[ReviewStatus] = None
+    # Generated automatically; editable so a tenant can delete one that
+    # misses the point. Sending [] clears them without triggering regeneration.
+    alt_phrasings: Optional[List[str]] = Field(default=None, max_length=20)
 
 
 class KnowledgeEntryOut(BaseModel):
@@ -58,6 +61,7 @@ class KnowledgeEntryOut(BaseModel):
     source: str
     source_url: Optional[str] = None
     source_ref: Optional[str] = None
+    alt_phrasings: Optional[List[str]] = None
     priority: int
     is_active: bool
     review_status: str

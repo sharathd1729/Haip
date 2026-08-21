@@ -17,6 +17,7 @@ interface KnowledgeEntry {
   content: string;
   source: string;
   source_url?: string | null;
+  alt_phrasings?: string[] | null;
   priority: number;
   is_active: boolean;
   review_status: string;
@@ -136,6 +137,15 @@ export default function KnowledgePage() {
     mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) =>
       api.patch(`/knowledge/${id}`, { is_active }),
     onSuccess: invalidate,
+  });
+
+  const removePhrasing = useMutation({
+    mutationFn: ({ id, phrasings }: { id: string; phrasings: string[] }) =>
+      api.patch(`/knowledge/${id}`, { alt_phrasings: phrasings }),
+    onSuccess: () => {
+      invalidate();
+      toast({ variant: "success", title: "Removed", description: "Re-indexing this entry." });
+    },
   });
 
   const reembed = useMutation({
@@ -365,6 +375,39 @@ export default function KnowledgePage() {
                       </div>
                       {e.question && <p className="text-sm font-semibold text-gray-900">{e.question}</p>}
                       <p className="text-xs text-gray-600 leading-relaxed mt-0.5 whitespace-pre-wrap">{e.content}</p>
+
+                      {/* Generated automatically -- shown so the owner can
+                          see what the AI will recognise, and remove any that
+                          miss the point. */}
+                      {!!e.alt_phrasings?.length && (
+                        <div className="mt-2">
+                          <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">
+                            Also recognises
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            {e.alt_phrasings.map(p => (
+                              <span
+                                key={p}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-50 border border-gray-200 rounded text-[10px] text-gray-600"
+                              >
+                                {p}
+                                <button
+                                  onClick={() =>
+                                    removePhrasing.mutate({
+                                      id: e.id,
+                                      phrasings: (e.alt_phrasings ?? []).filter(x => x !== p),
+                                    })
+                                  }
+                                  className="text-gray-300 hover:text-red-500"
+                                  title="Remove this phrasing"
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-1 flex-shrink-0">

@@ -16,7 +16,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
+import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -39,6 +41,23 @@ KB_REF_TYPE = "knowledge_entry"
 # low and exists only to drop obvious noise; ranking does the real work.
 MIN_SCORE = 0.15
 DEFAULT_TOP_K = 5
+
+# An entry's answer plus its alternate phrasings.
+MAX_VECTORS_PER_ENTRY = 10
+
+# How close a generated phrasing must sit to its own answer to be kept.
+# Calibrated against a measured sample: on-topic phrasings scored 0.52-0.62
+# and off-topic drift 0.40-0.48, so the gap is real but narrow. Set to
+# favour dropping a borderline-useful phrasing over keeping one that
+# misroutes another topic's question to this entry.
+PHRASING_MIN_SIMILARITY = 0.50
+
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    dot = sum(x * y for x, y in zip(a, b))
+    na = math.sqrt(sum(x * x for x in a))
+    nb = math.sqrt(sum(x * x for x in b))
+    return dot / (na * nb) if na and nb else 0.0
 
 
 def content_hash(question: Optional[str], content: str) -> str:
@@ -96,14 +115,23 @@ def chunk_text(body: str, max_chars: int = 1200, overlap: int = 150) -> list[str
 # ─── Embedding write path ────────────────────────────────────────────────────
 
 def embed_entry(db: Session, entry: KnowledgeEntry) -> bool:
-    """Embed one entry and upsert its vector. Returns True on success.
+    """Embed one entry and upsert its vectors. Returns True on success.
+
+    An entry produces one vector for the answer itself plus one per
+    alternate phrasing, all pointing at the same entry -- a guest's odd
+    wording then matches the phrasing rather than having to match the
+    canonical question. Retrieval deduplicates by entry.
 
     Failures are recorded on the row (`embedding_status="failed"` plus the
     error) rather than raised: one bad entry must not abort a bulk ingest,
     and a failed row is visible in the UI so it can be retried.
     """
+    texts = [embed_input(entry.question, entry.content)]
+    phrasings = [p for p in (entry.alt_phrasings or []) if str(p or "").strip()][:MAX_VECTORS_PER_ENTRY - 1]
+    texts.extend(str(p).strip() for p in phrasings)
+
     try:
-        vec = embed_one_sync(embed_input(entry.question, entry.content), "passage")
+        vecs = embed_texts_sync(texts, "passage")
     except EmbeddingError as exc:
         entry.embedding_status = "failed"
         entry.embedding_error = str(exc)[:2000]
@@ -111,7 +139,35 @@ def embed_entry(db: Session, entry: KnowledgeEntry) -> bool:
         log.error("kb_embed_failed", entry_id=entry.id, tenant_id=entry.tenant_id, error=str(exc))
         return False
 
-    _upsert_vector(db, entry, vec)
+    if len(vecs) != len(texts):
+        entry.embedding_status = "failed"
+        entry.embedding_error = f"Expected {len(texts)} vectors, got {len(vecs)}"
+        db.commit()
+        return False
+
+    # Drop generated phrasings that wandered off this entry's topic. Observed
+    # in practice: an amenities entry produced "can we bring our cat", which
+    # would then match a pets question near-perfectly and beat the real pets
+    # entry -- a bad phrasing does not merely fail to help, it actively
+    # misroutes. Uses the vectors already computed above, so this costs
+    # nothing extra.
+    if phrasings:
+        kept_vecs, kept_phrasings, dropped = [vecs[0]], [], []
+        for phrasing, vec in zip(phrasings, vecs[1:]):
+            if _cosine(vecs[0], vec) >= PHRASING_MIN_SIMILARITY:
+                kept_vecs.append(vec)
+                kept_phrasings.append(phrasing)
+            else:
+                dropped.append(phrasing)
+        if dropped:
+            log.info(
+                "kb_phrasings_dropped_offtopic",
+                entry_id=entry.id, dropped=dropped, kept=len(kept_phrasings),
+            )
+            entry.alt_phrasings = kept_phrasings
+        vecs, phrasings = kept_vecs, kept_phrasings
+
+    _upsert_vectors(db, entry, vecs, phrasings)
     entry.embedding_status = "done"
     entry.embedding_error = None
     entry.embedded_at = datetime.now(timezone.utc)
@@ -121,39 +177,56 @@ def embed_entry(db: Session, entry: KnowledgeEntry) -> bool:
     return True
 
 
-def _upsert_vector(db: Session, entry: KnowledgeEntry, vec: list[float]) -> None:
-    if len(vec) != EMBED_DIM:
-        raise EmbeddingError(f"Refusing to store {len(vec)}-dim vector; column is {EMBED_DIM}")
-    vec_literal = "[" + ",".join(repr(float(x)) for x in vec) + "]"
-    meta = {
+def _upsert_vectors(
+    db: Session, entry: KnowledgeEntry, vecs: list[list[float]], phrasings: list,
+) -> None:
+    """Store one vector for the answer plus one per alternate phrasing.
+
+    Delete-then-insert, so re-embedding after an edit cannot leave stale
+    vectors behind that would keep matching the old wording.
+    """
+    for vec in vecs:
+        if len(vec) != EMBED_DIM:
+            raise EmbeddingError(f"Refusing to store {len(vec)}-dim vector; column is {EMBED_DIM}")
+
+    base_meta = {
         "source": entry.source,
         "category": entry.category,
         "question": entry.question,
         "property_id": entry.property_id,
         "priority": entry.priority,
     }
-    # One vector row per entry: delete-then-insert keeps re-embedding after an
-    # edit from accumulating stale duplicates that would both match.
+
     db.execute(
         text("DELETE FROM embeddings WHERE tenant_id = :tid AND namespace = :ns AND ref_id = :rid"),
         {"tid": entry.tenant_id, "ns": KB_NAMESPACE, "rid": entry.id},
     )
-    db.execute(
-        text("""
-            INSERT INTO embeddings (id, tenant_id, namespace, ref_id, ref_type, embedding, content, metadata)
-            VALUES (:id, :tid, :ns, :rid, :rtype, CAST(:vec AS vector), :content, CAST(:meta AS jsonb))
-        """),
-        {
-            "id": entry.id,           # 1:1 with the entry, so the id can be reused
-            "tid": entry.tenant_id,
-            "ns": KB_NAMESPACE,
-            "rid": entry.id,
-            "rtype": KB_REF_TYPE,
-            "vec": vec_literal,
-            "content": entry.content,
-            "meta": json.dumps(meta),
-        },
-    )
+
+    # vecs[0] is the answer; the rest line up with `phrasings` in order.
+    labels: list[Optional[str]] = [None] + [str(p) for p in phrasings]
+    for idx, vec in enumerate(vecs):
+        phrasing = labels[idx] if idx < len(labels) else None
+        meta = dict(base_meta, matched_via="phrasing" if phrasing else "answer")
+        if phrasing:
+            meta["phrasing"] = phrasing
+        db.execute(
+            text("""
+                INSERT INTO embeddings (id, tenant_id, namespace, ref_id, ref_type, embedding, content, metadata)
+                VALUES (:id, :tid, :ns, :rid, :rtype, CAST(:vec AS vector), :content, CAST(:meta AS jsonb))
+            """),
+            {
+                # A vector per phrasing means ids can no longer be the entry
+                # id -- ref_id is what ties them back to the entry.
+                "id": str(uuid.uuid4()),
+                "tid": entry.tenant_id,
+                "ns": KB_NAMESPACE,
+                "rid": entry.id,
+                "rtype": KB_REF_TYPE,
+                "vec": "[" + ",".join(repr(float(x)) for x in vec) + "]",
+                "content": phrasing or entry.content,
+                "meta": json.dumps(meta),
+            },
+        )
 
 
 def delete_vector(db: Session, tenant_id: str, entry_id: str) -> None:
@@ -209,7 +282,9 @@ def search(
                 SELECT e.ref_id            AS entry_id,
                        k.category          AS category,
                        k.question          AS question,
-                       k.content           AS content,
+                       -- The entry's answer, distinct from e.content, which
+                       -- for a phrasing vector is the phrasing itself.
+                       k.content           AS entry_content,
                        k.source            AS source,
                        k.priority          AS priority,
                        1 - (e.embedding <=> CAST(:vec AS vector)) AS score
@@ -239,18 +314,29 @@ def search(
         log.warning("kb_search_failed", tenant_id=tenant_id, error=str(exc))
         return []
 
-    hits = [
-        {
-            "id": r.entry_id,
-            "category": r.category,
-            "question": r.question,
-            "content": r.content,
-            "source": r.source,
-            "score": float(r.score),
-        }
-        for r in rows
-        if float(r.score) >= min_score
-    ]
+    # An entry now has several vectors (its answer plus one per alternate
+    # phrasing), so the same entry can come back more than once. Keep its
+    # best-scoring vector -- returning the same answer twice would waste
+    # slots in a top_k the prompt is about to render.
+    best: dict[str, dict] = {}
+    for r in rows:
+        score = float(r.score)
+        if score < min_score:
+            continue
+        existing = best.get(r.entry_id)
+        if existing is None or score > existing["score"]:
+            best[r.entry_id] = {
+                "id": r.entry_id,
+                "category": r.category,
+                "question": r.question,
+                # Always the entry's answer, never the phrasing that matched
+                # -- the phrasing is a retrieval aid, not content to show the
+                # model.
+                "content": r.entry_content,
+                "source": r.source,
+                "score": score,
+            }
+    hits = list(best.values())
     # Human-authored content wins ties against scraped/mined content of
     # similar relevance; `priority` is the tenant's explicit thumb on the
     # scale. Score still dominates -- this only reorders near-equals.
