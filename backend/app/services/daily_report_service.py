@@ -32,6 +32,20 @@ log = structlog.get_logger()
 
 _SEVERITY_ORDER = {"critical": 5, "high": 4, "medium": 3, "low": 2, "info": 1}
 
+# How far back "still waiting on us" reaches. Deliberately not all time: the
+# full standing backlog is 200+ for Ratha, most of it long-dead Instagram
+# reel replies, and an owner cannot act on a fortnight-old "[ig_reel]". Five
+# days keeps the number to leads that are still worth chasing.
+BACKLOG_DAYS = 5
+
+# Two sends a day, answering different questions:
+#   evening (19:00 IST) -- salvage. Who arrived today and is still unanswered,
+#     while it is a reasonable hour to message them.
+#   morning (08:00 IST) -- planning. How yesterday closed, and what is still
+#     outstanding going into today.
+KIND_EVENING = "evening"
+KIND_MORNING = "morning"
+
 
 def get_active_insights(db: Session, tenant_id: str, limit: int = 5) -> list[dict]:
     """Active insights, most severe first.
@@ -62,10 +76,21 @@ def get_active_insights(db: Session, tenant_id: str, limit: int = 5) -> list[dic
     ]
 
 
-def build_daily_report(db: Session, tenant_id: str, *, day: Optional[str] = None) -> dict:
-    """Report for one IST calendar day (default: yesterday)."""
+def build_daily_report(
+    db: Session, tenant_id: str, *, day: Optional[str] = None, kind: str = KIND_MORNING,
+) -> dict:
+    """Report for one IST calendar day.
+
+    kind=evening covers today (the day is still running); kind=morning covers
+    yesterday and reports what is still outstanding going into today.
+    """
     today_ist = datetime.now(IST).date()
-    target = day or (today_ist - timedelta(days=1)).isoformat()
+    if day:
+        target = day
+    elif kind == KIND_EVENING:
+        target = today_ist.isoformat()
+    else:
+        target = (today_ist - timedelta(days=1)).isoformat()
     start_iso, end_iso, start_dt, end_dt = ist_range_to_utc(target, target)
 
     # ── Messages in / out ────────────────────────────────────────────────
@@ -168,10 +193,14 @@ def build_daily_report(db: Session, tenant_id: str, *, day: Optional[str] = None
         .scalar()
     ) or 0
 
-    # ── The backlog (not day-scoped -- this is "right now") ──────────────
-    # hours=None means all time: an owner's "how many are waiting on us"
-    # must count the 14-day-old ones too, not just yesterday's.
-    worklist = worklist_service.build_worklist(db, tenant_id, hours=None)
+    # ── Still waiting on us ──────────────────────────────────────────────
+    # Evening: only what arrived today, since the point is catching them
+    # before the day ends. Morning: the last BACKLOG_DAYS, so yesterday's
+    # unanswered leads carry over without dragging in dead ones.
+    if kind == KIND_EVENING:
+        worklist = worklist_service.build_worklist(db, tenant_id, since=start_dt, until=end_dt)
+    else:
+        worklist = worklist_service.build_worklist(db, tenant_id, hours=BACKLOG_DAYS * 24)
     awaiting = worklist["counts"]["awaiting_reply"]
 
     # Who specifically is waiting longest -- an owner wants names, not a number.
@@ -183,10 +212,16 @@ def build_daily_report(db: Session, tenant_id: str, *, day: Optional[str] = None
             "message": (r.get("last_message") or "")[:120],
             "has_contact": r["lead"]["has_contact"],
         }
-        for r in worklist["awaiting_reply"][:5]
+        for r in sorted(
+            worklist["awaiting_reply"],
+            key=lambda r: r.get("waiting_minutes") or 0,
+            reverse=True,
+        )[:5]
     ]
 
     return {
+        "kind": kind,
+        "backlog_days": BACKLOG_DAYS,
         "date": target,
         "metrics": {
             "dms_in": dms_in,

@@ -245,10 +245,20 @@ celery_app.conf.beat_schedule = {
         "task": "app.workers.tasks.run_insights.run_all_tenants",
         "schedule": crontab(minute="*/15", hour="6-22"),
     },
-    # Daily owner report — 08:00 IST (02:30 UTC; the container runs UTC).
-    "daily-owner-report": {
+    # Owner report, twice daily. Beat runs with timezone="Asia/Kolkata" and
+    # enable_utc=True, so these crontab hours are IST.
+    #   19:00 -- salvage: who arrived today and is still unanswered, while it
+    #            is still a reasonable hour to message them.
+    #   08:00 -- planning: how yesterday closed, what is still outstanding.
+    "owner-report-evening": {
         "task": "reports.daily_owner_report_all_tenants",
-        "schedule": crontab(hour=2, minute=30),
+        "schedule": crontab(hour=19, minute=0),
+        "kwargs": {"kind": "evening"},
+    },
+    "owner-report-morning": {
+        "task": "reports.daily_owner_report_all_tenants",
+        "schedule": crontab(hour=8, minute=0),
+        "kwargs": {"kind": "morning"},
     },
     # Phase 3: Intent classification — nightly at 03:00 IST
     "classify-intent-nightly": {

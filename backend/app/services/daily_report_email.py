@@ -57,6 +57,17 @@ def _stat(label: str, value, *, accent: str = INK, note: str = "") -> str:
 def render_daily_report(report: dict, *, tenant_name: str, dashboard_url: str) -> str:
     m = report["metrics"]
     date = report["date"]
+    is_evening = report.get("kind") == "evening"
+    # The two sends answer different questions, so the framing differs even
+    # though the underlying queries are shared.
+    header_note = (
+        f"Today so far · {date}" if is_evening else f"Yesterday · {date}"
+    )
+    waiting_heading = (
+        "Came in today, still unanswered" if is_evening
+        else f"Still waiting (last {report.get('backlog_days', 5)} days)"
+    )
+    volume_heading = "Today so far" if is_evening else "Yesterday"
 
     channel_note = ", ".join(
         f"{v} {k}" for k, v in sorted(m["by_channel"].items(), key=lambda kv: -kv[1])
@@ -67,7 +78,9 @@ def render_daily_report(report: dict, *, tenant_name: str, dashboard_url: str) -
     if m["awaiting_reply"]:
         attention_rows.append((
             f"{m['awaiting_reply']} conversations waiting on a reply",
-            "Nobody has answered these. The oldest are below.",
+            ("These came in today and nobody has replied yet."
+             if is_evening else
+             f"Unanswered from the last {report.get('backlog_days', 5)} days."),
             "#DC2626",
         ))
     if m["missed_not_returned"]:
@@ -77,7 +90,11 @@ def render_daily_report(report: dict, *, tenant_name: str, dashboard_url: str) -
             "#EA580C",
         ))
     if not attention_rows:
-        attention_rows.append(("Nothing outstanding", "Every conversation has been answered.", BRAND))
+        attention_rows.append((
+            "Nothing outstanding",
+            "Every conversation in this window has been answered.",
+            BRAND,
+        ))
 
     attention_html = "".join(f"""
       <tr>
@@ -106,7 +123,7 @@ def render_daily_report(report: dict, *, tenant_name: str, dashboard_url: str) -
           </tr>""" for w in report["top_waiting"])
         waiting_html = f"""
         <tr><td style="padding:20px 24px 0">
-          <div style="font:600 13px -apple-system,Segoe UI,Roboto,sans-serif;color:{MUTED};text-transform:uppercase;letter-spacing:.5px">Waiting longest</div>
+          <div style="font:600 13px -apple-system,Segoe UI,Roboto,sans-serif;color:{MUTED};text-transform:uppercase;letter-spacing:.5px">{_e(waiting_heading)}</div>
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:6px">{rows}</table>
         </td></tr>"""
 
@@ -135,7 +152,7 @@ def render_daily_report(report: dict, *, tenant_name: str, dashboard_url: str) -
 
     <tr><td style="background:{BRAND};padding:20px 24px">
       <div style="font:700 18px -apple-system,Segoe UI,Roboto,sans-serif;color:#fff">{_e(tenant_name)}</div>
-      <div style="font:13px -apple-system,Segoe UI,Roboto,sans-serif;color:#CCFBF1;margin-top:2px">Daily summary · {_e(date)}</div>
+      <div style="font:13px -apple-system,Segoe UI,Roboto,sans-serif;color:#CCFBF1;margin-top:2px">{_e(header_note)}</div>
     </td></tr>
 
     <tr><td style="padding:20px 24px 0">
@@ -167,7 +184,7 @@ def render_daily_report(report: dict, *, tenant_name: str, dashboard_url: str) -
 
     <tr><td style="padding:0 24px 22px" align="center">
       <div style="font:12px -apple-system,Segoe UI,Roboto,sans-serif;color:{MUTED}">
-        Counts cover {_e(date)} (IST). The waiting and missed-call figures are current.
+        {_e(volume_heading)} covers {_e(date)} (IST). Waiting and missed-call figures are current.
       </div>
     </td></tr>
 
@@ -178,6 +195,13 @@ def render_daily_report(report: dict, *, tenant_name: str, dashboard_url: str) -
 
 def render_subject(report: dict, tenant_name: str) -> str:
     m = report["metrics"]
+    evening = report.get("kind") == "evening"
+    lead_in = "Before you close up" if evening else "Good morning"
     if m["awaiting_reply"]:
-        return f"{tenant_name}: {m['awaiting_reply']} waiting on a reply · {m['dms_in']} messages {report['date']}"
-    return f"{tenant_name}: {m['dms_in']} messages, {m['new_leads']} new leads · {report['date']}"
+        return (
+            f"{lead_in}, {tenant_name}: {m['awaiting_reply']} waiting on a reply"
+            f" · {m['dms_in']} messages"
+        )
+    return (
+        f"{lead_in}, {tenant_name}: {m['dms_in']} messages, {m['new_leads']} new leads"
+    )

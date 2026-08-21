@@ -69,14 +69,44 @@ def test_messages_outside_the_day_are_excluded(db):
     assert drs.build_daily_report(db, t.id)["metrics"]["dms_in"] == 0
 
 
-def test_awaiting_reply_is_current_not_day_scoped(db):
-    """The backlog figure answers "right now", not "yesterday" -- an owner
-    needs to know what is outstanding today."""
+def test_morning_backlog_carries_over_recent_days(db):
+    """The waiting figure is not limited to the reported day -- yesterday's
+    unanswered leads still need chasing this morning."""
     t = _tenant(db)
-    _conv_with_message(db, t, MessageDirection.INBOUND, when=_yesterday_utc_noon() - timedelta(days=10))
-    r = drs.build_daily_report(db, t.id)
-    assert r["metrics"]["dms_in"] == 0
-    assert r["metrics"]["awaiting_reply"] == 1
+    _conv_with_message(db, t, MessageDirection.INBOUND, when=_yesterday_utc_noon() - timedelta(days=2))
+    r = drs.build_daily_report(db, t.id, kind=drs.KIND_MORNING)
+    assert r["metrics"]["dms_in"] == 0          # not from the reported day
+    assert r["metrics"]["awaiting_reply"] == 1  # but still outstanding
+
+
+def test_morning_backlog_excludes_leads_older_than_the_window(db):
+    """Ratha's all-time backlog is 200+, mostly dead Instagram reel replies.
+    An owner cannot act on a fortnight-old one, so the window is bounded."""
+    t = _tenant(db)
+    _conv_with_message(
+        db, t, MessageDirection.INBOUND,
+        when=_yesterday_utc_noon() - timedelta(days=drs.BACKLOG_DAYS + 3),
+    )
+    r = drs.build_daily_report(db, t.id, kind=drs.KIND_MORNING)
+    assert r["metrics"]["awaiting_reply"] == 0
+
+
+def test_evening_counts_only_todays_unanswered(db):
+    """The evening send is about salvaging today while it is still a
+    reasonable hour to message someone."""
+    t = _tenant(db)
+    # Two days old -- outstanding, but not today's problem.
+    _conv_with_message(db, t, MessageDirection.INBOUND, when=_yesterday_utc_noon() - timedelta(days=2))
+    r = drs.build_daily_report(db, t.id, kind=drs.KIND_EVENING)
+    assert r["metrics"]["awaiting_reply"] == 0
+
+
+def test_evening_reports_today_not_yesterday(db):
+    from app.services.date_presets import IST
+    t = _tenant(db)
+    r = drs.build_daily_report(db, t.id, kind=drs.KIND_EVENING)
+    assert r["date"] == datetime.now(IST).date().isoformat()
+    assert r["kind"] == drs.KIND_EVENING
 
 
 def test_tenant_isolation(db):

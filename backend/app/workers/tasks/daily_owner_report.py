@@ -42,7 +42,10 @@ def _recipients(db, tenant_id: str) -> list[User]:
 
 
 @shared_task(name="reports.send_daily_owner_report", bind=True, max_retries=2)
-def send_daily_owner_report(self, tenant_id: str, day: str | None = None, to_email: str | None = None):
+def send_daily_owner_report(
+    self, tenant_id: str, day: str | None = None, to_email: str | None = None,
+    kind: str = "morning",
+):
     """Build and email one tenant's daily summary.
 
     `to_email` overrides the recipient list -- used by the manual "send me a
@@ -58,7 +61,7 @@ def send_daily_owner_report(self, tenant_id: str, day: str | None = None, to_ema
             log.warning("daily_report_tenant_missing", tenant_id=tenant_id)
             return {"tenant_id": tenant_id, "status": "no_tenant"}
 
-        report = daily_report_service.build_daily_report(db, tenant_id, day=day)
+        report = daily_report_service.build_daily_report(db, tenant_id, day=day, kind=kind)
         html = render_daily_report(
             report, tenant_name=tenant.name, dashboard_url=DASHBOARD_URL,
         )
@@ -83,11 +86,11 @@ def send_daily_owner_report(self, tenant_id: str, day: str | None = None, to_ema
 
         log.info(
             "daily_report_sent",
-            tenant_id=tenant_id, date=report["date"], sent=sent, failed=failed,
+            tenant_id=tenant_id, kind=kind, date=report["date"], sent=sent, failed=failed,
             awaiting=report["metrics"]["awaiting_reply"],
         )
         return {
-            "tenant_id": tenant_id, "date": report["date"],
+            "tenant_id": tenant_id, "kind": kind, "date": report["date"],
             "sent": sent, "failed": failed,
         }
     finally:
@@ -95,8 +98,8 @@ def send_daily_owner_report(self, tenant_id: str, day: str | None = None, to_ema
 
 
 @shared_task(name="reports.daily_owner_report_all_tenants")
-def daily_owner_report_all_tenants():
-    """Fan out to every active tenant. Beat fires this once a day."""
+def daily_owner_report_all_tenants(kind: str = "morning"):
+    """Fan out to every active tenant. Beat fires this twice a day."""
     if not settings.RESEND_API_KEY:
         # Without a key email_service logs a preview and reports success, so
         # a scheduled run would look healthy while sending nothing. Skip
@@ -111,6 +114,6 @@ def daily_owner_report_all_tenants():
         db.close()
 
     for tid in tenant_ids:
-        send_daily_owner_report.delay(tid)
-    log.info("daily_report_queued", tenants=len(tenant_ids))
-    return {"tenants_queued": len(tenant_ids)}
+        send_daily_owner_report.delay(tid, kind=kind)
+    log.info("daily_report_queued", tenants=len(tenant_ids), kind=kind)
+    return {"tenants_queued": len(tenant_ids), "kind": kind}
