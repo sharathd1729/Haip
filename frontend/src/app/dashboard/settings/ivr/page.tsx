@@ -164,7 +164,7 @@ export default function IVRPage() {
           </div>
           <div>
             <h1 className="haip-page-title">IVR Call Routing</h1>
-            <p className="text-xs text-gray-500">Configure your Vobiz SIP number & menu</p>
+            <p className="text-xs text-gray-500">Who calls ring, and what plays before they connect</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -202,8 +202,34 @@ export default function IVRPage() {
               is what the live Vobiz answer webhook actually reads. */}
           <CallRoutingSection />
 
+          {/* The SIP Credentials + Greeting/DTMF sections below write to a
+              separate ivr_configs table that the live Vobiz answer webhook
+              (webhooks_vobiz.py) never reads -- confirmed live, not a
+              guess. Your actual Vobiz auth (Auth ID / Auth Secret / forward
+              number) lives on the Vobiz card under Settings > Integrations,
+              editable there since the "Edit" button was added. This banner
+              exists so filling in SIP Server/Username/Password below
+              doesn't look like it should do something it doesn't. */}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+            <AlertCircle size={15} className="text-amber-500 mt-0.5 flex-shrink-0" />
+            <div className="text-xs text-amber-800 leading-relaxed">
+              <p className="font-semibold mb-1">The sections below aren't connected to live calls</p>
+              <p>
+                Your real Vobiz connection (Auth ID, Auth Secret, forward
+                number) is set on the{" "}
+                <Link href="/dashboard/settings/integrations" className="underline hover:text-amber-900">
+                  Vobiz card under Integrations
+                </Link>
+                {" "}— edit it there. "SIP Credentials" and "Greeting &amp;
+                Language" here are a separate DTMF-menu builder that isn't
+                wired into any active call path yet; changes here won't
+                affect what happens when someone calls.
+              </p>
+            </div>
+          </div>
+
           {/* SIP Credentials */}
-          <Section title="Vobiz SIP Credentials" icon={<PhoneCall size={14} />}>
+          <Section title="Vobiz SIP Credentials (not currently active)" icon={<PhoneCall size={14} />}>
             <div className="grid grid-cols-2 gap-3">
               <Field label="SIP Server">
                 <input
@@ -251,7 +277,7 @@ export default function IVRPage() {
           </Section>
 
           {/* Greeting */}
-          <Section title="Greeting & Language" icon={<Phone size={14} />}>
+          <Section title="Greeting & Language (not currently active)" icon={<Phone size={14} />}>
             <div className="space-y-3">
               <Field label="Language">
                 <select
@@ -289,7 +315,7 @@ export default function IVRPage() {
           </Section>
 
           {/* Menu Builder */}
-          <Section title="DTMF Menu Options" icon={<BarChart3 size={14} />}>
+          <Section title="DTMF Menu Options (not currently active)" icon={<BarChart3 size={14} />}>
             <div className="space-y-2">
               {form.options.map((opt, idx) => (
                 <div key={idx} className="grid grid-cols-12 gap-2 items-start p-3 bg-gray-50 rounded-xl border border-gray-100">
