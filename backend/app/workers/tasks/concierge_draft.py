@@ -115,6 +115,19 @@ _AVAILABILITY_WORDS_RE = re.compile(
     r"\b(available|unavailable|booked out|fully booked|not available|is free|are free)\b",
     re.IGNORECASE,
 )
+# _AVAILABILITY_WORDS_RE alone can't tell "the caravan is available for those
+# dates" (a real claim needing grounding) from "add-ons like BBQ, bonfire, or
+# private chef available" (a menu listing sourced from the KB, no dates
+# involved). Confirmed live: the latter zeroed confidence on every draft that
+# mentioned an add-on, silently overriding autonomous mode regardless of the
+# model's own confidence or the threshold. Only treat it as an availability
+# claim when the same sentence also references a date/stay, which is what
+# actually needs grounding.
+_STAY_CONTEXT_RE = re.compile(
+    r"\b(date|dates|night|nights|check-?in|check-?out|book|booking|stay|"
+    r"room|caravan|property|weekend)\b|\d",
+    re.IGNORECASE,
+)
 
 
 async def _classify_and_extract(latest_message: str) -> dict:
@@ -238,7 +251,12 @@ def _check_grounding(reply_text: str, grounded_facts: list) -> tuple[bool, "str 
     NLP understanding -- a conservative, literal check on the highest-risk
     claim types (a wrong price is the worst-case outcome)."""
     money_mentions = _MONEY_RE.findall(reply_text)
-    availability_mentions = _AVAILABILITY_WORDS_RE.findall(reply_text)
+    availability_mentions = [
+        m
+        for sentence in re.split(r"(?<=[.!?])\s+", reply_text)
+        if _AVAILABILITY_WORDS_RE.search(sentence) and _STAY_CONTEXT_RE.search(sentence)
+        for m in _AVAILABILITY_WORDS_RE.findall(sentence)
+    ]
 
     if not grounded_facts:
         if money_mentions or availability_mentions:

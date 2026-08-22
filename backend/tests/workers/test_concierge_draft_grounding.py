@@ -34,6 +34,32 @@ class TestCheckGrounding:
         ok, reason = _check_grounding("Yes, it's available on those dates!", [])
         assert ok is False
 
+    def test_addon_listing_available_with_no_date_context_is_grounded(self):
+        """Confirmed live bug: 'Add-ons like BBQ, bonfire, or private chef
+        available' has nothing to do with date/room availability -- it's a
+        static KB menu listing -- but the bare-word regex flagged it as an
+        ungrounded availability claim and zeroed confidence on every draft
+        that mentioned an add-on, silently blocking autonomous send."""
+        ok, reason = _check_grounding(
+            "Hi Sharath, we can arrange a caravan to Goa with amenities like "
+            "AC, kitchenette, and WiFi. Add-ons like BBQ, bonfire, or private "
+            "chef available. Could you share your contact number and "
+            "preferred travel dates?",
+            [],
+        )
+        assert ok is True
+        assert reason is None
+
+    def test_availability_claim_in_own_sentence_still_caught_without_dates_word(self):
+        """The stay-context gate isn't just the literal word 'dates' -- 'the
+        caravan is available' should still be caught even if 'dates' itself
+        is in a different sentence."""
+        ok, reason = _check_grounding(
+            "The caravan is available! When were you thinking of travelling?",
+            [],
+        )
+        assert ok is False
+
     def test_price_matching_grounded_fact_is_grounded(self):
         facts = [{"tool": "get_quote", "args": {}, "result": {"total": "22400"}}]
         ok, reason = _check_grounding("Your total comes to ₹22,400.", facts)
