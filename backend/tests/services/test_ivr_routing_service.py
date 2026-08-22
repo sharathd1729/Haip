@@ -142,6 +142,138 @@ def test_unknown_strategy_falls_back_to_single_behaviour(db):
     assert ivr.resolve_dial_numbers(db, t, fallback_number=None) == ["+911"]
 
 
+def test_single_and_round_robin_marks_the_picked_agent_dialed(db):
+    """longest_idle needs a real dialed timestamp to sort on -- every
+    strategy that picks exactly one agent must stamp them, not just
+    longest_idle itself, so switching strategies later isn't a cold start."""
+    t = _tenant(db, ivr_routing_strategy="single")
+    u = _user(db, t, phone="+911")
+    assert u.ivr_last_dialed_at is None
+    ivr.resolve_dial_numbers(db, t, fallback_number=None)
+    db.refresh(u)
+    assert u.ivr_last_dialed_at is not None
+
+
+def test_parallel_and_fixed_order_mark_every_agent_dialed(db):
+    t = _tenant(db, ivr_routing_strategy="parallel")
+    u1 = _user(db, t, phone="+911")
+    u2 = _user(db, t, phone="+912")
+    ivr.resolve_dial_numbers(db, t, fallback_number=None)
+    db.refresh(u1); db.refresh(u2)
+    assert u1.ivr_last_dialed_at is not None
+    assert u2.ivr_last_dialed_at is not None
+
+
+# ─── fixed_order ────────────────────────────────────────────────────────────────
+
+def test_fixed_order_returns_every_agent_in_stable_order(db):
+    t = _tenant(db, ivr_routing_strategy="fixed_order")
+    _user(db, t, phone="+911")
+    _user(db, t, phone="+912")
+    _user(db, t, phone="+913")
+    # Same result on repeated calls -- unlike round_robin, order never rotates.
+    assert ivr.resolve_dial_numbers(db, t, fallback_number=None) == ["+911", "+912", "+913"]
+    assert ivr.resolve_dial_numbers(db, t, fallback_number=None) == ["+911", "+912", "+913"]
+
+
+# ─── longest_idle ───────────────────────────────────────────────────────────────
+
+def test_longest_idle_picks_never_dialed_agent_first(db):
+    t = _tenant(db, ivr_routing_strategy="longest_idle")
+    dialed_before = _user(db, t, phone="+911")
+    dialed_before.ivr_last_dialed_at = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    never = _user(db, t, phone="+912")
+    db.commit()
+    assert ivr.resolve_dial_numbers(db, t, fallback_number=None) == ["+912"]
+
+
+def test_longest_idle_picks_oldest_dialed_timestamp(db):
+    t = _tenant(db, ivr_routing_strategy="longest_idle")
+    older = _user(db, t, phone="+911")
+    newer = _user(db, t, phone="+912")
+    older.ivr_last_dialed_at = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    newer.ivr_last_dialed_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    db.commit()
+    assert ivr.resolve_dial_numbers(db, t, fallback_number=None) == ["+911"]
+
+
+def test_longest_idle_updates_the_picked_agents_timestamp(db):
+    """After being picked, an agent's timestamp must move forward, or the
+    same "most idle" agent would be picked forever. Both agents get a real
+    (non-None) timestamp so this isolates that behaviour from the separate
+    never-dialed-sorts-first rule covered above."""
+    t = _tenant(db, ivr_routing_strategy="longest_idle")
+    stale = _user(db, t, phone="+911")
+    stale.ivr_last_dialed_at = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    other = _user(db, t, phone="+912")
+    other.ivr_last_dialed_at = datetime(2021, 1, 1, tzinfo=timezone.utc)
+    db.commit()
+
+    picked_once = ivr.resolve_dial_numbers(db, t, fallback_number=None)
+    picked_twice = ivr.resolve_dial_numbers(db, t, fallback_number=None)
+    assert picked_once == ["+911"]
+    assert picked_twice == ["+912"]
+
+
+# ─── sticky_agent ───────────────────────────────────────────────────────────────
+
+def test_sticky_agent_first_time_caller_falls_back_to_round_robin(db):
+    t = _tenant(db, ivr_routing_strategy="sticky_agent")
+    _user(db, t, phone="+911")
+    _user(db, t, phone="+912")
+    with patch("app.services.ivr_routing_service.cache.get_cached", return_value=None), \
+         patch("app.services.ivr_routing_service.cache.incr", return_value=1), \
+         patch("app.services.ivr_routing_service.cache.set_cached") as mock_set:
+        result = ivr.resolve_dial_numbers(db, t, fallback_number=None, caller_number="+91999")
+    assert result == ["+912"]
+    mock_set.assert_called_once_with("haip:ivr:sticky:" + t.id + ":+91999", "+912", ttl=60 * 60 * 24 * 90)
+
+
+def test_sticky_agent_repeat_caller_returns_to_same_agent(db):
+    t = _tenant(db, ivr_routing_strategy="sticky_agent")
+    _user(db, t, phone="+911")
+    _user(db, t, phone="+912")
+    with patch("app.services.ivr_routing_service.cache.get_cached", return_value="+912"), \
+         patch("app.services.ivr_routing_service.cache.incr") as mock_incr:
+        result = ivr.resolve_dial_numbers(db, t, fallback_number=None, caller_number="+91999")
+    assert result == ["+912"]
+    mock_incr.assert_not_called()  # cache hit -- never falls through to round robin
+
+
+def test_sticky_agent_falls_back_when_previous_agent_no_longer_eligible(db):
+    """The cached sticky agent left the routing pool since the last call --
+    must not route to a number that's no longer valid."""
+    t = _tenant(db, ivr_routing_strategy="sticky_agent")
+    _user(db, t, phone="+911")
+    with patch("app.services.ivr_routing_service.cache.get_cached", return_value="+999-no-longer-eligible"), \
+         patch("app.services.ivr_routing_service.cache.incr", return_value=0), \
+         patch("app.services.ivr_routing_service.cache.set_cached"):
+        result = ivr.resolve_dial_numbers(db, t, fallback_number=None, caller_number="+91999")
+    assert result == ["+911"]
+
+
+def test_sticky_agent_with_no_caller_number_still_resolves(db):
+    """caller_number is None for outbound-answer webhooks or a payload
+    missing From -- must not raise, just skip the sticky lookup."""
+    t = _tenant(db, ivr_routing_strategy="sticky_agent")
+    _user(db, t, phone="+911")
+    with patch("app.services.ivr_routing_service.cache.incr", return_value=0):
+        assert ivr.resolve_dial_numbers(db, t, fallback_number=None, caller_number=None) == ["+911"]
+
+
+# ─── dial_mode ──────────────────────────────────────────────────────────────────
+
+def test_dial_mode_fixed_order_is_sequential(db):
+    t = _tenant(db, ivr_routing_strategy="fixed_order")
+    assert ivr.dial_mode(t) == "sequential"
+
+
+def test_dial_mode_everything_else_is_simultaneous(db):
+    for strategy in ("single", "round_robin", "parallel", "longest_idle", "sticky_agent"):
+        t = _tenant(db, ivr_routing_strategy=strategy)
+        assert ivr.dial_mode(t) == "simultaneous"
+
+
 # ─── resolve_greeting_url ───────────────────────────────────────────────────────
 
 def test_no_greeting_configured_returns_none(db):

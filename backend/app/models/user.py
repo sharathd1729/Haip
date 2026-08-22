@@ -34,6 +34,10 @@ class User(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     # parallel-ring agent pool for inbound calls. Needs `phone` set to be
     # actually eligible -- see ivr_routing_service.get_eligible_agents().
     ivr_call_routing_enabled = Column(Boolean, default=False, nullable=False)
+    # migration 085: when this agent was last dialed for an inbound call --
+    # longest_idle strategy picks whoever's value is oldest (NULL = never
+    # dialed, treated as most idle).
+    ivr_last_dialed_at = Column(DateTime(timezone=True), nullable=True)
     last_seen_at = Column(DateTime(timezone=True), nullable=True)  # W18: presence heartbeat
     mfa_secret = Column(String(64), nullable=True)   # base32 TOTP secret (encrypted at rest recommended)
 

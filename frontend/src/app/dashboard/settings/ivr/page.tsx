@@ -9,6 +9,7 @@ import {
   Phone, Plus, Trash2, Save, Eye, EyeOff, Loader2,
   CheckCircle2, AlertCircle, BarChart3, PhoneCall, Clock,
   RefreshCw, Copy, Info, Upload, Users, Shuffle, GitBranch,
+  ListOrdered, Hourglass, UserCheck,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -487,6 +488,18 @@ const ROUTING_STRATEGIES = [
   {
     id: "parallel", label: "Parallel ring", icon: <Shuffle size={14} />,
     desc: "Ring every opted-in agent's phone at once. Whoever picks up first gets the call, the rest stop ringing.",
+  },
+  {
+    id: "fixed_order", label: "Fixed order", icon: <ListOrdered size={14} />,
+    desc: "Always try agents in the same order (e.g. by who joined the team first). If the first doesn't answer, it moves to the next.",
+  },
+  {
+    id: "longest_idle", label: "Longest idle", icon: <Hourglass size={14} />,
+    desc: "Ring whoever's gone the longest since their last call — spreads calls out instead of favouring whoever answers fastest.",
+  },
+  {
+    id: "sticky_agent", label: "Sticky agent", icon: <UserCheck size={14} />,
+    desc: "A repeat caller rings the same agent they reached last time, when that agent is still available. New callers get round robin.",
   },
 ];
 

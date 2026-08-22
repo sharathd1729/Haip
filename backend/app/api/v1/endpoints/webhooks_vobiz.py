@@ -139,7 +139,9 @@ async def vobiz_answer_webhook(
     from app.services import ivr_routing_service
 
     forward_number = creds.get("forward_number")
-    dial_numbers = ivr_routing_service.resolve_dial_numbers(db, tenant, fallback_number=forward_number)
+    dial_numbers = ivr_routing_service.resolve_dial_numbers(
+        db, tenant, fallback_number=forward_number, caller_number=data.get("From", ""),
+    )
     if not dial_numbers:
         log.error("vobiz_no_dial_numbers_configured", tenant=tenant_slug)
         return Response(
@@ -177,9 +179,27 @@ async def vobiz_answer_webhook(
     # silently failing account-ownership validation (CALL_REJECTED, no SIP
     # code, confirmed via the account's own CDR export).
     caller_id = _to_e164_in(data.get("To", ""))
-    number_tags = "".join(
-        f"<Number>{n if n.startswith('+') else _to_e164_in(n)}</Number>" for n in dial_numbers
-    )
+    e164_numbers = [n if n.startswith("+") else _to_e164_in(n) for n in dial_numbers]
+
+    # fixed_order rings candidates one at a time -- a <Dial> verb that goes
+    # unanswered falls through to the next verb in the Response, so N
+    # sequential single-Number <Dial>s is the standard idiom for "try A,
+    # then B, then C" (as opposed to parallel/every other strategy's single
+    # <Dial> with multiple <Number> children, which rings them all at once).
+    # Per-leg timeout is shorter here so the total across every candidate
+    # stays reasonable for the caller.
+    if ivr_routing_service.dial_mode(tenant) == "sequential" and len(e164_numbers) > 1:
+        dial_xml = "".join(
+            f'<Dial callerId="{caller_id}" timeout="20" timeLimit="1800" redirect="false">'
+            f"<Number>{n}</Number></Dial>"
+            for n in e164_numbers
+        )
+    else:
+        number_tags = "".join(f"<Number>{n}</Number>" for n in e164_numbers)
+        dial_xml = (
+            f'<Dial callerId="{caller_id}" timeout="30" timeLimit="1800" redirect="false">'
+            f"{number_tags}</Dial>"
+        )
 
     # Plays before the Dial rather than as hold audio during it -- Vobiz's
     # XML dialect (Plivo-style) executes verbs sequentially, and a nested
@@ -196,9 +216,7 @@ async def vobiz_answer_webhook(
         f'<Record fileFormat="mp3" recordSession="true" maxLength="3600" '
         f'callbackUrl="{recording_callback_url}" redirect="false" playBeep="false"/>'
         f"{greeting_xml}"
-        f'<Dial callerId="{caller_id}" timeout="30" timeLimit="1800" redirect="false">'
-        f"{number_tags}"
-        "</Dial>"
+        f"{dial_xml}"
         "<Hangup/>"
         "</Response>"
     )
