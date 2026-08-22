@@ -20,6 +20,7 @@ with secrets.compare_digest. Vobiz's own X-Vobiz-Signature HMAC is not used
 for authorization since it signs the URL, not the body.
 """
 import secrets
+from xml.sax.saxutils import escape as xml_escape
 
 from fastapi import APIRouter, Request, HTTPException, Depends, Response, Query
 from sqlalchemy.orm import Session
@@ -135,9 +136,12 @@ async def vobiz_answer_webhook(
         ttl=_CACHE_TTL,
     )
 
+    from app.services import ivr_routing_service
+
     forward_number = creds.get("forward_number")
-    if not forward_number:
-        log.error("vobiz_forward_number_not_configured", tenant=tenant_slug)
+    dial_numbers = ivr_routing_service.resolve_dial_numbers(db, tenant, fallback_number=forward_number)
+    if not dial_numbers:
+        log.error("vobiz_no_dial_numbers_configured", tenant=tenant_slug)
         return Response(
             content=(
                 '<?xml version="1.0" encoding="UTF-8"?>'
@@ -173,15 +177,27 @@ async def vobiz_answer_webhook(
     # silently failing account-ownership validation (CALL_REJECTED, no SIP
     # code, confirmed via the account's own CDR export).
     caller_id = _to_e164_in(data.get("To", ""))
-    dial_number = forward_number if forward_number.startswith("+") else _to_e164_in(forward_number)
+    number_tags = "".join(
+        f"<Number>{n if n.startswith('+') else _to_e164_in(n)}</Number>" for n in dial_numbers
+    )
+
+    # Plays before the Dial rather than as hold audio during it -- Vobiz's
+    # XML dialect (Plivo-style) executes verbs sequentially, and a nested
+    # "audio playing while ringing" isn't a documented <Dial> feature, so
+    # sequential (greeting, then ring) is the reliable interpretation:
+    # caller hears the greeting once, then normal ringback while the
+    # agent(s) ring.
+    greeting_url = ivr_routing_service.resolve_greeting_url(tenant)
+    greeting_xml = f'<Play>{xml_escape(greeting_url)}</Play>' if greeting_url else ""
 
     xml = (
         '<?xml version="1.0" encoding="UTF-8"?>'
         "<Response>"
         f'<Record fileFormat="mp3" recordSession="true" maxLength="3600" '
         f'callbackUrl="{recording_callback_url}" redirect="false" playBeep="false"/>'
+        f"{greeting_xml}"
         f'<Dial callerId="{caller_id}" timeout="30" timeLimit="1800" redirect="false">'
-        f"<Number>{dial_number}</Number>"
+        f"{number_tags}"
         "</Dial>"
         "<Hangup/>"
         "</Response>"

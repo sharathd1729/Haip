@@ -52,6 +52,27 @@ def upload_media(tenant_id: str, message_id: str, content: bytes, content_type: 
     return s3_key
 
 
+def upload_ivr_greeting(tenant_id: str, content: bytes, content_type: str, extension: str = "mp3") -> str:
+    """Upload a client-provided IVR greeting recording, return the storage
+    key. One greeting per tenant -- a fixed key (no message/upload id in the
+    path) so a re-upload simply overwrites the old file rather than
+    accumulating orphaned recordings that need separate cleanup."""
+    s3_key = f"{tenant_id}/ivr/greeting.{extension}"
+    s3 = _s3_client()
+    put_kwargs = dict(
+        Bucket=settings.S3_BUCKET_NAME,
+        Key=s3_key,
+        Body=content,
+        ContentType=content_type,
+    )
+    if settings.KMS_KEY_ID and not settings.AWS_S3_ENDPOINT_URL:
+        put_kwargs["ServerSideEncryption"] = "aws:kms"
+        put_kwargs["SSEKMSKeyId"] = settings.KMS_KEY_ID
+    s3.put_object(**put_kwargs)
+    log.info("ivr_greeting_stored", tenant_id=tenant_id, s3_key=s3_key)
+    return s3_key
+
+
 def get_presigned_media_url(s3_key: str, expires_in: int = 3600) -> str | None:
     """Generate a time-limited download URL for a stored media object.
     Returns None on any failure -- never let a presign error break message

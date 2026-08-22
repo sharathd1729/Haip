@@ -78,6 +78,26 @@ def set_cached(key: str, value: Any, ttl: int = 300) -> None:
         log.debug("Cache SET failed for %s: %s", key, exc)
 
 
+def incr(key: str, ttl: int = 86400) -> Optional[int]:
+    """Atomically increment a counter, returning the new value -- or None if
+    Redis is unreachable. Callers must handle None (fail-open on their own
+    terms, e.g. round-robin rotation degrading to always-first rather than
+    raising). TTL is refreshed on every call so a low-traffic counter never
+    needs a separate reset step."""
+    r = _client()
+    if r is None:
+        return None
+    try:
+        pipe = r.pipeline()
+        pipe.incr(key)
+        pipe.expire(key, ttl)
+        value, _ = pipe.execute()
+        return value
+    except Exception as exc:
+        log.debug("Cache INCR failed for %s: %s", key, exc)
+        return None
+
+
 def idem_check_and_set(key: str, ttl: int = 86400) -> bool:
     """Atomic idempotency check for MCP write tools (HAIP_MCP_Connector_Plan.md
     ticket 3.6). Returns True the first time a key is seen (caller should

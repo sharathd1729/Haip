@@ -30,6 +30,10 @@ class User(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     is_deleted = Column(Boolean, default=False, nullable=False)
     is_available_for_assignment = Column(Boolean, default=True, nullable=False)  # K14
     is_mfa_enabled = Column(Boolean, default=False, nullable=False)
+    # IVR call routing (migration 084): opt-in to being in the round-robin/
+    # parallel-ring agent pool for inbound calls. Needs `phone` set to be
+    # actually eligible -- see ivr_routing_service.get_eligible_agents().
+    ivr_call_routing_enabled = Column(Boolean, default=False, nullable=False)
     last_seen_at = Column(DateTime(timezone=True), nullable=True)  # W18: presence heartbeat
     mfa_secret = Column(String(64), nullable=True)   # base32 TOTP secret (encrypted at rest recommended)
 

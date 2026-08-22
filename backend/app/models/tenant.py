@@ -101,6 +101,16 @@ class Tenant(Base, TimestampMixin):
     ai_max_consecutive_replies = Column(Integer, nullable=False, server_default="3", default=3)
     ai_max_sends_per_tenant_hour = Column(Integer, nullable=False, server_default="60", default=60)
 
+    # IVR call routing (migration 084). "single" preserves the current
+    # behaviour (webhooks_vobiz.py dials Integration.credentials
+    # forward_number) so no tenant's calls change until they opt in.
+    # round_robin/parallel route across users with ivr_call_routing_enabled
+    # instead -- see ivr_routing_service.py.
+    ivr_routing_strategy = Column(String(20), nullable=False, server_default="single")
+    # S3 key, not URL -- URLs are presigned fresh on read (media_storage.py
+    # convention), never stored as a possibly-expired link.
+    ivr_greeting_audio_key = Column(String(500), nullable=True)
+
     users = relationship("User", back_populates="tenant", lazy="dynamic")
     guests = relationship("Guest", back_populates="tenant", lazy="dynamic")
     properties = relationship("Property", back_populates="tenant", lazy="dynamic")

@@ -5,7 +5,7 @@ import {
   Users, UserPlus, Mail, Shield, Crown, Eye,
   Clock, CheckCircle2, XCircle, ChevronDown,
   Copy, Trash2, Loader2, AlertCircle, X,
-  Settings, RefreshCw, MoreHorizontal, MessageSquare,
+  Settings, RefreshCw, MoreHorizontal, MessageSquare, PhoneCall,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
@@ -18,10 +18,12 @@ interface TeamMember {
   id: string;
   name: string;
   email: string;
+  phone: string | null;
   role: string;
   is_active: boolean;
   is_mfa_enabled: boolean;
   property_scope: string[];
+  ivr_call_routing_enabled: boolean;
 }
 
 interface Invitation {
@@ -399,6 +401,15 @@ export default function TeamPage() {
     },
   });
 
+  const toggleIvrRoutingMutation = useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
+      api.patch(`/users/${id}`, { ivr_call_routing_enabled: enabled }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["team-members"] });
+      showToast("Call routing updated.", "success");
+    },
+  });
+
   const revokeInviteMutation = useMutation({
     mutationFn: (token: string) => api.delete(`/users/invitations/${token}`),
     onSuccess: () => {
@@ -477,6 +488,7 @@ export default function TeamPage() {
                           member={member}
                           onRoleChanged={() => queryClient.invalidateQueries({ queryKey: ["team-members"] })}
                           onToggleActive={(active) => toggleActiveMutation.mutate({ id: member.id, active })}
+                          onToggleIvrRouting={(enabled) => toggleIvrRoutingMutation.mutate({ id: member.id, enabled })}
                         />
                       ))}
                     </div>
@@ -492,6 +504,7 @@ export default function TeamPage() {
                           member={member}
                           onRoleChanged={() => queryClient.invalidateQueries({ queryKey: ["team-members"] })}
                           onToggleActive={(active) => toggleActiveMutation.mutate({ id: member.id, active })}
+                          onToggleIvrRouting={(enabled) => toggleIvrRoutingMutation.mutate({ id: member.id, enabled })}
                         />
                       ))}
                     </div>
@@ -556,12 +569,14 @@ export default function TeamPage() {
 
 // ─── Member Row ───────────────────────────────────────────────────────────────
 
-function MemberRow({ member, onRoleChanged, onToggleActive }: {
+function MemberRow({ member, onRoleChanged, onToggleActive, onToggleIvrRouting }: {
   member: TeamMember;
   onRoleChanged: () => void;
   onToggleActive: (active: boolean) => void;
+  onToggleIvrRouting: (enabled: boolean) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const hasPhone = !!member.phone;
 
   return (
     <div className={cn(
@@ -578,6 +593,29 @@ function MemberRow({ member, onRoleChanged, onToggleActive }: {
         </div>
         <span className="text-xs text-gray-400 truncate">{member.email}</span>
       </div>
+
+      <button
+        onClick={() => hasPhone && onToggleIvrRouting(!member.ivr_call_routing_enabled)}
+        disabled={!hasPhone}
+        title={
+          !hasPhone
+            ? "Add a phone number in this member's profile to enable call routing"
+            : member.ivr_call_routing_enabled
+              ? "Rings on inbound calls (round robin / parallel) — click to remove"
+              : "Not in the call-routing pool — click to add"
+        }
+        className={cn(
+          "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors flex-shrink-0",
+          !hasPhone
+            ? "text-gray-300 border-gray-100 cursor-not-allowed"
+            : member.ivr_call_routing_enabled
+              ? "text-teal-700 bg-teal-50 border-teal-200 hover:bg-teal-100"
+              : "text-gray-400 bg-white border-gray-200 hover:border-gray-300"
+        )}
+      >
+        <PhoneCall size={12} />
+        IVR calls
+      </button>
 
       <RoleDropdown currentRole={member.role} userId={member.id} onChanged={onRoleChanged} />
 

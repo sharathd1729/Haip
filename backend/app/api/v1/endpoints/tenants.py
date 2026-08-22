@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from pydantic import BaseModel, field_validator
@@ -8,7 +8,9 @@ from app.models.user import User, UserRole
 from app.models.tenant import Tenant
 from app.schemas.tenant import TenantOut, TenantUpdate
 from app.schemas.user import UserOut
+import structlog
 
+log = structlog.get_logger()
 router = APIRouter(tags=["tenants"])
 
 
@@ -461,3 +463,94 @@ def update_pipeline_config(
     tenant.pipeline_config = {"stages": stages}
     db.commit()
     return {"stages": stages}
+
+
+# ─── IVR call routing (migration 084) ─────────────────────────────────────────
+# webhooks_vobiz.py dials whatever these settings resolve to via
+# ivr_routing_service -- "single" (default) keeps today's behaviour of one
+# fixed forward_number until a tenant opts users into the routing pool.
+
+_ALLOWED_GREETING_TYPES = {"audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/mp4", "audio/m4a"}
+_ALLOWED_GREETING_EXTS = {".mp3", ".wav", ".m4a"}
+_MAX_GREETING_MB = 10
+
+
+class IVRRoutingSettings(BaseModel):
+    ivr_routing_strategy: Optional[str] = None
+    has_greeting_audio: bool = False
+
+    @field_validator("ivr_routing_strategy")
+    @classmethod
+    def _valid_strategy(cls, v):
+        from app.services.ivr_routing_service import VALID_STRATEGIES
+        if v is not None and v not in VALID_STRATEGIES:
+            raise ValueError(f"strategy must be one of: {', '.join(VALID_STRATEGIES)}")
+        return v
+
+
+@router.get("/tenants/me/ivr-routing", response_model=IVRRoutingSettings)
+def get_ivr_routing(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    return IVRRoutingSettings(
+        ivr_routing_strategy=tenant.ivr_routing_strategy,
+        has_greeting_audio=bool(tenant.ivr_greeting_audio_key),
+    )
+
+
+@router.patch("/tenants/me/ivr-routing", response_model=IVRRoutingSettings)
+def update_ivr_routing(
+    body: IVRRoutingSettings,
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    if body.ivr_routing_strategy is not None:
+        tenant.ivr_routing_strategy = body.ivr_routing_strategy
+        db.commit()
+    return IVRRoutingSettings(
+        ivr_routing_strategy=tenant.ivr_routing_strategy,
+        has_greeting_audio=bool(tenant.ivr_greeting_audio_key),
+    )
+
+
+@router.post("/tenants/me/ivr-greeting-audio", response_model=IVRRoutingSettings)
+async def upload_ivr_greeting_audio(
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """Client-uploaded greeting played before the agent leg dials (see
+    webhooks_vobiz.py). One per tenant -- a re-upload overwrites the old
+    file, same key, so nothing needs separate cleanup."""
+    from pathlib import Path
+    from app.services import media_storage
+
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    content_type = (file.content_type or "").lower()
+    ext = Path(file.filename or "greeting.mp3").suffix.lower() or ".mp3"
+    if content_type not in _ALLOWED_GREETING_TYPES and ext not in _ALLOWED_GREETING_EXTS:
+        raise HTTPException(status_code=400, detail=f"Unsupported audio format '{ext}'. Use MP3, WAV, or M4A.")
+
+    audio_bytes = await file.read()
+    size_mb = len(audio_bytes) / (1024 * 1024)
+    if size_mb > _MAX_GREETING_MB:
+        raise HTTPException(status_code=400, detail=f"File too large ({size_mb:.1f} MB). Max {_MAX_GREETING_MB} MB.")
+
+    key = media_storage.upload_ivr_greeting(
+        tenant.id, audio_bytes, content_type or "audio/mpeg", ext.lstrip("."),
+    )
+    tenant.ivr_greeting_audio_key = key
+    db.commit()
+
+    log.info("ivr_greeting_uploaded", tenant_id=tenant.id, actor_user_id=current_user.id)
+    return IVRRoutingSettings(ivr_routing_strategy=tenant.ivr_routing_strategy, has_greeting_audio=True)

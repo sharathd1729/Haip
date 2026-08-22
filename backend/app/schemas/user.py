@@ -8,6 +8,7 @@ class UserOut(BaseModel):
     tenant_id: str
     name: str
     email: str
+    phone: Optional[str] = None
     role: str
     is_active: bool
     is_mfa_enabled: bool
@@ -15,6 +16,9 @@ class UserOut(BaseModel):
     # A7: digest opt-in + notification prefs (returned for self-view)
     digest_opt_in: Optional[bool] = False
     notification_prefs: Optional[dict] = {}
+    # IVR call routing (migration 084): eligible for round-robin/parallel
+    # ring only when this is set AND phone is non-empty.
+    ivr_call_routing_enabled: Optional[bool] = False
 
     class Config:
         from_attributes = True
@@ -32,6 +36,7 @@ class UserUpdateRequest(BaseModel):
     role: Optional[str] = None
     is_active: Optional[bool] = None
     property_scope: Optional[List[str]] = None
+    ivr_call_routing_enabled: Optional[bool] = None
 
 
 # A7: self-update (any authenticated user — cannot change role/is_active)
