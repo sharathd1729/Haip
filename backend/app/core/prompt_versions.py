@@ -60,7 +60,13 @@ PROMPT_VERSIONS: dict[str, str] = {
     # amenities, policies) never got answered. Now explicitly secondary:
     # answer from KB/live availability first, weave in a missing-detail ask
     # only if it fits, never as a substitute for answering.
-    "concierge_reply": "concierge-reply-v7",    # concierge_reply.jinja
+    # v8 (2026-08-22): v7's "weave in if it fits" still wasn't enough --
+    # a guest asking about an internship got asked for "preferred travel
+    # dates" in the same breath. The qualification block now explicitly
+    # recognises off-topic messages (jobs/careers, press, spam -- nothing to
+    # do with booking a stay) and skips the travel ask entirely, handing
+    # off to a human instead of forcing every reply into the booking funnel.
+    "concierge_reply": "concierge-reply-v8",    # concierge_reply.jinja
     "lost_reason":     "lost-reason-v1",        # lost_reason.jinja
 
     # Inline prompts built in Python
