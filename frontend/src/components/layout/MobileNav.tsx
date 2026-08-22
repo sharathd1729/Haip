@@ -11,7 +11,7 @@ import {
   MessageSquare, Megaphone, UserCheck, GitBranch,
   Sparkles, FileDown, Star, Shield, Zap,
   Settings, Plug2, CreditCard, UserCircle, HelpCircle,
-  Palette, FileText, LogOut,
+  Palette, FileText, LogOut, ListChecks,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canSeeNav, type Resource } from "@/lib/permissions";
@@ -43,6 +43,7 @@ const ALL_SECTIONS = [
     // the real role-aware dashboard page instead of a redirect.
     label: "Workspace",
     items: [
+      { label: "Today",         href: "/dashboard/worklist",    icon: ListChecks,     resource: "inbox"     as Resource },
       { label: "Inbox",         href: "/dashboard/inbox",       icon: Inbox,          resource: "inbox"     as Resource, live: "inbox" as const },
       { label: "Calls",         href: "/dashboard/calls",       icon: Phone,          resource: "calls"     as Resource },
     ],
