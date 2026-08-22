@@ -52,7 +52,15 @@ PROMPT_VERSIONS: dict[str, str] = {
     # out of grounded_facts before rendering so the model never sees a number
     # it could repeat. Replies also tightened to <45 words and explicitly
     # de-assistant-ified (no "Thank you for reaching out", no lists).
-    "concierge_reply": "concierge-reply-v6",    # concierge_reply.jinja
+    # v7 (2026-08-22): the "WHAT WE STILL NEED FROM THIS LEAD" block had no
+    # guard tying it to the guest's actual question, unlike the pricing rule
+    # above it ("When the guest asks about cost..."). Every reply -- "Hi",
+    # "Routes?", a real price question -- got the identical qualification
+    # script, so factual questions the knowledge base could answer (routes,
+    # amenities, policies) never got answered. Now explicitly secondary:
+    # answer from KB/live availability first, weave in a missing-detail ask
+    # only if it fits, never as a substitute for answering.
+    "concierge_reply": "concierge-reply-v7",    # concierge_reply.jinja
     "lost_reason":     "lost-reason-v1",        # lost_reason.jinja
 
     # Inline prompts built in Python
