@@ -10,7 +10,7 @@ import {
   MessageSquare, Phone, AtSign, CheckCircle2, AlertCircle,
   Loader2, Plug, Unplug, RefreshCw, ExternalLink, Key,
   X, Check, Clock, Wifi, WifiOff, Zap, Shield, Copy,
-  Info, ChevronDown, ChevronUp,
+  Info, ChevronDown, ChevronUp, Pencil,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -858,6 +858,15 @@ function IntegrationCard({
       <div className="flex flex-col gap-2 pt-1">
         {isConnected ? (
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => onConnect(item.provider)}
+              disabled={isConnecting}
+              title="Update credentials without disconnecting — e.g. a rotated token or the wrong number pasted the first time"
+              className="flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-200 rounded-xl text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              {isConnecting ? <Loader2 size={12} className="animate-spin" /> : <Pencil size={12} />}
+              Edit
+            </button>
             <button
               onClick={() => onVerify(item.provider)}
               disabled={isVerifying}
