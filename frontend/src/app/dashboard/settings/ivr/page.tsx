@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import {
   Phone, Loader2, CheckCircle2, AlertCircle,
   RefreshCw, Upload, Shuffle, GitBranch,
-  ListOrdered, Hourglass, UserCheck,
+  ListOrdered, Hourglass, UserCheck, Users,
 } from "lucide-react";
 
 // This page used to also carry a "Vobiz SIP Credentials" / DTMF-menu /
@@ -25,9 +25,16 @@ import {
 // Reads/writes /tenants/me/ivr-routing + /tenants/me/ivr-greeting-audio --
 // what webhooks_vobiz.py's answer webhook actually consults.
 
+interface EligibleAgent {
+  id: string;
+  name: string;
+  phone: string | null;
+}
+
 interface IVRRoutingSettings {
   ivr_routing_strategy: string;
   has_greeting_audio: boolean;
+  eligible_agents: EligibleAgent[];
 }
 
 const ROUTING_STRATEGIES = [
@@ -132,6 +139,42 @@ function CallRoutingSection() {
         </Link>.
       </p>
 
+      {/* Confirmed live gap: a strategy could be selected (e.g. round robin)
+          with zero agents actually opted into the pool, silently falling
+          back to the single Vobiz number with no visible sign anything was
+          wrong. This makes the current pool impossible to miss. */}
+      {data && data.ivr_routing_strategy !== "single" && (
+        data.eligible_agents.length === 0 ? (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2.5">
+            <AlertCircle size={14} className="text-amber-500 mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-amber-800 leading-relaxed">
+              No one's in the routing pool yet, so calls still ring your
+              single Vobiz number — this strategy isn't doing anything until
+              someone is. Go to{" "}
+              <Link href="/dashboard/settings/team" className="underline font-medium hover:text-amber-900">
+                Settings → Team
+              </Link>
+              {" "}and turn on "IVR calls" for each agent (they need a phone
+              number on their profile first).
+            </p>
+          </div>
+        ) : (
+          <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 flex items-start gap-2.5">
+            <Users size={14} className="text-teal-600 mt-0.5 flex-shrink-0" />
+            <div className="text-xs text-teal-800">
+              <span className="font-medium">
+                {data.eligible_agents.length} agent{data.eligible_agents.length === 1 ? "" : "s"} in the routing pool:
+              </span>{" "}
+              {data.eligible_agents.map(a => a.name).join(", ")}
+              {" · "}
+              <Link href="/dashboard/settings/team" className="underline hover:text-teal-900">
+                manage in Team
+              </Link>
+            </div>
+          </div>
+        )
+      )}
+
       <div className="space-y-2">
         {ROUTING_STRATEGIES.map(s => (
           <label
@@ -167,7 +210,8 @@ function CallRoutingSection() {
               {data?.has_greeting_audio ? "Replace recording" : "Upload recording"}
             </button>
             <input
-              ref={fileInputRef} type="file" accept="audio/mpeg,audio/mp3,audio/wav,audio/m4a,.mp3,.wav,.m4a"
+              ref={fileInputRef} type="file"
+              accept="audio/mpeg,audio/mp3,audio/wav,audio/m4a,audio/mp4,video/mp4,.mp3,.wav,.m4a,.mp4"
               className="hidden"
               onChange={e => { const f = e.target.files?.[0]; if (f) uploadGreeting.mutate(f); e.target.value = ""; }}
             />
@@ -179,8 +223,8 @@ function CallRoutingSection() {
           </div>
           <p className="text-xs text-gray-400 mt-1">
             Plays once the call is answered, before the agent's phone starts
-            ringing. MP3, WAV or M4A, up to 10 MB. No recording uploaded means
-            the call rings straight through, same as today.
+            ringing. MP3, WAV, M4A or MP4, up to 10 MB. No recording uploaded
+            means the call rings straight through, same as today.
           </p>
           {uploadError && (
             <p className="text-xs text-red-600 mt-1 flex items-center gap-1">

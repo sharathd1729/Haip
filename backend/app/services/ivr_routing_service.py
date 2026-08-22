@@ -71,6 +71,15 @@ def get_eligible_agent_numbers(db: Session, tenant_id: str) -> list[str]:
     return [u.phone for u in _get_eligible_agents(db, tenant_id) if u.phone]
 
 
+def get_eligible_agents_summary(db: Session, tenant_id: str) -> list[dict]:
+    """Display-only view of the current routing pool -- who resolve_dial_numbers
+    will actually pick from, right now, for the Settings > IVR page. Confirmed
+    live need: "round robin" was selected with nobody toggled into the pool
+    yet in Settings > Team, silently falling back to the single Vobiz number
+    with no visible signal that the strategy wasn't actually doing anything."""
+    return [{"id": u.id, "name": u.name, "phone": u.phone} for u in _get_eligible_agents(db, tenant_id)]
+
+
 def _mark_dialed(db: Session, agents: list[User]) -> None:
     if not agents:
         return

@@ -470,14 +470,22 @@ def update_pipeline_config(
 # ivr_routing_service -- "single" (default) keeps today's behaviour of one
 # fixed forward_number until a tenant opts users into the routing pool.
 
-_ALLOWED_GREETING_TYPES = {"audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/mp4", "audio/m4a"}
-_ALLOWED_GREETING_EXTS = {".mp3", ".wav", ".m4a"}
+_ALLOWED_GREETING_TYPES = {
+    "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/mp4", "audio/m4a",
+    # Browsers report a .mp4 file's type from its extension, not its actual
+    # contents -- almost always "video/mp4" even for an audio-only recording
+    # (the same container MPEG-4 audio and M4A both use). Confirmed live:
+    # a voice-recorder-app export named .mp4 was rejected outright.
+    "video/mp4",
+}
+_ALLOWED_GREETING_EXTS = {".mp3", ".wav", ".m4a", ".mp4"}
 _MAX_GREETING_MB = 10
 
 
 class IVRRoutingSettings(BaseModel):
     ivr_routing_strategy: Optional[str] = None
     has_greeting_audio: bool = False
+    eligible_agents: List[dict] = []
 
     @field_validator("ivr_routing_strategy")
     @classmethod
@@ -496,9 +504,11 @@ def get_ivr_routing(
     tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
+    from app.services.ivr_routing_service import get_eligible_agents_summary
     return IVRRoutingSettings(
         ivr_routing_strategy=tenant.ivr_routing_strategy,
         has_greeting_audio=bool(tenant.ivr_greeting_audio_key),
+        eligible_agents=get_eligible_agents_summary(db, tenant.id),
     )
 
 
@@ -514,9 +524,11 @@ def update_ivr_routing(
     if body.ivr_routing_strategy is not None:
         tenant.ivr_routing_strategy = body.ivr_routing_strategy
         db.commit()
+    from app.services.ivr_routing_service import get_eligible_agents_summary
     return IVRRoutingSettings(
         ivr_routing_strategy=tenant.ivr_routing_strategy,
         has_greeting_audio=bool(tenant.ivr_greeting_audio_key),
+        eligible_agents=get_eligible_agents_summary(db, tenant.id),
     )
 
 
@@ -553,4 +565,9 @@ async def upload_ivr_greeting_audio(
     db.commit()
 
     log.info("ivr_greeting_uploaded", tenant_id=tenant.id, actor_user_id=current_user.id)
-    return IVRRoutingSettings(ivr_routing_strategy=tenant.ivr_routing_strategy, has_greeting_audio=True)
+    from app.services.ivr_routing_service import get_eligible_agents_summary
+    return IVRRoutingSettings(
+        ivr_routing_strategy=tenant.ivr_routing_strategy,
+        has_greeting_audio=True,
+        eligible_agents=get_eligible_agents_summary(db, tenant.id),
+    )
