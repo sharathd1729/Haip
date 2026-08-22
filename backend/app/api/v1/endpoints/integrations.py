@@ -82,7 +82,7 @@ CATALOG = [
     {
         "provider": "haip_ivr",
         "name": "HAIP IVR",
-        "description": "Built-in IVR — connect your Vobiz SIP number, configure a DTMF menu, and route calls to your team via Dograh AI.",
+        "description": "Route inbound calls across your team — round robin, parallel ring, or fixed order — with a greeting before the call connects.",
         "category": "telephony",
         "auth_type": "ivr_settings",
         "logo": "phone",
