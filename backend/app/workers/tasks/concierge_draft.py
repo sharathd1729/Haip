@@ -110,6 +110,20 @@ GROUNDED_INTENTS = {"availability_check", "price_quote"}
 MAX_GROUNDING_SECONDS = 8
 MAX_TOOL_CALLS = 4
 
+# Confirmed live: a single concierge_draft run took 56.7s end to end, almost
+# entirely one adapters/llm/nvidia_nim.py chat/completions call (~55s for
+# nvidia/llama-3.3-nemotron-super-49b-v1.5) -- that call had NO timeout at
+# all (the openai SDK client is constructed with no `timeout=`, so it
+# inherits the SDK's own 10-minute default). Grounding already has its own
+# bounded MAX_GROUNDING_SECONDS; the final reply completion -- the part the
+# guest is actually waiting on -- had nothing. 25s matches the WhatsApp
+# typing-indicator's own auto-clear window (Meta docs), so a guest who saw
+# "typing..." never sees it vanish before *something* happens. On timeout,
+# same graceful-degradation shape as a grounding timeout: a safe, reviewable
+# draft gets written (needs_human, zero confidence) instead of leaving the
+# guest with nothing.
+MAX_REPLY_SECONDS = 25
+
 _MONEY_RE = re.compile(r"₹\s?[\d,]+(?:\.\d+)?")
 _AVAILABILITY_WORDS_RE = re.compile(
     r"\b(available|unavailable|booked out|fully booked|not available|is free|are free)\b",
@@ -528,13 +542,28 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         # Claude model string, which would silently break once this task
         # moved to the NVIDIA adapter.
         adapter = get_llm("concierge_draft")
-        result = _run_async(
-            adapter.complete(
-                system_prompt=system_prompt,
-                user_message="Draft a reply for this guest.",
-                tools=[CONCIERGE_TOOL],
+        completion_start = time.monotonic()
+        try:
+            result = _run_async(
+                asyncio.wait_for(
+                    adapter.complete(
+                        system_prompt=system_prompt,
+                        user_message="Draft a reply for this guest.",
+                        tools=[CONCIERGE_TOOL],
+                    ),
+                    timeout=MAX_REPLY_SECONDS,
+                )
             )
-        )
+        except asyncio.TimeoutError:
+            log.warning(
+                "concierge_completion_timed_out", conversation_id=conversation_id,
+                message_id=message_id, elapsed_sec=round(time.monotonic() - completion_start, 2),
+            )
+            result = {"tool_use": {
+                "reply": "Thanks for your message! Let me check and get right back to you.",
+                "confidence": 0.0, "citations": [], "needs_human": True,
+                "reason_needs_human": "AI reply generation timed out",
+            }}
         draft = result.get("tool_use") or {}
         confidence = draft.get("confidence", 0.0)
         reply_text = draft.get("reply", "")
@@ -784,10 +813,21 @@ def _send_whatsapp_typing_indicator(db, tenant_id: str, message_id: str) -> None
     """Resolve the tenant's WhatsApp credentials and show the typing bubble
     for `message_id` (the guest's own latest inbound message -- Meta's API
     requires the read-receipt/typing call to reference the message being
-    responded to). Same credential-resolution shape as send_whatsapp.py."""
+    responded to). Same credential-resolution shape as send_whatsapp.py.
+
+    Confirmed live: this was passing HAIP's own internal Message.id (a UUID
+    we generated) straight through as Meta's message_id -- Meta rejected
+    every call with 400 Bad Request since that's not a real WhatsApp
+    message id. The real WAMID lives on Message.channel_message_id (set on
+    every inbound message, see whatsapp.py's webhook handler), not on the
+    row's own primary key."""
     from app.models.integration import Integration
     from app.workers.tasks.whatsapp import _get_wa_access_token
     from app.adapters.whatsapp.meta_cloud import get_wa_adapter
+
+    message = db.query(Message).filter_by(id=message_id, tenant_id=tenant_id).first()
+    if not message or not message.channel_message_id:
+        return
 
     integration = db.query(Integration).filter_by(tenant_id=tenant_id, kind="whatsapp_meta").first()
     if not integration:
@@ -801,7 +841,7 @@ def _send_whatsapp_typing_indicator(db, tenant_id: str, message_id: str) -> None
         return
 
     adapter = get_wa_adapter(phone_number_id, access_token)
-    _run_async(adapter.send_typing_indicator(message_id))
+    _run_async(adapter.send_typing_indicator(message.channel_message_id))
 
 
 def _emit_sse(tenant_id: str, event: str, conversation_id: str):

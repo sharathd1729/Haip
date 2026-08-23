@@ -294,3 +294,42 @@ class TestConciergeDraftEndToEnd:
         )
         assert draft is not None  # a draft still got created despite the timeout
         assert not draft.grounded_facts
+
+    def test_completion_timeout_falls_back_gracefully(self, db, monkeypatch):
+        """Confirmed live: a single concierge_draft run took 56.7s, almost
+        entirely one adapters/llm/nvidia_nim.py chat/completions call with no
+        timeout at all. A slow/hung final completion must still produce a
+        safe, reviewable draft (needs_human, zero confidence) instead of
+        leaving the guest with nothing and the task hanging indefinitely."""
+        tenant, guest, conv, inbound = _setup_conversation(db)
+
+        class _FakeIntentLLM:
+            async def complete(self, **kwargs):
+                return {"tool_use": {"intent": "general"}}
+
+        class _SlowConciergeLLM:
+            async def complete(self, **kwargs):
+                import asyncio
+                await asyncio.sleep(0.2)
+                return {"tool_use": {"reply": "This should never be used.", "confidence": 0.95, "citations": [], "needs_human": False}}
+
+        def _fake_get_llm(task):
+            return _FakeIntentLLM() if task == "quick_classify" else _SlowConciergeLLM()
+
+        monkeypatch.setattr("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm)
+        monkeypatch.setattr("app.workers.tasks.concierge_draft.MAX_REPLY_SECONDS", 0.01)
+
+        with patch("app.workers.tasks.concierge_draft.SessionLocal", return_value=db), \
+             patch("app.services.push_service.send_to_tenant"):
+            concierge_draft.run(message_id=inbound.id, conversation_id=conv.id, tenant_id=tenant.id)
+
+        draft = (
+            db.query(Message)
+            .filter_by(conversation_id=conv.id, direction="outbound", is_ai_generated=True)
+            .order_by(Message.created_at.desc())
+            .first()
+        )
+        assert draft is not None
+        assert draft.body != "This should never be used."
+        assert float(draft.ai_confidence) == 0.0
+        assert draft.was_approved is None  # never auto-sent
