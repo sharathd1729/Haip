@@ -121,6 +121,22 @@ class MetaCloudAdapter:
         payload = {"messaging_product": "whatsapp", "status": "read", "message_id": message_id}
         return await self._post(url, payload)
 
+    async def send_typing_indicator(self, message_id: str) -> dict:
+        """Show the "typing…" bubble on the guest's side while the concierge
+        draft is being generated. Meta only accepts this bundled with the
+        read receipt for the message being responded to -- there's no
+        standalone typing call. Auto-clears after ~25s or on our next real
+        send, whichever comes first, so a slow draft just quietly loses the
+        bubble rather than leaving it stuck."""
+        url = f"{WA_BASE}/{self.phone_number_id}/messages"
+        payload = {
+            "messaging_product": "whatsapp",
+            "status": "read",
+            "message_id": message_id,
+            "typing_indicator": {"type": "text"},
+        }
+        return await self._post(url, payload)
+
     async def _post(self, url: str, payload: dict) -> dict:
         headers = {"Authorization": f"Bearer {self.access_token}", "Content-Type": "application/json"}
         async with httpx.AsyncClient(timeout=30) as client:

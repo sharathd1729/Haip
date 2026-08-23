@@ -382,6 +382,17 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             )
             return
 
+        # Let the guest see "typing…" while the draft is being generated --
+        # grounding + LLM completion can take several seconds, and a silent
+        # gap after their message reads as ignored. Best-effort only: never
+        # let a Meta API hiccup here cost the guest their actual reply.
+        channel_val = str(conversation.channel.value if hasattr(conversation.channel, "value") else conversation.channel)
+        if channel_val == "whatsapp":
+            try:
+                _send_whatsapp_typing_indicator(db, tenant_id, message_id)
+            except Exception as exc:
+                log.warning("concierge_typing_indicator_failed", conversation_id=conversation_id, error=str(exc))
+
         # ── Ticket 4: bounded grounding, budget-limited to 8s total ────────
         # Uses the guest's whole unanswered burst (see DEBOUNCE_SECONDS /
         # unanswered_guest_text in concierge_service.py), not just this
@@ -706,6 +717,30 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         raise self.retry(exc=exc)
     finally:
         db.close()
+
+
+def _send_whatsapp_typing_indicator(db, tenant_id: str, message_id: str) -> None:
+    """Resolve the tenant's WhatsApp credentials and show the typing bubble
+    for `message_id` (the guest's own latest inbound message -- Meta's API
+    requires the read-receipt/typing call to reference the message being
+    responded to). Same credential-resolution shape as send_whatsapp.py."""
+    from app.models.integration import Integration
+    from app.workers.tasks.whatsapp import _get_wa_access_token
+    from app.adapters.whatsapp.meta_cloud import get_wa_adapter
+
+    integration = db.query(Integration).filter_by(tenant_id=tenant_id, kind="whatsapp_meta").first()
+    if not integration:
+        integration = db.query(Integration).filter_by(tenant_id=tenant_id, kind="whatsapp").first()
+    if not integration:
+        return
+
+    phone_number_id = (integration.config or {}).get("phone_number_id")
+    access_token = _get_wa_access_token(db, tenant_id)
+    if not phone_number_id or not access_token:
+        return
+
+    adapter = get_wa_adapter(phone_number_id, access_token)
+    _run_async(adapter.send_typing_indicator(message_id))
 
 
 def _emit_sse(tenant_id: str, event: str, conversation_id: str):
