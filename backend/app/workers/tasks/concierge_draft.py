@@ -33,7 +33,7 @@ def _run_async(coro):
         return loop.run_until_complete(coro)
     finally:
         loop.close()
-from app.services.concierge_service import build_concierge_context
+from app.services.concierge_service import build_concierge_context, is_latest_pending_draft, unanswered_guest_text
 from app.core.database import set_tenant_context
 import structlog
 
@@ -354,8 +354,17 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             log.error("concierge_draft_conversation_not_found", conversation_id=conversation_id)
             return
 
+        # Message-burst debounce: a newer inbound message arrived and
+        # queued its own (fresher-delayed) concierge_draft run after this
+        # one was scheduled -- that run is the one that should actually
+        # draft, covering this message too via unanswered_guest_text()
+        # below. No-op here rather than writing a second, disjointed draft.
+        if not is_latest_pending_draft(tenant_id, conversation_id, message_id):
+            log.info("concierge_draft_superseded", conversation_id=conversation_id, message_id=message_id)
+            return
+
         guest_id = conversation.guest_id
-        ctx = build_concierge_context(db, tenant_id=tenant_id, conversation_id=conversation_id, guest_id=guest_id, message_id=message_id)
+        ctx = build_concierge_context(db, tenant_id=tenant_id, conversation_id=conversation_id, guest_id=guest_id)
 
         guest = ctx["guest"]
         tenant = ctx["tenant"]
@@ -374,19 +383,23 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             return
 
         # ── Ticket 4: bounded grounding, budget-limited to 8s total ────────
-        triggering_message = db.query(Message).filter_by(id=message_id, tenant_id=tenant_id).first()
+        # Uses the guest's whole unanswered burst (see DEBOUNCE_SECONDS /
+        # unanswered_guest_text in concierge_service.py), not just this
+        # task's single triggering message -- a burst like "Hi" + "I want
+        # to book this weekend" should ground/escalate on both lines.
+        burst_text = unanswered_guest_text(db, tenant_id, conversation_id)
         grounded_facts: list = []
         suggested_actions: list = []
         # Initialised up front: _intent is otherwise only bound inside the
         # try below, so a grounding timeout/failure -- or a message with no
         # body -- left it undefined for every later reader.
         _intent: str = "general"
-        if triggering_message and triggering_message.body:
+        if burst_text:
             start = time.monotonic()
             try:
                 _intent, grounded_facts, suggested_actions = _run_async(
                     asyncio.wait_for(
-                        _ground_reply(db, tenant_id, triggering_message.body, inquiry),
+                        _ground_reply(db, tenant_id, burst_text, inquiry),
                         timeout=MAX_GROUNDING_SECONDS,
                     )
                 )
@@ -472,7 +485,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         # not depend on the model having judged the tone correctly.
         from app.services import escalation_policy
         escalation = escalation_policy.should_escalate(
-            (triggering_message.body if triggering_message else "") or "",
+            burst_text,
             _intent,
             tenant,
         )

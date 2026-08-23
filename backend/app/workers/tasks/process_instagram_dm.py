@@ -320,13 +320,17 @@ def process_instagram_dm(self, payload: dict) -> dict:
             message.automation_outcome = "no_match_ai_drafted"
             try:
                 from app.workers.tasks.concierge_draft import concierge_draft
+                from app.services.concierge_service import mark_pending_draft, DEBOUNCE_SECONDS
+                # Message-burst debounce -- see whatsapp.py's identical
+                # wiring and concierge_service.py for the reasoning.
+                mark_pending_draft(tenant_id, conversation.id, message.id)
                 concierge_draft.apply_async(
                     kwargs={
                         "message_id": message.id,
                         "conversation_id": conversation.id,
                         "tenant_id": tenant_id,
                     },
-                    countdown=2,
+                    countdown=DEBOUNCE_SECONDS,
                 )
             except Exception as exc:
                 logger.error("Failed to queue Instagram concierge draft: %s", exc)

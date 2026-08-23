@@ -395,13 +395,20 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
     if body and body.strip():
         try:
             from app.workers.tasks.concierge_draft import concierge_draft
+            from app.services.concierge_service import mark_pending_draft, DEBOUNCE_SECONDS
+            # Message-burst debounce: mark this message as the latest for
+            # the conversation before queueing, with a delay long enough
+            # to catch a guest's rapid-fire follow-up, so a burst produces
+            # one combined draft instead of one disjointed reply per
+            # message (see concierge_service.py).
+            mark_pending_draft(tenant.id, conversation.id, message.id)
             concierge_draft.apply_async(
                 kwargs={
                     "message_id": message.id,
                     "conversation_id": conversation.id,
                     "tenant_id": tenant.id,
                 },
-                countdown=2,  # 2s delay so the DB commit completes first
+                countdown=DEBOUNCE_SECONDS,
             )
             log.info(
                 "concierge_draft_queued",
