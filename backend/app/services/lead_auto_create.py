@@ -55,6 +55,34 @@ def text_contains_phone(text: str) -> bool:
     return bool(_PHONE_RE.search(text))
 
 
+def extract_phone(text: str) -> Optional[str]:
+    """Extract + normalize a real phone number from message text, or None.
+
+    Deliberately stricter than text_contains_phone() -- that's a loose
+    boolean used only for pipeline-stage routing (a false positive there
+    just picks a slightly different landing stage). This result gets
+    written as an identity signal, where a false positive is worse: a
+    guest typing a date like "24-08-2026" matches the same loose
+    digit-dash pattern, and phone is a high-confidence signal that can
+    trigger a guest merge -- writing a garbage "phone" could wrongly
+    merge this guest with an unrelated one. phonenumbers.is_valid_number()
+    rejects that (an 8-digit run isn't a valid Indian number) in a way
+    the regex alone can't."""
+    if not text:
+        return None
+    match = _PHONE_RE.search(text)
+    if not match:
+        return None
+    import phonenumbers
+    try:
+        parsed = phonenumbers.parse(match.group(1), "IN")
+        if not phonenumbers.is_valid_number(parsed):
+            return None
+        return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
+    except phonenumbers.NumberParseException:
+        return None
+
+
 def resolve_entry_stage_id(
     db: Session, tenant_id: str, *, is_collab: bool, has_phone: bool,
 ) -> Optional[str]:

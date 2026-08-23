@@ -188,6 +188,30 @@ def process_instagram_dm(self, payload: dict) -> dict:
             message.id, guest_id, conversation.id,
         )
 
+        # Capture a phone number the guest types in chat -- Instagram has no
+        # inherent phone identity like WhatsApp does (whatsapp.py already
+        # captures the channel number itself), so this is the only source
+        # for it. Runs on every inbound message, not just the first --
+        # confirmed live: a guest can share their number several messages
+        # into a conversation, not necessarily the opener. Without this,
+        # the number sits in the chat transcript but Guest Overview/profile
+        # completeness never reflects it, and the lead can stay stuck in an
+        # "unqualified"-category stage even after the guest volunteered
+        # exactly the info that stage was waiting on.
+        if body and not body.startswith("["):
+            try:
+                from app.services.lead_auto_create import extract_phone
+                phone = extract_phone(body)
+                if phone:
+                    from app.services import identity_service
+                    identity_service.add_signal(
+                        db, tenant_id, guest_id, "phone", phone, source="message_text",
+                    )
+                    db.commit()
+            except Exception as exc:
+                db.rollback()
+                logger.warning("ig_phone_signal_capture_failed: %s", exc)
+
         # Ad attribution -- captured once, on the thread's first inbound DM
         # (Dashboard Metrics Plan Phase 1). `referral` is only ever present
         # on that first message; a repeat message on an existing
