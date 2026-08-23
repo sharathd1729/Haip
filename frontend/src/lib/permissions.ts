@@ -69,10 +69,10 @@ export const navByRole: Record<UserRole, Resource[]> = {
     "campaigns", "subscribers", "flows", "reports", "profile", "help", "branding",
   ],
   concierge: [
-    "dashboard", "calls", "inbox", "guests", "profile", "help",
+    "dashboard", "calls", "inbox", "guests", "properties", "profile", "help",
   ],
   reservations: [
-    "dashboard", "calls", "inquiries", "guests", "inbox", "profile", "help",
+    "dashboard", "calls", "inquiries", "guests", "properties", "inbox", "profile", "help",
   ],
   compliance: [
     "compliance", "analytics", "profile", "help",
@@ -82,7 +82,7 @@ export const navByRole: Record<UserRole, Resource[]> = {
     "subscribers", "flows", "analytics", "profile", "help",
   ],
   foh: [
-    "dashboard", "inbox", "calls", "guests", "inquiries", "profile", "help",
+    "dashboard", "inbox", "calls", "guests", "properties", "inquiries", "profile", "help",
   ],
 };
 
@@ -145,7 +145,7 @@ const permissions: Record<UserRole, Record<Resource, Action[]>> = {
     inbox:        ["read", "write"],
     inquiries:    [],
     guests:       ["read"],
-    properties:   [],
+    properties:   ["read"],
     analytics:    [],
     qa:           [],
     compliance:   [],
@@ -165,7 +165,7 @@ const permissions: Record<UserRole, Record<Resource, Action[]>> = {
   },
   reservations: {
     dashboard:    ["read"],
-    calls:        [],
+    calls:        ["read"],
     inbox:        ["read", "write"],
     inquiries:    ["read", "write"],
     guests:       ["read", "write"],

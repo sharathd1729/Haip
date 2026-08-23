@@ -459,6 +459,9 @@ async def click_to_call(
         adapter = get_ivr_adapter(provider)
         call_id = await adapter.initiate_click_to_call(req.agent_number, req.guest_number)
 
+    from app.workers.tasks.call_ingest import cache_click_to_call_agent
+    cache_click_to_call_agent(current_user.tenant_id, call_id, current_user.id)
+
     log.info("click_to_call_initiated", tenant=current_user.tenant_id, provider=provider, call_id=call_id)
     return {"status": "initiated", "provider_call_id": call_id}
 

@@ -1,11 +1,12 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import {
   Users, UserPlus, Mail, Shield, Crown, Eye,
   Clock, CheckCircle2, XCircle, ChevronDown,
   Copy, Trash2, Loader2, AlertCircle, X,
-  Settings, RefreshCw, MoreHorizontal, MessageSquare, PhoneCall,
+  Settings, RefreshCw, MoreHorizontal, MessageSquare, PhoneCall, ShieldAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
@@ -369,6 +370,8 @@ function RoleDropdown({ currentRole, userId, onChanged }: {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function TeamPage() {
+  const { data: session } = useSession();
+  const role = session?.user?.role;
   const queryClient = useQueryClient();
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [newInvitation, setNewInvitation] = useState<Invitation | null>(null);
@@ -439,6 +442,20 @@ export default function TeamPage() {
     setShowInviteModal(false);
     setNewInvitation(inv);
   };
+
+  // Backend already enforces this (403 on every query/mutation here) --
+  // no point rendering a page that can never actually do anything.
+  if (role && role !== "owner" && role !== "manager") {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6">
+        <ShieldAlert size={32} className="text-gray-300" />
+        <p className="text-sm font-semibold text-gray-600">Owner/manager access only</p>
+        <p className="text-xs text-gray-400 max-w-xs">
+          Team management is only available to account owners and managers.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col">

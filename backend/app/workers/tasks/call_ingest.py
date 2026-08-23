@@ -18,6 +18,7 @@ from app.adapters.ivr import get_ivr_adapter
 from app.services import identity_service
 from app.models.call import RecordingStatus
 from app.workers.celery_app import celery_app
+from app.core.cache import get_cached, set_cached
 import structlog
 import uuid
 from datetime import datetime, timezone, timedelta
@@ -30,6 +31,30 @@ def _phone_token(phone: str) -> str:
 log = structlog.get_logger()
 
 _RECOVERY_WINDOW_HOURS = 24
+
+# Role-portal Phase A: Call.agent_id was never written anywhere in this
+# pipeline -- every other field on the Call() below is set except this
+# one. For outbound calls, the initiating agent is known at click-to-call
+# time (calls.py's endpoint has current_user), but nothing carried that
+# forward to the Call row this task creates minutes later from the IVR
+# webhook. Cached by the provider's own call id (the only identifier both
+# sides share -- calls.py's `call_id` return value is the same value the
+# webhook later reports as normalized.ivr_call_id). Inbound attribution
+# (which of several simultaneously-rung agents answered) is a separate,
+# harder problem -- deliberately not attempted here, see the plan.
+_CLICK_TO_CALL_AGENT_TTL = 3600 * 2
+
+
+def _click_to_call_cache_key(tenant_id: str, ivr_call_id: str) -> str:
+    return f"haip:click_to_call_agent:{tenant_id}:{ivr_call_id}"
+
+
+def cache_click_to_call_agent(tenant_id: str, ivr_call_id: str, agent_id: str) -> None:
+    set_cached(_click_to_call_cache_key(tenant_id, ivr_call_id), agent_id, ttl=_CLICK_TO_CALL_AGENT_TTL)
+
+
+def _lookup_click_to_call_agent(tenant_id: str, ivr_call_id: str) -> str | None:
+    return get_cached(_click_to_call_cache_key(tenant_id, ivr_call_id))
 
 
 def _link_recovered_call(db: Session, tenant_id: str, guest_id: str, outbound_call: Call) -> None:
@@ -128,6 +153,10 @@ def ingest_call(self, payload: dict, tenant_id: str, ivr_provider: str):
                 tenant_id=tenant_id,
                 guest_id=guest.id,
                 inquiry_id=inquiry.id if inquiry else None,
+                agent_id=(
+                    _lookup_click_to_call_agent(tenant_id, normalized.ivr_call_id)
+                    if normalized.direction == "outbound" else None
+                ),
                 ivr_provider=normalized.provider,
                 ivr_call_id=normalized.ivr_call_id,
                 direction=normalized.direction,
