@@ -100,6 +100,13 @@ class RatePlan(Base, TimestampMixin, TenantMixin):
     max_nights = Column(Integer, nullable=True)
     is_active = Column(Boolean, default=True)
 
+    # Caravan-only bucket: which product this plan prices -- "same_day" /
+    # "overnight" / "multiday". NULL for every villa RatePlan (that model
+    # is nights-agnostic by design, one plan covers any stay length within
+    # min/max_nights). Only ever read when property.type == "caravan"
+    # (calculator_service._resolve_rate) -- see migration 087.
+    duration_type = Column(String(20), nullable=True)
+
     # Seasonal overrides
     seasonal_pricing = Column(JSON, default=list)  # [{from, to, price}]
     inclusions = Column(JSON, default=list)         # breakfast, airport-transfer, etc.

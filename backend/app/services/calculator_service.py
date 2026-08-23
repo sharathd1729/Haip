@@ -100,14 +100,19 @@ class QuoteBreakdown:
     ) -> str:
         """Generate formatted WhatsApp message."""
         pr = self.property_rate
+        stay_label = f"{pr.nights} Night{'s' if pr.nights > 1 else ''} Stay" if pr.nights > 0 else "Same-Day Experience"
+        accommodation_label = (
+            f"{pr.nights} × ₹{int(pr.price_per_night):,}" if pr.nights > 0
+            else f"Same-day rate: ₹{int(pr.price_per_night):,}"
+        )
         lines = [
-            f"*{pr.property_name} — {pr.nights} Night{'s' if pr.nights > 1 else ''} Stay* 🏡",
+            f"*{pr.property_name} — {stay_label}* 🏡",
             "",
             f"📅 Check-in: {checkin}  |  Check-out: {checkout}",
             f"👥 {pr.guests} Guest{'s' if pr.guests > 1 else ''}",
             "",
             "*Rate Breakdown:*",
-            f"🏠 Accommodation ({pr.nights} × ₹{int(pr.price_per_night):,})  =  ₹{int(pr.subtotal_accommodation):,}",
+            f"🏠 Accommodation ({accommodation_label})  =  ₹{int(pr.subtotal_accommodation):,}",
         ]
 
         emoji_map = {
@@ -161,7 +166,13 @@ class CalculatorService:
         checkin_date = date.fromisoformat(checkin)
         checkout_date = date.fromisoformat(checkout)
         nights = (checkout_date - checkin_date).days
-        if nights <= 0:
+        # nights == 0 (checkin == checkout) is a real product for caravans --
+        # Ratha's Full Day / Sunset + Dinner / Sunrise formats are same-
+        # calendar-day. Only reject genuinely inverted ranges here; villas
+        # still can't resolve a same-day "stay" (_resolve_rate rejects
+        # nights <= 0 for non-caravan properties below), so this is a no-op
+        # for every non-caravan tenant.
+        if nights < 0:
             return []
 
         total_guests = adults + children
@@ -205,7 +216,11 @@ class CalculatorService:
             addons = self._load_addons(db, prop.id, tenant_id)
 
             price_per_night, rate_source, rate_name, min_nights = rate
-            subtotal = price_per_night * nights
+            # A same-day product (nights == 0) still bills one unit, not
+            # zero -- `nights` itself is left as the real value (0) below
+            # so callers can tell a same-day quote apart from an overnight
+            # one (see PropertyRate.nights / whatsapp_message()'s label).
+            subtotal = price_per_night * max(nights, 1)
 
             results.append(PropertyRate(
                 property_id=str(prop.id),
@@ -398,6 +413,15 @@ class CalculatorService:
         Priority: SeasonalRate > RatePlan > property.price_per_day
         """
 
+        # Same-day (nights == 0) is only a valid request for caravans (Full
+        # Day / Sunset + Dinner / Sunrise formats). A villa "stay" with no
+        # nights isn't a real booking -- reproduces the exact pre-existing
+        # behaviour (search()'s old `nights <= 0: return []` bail) for every
+        # non-caravan property now that search() itself allows nights == 0
+        # through to here.
+        if prop.type != "caravan" and nights <= 0:
+            return None
+
         # 1. Try channel manager live rates (RentalWise)
         if prop.channel_source == "retalwise" and prop.hostaway_listing_id:
             try:
@@ -428,11 +452,21 @@ class CalculatorService:
             return price, "seasonal", seasonal.name, seasonal.min_nights
 
         # 3. Active rate plan
-        rate_plan = (
-            db.query(RatePlan)
-            .filter_by(tenant_id=prop.tenant_id, property_id=prop.id, is_active=True)
-            .first()
+        rate_plan_query = db.query(RatePlan).filter_by(
+            tenant_id=prop.tenant_id, property_id=prop.id, is_active=True,
         )
+        if prop.type == "caravan":
+            # Caravans carry several plans for different products (day /
+            # overnight / multi-day) on the SAME property -- match the one
+            # for what was actually asked, instead of grabbing whichever
+            # row Postgres returns first (confirmed live bug: no ordering
+            # meant any of the 3 Ratha plans, including a ₹0 one, could win
+            # for any quote). No match for this bucket -> fall through to
+            # step 4 (price_per_day) rather than use an unrelated plan.
+            duration_type = "same_day" if nights <= 0 else "overnight" if nights == 1 else "multiday"
+            rate_plan = rate_plan_query.filter_by(duration_type=duration_type).first()
+        else:
+            rate_plan = rate_plan_query.first()
         if rate_plan:
             # Check seasonal_pricing JSON overrides within the plan
             price = Decimal(str(rate_plan.base_price_per_night))
