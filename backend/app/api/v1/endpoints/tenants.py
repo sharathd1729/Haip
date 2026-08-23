@@ -485,6 +485,7 @@ _MAX_GREETING_MB = 10
 class IVRRoutingSettings(BaseModel):
     ivr_routing_strategy: Optional[str] = None
     has_greeting_audio: bool = False
+    has_voicemail_audio: bool = False
     eligible_agents: List[dict] = []
 
     @field_validator("ivr_routing_strategy")
@@ -508,6 +509,7 @@ def get_ivr_routing(
     return IVRRoutingSettings(
         ivr_routing_strategy=tenant.ivr_routing_strategy,
         has_greeting_audio=bool(tenant.ivr_greeting_audio_key),
+        has_voicemail_audio=bool(tenant.ivr_voicemail_audio_key),
         eligible_agents=get_eligible_agents_summary(db, tenant.id),
     )
 
@@ -549,6 +551,7 @@ def update_ivr_routing(
     return IVRRoutingSettings(
         ivr_routing_strategy=tenant.ivr_routing_strategy,
         has_greeting_audio=bool(tenant.ivr_greeting_audio_key),
+        has_voicemail_audio=bool(tenant.ivr_voicemail_audio_key),
         eligible_agents=get_eligible_agents_summary(db, tenant.id),
     )
 
@@ -590,6 +593,7 @@ async def upload_ivr_greeting_audio(
     return IVRRoutingSettings(
         ivr_routing_strategy=tenant.ivr_routing_strategy,
         has_greeting_audio=True,
+        has_voicemail_audio=bool(tenant.ivr_voicemail_audio_key),
         eligible_agents=get_eligible_agents_summary(db, tenant.id),
     )
 
@@ -652,5 +656,117 @@ def generate_ivr_greeting_tts(
     return IVRRoutingSettings(
         ivr_routing_strategy=tenant.ivr_routing_strategy,
         has_greeting_audio=True,
+        has_voicemail_audio=bool(tenant.ivr_voicemail_audio_key),
+        eligible_agents=get_eligible_agents_summary(db, tenant.id),
+    )
+
+
+# ── Voicemail slot -- plays instead of dialing agents (no-answer fallback,
+# or outright skipped straight to when outside business hours; see
+# webhooks_vobiz.py). Mirrors the greeting-slot endpoints above exactly. ──
+
+@router.get("/tenants/me/ivr-voicemail-audio/url")
+def get_ivr_voicemail_audio_url(
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    from app.services import media_storage
+
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    if not tenant or not tenant.ivr_voicemail_audio_key:
+        raise HTTPException(status_code=404, detail="No voicemail message configured yet.")
+    url = media_storage.get_presigned_media_url(tenant.ivr_voicemail_audio_key, expires_in=300)
+    if not url:
+        raise HTTPException(status_code=502, detail="Could not generate a playback link. Try again.")
+    return {"url": url}
+
+
+@router.post("/tenants/me/ivr-voicemail-audio", response_model=IVRRoutingSettings)
+async def upload_ivr_voicemail_audio(
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """Client-uploaded voicemail prompt -- same validation/storage as the
+    greeting upload, different tenant column and S3 kind."""
+    from pathlib import Path
+    from app.services import media_storage
+
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    content_type = (file.content_type or "").lower()
+    ext = Path(file.filename or "voicemail.mp3").suffix.lower() or ".mp3"
+    if content_type not in _ALLOWED_GREETING_TYPES and ext not in _ALLOWED_GREETING_EXTS:
+        raise HTTPException(status_code=400, detail=f"Unsupported audio format '{ext}'. Use MP3, WAV, or M4A.")
+
+    audio_bytes = await file.read()
+    size_mb = len(audio_bytes) / (1024 * 1024)
+    if size_mb > _MAX_GREETING_MB:
+        raise HTTPException(status_code=400, detail=f"File too large ({size_mb:.1f} MB). Max {_MAX_GREETING_MB} MB.")
+
+    key = media_storage.upload_ivr_greeting(
+        tenant.id, audio_bytes, content_type or "audio/mpeg", ext.lstrip("."), kind="voicemail",
+    )
+    tenant.ivr_voicemail_audio_key = key
+    db.commit()
+
+    log.info("ivr_voicemail_uploaded", tenant_id=tenant.id, actor_user_id=current_user.id)
+    from app.services.ivr_routing_service import get_eligible_agents_summary
+    return IVRRoutingSettings(
+        ivr_routing_strategy=tenant.ivr_routing_strategy,
+        has_greeting_audio=bool(tenant.ivr_greeting_audio_key),
+        has_voicemail_audio=True,
+        eligible_agents=get_eligible_agents_summary(db, tenant.id),
+    )
+
+
+class IVRVoicemailTTSRequest(BaseModel):
+    text: str
+    speaker: str = "anushka"
+
+
+@router.post("/tenants/me/ivr-voicemail-tts", response_model=IVRRoutingSettings)
+def generate_ivr_voicemail_tts(
+    body: IVRVoicemailTTSRequest,
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """Sarvam-generated voicemail prompt -- identical shape to
+    generate_ivr_greeting_tts, writes to the voicemail slot instead."""
+    from app.services import media_storage, tts_service
+
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    text = (body.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Voicemail text is required.")
+    if len(text) > _MAX_GREETING_TEXT_CHARS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Voicemail text too long ({len(text)} chars). Max {_MAX_GREETING_TEXT_CHARS}.",
+        )
+
+    try:
+        audio_bytes = tts_service.generate_speech(text, speaker=body.speaker)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Voice generation failed: {exc}")
+
+    key = media_storage.upload_ivr_greeting(tenant.id, audio_bytes, "audio/mpeg", "mp3", kind="voicemail")
+    tenant.ivr_voicemail_audio_key = key
+    db.commit()
+
+    log.info(
+        "ivr_voicemail_tts_generated",
+        tenant_id=tenant.id, actor_user_id=current_user.id, speaker=body.speaker,
+    )
+    from app.services.ivr_routing_service import get_eligible_agents_summary
+    return IVRRoutingSettings(
+        ivr_routing_strategy=tenant.ivr_routing_strategy,
+        has_greeting_audio=bool(tenant.ivr_greeting_audio_key),
+        has_voicemail_audio=True,
         eligible_agents=get_eligible_agents_summary(db, tenant.id),
     )

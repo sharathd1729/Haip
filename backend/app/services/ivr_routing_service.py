@@ -190,3 +190,41 @@ def resolve_greeting_url(tenant: Tenant, expires_in: int = 300) -> str | None:
     if not tenant.ivr_greeting_audio_key:
         return None
     return media_storage.get_presigned_media_url(tenant.ivr_greeting_audio_key, expires_in=expires_in)
+
+
+def resolve_voicemail_url(tenant: Tenant, expires_in: int = 300) -> str | None:
+    """Presigned URL for the voicemail-prompt MP3 (played instead of
+    dialing agents), or None if not configured -- same shape as
+    resolve_greeting_url above."""
+    if not tenant.ivr_voicemail_audio_key:
+        return None
+    return media_storage.get_presigned_media_url(tenant.ivr_voicemail_audio_key, expires_in=expires_in)
+
+
+def is_within_business_hours(tenant: Tenant, now=None) -> bool:
+    """True if `now` (default: current time in IST) falls inside the
+    tenant's configured business_hours for that weekday. A tenant with no
+    business_hours configured is treated as always open -- CLAUDE.md's
+    fail-closed convention applies to access/security gates, not to a
+    tenant that simply hasn't set this field yet; failing "closed" here
+    would silently stop routing calls for every tenant that never touched
+    this setting, which is a worse default than "always open until they
+    configure it."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    hours = tenant.business_hours or {}
+    if not hours:
+        return True
+
+    now = now or datetime.now(ZoneInfo("Asia/Kolkata"))
+    day_config = hours.get(str(now.weekday()))
+    if not day_config or day_config.get("closed"):
+        return False if day_config else True
+
+    open_str, close_str = day_config.get("open"), day_config.get("close")
+    if not open_str or not close_str:
+        return True
+
+    current = now.strftime("%H:%M")
+    return open_str <= current <= close_str

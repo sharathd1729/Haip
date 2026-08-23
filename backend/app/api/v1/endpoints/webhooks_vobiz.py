@@ -181,6 +181,16 @@ async def vobiz_answer_webhook(
     caller_id = _to_e164_in(data.get("To", ""))
     e164_numbers = [n if n.startswith("+") else _to_e164_in(n) for n in dial_numbers]
 
+    # Outside business_hours: skip the Dial attempt entirely rather than
+    # ringing agents who aren't expected to be working. No new audio slot
+    # for this -- reuses the same voicemail prompt as the no-answer
+    # fallback below (the caller doesn't need a different script for
+    # "closed" vs "nobody picked up", and no separate script was given for
+    # it). A tenant with no business_hours configured is always "open"
+    # (is_within_business_hours's own fail-open default) so this is a
+    # no-op for every tenant until they set hours.
+    within_hours = ivr_routing_service.is_within_business_hours(tenant)
+
     # fixed_order rings candidates one at a time -- a <Dial> verb that goes
     # unanswered falls through to the next verb in the Response, so N
     # sequential single-Number <Dial>s is the standard idiom for "try A,
@@ -188,7 +198,9 @@ async def vobiz_answer_webhook(
     # <Dial> with multiple <Number> children, which rings them all at once).
     # Per-leg timeout is shorter here so the total across every candidate
     # stays reasonable for the caller.
-    if ivr_routing_service.dial_mode(tenant) == "sequential" and len(e164_numbers) > 1:
+    if not within_hours:
+        dial_xml = ""
+    elif ivr_routing_service.dial_mode(tenant) == "sequential" and len(e164_numbers) > 1:
         dial_xml = "".join(
             f'<Dial callerId="{caller_id}" timeout="20" timeLimit="1800" redirect="false">'
             f"<Number>{n}</Number></Dial>"
@@ -206,9 +218,30 @@ async def vobiz_answer_webhook(
     # "audio playing while ringing" isn't a documented <Dial> feature, so
     # sequential (greeting, then ring) is the reliable interpretation:
     # caller hears the greeting once, then normal ringback while the
-    # agent(s) ring.
-    greeting_url = ivr_routing_service.resolve_greeting_url(tenant)
+    # agent(s) ring. Skipped outside business hours too -- the caller goes
+    # straight to the voicemail prompt, no "please hold" before a call that
+    # was never going to ring anyone.
+    greeting_url = ivr_routing_service.resolve_greeting_url(tenant) if within_hours else None
     greeting_xml = f'<Play>{xml_escape(greeting_url)}</Play>' if greeting_url else ""
+
+    # Plays after Dial falls through unanswered, or immediately (no Dial at
+    # all) when outside business hours -- either way this is "no one's
+    # coming to the phone." The whole-session <Record> above already
+    # captures whatever the caller says after this plays, so the second
+    # <Record> here exists only to give a beep + a window to speak, not
+    # for its own completion callback (deliberately omitted -- reusing
+    # recording_callback_url would risk that webhook firing twice for one
+    # call, once for the real session recording and once for this tail).
+    # UNCONFIRMED against real Vobiz behavior: whether a <Record> without
+    # callbackUrl is accepted, and whether Dial-timeout fallthrough reaches
+    # a non-Dial verb the same way it reaches a sequential Dial->Dial.
+    # Worst case if either assumption is wrong: identical to today's
+    # behavior (silent hangup) -- no regression, just no new behavior.
+    voicemail_url = ivr_routing_service.resolve_voicemail_url(tenant)
+    voicemail_xml = (
+        f'<Play>{xml_escape(voicemail_url)}</Play>'
+        f'<Record playBeep="true" maxLength="60" redirect="false"/>'
+    ) if voicemail_url else ""
 
     xml = (
         '<?xml version="1.0" encoding="UTF-8"?>'
@@ -217,6 +250,7 @@ async def vobiz_answer_webhook(
         f'callbackUrl="{recording_callback_url}" redirect="false" playBeep="false"/>'
         f"{greeting_xml}"
         f"{dial_xml}"
+        f"{voicemail_xml}"
         "<Hangup/>"
         "</Response>"
     )

@@ -52,12 +52,16 @@ def upload_media(tenant_id: str, message_id: str, content: bytes, content_type: 
     return s3_key
 
 
-def upload_ivr_greeting(tenant_id: str, content: bytes, content_type: str, extension: str = "mp3") -> str:
-    """Upload a client-provided IVR greeting recording, return the storage
-    key. One greeting per tenant -- a fixed key (no message/upload id in the
-    path) so a re-upload simply overwrites the old file rather than
-    accumulating orphaned recordings that need separate cleanup."""
-    s3_key = f"{tenant_id}/ivr/greeting.{extension}"
+def upload_ivr_greeting(
+    tenant_id: str, content: bytes, content_type: str, extension: str = "mp3", kind: str = "greeting",
+) -> str:
+    """Upload a client-provided IVR audio recording, return the storage
+    key. One file per tenant per `kind` -- a fixed key (no message/upload
+    id in the path) so a re-upload/re-generate simply overwrites the old
+    file rather than accumulating orphaned recordings that need separate
+    cleanup. `kind` is "greeting" (plays before dialing agents) or
+    "voicemail" (plays instead of dialing, see webhooks_vobiz.py)."""
+    s3_key = f"{tenant_id}/ivr/{kind}.{extension}"
     s3 = _s3_client()
     put_kwargs = dict(
         Bucket=settings.S3_BUCKET_NAME,

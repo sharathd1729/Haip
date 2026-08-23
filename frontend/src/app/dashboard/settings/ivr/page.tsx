@@ -34,6 +34,7 @@ interface EligibleAgent {
 interface IVRRoutingSettings {
   ivr_routing_strategy: string;
   has_greeting_audio: boolean;
+  has_voicemail_audio: boolean;
   eligible_agents: EligibleAgent[];
 }
 
@@ -102,15 +103,6 @@ export default function IVRPage() {
 
 function CallRoutingSection() {
   const qc = useQueryClient();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [ttsText, setTtsText] = useState(
-    "Welcome to Ratha, our Retreat on the move — caravan rentals in Bangalore. " +
-    "Please leave your name and number and we shall connect to you suitably to " +
-    "curate your itinerary. Thank you for calling Ratha Retreats. Namaskara."
-  );
-  const [ttsSpeaker, setTtsSpeaker] = useState("anushka");
-  const [ttsError, setTtsError] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery<IVRRoutingSettings>({
     queryKey: ["ivr-routing"],
@@ -121,38 +113,6 @@ function CallRoutingSection() {
     mutationFn: (strategy: string) =>
       api.patch("/tenants/me/ivr-routing", { ivr_routing_strategy: strategy }).then(r => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ivr-routing"] }),
-  });
-
-  const uploadGreeting = useMutation({
-    mutationFn: (file: File) => {
-      const body = new FormData();
-      body.append("file", file);
-      return api.post("/tenants/me/ivr-greeting-audio", body, {
-        headers: { "Content-Type": "multipart/form-data" },
-      }).then(r => r.data);
-    },
-    onSuccess: () => {
-      setUploadError(null);
-      qc.invalidateQueries({ queryKey: ["ivr-routing"] });
-    },
-    onError: (err: any) => {
-      setUploadError(err?.response?.data?.detail || "Upload failed. Try an MP3 under 10 MB.");
-    },
-  });
-
-  const generateGreeting = useMutation({
-    mutationFn: () =>
-      api.post("/tenants/me/ivr-greeting-tts", {
-        text: ttsText,
-        speaker: ttsSpeaker,
-      }).then(r => r.data),
-    onSuccess: () => {
-      setTtsError(null);
-      qc.invalidateQueries({ queryKey: ["ivr-routing"] });
-    },
-    onError: (err: any) => {
-      setTtsError(err?.response?.data?.detail || "Voice generation failed. Try again.");
-    },
   });
 
   if (isLoading) {
@@ -237,35 +197,120 @@ function CallRoutingSection() {
         ))}
       </div>
 
+      <AudioSlotEditor
+        slot="greeting"
+        title="Greeting played before the call connects"
+        uploadLabel="recording"
+        description="Plays once the call is answered, before the agent's phone starts ringing. MP3, WAV, M4A or MP4, up to 10 MB. No recording uploaded means the call rings straight through, same as today."
+        actionLabel="Generate & set as greeting"
+        placeholder="What the caller hears before the agent's phone rings…"
+        hasAudio={!!data?.has_greeting_audio}
+        defaultText={
+          "Welcome to Ratha, our Retreat on the move — caravan rentals in Bangalore. " +
+          "Please leave your name and number and we shall connect to you suitably to " +
+          "curate your itinerary. Thank you for calling Ratha Retreats. Namaskara."
+        }
+      />
+
+      <AudioSlotEditor
+        slot="voicemail"
+        title="Message when no one answers (or outside business hours)"
+        uploadLabel="voicemail message"
+        description="Plays instead of ringing agents — either after everyone's Dial leg times out, or immediately if the call comes in outside your business hours (Workspace settings). The whole call is already recorded, so whatever the caller says here lands on the Calls page like any other call."
+        actionLabel="Generate & set as voicemail message"
+        placeholder="What the caller hears when nobody's available to answer…"
+        hasAudio={!!data?.has_voicemail_audio}
+        defaultText={
+          "Namaskara, and thank you for calling Ratha Retreats. We're sorry we couldn't take your " +
+          "call at the moment. Please leave your name, phone number, and a brief message after the " +
+          "tone. Our team will get back to you as soon as possible to help curate your perfect " +
+          "caravan retreat. Thank you, and have a wonderful day."
+        }
+      />
+    </Section>
+  );
+}
+
+// ── One audio slot: manual upload + AI-voice generation + playback ─────────
+// Shared by the greeting slot (plays before dialing) and the voicemail slot
+// (plays instead of dialing) -- same three actions, different endpoints/
+// tenant column underneath.
+
+function AudioSlotEditor({
+  slot, title, uploadLabel, description, actionLabel, placeholder, hasAudio, defaultText,
+}: {
+  slot: "greeting" | "voicemail";
+  title: string;
+  uploadLabel: string;
+  description: string;
+  actionLabel: string;
+  placeholder: string;
+  hasAudio: boolean;
+  defaultText: string;
+}) {
+  const qc = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [ttsText, setTtsText] = useState(defaultText);
+  const [ttsSpeaker, setTtsSpeaker] = useState("anushka");
+  const [ttsError, setTtsError] = useState<string | null>(null);
+
+  const upload = useMutation({
+    mutationFn: (file: File) => {
+      const body = new FormData();
+      body.append("file", file);
+      return api.post(`/tenants/me/ivr-${slot}-audio`, body, {
+        headers: { "Content-Type": "multipart/form-data" },
+      }).then(r => r.data);
+    },
+    onSuccess: () => {
+      setUploadError(null);
+      qc.invalidateQueries({ queryKey: ["ivr-routing"] });
+    },
+    onError: (err: any) => {
+      setUploadError(err?.response?.data?.detail || "Upload failed. Try an MP3 under 10 MB.");
+    },
+  });
+
+  const generate = useMutation({
+    mutationFn: () =>
+      api.post(`/tenants/me/ivr-${slot}-tts`, { text: ttsText, speaker: ttsSpeaker }).then(r => r.data),
+    onSuccess: () => {
+      setTtsError(null);
+      qc.invalidateQueries({ queryKey: ["ivr-routing"] });
+    },
+    onError: (err: any) => {
+      setTtsError(err?.response?.data?.detail || "Voice generation failed. Try again.");
+    },
+  });
+
+  return (
+    <>
       <div className="pt-2 border-t border-gray-100">
-        <Field label="Greeting played before the call connects">
+        <Field label={title}>
           <div className="flex items-center gap-3">
             <button
               onClick={() => fileInputRef.current?.click()}
-              disabled={uploadGreeting.isPending}
+              disabled={upload.isPending}
               className="flex items-center gap-1.5 text-xs font-medium text-gray-600 bg-white hover:bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
             >
-              {uploadGreeting.isPending ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-              {data?.has_greeting_audio ? "Replace recording" : "Upload recording"}
+              {upload.isPending ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+              {hasAudio ? `Replace ${uploadLabel}` : `Upload ${uploadLabel}`}
             </button>
             <input
               ref={fileInputRef} type="file"
               accept="audio/mpeg,audio/mp3,audio/wav,audio/m4a,audio/mp4,video/mp4,.mp3,.wav,.m4a,.mp4"
               className="hidden"
-              onChange={e => { const f = e.target.files?.[0]; if (f) uploadGreeting.mutate(f); e.target.value = ""; }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) upload.mutate(f); e.target.value = ""; }}
             />
-            {data?.has_greeting_audio && !uploadGreeting.isPending && (
+            {hasAudio && !upload.isPending && (
               <span className="flex items-center gap-1 text-xs text-teal-600">
                 <CheckCircle2 size={13} /> Configured
               </span>
             )}
-            {data?.has_greeting_audio && <PlayGreetingButton />}
+            {hasAudio && <PlayAudioButton slot={slot} />}
           </div>
-          <p className="text-xs text-gray-400 mt-1">
-            Plays once the call is answered, before the agent's phone starts
-            ringing. MP3, WAV, M4A or MP4, up to 10 MB. No recording uploaded
-            means the call rings straight through, same as today.
-          </p>
+          <p className="text-xs text-gray-400 mt-1">{description}</p>
           {uploadError && (
             <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
               <AlertCircle size={12} /> {uploadError}
@@ -281,7 +326,7 @@ function CallRoutingSection() {
             onChange={e => setTtsText(e.target.value)}
             rows={4}
             maxLength={2000}
-            placeholder="What the caller hears before the agent's phone rings…"
+            placeholder={placeholder}
             className="w-full text-xs px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-teal-400 resize-y"
           />
           <div className="flex items-center gap-3 mt-2">
@@ -295,23 +340,21 @@ function CallRoutingSection() {
               ))}
             </select>
             <button
-              onClick={() => generateGreeting.mutate()}
-              disabled={generateGreeting.isPending || !ttsText.trim()}
+              onClick={() => generate.mutate()}
+              disabled={generate.isPending || !ttsText.trim()}
               className="flex items-center gap-1.5 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
             >
-              {generateGreeting.isPending
-                ? <Loader2 size={13} className="animate-spin" />
-                : <Sparkles size={13} />}
-              Generate &amp; set as greeting
+              {generate.isPending ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+              {actionLabel}
             </button>
           </div>
           <p className="text-xs text-gray-400 mt-1">
-            Generates the greeting with Sarvam AI and sets it as the recording
-            above, replacing whatever's there. Takes a few seconds.
+            Generates with Sarvam AI and sets it as the recording above,
+            replacing whatever's there. Takes a few seconds.
           </p>
-          {generateGreeting.isSuccess && !ttsError && (
+          {generate.isSuccess && !ttsError && (
             <p className="text-xs text-teal-600 mt-1 flex items-center gap-1">
-              <CheckCircle2 size={12} /> Generated and set as the greeting above — use "Play" to hear it.
+              <CheckCircle2 size={12} /> Generated and set above — use "Play" to hear it.
             </p>
           )}
           {ttsError && (
@@ -321,7 +364,7 @@ function CallRoutingSection() {
           )}
         </Field>
       </div>
-    </Section>
+    </>
   );
 }
 
@@ -331,11 +374,11 @@ function CallRoutingSection() {
 // phone call. Fetches a short-lived presigned URL on click and plays it
 // inline instead.
 
-function PlayGreetingButton() {
+function PlayAudioButton({ slot }: { slot: "greeting" | "voicemail" }) {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fetchUrl = useMutation({
-    mutationFn: () => api.get("/tenants/me/ivr-greeting-audio/url").then(r => r.data.url as string),
+    mutationFn: () => api.get(`/tenants/me/ivr-${slot}-audio/url`).then(r => r.data.url as string),
     onSuccess: (url) => { setError(null); setAudioUrl(url); },
     onError: (err: any) => setError(err?.response?.data?.detail || "Couldn't load the recording."),
   });
@@ -345,7 +388,7 @@ function PlayGreetingButton() {
       <button
         onClick={() => fetchUrl.mutate()}
         disabled={fetchUrl.isPending}
-        title="Play the current greeting"
+        title={`Play the current ${slot}`}
         className="flex items-center gap-1 text-xs font-medium text-teal-600 hover:text-teal-700 transition-colors disabled:opacity-50"
       >
         {fetchUrl.isPending ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}

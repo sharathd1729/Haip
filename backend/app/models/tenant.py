@@ -110,6 +110,10 @@ class Tenant(Base, TimestampMixin):
     # S3 key, not URL -- URLs are presigned fresh on read (media_storage.py
     # convention), never stored as a possibly-expired link.
     ivr_greeting_audio_key = Column(String(500), nullable=True)
+    # Plays instead of dialing agents -- either as a Dial fallback (nobody
+    # answered) or, when outside business_hours, in place of attempting the
+    # Dial at all. See webhooks_vobiz.py.
+    ivr_voicemail_audio_key = Column(String(500), nullable=True)
 
     users = relationship("User", back_populates="tenant", lazy="dynamic")
     guests = relationship("Guest", back_populates="tenant", lazy="dynamic")
