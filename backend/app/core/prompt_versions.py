@@ -66,7 +66,13 @@ PROMPT_VERSIONS: dict[str, str] = {
     # recognises off-topic messages (jobs/careers, press, spam -- nothing to
     # do with booking a stay) and skips the travel ask entirely, handing
     # off to a human instead of forcing every reply into the booking funnel.
-    "concierge_reply": "concierge-reply-v8",    # concierge_reply.jinja
+    # v9: capacity claims ("up to N guests", "sleeps N") now must trace to
+    # a real max_adults value from LIVE AVAILABILITY -- a guest asking
+    # about a 20-person group was told "designed for up to 4 guests" (the
+    # real capacity is 8), a pure hallucination since the prompt never
+    # rendered a capacity figure at all before this. See
+    # concierge_draft.py's _check_grounding()/_CAPACITY_RE.
+    "concierge_reply": "concierge-reply-v9",    # concierge_reply.jinja
     "lost_reason":     "lost-reason-v1",        # lost_reason.jinja
 
     # Inline prompts built in Python

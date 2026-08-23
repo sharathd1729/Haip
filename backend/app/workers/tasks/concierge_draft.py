@@ -128,6 +128,14 @@ _STAY_CONTEXT_RE = re.compile(
     r"room|caravan|property|weekend)\b|\d",
     re.IGNORECASE,
 )
+# Catches "designed for up to 4 guests", "sleeps 8", "max 6 people", "fits
+# 4 pax" -- any specific headcount-capacity claim, which must trace back to
+# a real max_adults value (see _check_grounding's capacity check below).
+_CAPACITY_RE = re.compile(
+    r"\b(?:up to|max(?:imum)?|fits?|sleeps?|holds?|seats?|accommodat\w*|capacity of)\s+(\d+)\s*"
+    r"(?:guests?|people|persons?|pax|adults?)\b",
+    re.IGNORECASE,
+)
 
 
 async def _classify_and_extract(latest_message: str) -> dict:
@@ -190,18 +198,34 @@ async def _ground_reply(db, tenant_id: str, latest_message: str, inquiry) -> tup
         log.warning("concierge_grounding_availability_failed", tenant_id=tenant_id, error=str(exc))
         return intent, [], []
 
-    grounded_facts.append({
+    # Confirmed live bug: a guest asking about a 20-person group got told
+    # "our caravans are designed for up to 4 guests" -- Property.max_adults
+    # is actually 8 for both real caravans, so the model invented that
+    # number outright (the prompt never renders a capacity figure at all).
+    # PropertyRate already carries max_adults (calculator_service.py); it
+    # just wasn't being copied into the fact dict, so the model had no real
+    # number to cite when explaining why nothing matched. Copying it in
+    # here, plus the empty-results capacity note below, plus the
+    # _check_grounding() guard extension, closes that gap the same way the
+    # price/availability guards already do for their claim types.
+    availability_fact: dict = {
         "tool": "check_availability",
         "args": {"checkin": check_in, "checkout": check_out, "adults": adults, "children": children, "property_id": property_id},
         "result": [
             {
                 "property_id": r.property_id, "property_name": r.property_name,
                 "available": r.available, "price_per_night": str(r.price_per_night),
-                "nights": r.nights, "currency": r.currency,
+                "nights": r.nights, "currency": r.currency, "max_adults": r.max_adults,
             }
             for r in results
         ],
-    })
+    }
+    if not results:
+        total_guests = adults + children
+        capacity = _max_known_capacity(db, tenant_id, property_id)
+        if capacity is not None and total_guests > capacity:
+            availability_fact["max_capacity_note"] = capacity
+    grounded_facts.append(availability_fact)
 
     # get_quote -- only for a price_quote intent, and only when there's an
     # unambiguous single property to quote (already scoped by the inquiry,
@@ -244,12 +268,33 @@ async def _ground_reply(db, tenant_id: str, latest_message: str, inquiry) -> tup
     return intent, grounded_facts, suggested_actions
 
 
+def _max_known_capacity(db, tenant_id: str, property_id: "str | None") -> "int | None":
+    """Real max_adults across the tenant's active properties (or just the
+    one in scope, if the inquiry is already tied to a property) -- used so
+    an empty availability result can tell the model the true capacity
+    instead of leaving it to guess one. None if there's nothing to report
+    (no active properties at all)."""
+    from app.models.property import Property
+    q = db.query(Property).filter_by(tenant_id=tenant_id, is_active=True)
+    if property_id:
+        q = q.filter(Property.id == property_id)
+    values = [p.max_adults for p in q.all() if p.max_adults]
+    return max(values) if values else None
+
+
 def _check_grounding(reply_text: str, grounded_facts: list) -> tuple[bool, "str | None"]:
     """Deterministic post-check (plan §1.3): every ₹ figure the draft cites
     must appear somewhere in grounded_facts' results, and an availability
     claim must not be made with zero grounding attempted at all. Not full
     NLP understanding -- a conservative, literal check on the highest-risk
-    claim types (a wrong price is the worst-case outcome)."""
+    claim types (a wrong price is the worst-case outcome).
+
+    Capacity check added after a confirmed live hallucination: a guest
+    asking about a 20-person group was told "designed for up to 4 guests"
+    -- the real max_adults is 8. Same shape as the money check: any
+    "up to/max/fits/sleeps N guests"-style claim must match a real number
+    from grounded_facts (per-property max_adults, or the empty-results
+    max_capacity_note), not just sound plausible."""
     money_mentions = _MONEY_RE.findall(reply_text)
     availability_mentions = [
         m
@@ -257,6 +302,22 @@ def _check_grounding(reply_text: str, grounded_facts: list) -> tuple[bool, "str 
         if _AVAILABILITY_WORDS_RE.search(sentence) and _STAY_CONTEXT_RE.search(sentence)
         for m in _AVAILABILITY_WORDS_RE.findall(sentence)
     ]
+    capacity_mentions = _CAPACITY_RE.findall(reply_text)
+
+    known_capacities: set[str] = set()
+    for fact in grounded_facts:
+        if fact.get("tool") != "check_availability":
+            continue
+        for p in fact.get("result", []):
+            if p.get("max_adults"):
+                known_capacities.add(str(p["max_adults"]))
+        if fact.get("max_capacity_note"):
+            known_capacities.add(str(fact["max_capacity_note"]))
+
+    if capacity_mentions:
+        bad_capacity = [n for n in capacity_mentions if n not in known_capacities]
+        if bad_capacity:
+            return False, f"cites capacity {bad_capacity!r}, not present in grounded_facts (known: {known_capacities or 'none'})"
 
     if not grounded_facts:
         if money_mentions or availability_mentions:

@@ -133,7 +133,7 @@ class TestGroundReply:
 
         monkeypatch.setattr("app.workers.tasks.concierge_draft.get_llm", lambda task: _FakeLLM())
 
-        fake_result = MagicMock(property_id="p1", property_name="Villa Test", available=True, price_per_night=10000, nights=2, currency="INR")
+        fake_result = MagicMock(property_id="p1", property_name="Villa Test", available=True, price_per_night=10000, nights=2, currency="INR", max_adults=4)
         fake_quote = MagicMock(subtotal=20000, gst=2400, total=22400, advance_amount=6720, currency="INR")
 
         with patch("app.services.calculator_service.calculator_service.search", return_value=[fake_result]), \
@@ -205,7 +205,7 @@ class TestConciergeDraftEndToEnd:
 
         monkeypatch.setattr("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm)
 
-        fake_result = MagicMock(property_id="p1", property_name="Villa Test", available=True, price_per_night=10000, nights=2, currency="INR")
+        fake_result = MagicMock(property_id="p1", property_name="Villa Test", available=True, price_per_night=10000, nights=2, currency="INR", max_adults=4)
         with patch("app.services.calculator_service.calculator_service.search", return_value=[fake_result]), \
              patch("app.workers.tasks.concierge_draft.SessionLocal", return_value=db), \
              patch("app.services.push_service.send_to_tenant"):
