@@ -1,9 +1,9 @@
 import uuid
 import secrets
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from app.core.database import get_db
 from app.core.security import get_password_hash
 from app.api.v1.deps import get_current_user, require_roles
@@ -15,6 +15,17 @@ from app.core.config import settings
 from app.services.email_service import send_invitation_email
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+def _require_self_or_owner(user_id: str, current_user: User) -> None:
+    """Agent profile pages (scorecard/messages): an agent can always view
+    their own, an owner/manager can view anyone's. Same binary check
+    dashboard_overview.py already uses for agent-scoped data."""
+    if user_id == current_user.id:
+        return
+    if current_user.role in (UserRole.OWNER, UserRole.MANAGER):
+        return
+    raise HTTPException(status_code=403, detail="Can only view your own profile")
 
 
 # ─── Self-service endpoints (any authenticated user) ──────────────────────────
@@ -329,4 +340,111 @@ def get_presence(
             "last_seen_at": u.last_seen_at.isoformat() if u.last_seen_at else None,
         }
         for u in users
+    ]
+
+
+# ── Agent profile page ──────────────────────────────────────────────────────
+
+@router.get("/{user_id}/scorecard")
+def get_user_scorecard(
+    user_id: str,
+    date_preset: str = Query(default="today", description="today|yesterday|this_month|last_month|last_7d|last_14d|custom"),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """One agent's own numbers (leads/response time/calls/follow-ups/AI
+    drafts/conversions) -- the Agent Profile page's Overview tab."""
+    _require_self_or_owner(user_id, current_user)
+
+    from app.services.date_presets import VALID_PRESETS, resolve_range
+    from app.services.agent_analytics_service import get_agent_scorecard_rows
+
+    if date_preset not in VALID_PRESETS:
+        raise HTTPException(status_code=422, detail=f"Invalid date_preset: {date_preset}")
+    try:
+        d_from, d_to = resolve_range(date_preset, date_from, date_to)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid date: {exc}")
+    if not d_from or not d_to:
+        raise HTTPException(status_code=422, detail="date_from/date_to required for a custom range")
+
+    rows = get_agent_scorecard_rows(db, current_user.tenant_id, d_from, d_to, agent_id=user_id)
+    if not rows:
+        raise HTTPException(status_code=404, detail="User not found or inactive")
+    return rows[0]
+
+
+@router.get("/{user_id}/messages")
+def get_user_messages(
+    user_id: str,
+    date_preset: str = Query(default="today", description="today|yesterday|this_month|last_month|last_7d|last_14d|custom"),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Conversations this agent personally replied in over the period, one
+    row per conversation -- Agent Profile page's Messages tab. Sourced from
+    Message.sender_id (stamped on every human-sent reply, conversations.py's
+    send/send-media/approve-draft handlers), not Conversation.assigned_to,
+    which has no write path anywhere in the app today."""
+    _require_self_or_owner(user_id, current_user)
+
+    from sqlalchemy import func
+    from app.models.conversation import Conversation, Message, MessageDirection
+    from app.services.date_presets import VALID_PRESETS, resolve_range, ist_range_to_utc
+
+    if date_preset not in VALID_PRESETS:
+        raise HTTPException(status_code=422, detail=f"Invalid date_preset: {date_preset}")
+    try:
+        d_from, d_to = resolve_range(date_preset, date_from, date_to)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid date: {exc}")
+    if not d_from or not d_to:
+        raise HTTPException(status_code=422, detail="date_from/date_to required for a custom range")
+    range_start, range_end, _, _ = ist_range_to_utc(d_from, d_to)
+
+    rows = (
+        db.query(
+            Conversation.id, Conversation.channel,
+            func.count(Message.id), func.max(Message.created_at),
+        )
+        .join(Message, Message.conversation_id == Conversation.id)
+        .filter(
+            Message.tenant_id == current_user.tenant_id,
+            Message.sender_id == user_id,
+            Message.direction == MessageDirection.OUTBOUND,
+            Message.is_ai_generated.is_(False),
+            Message.created_at >= range_start,
+            Message.created_at <= range_end,
+        )
+        .group_by(Conversation.id, Conversation.channel)
+        .order_by(func.max(Message.created_at).desc())
+        .all()
+    )
+
+    from app.models.guest import Guest
+    guest_name_by_conv = {}
+    if rows:
+        conv_guest = dict(
+            db.query(Conversation.id, Conversation.guest_id)
+            .filter(Conversation.id.in_([r[0] for r in rows]))
+            .all()
+        )
+        guests_by_id = {
+            g.id: g.name for g in db.query(Guest).filter(Guest.id.in_(conv_guest.values())).all()
+        }
+        guest_name_by_conv = {cid: guests_by_id.get(gid) for cid, gid in conv_guest.items()}
+
+    return [
+        {
+            "conversation_id": conv_id,
+            "channel": str(getattr(channel, "value", channel)).lower(),
+            "guest_name": guest_name_by_conv.get(conv_id),
+            "message_count": count,
+            "last_message_at": last_at.isoformat() if last_at else None,
+        }
+        for conv_id, channel, count, last_at in rows
     ]

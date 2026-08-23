@@ -144,6 +144,42 @@ def render_daily_report(report: dict, *, tenant_name: str, dashboard_url: str) -
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:6px">{items}</table>
         </td></tr>"""
 
+    # ── Team performance, one block per agent ────────────────────────────
+    team_html = ""
+    if report.get("by_agent"):
+        blocks = []
+        for a in report["by_agent"]:
+            sc = a["scorecard"]
+            calls_rows = "".join(f"""
+              <tr>
+                <td style="padding:6px 0;border-bottom:1px solid {LINE}">
+                  <span style="display:inline-block;font:700 10px -apple-system,Segoe UI,Roboto,sans-serif;color:#fff;background:{MUTED};padding:2px 6px;border-radius:3px;text-transform:uppercase">{_e(c['disposition'])}</span>
+                  <div style="font:13px -apple-system,Segoe UI,Roboto,sans-serif;color:{MUTED};margin-top:2px">{_e(c['summary']) or 'No AI summary available.'}</div>
+                </td>
+              </tr>""" for c in a["notable_calls"])
+            narrative_html = (
+                f'<div style="font:13px -apple-system,Segoe UI,Roboto,sans-serif;color:{INK};margin-top:8px;line-height:1.5">{_e(a["narrative"])}</div>'
+                if a.get("narrative") else ""
+            )
+            blocks.append(f"""
+            <tr><td style="padding:16px 0 0">
+              <div style="font:600 14px -apple-system,Segoe UI,Roboto,sans-serif;color:{INK}">{_e(a['agent_name'])}</div>
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:6px">
+                <tr>
+                  {_stat("Leads", sc['leads_handled'])}
+                  {_stat("Calls", f"{sc['calls_answered']}/{sc['calls_answered'] + sc['calls_missed']}", note="answered/total")}
+                  {_stat("AI drafts ok", f"{sc['ai_drafts_approved']}/{sc['ai_drafts_total']}")}
+                </tr>
+              </table>
+              {narrative_html}
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px">{calls_rows}</table>
+            </td></tr>""")
+        team_html = f"""
+        <tr><td style="padding:20px 24px 0">
+          <div style="font:600 13px -apple-system,Segoe UI,Roboto,sans-serif;color:{MUTED};text-transform:uppercase;letter-spacing:.5px">Team performance</div>
+          <table width="100%" cellpadding="0" cellspacing="0">{"".join(blocks)}</table>
+        </td></tr>"""
+
     return f"""<!DOCTYPE html>
 <html><body style="margin:0;padding:0;background:#F3F4F6">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#F3F4F6;padding:24px 12px">
@@ -177,6 +213,7 @@ def render_daily_report(report: dict, *, tenant_name: str, dashboard_url: str) -
 
     {waiting_html}
     {insights_html}
+    {team_html}
 
     <tr><td style="padding:24px" align="center">
       <a href="{_e(dashboard_url)}" style="display:inline-block;background:{BRAND};color:#fff;text-decoration:none;font:600 14px -apple-system,Segoe UI,Roboto,sans-serif;padding:11px 22px;border-radius:8px">Open HAIP</a>
@@ -191,6 +228,74 @@ def render_daily_report(report: dict, *, tenant_name: str, dashboard_url: str) -
   </table>
 </td></tr></table>
 </body></html>"""
+
+
+def render_agent_report_html(block: dict, *, tenant_name: str, dashboard_url: str) -> str:
+    """One agent's own end-of-day report -- same plain-table style as
+    render_daily_report, personal framing ("your day") instead of the
+    owner's team-wide framing. `block` is daily_report_service.
+    build_agent_daily_report()'s return shape (scorecard/notable_calls/
+    narrative/date/agent_name)."""
+    sc = block["scorecard"]
+    narrative_html = (
+        f'<div style="font:14px -apple-system,Segoe UI,Roboto,sans-serif;color:{INK};margin-top:10px;line-height:1.6">{_e(block["narrative"])}</div>'
+        if block.get("narrative") else ""
+    )
+    calls_rows = "".join(f"""
+      <tr>
+        <td style="padding:8px 0;border-bottom:1px solid {LINE}">
+          <span style="display:inline-block;font:700 10px -apple-system,Segoe UI,Roboto,sans-serif;color:#fff;background:{MUTED};padding:2px 6px;border-radius:3px;text-transform:uppercase">{_e(c['disposition'])}</span>
+          <div style="font:13px -apple-system,Segoe UI,Roboto,sans-serif;color:{MUTED};margin-top:2px">{_e(c['summary']) or 'No AI summary available.'}</div>
+        </td>
+      </tr>""" for c in block["notable_calls"])
+    calls_html = f"""
+    <tr><td style="padding:20px 24px 0">
+      <div style="font:600 13px -apple-system,Segoe UI,Roboto,sans-serif;color:{MUTED};text-transform:uppercase;letter-spacing:.5px">Your notable calls today</div>
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:6px">{calls_rows}</table>
+    </td></tr>""" if block["notable_calls"] else ""
+
+    return f"""<!DOCTYPE html>
+<html><body style="margin:0;padding:0;background:#F3F4F6">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#F3F4F6;padding:24px 12px">
+<tr><td align="center">
+  <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;max-width:600px">
+
+    <tr><td style="background:{BRAND};padding:20px 24px">
+      <div style="font:700 18px -apple-system,Segoe UI,Roboto,sans-serif;color:#fff">Your day, {_e(block['agent_name'].split()[0] if block['agent_name'] else '')}</div>
+      <div style="font:13px -apple-system,Segoe UI,Roboto,sans-serif;color:#CCFBF1;margin-top:2px">{_e(tenant_name)} · {_e(block['date'])}</div>
+    </td></tr>
+
+    <tr><td style="padding:20px 24px 0">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          {_stat("Leads handled", sc['leads_handled'])}
+          {_stat("Calls answered", f"{sc['calls_answered']}/{sc['calls_answered'] + sc['calls_missed']}")}
+          {_stat("Conversions", sc['conversions'], accent=BRAND)}
+        </tr>
+        <tr>
+          {_stat("Avg response", f"{int(sc['avg_response_seconds'])}s" if sc['avg_response_seconds'] else "—")}
+          {_stat("Follow-ups", f"{sc['followups_completed']}/{sc['followups_total']}", note=f"{sc['followups_overdue']} overdue" if sc['followups_overdue'] else "")}
+          {_stat("AI drafts approved", f"{sc['ai_drafts_approved']}/{sc['ai_drafts_total']}")}
+        </tr>
+      </table>
+      {narrative_html}
+    </td></tr>
+
+    {calls_html}
+
+    <tr><td style="padding:24px" align="center">
+      <a href="{_e(dashboard_url)}" style="display:inline-block;background:{BRAND};color:#fff;text-decoration:none;font:600 14px -apple-system,Segoe UI,Roboto,sans-serif;padding:11px 22px;border-radius:8px">Open HAIP</a>
+    </td></tr>
+
+  </table>
+</td></tr></table>
+</body></html>"""
+
+
+def render_agent_report_subject(block: dict, tenant_name: str) -> str:
+    sc = block["scorecard"]
+    first_name = block["agent_name"].split()[0] if block["agent_name"] else "there"
+    return f"{first_name}, your day at {tenant_name}: {sc['leads_handled']} leads, {sc['calls_answered']} calls answered"
 
 
 def render_subject(report: dict, tenant_name: str) -> str:

@@ -63,10 +63,19 @@ def list_calls(
     direction: Optional[str] = None,
     agent_id: Optional[str] = None,
     missed: Optional[bool] = None,
+    date_preset: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List calls for the current tenant."""
+    """List calls for the current tenant.
+
+    date_preset/date_from/date_to are optional and additive -- the main
+    Calls page has never sent them (all-time list, paginated), so omitting
+    them keeps that behaviour exactly as-is. Added for the Agent Profile
+    page's Calls tab, which needs to scope to the selected date range.
+    """
     from app.models.tenant import Tenant
     tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
 
@@ -93,6 +102,19 @@ def list_calls(
             q = q.filter(call_status_service.missed_call_sql_filter())
         else:
             q = q.filter(~call_status_service.missed_call_sql_filter())
+
+    if date_preset or date_from or date_to:
+        from app.services.date_presets import VALID_PRESETS, resolve_range, ist_range_to_utc
+        preset = date_preset or "custom"
+        if preset not in VALID_PRESETS:
+            raise HTTPException(status_code=422, detail=f"Invalid date_preset: {preset}")
+        try:
+            d_from, d_to = resolve_range(preset, date_from, date_to)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=f"Invalid date: {exc}")
+        if d_from and d_to:
+            _, _, range_start_dt, range_end_dt = ist_range_to_utc(d_from, d_to)
+            q = q.filter(Call.created_at >= range_start_dt, Call.created_at <= range_end_dt)
 
     total = q.count()
     calls = q.order_by(Call.created_at.desc()).offset((page - 1) * limit).limit(limit).all()

@@ -55,6 +55,8 @@ celery_app = Celery(
         "app.workers.tasks.embed_knowledge",
         # Daily owner report email
         "app.workers.tasks.daily_owner_report",
+        # Per-agent end-of-day performance report email
+        "app.workers.tasks.daily_agent_report",
         # Recovers calls whose classify->judge chain-dispatch silently stalled
         "app.workers.tasks.call_recovery",
         # WhatsApp: campaign runner + template status sync
@@ -193,6 +195,8 @@ celery_app.conf.update(
         # land in the unconsumed default "celery" queue.
         "reports.send_daily_owner_report":      {"queue": "ai_scoring"},
         "reports.daily_owner_report_all_tenants": {"queue": "ai_scoring"},
+        "reports.send_daily_agent_report":      {"queue": "ai_scoring"},
+        "reports.daily_agent_report_all_tenants": {"queue": "ai_scoring"},
         "calls.recover_stalled_scoring":              {"queue": "ai_scoring"},
         "calls.recover_stalled_scoring_all_tenants":  {"queue": "ai_scoring"},
     },
@@ -263,6 +267,13 @@ celery_app.conf.beat_schedule = {
         "task": "reports.daily_owner_report_all_tenants",
         "schedule": crontab(hour=8, minute=0),
         "kwargs": {"kind": "morning"},
+    },
+    # Per-agent EOD report, once daily. 20:00 -- after the 19:00 owner
+    # evening report, not simultaneous with it (same offset-to-spread-load
+    # reasoning as sync-wa-templates-30min above).
+    "agent-report-evening": {
+        "task": "reports.daily_agent_report_all_tenants",
+        "schedule": crontab(hour=20, minute=0),
     },
     # Phase 3: Intent classification — nightly at 03:00 IST
     "classify-intent-nightly": {

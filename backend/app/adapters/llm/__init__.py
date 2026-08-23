@@ -83,6 +83,11 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # tier as lead_summary/ruflo_domain -- the strongest NVIDIA model this
     # router has, since this is guest-facing text.
     "concierge_draft": ("nvidia",  "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
+    # Agent-attribution dashboard/reports: a short narrative on how one
+    # agent handled guests over a period, synthesized from their own
+    # scorecard numbers + call summaries + lead outcomes. Internal
+    # (owner/agent report), not guest-facing -- same tier as lead_summary.
+    "agent_performance_narrative": ("nvidia", "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
 }
 
 

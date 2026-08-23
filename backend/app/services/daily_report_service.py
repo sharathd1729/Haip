@@ -25,7 +25,8 @@ from app.models.guest_identity import GuestIdentity
 from app.models.inquiry import Inquiry
 from app.models.insight import Insight
 from app.models.pipeline_stage import PipelineStage
-from app.services import call_status_service, worklist_service
+from app.models.user import User, UserRole
+from app.services import agent_analytics_service, call_status_service, worklist_service
 from app.services.date_presets import IST, ist_range_to_utc
 
 log = structlog.get_logger()
@@ -74,6 +75,90 @@ def get_active_insights(db: Session, tenant_id: str, limit: int = 5) -> list[dic
         }
         for r in rows[:limit]
     ]
+
+
+_MAX_NOTABLE_CALLS = 3
+
+
+def build_agent_block(db: Session, tenant_id: str, agent, target: str) -> Optional[dict]:
+    """One agent's slice of a daily report for one IST day: scorecard,
+    most notable calls (highest AI score first, so a strong or a rough call
+    surfaces either way), and a short narrative. Shared by the owner
+    report's per-agent section (get_agent_breakdown, looped over every
+    agent) and the per-agent EOD report (one agent, sent to themselves).
+    Returns None if the agent has no scorecard row (e.g. inactive)."""
+    rows = agent_analytics_service.get_agent_scorecard_rows(db, tenant_id, target, target, agent_id=agent.id)
+    scorecard = rows[0] if rows else None
+    if not scorecard:
+        return None
+
+    _, _, range_start_dt, range_end_dt = ist_range_to_utc(target, target)
+    calls = (
+        db.query(Call)
+        .filter(
+            Call.tenant_id == tenant_id, Call.agent_id == agent.id,
+            Call.created_at >= range_start_dt, Call.created_at <= range_end_dt,
+        )
+        .order_by(Call.ai_score.desc().nullslast())
+        .limit(_MAX_NOTABLE_CALLS)
+        .all()
+    )
+    narrative = agent_analytics_service.generate_agent_narrative(db, tenant_id, agent.id, target, target)
+    return {
+        "agent_name": agent.name,
+        "scorecard": scorecard,
+        "notable_calls": [
+            {
+                "disposition": str(getattr(c.ai_disposition, "value", c.ai_disposition) or "unclassified"),
+                "summary": (c.ai_summary or "")[:200],
+            }
+            for c in calls
+        ],
+        "narrative": narrative,
+    }
+
+
+def get_agent_breakdown(db: Session, tenant_id: str, target: str) -> list[dict]:
+    """Per-agent section for the owner report -- every non-owner/manager
+    agent's build_agent_block(). Real work (an LLM call per agent) -- errors
+    on any one agent must not break the rest of the report."""
+    agents = (
+        db.query(User)
+        .filter(
+            User.tenant_id == tenant_id, User.is_active.is_(True), User.is_deleted.is_(False),
+            User.role.notin_([UserRole.OWNER, UserRole.MANAGER]),
+        )
+        .order_by(User.name)
+        .all()
+    )
+    out = []
+    for agent in agents:
+        try:
+            block = build_agent_block(db, tenant_id, agent, target)
+            if block:
+                out.append(block)
+        except Exception as exc:
+            log.warning("agent_breakdown_failed", tenant_id=tenant_id, agent_id=agent.id, error=str(exc))
+    return out
+
+
+def build_agent_daily_report(
+    db: Session, tenant_id: str, agent_id: str, *, day: Optional[str] = None,
+) -> Optional[dict]:
+    """One agent's own end-of-day report -- same underlying data as their
+    slice of the owner report (build_agent_block), for their personal EOD
+    email. Covers "today" (this report always sends at end of day, unlike
+    the owner report's evening/morning split). None if the agent doesn't
+    exist or has no scorecard row for the day."""
+    agent = db.query(User).filter_by(id=agent_id, tenant_id=tenant_id).first()
+    if not agent:
+        return None
+    target = day or datetime.now(IST).date().isoformat()
+    block = build_agent_block(db, tenant_id, agent, target)
+    if not block:
+        return None
+    block["date"] = target
+    return block
 
 
 def build_daily_report(
@@ -233,4 +318,5 @@ def build_daily_report(
         },
         "top_waiting": top_waiting,
         "insights": get_active_insights(db, tenant_id),
+        "by_agent": get_agent_breakdown(db, tenant_id, target),
     }

@@ -1,0 +1,46 @@
+{#---
+version: 1
+changed_at: 2026-08-24
+purpose: Short factual paragraph on how one sales agent handled guests over
+         a reporting period -- used in both the owner's daily report's
+         per-agent section and the agent's own end-of-day report.
+changes: v1 -- initial version.
+---#}
+You are writing one short paragraph for an internal team-performance report
+about {{ agent.name }}, a sales agent at {{ agent.tenant.name if agent.tenant else "this property" }}.
+
+THEIR NUMBERS THIS PERIOD
+- Leads handled: {{ scorecard.leads_handled }}
+- Average response time: {{ scorecard.avg_response_seconds }}s across {{ scorecard.response_count }} replies
+- Calls answered: {{ scorecard.calls_answered }}, missed: {{ scorecard.calls_missed }} ({{ scorecard.calls_missed_recovered }} recovered)
+- Follow-ups: {{ scorecard.followups_completed }}/{{ scorecard.followups_total }} completed, {{ scorecard.followups_overdue }} overdue
+- AI drafts: {{ scorecard.ai_drafts_approved }} approved / {{ scorecard.ai_drafts_rejected }} rejected of {{ scorecard.ai_drafts_total }}
+- Conversions (closed-won): {{ scorecard.conversions }}
+
+THEIR CALLS THIS PERIOD (most recent first)
+{% for c in calls %}
+- [{{ c.disposition }}] {{ c.summary if c.summary else "(no AI summary available)" }}
+{% endfor %}
+{% if not calls %}- No calls in this period.
+{% endif %}
+
+THEIR LEADS THIS PERIOD
+{% for l in leads %}
+- Stage: {{ l.stage }}{% if l.occasion %}, occasion: {{ l.occasion }}{% endif %}
+{% endfor %}
+{% if not leads %}- No leads assigned in this period.
+{% endif %}
+
+INSTRUCTIONS
+- Write 3-5 sentences, plain factual prose, no bullet points, no headings.
+- State ONLY what the numbers and call/lead data above actually show. Never
+  invent a claim about tone, professionalism, or guest sentiment that isn't
+  directly supported by a call summary or disposition above -- if the data
+  is too thin to say anything specific about communication style, say so
+  plainly rather than filling the gap with generic praise.
+- Call out one concrete strength and one concrete area to watch, if the
+  data supports both. If everything looks routine, say that plainly instead
+  of manufacturing a concern.
+- Do not restate the raw numbers verbatim -- they're already shown
+  separately in the report. Write about what they mean.
+- No greeting, no sign-off, just the paragraph itself.

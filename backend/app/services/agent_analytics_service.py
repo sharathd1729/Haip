@@ -6,8 +6,11 @@ captures changed_by=actor_user_id|"system" on every stage transition,
 through both inquiry_service.py transition paths (_apply_stage,
 _apply_stage_by_id). This module just reads it.
 """
+from pathlib import Path
 from typing import Optional
 
+import structlog
+from jinja2 import Environment, FileSystemLoader
 from sqlalchemy import func, Integer, cast
 from sqlalchemy.orm import Session
 
@@ -21,6 +24,8 @@ from app.services.date_presets import ist_range_to_utc
 from app.services import call_status_service
 from app.models.user import User
 from app.models.tenant import Tenant
+
+log = structlog.get_logger()
 
 
 def get_conversion_actor(db: Session, tenant_id: str, inquiry_id: str) -> Optional[str]:
@@ -68,6 +73,7 @@ def get_conversion_actor(db: Session, tenant_id: str, inquiry_id: str) -> Option
 
 def get_agent_scorecard_rows(
     db: Session, tenant_id: str, date_from: str, date_to: str,
+    agent_id: str | None = None,
 ) -> list[dict]:
     """
     Role-aware dashboard rebuild: one row per active user combining every
@@ -79,6 +85,12 @@ def get_agent_scorecard_rows(
 
     date_from/date_to are inclusive IST calendar-date strings (YYYY-MM-DD),
     already resolved by date_presets.resolve_range() upstream.
+
+    agent_id: scope to one user (agent profile page / per-agent report).
+    Every signal query below is already merged into `rows` by user_id via
+    `if uid in rows`, so filtering the initial `users` query is the only
+    change needed -- every other query still runs tenant-wide but simply
+    has nowhere to write a row for a user not in scope.
     """
     # ist_range_to_utc() converts the IST calendar-day boundary into the
     # correct UTC instants -- this previously built a naive
@@ -87,11 +99,12 @@ def get_agent_scorecard_rows(
     # UTC, shifting the window by IST's +5:30 offset (see date_presets.py).
     range_start, range_end_dt, range_start_dt, range_end_dt_obj = ist_range_to_utc(date_from, date_to)
 
-    users = (
-        db.query(User)
-        .filter(User.tenant_id == tenant_id, User.is_active == True, User.is_deleted == False)  # noqa: E712
-        .all()
+    users_q = db.query(User).filter(
+        User.tenant_id == tenant_id, User.is_active == True, User.is_deleted == False,  # noqa: E712
     )
+    if agent_id:
+        users_q = users_q.filter(User.id == agent_id)
+    users = users_q.all()
     rows = {
         u.id: {
             "agent_id": u.id, "agent_name": u.name,
@@ -215,3 +228,80 @@ def get_agent_scorecard_rows(
                 rows[uid]["conversions"] = cnt
 
     return list(rows.values())
+
+
+# ── Agent performance narrative ─────────────────────────────────────────────
+# Short LLM-written paragraph on how one agent handled guests over a period
+# -- for the owner report's per-agent section and the agent's own EOD report.
+# Grounded strictly in real data (that agent's scorecard numbers + their own
+# calls' ai_summary/disposition + their leads' current stage) -- the prompt
+# is explicitly told never to invent a claim the data doesn't support, same
+# discipline as concierge_reply.jinja.
+
+_MAX_NARRATIVE_CALLS = 10
+
+_jinja_env = Environment(loader=FileSystemLoader(str(Path(__file__).parent.parent / "prompts")))
+
+
+def generate_agent_narrative(
+    db: Session, tenant_id: str, agent_id: str, date_from: str, date_to: str,
+) -> str:
+    """Returns "" (never raises) on any failure -- a missing narrative must
+    degrade the report to "no narrative this period," never break the send."""
+    from app.adapters.llm import get_llm
+    from app.core.prompt_versions import stamp
+
+    range_start, range_end_dt, _, _ = ist_range_to_utc(date_from, date_to)
+
+    agent = db.query(User).filter_by(id=agent_id, tenant_id=tenant_id).first()
+    if not agent:
+        return ""
+
+    rows = get_agent_scorecard_rows(db, tenant_id, date_from, date_to, agent_id=agent_id)
+    scorecard = rows[0] if rows else None
+    if not scorecard:
+        return ""
+
+    calls = (
+        db.query(Call)
+        .filter(
+            Call.tenant_id == tenant_id, Call.agent_id == agent_id,
+            Call.created_at >= range_start, Call.created_at <= range_end_dt,
+        )
+        .order_by(Call.created_at.desc())
+        .limit(_MAX_NARRATIVE_CALLS)
+        .all()
+    )
+    call_notes = [
+        {
+            "disposition": str(getattr(c.ai_disposition, "value", c.ai_disposition) or "unclassified"),
+            "summary": c.ai_summary or "",
+        }
+        for c in calls
+    ]
+
+    leads = (
+        db.query(Inquiry)
+        .filter(
+            Inquiry.tenant_id == tenant_id, Inquiry.assigned_to == agent_id,
+            Inquiry.created_at >= range_start, Inquiry.created_at <= range_end_dt,
+        )
+        .all()
+    )
+    lead_notes = [
+        {"stage": (i.pipeline_stage.label if i.pipeline_stage else "unassigned"), "occasion": i.occasion}
+        for i in leads
+    ]
+
+    try:
+        template = _jinja_env.get_template("agent_performance_narrative.jinja")
+        prompt = template.render(agent=agent, scorecard=scorecard, calls=call_notes, leads=lead_notes)
+        adapter = get_llm("agent_performance_narrative")
+        import asyncio
+        result = asyncio.run(adapter.complete(system_prompt=prompt, user_message="Write the narrative."))
+        text = (result.get("content") or "").strip()
+        log.info("agent_narrative_generated", tenant_id=tenant_id, agent_id=agent_id, **stamp("agent_performance_narrative"))
+        return text
+    except Exception as exc:
+        log.warning("agent_narrative_failed", tenant_id=tenant_id, agent_id=agent_id, error=str(exc))
+        return ""

@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import {
@@ -618,7 +619,13 @@ function MemberRow({ member, onRoleChanged, onToggleActive, onToggleIvrRouting, 
       <Avatar name={member.name} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
-          <span className="text-sm font-semibold text-gray-900 truncate">{member.name}</span>
+          <Link
+            href={`/dashboard/team/${member.id}`}
+            className="text-sm font-semibold text-gray-900 truncate hover:text-teal-700 hover:underline"
+            title="View calls, messages and leads handled by this member"
+          >
+            {member.name}
+          </Link>
           {member.is_mfa_enabled && (
             <span title="MFA enabled"><Shield size={11} className="text-teal-500 flex-shrink-0" /></span>
           )}

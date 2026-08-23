@@ -74,6 +74,7 @@ PROMPT_VERSIONS: dict[str, str] = {
     # concierge_draft.py's _check_grounding()/_CAPACITY_RE.
     "concierge_reply": "concierge-reply-v9",    # concierge_reply.jinja
     "lost_reason":     "lost-reason-v1",        # lost_reason.jinja
+    "agent_performance_narrative": "agent-performance-narrative-v1",  # agent_performance_narrative.jinja
 
     # Inline prompts built in Python
     "leads360_summary":       "leads360-summary-v2",  # generate_ai_summary.py
