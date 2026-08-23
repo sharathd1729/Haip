@@ -571,3 +571,65 @@ async def upload_ivr_greeting_audio(
         has_greeting_audio=True,
         eligible_agents=get_eligible_agents_summary(db, tenant.id),
     )
+
+
+# Sarvam's per-request text cap is well above this; 2000 chars is ~4 minutes
+# of speech, far more than any sane IVR greeting.
+_MAX_GREETING_TEXT_CHARS = 2000
+
+
+class IVRGreetingTTSRequest(BaseModel):
+    text: str
+    speaker: str = "anushka"
+
+
+@router.post("/tenants/me/ivr-greeting-tts", response_model=IVRRoutingSettings)
+def generate_ivr_greeting_tts(
+    body: IVRGreetingTTSRequest,
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """Generate the greeting from text via Sarvam TTS and set it as this
+    tenant's IVR greeting -- same S3 key and same downstream playback path
+    (webhooks_vobiz.py) as a manual upload, so this is just a second way to
+    produce the same artifact.
+
+    Synchronous on purpose: a ~50-word TTS render is a bounded 1-3s call,
+    much closer to the sibling upload endpoint's inline S3 write than to an
+    LLM completion (which CLAUDE.md rightly pushes to Celery). Keeping it
+    inline means the admin gets immediate pass/fail on a one-off setup
+    action, with no polling UI to build."""
+    from app.services import media_storage, tts_service
+
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    text = (body.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Greeting text is required.")
+    if len(text) > _MAX_GREETING_TEXT_CHARS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Greeting text too long ({len(text)} chars). Max {_MAX_GREETING_TEXT_CHARS}.",
+        )
+
+    try:
+        audio_bytes = tts_service.generate_speech(text, speaker=body.speaker)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Voice generation failed: {exc}")
+
+    key = media_storage.upload_ivr_greeting(tenant.id, audio_bytes, "audio/mpeg", "mp3")
+    tenant.ivr_greeting_audio_key = key
+    db.commit()
+
+    log.info(
+        "ivr_greeting_tts_generated",
+        tenant_id=tenant.id, actor_user_id=current_user.id, speaker=body.speaker,
+    )
+    from app.services.ivr_routing_service import get_eligible_agents_summary
+    return IVRRoutingSettings(
+        ivr_routing_strategy=tenant.ivr_routing_strategy,
+        has_greeting_audio=True,
+        eligible_agents=get_eligible_agents_summary(db, tenant.id),
+    )

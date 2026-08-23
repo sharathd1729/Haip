@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import {
   Phone, Loader2, CheckCircle2, AlertCircle,
   RefreshCw, Upload, Shuffle, GitBranch,
-  ListOrdered, Hourglass, UserCheck, Users,
+  ListOrdered, Hourglass, UserCheck, Users, Sparkles,
 } from "lucide-react";
 
 // This page used to also carry a "Vobiz SIP Credentials" / DTMF-menu /
@@ -64,6 +64,23 @@ const ROUTING_STRATEGIES = [
   },
 ];
 
+// Sarvam bulbul:v2 female voices. anushka is Sarvam's flagship/default.
+const TTS_VOICES = [
+  { id: "anushka", label: "Anushka (female)" },
+  { id: "manisha", label: "Manisha (female)" },
+  { id: "vidya", label: "Vidya (female)" },
+  { id: "arya", label: "Arya (female)" },
+  { id: "ritu", label: "Ritu (female)" },
+  { id: "priya", label: "Priya (female)" },
+  { id: "neha", label: "Neha (female)" },
+  { id: "pooja", label: "Pooja (female)" },
+  { id: "simran", label: "Simran (female)" },
+  { id: "kavya", label: "Kavya (female)" },
+  { id: "abhilash", label: "Abhilash (male)" },
+  { id: "karun", label: "Karun (male)" },
+  { id: "hitesh", label: "Hitesh (male)" },
+];
+
 export default function IVRPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
@@ -87,6 +104,13 @@ function CallRoutingSection() {
   const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [ttsText, setTtsText] = useState(
+    "Welcome to Ratha, our Retreat on the move — caravan rentals in Bangalore. " +
+    "Please leave your name and number and we shall connect to you suitably to " +
+    "curate your itinerary. Thank you for calling Ratha Retreats. Namaskara."
+  );
+  const [ttsSpeaker, setTtsSpeaker] = useState("anushka");
+  const [ttsError, setTtsError] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery<IVRRoutingSettings>({
     queryKey: ["ivr-routing"],
@@ -113,6 +137,21 @@ function CallRoutingSection() {
     },
     onError: (err: any) => {
       setUploadError(err?.response?.data?.detail || "Upload failed. Try an MP3 under 10 MB.");
+    },
+  });
+
+  const generateGreeting = useMutation({
+    mutationFn: () =>
+      api.post("/tenants/me/ivr-greeting-tts", {
+        text: ttsText,
+        speaker: ttsSpeaker,
+      }).then(r => r.data),
+    onSuccess: () => {
+      setTtsError(null);
+      qc.invalidateQueries({ queryKey: ["ivr-routing"] });
+    },
+    onError: (err: any) => {
+      setTtsError(err?.response?.data?.detail || "Voice generation failed. Try again.");
     },
   });
 
@@ -229,6 +268,49 @@ function CallRoutingSection() {
           {uploadError && (
             <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
               <AlertCircle size={12} /> {uploadError}
+            </p>
+          )}
+        </Field>
+      </div>
+
+      <div className="pt-2 border-t border-gray-100">
+        <Field label="Or generate it with an AI voice">
+          <textarea
+            value={ttsText}
+            onChange={e => setTtsText(e.target.value)}
+            rows={4}
+            maxLength={2000}
+            placeholder="What the caller hears before the agent's phone rings…"
+            className="w-full text-xs px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-teal-400 resize-y"
+          />
+          <div className="flex items-center gap-3 mt-2">
+            <select
+              value={ttsSpeaker}
+              onChange={e => setTtsSpeaker(e.target.value)}
+              className="text-xs px-2 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-teal-400"
+            >
+              {TTS_VOICES.map(v => (
+                <option key={v.id} value={v.id}>{v.label}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => generateGreeting.mutate()}
+              disabled={generateGreeting.isPending || !ttsText.trim()}
+              className="flex items-center gap-1.5 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
+            >
+              {generateGreeting.isPending
+                ? <Loader2 size={13} className="animate-spin" />
+                : <Sparkles size={13} />}
+              Generate &amp; set as greeting
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 mt-1">
+            Generates the greeting with Sarvam AI and sets it as the recording
+            above, replacing whatever's there. Takes a few seconds.
+          </p>
+          {ttsError && (
+            <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+              <AlertCircle size={12} /> {ttsError}
             </p>
           )}
         </Field>
