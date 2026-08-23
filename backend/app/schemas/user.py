@@ -37,6 +37,12 @@ class UserUpdateRequest(BaseModel):
     is_active: Optional[bool] = None
     property_scope: Optional[List[str]] = None
     ivr_call_routing_enabled: Optional[bool] = None
+    # Owner/manager setting another agent's phone -- previously only
+    # UserSelfUpdateRequest (PATCH /users/me) had this field, so an owner
+    # had no way to set a phone number on someone else's behalf at all,
+    # single or bulk. The IVR routing pool needs a phone on file before an
+    # agent can be added to it (see settings/ivr's own note pointing here).
+    phone: Optional[str] = None
 
 
 # A7: self-update (any authenticated user — cannot change role/is_active)

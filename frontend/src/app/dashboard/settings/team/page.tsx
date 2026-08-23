@@ -410,6 +410,18 @@ export default function TeamPage() {
     },
   });
 
+  const updatePhoneMutation = useMutation({
+    mutationFn: ({ id, phone }: { id: string; phone: string }) =>
+      api.patch(`/users/${id}`, { phone }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["team-members"] });
+      showToast("Phone number updated.", "success");
+    },
+    onError: (err: any) => {
+      showToast(err?.response?.data?.detail || "Failed to update phone number.", "error");
+    },
+  });
+
   const revokeInviteMutation = useMutation({
     mutationFn: (token: string) => api.delete(`/users/invitations/${token}`),
     onSuccess: () => {
@@ -489,6 +501,7 @@ export default function TeamPage() {
                           onRoleChanged={() => queryClient.invalidateQueries({ queryKey: ["team-members"] })}
                           onToggleActive={(active) => toggleActiveMutation.mutate({ id: member.id, active })}
                           onToggleIvrRouting={(enabled) => toggleIvrRoutingMutation.mutate({ id: member.id, enabled })}
+                          onUpdatePhone={(phone) => updatePhoneMutation.mutate({ id: member.id, phone })}
                         />
                       ))}
                     </div>
@@ -505,6 +518,7 @@ export default function TeamPage() {
                           onRoleChanged={() => queryClient.invalidateQueries({ queryKey: ["team-members"] })}
                           onToggleActive={(active) => toggleActiveMutation.mutate({ id: member.id, active })}
                           onToggleIvrRouting={(enabled) => toggleIvrRoutingMutation.mutate({ id: member.id, enabled })}
+                          onUpdatePhone={(phone) => updatePhoneMutation.mutate({ id: member.id, phone })}
                         />
                       ))}
                     </div>
@@ -569,11 +583,12 @@ export default function TeamPage() {
 
 // ─── Member Row ───────────────────────────────────────────────────────────────
 
-function MemberRow({ member, onRoleChanged, onToggleActive, onToggleIvrRouting }: {
+function MemberRow({ member, onRoleChanged, onToggleActive, onToggleIvrRouting, onUpdatePhone }: {
   member: TeamMember;
   onRoleChanged: () => void;
   onToggleActive: (active: boolean) => void;
   onToggleIvrRouting: (enabled: boolean) => void;
+  onUpdatePhone: (phone: string) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const hasPhone = !!member.phone;
@@ -593,6 +608,8 @@ function MemberRow({ member, onRoleChanged, onToggleActive, onToggleIvrRouting }
         </div>
         <span className="text-xs text-gray-400 truncate">{member.email}</span>
       </div>
+
+      <PhoneEditor phone={member.phone} onSave={onUpdatePhone} />
 
       <button
         onClick={() => hasPhone && onToggleIvrRouting(!member.ivr_call_routing_enabled)}
@@ -645,6 +662,63 @@ function MemberRow({ member, onRoleChanged, onToggleActive, onToggleIvrRouting }
         )}
       </div>
     </div>
+  );
+}
+
+// ─── Phone Editor ───────────────────────────────────────────────────────────
+// Click-to-edit inline field so an owner/manager can set (or fix) another
+// member's phone number without them logging in themselves -- previously
+// the only way was PATCH /users/me (self only), so there was no way at all
+// for an owner to set someone else's number, let alone several agents' in
+// one place. Editing straight down this list is the "bulk" workflow.
+
+function PhoneEditor({ phone, onSave }: { phone: string | null; onSave: (phone: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(phone ?? "");
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    const trimmed = value.trim();
+    if (trimmed === (phone ?? "")) { setEditing(false); return; }
+    setSaving(true);
+    try {
+      await onSave(trimmed);
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        type="tel"
+        value={value}
+        onChange={e => setValue(e.target.value)}
+        onBlur={save}
+        onKeyDown={e => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          if (e.key === "Escape") { setValue(phone ?? ""); setEditing(false); }
+        }}
+        disabled={saving}
+        placeholder="+91XXXXXXXXXX"
+        className="w-32 text-xs px-2 py-1.5 rounded-lg border border-teal-300 focus:outline-none focus:ring-1 focus:ring-teal-400 flex-shrink-0"
+      />
+    );
+  }
+
+  return (
+    <button
+      onClick={() => { setValue(phone ?? ""); setEditing(true); }}
+      title="Click to edit phone number"
+      className={cn(
+        "text-xs px-2 py-1.5 rounded-lg border border-transparent hover:border-gray-200 hover:bg-gray-50 transition-colors flex-shrink-0 text-left w-32 truncate",
+        phone ? "text-gray-600" : "text-gray-300 italic"
+      )}
+    >
+      {phone || "Add phone"}
+    </button>
   );
 }
 
