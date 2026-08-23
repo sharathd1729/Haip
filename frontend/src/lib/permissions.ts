@@ -72,7 +72,7 @@ export const navByRole: Record<UserRole, Resource[]> = {
     "dashboard", "calls", "inbox", "guests", "profile", "help",
   ],
   reservations: [
-    "dashboard", "inquiries", "guests", "inbox", "profile", "help",
+    "dashboard", "calls", "inquiries", "guests", "inbox", "profile", "help",
   ],
   compliance: [
     "compliance", "analytics", "profile", "help",
