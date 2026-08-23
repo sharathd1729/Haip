@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import {
   Phone, Loader2, CheckCircle2, AlertCircle,
   RefreshCw, Upload, Shuffle, GitBranch,
-  ListOrdered, Hourglass, UserCheck, Users, Sparkles,
+  ListOrdered, Hourglass, UserCheck, Users, Sparkles, Play,
 } from "lucide-react";
 
 // This page used to also carry a "Vobiz SIP Credentials" / DTMF-menu /
@@ -259,6 +259,7 @@ function CallRoutingSection() {
                 <CheckCircle2 size={13} /> Configured
               </span>
             )}
+            {data?.has_greeting_audio && <PlayGreetingButton />}
           </div>
           <p className="text-xs text-gray-400 mt-1">
             Plays once the call is answered, before the agent's phone starts
@@ -308,6 +309,11 @@ function CallRoutingSection() {
             Generates the greeting with Sarvam AI and sets it as the recording
             above, replacing whatever's there. Takes a few seconds.
           </p>
+          {generateGreeting.isSuccess && !ttsError && (
+            <p className="text-xs text-teal-600 mt-1 flex items-center gap-1">
+              <CheckCircle2 size={12} /> Generated and set as the greeting above — use "Play" to hear it.
+            </p>
+          )}
           {ttsError && (
             <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
               <AlertCircle size={12} /> {ttsError}
@@ -316,6 +322,38 @@ function CallRoutingSection() {
         </Field>
       </div>
     </Section>
+  );
+}
+
+// ── Play current greeting ───────────────────────────────────────────────────
+// The one real gap that made TTS generation look broken when it wasn't:
+// it succeeded every time, there was just no way to hear it without a real
+// phone call. Fetches a short-lived presigned URL on click and plays it
+// inline instead.
+
+function PlayGreetingButton() {
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const fetchUrl = useMutation({
+    mutationFn: () => api.get("/tenants/me/ivr-greeting-audio/url").then(r => r.data.url as string),
+    onSuccess: (url) => { setError(null); setAudioUrl(url); },
+    onError: (err: any) => setError(err?.response?.data?.detail || "Couldn't load the recording."),
+  });
+
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        onClick={() => fetchUrl.mutate()}
+        disabled={fetchUrl.isPending}
+        title="Play the current greeting"
+        className="flex items-center gap-1 text-xs font-medium text-teal-600 hover:text-teal-700 transition-colors disabled:opacity-50"
+      >
+        {fetchUrl.isPending ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+        Play
+      </button>
+      {audioUrl && <audio src={audioUrl} controls autoPlay className="h-8" style={{ maxWidth: 220 }} />}
+      {error && <span className="text-xs text-red-600">{error}</span>}
+    </div>
   );
 }
 

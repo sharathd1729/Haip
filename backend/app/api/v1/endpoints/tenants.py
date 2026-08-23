@@ -512,6 +512,27 @@ def get_ivr_routing(
     )
 
 
+@router.get("/tenants/me/ivr-greeting-audio/url")
+def get_ivr_greeting_audio_url(
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """Short-lived playback URL for the currently-configured greeting, so
+    an admin can actually hear what a Generate/Upload produced instead of
+    only seeing a "Configured" checkmark -- confirmed live this was the
+    real gap: TTS generation was working every time, there was just no
+    way to tell from the UI."""
+    from app.services import media_storage
+
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    if not tenant or not tenant.ivr_greeting_audio_key:
+        raise HTTPException(status_code=404, detail="No greeting configured yet.")
+    url = media_storage.get_presigned_media_url(tenant.ivr_greeting_audio_key, expires_in=300)
+    if not url:
+        raise HTTPException(status_code=502, detail="Could not generate a playback link. Try again.")
+    return {"url": url}
+
+
 @router.patch("/tenants/me/ivr-routing", response_model=IVRRoutingSettings)
 def update_ivr_routing(
     body: IVRRoutingSettings,
