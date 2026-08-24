@@ -70,9 +70,21 @@ class NvidiaNIMAdapter(LLMAdapter):
         except ImportError:
             raise RuntimeError("openai package not installed. Run: pip install openai")
 
+        # max_retries=0: the SDK's own default (2) silently retries a
+        # failed/slow request internally before ever raising back to the
+        # caller -- invisible to any timeout or logging wrapped around this
+        # call. Confirmed live: concierge_draft.py's own 2-attempt retry
+        # loop (added after real timeouts) logged near-identical elapsed
+        # times across separate task runs, which is what you'd expect from
+        # a deterministic internal retry/backoff schedule hitting the same
+        # failure repeatedly within the outer wait_for window, not
+        # necessarily one request truly hanging. Callers that want retries
+        # own that decision explicitly now (concierge_draft.py does), so
+        # this must not also be retrying underneath them.
         client = openai.AsyncOpenAI(
             api_key=api_key,
             base_url=_BASE_URL,
+            max_retries=0,
         )
 
         messages = [
