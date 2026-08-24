@@ -333,3 +333,48 @@ class TestConciergeDraftEndToEnd:
         assert draft.body != "This should never be used."
         assert float(draft.ai_confidence) == 0.0
         assert draft.was_approved is None  # never auto-sent
+        assert draft.ai_needs_human_reason == "AI reply generation timed out after 2 attempts"
+
+    def test_completion_retry_recovers_from_a_transient_hang(self, db, monkeypatch):
+        """Confirmed live: three real timeouts all landed within ~1s of
+        whatever the bound was set to -- the signature of a request that
+        genuinely hangs rather than one that's merely slow. A retry with a
+        fresh request should recover when the first attempt was a one-off
+        stall, instead of falling back to the generic apology every time."""
+        tenant, guest, conv, inbound = _setup_conversation(db)
+
+        class _FakeIntentLLM:
+            async def complete(self, **kwargs):
+                return {"tool_use": {"intent": "general"}}
+
+        call_count = {"n": 0}
+
+        class _FlakyConciergeLLM:
+            async def complete(self, **kwargs):
+                import asyncio
+                call_count["n"] += 1
+                if call_count["n"] == 1:
+                    await asyncio.sleep(0.2)  # hangs past the per-attempt timeout
+                return {"tool_use": {"reply": "The real answer.", "confidence": 0.9, "citations": [], "needs_human": False}}
+
+        def _fake_get_llm(task):
+            return _FakeIntentLLM() if task == "quick_classify" else _FlakyConciergeLLM()
+
+        monkeypatch.setattr("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm)
+        monkeypatch.setattr("app.workers.tasks.concierge_draft.MAX_REPLY_SECONDS", 0.01)
+
+        with patch("app.workers.tasks.concierge_draft.SessionLocal", return_value=db), \
+             patch("app.services.push_service.send_to_tenant"):
+            concierge_draft.run(message_id=inbound.id, conversation_id=conv.id, tenant_id=tenant.id)
+
+        assert call_count["n"] == 2  # first attempt hung, second was tried
+
+        draft = (
+            db.query(Message)
+            .filter_by(conversation_id=conv.id, direction="outbound", is_ai_generated=True)
+            .order_by(Message.created_at.desc())
+            .first()
+        )
+        assert draft is not None
+        assert draft.body == "The real answer."  # recovered, not the generic fallback
+        assert float(draft.ai_confidence) == 0.9
