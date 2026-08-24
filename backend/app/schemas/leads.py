@@ -133,6 +133,15 @@ class LeadCardSchema(BaseModel):
     # card can offer a one-click "send" without a second round-trip.
     pending_draft: Optional[PendingDraftSchema] = None
 
+    # Auto-send soft-escalation plan: true when the AI's most recent reply
+    # on this lead was auto-sent (not held for approval) but the model
+    # itself judged the outcome needs a human's personal follow-up -- e.g.
+    # a complex custom quote or a frustrated guest. Distinct from
+    # pending_draft above, which is a draft still awaiting approval; this
+    # reply already went out, the lead just needs a human's attention next.
+    needs_agent_followup: bool = False
+    needs_agent_followup_reason: Optional[str] = None
+
 
 # ─── Lead Detail (card + timeline) ───────────────────────────────────────────
 

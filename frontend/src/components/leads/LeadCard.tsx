@@ -2,7 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Clock, AlertCircle, ChevronDown, MessageSquare, Loader2, Calendar } from "lucide-react";
+import { Clock, AlertCircle, ChevronDown, MessageSquare, Loader2, Calendar, UserCheck } from "lucide-react";
 import { cn, timeAgo } from "@/lib/utils";
 import { ChannelIcon } from "@/components/inbox/ChannelIcon";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
@@ -43,6 +43,11 @@ export interface LeadCard {
   response_time_status?: "waiting" | "responded" | null;
   // M5+ WS3: most recent pending AI draft for this lead, if any.
   pending_draft?: { message_id: string; conversation_id: string; preview: string } | null;
+  // Auto-send soft-escalation plan: the AI's last reply already went out
+  // (not a pending_draft), but it judged the outcome needs a human's
+  // personal follow-up -- e.g. a complex custom quote or a frustrated guest.
+  needs_agent_followup?: boolean;
+  needs_agent_followup_reason?: string | null;
 }
 
 function formatCardDate(iso?: string): string | null {
@@ -80,6 +85,20 @@ export function ResponseTimeBadge({ seconds, status }: { seconds?: number | null
       title={waiting ? "Guest is waiting for a reply" : "Time to first reply"}
     >
       {waiting ? `waiting ${formatDuration(seconds)}` : `replied in ${formatDuration(seconds)}`}
+    </span>
+  );
+}
+
+export function NeedsFollowupBadge({ reason }: { reason?: string | null }) {
+  if (!reason) return null;
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold whitespace-nowrap"
+      style={{ background: "color-mix(in srgb, var(--haip-amber) 15%, transparent)", color: "var(--haip-amber)" }}
+      title={`AI replied automatically -- needs your follow-up: ${reason}`}
+    >
+      <UserCheck size={9} />
+      needs you
     </span>
   );
 }
@@ -308,7 +327,10 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
           <Clock size={9} />
           {lead.last_touch_at ? timeAgo(lead.last_touch_at) : "—"}
         </p>
-        <ResponseTimeBadge seconds={lead.response_time_seconds} status={lead.response_time_status} />
+        <div className="flex items-center gap-1">
+          <NeedsFollowupBadge reason={lead.needs_agent_followup_reason} />
+          <ResponseTimeBadge seconds={lead.response_time_seconds} status={lead.response_time_status} />
+        </div>
       </div>
 
       {/* Row 6: Assigned agent — AI summary intentionally removed from this

@@ -625,6 +625,19 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         # is answerable from the database afterward, not just from a log
         # line the next container restart erases (migration 088).
         needs_human_reasons: list[str] = []
+        # hard_block vs needs_human: needs_human alone conflated two very
+        # different things -- the model's own soft "a human should ideally
+        # own this" judgment (set above, e.g. a complex custom quote or a
+        # frustrated-but-not-escalation-worthy guest) vs the draft being
+        # actually wrong or risky (hallucinated claim, leaked price, a
+        # refund/legal/safety escalation keyword, rate limiting). Every
+        # guest message deserves a reply, but only hard_block should ever
+        # block one -- confirmed as the explicit product decision. A
+        # soft-only needs_human still auto-sends (subject to the normal
+        # mode/confidence gate below); leads_service.py separately flags
+        # the lead for a human to follow up on, using the same
+        # ai_needs_human_reason this block already persists.
+        hard_block = False
         if needs_human and draft.get("reason_needs_human"):
             needs_human_reasons.append(str(draft["reason_needs_human"]))
 
@@ -636,6 +649,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
                 message_id=message_id, reason=violation,
             )
             needs_human = True
+            hard_block = True
             confidence = 0.0
             needs_human_reasons.append(f"ungrounded claim: {violation}")
 
@@ -657,6 +671,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
                 category=escalation["category"], keyword=escalation["keyword"],
             )
             needs_human = True
+            hard_block = True
             confidence = 0.0
             needs_human_reasons.append(f"escalation: {escalation['category']} (matched {escalation['keyword']!r})")
 
@@ -673,6 +688,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
                 matched=price_leak,
             )
             needs_human = True
+            hard_block = True
             confidence = 0.0
             needs_human_reasons.append(f"price leak: {price_leak!r}")
 
@@ -685,7 +701,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         ai_mode, confidence_threshold = ai_mode_service.resolve(tenant, conversation)
         if confidence_threshold is None:
             confidence_threshold = CONFIDENCE_THRESHOLD
-        should_auto_send = (ai_mode == "autonomous" and confidence >= confidence_threshold and not needs_human)
+        should_auto_send = (ai_mode == "autonomous" and confidence >= confidence_threshold and not hard_block)
 
         # Rate limit -- the last gate before a message leaves unsupervised.
         # Blocking only withholds the automatic send: the draft is still
@@ -700,6 +716,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             if not allowed:
                 should_auto_send = False
                 needs_human = True
+                hard_block = True
                 needs_human_reasons.append(f"rate limited: {rate_limited_reason}")
                 log.warning(
                     "ai_send_rate_limited",

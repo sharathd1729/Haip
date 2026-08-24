@@ -297,6 +297,51 @@ def _batch_pending_drafts(
     return result
 
 
+def _batch_needs_agent_followup(
+    db: Session,
+    tenant_id: str,
+    inquiry_ids: list[str],
+) -> dict[str, str]:
+    """Most recent auto-sent reply per inquiry that the AI itself flagged as
+    needing a human's personal follow-up (soft escalation -- the draft was
+    correct and safe to send, but the model judged the outcome needs a
+    person, e.g. a complex custom quote or a frustrated guest). One query,
+    no N+1, same shape as _batch_pending_drafts above.
+
+    concierge_draft.py's auto-send/hard_block plan: hard-block guards
+    (hallucination, price leak, escalation keyword, rate limit) still hold
+    the draft for manual approval -- those never reach here, since
+    sent_autonomously stays False for them. Only a soft self-flagged send
+    (sent_autonomously=True AND a reason was persisted) lands here.
+    Returns {inquiry_id: reason_text}; inquiries with no such send are
+    absent from the result."""
+    from app.models.conversation import Conversation, Message, MessageDirection
+
+    if not inquiry_ids:
+        return {}
+
+    rows = (
+        db.query(Message.created_at, Message.ai_needs_human_reason, Conversation.inquiry_id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .filter(
+            Message.tenant_id == tenant_id,
+            Message.direction == MessageDirection.OUTBOUND,
+            Message.sent_autonomously.is_(True),
+            Message.ai_needs_human_reason.isnot(None),
+            Conversation.inquiry_id.in_(inquiry_ids),
+        )
+        .order_by(Message.created_at.desc())
+        .all()
+    )
+
+    result: dict[str, str] = {}
+    for _created_at, reason, inquiry_id in rows:
+        if inquiry_id in result:
+            continue  # already have the most recent (rows are newest-first)
+        result[inquiry_id] = reason
+    return result
+
+
 # ── Property interest ─────────────────────────────────────────────────────────
 
 def get_property_interest(
@@ -568,6 +613,7 @@ def _build_lead_card(
     property_interest: list[str],
     response_time: Optional[tuple[int, str]] = None,
     pending_draft: Optional[PendingDraftSchema] = None,
+    needs_agent_followup_reason: Optional[str] = None,
 ) -> LeadCardSchema:
     """Build a LeadCardSchema from an Inquiry ORM object and precomputed fields."""
     guest = inquiry.guest
@@ -616,6 +662,8 @@ def _build_lead_card(
         response_time_seconds=response_time[0] if response_time else None,
         response_time_status=response_time[1] if response_time else None,
         pending_draft=pending_draft,
+        needs_agent_followup=needs_agent_followup_reason is not None,
+        needs_agent_followup_reason=needs_agent_followup_reason,
     )
 
 
@@ -737,6 +785,7 @@ def get_leads_pipeline(
 
     response_time_map = _batch_response_time(db, tenant_id, [inq.id for inq in inquiries])
     pending_draft_map = _batch_pending_drafts(db, tenant_id, [inq.id for inq in inquiries])
+    needs_followup_map = _batch_needs_agent_followup(db, tenant_id, [inq.id for inq in inquiries])
 
     leads = [
         _build_lead_card(
@@ -746,6 +795,7 @@ def get_leads_pipeline(
             property_interest=prop_interest_map.get(inq.id, []),
             response_time=response_time_map.get(inq.id),
             pending_draft=pending_draft_map.get(inq.id),
+            needs_agent_followup_reason=needs_followup_map.get(inq.id),
         )
         for inq in inquiries
     ]
@@ -905,7 +955,11 @@ def get_lead_detail(
 
     response_time = _batch_response_time(db, tenant_id, [inquiry_id]).get(inquiry_id)
     pending_draft = _batch_pending_drafts(db, tenant_id, [inquiry_id]).get(inquiry_id)
-    card = _build_lead_card(inquiry, completeness, signals, property_interest, response_time, pending_draft)
+    needs_followup_reason = _batch_needs_agent_followup(db, tenant_id, [inquiry_id]).get(inquiry_id)
+    card = _build_lead_card(
+        inquiry, completeness, signals, property_interest, response_time, pending_draft,
+        needs_agent_followup_reason=needs_followup_reason,
+    )
 
     from app.services.lead_field_service import get_field_values_for_inquiry
     try:

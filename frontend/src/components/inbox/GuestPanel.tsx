@@ -43,6 +43,10 @@ interface LeadOwnerStage {
   budget_estimate?: number | null;
   budget_currency?: string;
   property_interest?: string[];
+  // Auto-send soft-escalation plan: the AI's last reply already went out,
+  // but it judged the outcome needs a human's personal follow-up.
+  needs_agent_followup?: boolean;
+  needs_agent_followup_reason?: string | null;
 }
 
 interface PipelineStage {
@@ -334,6 +338,18 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
                   <Sparkles size={12} style={{ color: "var(--primary)" }} />
                   AI Conversation Summary
                 </p>
+                {leadOwnerStage.needs_agent_followup && (
+                  <div
+                    className="flex items-start gap-1.5 rounded-lg px-2 py-1.5 text-[11px] leading-snug"
+                    style={{ background: "color-mix(in srgb, var(--haip-amber) 15%, transparent)", color: "var(--haip-amber)" }}
+                  >
+                    <UserCheck size={12} className="flex-shrink-0 mt-0.5" />
+                    <span>
+                      <strong>AI replied automatically — needs your follow-up.</strong>
+                      {leadOwnerStage.needs_agent_followup_reason ? ` ${leadOwnerStage.needs_agent_followup_reason}` : ""}
+                    </span>
+                  </div>
+                )}
                 <p className="text-xs leading-relaxed" style={{ color: "var(--haip-fg)" }}>
                   {leadOwnerStage.ai_summary}
                 </p>
