@@ -20,7 +20,7 @@ Routing rules:
   bulk_batch       → nvidia   meta/llama-3.1-8b-instruct
   deep_reason      → nvidia   nvidia/nemotron-3-ultra-550b-a55b  (thinking=True)
   report_gen       → nvidia   nvidia/nemotron-3-ultra-550b-a55b
-  concierge_draft  → gemini   gemini-2.5-flash
+  concierge_draft  → gemini   gemini-3.6-flash
   ruflo_domain     → nvidia   nvidia/llama-3.3-nemotron-super-49b-v1.5
   ruflo_synthesis  → nvidia   nvidia/llama-3.3-nemotron-super-49b-v1.5
   fallback         → nvidia   mistralai/mistral-nemotron
@@ -89,11 +89,16 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # actual concierge_reply.jinja prompt + CONCIERGE_TOOL schema, it
     # returned a truncated mid-sentence reply ("Hi Priya! We") with
     # confidence=0.9 -- comfortably over the 0.78 autonomous-send threshold,
-    # meaning that garbage would have gone straight to a real guest. The
-    # same exact prompt on gemini-2.5-flash and gemini-flash-latest both
-    # returned complete, well-formed replies. flash is the safer floor;
-    # flash-lite is not usable here.
-    "concierge_draft": ("gemini",  "gemini-2.5-flash"),
+    # meaning that garbage would have gone straight to a real guest.
+    # gemini-2.5-flash itself then turned out to be blocked outright for
+    # API keys tied to a newly-created GCP project ("This model models/
+    # gemini-2.5-flash is no longer available to new users" -- Google's own
+    # 404, confirmed live on the VPS's real key). gemini-3.6-flash is what
+    # Google's error told this project to use, confirmed present in the
+    # key's own /v1beta/models listing, and verified live against all 4
+    # real prompt shapes (price/capacity/greeting/off-topic) -- complete,
+    # correctly-grounded replies, no truncation, no price leaks.
+    "concierge_draft": ("gemini",  "gemini-3.6-flash"),
     # Agent-attribution dashboard/reports: a short narrative on how one
     # agent handled guests over a period, synthesized from their own
     # scorecard numbers + call summaries + lead outcomes. Internal

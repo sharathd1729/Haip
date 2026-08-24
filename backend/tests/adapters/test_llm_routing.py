@@ -50,15 +50,17 @@ def test_concierge_draft_routes_to_gemini():
     nemotron-49b was confirmed to hang indefinitely (no timeout, no
     exception) on certain guest replies. Scoped to this task only -- every
     other task stays on NVIDIA (checked by the parametrized test above).
-    gemini-2.5-flash, not flash-lite: a real test against the actual
-    concierge prompt showed flash-lite truncating replies mid-sentence at
-    confidence=0.9 (would auto-send over the 0.78 threshold) -- flash
-    didn't."""
+    gemini-3.6-flash, not flash-lite or 2.5-flash: a real test against the
+    actual concierge prompt showed flash-lite truncating replies
+    mid-sentence at confidence=0.9 (would auto-send over the 0.78
+    threshold); 2.5-flash then turned out blocked outright for new-project
+    API keys (Google's own 404, "no longer available to new users").
+    3.6-flash is what Google's error pointed to, confirmed live."""
     from app.adapters.llm.gemini import GeminiAdapter
 
     adapter = get_llm("concierge_draft")
     assert isinstance(adapter, GeminiAdapter)
-    assert adapter._default_model == "gemini-2.5-flash"
+    assert adapter._default_model == "gemini-3.6-flash"
 
 
 @pytest.mark.asyncio

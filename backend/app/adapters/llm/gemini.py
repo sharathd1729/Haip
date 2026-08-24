@@ -21,11 +21,16 @@ import structlog
 
 log = structlog.get_logger()
 
-# Model aliases — using gemini-2.5-flash family (works on free/new API keys)
-GEMINI_FLASH      = "gemini-2.5-flash"       # default — fast, free, capable
+# Model aliases. gemini-2.5-flash is blocked outright for API keys tied to
+# a newly-created GCP project -- confirmed live: "This model models/
+# gemini-2.5-flash is no longer available to new users. Please update your
+# code to use models/gemini-3.6-flash" (404, not a permissions/billing
+# issue -- Google's own error, not a guess). gemini-3.6-flash confirmed
+# reachable and present in this key's /v1beta/models listing.
+GEMINI_FLASH      = "gemini-3.6-flash"       # default — current, works on new-project keys
 GEMINI_FLASH_LITE = "gemini-2.5-flash-lite"  # lighter / faster for classify
-GEMINI_FLASH_PRO  = "gemini-2.5-flash"       # re-judge (same model, higher quality prompt)
-GEMINI_PRO        = "gemini-2.5-flash"       # alias kept for compat
+GEMINI_FLASH_PRO  = "gemini-3.6-flash"       # re-judge (same model, higher quality prompt)
+GEMINI_PRO        = "gemini-3.6-flash"       # alias kept for compat
 GEMINI_FLASH_8B   = GEMINI_FLASH_LITE        # legacy alias
 
 GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
@@ -355,6 +360,11 @@ def _map_model(model_alias: str) -> str:
         "gemini-2.5-flash":           GEMINI_FLASH,
         "gemini-2.5-flash-lite":      GEMINI_FLASH_LITE,
         "gemini-flash-latest":        GEMINI_FLASH,
+        "gemini-3.6-flash":           GEMINI_FLASH,
+        # gemini-2.5-flash itself is blocked for new-project keys (see the
+        # GEMINI_FLASH comment above) -- remap it forward rather than let it
+        # 404 for any caller still passing the old literal.
+        "gemini-2.5-flash":           GEMINI_FLASH,
         # Legacy — remap old names to working equivalents
         "gemini-2.0-flash":           GEMINI_FLASH,
         "gemini-2.0-flash-lite":      GEMINI_FLASH_LITE,

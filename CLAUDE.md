@@ -73,7 +73,7 @@ truth; if this table and the code disagree, the code wins and this table is stal
 | `ask_haip_freeform_summary` | NVIDIA | meta/llama-3.1-8b-instruct |
 | `quick_classify` · `bulk_batch` | NVIDIA | meta/llama-3.1-8b-instruct |
 | `fallback` | NVIDIA | mistralai/mistral-nemotron |
-| `concierge_draft` | Gemini | gemini-2.5-flash |
+| `concierge_draft` | Gemini | gemini-3.6-flash |
 
 Unknown task keys route to `fallback` (they previously defaulted to Claude,
 which fails in prod — no `ANTHROPIC_API_KEY` is provisioned there).
