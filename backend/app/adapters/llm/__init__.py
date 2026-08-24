@@ -20,7 +20,7 @@ Routing rules:
   bulk_batch       → nvidia   meta/llama-3.1-8b-instruct
   deep_reason      → nvidia   nvidia/nemotron-3-ultra-550b-a55b  (thinking=True)
   report_gen       → nvidia   nvidia/nemotron-3-ultra-550b-a55b
-  concierge_draft  → nvidia   nvidia/llama-3.3-nemotron-super-49b-v1.5
+  concierge_draft  → gemini   gemini-2.5-flash
   ruflo_domain     → nvidia   nvidia/llama-3.3-nemotron-super-49b-v1.5
   ruflo_synthesis  → nvidia   nvidia/llama-3.3-nemotron-super-49b-v1.5
   fallback         → nvidia   mistralai/mistral-nemotron
@@ -58,8 +58,9 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     "ruflo_domain":    ("nvidia",  "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
     "ruflo_synthesis": ("nvidia",  "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
     # Leads360 summary + structured analysis. Split off from concierge_draft
-    # (which stays Claude for guest-facing tone) because deployments run on
-    # NVIDIA keys only — an internal summary shouldn't require an Anthropic key.
+    # (guest-facing tone, now Gemini -- see below) because this is an
+    # internal summary that should stay on NVIDIA regardless of what the
+    # guest-facing task uses.
     "lead_summary":    ("nvidia",  "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
     # Ask HAIP free-form analyst: SQL generation needs real reasoning (same
     # tier as ask_haip_rca/deep_reason), summarizing already-fetched rows
@@ -78,11 +79,21 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # concierge_draft (no context gathering, no grounding), same cost tier
     # as quick_classify.
     "concierge_rewrite": ("nvidia", "meta/llama-3.1-8b-instruct"),
-    # Moved off Claude to NVIDIA-only per deployment requirement (2026-08-05):
-    # prod runs on NVIDIA keys only, no ANTHROPIC_API_KEY provisioned. Same
-    # tier as lead_summary/ruflo_domain -- the strongest NVIDIA model this
-    # router has, since this is guest-facing text.
-    "concierge_draft": ("nvidia",  "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
+    # Moved NVIDIA -> Gemini (2026-08-25): NVIDIA's nemotron-49b was hanging
+    # on certain prompts with no timeout and no exception (confirmed via a
+    # direct 90s-ceiling call, no wrapper) -- a real, unresolved reliability
+    # problem for guest-facing replies, not a cost/quality preference.
+    #
+    # gemini-2.5-flash-lite ("cheapest model", the original ask) was tried
+    # first and rejected on real evidence, not a guess: run against the
+    # actual concierge_reply.jinja prompt + CONCIERGE_TOOL schema, it
+    # returned a truncated mid-sentence reply ("Hi Priya! We") with
+    # confidence=0.9 -- comfortably over the 0.78 autonomous-send threshold,
+    # meaning that garbage would have gone straight to a real guest. The
+    # same exact prompt on gemini-2.5-flash and gemini-flash-latest both
+    # returned complete, well-formed replies. flash is the safer floor;
+    # flash-lite is not usable here.
+    "concierge_draft": ("gemini",  "gemini-2.5-flash"),
     # Agent-attribution dashboard/reports: a short narrative on how one
     # agent handled guests over a period, synthesized from their own
     # scorecard numbers + call summaries + lead outcomes. Internal

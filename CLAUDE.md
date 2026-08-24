@@ -50,8 +50,11 @@ Active clients:
 
 ## LLM ROUTING TABLE — ALWAYS USE ROUTER, NEVER IMPORT DIRECTLY
 
-Routing is **NVIDIA NIM-first**. Claude is retained only for the tone-sensitive
-concierge draft. There is currently **no Gemini and no OpenAI** in the live table.
+Routing is **NVIDIA NIM-first**. `concierge_draft` moved off NVIDIA to Gemini
+(2026-08-25) — NVIDIA's nemotron-49b was hanging indefinitely on certain guest
+replies with no timeout and no exception (confirmed via a direct uncapped call).
+Scoped to `concierge_draft` only; every other task stays on NVIDIA. No Claude,
+no OpenAI in the live table.
 
 Task keys below are the exact strings accepted by `get_llm(task)` — verified against
 `_TASK_ROUTES` in `backend/app/adapters/llm/__init__.py`. That dict is the source of
@@ -70,7 +73,7 @@ truth; if this table and the code disagree, the code wins and this table is stal
 | `ask_haip_freeform_summary` | NVIDIA | meta/llama-3.1-8b-instruct |
 | `quick_classify` · `bulk_batch` | NVIDIA | meta/llama-3.1-8b-instruct |
 | `fallback` | NVIDIA | mistralai/mistral-nemotron |
-| `concierge_draft` | Claude | claude-haiku-4-5 |
+| `concierge_draft` | Gemini | gemini-2.5-flash |
 
 Unknown task keys route to `fallback` (they previously defaulted to Claude,
 which fails in prod — no `ANTHROPIC_API_KEY` is provisioned there).

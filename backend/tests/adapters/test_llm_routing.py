@@ -45,6 +45,22 @@ async def test_complete_without_explicit_model_uses_the_routed_default():
         assert call_kwargs["model"] == "nvidia/nemotron-3-ultra-550b-a55b"
 
 
+def test_concierge_draft_routes_to_gemini():
+    """Gemini migration (2026-08-25): concierge_draft moved off NVIDIA after
+    nemotron-49b was confirmed to hang indefinitely (no timeout, no
+    exception) on certain guest replies. Scoped to this task only -- every
+    other task stays on NVIDIA (checked by the parametrized test above).
+    gemini-2.5-flash, not flash-lite: a real test against the actual
+    concierge prompt showed flash-lite truncating replies mid-sentence at
+    confidence=0.9 (would auto-send over the 0.78 threshold) -- flash
+    didn't."""
+    from app.adapters.llm.gemini import GeminiAdapter
+
+    adapter = get_llm("concierge_draft")
+    assert isinstance(adapter, GeminiAdapter)
+    assert adapter._default_model == "gemini-2.5-flash"
+
+
 @pytest.mark.asyncio
 async def test_explicit_model_kwarg_still_overrides_the_routed_default():
     """Callers that already pass model= explicitly (existing call sites)

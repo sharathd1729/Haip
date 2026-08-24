@@ -42,8 +42,10 @@ log = structlog.get_logger()
 PROMPTS_DIR = Path(__file__).parent.parent.parent / "prompts"
 _jinja_env = Environment(loader=FileSystemLoader(str(PROMPTS_DIR)))
 
-# Already the canonical ToolSpec shape (adapters/llm/tools.py) -- concierge_draft
-# routes to Claude, whose native dialect this shape already is.
+# Already the canonical ToolSpec shape (adapters/llm/tools.py) -- passed to
+# adapter.complete() raw, unconverted. Works unchanged for both Claude (its
+# native dialect) and Gemini (adapters/llm/gemini.py's own
+# _anthropic_tool_to_gemini() does the conversion internally).
 CONCIERGE_TOOL = {
     "name": "concierge_reply",
     "description": "Draft a WhatsApp reply for the guest",

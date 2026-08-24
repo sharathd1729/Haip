@@ -67,13 +67,31 @@ def _anthropic_tool_to_gemini(tool: dict) -> dict:
 
 
 def _upcase_schema_types(schema: dict) -> dict:
-    """Recursively convert JSON Schema type strings to Gemini's uppercase format."""
+    """Recursively convert JSON Schema type strings to Gemini's uppercase format.
+
+    Gemini's function-declaration schema is a proto (OpenAPI 3.0-subset)
+    Schema object -- `type` is a single scalar, never a list. A JSON-Schema
+    union like `"type": ["string", "null"]` (the standard way to mark an
+    optional/nullable field, and how CONCIERGE_TOOL's own
+    reason_needs_human is written) crashed with a real, confirmed-live 400:
+    "Proto field is not repeating, cannot start list." Gemini's own
+    equivalent of "nullable string" is `type: STRING, nullable: true`, so a
+    [T, "null"] union converts to exactly that. A union of more than one
+    non-null type has no Gemini equivalent -- collapse to the first
+    non-null type rather than fail the whole request.
+    """
     if not isinstance(schema, dict):
         return schema
     result = {}
     for k, v in schema.items():
         if k == "type" and isinstance(v, str):
             result[k] = v.upper()
+        elif k == "type" and isinstance(v, list):
+            non_null = [t for t in v if isinstance(t, str) and t.lower() != "null"]
+            if non_null:
+                result[k] = non_null[0].upper()
+            if "null" in [t.lower() for t in v if isinstance(t, str)]:
+                result["nullable"] = True
         elif isinstance(v, dict):
             result[k] = _upcase_schema_types(v)
         elif isinstance(v, list):
