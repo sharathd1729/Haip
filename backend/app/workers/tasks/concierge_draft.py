@@ -132,6 +132,22 @@ MAX_TOOL_CALLS = 4
 MAX_REPLY_SECONDS = 20  # per attempt
 MAX_REPLY_ATTEMPTS = 2  # worst case ~2x MAX_REPLY_SECONDS before falling back
 
+# Confirmed live: one specific conversation's completion call never returned
+# even with NO timeout at all (tested directly against NVIDIA with a 90s
+# ceiling -- still nothing, no exception, no partial output). The adapter's
+# shared default is max_tokens=4096 (sized for tasks like report_gen/
+# deep_reason with genuinely long output), but this reply is capped at
+# "UNDER 45 WORDS" by its own prompt -- a few hundred tokens covers the
+# reply text plus the small JSON tool-call wrapper with real headroom. If
+# the model gets into a degenerate repetition loop for a specific prompt (a
+# real, known failure mode -- generation that never hits a natural stop
+# token), a 4096-token ceiling gives it a huge amount of rope, and since
+# this call isn't streamed, nothing comes back to the client until
+# generation is completely finished, however long that takes. A tight cap
+# bounds the worst case regardless of what's actually happening inside the
+# model.
+REPLY_MAX_TOKENS = 400
+
 _MONEY_RE = re.compile(r"₹\s?[\d,]+(?:\.\d+)?")
 _AVAILABILITY_WORDS_RE = re.compile(
     r"\b(available|unavailable|booked out|fully booked|not available|is free|are free)\b",
@@ -581,6 +597,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
                             system_prompt=system_prompt,
                             user_message="Draft a reply for this guest.",
                             tools=[CONCIERGE_TOOL],
+                            max_tokens=REPLY_MAX_TOKENS,
                         ),
                         timeout=MAX_REPLY_SECONDS,
                     )

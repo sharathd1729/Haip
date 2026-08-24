@@ -335,6 +335,40 @@ class TestConciergeDraftEndToEnd:
         assert draft.was_approved is None  # never auto-sent
         assert draft.ai_needs_human_reason == "AI reply generation timed out after 2 attempts"
 
+    def test_completion_call_caps_max_tokens(self, db, monkeypatch):
+        """Confirmed live: one conversation's completion call never returned
+        even with a 90s ceiling and no exception -- consistent with a
+        degenerate generation loop against the shared adapter default of
+        max_tokens=4096, sized for genuinely long tasks (report_gen/
+        deep_reason), not a <45-word WhatsApp reply. Must be capped tightly
+        here so a stuck generation can't run indefinitely regardless of
+        what's happening inside the model."""
+        tenant, guest, conv, inbound = _setup_conversation(db)
+
+        class _FakeIntentLLM:
+            async def complete(self, **kwargs):
+                return {"tool_use": {"intent": "general"}}
+
+        captured = {}
+
+        class _FakeConciergeLLM:
+            async def complete(self, **kwargs):
+                captured.update(kwargs)
+                return {"tool_use": {"reply": "Sure!", "confidence": 0.9, "citations": [], "needs_human": False}}
+
+        def _fake_get_llm(task):
+            return _FakeIntentLLM() if task == "quick_classify" else _FakeConciergeLLM()
+
+        monkeypatch.setattr("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm)
+
+        with patch("app.workers.tasks.concierge_draft.SessionLocal", return_value=db), \
+             patch("app.services.push_service.send_to_tenant"):
+            concierge_draft.run(message_id=inbound.id, conversation_id=conv.id, tenant_id=tenant.id)
+
+        from app.workers.tasks.concierge_draft import REPLY_MAX_TOKENS
+        assert captured.get("max_tokens") == REPLY_MAX_TOKENS
+        assert REPLY_MAX_TOKENS < 4096  # meaningfully tighter than the adapter's shared default
+
     def test_completion_retry_recovers_from_a_transient_hang(self, db, monkeypatch):
         """Confirmed live: three real timeouts all landed within ~1s of
         whatever the bound was set to -- the signature of a request that
