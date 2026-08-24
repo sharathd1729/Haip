@@ -30,6 +30,15 @@ NOT_ANSWERED = {"no_answer", "voicemail"}
 # somebody quoted, booked, lost or agreed a callback.
 ANSWERED = {"hot", "quoted", "booked", "lost", "callback"}
 
+# Vobiz Dial-callback plan: the provider's own Dial-leg outcome (migration
+# 089's Call.ivr_dial_status). Checked after human_disposition (a human's
+# explicit judgment about this specific call always wins) but before
+# ai_disposition/duration -- it's a real signal from the telecom provider
+# about whether the Dial leg was answered, more authoritative than either
+# an AI guess or a duration heuristic inflated by greeting/voicemail audio.
+_DIAL_STATUS_NOT_ANSWERED = {"no-answer", "timeout", "busy", "failed", "cancel"}
+_DIAL_STATUS_ANSWERED = {"completed"}
+
 
 def _disp(value) -> Optional[str]:
     if value is None:
@@ -51,6 +60,12 @@ def is_missed_call(call) -> bool:
     if human in NOT_ANSWERED:
         return True
     if human in ANSWERED:
+        return False
+
+    dial_status = _disp(getattr(call, "ivr_dial_status", None))
+    if dial_status in _DIAL_STATUS_NOT_ANSWERED:
+        return True
+    if dial_status in _DIAL_STATUS_ANSWERED:
         return False
 
     ai = _disp(getattr(call, "ai_disposition", None))
@@ -88,6 +103,7 @@ def missed_call_sql_filter():
 
     human = _lower(Call.human_disposition)
     ai = _lower(Call.ai_disposition)
+    dial_status = _lower(Call.ivr_dial_status)
 
     return and_(
         Call.direction == CallDirection.INBOUND,
@@ -96,10 +112,16 @@ def missed_call_sql_filter():
             and_(
                 ~human.in_(ANSWERED),
                 or_(
-                    ai.in_(NOT_ANSWERED),
+                    dial_status.in_(_DIAL_STATUS_NOT_ANSWERED),
                     and_(
-                        ~ai.in_(ANSWERED),
-                        or_(Call.duration_seconds.is_(None), Call.duration_seconds == 0),
+                        ~dial_status.in_(_DIAL_STATUS_ANSWERED),
+                        or_(
+                            ai.in_(NOT_ANSWERED),
+                            and_(
+                                ~ai.in_(ANSWERED),
+                                or_(Call.duration_seconds.is_(None), Call.duration_seconds == 0),
+                            ),
+                        ),
                     ),
                 ),
             ),

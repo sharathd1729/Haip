@@ -17,6 +17,7 @@ class CallWebhookPayload:
     ended_at: str               # ISO datetime
     provider: str               # callerdesk / acefone
     raw: dict                   # Original payload for audit
+    ivr_dial_status: str = ""   # completed/busy/failed/cancel/timeout/no-answer -- Vobiz Dial callbackUrl only
 
 
 class IVRAdapter(ABC):

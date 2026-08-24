@@ -517,6 +517,111 @@ def test_recording_webhook_ignores_missing_call_uuid(client, tenant_and_user, db
     assert res.json()["status"] == "ignored"
 
 
+# ── Dial-status webhook ──────────────────────────────────────────────────────
+
+def test_dial_status_webhook_ignores_missing_call_uuid(client, tenant_and_user, db):
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret")
+
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/dial-status",
+        data={"DialStatus": "completed"},
+    )
+    assert res.status_code == 200
+    assert res.json()["status"] == "ignored"
+
+
+def test_dial_status_webhook_does_not_raise_on_unexpected_payload_shape(client, tenant_and_user, db):
+    """No DialBLegTo, no DialStatus -- just a CallUUID. Real Vobiz payload
+    shape is unconfirmed (see webhooks_vobiz.py's own comment) -- this must
+    degrade to a no-op, never a 500."""
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret")
+
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/dial-status",
+        data={"CallUUID": "call-abc-123", "SomeUnexpectedField": "x"},
+    )
+    assert res.status_code == 200
+    assert res.json()["status"] == "ok"
+
+
+def test_dial_status_webhook_caches_agent_on_dial_b_leg_to_match(client, tenant_and_user, db):
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret")
+
+    from app.models.user import User, UserRole
+    agent = User(
+        id=str(uuid.uuid4()), tenant_id=tenant.id, name="Agent Answered",
+        email=f"agent-{uuid.uuid4().hex[:6]}@test.com", hashed_password="x",
+        role=UserRole.RESERVATIONS, phone="+919000000000", is_active=True,
+    )
+    db.add(agent)
+    db.commit()
+
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/dial-status",
+        data={"CallUUID": "call-abc-123", "DialBLegTo": "+919000000000"},
+    )
+    assert res.status_code == 200
+    assert res.json()["status"] == "ok"
+
+    from app.workers.tasks.call_ingest import _lookup_click_to_call_agent
+    assert _lookup_click_to_call_agent(tenant.id, "call-abc-123") == agent.id
+
+
+def test_dial_status_webhook_no_agent_match_leaves_cache_empty(client, tenant_and_user, db):
+    """DialBLegTo that matches no known agent phone -- must not raise, and
+    must not cache a bogus attribution."""
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret")
+
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/dial-status",
+        data={"CallUUID": "call-abc-123", "DialBLegTo": "+919999999999"},
+    )
+    assert res.status_code == 200
+
+    from app.workers.tasks.call_ingest import _lookup_click_to_call_agent
+    assert _lookup_click_to_call_agent(tenant.id, "call-abc-123") is None
+
+
+def test_dial_status_webhook_caches_dial_status_for_recording_merge(client, tenant_and_user, db, monkeypatch):
+    """End-to-end: DialStatus cached by the dial-status webhook must show up
+    in the payload the recording webhook hands to ingest_call."""
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret", forward_number="+919000000000")
+
+    from app.core.cache import set_cached
+    from app.api.v1.endpoints.webhooks_vobiz import _cache_key
+    set_cached(
+        _cache_key(tenant.id, "call-abc-123"),
+        {"From": "+919876543210", "To": "+912271264296", "Direction": "inbound", "started_at": "2026-07-26T10:00:00Z"},
+        ttl=60,
+    )
+
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/dial-status",
+        data={"CallUUID": "call-abc-123", "DialStatus": "no-answer"},
+    )
+    assert res.status_code == 200
+
+    dispatched = {}
+
+    def fake_delay(**kwargs):
+        dispatched.update(kwargs)
+
+    from app.workers.tasks import call_ingest
+    monkeypatch.setattr(call_ingest.ingest_call, "delay", fake_delay)
+
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/recording",
+        data={"CallUUID": "call-abc-123", "RecordFile": "https://api.vobiz.ai/x", "RecordingDuration": "0"},
+    )
+    assert res.status_code == 200
+    assert dispatched["payload"]["ivr_dial_status"] == "no-answer"
+
+
 # ── GET /integrations/vobiz/webhook-info ────────────────────────────────────
 
 def test_webhook_info_includes_secret_and_answer_suffix(client, tenant_and_user, db):

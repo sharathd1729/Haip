@@ -64,6 +64,7 @@ class VobizAdapter(IVRAdapter):
             "Direction": "inbound", "RecordUrl": "https://api.vobiz.ai/...",
             "RecordingDuration": "42", "agent_number": "+91...",
             "started_at": "...", "ended_at": "...",
+            "ivr_dial_status": "completed",  # from the Dial callbackUrl webhook, or "" if it never fired
         }
         """
         return CallWebhookPayload(
@@ -78,6 +79,7 @@ class VobizAdapter(IVRAdapter):
             ended_at=payload.get("ended_at", ""),
             provider="vobiz",
             raw=payload,
+            ivr_dial_status=payload.get("ivr_dial_status", ""),
         )
 
     async def initiate_click_to_call(

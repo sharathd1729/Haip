@@ -126,11 +126,22 @@ def list_calls(
             db.query(Guest.id, Guest.name).filter(Guest.id.in_(guest_ids)).all()
         )
 
+    # agent_name was hardcoded None in every serializer despite agent_id
+    # being populated for outbound calls (and now inbound too, via the
+    # Vobiz Dial-callback plan) -- confirmed live gap, the UI had no way
+    # to show who attended a call even when the data existed.
+    agent_ids = {c.agent_id for c in calls if c.agent_id}
+    agent_names = {}
+    if agent_ids:
+        agent_names = dict(
+            db.query(User.id, User.name).filter(User.id.in_(agent_ids)).all()
+        )
+
     return {
         "total": total,
         "page": page,
         "limit": limit,
-        "items": [_serialize_call(c, guest_names.get(c.guest_id)) for c in calls],
+        "items": [_serialize_call(c, guest_names.get(c.guest_id), agent_names.get(c.agent_id)) for c in calls],
     }
 
 
@@ -597,7 +608,7 @@ def _guest_facing_number(call: Call) -> str:
     return call.to_number if direction == "outbound" else call.from_number
 
 
-def _serialize_call(call: Call, guest_name: Optional[str] = None) -> dict:
+def _serialize_call(call: Call, guest_name: Optional[str] = None, agent_name: Optional[str] = None) -> dict:
     """Lightweight serializer used in the list endpoint."""
     disp = call.human_disposition or call.ai_disposition
     direction = call.direction.value if hasattr(call.direction, "value") else call.direction
@@ -616,6 +627,8 @@ def _serialize_call(call: Call, guest_name: Optional[str] = None) -> dict:
         "guest_id": call.guest_id,
         "guest_name": guest_name,
         "guest_phone": _guest_facing_number(call),
+        "agent_id": call.agent_id,
+        "agent_name": agent_name,
         "inquiry_id": call.inquiry_id,
         "transcription_status": call.transcription_status,
         "ai_score_status": call.ai_score_status,
@@ -638,6 +651,7 @@ def _serialize_call_detail(call: Call, db) -> dict:
 
     # Guest info
     guest = db.query(Guest).filter_by(id=call.guest_id).first() if call.guest_id else None
+    agent = db.query(User).filter_by(id=call.agent_id).first() if call.agent_id else None
 
     # Transcript — prefer Transcript table, fall back to inline JSON
     transcript_row = db.query(Transcript).filter_by(call_id=call.id).first()
@@ -715,7 +729,8 @@ def _serialize_call_detail(call: Call, db) -> dict:
         "guest_id": call.guest_id,
         "guest_phone": guest.phone if guest else _guest_facing_number(call),
         "guest_name": guest.name if guest else None,
-        "agent_name": None,
+        "agent_id": call.agent_id,
+        "agent_name": agent.name if agent else None,
         "inquiry_id": call.inquiry_id,
         "recording_url": recording_url,
         "recording_s3_key": call.recording_s3_key,

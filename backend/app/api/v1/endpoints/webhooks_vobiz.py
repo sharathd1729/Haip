@@ -45,6 +45,10 @@ def _cache_key(tenant_id: str, call_uuid: str) -> str:
     return f"haip:vobiz:call:{tenant_id}:{call_uuid}"
 
 
+def _dial_status_cache_key(tenant_id: str, call_uuid: str) -> str:
+    return f"haip:vobiz:dialstatus:{tenant_id}:{call_uuid}"
+
+
 def _to_e164_in(number: str) -> str:
     """Normalize a domestic-format Indian number (e.g. "08071581336") to
     full E.164 ("+918071581336"). Vobiz's own DID/callerId records are
@@ -161,6 +165,7 @@ async def vobiz_answer_webhook(
     # integrations.py's webhook-info endpoints use) instead.
     base = (settings.API_BASE_URL or str(request.base_url).rstrip("/")).rstrip("/")
     recording_callback_url = f"{base}/api/v1/webhooks/vobiz/{tenant_slug}/{url_secret}/recording"
+    dial_status_callback_url = f"{base}/api/v1/webhooks/vobiz/{tenant_slug}/{url_secret}/dial-status"
     log.info(
         "vobiz_answer_xml_built",
         tenant=tenant_slug,
@@ -198,18 +203,33 @@ async def vobiz_answer_webhook(
     # <Dial> with multiple <Number> children, which rings them all at once).
     # Per-leg timeout is shorter here so the total across every candidate
     # stays reasonable for the caller.
+    # callbackUrl added on both branches: Vobiz's DialAnswer/DialConnected
+    # events (with DialBLegTo -- the number that actually answered) and the
+    # final DialStatus reach the new dial-status webhook, which caches the
+    # resolved agent and the real answered/no-answer signal for
+    # vobiz_recording_webhook to merge in. See ivr_routing_service /
+    # call_ingest.py / call_status_service.py -- this is the one missing
+    # piece both inbound agent attribution and accurate missed-call
+    # detection depend on. UNCONFIRMED against real Vobiz behavior: the
+    # exact DialAnswer/DialStatus field names (Vobiz's docs describe them,
+    # but this hasn't been exercised against a real call yet) -- the new
+    # webhook logs the full raw payload unconditionally specifically to
+    # settle this on the first real call, same practice as
+    # vobiz_recording_webhook's own "log raw payload, don't guess" comment.
     if not within_hours:
         dial_xml = ""
     elif ivr_routing_service.dial_mode(tenant) == "sequential" and len(e164_numbers) > 1:
         dial_xml = "".join(
-            f'<Dial callerId="{caller_id}" timeout="20" timeLimit="1800" redirect="false">'
+            f'<Dial callerId="{caller_id}" timeout="20" timeLimit="1800" redirect="false" '
+            f'callbackUrl="{dial_status_callback_url}">'
             f"<Number>{n}</Number></Dial>"
             for n in e164_numbers
         )
     else:
         number_tags = "".join(f"<Number>{n}</Number>" for n in e164_numbers)
         dial_xml = (
-            f'<Dial callerId="{caller_id}" timeout="30" timeLimit="1800" redirect="false">'
+            f'<Dial callerId="{caller_id}" timeout="30" timeLimit="1800" redirect="false" '
+            f'callbackUrl="{dial_status_callback_url}">'
             f"{number_tags}</Dial>"
         )
 
@@ -255,6 +275,72 @@ async def vobiz_answer_webhook(
         "</Response>"
     )
     return Response(content=xml, media_type="application/xml")
+
+
+@router.post("/vobiz/{tenant_slug}/{url_secret}/dial-status")
+async def vobiz_dial_status_webhook(
+    tenant_slug: str,
+    url_secret: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Vobiz Dial callbackUrl -- fires multiple times during one <Dial> with
+    real-time B-leg events (DialAnswer/DialConnected/DialHangup) plus a
+    final DialStatus. Per Vobiz's docs: DialAnswer/DialConnected carry
+    DialBLegTo (the number that actually answered) and DialBLegPosition
+    (which of several parallel-rung numbers it was); the terminal event
+    carries DialStatus (completed/busy/failed/cancel/timeout/no-answer).
+
+    UNCONFIRMED against a real call yet -- logs the full raw payload
+    unconditionally first so the exact field names are settled from ground
+    truth, same practice as vobiz_recording_webhook's own comment. Never
+    raises on an unexpected shape: this is a best-effort signal, and its
+    total absence is exactly today's status quo (no attribution, duration-
+    based missed-call guess) -- not a regression.
+    """
+    tenant, creds = _resolve_tenant_and_creds(db, tenant_slug, url_secret)
+    form = await request.form()
+    data = dict(form)
+
+    log.info("vobiz_dial_status_raw_payload", tenant=tenant_slug, raw_form=data)
+
+    call_uuid = data.get("CallUUID", "")
+    if not call_uuid:
+        return {"status": "ignored"}
+
+    dial_b_leg_to = data.get("DialBLegTo", "")
+    if dial_b_leg_to:
+        try:
+            from app.workers.tasks.call_ingest import cache_click_to_call_agent
+            from app.models.user import User
+
+            e164 = _to_e164_in(dial_b_leg_to)
+            agent = (
+                db.query(User)
+                .filter(
+                    User.tenant_id == tenant.id,
+                    User.phone == e164,
+                    User.is_active.is_(True),
+                    User.is_deleted.is_(False),
+                )
+                .first()
+            )
+            if agent:
+                # Reuses the exact cache function/key already built for
+                # outbound click-to-call attribution -- same cache, same
+                # TTL, read back by the same lookup at ingest time
+                # (call_ingest.py), so inbound and outbound are symmetric.
+                cache_click_to_call_agent(tenant.id, call_uuid, agent.id)
+                log.info("vobiz_dial_answered_by", tenant=tenant_slug, call_uuid=call_uuid, agent_id=agent.id)
+        except Exception as exc:
+            log.warning("vobiz_dial_status_agent_lookup_failed", tenant=tenant_slug, error=str(exc))
+
+    dial_status = data.get("DialStatus", "")
+    if dial_status:
+        set_cached(_dial_status_cache_key(tenant.id, call_uuid), dial_status, ttl=_CACHE_TTL)
+
+    return {"status": "ok"}
 
 
 @router.post("/vobiz/{tenant_slug}/{url_secret}/outbound-answer")
@@ -360,6 +446,7 @@ async def vobiz_recording_webhook(
         "agent_number": creds.get("forward_number", ""),
         "started_at": cached.get("started_at", ""),
         "ended_at": data.get("RecordingEndMs", ""),
+        "ivr_dial_status": get_cached(_dial_status_cache_key(tenant.id, call_uuid)) or "",
     }
 
     log.info("vobiz_recording_received", tenant=tenant_slug, call_uuid=call_uuid)

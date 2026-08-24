@@ -61,6 +61,13 @@ class Call(Base, TimestampMixin, TenantMixin):
     started_at = Column(String, nullable=True)
     ended_at = Column(String, nullable=True)
 
+    # Real answer/no-answer signal from the provider's Dial-leg callback
+    # (completed/busy/failed/cancel/timeout/no-answer), when available --
+    # settles is_missed_call() definitively instead of guessing from
+    # duration_seconds. NULL for every call the provider never sent this
+    # for (migration 089).
+    ivr_dial_status = Column(String(20), nullable=True)
+
     # Phase 2.5 agent-accountability instrumentation
     # (HAIP_Agent_Analytics_Dashboard_Plan_1.md #2.5.3): self-referential
     # link from a missed inbound call to the later outbound call (to the
