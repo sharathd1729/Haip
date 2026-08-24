@@ -116,13 +116,20 @@ MAX_TOOL_CALLS = 4
 # all (the openai SDK client is constructed with no `timeout=`, so it
 # inherits the SDK's own 10-minute default). Grounding already has its own
 # bounded MAX_GROUNDING_SECONDS; the final reply completion -- the part the
-# guest is actually waiting on -- had nothing. 25s matches the WhatsApp
-# typing-indicator's own auto-clear window (Meta docs), so a guest who saw
-# "typing..." never sees it vanish before *something* happens. On timeout,
+# guest is actually waiting on -- had nothing.
+#
+# Was 25s (WhatsApp's typing-indicator auto-clear window) -- raised to 35s
+# after a real post-deploy case timed out at 26.8s, just past the old bound.
+# One data point isn't a distribution (container restarts from today's
+# redeploys keep truncating `docker logs`, so real p90/frequency isn't
+# knowable yet -- see 2026-08-24 session notes), but it's real evidence the
+# old bound was clipping genuine near-boundary completions into the generic
+# fallback rather than letting them finish. Revisit with real percentile
+# data once logs survive long enough to collect it. On timeout,
 # same graceful-degradation shape as a grounding timeout: a safe, reviewable
 # draft gets written (needs_human, zero confidence) instead of leaving the
 # guest with nothing.
-MAX_REPLY_SECONDS = 25
+MAX_REPLY_SECONDS = 35
 
 _MONEY_RE = re.compile(r"₹\s?[\d,]+(?:\.\d+)?")
 _AVAILABILITY_WORDS_RE = re.compile(
