@@ -496,6 +496,27 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
                 log.warning("concierge_grounding_failed", conversation_id=conversation_id, error=str(exc))
                 grounded_facts = []
 
+        # Capacity is cheap, static tenant data (Property.max_adults), not
+        # date-gated like availability -- but _ground_reply() above only
+        # ever grounds capacity via a check_availability fact, which itself
+        # requires real dates AND an intent the classifier tagged as
+        # availability_check/price_quote. Confirmed live: "Only 4 people?"
+        # has no dates and isn't phrased as an availability check, so
+        # grounding never ran at all, the model had zero real capacity
+        # data, and it echoed the guest's own guessed number back
+        # ("designed for up to 4 guests") -- the capacity guard below still
+        # caught and blocked it (confidence forced to 0), but the guest was
+        # never actually told the *right* number. Always attach the real
+        # capacity here, independent of intent/dates, so a bare headcount
+        # question always has something true to ground on.
+        if not any(f.get("tool") == "check_availability" for f in grounded_facts):
+            _capacity = _max_known_capacity(db, tenant_id, inquiry.property_id if inquiry else None)
+            if _capacity is not None:
+                grounded_facts.append({
+                    "tool": "check_availability",
+                    "args": {}, "result": [], "max_capacity_note": _capacity,
+                })
+
         # HAIP Inbox UI-fidelity pass, ticket 3: widen the AI card trigger
         # beyond price_quote-only. One query, checked alongside the rest of
         # the context-building above.

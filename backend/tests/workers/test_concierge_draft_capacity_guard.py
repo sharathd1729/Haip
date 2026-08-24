@@ -96,6 +96,66 @@ class TestGroundReplyCapacityNote:
         assert facts[0]["max_capacity_note"] == 8
 
 
+class TestCapacityAlwaysGrounded:
+    def test_bare_headcount_question_with_no_dates_still_gets_capacity_fact(self, db, monkeypatch):
+        """Confirmed live: 'Only 4 people?' -- no dates, classified as
+        'general' (not availability_check) -- never triggered _ground_reply's
+        date-gated grounding at all, so the model had zero real capacity
+        data and echoed the guest's own guessed '4' back. The v9 guard still
+        blocked the send (confidence forced to 0), but the guest never got
+        the *right* number. This must now ground on the real capacity
+        regardless of intent/dates, so the model has a true number to state."""
+        tenant = Tenant(id=str(uuid.uuid4()), name="T", slug=f"t-{uuid.uuid4().hex[:6]}", plan="growth")
+        db.add(tenant); db.commit()
+        db.add(Property(id=str(uuid.uuid4()), tenant_id=tenant.id, name="White Caravan", slug="wc", type="caravan", max_adults=8, is_active=True))
+        db.commit()
+        guest = Guest(id=str(uuid.uuid4()), tenant_id=tenant.id, phone="+919876500010", name="Sharath")
+        db.add(guest); db.commit()
+        conv = Conversation(id=str(uuid.uuid4()), tenant_id=tenant.id, guest_id=guest.id, channel=ChannelType.WHATSAPP, is_open=True, ai_mode="shadow")
+        db.add(conv); db.commit()
+        inbound = Message(id=str(uuid.uuid4()), tenant_id=tenant.id, conversation_id=conv.id, direction="inbound", channel="whatsapp", body="Only 4 people?")
+        db.add(inbound); db.commit()
+
+        class _FakeIntentLLM:
+            async def complete(self, **kwargs):
+                return {"tool_use": {"intent": "general"}}  # no dates -> not availability_check/price_quote
+
+        captured_prompt = {}
+
+        class _FakeConciergeLLM:
+            async def complete(self, **kwargs):
+                captured_prompt["system_prompt"] = kwargs.get("system_prompt", "")
+                return {"tool_use": {
+                    "reply": "Each caravan fits up to 8 guests -- for larger groups we can arrange more than one!",
+                    "confidence": 0.85, "citations": [], "needs_human": False,
+                }}
+
+        def _fake_get_llm(task):
+            return _FakeIntentLLM() if task == "quick_classify" else _FakeConciergeLLM()
+
+        monkeypatch.setattr("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm)
+
+        with patch("app.workers.tasks.concierge_draft.SessionLocal", return_value=db), \
+             patch("app.services.push_service.send_to_tenant"):
+            concierge_draft.run(message_id=inbound.id, conversation_id=conv.id, tenant_id=tenant.id)
+
+        # The prompt must have carried the real capacity even though no
+        # dates/availability grounding ran.
+        assert "8 guests" in captured_prompt["system_prompt"]
+
+        draft = (
+            db.query(Message)
+            .filter_by(conversation_id=conv.id, direction="outbound", is_ai_generated=True)
+            .order_by(Message.created_at.desc())
+            .first()
+        )
+        assert draft is not None
+        assert draft.grounded_facts[0]["max_capacity_note"] == 8
+        # A capacity claim that DOES match the real grounded number must not
+        # be blocked by the guard.
+        assert float(draft.ai_confidence) == 0.85
+
+
 class TestConciergeDraftEndToEndCapacityGuard:
     def test_hallucinated_capacity_forces_needs_human(self, db, monkeypatch):
         """The model states a capacity figure with zero grounding for it

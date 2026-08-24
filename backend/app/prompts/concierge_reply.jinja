@@ -1,8 +1,18 @@
 {#---
-version: 9
+version: 10
 changed_at: 2026-08-24
 purpose: Draft a WhatsApp/Instagram reply as the AI Concierge
-changes: v9 -- confirmed live: a guest asking about a 20-person group was
+changes: v10 -- v9's capacity grounding only ever attached to a
+         check_availability fact, which itself needs real dates AND an
+         availability_check/price_quote intent. Confirmed live: a bare
+         "Only 4 people?" follow-up (no dates) never triggered grounding
+         at all, so the model had zero real capacity data and echoed the
+         guest's own guessed "4" back -- the v9 guard still caught and
+         blocked the send (confidence forced to 0), but the guest was
+         never told the *right* number. concierge_draft.py now always
+         attaches the real max capacity regardless of intent/dates;
+         LIVE AVAILABILITY below renders it even with no dates given yet.
+         v9 -- confirmed live: a guest asking about a 20-person group was
          told "designed for up to 4 guests" when the real capacity is 8.
          Nothing here ever rendered a capacity number before, so the model
          invented one outright. LIVE AVAILABILITY now carries each
@@ -59,11 +69,15 @@ dates are open). Pricing is deliberately withheld from you; see the pricing
 rule below.
 {% for fact in grounded_facts %}
 {% if fact.tool == "check_availability" %}
+{% if fact.args.checkin %}
 - Checked {{ fact.args.checkin }} → {{ fact.args.checkout }} for {{ fact.args.adults }} adults{% if fact.args.children %} + {{ fact.args.children }} children{% endif %}:
 {% for p in fact.result %}
   - {{ p.property_name }}: {% if p.available %}available ({{ p.nights }} nights), max {{ p.max_adults }} guests{% else %}not available{% endif %}
 {% endfor %}
 {% if not fact.result %}  - No properties matched these dates/party size.{% if fact.max_capacity_note %} Max capacity is {{ fact.max_capacity_note }} guests per caravan -- for a larger group, say we can arrange more than one caravan (do not guess a total).{% endif %}{% endif %}
+{% elif fact.max_capacity_note %}
+- No dates given yet, but max capacity is {{ fact.max_capacity_note }} guests per caravan -- for a larger group, say we can arrange more than one caravan (do not guess a total).
+{% endif %}
 {% endif %}
 {% endfor %}
 {% endif %}

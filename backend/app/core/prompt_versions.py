@@ -72,7 +72,7 @@ PROMPT_VERSIONS: dict[str, str] = {
     # real capacity is 8), a pure hallucination since the prompt never
     # rendered a capacity figure at all before this. See
     # concierge_draft.py's _check_grounding()/_CAPACITY_RE.
-    "concierge_reply": "concierge-reply-v9",    # concierge_reply.jinja
+    "concierge_reply": "concierge-reply-v10",   # concierge_reply.jinja
     "lost_reason":     "lost-reason-v1",        # lost_reason.jinja
     "agent_performance_narrative": "agent-performance-narrative-v1",  # agent_performance_narrative.jinja
 
