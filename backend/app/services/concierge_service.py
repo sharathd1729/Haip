@@ -1,6 +1,7 @@
 """
 AI Concierge service — drafts WhatsApp replies using brand-voice + KB RAG.
 """
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from app.models.guest import Guest
 from app.models.inquiry import Inquiry
@@ -72,9 +73,25 @@ def unanswered_guest_text(db: Session, tenant_id: str, conversation_id: str) -> 
 
 
 def _get_recent_messages(db: Session, conversation_id: str, limit: int = 20) -> list:
+    """Confirmed live, a real self-reinforcing bug: an AI draft that was
+    never approved/sent (still pending review, or rejected) was still being
+    pulled into the NEXT completion's context as if it were part of the
+    real conversation. One conversation accumulated 7 identical unsent
+    "Thanks for your message! Let me check and get right back to you."
+    drafts in its last 20 messages -- each guest follow-up then drafted
+    against a prompt containing several copies of that same failed
+    boilerplate line as "recent conversation," compounding the same
+    failure pattern into a self-perpetuating loop. A draft the guest never
+    actually saw isn't part of the conversation from their perspective, and
+    feeding it back in is actively harmful, not neutral -- exclude any
+    AI-generated message that wasn't actually sent (was_approved is True
+    covers both human-approved-and-sent and autonomous sends)."""
     msgs = (
         db.query(Message)
-        .filter_by(conversation_id=conversation_id)
+        .filter(
+            Message.conversation_id == conversation_id,
+            or_(Message.is_ai_generated.is_(False), Message.was_approved.is_(True)),
+        )
         .order_by(Message.created_at.desc())
         .limit(limit)
         .all()
