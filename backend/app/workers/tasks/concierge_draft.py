@@ -596,6 +596,12 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         confidence = draft.get("confidence", 0.0)
         reply_text = draft.get("reply", "")
         needs_human = draft.get("needs_human", True)
+        # Persisted so "why didn't this auto-send despite high confidence"
+        # is answerable from the database afterward, not just from a log
+        # line the next container restart erases (migration 088).
+        needs_human_reasons: list[str] = []
+        if needs_human and draft.get("reason_needs_human"):
+            needs_human_reasons.append(str(draft["reason_needs_human"]))
 
         # ── Ticket 4: deterministic hallucination guard ────────────────────
         is_grounded, violation = _check_grounding(reply_text, grounded_facts)
@@ -606,6 +612,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             )
             needs_human = True
             confidence = 0.0
+            needs_human_reasons.append(f"ungrounded claim: {violation}")
 
         # ── Escalation guard ───────────────────────────────────────────────
         # Refunds, legal threats, cancellations, safety incidents and
@@ -626,6 +633,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             )
             needs_human = True
             confidence = 0.0
+            needs_human_reasons.append(f"escalation: {escalation['category']} (matched {escalation['keyword']!r})")
 
         # ── Price-disclosure guard (hard policy, not a preference) ─────────
         # The prompt forbids quoting prices; this makes it true even when the
@@ -641,6 +649,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             )
             needs_human = True
             confidence = 0.0
+            needs_human_reasons.append(f"price leak: {price_leak!r}")
 
         # Determine mode. Resolved per-channel from the tenant's current
         # policy (ai_mode_service), NOT from the snapshot copied into
@@ -666,6 +675,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             if not allowed:
                 should_auto_send = False
                 needs_human = True
+                needs_human_reasons.append(f"rate limited: {rate_limited_reason}")
                 log.warning(
                     "ai_send_rate_limited",
                     conversation_id=conversation_id, tenant_id=tenant_id,
@@ -711,6 +721,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             sender_name="AI Concierge",
             grounded_facts=grounded_facts,
             suggested_actions=suggested_actions,
+            ai_needs_human_reason="; ".join(needs_human_reasons) if needs_human_reasons else None,
         )
         db.add(draft_message)
         db.commit()

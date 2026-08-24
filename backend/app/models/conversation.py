@@ -154,6 +154,17 @@ class Message(Base, TimestampMixin, TenantMixin):
     # ai_draft_outcomes.intent unpopulated by every caller (migration 082).
     ai_intent = Column(String(50), nullable=True)
 
+    # Why this draft was held for human review instead of auto-sending --
+    # the model's own self-reported reason_needs_human (e.g. off-topic
+    # hand-off), or a fired deterministic guard's violation text (capacity/
+    # price/availability hallucination, escalation, price leak, completion
+    # timeout). NULL for anything that wasn't flagged needs_human. Added
+    # after a real investigation hit a dead end: 31 of 95 drafts over 7
+    # days scored above the autonomous threshold yet didn't auto-send, and
+    # there was no way to tell why after the fact -- the reason only ever
+    # existed in a log line that the next container restart erases.
+    ai_needs_human_reason = Column(Text, nullable=True)
+
     # Reply-to-message — W5: quoted reply threading
     replied_to_message_id = Column(String, ForeignKey("messages.id"), nullable=True)
 

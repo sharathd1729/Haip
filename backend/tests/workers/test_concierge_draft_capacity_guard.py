@@ -199,3 +199,7 @@ class TestConciergeDraftEndToEndCapacityGuard:
         assert draft is not None
         assert float(draft.ai_confidence) == 0.0  # forced by the guard, not the model's 0.9
         assert draft.was_approved is None  # never auto-sent
+        # migration 088: the guard's reason must be persisted, not just
+        # logged -- confirmed live that "why was this held despite high
+        # confidence" was otherwise unanswerable once the log line rotated.
+        assert "capacity" in draft.ai_needs_human_reason
