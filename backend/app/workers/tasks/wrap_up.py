@@ -3,15 +3,18 @@ Wrap-up task — generates AI summary + suggested disposition, pushes SSE event.
 Uses Gemini Flash (free) or Claude Haiku depending on env config.
 """
 import asyncio
+import json
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
 from app.workers.celery_app import celery_app
 from app.core.database import SessionLocal
 from app.models.call import Call, CallDisposition
+from app.models.transcript import Transcript
 from app.models.property import Property
 from app.models.user import User
 from app.adapters.llm import get_llm
 from app.core.prompt_versions import stamp
+from app.services.transcription_service import redact_pii
 import structlog
 
 
@@ -68,6 +71,26 @@ def wrap_up(self, call_id: str, tenant_id: str, classification: dict = None, jud
         if not call:
             return
 
+        # Real, load-bearing bug: this used to read call.ai_summary as
+        # "the transcript" -- but call.ai_summary is never set by anything
+        # except wrap_up's own previous run (or ai_scoring.py's dead
+        # pipeline). On a call's first-ever wrap_up it was None, rendering
+        # the literal string "(transcript not available)"; on any re-run
+        # (e.g. a backfill) it fed the model its own prior, low-information
+        # summary instead of the real conversation -- a self-reinforcing
+        # genericization loop, same shape as the earlier-fixed WhatsApp
+        # context-pollution bug. wrap_up has never had real transcript
+        # content, for any call, ever. Query the real Transcript directly,
+        # same construction judge.py already uses correctly.
+        transcript = db.query(Transcript).filter_by(call_id=call_id, tenant_id=tenant_id).first()
+        if transcript:
+            turns = json.loads(transcript.turns or "[]")
+            transcript_text = redact_pii(
+                "\n".join(f"[{t['t0']:.1f}s] {t['speaker'].upper()}: {t['text']}" for t in turns)
+            ) or "(transcript not available)"
+        else:
+            transcript_text = "(transcript not available)"
+
         prop = db.query(Property).filter_by(id=call.property_id).first() if call.property_id else None
         agent = db.query(User).filter_by(id=call.agent_id).first() if call.agent_id else None
 
@@ -80,7 +103,7 @@ def wrap_up(self, call_id: str, tenant_id: str, classification: dict = None, jud
             agent_name=agent.name if agent else "(unknown)",
             duration_sec=call.duration_seconds,
             direction=call.direction.value if hasattr(call.direction, "value") else call.direction,
-            transcript_text=call.ai_summary or "(transcript not available)",
+            transcript_text=transcript_text,
             qa_score=float(call.ai_score) if call.ai_score else None,
             sentiment=classification.get("sentiment", "neutral"),
             intent=classification.get("intent", "unknown"),

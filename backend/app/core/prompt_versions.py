@@ -35,7 +35,7 @@ PROMPT_VERSIONS: dict[str, str] = {
     # code path producing a stored/logged result is genuinely different now.
     "call_classify":   "call-classify-v2",      # classify.jinja
     "call_judge":      "call-judge-v2",         # judge.jinja
-    "call_wrap_up":    "call-wrap-up-v2",       # wrap_up.jinja
+    "call_wrap_up":    "call-wrap-up-v3",       # wrap_up.jinja
     # v3 (AI Autonomy Plan Phase 1 ticket 4): concierge_reply.jinja now
     # renders a grounded_facts section (real availability/pricing from the
     # bounded tool loop) instead of the always-empty kb_snippets it relied

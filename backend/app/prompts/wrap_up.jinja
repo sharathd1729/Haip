@@ -1,7 +1,16 @@
 {#---
-version: 1
-changed_at: 2026-05-13
+version: 2
+changed_at: 2026-08-25
 purpose: Generate an after-call wrap-up summary and suggested disposition
+changes: v2 -- transcript_text now carries the real, PII-redacted turn-by-
+         turn transcript (wrap_up.py queries Transcript directly, same
+         construction judge.py already used correctly). It previously
+         read Call.ai_summary, which nothing ever populated before wrap_up
+         itself wrote to it -- the very first run saw the literal string
+         "(transcript not available)", and every later run fed the model
+         its own prior, generic summary instead of the real call. This is
+         the real, load-bearing reason so many calls silently defaulted to
+         "callback": the model was guessing from almost no signal.
 ---#}
 You are HAIP's after-call analyst for a hospitality business.
 
@@ -12,7 +21,7 @@ CALL CONTEXT
 - Direction: {{ direction }}
 - QA Score: {{ qa_score | default("pending") }}%
 
-TRANSCRIPT SUMMARY
+TRANSCRIPT
 {{ transcript_text }}
 
 QA INSIGHTS
