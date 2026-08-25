@@ -1,17 +1,15 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import type { ComponentType, CSSProperties } from "react";
 import {
   motion, useMotionValue, useSpring, useTransform, useReducedMotion,
 } from "framer-motion";
-import type { LucideIcon } from "lucide-react";
-import {
-  MessageCircle, Camera, Phone, Home, Building2, Search, Building, Wallet,
-  CreditCard, Sparkles,
-} from "lucide-react";
+import { MessageCircle, Camera, Phone, Home, Building2, Search, Building, Wallet, CreditCard, Sparkles } from "lucide-react";
 import { viewportOnce } from "../shared/motion";
 
-type Node = { id: string; label: string; icon: LucideIcon };
+type IconComponent = ComponentType<{ size?: number; className?: string; style?: CSSProperties }>;
+type Node = { id: string; label: string; icon: IconComponent };
 
 // Curated set for the visual ring. OpenAI / Claude / Sarvam AI are
 // intentionally merged into one "AI Engine" node rather than shown as raw

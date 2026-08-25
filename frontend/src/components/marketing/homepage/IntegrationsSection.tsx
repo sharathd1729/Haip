@@ -1,17 +1,16 @@
 "use client";
 
 import { useRef, useEffect, useState } from "react";
+import type { ComponentType, CSSProperties } from "react";
 import { motion, useInView, animate, useReducedMotion } from "framer-motion";
-import type { LucideIcon } from "lucide-react";
-import {
-  MessageCircle, Camera, Phone, Home, Building2, Search, Building, Wallet,
-  CreditCard, Sparkles, Zap, ShieldCheck, Rocket,
-} from "lucide-react";
+import { MessageCircle, Camera, Phone, Home, Building2, Search, Building, Wallet, CreditCard, Sparkles, Zap, ShieldCheck, Rocket } from "lucide-react";
 import { SectionHeading } from "./shared/SectionHeading";
 import { fadeUp, staggerChildren, viewportOnce, reducedVariants } from "./shared/motion";
 import { IntegrationOrbit } from "./mockups/IntegrationOrbit";
 
-const mobileNodes: { label: string; icon: LucideIcon }[] = [
+type IconComponent = ComponentType<{ size?: number; className?: string; style?: CSSProperties }>;
+
+const mobileNodes: { label: string; icon: IconComponent }[] = [
   { label: "WhatsApp", icon: MessageCircle },
   { label: "Instagram", icon: Camera },
   { label: "Voice AI", icon: Phone },
