@@ -152,13 +152,29 @@ def judge(self, call_id: str, tenant_id: str, classification: dict = None):
         # Escalate to the stronger deep_reason model if confidence < threshold
         if judge_result.get("confidence", 1.0) < CONFIDENCE_THRESHOLD:
             log.info("judge_escalating", call_id=call_id, confidence=judge_result.get("confidence"))
-            strong_adapter = get_llm("deep_reason")
-            result_strong = _run_async(
-                strong_adapter.complete(system_prompt=system_prompt, user_message="Score this call.",
-                                        tools=[JUDGE_TOOL])
-            )
-            judge_result = result_strong.get("tool_use") or judge_result
-            model_used = result_strong.get("model", "deep_reason") + "_review"
+            try:
+                strong_adapter = get_llm("deep_reason")
+                result_strong = _run_async(
+                    strong_adapter.complete(system_prompt=system_prompt, user_message="Score this call.",
+                                            tools=[JUDGE_TOOL])
+                )
+                judge_result = result_strong.get("tool_use") or judge_result
+                model_used = result_strong.get("model", "deep_reason") + "_review"
+            except Exception as escalation_exc:
+                # Confirmed live: NVIDIA's deep_reason endpoint returning a
+                # raw 500 crashed the whole judge task here (unhandled,
+                # propagated to the outer except below) -- wrap_up/
+                # ai_disposition never ran for ANY call whose first-pass
+                # confidence was merely below threshold (the common case,
+                # not rare), not just calls the escalated model actually
+                # struggled with. The first-pass result is still a real,
+                # valid (if lower-confidence) score -- falling back to it
+                # lets the call finish processing instead of dying outright
+                # on a transient upstream error.
+                log.warning(
+                    "judge_escalation_failed_using_first_pass",
+                    call_id=call_id, error=str(escalation_exc),
+                )
 
         judge_result["model_used"] = model_used
         score = store_score(db, call_id=call_id, tenant_id=tenant_id, rubric_id=rubric.id, result=judge_result)
