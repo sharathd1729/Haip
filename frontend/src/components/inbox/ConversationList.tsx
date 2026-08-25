@@ -2,11 +2,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { ChannelIcon } from "./ChannelIcon";
-import {
-  Sparkles, ArrowUpDown, CheckSquare, Square, CheckCheck,
-  Archive, X, Star, Bed, Phone, Loader2, UserCheck, Clock, Bot,
-  PhoneMissed, AlertTriangle, Flame, Search, Reply,
-} from "lucide-react";
+import { Sparkles, ArrowUpDown, CheckSquare, Square, CheckCheck, Archive, X, Star, Phone, Loader2, Clock, Bot, PhoneMissed, AlertTriangle, Flame, Search, Reply } from "@/lib/icons";
+import { Bed, UserCheck } from "lucide-react";
 import type { ConversationSummary } from "@/store/inbox";
 
 type SortMode = "smart" | "recent" | "unread";
@@ -376,7 +373,7 @@ export function ConversationList({
               : onSelect(conv.id)
             }
             className={cn(
-              "w-full text-left px-3 py-3 border-b border-gray-50 transition-all group relative",
+              "w-full text-left px-3.5 py-3 haip-list-row transition-all group relative",
               // Left rail: channel colour normally, but the selected row takes
               // it over with a thicker teal rail (prototype .conv-item.active).
               // A bg tint alone was a weak selected state next to the
@@ -384,7 +381,7 @@ export function ConversationList({
               isActive ? "border-l-[3px] border-l-teal-500" : channelBorder,
               isActive
                 ? "bg-teal-50/80"
-                : "hover:bg-gray-50/80",
+                : "hover:bg-[color:var(--muted)]",
               isChecked && "bg-teal-50",
               conv.needs_attention && !isActive && "bg-amber-50/40"
             )}

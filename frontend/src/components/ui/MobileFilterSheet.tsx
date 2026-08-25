@@ -1,5 +1,5 @@
 "use client";
-import { Filter } from "lucide-react";
+import { Filter } from "@/lib/icons";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 

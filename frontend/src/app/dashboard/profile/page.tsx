@@ -1,13 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useSession } from "next-auth/react";
-import {
-  UserCircle, Camera, Save, Lock, Bell, Trash2,
-  CheckCircle, AlertCircle, Loader2, Eye, EyeOff, Shield,
-} from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { UserCircle, Camera, Save, Lock, Bell, Trash2, CheckCircle, AlertCircle, Loader2, Eye, EyeOff, Shield } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
+import { UserAvatar } from "@/components/crm/UserAvatar";
 
 export default function ProfilePage() {
   return (
@@ -29,6 +28,9 @@ export default function ProfilePage() {
 /* ── Personal Info ──────────────────────────────────────────────────────────── */
 function PersonalInfoCard() {
   const { data: session } = useSession();
+  const qc = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: session?.user?.name ?? "Sharath D.",
     email: session?.user?.email ?? "sharath@ratha.in",
@@ -38,6 +40,28 @@ function PersonalInfoCard() {
   });
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const { data: me } = useQuery({
+    queryKey: ["users", "me"],
+    queryFn: () => api.get("/users/me").then(r => r.data),
+  });
+
+  const uploadAvatar = useMutation({
+    mutationFn: (file: File) => {
+      const body = new FormData();
+      body.append("file", file);
+      return api.post("/users/me/avatar", body, {
+        headers: { "Content-Type": "multipart/form-data" },
+      }).then(r => r.data);
+    },
+    onSuccess: () => {
+      setAvatarError(null);
+      qc.invalidateQueries({ queryKey: ["users", "me"] });
+    },
+    onError: (err: any) => {
+      setAvatarError(err?.response?.data?.detail || "Upload failed. Try a JPEG/PNG/WebP under 5 MB.");
+    },
+  });
 
   async function handleSave() {
     setLoading(true);
@@ -49,19 +73,38 @@ function PersonalInfoCard() {
     finally { setLoading(false); }
   }
 
-  const initials = form.name.split(" ").map(p => p[0]).join("").toUpperCase().slice(0, 2);
-
   return (
     <Card title="Personal information">
       <div className="flex items-start gap-6 mb-6">
         {/* Avatar */}
         <div className="relative flex-shrink-0">
-          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-teal-200">
-            {initials}
-          </div>
-          <button className="absolute -bottom-1 -right-1 w-7 h-7 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-sm hover:bg-gray-50 transition-colors">
-            <Camera size={13} className="text-gray-500" />
+          <UserAvatar
+            name={form.name}
+            photoUrl={me?.avatar_url}
+            size="xl"
+            className="shadow-lg shadow-teal-200"
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadAvatar.isPending}
+            className="absolute -bottom-1 -right-1 w-7 h-7 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            {uploadAvatar.isPending
+              ? <Loader2 size={13} className="text-gray-500 animate-spin" />
+              : <Camera size={13} className="text-gray-500" />}
           </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={e => {
+              const file = e.target.files?.[0];
+              if (file) uploadAvatar.mutate(file);
+              e.target.value = "";
+            }}
+          />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-base font-bold text-gray-900">{form.name}</p>
@@ -69,6 +112,11 @@ function PersonalInfoCard() {
           <span className="mt-1.5 inline-block text-[11px] bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full font-semibold capitalize">
             {form.role}
           </span>
+          {avatarError && (
+            <p className="text-xs text-red-600 mt-1.5 flex items-center gap-1">
+              <AlertCircle size={12} /> {avatarError}
+            </p>
+          )}
         </div>
       </div>
 

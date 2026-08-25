@@ -1,9 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import {
-  CalendarCheck2, MessageSquare, FileCheck2, BellRing, BookOpen, Star, Gift,
-} from "lucide-react";
+import { CalendarCheck2, MessageSquare, FileCheck2, BellRing, BookOpen, Star, Gift } from "@/lib/icons";
 import { viewportOnce } from "../shared/motion";
 
 const steps = [

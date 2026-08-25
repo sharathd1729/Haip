@@ -1,6 +1,6 @@
 "use client";
 
-import { RefreshCw, X } from "lucide-react";
+import { RefreshCw, X } from "@/lib/icons";
 import { useAppUpdateStore } from "@/store/appUpdate";
 
 // C3: bottom-centre toast prompting a reload once PWARegister (C2) detects

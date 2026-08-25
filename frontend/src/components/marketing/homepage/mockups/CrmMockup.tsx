@@ -1,4 +1,4 @@
-import { Star, CalendarCheck2 } from "lucide-react";
+import { Star, CalendarCheck2 } from "@/lib/icons";
 import { MockupFrame, Chip } from "./MockupFrame";
 import { CountUp } from "../shared/CountUp";
 

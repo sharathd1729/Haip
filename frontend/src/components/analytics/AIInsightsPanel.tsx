@@ -8,7 +8,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Sparkles, X, ExternalLink, RefreshCw, AlertCircle, TrendingDown, Zap, Info } from "lucide-react";
+import { Sparkles, X, ExternalLink, RefreshCw, AlertCircle, TrendingDown, Zap, Info } from "@/lib/icons";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";

@@ -1,8 +1,5 @@
 import Link from "next/link";
-import {
-  Shield, Lock, Server, FileCheck2, KeyRound, Eye, FileText, Globe2,
-  CheckCircle2, ArrowRight, AlertTriangle, Mail, Database, BadgeCheck,
-} from "lucide-react";
+import { Shield, Lock, Server, FileCheck2, KeyRound, Eye, FileText, Globe2, CheckCircle2, ArrowRight, AlertTriangle, Mail, Database, BadgeCheck } from "@/lib/icons";
 
 const pillars = [
   {

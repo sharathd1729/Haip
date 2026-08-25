@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { Inbox, Users, BarChart2, Sparkles, History, IndianRupee } from "lucide-react";
+import { Inbox, Users, BarChart2, Sparkles, History, IndianRupee } from "@/lib/icons";
 import { SectionHeading } from "./shared/SectionHeading";
 import { InboxMockup } from "./mockups/InboxMockup";
 import { CrmMockup } from "./mockups/CrmMockup";

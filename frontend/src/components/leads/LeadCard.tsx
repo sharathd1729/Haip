@@ -2,7 +2,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Clock, AlertCircle, ChevronDown, MessageSquare, Loader2, Calendar, UserCheck } from "lucide-react";
+import { Clock, AlertCircle, ChevronDown, MessageSquare, Loader2, Calendar } from "@/lib/icons";
+import { UserCheck } from "lucide-react";
 import { cn, timeAgo } from "@/lib/utils";
 import { ChannelIcon } from "@/components/inbox/ChannelIcon";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
@@ -34,6 +35,7 @@ export interface LeadCard {
   ai_summary?: string;
   ai_next_action?: string;
   assigned_agent_name?: string;
+  assigned_agent_avatar_url?: string | null;
   last_touch_at?: string;
   created_at?: string;
   // Computed on read from messages (see LeadCardSchema): "waiting" = guest's
@@ -125,8 +127,22 @@ function CompletenessBar({ pct }: { pct: number }) {
 
 // ─── Agent avatar ─────────────────────────────────────────────────────────────
 
-function AgentAvatar({ name }: { name: string }) {
+function AgentAvatar({ name, photoUrl }: { name: string; photoUrl?: string | null }) {
   const initials = name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+  const [imgFailed, setImgFailed] = useState(false);
+
+  if (photoUrl && !imgFailed) {
+    return (
+      <img
+        src={photoUrl}
+        alt={name}
+        title={name}
+        onError={() => setImgFailed(true)}
+        className="w-5 h-5 rounded-full object-cover flex-shrink-0"
+      />
+    );
+  }
+
   return (
     <span
       className="w-5 h-5 rounded-full inline-flex items-center justify-center text-[9px] font-bold flex-shrink-0"
@@ -338,7 +354,7 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
           source/name/dates/budget the agent needs at a glance. */}
       {lead.assigned_agent_name && (
         <div className="flex items-center gap-1.5 pt-0.5" style={{ borderTop: "1px solid var(--haip-border)" }}>
-          <AgentAvatar name={lead.assigned_agent_name} />
+          <AgentAvatar name={lead.assigned_agent_name} photoUrl={lead.assigned_agent_avatar_url} />
           <span className="text-[10px] truncate" style={{ color: "var(--haip-fg-subtle)" }}>
             {lead.assigned_agent_name}
           </span>

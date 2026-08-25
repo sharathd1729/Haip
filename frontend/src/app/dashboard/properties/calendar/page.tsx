@@ -6,10 +6,8 @@ import {
   addDays, format, startOfMonth, endOfMonth,
   parseISO,
 } from "date-fns";
-import {
-  Calendar, ChevronLeft, ChevronRight, Download, Plus, X,
-  Bed, Users, Wifi, AlertCircle, Zap, BrainCircuit,
-} from "lucide-react";
+import { Calendar, ChevronLeft, ChevronRight, Download, Plus, X, Users, Wifi, AlertCircle, Zap } from "@/lib/icons";
+import { Bed, BrainCircuit } from "lucide-react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";

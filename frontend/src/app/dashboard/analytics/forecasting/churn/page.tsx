@@ -3,7 +3,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import { AlertTriangle, Users, DollarSign, Clock } from "lucide-react";
+import { AlertTriangle, Users, DollarSign, Clock } from "@/lib/icons";
 import { KpiCard } from "@/components/analytics/KpiCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";

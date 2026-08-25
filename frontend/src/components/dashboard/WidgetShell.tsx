@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Lock, BarChart2, RefreshCw } from "lucide-react";
+import { Lock, BarChart2, RefreshCw } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import type { WidgetSnapshot } from "@/hooks/useDashboardWidgets";
 import api from "@/lib/api";

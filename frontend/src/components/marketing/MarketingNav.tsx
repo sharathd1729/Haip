@@ -4,11 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import {
-  Menu, X, ChevronDown, Inbox, Phone, Users, MessageSquare, Star, BarChart2,
-  Building2, Hotel, Trees, Plane, FileText, Shield, BookOpen, Activity, Sparkles,
-  ArrowRight,
-} from "lucide-react";
+import { Menu, X, ChevronDown, Inbox, Phone, Users, MessageSquare, Star, BarChart2, Building2, Hotel, Plane, FileText, Shield, BookOpen, Sparkles, ArrowRight } from "@/lib/icons";
+import { Trees, Activity } from "lucide-react";
 
 // ─── Nav data ─────────────────────────────────────────────────────────────────
 

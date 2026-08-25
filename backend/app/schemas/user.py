@@ -19,6 +19,10 @@ class UserOut(BaseModel):
     # IVR call routing (migration 084): eligible for round-robin/parallel
     # ring only when this is set AND phone is non-empty.
     ivr_call_routing_enabled: Optional[bool] = False
+    # migration 090: presigned URL, computed by the endpoint -- never the
+    # raw avatar_s3_key (from_attributes would return None here since the
+    # model has no `avatar_url` attribute; endpoints set it explicitly).
+    avatar_url: Optional[str] = None
 
     class Config:
         from_attributes = True

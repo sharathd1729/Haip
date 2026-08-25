@@ -21,18 +21,7 @@ import {
   CartesianGrid,
   ReferenceLine,
 } from "recharts";
-import {
-  Shield,
-  Wifi,
-  AlertTriangle,
-  CheckCircle2,
-  RefreshCw,
-  ExternalLink,
-  Info,
-  TrendingUp,
-  TrendingDown,
-  Minus,
-} from "lucide-react";
+import { Shield, Wifi, AlertTriangle, CheckCircle2, RefreshCw, ExternalLink, Info, TrendingUp, TrendingDown, Minus } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import Link from "next/link";

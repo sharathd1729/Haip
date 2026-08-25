@@ -5,7 +5,7 @@
  * Uses explicit Tailwind light + dark: classes for theme safety.
  * All icons: 14px, inline with text, gap-1.
  */
-import { MessageSquare, Phone, Globe, Building2, Users } from "lucide-react";
+import { MessageSquare, Phone, Globe, Building2, Users } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 // ─── Inline Instagram glyph (removed from lucide v1+) ────────────────────────

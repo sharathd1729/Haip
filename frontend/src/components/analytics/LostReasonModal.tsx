@@ -8,7 +8,7 @@
  */
 
 import { useState } from "react";
-import { X, ExternalLink, Download, Tag, Send, Flag } from "lucide-react";
+import { X, ExternalLink, Download, Tag, Send, Flag } from "@/lib/icons";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";

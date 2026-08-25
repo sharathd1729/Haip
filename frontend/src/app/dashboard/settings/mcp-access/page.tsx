@@ -1,10 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Bot, KeyRound, Copy, Trash2, Loader2, AlertCircle, X,
-  CheckCircle2, Clock, Plus,
-} from "lucide-react";
+import { Bot, KeyRound, Copy, Trash2, Loader2, AlertCircle, X, CheckCircle2, Clock, Plus } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 

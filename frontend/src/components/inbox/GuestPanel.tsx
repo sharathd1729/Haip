@@ -1,6 +1,7 @@
 "use client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Bed, ExternalLink, Star, UserCheck, Sparkles, Calendar, Users, Wallet, Building2, Phone, Mail, Loader2 } from "lucide-react";
+import { ExternalLink, Star, Sparkles, Calendar, Users, Wallet, Building2, Phone, Mail, Loader2 } from "@/lib/icons";
+import { Bed, UserCheck } from "lucide-react";
 import { ChannelIcon, channelLabel } from "./ChannelIcon";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProfileCompletenessWidget } from "./ProfileCompletenessWidget";
@@ -252,8 +253,8 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
                 Inquiry, neither was shown anywhere in this panel before. */}
             {inquiryId && (
               <div
-                className="p-3 rounded-xl border space-y-2 text-[11px]"
-                style={{ borderColor: "var(--haip-border)", background: "var(--muted)" }}
+                className="haip-card p-3 space-y-2 text-[11px]"
+                style={{ background: "var(--muted)" }}
               >
                 <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--haip-fg-subtle)" }}>
                   Guest Overview
@@ -331,8 +332,8 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
                 lead-detail response above. Zero new backend work. */}
             {leadOwnerStage?.ai_summary && (
               <div
-                className="p-3.5 rounded-xl border space-y-2"
-                style={{ borderColor: "var(--haip-border)", background: "color-mix(in srgb, var(--primary) 5%, transparent)" }}
+                className="haip-card p-3.5 space-y-2"
+                style={{ background: "color-mix(in srgb, var(--primary) 5%, transparent)" }}
               >
                 <p className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: "var(--haip-fg-subtle)" }}>
                   <Sparkles size={12} style={{ color: "var(--primary)" }} />
@@ -377,8 +378,8 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
                 PinnedInquiryBanner shows a condensed one-line version of. */}
             {leadOwnerStage && (leadOwnerStage.check_in || leadOwnerStage.budget_estimate != null || (leadOwnerStage.property_interest ?? []).length > 0) && (
               <div
-                className="p-3.5 rounded-xl border space-y-2"
-                style={{ borderColor: "var(--haip-border)", background: "var(--muted)" }}
+                className="haip-card p-3.5 space-y-2"
+                style={{ background: "var(--muted)" }}
               >
                 <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--haip-fg-subtle)" }}>
                   Inquiry Specifications

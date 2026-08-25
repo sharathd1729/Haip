@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import { cn } from "@/lib/utils";
 
 interface GuestAvatarProps {
@@ -6,6 +6,11 @@ interface GuestAvatarProps {
   phone?: string | null;
   size?: "sm" | "md" | "lg";
   className?: string;
+  /** Real photo URL, when one exists. Falls back to the initials circle
+   * on a missing/broken image (guests have no self-service upload, so
+   * this stays undefined for every guest today -- reserved for staff use
+   * via UserAvatar's own real-photo support). */
+  photoUrl?: string | null;
 }
 
 const SIZE = {
@@ -29,10 +34,22 @@ function avatarColor(seed: string) {
   return colors[h % colors.length];
 }
 
-export const GuestAvatar = memo(function GuestAvatar({ name, phone, size = "md", className }: GuestAvatarProps) {
+export const GuestAvatar = memo(function GuestAvatar({ name, phone, size = "md", className, photoUrl }: GuestAvatarProps) {
   const seed = name || phone || "?";
   const initial = seed[0]?.toUpperCase() ?? "?";
   const color = avatarColor(seed);
+  const [imgFailed, setImgFailed] = useState(false);
+
+  if (photoUrl && !imgFailed) {
+    return (
+      <img
+        src={photoUrl}
+        alt={name || phone || "Avatar"}
+        onError={() => setImgFailed(true)}
+        className={cn("rounded-full object-cover flex-shrink-0", SIZE[size], className)}
+      />
+    );
+  }
 
   return (
     <div className={cn(

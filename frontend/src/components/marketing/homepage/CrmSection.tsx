@@ -1,7 +1,8 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { BedDouble, IndianRupee, Heart, Star } from "lucide-react";
+import { IndianRupee, Heart, Star } from "@/lib/icons";
+import { BedDouble } from "lucide-react";
 import { SectionHeading } from "./shared/SectionHeading";
 import { fadeUp, scaleIn, staggerChildren, viewportOnce, reducedVariants } from "./shared/motion";
 import { CrmMockup } from "./mockups/CrmMockup";

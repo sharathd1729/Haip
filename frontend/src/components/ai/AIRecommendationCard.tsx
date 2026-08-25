@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Sparkles, Check, Loader2, AlertCircle } from "lucide-react";
+import { Sparkles, Check, Loader2, AlertCircle } from "@/lib/icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { useToast } from "@/components/ui/toast";

@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  MessageCircle, Phone, UserCheck, CalendarCheck, Star, RefreshCw,
-} from "lucide-react";
+import { MessageCircle, Phone, CalendarCheck, Star, RefreshCw } from "@/lib/icons";
+import { UserCheck } from "lucide-react";
 
 // ─── Stage data (copy unchanged) ─────────────────────────────────────────────
 

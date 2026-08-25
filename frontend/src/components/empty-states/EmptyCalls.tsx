@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Phone, BarChart2, ArrowRight, Plug2 } from "lucide-react";
+import { Phone, BarChart2, ArrowRight } from "@/lib/icons";
+import { Plug2 } from "lucide-react";
 
 export function EmptyCalls() {
   return (

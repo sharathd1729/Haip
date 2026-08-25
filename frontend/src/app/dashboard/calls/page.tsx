@@ -3,12 +3,7 @@ import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
-import {
-  Phone, Upload, X, Filter, Calendar, Sparkles,
-  Search, ChevronRight, TrendingUp, TrendingDown, Minus, AlertCircle,
-  MessageSquare, Loader2, PhoneIncoming, PhoneOutgoing, PhoneMissed,
-  Delete, PhoneCall,
-} from "lucide-react";
+import { Phone, Upload, X, Filter, Calendar, Sparkles, Search, ChevronRight, TrendingUp, TrendingDown, Minus, AlertCircle, MessageSquare, Loader2, PhoneIncoming, PhoneOutgoing, PhoneMissed, Delete, PhoneCall } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { EmptyCalls } from "@/components/empty-states/EmptyCalls";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -608,10 +603,7 @@ export default function CallsPage() {
       <div className="px-5 py-4 flex-shrink-0" style={{ borderBottom: "1px solid var(--haip-border)" }}>
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h1
-              className="text-[22px] font-bold tracking-tight"
-              style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}
-            >
+            <h1 className="haip-page-title">
               Calls
             </h1>
             <p className="text-xs mt-0.5" style={{ color: "var(--haip-fg-muted)" }}>

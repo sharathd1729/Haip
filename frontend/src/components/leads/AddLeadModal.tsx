@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { X, Loader2 } from "lucide-react";
+import { X, Loader2 } from "@/lib/icons";
 import api from "@/lib/api";
 
 interface BookableProperty {

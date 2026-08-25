@@ -7,12 +7,8 @@ import {
   brightness, hexToRgb,
 } from "@/lib/brandTheme";
 import { cn } from "@/lib/utils";
-import {
-  Palette, Upload, RefreshCw, Check, Loader2, Eye,
-  Type, Sliders, Image as ImageIcon, Sparkles, AlertCircle,
-  ChevronRight, LayoutDashboard, Phone, MessageSquare,
-  Star, Inbox, Zap,
-} from "lucide-react";
+import { Palette, Upload, RefreshCw, Check, Loader2, Eye, Sliders, ImageIcon, Sparkles, AlertCircle, ChevronRight, LayoutDashboard, Phone, MessageSquare, Star, Inbox, Zap } from "@/lib/icons";
+import { Type } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Live sidebar mini-preview

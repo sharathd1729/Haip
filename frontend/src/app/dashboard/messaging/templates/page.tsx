@@ -1,11 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  MessageSquare, Plus, Send, Trash2, CheckCircle2,
-  Clock, XCircle, FileText, Loader2, X, AlertCircle,
-  Eye, ChevronRight, Tag,
-} from "lucide-react";
+import { MessageSquare, Plus, Send, Trash2, CheckCircle2, Clock, XCircle, FileText, Loader2, X, AlertCircle, Eye, ChevronRight, Tag } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";

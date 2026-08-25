@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Mail } from "lucide-react";
+import { ArrowLeft, Mail } from "@/lib/icons";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");

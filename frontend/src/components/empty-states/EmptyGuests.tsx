@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Users, Upload, ArrowRight } from "lucide-react";
+import { Users, Upload, ArrowRight } from "@/lib/icons";
 
 export function EmptyGuests() {
   return (

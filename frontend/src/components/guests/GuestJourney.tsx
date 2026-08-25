@@ -1,8 +1,8 @@
 "use client";
+import type { ComponentType } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  MessageSquare, Phone, GitBranch, Sparkles, Zap, Merge, Circle,
-} from "lucide-react";
+import { MessageSquare, Phone, Sparkles, Zap } from "@/lib/icons";
+import { GitBranch, Merge, Circle } from "lucide-react";
 import api from "@/lib/api";
 
 /**
@@ -35,7 +35,7 @@ interface JourneyResponse {
   capped: boolean;
 }
 
-const ICONS: Record<string, typeof MessageSquare> = {
+const ICONS: Record<string, ComponentType<{ size?: number; className?: string }>> = {
   "message.received": MessageSquare,
   "message.sent": MessageSquare,
   "call.completed": Phone,

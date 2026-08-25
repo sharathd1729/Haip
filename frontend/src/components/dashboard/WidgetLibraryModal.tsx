@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { X } from "lucide-react";
+import { X } from "@/lib/icons";
 import { useWidgetLibrary } from "@/hooks/useDashboardWidgets";
 import type { LibraryWidget } from "@/hooks/useDashboardWidgets";
 import api from "@/lib/api";

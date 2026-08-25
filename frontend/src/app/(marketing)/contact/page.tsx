@@ -2,10 +2,8 @@
 
 import Link from "next/link";
 import { useState, FormEvent } from "react";
-import {
-  ArrowRight, MessageSquare, Mail, Phone, MapPin, Building2, Handshake,
-  HelpCircle, CheckCircle2, Clock, Sparkles,
-} from "lucide-react";
+import { ArrowRight, MessageSquare, Mail, Phone, MapPin, Building2, HelpCircle, CheckCircle2, Clock, Sparkles } from "@/lib/icons";
+import { Handshake } from "lucide-react";
 
 type ContactForm = {
   fullName: string;

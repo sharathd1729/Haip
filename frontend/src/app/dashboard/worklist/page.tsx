@@ -2,10 +2,8 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import {
-  MessageSquare, PhoneMissed, UserCheck, Inbox, Clock, AlertCircle,
-  RefreshCw, ChevronRight, Phone, Mail, AtSign,
-} from "lucide-react";
+import { MessageSquare, PhoneMissed, Inbox, Clock, AlertCircle, RefreshCw, ChevronRight, Phone, Mail, AtSign } from "@/lib/icons";
+import { UserCheck } from "lucide-react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";

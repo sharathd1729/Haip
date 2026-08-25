@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Gift, X, Tag, Calendar, ChevronRight, Sparkles } from "lucide-react";
+import { Gift, X, Tag, Calendar, ChevronRight, Sparkles } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";

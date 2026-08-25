@@ -4,10 +4,7 @@ import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  Phone, Users, Star, Zap, Clock, Upload,
-  Building2, ArrowRight, Sparkles, Settings2,
-} from "lucide-react";
+import { Phone, Users, Star, Zap, Clock, Upload, Building2, ArrowRight, Sparkles, Settings2 } from "@/lib/icons";
 import { useDashboardWidgets, useInvalidateDashboardWidgets, type WidgetSnapshot } from "@/hooks/useDashboardWidgets";
 import { WidgetShell } from "@/components/dashboard/WidgetShell";
 // B5: this is the app's highest-traffic landing page -- only needed once

@@ -3,10 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import {
-  Users, Clock, CheckCircle2, Phone, CalendarCheck, TrendingUp, IndianRupee,
-  ListChecks, AlertTriangle, PhoneMissed, Bot, Sparkles,
-} from "lucide-react";
+import { Users, Clock, CheckCircle2, Phone, CalendarCheck, TrendingUp, IndianRupee, ListChecks, AlertTriangle, PhoneMissed, Bot, Sparkles } from "@/lib/icons";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";

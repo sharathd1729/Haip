@@ -7,7 +7,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, LineChart, Line, Legend, AreaChart, Area,
 } from "recharts";
-import { MessageSquare, Clock, Truck, BookOpen, Bot } from "lucide-react";
+import { MessageSquare, Clock, Truck, BookOpen, Bot } from "@/lib/icons";
 import { KpiCard, deltaBetween } from "@/components/analytics/KpiCard";
 import { AIInsightsPanel } from "@/components/analytics/AIInsightsPanel";
 import { Skeleton } from "@/components/ui/skeleton";

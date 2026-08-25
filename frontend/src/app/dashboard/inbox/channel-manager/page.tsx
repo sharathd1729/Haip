@@ -2,12 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  Search, X, RefreshCw, AlertCircle, Inbox,
-  Mail, Home, Globe, ChevronLeft, Clock, MessageSquare,
-  Phone, AtSign, Hash, AlertTriangle,
-  CheckCircle2, Loader2, Send,
-} from "lucide-react";
+import { Search, X, RefreshCw, AlertCircle, Inbox, Mail, Home, Globe, ChevronLeft, Clock, MessageSquare, Phone, AtSign, Hash, AlertTriangle, CheckCircle2, Loader2, Send } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { useRWThreads, useRWThreadMessages, useSendRWMessage } from "@/hooks/useRentalWise";
 import { type RWThread, type RWMessage, type RWProvider, localStr } from "@/lib/rentalwise";

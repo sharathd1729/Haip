@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { Users, Phone, ShieldCheck, MessageSquare, Clock, Wifi, WifiOff, ChevronUp, ChevronDown } from "lucide-react";
+import { Users, Phone, ShieldCheck, MessageSquare, Clock, Wifi, WifiOff, ChevronUp, ChevronDown } from "@/lib/icons";
 import { KpiCard, deltaBetween } from "@/components/analytics/KpiCard";
 import { AIInsightsPanel } from "@/components/analytics/AIInsightsPanel";
 import { Skeleton } from "@/components/ui/skeleton";

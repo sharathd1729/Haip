@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend,
 } from "recharts";
-import { Users, RefreshCw, Star, DollarSign } from "lucide-react";
+import { Users, RefreshCw, Star, DollarSign } from "@/lib/icons";
 import { KpiCard } from "@/components/analytics/KpiCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";

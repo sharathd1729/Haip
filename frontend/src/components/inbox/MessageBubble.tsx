@@ -1,5 +1,5 @@
 "use client";
-import { CheckCheck, Check, Clock, RotateCw, Sparkles, ThumbsUp, ThumbsDown, Edit2, Reply, StickyNote, Languages, Wand2 } from "lucide-react";
+import { CheckCheck, Check, Clock, RotateCw, Sparkles, ThumbsUp, ThumbsDown, Edit2, Reply, StickyNote, Languages, Wand2 } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { memo, useState } from "react";
 import { AIRecommendationCard, type RecommendedAction } from "@/components/ai/AIRecommendationCard";

@@ -1,11 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  CreditCard, Zap, CheckCircle, ArrowUpRight, Download,
-  AlertCircle, Clock, BarChart2, Phone, MessageSquare, Users,
-  Star, FileText, ChevronRight,
-} from "lucide-react";
+import { CreditCard, Zap, CheckCircle, ArrowUpRight, Download, AlertCircle, Clock, BarChart2, Phone, MessageSquare, Users, Star, FileText, ChevronRight } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";

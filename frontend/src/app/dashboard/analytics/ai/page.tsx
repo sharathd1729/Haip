@@ -7,7 +7,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, Legend, AreaChart, Area,
 } from "recharts";
-import { Bot, CheckCircle, XCircle, DollarSign, Loader, Zap, AlertCircle } from "lucide-react";
+import { Bot, CheckCircle, XCircle, DollarSign, Loader, Zap, AlertCircle } from "@/lib/icons";
 import { KpiCard, deltaBetween } from "@/components/analytics/KpiCard";
 import { AIInsightsPanel } from "@/components/analytics/AIInsightsPanel";
 import { Skeleton } from "@/components/ui/skeleton";

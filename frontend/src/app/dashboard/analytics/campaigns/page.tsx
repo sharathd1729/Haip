@@ -4,7 +4,7 @@
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { Send, Users, BookOpen, Truck, Layers } from "lucide-react";
+import { Send, Users, BookOpen, Truck, Layers } from "@/lib/icons";
 import { KpiCard, deltaBetween } from "@/components/analytics/KpiCard";
 import { AIInsightsPanel } from "@/components/analytics/AIInsightsPanel";
 import { Badge } from "@/components/ui/badge";

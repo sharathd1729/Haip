@@ -15,7 +15,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend,
 } from "recharts";
-import { Target, TrendingUp, DollarSign, Moon, Sparkles } from "lucide-react";
+import { Target, TrendingUp, DollarSign, Moon, Sparkles } from "@/lib/icons";
 import { KpiCard } from "@/components/analytics/KpiCard";
 import { AIInsightsPanel } from "@/components/analytics/AIInsightsPanel";
 import { Skeleton } from "@/components/ui/skeleton";

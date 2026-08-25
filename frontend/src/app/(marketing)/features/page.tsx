@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRef, useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { CheckCircle2, ArrowRight, Inbox, Phone, Users, MessageSquare, Star, BarChart2 } from "lucide-react";
+import { CheckCircle2, ArrowRight, Inbox, Phone, Users, MessageSquare, Star, BarChart2 } from "@/lib/icons";
 import { InboxMockup, CallsMockup, CRMMockup, WhatsAppMockup, QAMockup, InsightsMockup } from "@/components/marketing/FeatureMockups";
 
 // ─── Shared motion variants ───────────────────────────────────────────────────

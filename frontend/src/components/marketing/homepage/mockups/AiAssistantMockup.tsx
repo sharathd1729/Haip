@@ -1,4 +1,4 @@
-import { Sparkles, Check } from "lucide-react";
+import { Sparkles, Check } from "@/lib/icons";
 import { MockupFrame, Chip } from "./MockupFrame";
 
 export function AiAssistantMockup({ className = "" }: { className?: string }) {

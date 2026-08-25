@@ -2,7 +2,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { Lock, Loader2, AlertCircle, CheckCircle2, X, Save } from "lucide-react";
+import { Lock, Loader2, AlertCircle, CheckCircle2, X, Save } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 

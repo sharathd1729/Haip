@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { X, RefreshCw, ExternalLink, CheckCircle2, AlertTriangle, AlertCircle } from "lucide-react";
+import { X, RefreshCw, ExternalLink, CheckCircle2, AlertTriangle, AlertCircle } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import Link from "next/link";

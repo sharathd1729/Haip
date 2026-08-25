@@ -1,10 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  HelpCircle, X, MessageSquare, PlayCircle,
-  Search, ExternalLink, Phone, Mail, ChevronRight,
-} from "lucide-react";
+import { HelpCircle, X, MessageSquare, PlayCircle, Search, ExternalLink, Phone, Mail, ChevronRight } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------

@@ -1,12 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Megaphone, Plus, Play, Pause, Clock, CheckCircle2,
-  Users, TrendingUp, X, Loader2,
-  AlertCircle, Calendar,
-  Send, Eye, Trash2, Tag, Filter,
-} from "lucide-react";
+import { Megaphone, Plus, Play, Pause, Clock, CheckCircle2, Users, TrendingUp, X, Loader2, AlertCircle, Calendar, Send, Eye, Trash2, Tag, Filter } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";

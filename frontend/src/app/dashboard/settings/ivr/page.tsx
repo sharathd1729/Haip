@@ -5,11 +5,8 @@ import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
-import {
-  Phone, Loader2, CheckCircle2, AlertCircle,
-  RefreshCw, Upload, Shuffle, GitBranch,
-  ListOrdered, Hourglass, UserCheck, Users, Sparkles, Play,
-} from "lucide-react";
+import { Phone, Loader2, CheckCircle2, AlertCircle, RefreshCw, Upload, Shuffle, ListOrdered, Users, Sparkles, Play } from "@/lib/icons";
+import { GitBranch, Hourglass, UserCheck } from "lucide-react";
 
 // This page used to also carry a "Vobiz SIP Credentials" / DTMF-menu /
 // Dograh-webhook config form (GET/PUT /api/v1/ivr/config), writing to a

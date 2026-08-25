@@ -3,10 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  ArrowRight, MessageSquare, Phone, Sparkles, Map, Compass,
-  BarChart2, TrendingUp, Shield, ChevronDown, ChevronRight, Plane, Calendar, FileText, Star,
-} from "lucide-react";
+import { ArrowRight, MessageSquare, Phone, Sparkles, Map, BarChart2, TrendingUp, Shield, ChevronDown, ChevronRight, Plane, Calendar, FileText, Star } from "@/lib/icons";
+import { Compass } from "lucide-react";
 
 const fadeUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" as const } } };
 const scaleUp = { hidden: { opacity: 0, scale: 0.97 }, visible: { opacity: 1, scale: 1, transition: { duration: 0.5, ease: "easeOut" as const } } };

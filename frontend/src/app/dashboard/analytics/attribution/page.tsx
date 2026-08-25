@@ -14,7 +14,8 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   Cell,
 } from "recharts";
-import { GitBranch, Clock, Zap, TrendingUp } from "lucide-react";
+import { Clock, Zap, TrendingUp } from "@/lib/icons";
+import { GitBranch } from "lucide-react";
 import { KpiCard } from "@/components/analytics/KpiCard";
 import { AIInsightsPanel } from "@/components/analytics/AIInsightsPanel";
 import { Skeleton } from "@/components/ui/skeleton";

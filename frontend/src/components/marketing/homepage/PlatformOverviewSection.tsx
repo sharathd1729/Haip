@@ -1,10 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import {
-  Inbox, Users, Phone, CalendarCheck2, IndianRupee, BarChart2,
-  Workflow, Star, MessagesSquare, BookOpen,
-} from "lucide-react";
+import { Inbox, Users, Phone, CalendarCheck2, IndianRupee, BarChart2, Workflow, Star, MessagesSquare, BookOpen } from "@/lib/icons";
 import { SectionHeading } from "./shared/SectionHeading";
 import { fadeUp, staggerChildren, viewportOnce, reducedVariants } from "./shared/motion";
 

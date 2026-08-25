@@ -1,17 +1,12 @@
 "use client";
-import { clearTokenCache } from "@/lib/api";
+import api, { clearTokenCache } from "@/lib/api";
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import { signOut } from "next-auth/react";
-import {
-  Inbox, Phone, Users, Building2,
-  Sparkles, BarChart2, Zap, Link2, Settings,
-  HelpCircle, LogOut, ChevronDown, ChevronRight, ChevronLeft,
-  MessageSquare, AtSign, Bot, Target, Megaphone, UserCheck, GitBranch, FileText,
-  LayoutDashboard,
-  ListChecks,
-} from "lucide-react";
+import { Inbox, Phone, Users, Building2, Sparkles, BarChart2, Zap, Link2, Settings, HelpCircle, LogOut, ChevronDown, ChevronRight, ChevronLeft, MessageSquare, AtSign, Bot, Target, Megaphone, FileText, LayoutDashboard, ListChecks } from "@/lib/icons";
+import { UserCheck, GitBranch } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canSeeNav, type Resource } from "@/lib/permissions";
 import { useBrandTheme } from "@/components/providers/BrandThemeProvider";
@@ -189,6 +184,11 @@ export function Sidebar({ user }: SidebarProps) {
   const role = user?.role ?? "";
   const { theme } = useBrandTheme();
   const { conversations } = useInboxStore();
+  const { data: me } = useQuery({
+    queryKey: ["users", "me"],
+    queryFn: () => api.get("/users/me").then(r => r.data),
+    staleTime: 60_000,
+  });
   const [expanded, setExpanded] = useState<string | null>(null);
   // AppFlowy-inspired collapsible rail. Read synchronously from
   // localStorage on mount (matching next-themes' own storageKey pattern,
@@ -483,15 +483,23 @@ export function Sidebar({ user }: SidebarProps) {
           title={collapsed ? (user?.name ?? "User") : undefined}
         >
           {/* Avatar */}
-          <div
-            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-            style={{
-              background: "linear-gradient(135deg, var(--haip-sidebar-accent), var(--haip-primary))",
-              color: "#0B1F3A",
-            }}
-          >
-            {user?.name?.[0]?.toUpperCase() ?? "U"}
-          </div>
+          {me?.avatar_url ? (
+            <img
+              src={me.avatar_url}
+              alt={user?.name ?? "User"}
+              className="w-7 h-7 rounded-full object-cover flex-shrink-0"
+            />
+          ) : (
+            <div
+              className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+              style={{
+                background: "linear-gradient(135deg, var(--haip-sidebar-accent), var(--haip-primary))",
+                color: "#0B1F3A",
+              }}
+            >
+              {user?.name?.[0]?.toUpperCase() ?? "U"}
+            </div>
+          )}
 
           {!collapsed && (
             <>

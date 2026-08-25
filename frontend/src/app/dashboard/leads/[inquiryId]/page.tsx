@@ -2,11 +2,7 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  ArrowLeft, Sparkles, Phone, MessageSquare, MessageCircle as Instagram,
-  Building2, Clock, RefreshCw, Plus, Globe,
-  Shield, Star, Timer,
-} from "lucide-react";
+import { ArrowLeft, Sparkles, Phone, MessageSquare, Instagram, Building2, Clock, RefreshCw, Plus, Globe, Shield, Star, Timer } from "@/lib/icons";
 import api from "@/lib/api";
 import { timeAgo, cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";

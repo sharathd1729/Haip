@@ -1,4 +1,4 @@
-import { MessageSquare, Camera, Phone, Globe, Sparkles, StickyNote } from "lucide-react";
+import { MessageSquare, Camera, Phone, Globe, Sparkles, StickyNote } from "@/lib/icons";
 import { MockupFrame, Chip } from "./MockupFrame";
 
 const conversations = [

@@ -1,4 +1,5 @@
-import { Sparkles, MessageSquare, Phone, Shield, Plug } from "lucide-react";
+import { Sparkles, MessageSquare, Phone, Shield } from "@/lib/icons";
+import { Plug } from "lucide-react";
 
 const releases = [
   {

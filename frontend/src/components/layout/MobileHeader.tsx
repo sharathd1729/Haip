@@ -4,9 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { Bell, Sun, Moon, Monitor } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Bell, Sun, Moon, Monitor } from "@/lib/icons";
 import { useBrandTheme } from "@/components/providers/BrandThemeProvider";
 import { useNotificationsStore } from "@/store/useNotificationsStore";
+import api from "@/lib/api";
 
 const ROUTE_LABELS: Record<string, string> = {
   dashboard:    "Dashboard",
@@ -84,6 +86,11 @@ export function MobileHeader({ user }: MobileHeaderProps) {
   const markAllRead = useNotificationsStore(s => s.markAllRead);
   const unreadCount = useNotificationsStore(s => s.unreadCount);
   const unread = unreadCount();
+  const { data: me } = useQuery({
+    queryKey: ["users", "me"],
+    queryFn: () => api.get("/users/me").then(r => r.data),
+    staleTime: 60_000,
+  });
 
   return (
     <header
@@ -213,16 +220,22 @@ export function MobileHeader({ user }: MobileHeaderProps) {
         </div>
 
         {/* User avatar */}
-        <Link
-          href="/dashboard/profile"
-          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ml-0.5"
-          style={{
-            background: "var(--primary)",
-            color: "var(--primary-foreground)",
-          }}
-        >
-          {user?.name?.[0]?.toUpperCase() ?? "U"}
-        </Link>
+        {me?.avatar_url ? (
+          <Link href="/dashboard/profile" className="ml-0.5 flex-shrink-0">
+            <img src={me.avatar_url} alt={user?.name ?? "User"} className="w-8 h-8 rounded-full object-cover" />
+          </Link>
+        ) : (
+          <Link
+            href="/dashboard/profile"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ml-0.5"
+            style={{
+              background: "var(--primary)",
+              color: "var(--primary-foreground)",
+            }}
+          >
+            {user?.name?.[0]?.toUpperCase() ?? "U"}
+          </Link>
+        )}
       </div>
     </header>
   );

@@ -657,6 +657,7 @@ def _build_lead_card(
         ai_analysis=inquiry.ai_analysis,
         assigned_agent_name=assigned.name if assigned else None,
         assigned_agent_id=str(assigned.id) if assigned else None,
+        assigned_agent_avatar_url=assigned.avatar_url if assigned else None,
         last_touch_at=inquiry.updated_at,
         created_at=inquiry.created_at,
         response_time_seconds=response_time[0] if response_time else None,

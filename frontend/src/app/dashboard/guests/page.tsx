@@ -3,15 +3,8 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
-import {
-  Search, ArrowLeft, Phone, MessageSquare, Star,
-  Shield, AlertTriangle, Plus, ChevronRight,
-  Calendar, TrendingUp, Users, Sparkles,
-  BookOpen, X, ChevronLeft as ChevronLeftIcon,
-  ChevronRight as ChevronRightIcon, Download,
-  SlidersHorizontal, ExternalLink, Bed, CreditCard, Pencil,
-  RefreshCw,
-} from "lucide-react";
+import { Search, ArrowLeft, Phone, MessageSquare, Star, Shield, AlertTriangle, Plus, ChevronRight, Calendar, TrendingUp, Users, Sparkles, BookOpen, X, ChevronLeftIcon, ChevronRightIcon, Download, SlidersHorizontal, ExternalLink, CreditCard, Pencil, RefreshCw } from "@/lib/icons";
+import { Bed } from "lucide-react";
 import { timeAgo, cn, formatPhone } from "@/lib/utils";
 import { EmptyGuests } from "@/components/empty-states/EmptyGuests";
 import { MobileFilterSheet, MobileFilterTrigger } from "@/components/ui/MobileFilterSheet";

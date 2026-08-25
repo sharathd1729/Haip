@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw } from "@/lib/icons";
 import { useAppUpdateStore } from "@/store/appUpdate";
 
 // Reachable, self-serve diagnostic for exactly the class of bug that

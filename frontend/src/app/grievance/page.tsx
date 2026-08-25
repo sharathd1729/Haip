@@ -10,7 +10,7 @@
 
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Shield, Mail, Phone, Clock, CheckCircle2, AlertCircle, ChevronDown } from "lucide-react";
+import { Shield, Mail, Phone, Clock, CheckCircle2, AlertCircle, ChevronDown } from "@/lib/icons";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 

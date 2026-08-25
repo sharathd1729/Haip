@@ -3,11 +3,8 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Phone, MessageSquare, Users, MessageCircle as Instagram,
-  ArrowRight, ChevronDown, Check, Sparkles, BadgeCheck, Brain,
-  Mic2, Bot, BarChart2, Zap, FileText, AlertTriangle,
-} from "lucide-react";
+import { Phone, MessageSquare, Users, Instagram, ArrowRight, ChevronDown, Check, Sparkles, BadgeCheck, Mic2, Bot, BarChart2, Zap, FileText, AlertTriangle } from "@/lib/icons";
+import { Brain } from "lucide-react";
 
 // ─── Communication Modules (no AI required) ───────────────────────────────────
 const COMM_MODULES = [

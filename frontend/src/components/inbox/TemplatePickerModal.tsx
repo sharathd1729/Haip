@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { X, Send, Loader2, LayoutTemplate } from "lucide-react";
+import { X, Send, Loader2, LayoutTemplate } from "@/lib/icons";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 

@@ -3,10 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  ArrowRight, CheckCircle2, MessageSquare, Phone, Inbox, Sparkles,
-  Building2, Users, Star, BarChart2, TrendingUp, Shield, ChevronDown, ChevronRight,
-} from "lucide-react";
+import { ArrowRight, CheckCircle2, MessageSquare, Phone, Inbox, Sparkles, Building2, Users, Star, BarChart2, TrendingUp, Shield, ChevronDown, ChevronRight } from "@/lib/icons";
 
 // ─── Motion variants ──────────────────────────────────────────────────────────
 const fadeUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" as const } } };

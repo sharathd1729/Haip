@@ -23,9 +23,7 @@ const ReactGridLayout = dynamic(
 type Layout = { i: string; x: number; y: number; w: number; h: number };
 import api from "@/lib/api";
 import { useWorkspace } from "@/components/providers/WorkspaceProvider";
-import {
-  ArrowLeft, Plus, Lock, AlertCircle, Loader2, X, GripVertical, Settings2,
-} from "lucide-react";
+import { ArrowLeft, Plus, Lock, AlertCircle, Loader2, X, GripVertical, Settings2 } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,

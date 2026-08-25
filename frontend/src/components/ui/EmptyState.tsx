@@ -11,7 +11,7 @@
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { type ReactNode } from "react";
-import { SlidersHorizontal, ExternalLink } from "lucide-react";
+import { SlidersHorizontal, ExternalLink } from "@/lib/icons";
 
 interface EmptyStateCTAProps {
   label: string;

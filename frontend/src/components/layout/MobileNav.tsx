@@ -1,18 +1,13 @@
 "use client";
 
-import { clearTokenCache } from "@/lib/api";
+import api, { clearTokenCache } from "@/lib/api";
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { signOut } from "next-auth/react";
-import {
-  Inbox, Phone, Users, Menu, X,
-  Home, Target, Building2, Calendar, Calculator,
-  MessageSquare, Megaphone, UserCheck, GitBranch,
-  Sparkles, FileDown, Star, Shield, Zap,
-  Settings, Plug2, CreditCard, UserCircle, HelpCircle,
-  Palette, FileText, LogOut, ListChecks,
-} from "lucide-react";
+import { Inbox, Phone, Users, Menu, X, Home, Target, Building2, Calendar, Calculator, MessageSquare, Megaphone, Sparkles, FileDown, Star, Shield, Zap, Settings, CreditCard, UserCircle, HelpCircle, Palette, FileText, LogOut, ListChecks } from "@/lib/icons";
+import { UserCheck, GitBranch, Plug2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canSeeNav, type Resource } from "@/lib/permissions";
 import { useBrandTheme } from "@/components/providers/BrandThemeProvider";
@@ -114,6 +109,11 @@ export function MobileNav({ user }: MobileNavProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const { theme } = useBrandTheme();
   const { conversations } = useInboxStore();
+  const { data: me } = useQuery({
+    queryKey: ["users", "me"],
+    queryFn: () => api.get("/users/me").then(r => r.data),
+    staleTime: 60_000,
+  });
 
   const primary = theme.primaryColor || "#14b8a6";
   const unreadCount = conversations.filter(c => (c as any).unread_count > 0).length;
@@ -282,12 +282,20 @@ export function MobileNav({ user }: MobileNavProps) {
               }}
             >
               <div className="flex items-center gap-3 mb-3">
-                <div
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
-                  style={{ backgroundColor: primary, color: "#0a1b30" }}
-                >
-                  {user?.name?.[0]?.toUpperCase() ?? "U"}
-                </div>
+                {me?.avatar_url ? (
+                  <img
+                    src={me.avatar_url}
+                    alt={user?.name ?? "User"}
+                    className="w-9 h-9 rounded-full object-cover flex-shrink-0"
+                  />
+                ) : (
+                  <div
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
+                    style={{ backgroundColor: primary, color: "#0a1b30" }}
+                  >
+                    {user?.name?.[0]?.toUpperCase() ?? "U"}
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <div className="text-white text-sm font-semibold truncate">{user?.name ?? "User"}</div>
                   <div className="text-[11px] text-white/35 truncate">{user?.email ?? ""}</div>

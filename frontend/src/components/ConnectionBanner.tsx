@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { WifiOff } from "lucide-react";
+import { WifiOff } from "@/lib/icons";
 import { useConnectionStatusStore } from "@/store/connectionStatus";
 import { queryClient } from "@/lib/queryClient";
 import { API_ROOT } from "@/lib/api";

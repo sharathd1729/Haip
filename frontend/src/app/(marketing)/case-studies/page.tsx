@@ -1,7 +1,6 @@
 import Link from "next/link";
-import {
-  ArrowRight, Plane, Building2, Trees, Hotel, ChevronRight, Sparkles, TrendingUp, Quote,
-} from "lucide-react";
+import { ArrowRight, Plane, Building2, Hotel, ChevronRight, Sparkles, TrendingUp } from "@/lib/icons";
+import { Trees, Quote } from "lucide-react";
 
 const featured = {
   badge: "Design partner · Luxury experiential travel",

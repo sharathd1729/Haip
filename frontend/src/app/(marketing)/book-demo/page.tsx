@@ -2,10 +2,7 @@
 
 import Link from "next/link";
 import { useState, FormEvent } from "react";
-import {
-  ArrowRight, CheckCircle2, Sparkles, Phone, MessageSquare,
-  Building2, Users, Calendar, Clock, Shield,
-} from "lucide-react";
+import { ArrowRight, CheckCircle2, Sparkles, Phone, MessageSquare, Building2, Users, Calendar, Clock, Shield } from "@/lib/icons";
 
 type FormState = {
   fullName: string;

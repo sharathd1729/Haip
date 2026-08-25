@@ -3,7 +3,7 @@
 import { useRef, useEffect, useState } from "react";
 import type { ComponentType, CSSProperties } from "react";
 import { motion, useInView, animate, useReducedMotion } from "framer-motion";
-import { MessageCircle, Camera, Phone, Home, Building2, Search, Building, Wallet, CreditCard, Sparkles, Zap, ShieldCheck, Rocket } from "lucide-react";
+import { MessageCircle, Camera, Phone, Home, Building2, Search, Building, Wallet, CreditCard, Sparkles, Zap, ShieldCheck, Rocket } from "@/lib/icons";
 import { SectionHeading } from "./shared/SectionHeading";
 import { fadeUp, staggerChildren, viewportOnce, reducedVariants } from "./shared/motion";
 import { IntegrationOrbit } from "./mockups/IntegrationOrbit";

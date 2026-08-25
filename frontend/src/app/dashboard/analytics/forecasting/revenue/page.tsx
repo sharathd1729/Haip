@@ -6,7 +6,7 @@ import {
   ComposedChart, Bar, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine, Legend,
 } from "recharts";
-import { DollarSign, TrendingUp, Calendar, Star } from "lucide-react";
+import { DollarSign, TrendingUp, Calendar, Star } from "@/lib/icons";
 import { KpiCard } from "@/components/analytics/KpiCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import api from "@/lib/api";

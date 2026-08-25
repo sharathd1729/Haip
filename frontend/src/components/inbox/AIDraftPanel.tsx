@@ -1,5 +1,5 @@
 "use client";
-import { Sparkles, RefreshCw } from "lucide-react";
+import { Sparkles, RefreshCw } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 export type AiTone = "warm" | "formal" | "brief" | "persuasive";

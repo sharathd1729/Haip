@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useRouter, usePathname } from "next/navigation";
-import { Building2, Users, Shield, QrCode, Loader2, CheckCircle, AlertCircle, Bell, Bot, ChevronRight, KeyRound, Lock, BookOpen } from "lucide-react";
+import { Building2, Users, Shield, QrCode, Loader2, CheckCircle, AlertCircle, Bell, Bot, ChevronRight, KeyRound, Lock, BookOpen } from "@/lib/icons";
 import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";

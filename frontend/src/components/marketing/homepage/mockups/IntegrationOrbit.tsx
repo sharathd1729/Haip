@@ -5,7 +5,7 @@ import type { ComponentType, CSSProperties } from "react";
 import {
   motion, useMotionValue, useSpring, useTransform, useReducedMotion,
 } from "framer-motion";
-import { MessageCircle, Camera, Phone, Home, Building2, Search, Building, Wallet, CreditCard, Sparkles } from "lucide-react";
+import { MessageCircle, Camera, Phone, Home, Building2, Search, Building, Wallet, CreditCard, Sparkles } from "@/lib/icons";
 import { viewportOnce } from "../shared/motion";
 
 type IconComponent = ComponentType<{ size?: number; className?: string; style?: CSSProperties }>;

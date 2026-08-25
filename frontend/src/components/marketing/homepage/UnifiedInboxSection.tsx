@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { Tags, Sparkles, StickyNote, History } from "lucide-react";
+import { Tags, Sparkles, StickyNote, History } from "@/lib/icons";
 import { SectionHeading } from "./shared/SectionHeading";
 import { fadeUp, scaleIn, staggerChildren, viewportOnce, reducedVariants } from "./shared/motion";
 import { InboxMockup } from "./mockups/InboxMockup";

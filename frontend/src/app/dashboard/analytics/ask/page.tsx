@@ -9,11 +9,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import {
-  Sparkles, ChevronRight, AlertCircle,
-  Send, Loader2, RotateCcw, ExternalLink, Info,
-  PlayCircle, CheckCircle2, ChevronDown,
-} from "lucide-react";
+import { Sparkles, ChevronRight, AlertCircle, Send, Loader2, RotateCcw, ExternalLink, Info, PlayCircle, CheckCircle2, ChevronDown } from "@/lib/icons";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";

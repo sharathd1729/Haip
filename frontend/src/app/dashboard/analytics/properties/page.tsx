@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Home, TrendingUp, DollarSign, BarChart2, ChevronUp, ChevronDown } from "lucide-react";
+import { Home, TrendingUp, DollarSign, BarChart2, ChevronUp, ChevronDown } from "@/lib/icons";
 import { KpiCard, deltaBetween } from "@/components/analytics/KpiCard";
 import { AIInsightsPanel } from "@/components/analytics/AIInsightsPanel";
 import { Skeleton } from "@/components/ui/skeleton";

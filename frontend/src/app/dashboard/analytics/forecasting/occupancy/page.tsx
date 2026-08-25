@@ -7,7 +7,7 @@ import {
   ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ReferenceLine,
 } from "recharts";
-import { Building2, TrendingUp, TrendingDown, Minus, CalendarX } from "lucide-react";
+import { Building2, TrendingUp, TrendingDown, Minus, CalendarX } from "@/lib/icons";
 import { KpiCard } from "@/components/analytics/KpiCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";

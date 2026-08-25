@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { GripVertical, X, Plus, Trash2, Check, Award, Ban, UserCheck, Handshake } from "lucide-react";
+import { GripVertical, X, Plus, Trash2, Check, Award, Ban } from "@/lib/icons";
+import { UserCheck, Handshake } from "lucide-react";
 import {
   PipelineStageRow,
   useInvalidatePipelineStages,

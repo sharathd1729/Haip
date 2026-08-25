@@ -8,11 +8,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  FileText, Download, Mail, Loader2, RefreshCw,
-  BarChart2, Users, Building2, DollarSign, Search, Calendar,
-  TrendingUp, CheckCircle2,
-} from "lucide-react";
+import { FileText, Download, Mail, Loader2, RefreshCw, BarChart2, Users, Building2, DollarSign, Search, Calendar, TrendingUp, CheckCircle2 } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 

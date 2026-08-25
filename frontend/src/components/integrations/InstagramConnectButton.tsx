@@ -7,7 +7,7 @@
  */
 
 import { useState, useCallback } from "react";
-import { Loader2, AlertCircle, CheckCircle2, X } from "lucide-react";
+import { Loader2, AlertCircle, CheckCircle2, X } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { useWhatsAppEmbeddedSignup } from "@/hooks/useWhatsAppEmbeddedSignup";

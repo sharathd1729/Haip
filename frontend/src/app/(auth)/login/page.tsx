@@ -3,7 +3,7 @@ import { useState, useEffect, Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Eye, EyeOff, ArrowRight, Zap, Shield, BarChart3, Phone, MessageSquare } from "lucide-react";
+import { Eye, EyeOff, ArrowRight, Zap, Shield, BarChart3, Phone, MessageSquare } from "@/lib/icons";
 import api from "@/lib/api";
 
 const SELLING_POINTS = [

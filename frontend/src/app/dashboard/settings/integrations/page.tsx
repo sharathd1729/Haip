@@ -6,12 +6,8 @@ import { useSession } from "next-auth/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
-import {
-  MessageSquare, Phone, AtSign, CheckCircle2, AlertCircle,
-  Loader2, Plug, Unplug, RefreshCw, ExternalLink, Key,
-  X, Check, Clock, Wifi, WifiOff, Zap, Shield, Copy,
-  Info, ChevronDown, ChevronUp, Pencil,
-} from "lucide-react";
+import { MessageSquare, Phone, AtSign, CheckCircle2, AlertCircle, Loader2, RefreshCw, ExternalLink, Key, X, Check, Clock, Wifi, WifiOff, Zap, Shield, Copy, Info, ChevronDown, ChevronUp, Pencil } from "@/lib/icons";
+import { Plug, Unplug } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Types

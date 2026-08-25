@@ -1,8 +1,5 @@
 import Link from "next/link";
-import {
-  Shield, CheckCircle2, ArrowRight, ChevronRight, FileText, Mail,
-  Lock, Eye, Trash2, Globe2, BadgeCheck, Database,
-} from "lucide-react";
+import { Shield, CheckCircle2, ArrowRight, ChevronRight, FileText, Mail, Lock, Eye, Trash2, Globe2, BadgeCheck, Database } from "@/lib/icons";
 
 const principles = [
   { icon: <CheckCircle2 size={18} className="text-green-400" />, title: "Lawful processing", desc: "We process guest data only with consent or for the legitimate operation of the hospitality service you provide." },

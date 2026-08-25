@@ -1,4 +1,4 @@
-import { TrendingUp } from "lucide-react";
+import { TrendingUp } from "@/lib/icons";
 import { MockupFrame } from "./MockupFrame";
 
 const occupancyBars = [62, 71, 68, 79, 84, 92, 88, 95, 90, 97, 93, 98];

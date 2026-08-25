@@ -14,7 +14,8 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, AreaChart, Area, Legend, Cell,
 } from "recharts";
-import { AlertTriangle, DollarSign, Swords, TrendingDown } from "lucide-react";
+import { AlertTriangle, DollarSign, TrendingDown } from "@/lib/icons";
+import { Swords } from "lucide-react";
 import { KpiCard } from "@/components/analytics/KpiCard";
 import { AIInsightsPanel } from "@/components/analytics/AIInsightsPanel";
 import { Skeleton } from "@/components/ui/skeleton";

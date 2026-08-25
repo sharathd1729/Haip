@@ -3,12 +3,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import {
-  Users, UserPlus, Mail, Shield, Crown, Eye,
-  Clock, CheckCircle2, XCircle, ChevronDown,
-  Copy, Trash2, Loader2, AlertCircle, X,
-  Settings, RefreshCw, MoreHorizontal, MessageSquare, PhoneCall, ShieldAlert,
-} from "lucide-react";
+import { Users, UserPlus, Mail, Shield, Eye, Clock, CheckCircle2, XCircle, ChevronDown, Copy, Trash2, Loader2, AlertCircle, X, Settings, RefreshCw, MoreHorizontal, MessageSquare, PhoneCall, ShieldAlert } from "@/lib/icons";
+import { Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +22,7 @@ interface TeamMember {
   is_mfa_enabled: boolean;
   property_scope: string[];
   ivr_call_routing_enabled: boolean;
+  avatar_url?: string | null;
 }
 
 interface Invitation {
@@ -76,15 +73,28 @@ function RoleBadge({ role }: { role: string }) {
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
-function Avatar({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
+function Avatar({ name, size = "md", photoUrl }: { name: string; size?: "sm" | "md"; photoUrl?: string | null }) {
   const initials = name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
   const colors = ["bg-teal-500", "bg-blue-500", "bg-purple-500", "bg-amber-500", "bg-pink-500"];
   const color = colors[name.charCodeAt(0) % colors.length];
+  const sizeCls = size === "sm" ? "w-7 h-7 text-[10px]" : "w-9 h-9 text-xs";
+  const [imgFailed, setImgFailed] = useState(false);
+
+  if (photoUrl && !imgFailed) {
+    return (
+      <img
+        src={photoUrl}
+        alt={name}
+        onError={() => setImgFailed(true)}
+        className={cn("rounded-full object-cover flex-shrink-0", sizeCls)}
+      />
+    );
+  }
+
   return (
     <div className={cn(
       "rounded-full flex items-center justify-center text-white font-bold flex-shrink-0",
-      color,
-      size === "sm" ? "w-7 h-7 text-[10px]" : "w-9 h-9 text-xs"
+      color, sizeCls
     )}>
       {initials}
     </div>
@@ -616,7 +626,7 @@ function MemberRow({ member, onRoleChanged, onToggleActive, onToggleIvrRouting, 
       "haip-card px-4 py-3.5 flex items-center gap-4 hover:shadow-sm transition-shadow",
       !member.is_active && "opacity-60"
     )}>
-      <Avatar name={member.name} />
+      <Avatar name={member.name} photoUrl={member.avatar_url} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
           <Link

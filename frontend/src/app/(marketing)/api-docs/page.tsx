@@ -1,4 +1,4 @@
-import { Code2 } from "lucide-react";
+import { Code2 } from "@/lib/icons";
 import { ComingSoon } from "@/components/marketing/ComingSoon";
 
 export default function ApiDocsPage() {

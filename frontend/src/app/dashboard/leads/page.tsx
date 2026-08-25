@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { useSession } from "next-auth/react";
 import { useInfiniteQuery, useIsFetching, useQueryClient } from "@tanstack/react-query";
-import { Target, RefreshCw, Settings2, ChevronDown, Plus } from "lucide-react";
+import { Target, RefreshCw, Settings2, ChevronDown, Plus } from "@/lib/icons";
 import api from "@/lib/api";
 import { LeadCard, type LeadCard as LeadCardType } from "@/components/leads/LeadCard";
 import { SkeletonCard } from "@/components/ui/SkeletonCard";
@@ -323,10 +323,7 @@ export default function Leads360Page() {
         <div className="flex items-center gap-2.5">
           <Target size={16} style={{ color: "var(--primary)" }} />
           <div>
-            <h1
-              className="text-[22px] font-bold tracking-tight"
-              style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}
-            >
+            <h1 className="haip-page-title">
               Leads360
             </h1>
             <p className="text-xs" style={{ color: "var(--haip-fg-muted)" }}>

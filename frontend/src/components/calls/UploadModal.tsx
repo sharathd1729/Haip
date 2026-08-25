@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Phone, Upload, X } from "lucide-react";
+import { Phone, Upload, X } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 

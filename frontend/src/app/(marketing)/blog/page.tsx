@@ -1,4 +1,4 @@
-import { BookOpen } from "lucide-react";
+import { BookOpen } from "@/lib/icons";
 import { ComingSoon } from "@/components/marketing/ComingSoon";
 
 export default function BlogPage() {

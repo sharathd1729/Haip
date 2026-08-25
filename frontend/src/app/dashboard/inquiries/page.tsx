@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { LayoutGrid, List, Plus, X, StickyNote, Send } from "lucide-react";
+import { LayoutGrid, List, Plus, X, StickyNote, Send } from "@/lib/icons";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { KanbanColumn } from "@/components/crm/KanbanColumn";

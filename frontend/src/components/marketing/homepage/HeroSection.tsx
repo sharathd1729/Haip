@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, PlayCircle, CreditCard, Zap, ShieldCheck } from "lucide-react";
+import { ArrowRight, PlayCircle, CreditCard, Zap, ShieldCheck } from "@/lib/icons";
 import { fadeUp, staggerChildren, viewportOnce, reducedVariants } from "./shared/motion";
 import { InboxMockup } from "./mockups/InboxMockup";
 import { AiAssistantMockup } from "./mockups/AiAssistantMockup";

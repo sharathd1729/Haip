@@ -2,7 +2,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { ArrowLeft, Phone, MessageSquare, Home, Star, Shield, Trash2 } from "lucide-react";
+import { ArrowLeft, Phone, MessageSquare, Home, Star, Shield, Trash2 } from "@/lib/icons";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { GuestAvatar } from "@/components/crm/GuestAvatar";

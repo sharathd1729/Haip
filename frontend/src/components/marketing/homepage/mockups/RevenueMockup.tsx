@@ -1,4 +1,4 @@
-import { TrendingUp, IndianRupee } from "lucide-react";
+import { TrendingUp, IndianRupee } from "@/lib/icons";
 import { MockupFrame, Chip } from "./MockupFrame";
 
 const monthly = [42, 48, 45, 56, 61, 58, 67, 72, 78, 74, 85, 92];

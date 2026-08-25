@@ -115,6 +115,10 @@ class LeadCardSchema(BaseModel):
     # Agent + timing
     assigned_agent_name: Optional[str] = None
     assigned_agent_id: Optional[str] = None
+    # Round 2 avatar-photos plan: presigned, from the already-loaded
+    # assigned_user relationship -- no extra query, generate_presigned_url
+    # is a local HMAC signature, not a network call.
+    assigned_agent_avatar_url: Optional[str] = None
     last_touch_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
 

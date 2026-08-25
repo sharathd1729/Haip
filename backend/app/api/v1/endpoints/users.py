@@ -1,7 +1,8 @@
 import uuid
 import secrets
+from pathlib import Path
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query, status
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query, status, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.core.database import get_db
@@ -13,8 +14,17 @@ from app.schemas.user import UserOut, UserInviteRequest, UserUpdateRequest, User
 from app.core.audit import append_audit
 from app.core.config import settings
 from app.services.email_service import send_invitation_email
+import structlog
+
+log = structlog.get_logger()
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+# Same allowed-type/size convention as tenants.py's IVR greeting upload,
+# scoped to image content instead of audio.
+_ALLOWED_AVATAR_TYPES = {"image/jpeg", "image/png", "image/webp"}
+_ALLOWED_AVATAR_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
+_MAX_AVATAR_MB = 5
 
 
 def _require_self_or_owner(user_id: str, current_user: User) -> None:
@@ -51,6 +61,38 @@ def update_me(
         setattr(current_user, field, value)
     db.commit()
     db.refresh(current_user)
+    return current_user
+
+
+@router.post("/me/avatar", response_model=UserOut)
+async def upload_my_avatar(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Upload/replace the calling user's own avatar photo. Staff-only --
+    guests have no self-service mechanism to supply a photo, so there's no
+    guest equivalent of this endpoint."""
+    from app.services import media_storage
+
+    content_type = (file.content_type or "").lower()
+    ext = Path(file.filename or "avatar.jpg").suffix.lower() or ".jpg"
+    if content_type not in _ALLOWED_AVATAR_TYPES and ext not in _ALLOWED_AVATAR_EXTS:
+        raise HTTPException(status_code=400, detail=f"Unsupported image format '{ext}'. Use JPEG, PNG, or WebP.")
+
+    photo_bytes = await file.read()
+    size_mb = len(photo_bytes) / (1024 * 1024)
+    if size_mb > _MAX_AVATAR_MB:
+        raise HTTPException(status_code=400, detail=f"File too large ({size_mb:.1f} MB). Max {_MAX_AVATAR_MB} MB.")
+
+    key = media_storage.upload_user_avatar(
+        current_user.tenant_id, current_user.id, photo_bytes, content_type or "image/jpeg", ext.lstrip("."),
+    )
+    current_user.avatar_s3_key = key
+    db.commit()
+    db.refresh(current_user)
+
+    log.info("user_avatar_uploaded", tenant_id=current_user.tenant_id, actor_user_id=current_user.id)
     return current_user
 
 

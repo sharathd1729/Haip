@@ -1,6 +1,6 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
-import { Calendar, Users, Wallet, Flame } from "lucide-react";
+import { Calendar, Users, Wallet, Flame } from "@/lib/icons";
 import api from "@/lib/api";
 
 /**

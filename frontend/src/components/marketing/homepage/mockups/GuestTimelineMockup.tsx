@@ -1,4 +1,4 @@
-import { MessageSquare, Phone, CalendarCheck2, Star, Camera } from "lucide-react";
+import { MessageSquare, Phone, CalendarCheck2, Star, Camera } from "@/lib/icons";
 import { MockupFrame, Chip } from "./MockupFrame";
 
 const events = [

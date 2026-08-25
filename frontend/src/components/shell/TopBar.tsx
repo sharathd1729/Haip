@@ -1,16 +1,14 @@
 "use client";
-import { clearTokenCache } from "@/lib/api";
+import api, { clearTokenCache } from "@/lib/api";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { useNotificationsStore } from "@/store/useNotificationsStore";
 import { useTheme } from "next-themes";
 import { signOut } from "next-auth/react";
-import {
-  Bell, Search, User,
-  Settings, CreditCard, HelpCircle, LogOut,
-  ChevronDown, X, Sun, Moon, Monitor,
-} from "lucide-react";
+import { Bell, Search, User, Settings, CreditCard, HelpCircle, LogOut, ChevronDown, X, Sun, Moon, Monitor } from "@/lib/icons";
+import { UserAvatar } from "@/components/crm/UserAvatar";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -248,7 +246,11 @@ function NotificationBell() {
 
 function UserMenu({ user }: { user?: TopBarProps["user"] }) {
   const [open, setOpen] = useState(false);
-  const initials = user?.name?.[0]?.toUpperCase() ?? "U";
+  const { data: me } = useQuery({
+    queryKey: ["users", "me"],
+    queryFn: () => api.get("/users/me").then(r => r.data),
+    staleTime: 60_000,
+  });
 
   return (
     <div className="relative">
@@ -258,15 +260,7 @@ function UserMenu({ user }: { user?: TopBarProps["user"] }) {
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "var(--hover-bg)"; }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
       >
-        <div
-          className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
-          style={{
-            background: "var(--primary)",
-            color: "var(--primary-foreground)",
-          }}
-        >
-          {initials}
-        </div>
+        <UserAvatar name={user?.name} photoUrl={me?.avatar_url} size="sm" />
         <ChevronDown size={11} style={{ color: "var(--haip-fg-subtle)" }} />
       </button>
 

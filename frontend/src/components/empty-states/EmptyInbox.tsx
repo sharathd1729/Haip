@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { MessageSquare, Phone, ArrowRight, Plug2 } from "lucide-react";
+import { MessageSquare, Phone, ArrowRight } from "@/lib/icons";
+import { Plug2 } from "lucide-react";
 
 export function EmptyInbox() {
   return (

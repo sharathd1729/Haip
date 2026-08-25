@@ -1,12 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Zap, Plus, CheckCircle2, PauseCircle, XCircle,
-  MessageSquare, Phone, Clock, ChevronRight, ToggleLeft, ToggleRight,
-  AlertCircle, Loader2, Settings2, Pencil, Trash2, X,
-  ChevronDown, Info, CornerDownRight, Tag,
-} from "lucide-react";
+import { Zap, Plus, CheckCircle2, PauseCircle, XCircle, MessageSquare, Phone, Clock, ChevronRight, AlertCircle, Loader2, Settings2, Pencil, Trash2, X, ChevronDown, Info, CornerDownRight, Tag } from "@/lib/icons";
+import { ToggleLeft, ToggleRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 

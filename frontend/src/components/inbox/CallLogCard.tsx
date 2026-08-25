@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useSession } from "next-auth/react";
-import { Phone, ChevronDown, TrendingUp } from "lucide-react";
+import { Phone, ChevronDown, TrendingUp } from "@/lib/icons";
 import Link from "next/link";
 import { CallPlayer } from "@/components/calls/CallPlayer";
 

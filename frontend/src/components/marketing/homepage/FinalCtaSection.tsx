@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight } from "@/lib/icons";
 import { fadeUp, viewportOnce, reducedVariants } from "./shared/motion";
 
 export function FinalCtaSection() {

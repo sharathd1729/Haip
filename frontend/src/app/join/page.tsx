@@ -2,7 +2,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { Eye, EyeOff, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, Loader2, CheckCircle2, AlertCircle } from "@/lib/icons";
 import api from "@/lib/api";
 
 function JoinForm() {

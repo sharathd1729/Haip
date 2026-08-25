@@ -1,6 +1,6 @@
 "use client";
 import { memo } from "react";
-import { Phone, MessageSquare, Calendar, MoreHorizontal, AlertTriangle, Clock, StickyNote } from "lucide-react";
+import { Phone, MessageSquare, Calendar, MoreHorizontal, AlertTriangle, Clock, StickyNote } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { GuestAvatar } from "./GuestAvatar";
 

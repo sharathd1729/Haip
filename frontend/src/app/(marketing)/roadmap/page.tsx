@@ -1,7 +1,6 @@
 import Link from "next/link";
-import {
-  Compass, Sparkles, ArrowRight, CheckCircle2, Clock, Calendar, MessageSquare,
-} from "lucide-react";
+import { Sparkles, ArrowRight, CheckCircle2, Clock, Calendar, MessageSquare } from "@/lib/icons";
+import { Compass } from "lucide-react";
 
 const lanes = [
   {

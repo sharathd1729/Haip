@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { X, Search, Loader2 } from "lucide-react";
+import { X, Search, Loader2 } from "@/lib/icons";
 import api from "@/lib/api";
 import { formatPhone } from "@/lib/utils";
 import type { RWBooking } from "@/lib/rentalwise";

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { X, Keyboard } from "lucide-react";
+import { X, Keyboard } from "@/lib/icons";
 
 const SHORTCUTS = [
   { group: "Composer",

@@ -8,7 +8,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell,
 } from "recharts";
-import { Users, TrendingUp, Star, RepeatIcon, DollarSign, Home, ChevronDown } from "lucide-react";
+import { Users, TrendingUp, Star, RepeatIcon, DollarSign, Home, ChevronDown } from "@/lib/icons";
 import { KpiCard, DeltaChip, deltaBetween } from "@/components/analytics/KpiCard";
 import { AIInsightsPanel } from "@/components/analytics/AIInsightsPanel";
 import { Skeleton } from "@/components/ui/skeleton";

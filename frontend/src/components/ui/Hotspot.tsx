@@ -11,7 +11,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { X, ExternalLink } from "lucide-react";
+import { X, ExternalLink } from "@/lib/icons";
 
 interface HotspotProps {
   /** Unique key for this hotspot — persisted in localStorage */

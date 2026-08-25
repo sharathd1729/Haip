@@ -1,9 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import {
-  MessageSquare, Camera, Phone, Mail, Globe, Table2, Database, ArrowDown, ArrowRight, LayoutGrid,
-} from "lucide-react";
+import { MessageSquare, Camera, Phone, Mail, Globe, Table2, Database, ArrowDown, ArrowRight, LayoutGrid } from "@/lib/icons";
 import { SectionHeading } from "./shared/SectionHeading";
 import { fadeUp, staggerChildren, viewportOnce, reducedVariants } from "./shared/motion";
 

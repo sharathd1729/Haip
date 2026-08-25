@@ -1,9 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import {
-  Timer, Target, MessagesSquare, TrendingUp, UsersRound, HeartHandshake,
-} from "lucide-react";
+import { Timer, Target, MessagesSquare, TrendingUp, UsersRound, HeartHandshake } from "@/lib/icons";
 import { SectionHeading } from "./shared/SectionHeading";
 import { fadeUp, staggerChildren, viewportOnce, reducedVariants } from "./shared/motion";
 

@@ -1,11 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import {
-  HelpCircle, ChevronDown, ChevronUp, Phone, MessageSquare,
-  Users, BarChart2, Shield, Plug2, Star, Search, Mail,
-  ExternalLink, FileText, Zap, Home, FileDown, Bot,
-} from "lucide-react";
+import { HelpCircle, ChevronDown, ChevronUp, Phone, MessageSquare, Users, BarChart2, Shield, Star, Search, Mail, ExternalLink, FileText, Zap, Home, FileDown, Bot } from "@/lib/icons";
+import { Plug2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------

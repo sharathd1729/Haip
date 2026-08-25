@@ -15,11 +15,8 @@ import {
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { addDays, format, parseISO, isToday } from "date-fns";
-import {
-  ChevronLeft, ChevronRight, Calendar, Bed, Users, TrendingUp,
-  RefreshCw, CloudDownload, CheckCircle2, AlertCircle,
-  LogIn, LogOut, Home, DollarSign, BarChart2, Eye, Phone, Hash,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, Users, TrendingUp, RefreshCw, CloudDownload, CheckCircle2, AlertCircle, LogIn, LogOut, Home, DollarSign, BarChart2, Eye, Phone, Hash } from "@/lib/icons";
+import { Bed } from "lucide-react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useBusinessType } from "@/components/providers/WorkspaceProvider";

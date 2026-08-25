@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Send, Loader2, Code2, ChevronDown, ChevronUp, ShieldAlert } from "lucide-react";
+import { Sparkles, Send, Loader2, Code2, ChevronDown, ChevronUp, ShieldAlert } from "@/lib/icons";
 import api from "@/lib/api";
 import { AgentChart, type ChartSpec } from "@/components/ask-haip/AgentChart";
 

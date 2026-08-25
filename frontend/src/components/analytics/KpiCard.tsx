@@ -6,7 +6,7 @@
  */
 
 import { memo } from "react";
-import { ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, Minus } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 // ─── Delta chip ───────────────────────────────────────────────────────────────

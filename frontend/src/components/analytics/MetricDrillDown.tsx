@@ -8,7 +8,7 @@
  */
 
 import { useState } from "react";
-import { X, Download, ChevronDown } from "lucide-react";
+import { X, Download, ChevronDown } from "@/lib/icons";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";

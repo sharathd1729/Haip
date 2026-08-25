@@ -1,11 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Building2, Plus, X, Edit2, Loader2,
-  MapPin, BedDouble, Bath, Users, Wifi,
-  TrendingUp, CheckCircle2, AlertCircle,
-} from "lucide-react";
+import { Building2, Plus, X, Edit2, Loader2, MapPin, Users, Wifi, TrendingUp, CheckCircle2, AlertCircle } from "@/lib/icons";
+import { BedDouble, Bath } from "lucide-react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useBusinessType } from "@/components/providers/WorkspaceProvider";

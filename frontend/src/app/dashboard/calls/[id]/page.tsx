@@ -4,11 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import {
-  ArrowLeft, Phone, Clock, User, ChevronDown, ChevronRight,
-  CheckCircle2, AlertCircle, Save, Loader2, ExternalLink, Play, Copy, Star, BookmarkIcon, MessageSquare, X,
-  Heart, TrendingUp, Target, AlertTriangle, Globe, Layers,
-} from "lucide-react";
+import { ArrowLeft, Phone, Clock, User, ChevronDown, ChevronRight, CheckCircle2, AlertCircle, Save, Loader2, ExternalLink, Play, Copy, Star, BookmarkIcon, MessageSquare, X, Heart, TrendingUp, Target, AlertTriangle, Globe, Layers } from "@/lib/icons";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { CallPlayer } from "@/components/calls/CallPlayer";

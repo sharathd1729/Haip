@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileText, Sparkles, Mail, Loader2, Clock, X } from "lucide-react";
+import { FileText, Sparkles, Mail, Loader2, Clock, X } from "@/lib/icons";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";

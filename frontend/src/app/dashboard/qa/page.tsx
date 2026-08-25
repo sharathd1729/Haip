@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Star, TrendingUp, TrendingDown, ChevronRight, Award, Loader2 } from "lucide-react";
+import { Star, TrendingUp, TrendingDown, ChevronRight, Award, Loader2 } from "@/lib/icons";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { ScoreRing } from "@/components/calls/ScoreRing";

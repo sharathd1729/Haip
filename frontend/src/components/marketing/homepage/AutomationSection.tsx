@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { Workflow, Clock, ShieldCheck } from "lucide-react";
+import { Workflow, Clock, ShieldCheck } from "@/lib/icons";
 import { SectionHeading } from "./shared/SectionHeading";
 import { fadeUp, staggerChildren, viewportOnce, reducedVariants } from "./shared/motion";
 import { AutomationFlowMockup } from "./mockups/AutomationFlowMockup";

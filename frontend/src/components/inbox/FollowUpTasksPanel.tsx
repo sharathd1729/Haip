@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check, Plus, ClipboardList, CalendarClock } from "lucide-react";
+import { Check, Plus, ClipboardList, CalendarClock } from "@/lib/icons";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 

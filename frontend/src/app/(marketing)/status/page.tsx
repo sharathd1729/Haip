@@ -1,4 +1,5 @@
-import { Activity, CheckCircle2 } from "lucide-react";
+import { CheckCircle2 } from "@/lib/icons";
+import { Activity } from "lucide-react";
 
 const services = [
   { name: "API (api.haip.app)", status: "operational" },

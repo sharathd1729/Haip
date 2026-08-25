@@ -1,6 +1,7 @@
 "use client";
 import { Menu } from "@base-ui/react/menu";
-import { Check, ChevronRight, Circle } from "lucide-react";
+import { Check, ChevronRight } from "@/lib/icons";
+import { Circle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const DropdownMenu = Menu.Root;

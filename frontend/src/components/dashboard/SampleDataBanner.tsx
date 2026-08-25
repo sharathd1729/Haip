@@ -9,7 +9,7 @@
  */
 
 import { useState } from "react";
-import { FlaskConical, X, ArrowRight } from "lucide-react";
+import { FlaskConical, X, ArrowRight } from "@/lib/icons";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";

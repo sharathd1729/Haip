@@ -77,6 +77,29 @@ def upload_ivr_greeting(
     return s3_key
 
 
+def upload_user_avatar(
+    tenant_id: str, user_id: str, content: bytes, content_type: str, extension: str = "jpg",
+) -> str:
+    """Upload a staff member's avatar photo, return the storage key. Fixed
+    key per (tenant, user) -- a re-upload overwrites the old file, same
+    convention as upload_ivr_greeting. Guests have no equivalent -- no
+    self-service mechanism for a guest to supply a photo."""
+    s3_key = f"{tenant_id}/users/{user_id}/avatar.{extension}"
+    s3 = _s3_client()
+    put_kwargs = dict(
+        Bucket=settings.S3_BUCKET_NAME,
+        Key=s3_key,
+        Body=content,
+        ContentType=content_type,
+    )
+    if settings.KMS_KEY_ID and not settings.AWS_S3_ENDPOINT_URL:
+        put_kwargs["ServerSideEncryption"] = "aws:kms"
+        put_kwargs["SSEKMSKeyId"] = settings.KMS_KEY_ID
+    s3.put_object(**put_kwargs)
+    log.info("user_avatar_stored", tenant_id=tenant_id, user_id=user_id, s3_key=s3_key)
+    return s3_key
+
+
 def get_presigned_media_url(s3_key: str, expires_in: int = 3600) -> str | None:
     """Generate a time-limited download URL for a stored media object.
     Returns None on any failure -- never let a presign error break message

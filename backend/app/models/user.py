@@ -40,6 +40,10 @@ class User(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     ivr_last_dialed_at = Column(DateTime(timezone=True), nullable=True)
     last_seen_at = Column(DateTime(timezone=True), nullable=True)  # W18: presence heartbeat
     mfa_secret = Column(String(64), nullable=True)   # base32 TOTP secret (encrypted at rest recommended)
+    # migration 090: staff avatar photo. Fixed S3 key (media_storage.upload_user_avatar),
+    # presigned on read -- never store a URL directly, same convention as
+    # tenants.ivr_greeting_audio_key.
+    avatar_s3_key = Column(String(500), nullable=True)
 
     # Google/Microsoft SSO
     google_id = Column(String(255), nullable=True)
@@ -64,6 +68,18 @@ class User(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
 
     tenant = relationship("Tenant", back_populates="users")
     refresh_tokens = relationship("RefreshToken", back_populates="user", lazy="dynamic")
+
+    @property
+    def avatar_url(self) -> str | None:
+        """Presigned read URL for avatar_s3_key -- computed on access so
+        UserOut's from_attributes picks it up for free on every endpoint
+        that already returns a User. generate_presigned_url is a local
+        HMAC signature, not a network call, so this is cheap even across
+        a list of users."""
+        if not self.avatar_s3_key:
+            return None
+        from app.services.media_storage import get_presigned_media_url
+        return get_presigned_media_url(self.avatar_s3_key)
 
 
 class RefreshToken(Base, TimestampMixin):

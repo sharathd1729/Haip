@@ -1,12 +1,8 @@
 "use client";
 import { useState, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  GitBranch, Plus, Save, Play, Pause, Trash2,
-  X, CheckCircle2, AlertCircle, Loader2, MessageSquare,
-  Zap, ArrowRight, ChevronRight, Settings, Move,
-  ToggleLeft, Clock, Users, Send, Hash, History,
-} from "lucide-react";
+import { Plus, Save, Play, Pause, Trash2, X, CheckCircle2, AlertCircle, Loader2, MessageSquare, Zap, ArrowRight, ChevronRight, Settings, Move, Clock, Users, Send, Hash, History } from "@/lib/icons";
+import { GitBranch, ToggleLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";

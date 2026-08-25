@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Mail, MessageSquare } from "lucide-react";
+import { ArrowRight, Mail, MessageSquare } from "@/lib/icons";
 import type { ReactNode } from "react";
 
 interface ComingSoonProps {

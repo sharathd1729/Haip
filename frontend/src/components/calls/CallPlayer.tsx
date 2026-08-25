@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState, useEffect, useCallback } from "react";
-import { Play, Pause, Volume2, VolumeX, RotateCcw, SkipBack, SkipForward } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, RotateCcw, SkipBack, SkipForward } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 interface CallPlayerProps {

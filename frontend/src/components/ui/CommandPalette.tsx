@@ -14,11 +14,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Search, MessageSquare, Phone, Users,
-  Settings, BarChart2, Shield, FileText, Inbox,
-  ArrowRight, Clock, User, Building2, HelpCircle,
-} from "lucide-react";
+import { Search, MessageSquare, Phone, Users, Settings, BarChart2, Shield, FileText, Inbox, ArrowRight, Clock, User, Building2, HelpCircle } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 

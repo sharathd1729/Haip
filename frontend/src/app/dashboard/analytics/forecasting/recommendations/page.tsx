@@ -2,7 +2,7 @@
 
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Sparkles, AlertTriangle, AlertCircle, Info, TrendingUp, CheckCircle2 } from "lucide-react";
+import { Sparkles, AlertTriangle, AlertCircle, Info, TrendingUp, CheckCircle2 } from "@/lib/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";

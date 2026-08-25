@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { ShieldAlert, Phone, MessageSquare, LayoutGrid, ArrowLeft } from "lucide-react";
+import { ShieldAlert, Phone, MessageSquare, LayoutGrid, ArrowLeft } from "@/lib/icons";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
