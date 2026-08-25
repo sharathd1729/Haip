@@ -97,8 +97,16 @@ def wrap_up(self, call_id: str, tenant_id: str, classification: dict = None, jud
 
         call.ai_summary = wu.get("summary", call.ai_summary)
         call.ai_next_action = wu.get("next_action")
-        disposition_str = wu.get("suggested_disposition", "callback")
-        call.ai_disposition = DISPOSITION_MAP.get(disposition_str, CallDisposition.CALLBACK)
+        # A missing/unrecognized disposition must never default to CALLBACK
+        # -- that's an ANSWERED value (call_status_service.py's ANSWERED
+        # set), so "the model gave us nothing usable" was silently reading
+        # as "the guest was answered and asked for a callback." Confirmed
+        # live: a pure-greeting, nobody-picked-up call ended up with
+        # ai_disposition=CALLBACK and was never flagged missed. None here
+        # lets is_missed_call() fall through to the real dial_status/
+        # duration signals instead of a wrong, answered-implying guess.
+        disposition_str = (wu.get("suggested_disposition") or "").strip().lower()
+        call.ai_disposition = DISPOSITION_MAP.get(disposition_str)
         db.commit()
 
         log.info("wrap_up_done", call_id=call_id, disposition=disposition_str,

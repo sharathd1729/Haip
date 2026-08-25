@@ -4,6 +4,7 @@ Uses Haiku by default; escalates to Sonnet when confidence < 0.78.
 """
 import json
 import uuid
+from typing import Optional
 from anthropic import Anthropic
 from celery import shared_task
 from sqlalchemy.orm import Session
@@ -229,7 +230,7 @@ def _get_criterion(criteria: list, criterion_id: str) -> dict:
     return next((c for c in criteria if c["id"] == criterion_id), {})
 
 
-def _map_disposition(raw: str) -> CallDisposition:
+def _map_disposition(raw: str) -> Optional[CallDisposition]:
     mapping = {
         "hot": CallDisposition.HOT,
         "quoted": CallDisposition.QUOTED,
@@ -239,4 +240,10 @@ def _map_disposition(raw: str) -> CallDisposition:
         "no_answer": CallDisposition.NO_ANSWER,
         "voicemail": CallDisposition.VOICEMAIL,
     }
-    return mapping.get(raw.lower(), CallDisposition.CALLBACK)
+    # A missing/unrecognized disposition must never default to CALLBACK --
+    # that's an ANSWERED value (call_status_service.py's ANSWERED set), so
+    # "the model gave us nothing usable" was silently reading as "the guest
+    # was answered and asked for a callback." None lets is_missed_call()
+    # fall through to the real dial_status/duration signals instead of a
+    # wrong, answered-implying guess.
+    return mapping.get((raw or "").strip().lower())
