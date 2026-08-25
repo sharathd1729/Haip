@@ -1,8 +1,20 @@
 {#---
-version: 2
+version: 3
 changed_at: 2026-08-25
 purpose: Generate an after-call wrap-up summary and suggested disposition
-changes: v2 -- transcript_text now carries the real, PII-redacted turn-by-
+changes: v3 -- even with the real transcript now wired in (v2), the model
+         kept choosing "callback" for transcripts that were unambiguously
+         nobody-answered: only the tenant's own IVR greeting/hold/
+         voicemail-prompt audio, zero real guest speech, confirmed live on
+         several calls. No explicit rule ever told it that's a different
+         outcome, so it picked the vaguest-sounding label. Made worse by
+         diarization gaps -- every turn can be labeled "unknown" (a
+         separate, known Sarvam limitation), so speaker tags alone can't
+         signal "this was our own script." Added an explicit rule to judge
+         by content and added "voicemail" as a real option -- it was
+         missing from the enum even though DISPOSITION_MAP has always
+         supported it.
+         v2 -- transcript_text now carries the real, PII-redacted turn-by-
          turn transcript (wrap_up.py queries Transcript directly, same
          construction judge.py already used correctly). It previously
          read Call.ai_summary, which nothing ever populated before wrap_up
@@ -31,10 +43,22 @@ QA INSIGHTS
 - Missed revenue opportunities: {{ missed_revenue | default("none identified") }}
 
 INSTRUCTIONS
+- Speaker labels in the transcript may all say "unknown" (a known
+  limitation) -- judge who said what from the CONTENT, not the labels.
+  A greeting/hold/voicemail-prompt script (e.g. "Namaskara and welcome
+  to...", "Please stay on the line...", "The person you have called is
+  not available...") is the tenant's own IVR audio, never the guest.
+- "callback" means a real guest spoke and the call outcome was that a
+  human should call them back. If the transcript contains NO real guest
+  speech at all -- only the tenant's own IVR script -- that is
+  "no_answer", never "callback", regardless of duration or how much IVR
+  audio played.
+- "voicemail" means the guest DID speak (left a message after a beep or
+  prompt) but no agent picked up live.
 Write a concise wrap-up for the agent. Return STRICTLY this JSON via tool-use:
 {
   "summary": "<2-3 sentence summary of the call outcome>",
-  "suggested_disposition": "hot|quoted|booked|lost|callback|no_answer",
+  "suggested_disposition": "hot|quoted|booked|lost|callback|no_answer|voicemail",
   "next_action": "<specific actionable next step for the agent>",
   "follow_up_message": "<optional — draft WhatsApp follow-up message, or null>",
   "confidence": 0.0-1.0
