@@ -453,6 +453,26 @@ def test_answer_webhook_returns_xml_with_record_and_dial(client, tenant_and_user
     assert f"/webhooks/vobiz/{tenant.slug}/correct-secret/recording" in res.text
 
 
+def test_answer_webhook_dial_sets_both_callbackurl_and_action(client, tenant_and_user, db):
+    """Confirmed live against vobiz.ai/docs/xml/dial: DialAnswer/
+    DialConnected (with DialBLegTo) go to callbackUrl, but the terminal
+    DialStatus result -- what is_missed_call() actually depends on -- goes
+    to a separate `action` attribute. Missing `action` was the real reason
+    Call.ivr_dial_status sat NULL on every single call in production."""
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret", forward_number="+919000000000")
+
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/answer",
+        data={"CallUUID": "call-abc-123", "From": "+919876543210", "To": "+912271264296", "Direction": "inbound"},
+    )
+    assert res.status_code == 200
+    dial_status_path = f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/dial-status"
+    assert f'callbackUrl="' in res.text and dial_status_path in res.text
+    assert res.text.count(dial_status_path) == 2  # once for callbackUrl, once for action
+    assert f'action="' in res.text
+
+
 def test_answer_webhook_hangs_up_gracefully_when_forward_number_unset(client, tenant_and_user, db):
     tenant = tenant_and_user["tenant"]
     _connect_vobiz(db, tenant.id, webhook_secret="correct-secret")  # no forward_number

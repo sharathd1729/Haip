@@ -216,12 +216,26 @@ async def vobiz_answer_webhook(
     # webhook logs the full raw payload unconditionally specifically to
     # settle this on the first real call, same practice as
     # vobiz_recording_webhook's own "log raw payload, don't guess" comment.
+    # Confirmed against vobiz.ai/docs/xml/dial (live fetch, not guessed):
+    # DialAnswer/DialConnected/DialHangup (with DialBLegTo) go to
+    # callbackUrl, but the terminal DialStatus result -- the signal this
+    # whole missed-call-detection fix depends on -- goes to a SEPARATE
+    # `action` attribute, not callbackUrl. Without `action` set, Vobiz
+    # never sends DialStatus at all, which is exactly why ivr_dial_status
+    # sat NULL on every single call after this shipped. redirect="false"
+    # (already set below) is exactly right for `action` per the docs: "if
+    # false, sends result but doesn't redirect" -- Vobiz posts DialStatus
+    # then execution falls through to voicemail_xml/Hangup as intended,
+    # rather than trying to execute whatever XML the action response
+    # contains. Both attributes point at the same endpoint -- the handler
+    # already reads whichever fields (DialBLegTo vs DialStatus) are present
+    # in a given POST, so no handler change is needed.
     if not within_hours:
         dial_xml = ""
     elif ivr_routing_service.dial_mode(tenant) == "sequential" and len(e164_numbers) > 1:
         dial_xml = "".join(
             f'<Dial callerId="{caller_id}" timeout="20" timeLimit="1800" redirect="false" '
-            f'callbackUrl="{dial_status_callback_url}">'
+            f'callbackUrl="{dial_status_callback_url}" action="{dial_status_callback_url}">'
             f"<Number>{n}</Number></Dial>"
             for n in e164_numbers
         )
@@ -229,7 +243,7 @@ async def vobiz_answer_webhook(
         number_tags = "".join(f"<Number>{n}</Number>" for n in e164_numbers)
         dial_xml = (
             f'<Dial callerId="{caller_id}" timeout="30" timeLimit="1800" redirect="false" '
-            f'callbackUrl="{dial_status_callback_url}">'
+            f'callbackUrl="{dial_status_callback_url}" action="{dial_status_callback_url}">'
             f"{number_tags}</Dial>"
         )
 
