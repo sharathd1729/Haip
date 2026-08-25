@@ -16,7 +16,7 @@ from app.models.tenant import Tenant
 from app.models.guest import Guest
 from app.models.call import Call, CallDirection
 from app.models.transcript import Transcript
-from app.workers.tasks.classify import classify
+from app.workers.tasks.classify import classify, _coerce_bool
 
 
 def _base_classification(**overrides):
@@ -107,6 +107,60 @@ def test_empty_guest_name_leaves_placeholder_untouched(db, monkeypatch):
 
     refreshed = db.query(Guest).filter_by(id=guest_id).first()
     assert refreshed.name == "Unknown Guest"
+
+
+class TestCoerceBool:
+    """Regression: classify.py's Call.is_code_mixed is a SQLAlchemy
+    Boolean column, but meta/llama-3.1-8b-instruct (quick_classify's
+    model -- CLAUDE.md's own routing table already documents its weak
+    tool-calling) frequently returns the JSON string "true"/"false"
+    instead of a real boolean. SQLAlchemy's Boolean type raises TypeError
+    on any non-bool value rather than guessing -- confirmed live in
+    production: every classify run that hit this crashed, retried 3x,
+    then died, meaning judge/wrap_up (and the call's disposition) never
+    ran at all. Plain bool(value) is NOT a safe fix -- bool("false") is
+    True in Python, the same trap SQLAlchemy itself refuses to take."""
+
+    def test_real_bool_passes_through(self):
+        assert _coerce_bool(True) is True
+        assert _coerce_bool(False) is False
+
+    def test_string_false_coerces_to_false_not_true(self):
+        assert _coerce_bool("false") is False
+        assert _coerce_bool("False") is False
+        assert _coerce_bool("FALSE") is False
+
+    def test_string_true_coerces_to_true(self):
+        assert _coerce_bool("true") is True
+        assert _coerce_bool("True") is True
+
+    def test_missing_value_uses_default(self):
+        assert _coerce_bool(None, default=False) is False
+        assert _coerce_bool(None, default=True) is True
+
+    def test_garbage_string_uses_default(self):
+        assert _coerce_bool("maybe", default=False) is False
+
+
+def test_stringified_is_code_mixed_does_not_crash_classify(db, monkeypatch):
+    """End-to-end: the exact live failure mode -- is_code_mixed comes back
+    as the string "false", classify() must not raise, and the column must
+    end up with the real boolean, not the raw string."""
+    tenant, guest, call = _setup(db, guest_name="Unknown Guest")
+    guest_id, tenant_id, call_id = guest.id, tenant.id, call.id
+
+    class _FakeLLM:
+        async def complete(self, **kwargs):
+            return {"tool_use": _base_classification(is_code_mixed="false")}
+
+    monkeypatch.setattr("app.workers.tasks.classify.get_llm", lambda task: _FakeLLM())
+    monkeypatch.setattr("app.workers.tasks.judge.judge.delay", MagicMock())
+
+    with patch("app.workers.tasks.classify.SessionLocal", return_value=db):
+        classify(call_id=call_id, tenant_id=tenant_id)  # must not raise
+
+    refreshed = db.query(Call).filter_by(id=call_id).first()
+    assert refreshed.is_code_mixed is False
 
 
 @pytest.mark.parametrize("bogus", ["Unknown", "unknown", "N/A", "None", "Unidentified"])

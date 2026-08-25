@@ -28,6 +28,25 @@ def _run_async(coro):
     finally:
         loop.close()
 
+
+def _coerce_bool(value, default: bool = False) -> bool:
+    """CLAUDE.md's own routing-table note: meta/llama-3.1-8b-instruct
+    (quick_classify's model) "answers tool-call prompts in prose rather
+    than emitting a tool call" -- confirmed live here as a narrower version
+    of the same weakness: is_code_mixed frequently comes back as the JSON
+    string "true"/"false" instead of a real boolean. SQLAlchemy's Boolean
+    column type raises TypeError on any non-bool value rather than
+    coercing it (the literal string "false" is truthy in plain Python
+    bool(), so it deliberately refuses to guess) -- this crashed every
+    classify run that hit it, retried 3 times, then died, meaning judge/
+    wrap_up (and the call's disposition) never ran at all. bool(value)
+    alone is NOT safe here for the same reason SQLAlchemy refuses it."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in ("true", "1", "yes")
+    return default
+
 log = structlog.get_logger()
 
 PROMPTS_DIR = Path(__file__).parent.parent.parent / "prompts"
@@ -154,7 +173,7 @@ def classify(self, call_id: str, tenant_id: str):
 
         # ── Update call with Layer 1 + Layer 2 classification results ────────
         call.detected_language = classification.get("language", call.detected_language)
-        call.is_code_mixed = classification.get("is_code_mixed", False)
+        call.is_code_mixed = _coerce_bool(classification.get("is_code_mixed"), False)
 
         # Layer 2: Intent & Outcome
         occasion = classification.get("occasion", "")
