@@ -760,24 +760,19 @@ class ResetPasswordRequest(BaseModel):
     new_password: str
 
 
-@router.post("/forgot-password", status_code=200)
-async def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_db)):
-    """
-    Send a password-reset link to the given email.
-    Always returns 200 — never reveals whether the email exists (prevents enumeration).
-    """
-    _GENERIC_RESPONSE = {"message": "If that email is registered, you'll receive a reset link shortly."}
-
-    user = db.query(User).filter_by(email=req.email, is_deleted=False).first()
-    if not user:
-        return _GENERIC_RESPONSE
-
+async def issue_password_reset_email(user: "User") -> bool:
+    """Generate a reset token + email it to the user. Shared by the
+    self-service /forgot-password (below) and the owner/manager-triggered
+    admin endpoint (users.py's POST /users/{id}/send-password-reset) --
+    same token/link mechanism either way. Returns True if the email was
+    actually sent, False if Redis is unavailable or the send failed --
+    callers decide how to surface that (forgot_password stays silent to
+    avoid enumeration; the admin endpoint surfaces a real error)."""
     r = _get_redis()
     if r is None:
-        log.warning("forgot_password_redis_unavailable", email=req.email)
-        return _GENERIC_RESPONSE
+        log.warning("password_reset_redis_unavailable", user_id=user.id)
+        return False
 
-    # Generate a secure token
     reset_token = secrets.token_urlsafe(32)
     redis_key = f"pwd_reset:{reset_token}"
     r.setex(redis_key, _RESET_TTL, user.id)
@@ -792,9 +787,25 @@ async def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_
             reset_link=reset_link,
         )
         log.info("password_reset_email_sent", user_id=user.id)
+        return True
     except Exception as exc:
         log.error("password_reset_email_failed", user_id=user.id, error=str(exc))
+        return False
 
+
+@router.post("/forgot-password", status_code=200)
+async def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """
+    Send a password-reset link to the given email.
+    Always returns 200 — never reveals whether the email exists (prevents enumeration).
+    """
+    _GENERIC_RESPONSE = {"message": "If that email is registered, you'll receive a reset link shortly."}
+
+    user = db.query(User).filter_by(email=req.email, is_deleted=False).first()
+    if not user:
+        return _GENERIC_RESPONSE
+
+    await issue_password_reset_email(user)
     return _GENERIC_RESPONSE
 
 

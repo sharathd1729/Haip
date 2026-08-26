@@ -436,6 +436,25 @@ export default function TeamPage() {
     },
   });
 
+  const updateEmailMutation = useMutation({
+    mutationFn: ({ id, email }: { id: string; email: string }) =>
+      api.patch(`/users/${id}`, { email }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["team-members"] });
+      showToast("Email updated.", "success");
+    },
+  });
+
+  const sendPasswordResetMutation = useMutation({
+    mutationFn: (id: string) => api.post(`/users/${id}/send-password-reset`).then(r => r.data),
+    onSuccess: (data: { message: string }) => {
+      showToast(data.message, "success");
+    },
+    onError: (err: any) => {
+      showToast(err?.response?.data?.detail || "Failed to send reset email.", "error");
+    },
+  });
+
   const revokeInviteMutation = useMutation({
     mutationFn: (token: string) => api.delete(`/users/invitations/${token}`),
     onSuccess: () => {
@@ -530,6 +549,8 @@ export default function TeamPage() {
                           onToggleActive={(active) => toggleActiveMutation.mutate({ id: member.id, active })}
                           onToggleIvrRouting={(enabled) => toggleIvrRoutingMutation.mutate({ id: member.id, enabled })}
                           onUpdatePhone={(phone) => updatePhoneMutation.mutate({ id: member.id, phone })}
+                          onUpdateEmail={async (email) => { await updateEmailMutation.mutateAsync({ id: member.id, email }); }}
+                          onSendPasswordReset={() => sendPasswordResetMutation.mutate(member.id)}
                         />
                       ))}
                     </div>
@@ -547,6 +568,8 @@ export default function TeamPage() {
                           onToggleActive={(active) => toggleActiveMutation.mutate({ id: member.id, active })}
                           onToggleIvrRouting={(enabled) => toggleIvrRoutingMutation.mutate({ id: member.id, enabled })}
                           onUpdatePhone={(phone) => updatePhoneMutation.mutate({ id: member.id, phone })}
+                          onUpdateEmail={async (email) => { await updateEmailMutation.mutateAsync({ id: member.id, email }); }}
+                          onSendPasswordReset={() => sendPasswordResetMutation.mutate(member.id)}
                         />
                       ))}
                     </div>
@@ -611,12 +634,14 @@ export default function TeamPage() {
 
 // ─── Member Row ───────────────────────────────────────────────────────────────
 
-function MemberRow({ member, onRoleChanged, onToggleActive, onToggleIvrRouting, onUpdatePhone }: {
+function MemberRow({ member, onRoleChanged, onToggleActive, onToggleIvrRouting, onUpdatePhone, onUpdateEmail, onSendPasswordReset }: {
   member: TeamMember;
   onRoleChanged: () => void;
   onToggleActive: (active: boolean) => void;
   onToggleIvrRouting: (enabled: boolean) => void;
   onUpdatePhone: (phone: string) => void;
+  onUpdateEmail: (email: string) => Promise<void>;
+  onSendPasswordReset: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const hasPhone = !!member.phone;
@@ -640,7 +665,7 @@ function MemberRow({ member, onRoleChanged, onToggleActive, onToggleIvrRouting, 
             <span title="MFA enabled"><Shield size={11} className="text-teal-500 flex-shrink-0" /></span>
           )}
         </div>
-        <span className="text-xs text-gray-400 truncate">{member.email}</span>
+        <EmailEditor email={member.email} onSave={onUpdateEmail} />
       </div>
 
       <PhoneEditor phone={member.phone} onSave={onUpdatePhone} />
@@ -680,7 +705,14 @@ function MemberRow({ member, onRoleChanged, onToggleActive, onToggleIvrRouting, 
         {menuOpen && (
           <>
             <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-            <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg w-40 py-1 overflow-hidden">
+            <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg w-48 py-1 overflow-hidden">
+              <button
+                onClick={() => { onSendPasswordReset(); setMenuOpen(false); }}
+                title="Emails a password-reset link to this member's current email address"
+                className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 flex items-center gap-2 transition-colors"
+              >
+                <Mail size={13} className="text-teal-500" /> Send reset link
+              </button>
               <button
                 onClick={() => { onToggleActive(!member.is_active); setMenuOpen(false); }}
                 className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 flex items-center gap-2 transition-colors"
@@ -752,6 +784,65 @@ function PhoneEditor({ phone, onSave }: { phone: string | null; onSave: (phone: 
       )}
     >
       {phone || "Add phone"}
+    </button>
+  );
+}
+
+// ─── Email Editor ────────────────────────────────────────────────────────────
+// Same click-to-edit idiom as PhoneEditor, but errors (email already used by
+// another team member on this tenant) surface inline and keep edit mode open
+// instead of the global toast alone -- a corrected email is the input a
+// conflict is most likely on, and the admin needs to see it right there to
+// try again rather than lose what they typed.
+function EmailEditor({ email, onSave }: { email: string; onSave: (email: string) => Promise<void> }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(email);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const save = async () => {
+    const trimmed = value.trim();
+    if (trimmed === email) { setEditing(false); return; }
+    setSaving(true);
+    setError("");
+    try {
+      await onSave(trimmed);
+      setEditing(false);
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || "Failed to update email.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div className="flex flex-col gap-0.5">
+        <input
+          autoFocus
+          type="email"
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          onBlur={save}
+          onKeyDown={e => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            if (e.key === "Escape") { setValue(email); setError(""); setEditing(false); }
+          }}
+          disabled={saving}
+          className="text-xs px-2 py-1 rounded-lg border border-teal-300 focus:outline-none focus:ring-1 focus:ring-teal-400 w-52"
+        />
+        {error && <span className="text-[10px] text-red-500">{error}</span>}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => { setValue(email); setEditing(true); }}
+      title="Click to edit email"
+      className="text-xs text-gray-400 truncate hover:text-gray-600 hover:underline text-left"
+    >
+      {email}
     </button>
   );
 }

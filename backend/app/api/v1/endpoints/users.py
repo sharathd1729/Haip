@@ -166,15 +166,57 @@ def update_user(
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid role: {changes['role']}")
 
+    if "email" in changes:
+        changes["email"] = str(changes["email"])
+        existing = (
+            db.query(User)
+            .filter(User.email == changes["email"], User.tenant_id == current_user.tenant_id, User.id != user_id)
+            .first()
+        )
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already in use by another team member")
+
     for field, value in changes.items():
         setattr(user, field, value)
 
     append_audit(db, tenant_id=current_user.tenant_id, actor_user_id=current_user.id,
-                 action="user.role.change", target_type="user", target_id=user_id,
+                 action="user.email.change" if "email" in changes else "user.role.change",
+                 target_type="user", target_id=user_id,
                  payload=changes)
     db.commit()
     db.refresh(user)
     return user
+
+
+@router.post("/{user_id}/send-password-reset", status_code=200)
+async def send_password_reset(
+    user_id: str,
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """Admin-triggered credential email -- for an employee whose email was
+    just corrected, or anyone who needs a fresh sign-in link. Never sends a
+    plaintext password (passwords are hashed one-way, nothing can retrieve
+    an existing one) -- this reuses the same reset-link mechanism as the
+    self-service /auth/forgot-password, just admin-triggered and scoped to
+    a known user id (no enumeration concern here -- the caller is already
+    an authenticated owner/manager)."""
+    user = db.query(User).filter_by(id=user_id, tenant_id=current_user.tenant_id, is_deleted=False).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    from app.api.v1.endpoints.auth import issue_password_reset_email
+    sent = await issue_password_reset_email(user)
+    if not sent:
+        raise HTTPException(status_code=502, detail="Could not send the reset email right now. Try again shortly.")
+
+    append_audit(db, tenant_id=current_user.tenant_id, actor_user_id=current_user.id,
+                 action="user.password_reset_sent", target_type="user", target_id=user.id,
+                 payload={"email": user.email})
+    db.commit()
+    log.info("admin_triggered_password_reset", tenant_id=current_user.tenant_id,
+              actor_user_id=current_user.id, target_user_id=user.id)
+    return {"message": f"Password reset link sent to {user.email}"}
 
 
 # ─── Invitations ──────────────────────────────────────────────────────────────

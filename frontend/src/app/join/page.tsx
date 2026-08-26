@@ -35,11 +35,17 @@ function JoinForm() {
       const res = await api.post("/auth/accept-invitation", { token, password: form.password });
       const data = res.data;
 
-      // Sign in with the email from the response
+      // accept-invitation already returns real access/refresh tokens --
+      // reuse them directly (same preAuthAccessToken/preAuthRefreshToken
+      // bypass auth.ts already has for MFA/WhatsApp OTP) instead of
+      // re-authenticating from scratch with the password that was just
+      // set. Re-logging in was the actual bug: it bounced back to /login
+      // whenever that second fresh login failed for any reason, even
+      // though the account and password were both already good.
       const result = await signIn("credentials", {
         redirect: false,
-        email: data.user.email,
-        password: form.password,
+        preAuthAccessToken: data.access_token,
+        preAuthRefreshToken: data.refresh_token,
       });
       setDone(true);
       setTimeout(() => router.push(result?.error ? "/login" : "/dashboard"), 1500);
