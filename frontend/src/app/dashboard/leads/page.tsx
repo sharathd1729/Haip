@@ -106,44 +106,37 @@ function StageColumn({
 
   return (
     <div
-      className="flex-shrink-0 w-[264px] flex flex-col rounded-lg p-2.5"
-      style={{ background: "var(--haip-surface)" }}
+      className="lx-col flex-shrink-0 w-[264px] flex flex-col"
+      style={{ background: "var(--haip-card)" }}
     >
-      {/* Column header — uppercase name + white count pill over a 2px rule,
-          per the prototype's .k-col-head / .k-col-name / .k-col-count */}
-      <div
-        className="px-1.5 pt-1 pb-2 mb-1 flex-shrink-0"
-        style={{ borderBottom: "2px solid var(--haip-border)" }}
-      >
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span
-              className="w-2 h-2 rounded-full flex-shrink-0"
-              style={{ background: stage.color }}
-            />
+      {/* Column header — stage-color bar + tinted count badge, driven by
+          the tenant's own pipeline_stages.color, not a fixed dot. */}
+      <div className="flex items-start gap-2.5 px-2.5 pt-2.5 pb-3 flex-shrink-0">
+        <span className="lx-col-bar" style={{ background: stage.color }} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
             <span
               className="text-[12px] font-bold uppercase tracking-[0.06em] truncate"
               style={{ color: "var(--haip-fg)" }}
             >
               {stage.label}
             </span>
+            <span
+              className="rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums flex-shrink-0"
+              style={{
+                background: `color-mix(in srgb, ${stage.color} 15%, transparent)`,
+                color: stage.color,
+              }}
+            >
+              {count}
+            </span>
           </div>
-          <span
-            className="rounded-full px-[7px] py-px text-[11px] font-semibold tabular-nums flex-shrink-0 border"
-            style={{
-              background: "var(--haip-card)",
-              borderColor: "var(--haip-border)",
-              color: "var(--haip-fg-muted)",
-            }}
-          >
-            {count}
-          </span>
+          {revenue > 0 && (
+            <p className="text-[10px] mt-1" style={{ color: "var(--haip-fg-subtle)" }}>
+              ₹{Number(revenue).toLocaleString("en-IN")} potential
+            </p>
+          )}
         </div>
-        {revenue > 0 && (
-          <p className="text-[10px] mt-1" style={{ color: "var(--haip-fg-subtle)" }}>
-            ₹{Number(revenue).toLocaleString("en-IN")} potential
-          </p>
-        )}
       </div>
 
       {/* Cards scroll area */}
@@ -309,7 +302,7 @@ export default function Leads360Page() {
   const refetchAll = () => queryClient.invalidateQueries({ queryKey: ["leads"] });
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="haip-leads-v2 flex flex-col h-full overflow-hidden">
 
       {/* ── Page header ─────────────────────────────────────────────────── */}
       <div
@@ -338,16 +331,11 @@ export default function Leads360Page() {
           <div className="flex items-center gap-1 overflow-x-auto haip-scrollbar-x pb-0.5 max-w-xs sm:max-w-md">
             <button
               onClick={() => setStageFilter(ALL_STAGES_ID)}
-              className={cn(
-                "flex-shrink-0 text-[10px] font-medium px-2.5 py-1 rounded-full transition-colors duration-150",
-                stageFilter === ALL_STAGES_ID
-                  ? "text-primary-foreground"
-                  : "border hover:border-border",
-              )}
+              className="lx-stage-pill flex-shrink-0 text-[10px] px-2.5 py-1 transition-colors duration-150"
               style={
                 stageFilter === ALL_STAGES_ID
-                  ? { background: "var(--primary)", color: "var(--primary-foreground)" }
-                  : { background: "transparent", borderColor: "var(--haip-border)", color: "var(--haip-fg-subtle)" }
+                  ? { background: "var(--lx-iris)", color: "#fff" }
+                  : { background: "transparent", border: "1.5px solid var(--haip-border)", color: "var(--haip-fg-subtle)" }
               }
             >
               All
@@ -359,11 +347,11 @@ export default function Leads360Page() {
                 <button
                   key={s.key}
                   onClick={() => setStageFilter(s.key)}
-                  className="flex-shrink-0 text-[10px] font-medium px-2.5 py-1 rounded-full border transition-colors duration-150"
+                  className="lx-stage-pill flex-shrink-0 text-[10px] px-2.5 py-1 transition-colors duration-150"
                   style={
                     active
-                      ? { background: "var(--primary)", color: "var(--primary-foreground)", borderColor: "var(--primary)" }
-                      : { background: "transparent", borderColor: "var(--haip-border)", color: "var(--haip-fg-subtle)" }
+                      ? { background: `color-mix(in srgb, ${s.color} 18%, transparent)`, color: s.color, border: `1.5px solid ${s.color}` }
+                      : { background: "transparent", border: "1.5px solid var(--haip-border)", color: "var(--haip-fg-subtle)" }
                   }
                 >
                   {s.label}{cnt ? ` · ${cnt}` : ""}
@@ -375,8 +363,7 @@ export default function Leads360Page() {
           {/* Add lead manually */}
           <button
             onClick={() => setAddLeadOpen(true)}
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors duration-150"
-            style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
+            className="lx-btn-add flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 transition-colors duration-150"
             title="Add a lead manually"
           >
             <Plus size={12} />
@@ -386,7 +373,7 @@ export default function Leads360Page() {
           {/* Pipeline settings */}
           <button
             onClick={() => setSettingsOpen(true)}
-            className="w-7 h-7 flex items-center justify-center rounded-lg border transition-colors duration-150"
+            className="lx-icon-btn w-7 h-7 flex items-center justify-center border transition-colors duration-150"
             style={{ borderColor: "var(--haip-border)", color: "var(--haip-fg-subtle)" }}
             title="Configure pipeline stages"
           >
@@ -396,8 +383,8 @@ export default function Leads360Page() {
           {/* Refresh */}
           <button
             onClick={refetchAll}
-            className="w-7 h-7 flex items-center justify-center rounded-lg border transition-colors duration-150"
-            style={{ borderColor: "var(--haip-border)", color: isFetching ? "var(--primary)" : "var(--haip-fg-subtle)" }}
+            className="lx-icon-btn w-7 h-7 flex items-center justify-center border transition-colors duration-150"
+            style={{ borderColor: "var(--haip-border)", color: isFetching ? "var(--lx-iris)" : "var(--haip-fg-subtle)" }}
             title="Refresh"
           >
             <RefreshCw size={12} className={isFetching ? "animate-spin" : ""} />

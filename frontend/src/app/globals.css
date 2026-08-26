@@ -1079,3 +1079,143 @@
   background: linear-gradient(135deg, var(--clx-navy) 0%, var(--clx-navy-2) 100%) !important;
   border-radius: 999px !important;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Leads360 v2 -- scoped visual redesign (dashboard/leads only)
+
+   Unlike Inbox/Calls, this module already carries its own identity per
+   card: the tenant's own pipeline_stages.color (a real per-stage hex from
+   the DB, editable in Pipeline Settings). The redesign elevates that
+   existing signal -- column bars/badges/stage pills all tint off it via
+   inline color-mix(), not a new fixed brand hue. Iris is reserved for
+   AI-generated content (summary/drafts/follow-up), the same cross-module
+   thread Inbox and Calls use. Red/gold/green stay the existing
+   --haip-red/--haip-gold/--haip-green semantics (SLA breach / waiting /
+   healthy) -- unchanged, just given consistent card chrome around them.
+
+   Scoped under .haip-leads-v2 (outer wrapper on both the board page and
+   the lead detail page) so nothing outside this module changes.
+   ══════════════════════════════════════════════════════════════════════════ */
+.haip-leads-v2 {
+  --lx-font: var(--font-inbox), ui-sans-serif, system-ui, sans-serif;
+  --lx-mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --lx-iris: #5B5BCE;
+  --lx-iris-soft: rgba(91, 91, 206, 0.10);
+  --lx-card-radius: 16px;
+  --lx-shadow-card: 0 2px 10px rgba(16, 36, 60, 0.06), 0 1px 2px rgba(16, 36, 60, 0.05);
+
+  font-family: var(--lx-font);
+}
+.dark .haip-leads-v2 {
+  --lx-iris: #8382E8;
+  --lx-iris-soft: rgba(131, 130, 232, 0.16);
+  --lx-shadow-card: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+.haip-leads-v2 .haip-page-title {
+  font-family: var(--lx-font);
+  font-weight: 800;
+}
+
+.haip-leads-v2 .haip-card {
+  border-radius: var(--lx-card-radius);
+  box-shadow: var(--lx-shadow-card);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.haip-leads-v2 .haip-card:hover {
+  box-shadow: 0 6px 18px rgba(16, 36, 60, 0.10);
+  transform: translateY(-1px);
+}
+
+/* Board header + columns */
+.lx-hdr-card {
+  border-radius: var(--lx-card-radius);
+  box-shadow: var(--lx-shadow-card);
+}
+.lx-stage-pill {
+  border-radius: 999px;
+  font-weight: 700;
+}
+.lx-col {
+  border-radius: var(--lx-card-radius);
+  box-shadow: var(--lx-shadow-card);
+}
+.lx-col-bar {
+  width: 4px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  align-self: stretch;
+}
+.lx-btn-add {
+  background: var(--lx-iris) !important;
+  color: #fff !important;
+  border-radius: 999px !important;
+  box-shadow: 0 4px 14px rgba(91, 91, 206, 0.25);
+}
+.lx-icon-btn {
+  border-radius: 999px !important;
+}
+
+/* Lead card AI-draft strip -- iris, matching Inbox/Calls' AI-content accent */
+.lx-draft-card {
+  border-radius: 10px;
+  background: var(--lx-iris-soft);
+  border: 1.5px dashed var(--lx-iris);
+}
+.lx-draft-send-btn {
+  background: var(--lx-iris) !important;
+  color: #fff !important;
+  border-radius: 999px !important;
+}
+
+/* Lead detail page */
+.lx-dcard {
+  border-radius: 14px;
+  background: var(--haip-card);
+  border: 1px solid var(--haip-border);
+}
+.lx-ai-card {
+  border-radius: 14px;
+  background: var(--lx-iris-soft);
+  border: 1.5px dashed var(--lx-iris);
+}
+.lx-ai-card .lx-ai-label { color: var(--lx-iris); }
+.lx-ai-card .lx-ai-next {
+  color: var(--lx-iris);
+  border-top: 1px solid color-mix(in srgb, var(--lx-iris) 25%, transparent);
+}
+.lx-ai-send-btn {
+  background: var(--lx-iris) !important;
+  color: #fff !important;
+  border-radius: 999px !important;
+}
+.lx-sig-pill {
+  border-radius: 999px;
+  background: var(--lx-iris-soft);
+  color: var(--lx-iris);
+}
+.lx-tab.active {
+  color: var(--lx-iris);
+  border-color: var(--lx-iris);
+}
+
+/* Trip details grid */
+.lx-trip-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+}
+.lx-trip-item { display: flex; gap: 9px; min-width: 0; }
+.lx-trip-item.full { grid-column: 1 / -1; }
+.lx-trip-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--lx-iris);
+}

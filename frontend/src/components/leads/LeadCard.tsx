@@ -364,11 +364,10 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
       {/* Row 7: pending AI draft — one-click send */}
       {lead.pending_draft && (
         <div
-          className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5"
-          style={{ background: "var(--haip-accent-soft, color-mix(in srgb, var(--primary) 6%, transparent))" }}
+          className="lx-draft-card flex items-center justify-between gap-2 px-2 py-1.5"
           onClick={e => e.stopPropagation()}
         >
-          <p className="text-[10px] truncate flex-1" style={{ color: "var(--haip-fg-subtle)" }} title={lead.pending_draft.preview}>
+          <p className="text-[10px] truncate flex-1" style={{ color: "var(--haip-fg-2)" }} title={lead.pending_draft.preview}>
             {lead.pending_draft.preview}
           </p>
           <button
@@ -378,8 +377,7 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
               messageId: lead.pending_draft!.message_id,
             })}
             disabled={approveAndSend.isPending}
-            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold flex-shrink-0 transition-colors disabled:opacity-60"
-            style={{ background: "var(--primary)", color: "white" }}
+            className="lx-draft-send-btn inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold flex-shrink-0 transition-colors disabled:opacity-60"
           >
             {approveAndSend.isPending ? <Loader2 size={10} className="animate-spin" /> : <MessageSquare size={10} />}
             Send

@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Sparkles, Phone, MessageSquare, Instagram, Building2, Clock, RefreshCw, Plus, Globe, Shield, Star, Timer } from "@/lib/icons";
+import { ArrowLeft, Sparkles, Phone, MessageSquare, Instagram, Building2, Clock, RefreshCw, Plus, Globe, Shield, Star, Timer, Users, MapPin, IndianRupee, Heart, FileText } from "@/lib/icons";
 import api from "@/lib/api";
 import { timeAgo, cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -450,29 +450,54 @@ export default function LeadDetailPage() {
 
   const timelineItems: TimelineEntry[] = data.timeline ?? [];
 
+  // Trip Details card: guests/dates/budget/occasion are already on the
+  // LeadDetailSchema response (just weren't rendered on Overview before).
+  // special_requests isn't its own field on the schema -- it's seeded as a
+  // Lead Field Registry entry (migration 044) and arrives inside
+  // custom_field_values, so it's pulled out here rather than duplicated in
+  // the generic Details grid below.
+  const customFields: FieldValue[] = data.custom_field_values ?? [];
+  const specialRequests = customFields.find(f => f.field_key === "special_requests");
+  const guestCountLabel = [
+    data.adults ? `${data.adults} adult${data.adults > 1 ? "s" : ""}` : null,
+    data.children ? `${data.children} child${data.children > 1 ? "ren" : ""}` : null,
+  ].filter(Boolean).join(", ") || null;
+  const tripDatesLabel = data.check_in
+    ? `${data.check_in}${data.check_out ? ` → ${data.check_out}` : ""}`
+    : null;
+  const tripBudgetLabel = data.budget_range_label
+    ?? (data.budget_estimate ? `₹${Number(data.budget_estimate).toLocaleString("en-IN")}` : null);
+  // No dedicated route/location field exists in the schema -- property
+  // interest is the closest real signal (which property/route the guest
+  // is asking about), not an invented value.
+  const tripRouteLabel = (data.property_interest ?? [])[0] ?? null;
+  const hasTripDetails = guestCountLabel || tripDatesLabel || tripRouteLabel || tripBudgetLabel || data.occasion || specialRequests?.value;
+
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="haip-leads-v2 flex flex-col h-full overflow-hidden">
       {/* ── Back header ── */}
-      <div className="flex-shrink-0 px-4 pt-3 border-b border-gray-100 bg-white">
+      <div className="flex-shrink-0 px-4 pt-3" style={{ borderBottom: "1px solid var(--haip-border)", background: "var(--haip-card)" }}>
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.back()}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors"
+            style={{ color: "var(--haip-fg-subtle)" }}
           >
             <ArrowLeft size={15} />
           </button>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <h2 className="font-bold text-[14px] text-gray-900 truncate">{data.display_name}</h2>
+              <h2 className="font-bold text-[14px] truncate" style={{ color: "var(--haip-fg)" }}>{data.display_name}</h2>
               <ResponseTimeBadge seconds={data.response_time_seconds} status={data.response_time_status} />
             </div>
-            <p className="text-[10px] text-gray-400">{data.inquiry_stage} · {data.source?.replace(/_/g, " ")}</p>
+            <p className="text-[10px]" style={{ color: "var(--haip-fg-subtle)" }}>{data.inquiry_stage} · {data.source?.replace(/_/g, " ")}</p>
           </div>
           <div className="flex items-center gap-1.5">
             {SIGNAL_ROLES.has(role) && (
               <button
                 onClick={() => setShowSignalDrawer(true)}
-                className="flex items-center gap-1 text-[11px] font-medium text-teal-600 border border-teal-200 bg-teal-50 hover:bg-teal-100 px-2.5 py-1.5 rounded-lg transition-colors"
+                className="flex items-center gap-1 text-[11px] font-medium px-2.5 py-1.5 rounded-full transition-colors"
+                style={{ color: "var(--lx-iris)", background: "var(--lx-iris-soft)", border: "1.5px solid color-mix(in srgb, var(--lx-iris) 35%, transparent)" }}
               >
                 <Plus size={11} />
                 Add Signal
@@ -481,7 +506,8 @@ export default function LeadDetailPage() {
             <button
               onClick={() => refreshMutation.mutate()}
               disabled={refreshMutation.isPending}
-              className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-teal-600 hover:border-teal-200 transition-colors"
+              className="lx-icon-btn w-7 h-7 flex items-center justify-center border transition-colors"
+              style={{ borderColor: "var(--haip-border)", color: "var(--haip-fg-subtle)" }}
               title="Refresh AI summary"
             >
               <RefreshCw size={12} className={refreshMutation.isPending ? "animate-spin" : ""} />
@@ -495,16 +521,12 @@ export default function LeadDetailPage() {
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={cn(
-                "text-[12px] pb-2 border-b-2 transition-colors -mb-px",
-                tab === t.key
-                  ? "border-teal-600 text-teal-700 font-semibold"
-                  : "border-transparent text-gray-400 hover:text-gray-600"
-              )}
+              className={cn("lx-tab text-[12px] pb-2 border-b-2 border-transparent transition-colors -mb-px", tab === t.key && "active font-semibold")}
+              style={tab !== t.key ? { color: "var(--haip-fg-subtle)" } : undefined}
             >
               {t.label}
               {t.key === "chat" && timelineItems.length > 0 && (
-                <span className="ml-1 text-[9px] text-gray-400">({timelineItems.length})</span>
+                <span className="ml-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}>({timelineItems.length})</span>
               )}
             </button>
           ))}
@@ -518,47 +540,109 @@ export default function LeadDetailPage() {
           {tab === "overview" && (
             <>
               {/* Profile card */}
-              <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
+              <div className="lx-dcard p-4 space-y-3">
                 <CompletenessBar pct={data.profile_completeness_pct} />
 
                 {/* Identity signals */}
                 <div className="flex flex-wrap gap-1.5">
                   {(data.identity_signals ?? []).map((sig: string) => (
-                    <span key={sig} className="text-[10px] bg-teal-50 text-teal-700 border border-teal-100 px-2 py-0.5 rounded-full">
+                    <span key={sig} className="lx-sig-pill text-[10px] px-2 py-0.5">
                       {sig.replace(/_/g, " ")}
                     </span>
                   ))}
                   {(data.identity_signals ?? []).length === 0 && (
-                    <span className="text-[10px] text-gray-400 italic">No identity signals yet</span>
+                    <span className="text-[10px] italic" style={{ color: "var(--haip-fg-subtle)" }}>No identity signals yet</span>
                   )}
                 </div>
-
-                {/* Trip intent */}
-                {(data.occasion || data.check_in || data.budget_estimate) && (
-                  <div className="flex flex-wrap gap-2 text-[11px] text-gray-600 border-t border-gray-50 pt-2">
-                    {data.occasion && <span className="capitalize">{data.occasion}</span>}
-                    {data.group_type && data.group_type !== data.occasion && (
-                      <span className="capitalize text-gray-400">{data.group_type?.replace(/_/g, " ")}</span>
-                    )}
-                    {data.check_in && <span>{data.check_in}{data.check_out ? ` → ${data.check_out}` : ""}</span>}
-                    {data.budget_estimate && (
-                      <span className="font-medium">₹{Number(data.budget_estimate).toLocaleString("en-IN")}</span>
-                    )}
-                  </div>
-                )}
               </div>
 
-              {/* Lead field registry — tenant-configurable field catalog (Phase 3) */}
-              {(data.custom_field_values ?? []).length > 0 && (
-                <div className="bg-white rounded-xl border border-gray-100 p-3.5">
-                  <h3 className="text-[11px] font-semibold text-gray-700 mb-2">Details</h3>
+              {/* Trip details — guests/dates/property-route/budget/occasion are
+                  real LeadDetailSchema fields; special requests comes off the
+                  Lead Field Registry (migration 044). No dedicated route/
+                  location field exists in the schema, so property_interest[0]
+                  stands in for it rather than an invented value. */}
+              {hasTripDetails && (
+                <div className="lx-dcard p-4">
+                  <h3 className="text-[11px] font-bold uppercase tracking-wide mb-3 flex items-center gap-1.5" style={{ color: "var(--haip-fg-subtle)" }}>
+                    <FileText size={12} />
+                    Trip Details
+                  </h3>
+                  <div className="lx-trip-grid">
+                    {guestCountLabel && (
+                      <div className="lx-trip-item">
+                        <div className="lx-trip-icon"><Users size={13} /></div>
+                        <div className="min-w-0">
+                          <p className="text-[9px] uppercase tracking-wide" style={{ color: "var(--haip-fg-subtle)" }}>Guests</p>
+                          <p className="text-[12px] font-semibold truncate" style={{ color: "var(--haip-fg)" }}>{guestCountLabel}</p>
+                        </div>
+                      </div>
+                    )}
+                    {tripDatesLabel && (
+                      <div className="lx-trip-item">
+                        <div className="lx-trip-icon"><Clock size={13} /></div>
+                        <div className="min-w-0">
+                          <p className="text-[9px] uppercase tracking-wide" style={{ color: "var(--haip-fg-subtle)" }}>Dates</p>
+                          <p className="text-[12px] font-semibold tabular-nums truncate" style={{ color: "var(--haip-fg)" }}>{tripDatesLabel}</p>
+                        </div>
+                      </div>
+                    )}
+                    {tripRouteLabel && (
+                      <div className="lx-trip-item">
+                        <div className="lx-trip-icon"><MapPin size={13} /></div>
+                        <div className="min-w-0">
+                          <p className="text-[9px] uppercase tracking-wide" style={{ color: "var(--haip-fg-subtle)" }}>Property / Route</p>
+                          <p className="text-[12px] font-semibold truncate" style={{ color: "var(--haip-fg)" }}>{tripRouteLabel}</p>
+                        </div>
+                      </div>
+                    )}
+                    {tripBudgetLabel && (
+                      <div className="lx-trip-item">
+                        <div className="lx-trip-icon"><IndianRupee size={13} /></div>
+                        <div className="min-w-0">
+                          <p className="text-[9px] uppercase tracking-wide" style={{ color: "var(--haip-fg-subtle)" }}>Budget</p>
+                          <p className="text-[12px] font-semibold tabular-nums truncate" style={{ color: "var(--haip-fg)" }}>{tripBudgetLabel}</p>
+                        </div>
+                      </div>
+                    )}
+                    {data.occasion && (
+                      <div className="lx-trip-item">
+                        <div className="lx-trip-icon"><Heart size={13} /></div>
+                        <div className="min-w-0">
+                          <p className="text-[9px] uppercase tracking-wide" style={{ color: "var(--haip-fg-subtle)" }}>Occasion</p>
+                          <p className="text-[12px] font-semibold capitalize truncate" style={{ color: "var(--haip-fg)" }}>{data.occasion}</p>
+                        </div>
+                      </div>
+                    )}
+                    {specialRequests?.value != null && specialRequests.value !== "" && (
+                      <div className="lx-trip-item full">
+                        <div className="lx-trip-icon"><MessageSquare size={13} /></div>
+                        <div className="min-w-0">
+                          <p className="text-[9px] uppercase tracking-wide" style={{ color: "var(--haip-fg-subtle)" }}>Special Requests</p>
+                          <p className="text-[12px] font-medium" style={{ color: "var(--haip-fg)" }}>{formatFieldValue(specialRequests)}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Lead field registry — remaining tenant-configurable fields not
+                  already surfaced in Trip Details above. */}
+              {(data.custom_field_values ?? []).filter((f: FieldValue) =>
+                !["adults", "children", "check_in", "check_out", "budget", "occasion", "special_requests"].includes(f.field_key)
+                && f.value !== null && f.value !== undefined && f.value !== ""
+              ).length > 0 && (
+                <div className="lx-dcard p-3.5">
+                  <h3 className="text-[11px] font-semibold mb-2" style={{ color: "var(--haip-fg-2)" }}>Details</h3>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                     {(data.custom_field_values as FieldValue[])
-                      .filter(f => f.value !== null && f.value !== undefined && f.value !== "")
+                      .filter(f =>
+                        !["adults", "children", "check_in", "check_out", "budget", "occasion", "special_requests"].includes(f.field_key)
+                        && f.value !== null && f.value !== undefined && f.value !== "")
                       .map(f => (
                         <div key={f.field_key} className="min-w-0">
-                          <p className="text-[9px] text-gray-400 uppercase tracking-wide">{f.label}</p>
-                          <p className="text-[11px] text-gray-700 truncate">{formatFieldValue(f)}</p>
+                          <p className="text-[9px] uppercase tracking-wide" style={{ color: "var(--haip-fg-subtle)" }}>{f.label}</p>
+                          <p className="text-[11px] truncate" style={{ color: "var(--haip-fg-2)" }}>{formatFieldValue(f)}</p>
                         </div>
                       ))}
                   </div>
@@ -566,29 +650,29 @@ export default function LeadDetailPage() {
               )}
 
               {/* AI summary (condensed — full analysis lives in its own tab) */}
-              <div className="bg-teal-50 rounded-xl border border-teal-100 p-3.5">
+              <div className="lx-ai-card p-3.5">
                 <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <Sparkles size={13} className="text-teal-600" />
-                    <span className="text-[11px] font-semibold text-teal-700">AI Summary</span>
+                  <div className="lx-ai-label flex items-center gap-1.5">
+                    <Sparkles size={13} />
+                    <span className="text-[11px] font-semibold">AI Summary</span>
                   </div>
-                  <button onClick={() => setTab("analysis")} className="text-[10px] text-teal-600 hover:underline">
+                  <button onClick={() => setTab("analysis")} className="lx-ai-label text-[10px] hover:underline">
                     Full analysis →
                   </button>
                 </div>
                 {data.ai_summary ? (
-                  <p className="text-[12px] text-teal-800 leading-relaxed">{data.ai_summary}</p>
+                  <p className="text-[12px] leading-relaxed" style={{ color: "var(--haip-fg-2)" }}>{data.ai_summary}</p>
                 ) : (
-                  <p className="text-[11px] text-teal-500 italic">Generating summary… refresh in a moment.</p>
+                  <p className="lx-ai-label text-[11px] italic">Generating summary… refresh in a moment.</p>
                 )}
                 {data.ai_next_action && (
-                  <p className="text-[11px] text-teal-600 font-medium mt-1.5 border-t border-teal-100 pt-1.5">
+                  <p className="lx-ai-next text-[11px] font-medium mt-1.5 pt-1.5">
                     → {data.ai_next_action}
                   </p>
                 )}
                 {data.pending_draft && (
-                  <div className="mt-2 pt-2 border-t border-teal-100 flex items-center justify-between gap-2">
-                    <p className="text-[10px] text-teal-700 truncate flex-1" title={data.pending_draft.preview}>
+                  <div className="mt-2 pt-2 flex items-center justify-between gap-2" style={{ borderTop: "1px solid color-mix(in srgb, var(--lx-iris) 25%, transparent)" }}>
+                    <p className="lx-ai-label text-[10px] truncate flex-1" title={data.pending_draft.preview}>
                       {data.pending_draft.preview}
                     </p>
                     <button
@@ -598,7 +682,7 @@ export default function LeadDetailPage() {
                         messageId: data.pending_draft.message_id,
                       })}
                       disabled={approveAndSendMutation.isPending}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white text-[10px] font-semibold flex-shrink-0 transition-colors"
+                      className="lx-ai-send-btn inline-flex items-center gap-1 px-2.5 py-1 disabled:opacity-60 text-[10px] font-semibold flex-shrink-0 transition-colors"
                     >
                       <MessageSquare size={10} />
                       {approveAndSendMutation.isPending ? "Sending…" : "Send draft"}
@@ -609,14 +693,14 @@ export default function LeadDetailPage() {
 
               {/* Property interest */}
               {(data.property_interest ?? []).length > 0 && (
-                <div className="bg-white rounded-xl border border-gray-100 p-3.5">
-                  <h3 className="text-[11px] font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
-                    <Building2 size={12} className="text-gray-400" />
+                <div className="lx-dcard p-3.5">
+                  <h3 className="text-[11px] font-semibold mb-2 flex items-center gap-1.5" style={{ color: "var(--haip-fg-2)" }}>
+                    <Building2 size={12} style={{ color: "var(--haip-fg-subtle)" }} />
                     Property Interest
                   </h3>
                   <div className="flex flex-wrap gap-1.5">
                     {data.property_interest.map((p: string) => (
-                      <span key={p} className="text-[11px] bg-gray-50 border border-gray-100 text-gray-700 px-2.5 py-1 rounded-lg">
+                      <span key={p} className="text-[11px] px-2.5 py-1 rounded-lg" style={{ background: "var(--muted)", color: "var(--haip-fg-2)" }}>
                         {p}
                       </span>
                     ))}
@@ -626,17 +710,21 @@ export default function LeadDetailPage() {
 
               {/* Quote history */}
               {(data.quote_history ?? []).length > 0 && (
-                <div className="bg-white rounded-xl border border-gray-100 p-3.5">
-                  <h3 className="text-[11px] font-semibold text-gray-700 mb-2">Quote History</h3>
+                <div className="lx-dcard p-3.5">
+                  <h3 className="text-[11px] font-semibold mb-2" style={{ color: "var(--haip-fg-2)" }}>Quote History</h3>
                   <div className="space-y-1.5">
                     {data.quote_history.map((q: QuoteHistory) => (
-                      <div key={q.id} className={cn("flex items-center justify-between text-[11px] px-2.5 py-1.5 rounded-lg", q.is_active ? "bg-teal-50 border border-teal-100" : "bg-gray-50")}>
-                        <span className={cn("font-medium", q.is_active ? "text-teal-700" : "text-gray-600")}>
+                      <div
+                        key={q.id}
+                        className="flex items-center justify-between text-[11px] px-2.5 py-1.5 rounded-lg"
+                        style={q.is_active ? { background: "color-mix(in srgb, var(--haip-green) 12%, transparent)" } : { background: "var(--muted)" }}
+                      >
+                        <span className="font-medium tabular-nums" style={{ color: q.is_active ? "var(--haip-green)" : "var(--haip-fg-2)" }}>
                           {q.currency} {Number(q.amount).toLocaleString("en-IN")}
                         </span>
-                        <span className="text-gray-400">
+                        <span style={{ color: "var(--haip-fg-subtle)" }}>
                           {q.age_days != null ? `${q.age_days}d ago` : "—"}
-                          {q.is_active && <span className="ml-1.5 text-teal-600 font-medium">Active</span>}
+                          {q.is_active && <span className="ml-1.5 font-medium" style={{ color: "var(--haip-green)" }}>Active</span>}
                         </span>
                       </div>
                     ))}
@@ -645,30 +733,30 @@ export default function LeadDetailPage() {
               )}
 
               {/* Recent activity preview → chat tab */}
-              <div className="bg-white rounded-xl border border-gray-100 p-3.5">
+              <div className="lx-dcard p-3.5">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-[11px] font-semibold text-gray-700 flex items-center gap-1.5">
-                    <Clock size={12} className="text-gray-400" />
+                  <h3 className="text-[11px] font-semibold flex items-center gap-1.5" style={{ color: "var(--haip-fg-2)" }}>
+                    <Clock size={12} style={{ color: "var(--haip-fg-subtle)" }} />
                     Recent activity
                   </h3>
-                  <button onClick={() => setTab("chat")} className="text-[10px] text-teal-600 hover:underline">
+                  <button onClick={() => setTab("chat")} className="lx-ai-label text-[10px] hover:underline">
                     Open chat history →
                   </button>
                 </div>
                 {timelineItems.length === 0 ? (
-                  <p className="text-[11px] text-gray-400 text-center py-3">No messages yet</p>
+                  <p className="text-[11px] text-center py-3" style={{ color: "var(--haip-fg-subtle)" }}>No messages yet</p>
                 ) : (
                   <div className="space-y-2">
                     {timelineItems.slice(0, 3).map(entry => (
                       <div key={entry.id} className="flex items-start gap-2.5">
-                        <div className="flex-shrink-0 w-6 h-6 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center mt-0.5">
+                        <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center mt-0.5" style={{ background: "var(--muted)" }}>
                           <ChannelIcon channel={entry.channel} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[11px] text-gray-700 leading-relaxed line-clamp-2">
+                          <p className="text-[11px] leading-relaxed line-clamp-2" style={{ color: "var(--haip-fg-2)" }}>
                             {entry.content_preview || entry.call_summary || "—"}
                           </p>
-                          <span className="text-[9px] text-gray-400">{timeAgo(entry.occurred_at)}</span>
+                          <span className="text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}>{timeAgo(entry.occurred_at)}</span>
                         </div>
                       </div>
                     ))}
