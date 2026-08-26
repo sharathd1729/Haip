@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { Users, UserPlus, Mail, Shield, Eye, Clock, CheckCircle2, XCircle, ChevronDown, Copy, Trash2, Loader2, AlertCircle, X, Settings, RefreshCw, MoreHorizontal, MessageSquare, PhoneCall, ShieldAlert } from "@/lib/icons";
+import { Users, UserPlus, Mail, Shield, Eye, Clock, CheckCircle2, XCircle, ChevronDown, Copy, Trash2, Loader2, AlertCircle, X, Settings, RefreshCw, MoreHorizontal, MessageSquare, PhoneCall, ShieldAlert, Pencil } from "@/lib/icons";
 import { Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
@@ -445,6 +445,15 @@ export default function TeamPage() {
     },
   });
 
+  const updateNameMutation = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) =>
+      api.patch(`/users/${id}`, { name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["team-members"] });
+      showToast("Name updated.", "success");
+    },
+  });
+
   const sendPasswordResetMutation = useMutation({
     mutationFn: (id: string) => api.post(`/users/${id}/send-password-reset`).then(r => r.data),
     onSuccess: (data: { message: string }) => {
@@ -550,6 +559,7 @@ export default function TeamPage() {
                           onToggleIvrRouting={(enabled) => toggleIvrRoutingMutation.mutate({ id: member.id, enabled })}
                           onUpdatePhone={(phone) => updatePhoneMutation.mutate({ id: member.id, phone })}
                           onUpdateEmail={async (email) => { await updateEmailMutation.mutateAsync({ id: member.id, email }); }}
+                          onUpdateName={async (name) => { await updateNameMutation.mutateAsync({ id: member.id, name }); }}
                           onSendPasswordReset={() => sendPasswordResetMutation.mutate(member.id)}
                         />
                       ))}
@@ -569,6 +579,7 @@ export default function TeamPage() {
                           onToggleIvrRouting={(enabled) => toggleIvrRoutingMutation.mutate({ id: member.id, enabled })}
                           onUpdatePhone={(phone) => updatePhoneMutation.mutate({ id: member.id, phone })}
                           onUpdateEmail={async (email) => { await updateEmailMutation.mutateAsync({ id: member.id, email }); }}
+                          onUpdateName={async (name) => { await updateNameMutation.mutateAsync({ id: member.id, name }); }}
                           onSendPasswordReset={() => sendPasswordResetMutation.mutate(member.id)}
                         />
                       ))}
@@ -634,13 +645,14 @@ export default function TeamPage() {
 
 // ─── Member Row ───────────────────────────────────────────────────────────────
 
-function MemberRow({ member, onRoleChanged, onToggleActive, onToggleIvrRouting, onUpdatePhone, onUpdateEmail, onSendPasswordReset }: {
+function MemberRow({ member, onRoleChanged, onToggleActive, onToggleIvrRouting, onUpdatePhone, onUpdateEmail, onUpdateName, onSendPasswordReset }: {
   member: TeamMember;
   onRoleChanged: () => void;
   onToggleActive: (active: boolean) => void;
   onToggleIvrRouting: (enabled: boolean) => void;
   onUpdatePhone: (phone: string) => void;
   onUpdateEmail: (email: string) => Promise<void>;
+  onUpdateName: (name: string) => Promise<void>;
   onSendPasswordReset: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -654,13 +666,7 @@ function MemberRow({ member, onRoleChanged, onToggleActive, onToggleIvrRouting, 
       <Avatar name={member.name} photoUrl={member.avatar_url} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
-          <Link
-            href={`/dashboard/team/${member.id}`}
-            className="text-sm font-semibold text-gray-900 truncate hover:text-teal-700 hover:underline"
-            title="View calls, messages and leads handled by this member"
-          >
-            {member.name}
-          </Link>
+          <NameEditor name={member.name} memberId={member.id} onSave={onUpdateName} />
           {member.is_mfa_enabled && (
             <span title="MFA enabled"><Shield size={11} className="text-teal-500 flex-shrink-0" /></span>
           )}
@@ -785,6 +791,73 @@ function PhoneEditor({ phone, onSave }: { phone: string | null; onSave: (phone: 
     >
       {phone || "Add phone"}
     </button>
+  );
+}
+
+// ─── Name Editor ─────────────────────────────────────────────────────────────
+// The member's name still links through to their agent-profile page in the
+// normal (non-editing) state -- editing is a separate, explicit action via
+// the pencil icon, so it never fights the link's own click-to-navigate.
+function NameEditor({ name, memberId, onSave }: { name: string; memberId: string; onSave: (name: string) => Promise<void> }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(name);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const save = async () => {
+    const trimmed = value.trim();
+    if (!trimmed) { setError("Name can't be empty."); return; }
+    if (trimmed === name) { setEditing(false); return; }
+    setSaving(true);
+    setError("");
+    try {
+      await onSave(trimmed);
+      setEditing(false);
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || "Failed to update name.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div className="flex flex-col gap-0.5">
+        <input
+          autoFocus
+          type="text"
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          onBlur={save}
+          onKeyDown={e => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            if (e.key === "Escape") { setValue(name); setError(""); setEditing(false); }
+          }}
+          disabled={saving}
+          className="text-sm font-semibold px-2 py-1 rounded-lg border border-teal-300 focus:outline-none focus:ring-1 focus:ring-teal-400 w-44"
+        />
+        {error && <span className="text-[10px] text-red-500">{error}</span>}
+      </div>
+    );
+  }
+
+  return (
+    <span className="flex items-center gap-1 min-w-0">
+      <Link
+        href={`/dashboard/team/${memberId}`}
+        className="text-sm font-semibold text-gray-900 truncate hover:text-teal-700 hover:underline"
+        title="View calls, messages and leads handled by this member"
+      >
+        {name}
+      </Link>
+      <button
+        onClick={() => { setValue(name); setEditing(true); }}
+        title="Edit name"
+        className="text-gray-300 hover:text-gray-500 flex-shrink-0 p-0.5"
+      >
+        <Pencil size={11} />
+      </button>
+    </span>
   );
 }
 
