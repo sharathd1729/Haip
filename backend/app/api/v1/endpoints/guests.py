@@ -19,13 +19,23 @@ router = APIRouter(prefix="/guests", tags=["guests"])
 @router.get("", response_model=List[GuestOut])
 def list_guests(
     search: Optional[str] = Query(default=None),
+    # GuestPanel.tsx's per-conversation guest lookup calls
+    # `/guests?phone={detail.guest_phone}&limit=1` -- this parameter didn't
+    # exist here at all, so FastAPI silently dropped it and every call fell
+    # through to an unfiltered `ORDER BY created_at DESC LIMIT 1`, returning
+    # whichever guest was most recently created in the tenant regardless of
+    # which conversation was open. Confirmed live: every open conversation's
+    # Guest 360 panel showed the same guest's phone number.
+    phone: Optional[str] = Query(default=None),
     limit: int = Query(default=50, le=200),
     offset: int = 0,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     q = db.query(Guest).filter_by(tenant_id=current_user.tenant_id, is_deleted=False)
-    if search:
+    if phone:
+        q = q.filter(Guest.phone == phone)
+    elif search:
         q = q.filter(
             (Guest.phone.ilike(f"%{search}%")) |
             (Guest.name.ilike(f"%{search}%")) |
