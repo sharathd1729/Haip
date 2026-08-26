@@ -160,21 +160,21 @@ export const MessageBubble = memo(function MessageBubble({
         {/* Bubble */}
         <div className="relative">
           <div className={cn(
-            "px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed",
+            "px-3.5 py-2.5 rounded-[20px] text-sm leading-relaxed",
             isOut
               ? isAiDraft
-                ? "bg-teal-50 border border-teal-200 text-gray-800 rounded-br-sm"
+                ? "ibx-bubble-ai rounded-br-sm"
                 : isFailed
-                ? "bg-red-50 border border-red-200 text-gray-800 rounded-br-sm"
-                : "bg-[#0F766E] text-white rounded-br-sm"
+                ? "ibx-bubble-failed rounded-br-sm"
+                : "ibx-bubble-out rounded-br-sm"
               : "bg-white border border-gray-100 shadow-sm text-gray-800 rounded-bl-sm"
           )}>
             {isAiDraft && (
-              <div className="flex items-center gap-1.5 mb-1.5 pb-1.5 border-b border-teal-100">
-                <Sparkles size={12} className="text-teal-500" />
-                <span className="text-[10px] font-bold text-teal-600 uppercase tracking-wide">AI Draft</span>
+              <div className="flex items-center gap-1.5 mb-1.5 pb-1.5" style={{ borderBottom: "1px solid color-mix(in srgb, var(--ibx-iris) 25%, transparent)" }}>
+                <Sparkles size={12} style={{ color: "var(--ibx-iris)" }} />
+                <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "var(--ibx-iris)" }}>AI Draft</span>
                 {aiConfidence != null && (
-                  <span className="ml-auto text-[10px] text-teal-500 font-mono">
+                  <span className="ml-auto text-[10px] font-mono" style={{ color: "var(--ibx-iris)" }}>
                     {Math.round(aiConfidence * 100)}%
                   </span>
                 )}
@@ -240,19 +240,19 @@ export const MessageBubble = memo(function MessageBubble({
           <div className="flex items-center gap-1.5 mt-0.5">
             <button
               onClick={() => onApprove?.(id)}
-              className="flex items-center gap-1 text-xs font-semibold text-teal-600 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2.5 py-1 rounded-lg transition-colors"
+              className="ibx-approve-btn flex items-center gap-1 text-xs font-semibold border px-2.5 py-1 rounded-full transition-colors"
             >
               <ThumbsUp size={11} /> Approve
             </button>
             <button
               onClick={() => onEdit?.(id, text)}
-              className="flex items-center gap-1 text-xs text-gray-600 bg-white hover:bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-lg transition-colors"
+              className="flex items-center gap-1 text-xs text-gray-600 bg-white hover:bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-full transition-colors"
             >
               <Edit2 size={11} /> Edit
             </button>
             <button
               onClick={() => onReject?.(id)}
-              className="flex items-center gap-1 text-xs text-red-500 bg-red-50 hover:bg-red-100 border border-red-200 px-2.5 py-1 rounded-lg transition-colors"
+              className="flex items-center gap-1 text-xs text-red-500 bg-red-50 hover:bg-red-100 border border-red-200 px-2.5 py-1 rounded-full transition-colors"
             >
               <ThumbsDown size={11} /> Reject
             </button>
@@ -265,7 +265,7 @@ export const MessageBubble = memo(function MessageBubble({
                     onClick={() => setShowTonePicker(v => !v)}
                     disabled={isRewriting}
                     title="Rewrite tone"
-                    className="flex items-center gap-1 text-xs text-gray-500 bg-white hover:bg-gray-50 border border-gray-200 px-2 py-1 rounded-lg transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1 text-xs text-gray-500 bg-white hover:bg-gray-50 border border-gray-200 px-2 py-1 rounded-full transition-colors disabled:opacity-50"
                   >
                     <Wand2 size={11} /> Tone
                   </button>
@@ -288,7 +288,7 @@ export const MessageBubble = memo(function MessageBubble({
                     onClick={() => setShowLangPicker(v => !v)}
                     disabled={isRewriting}
                     title="Translate"
-                    className="flex items-center gap-1 text-xs text-gray-500 bg-white hover:bg-gray-50 border border-gray-200 px-2 py-1 rounded-lg transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1 text-xs text-gray-500 bg-white hover:bg-gray-50 border border-gray-200 px-2 py-1 rounded-full transition-colors disabled:opacity-50"
                   >
                     <Languages size={11} /> Translate
                   </button>

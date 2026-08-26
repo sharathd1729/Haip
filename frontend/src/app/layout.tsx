@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Outfit } from "next/font/google";
+import { Outfit, Manrope } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { PWARegister } from "@/components/PWARegister";
@@ -14,6 +14,18 @@ const displayFont = Outfit({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
   variable: "--font-display",
+  display: "swap",
+});
+
+// Inbox visual-redesign pass: Manrope, scoped to .haip-inbox-v2 only (see
+// globals.css) -- not a replacement for Outfit as the app's primary display
+// font (that choice is deliberate, see the comment above), just the one
+// module currently being redesigned toward the Wati/Gupshup/Twenty CRM
+// reference direction, which verified against Manrope specifically.
+const inboxFont = Manrope({
+  subsets: ["latin"],
+  weight: ["500", "600", "700", "800"],
+  variable: "--font-inbox",
   display: "swap",
 });
 
@@ -74,7 +86,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           } catch(e) {}
         `}} />
       </head>
-      <body className={`${displayFont.variable} min-h-full bg-background`}>
+      <body className={`${displayFont.variable} ${inboxFont.variable} min-h-full bg-background`}>
         <Providers>{children}</Providers>
         <PWARegister />
         <UpdateBanner />

@@ -88,15 +88,6 @@ function timeAgo(iso: string) {
   return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
-// Channel accent color for left border
-const CHANNEL_BORDER: Record<string, string> = {
-  whatsapp:  "border-l-2 border-l-green-400",
-  instagram: "border-l-2 border-l-pink-400",
-  web:       "border-l-2 border-l-blue-400",
-  voice:     "border-l-2 border-l-blue-400",
-  sms:       "border-l-2 border-l-amber-400",
-};
-
 export function ConversationList({
   conversations,
   activeId,
@@ -268,18 +259,20 @@ export function ConversationList({
             <button
               key={f.key}
               onClick={() => setQuickFilter(isActive ? "all" : f.key)}
-              className="px-2 py-1.5 rounded-lg text-left flex items-center justify-between gap-1 text-[11px] font-medium transition-colors"
+              className="ibx-pill px-2.5 py-1.5 text-left flex items-center justify-between gap-1 text-[11px] transition-colors"
               style={isActive
-                ? { background: "color-mix(in srgb, var(--primary) 12%, transparent)", color: "var(--primary)" }
-                : { color: "var(--haip-fg-muted)" }}
+                ? f.key === "ai_needs_review"
+                  ? { background: "var(--ibx-iris)", color: "#fff", boxShadow: "0 6px 18px rgba(91,91,206,0.25)" }
+                  : { background: "var(--ibx-grad)", color: "#fff", boxShadow: "var(--ibx-shadow-glow)" }
+                : { color: "var(--haip-fg-muted)", background: "var(--haip-card)" }}
             >
               <span className="flex items-center gap-1.5 truncate">
                 <Icon size={13} className="flex-shrink-0" />
                 {f.label}
               </span>
               <span
-                className="font-mono text-[10px] font-bold px-1.5 rounded flex-shrink-0"
-                style={{ background: "var(--muted)", color: "inherit" }}
+                className="font-mono text-[10px] font-bold px-1.5 rounded-full flex-shrink-0"
+                style={{ background: isActive ? "rgba(255,255,255,0.25)" : "var(--muted)", color: "inherit" }}
               >
                 {f.count}
               </span>
@@ -363,7 +356,6 @@ export function ConversationList({
         const displayName = conv.guest_name || conv.guest_phone || "";
         const initial = displayName?.[0]?.toUpperCase() ?? "?";
         const gradient = nameColor(displayName);
-        const channelBorder = CHANNEL_BORDER[conv.channel] ?? "";
 
         return (
           <button
@@ -373,16 +365,9 @@ export function ConversationList({
               : onSelect(conv.id)
             }
             className={cn(
-              "w-full text-left px-3.5 py-3 haip-list-row transition-all group relative",
-              // Left rail: channel colour normally, but the selected row takes
-              // it over with a thicker teal rail (prototype .conv-item.active).
-              // A bg tint alone was a weak selected state next to the
-              // always-on channel colours.
-              isActive ? "border-l-[3px] border-l-teal-500" : channelBorder,
-              isActive
-                ? "bg-teal-50/80"
-                : "hover:bg-[color:var(--muted)]",
-              isChecked && "bg-teal-50",
+              "w-full text-left ibx-conv-card transition-all group relative",
+              isActive && "active",
+              isChecked && "bg-[var(--ibx-green-soft)]",
               conv.needs_attention && !isActive && "bg-amber-50/40"
             )}
           >
@@ -441,11 +426,14 @@ export function ConversationList({
                     }
                   </div>
                 ) : (
-                  <div className={cn(
-                    "w-9 h-9 rounded-full bg-gradient-to-br flex items-center justify-center text-white text-sm font-bold",
-                    gradient,
-                    "group-hover:ring-2 group-hover:ring-teal-200 transition-all"
-                  )}>
+                  <div
+                    className={cn(
+                      "w-9 h-9 rounded-full bg-gradient-to-br flex items-center justify-center text-white text-sm font-bold transition-all",
+                      gradient,
+                      !isActive && "group-hover:ring-2 group-hover:ring-[color:var(--ibx-green-soft)]"
+                    )}
+                    style={isActive ? { boxShadow: "0 0 0 2.5px var(--haip-card), 0 0 0 4.5px var(--ibx-green-bright)" } : undefined}
+                  >
                     {initial}
                   </div>
                 )}
@@ -465,10 +453,10 @@ export function ConversationList({
                     {conv.is_vip && (
                       <Star size={10} className="flex-shrink-0 text-amber-400 fill-amber-400" />
                     )}
-                    <span className={cn(
-                      "text-sm font-semibold truncate",
-                      isActive ? "text-teal-700" : "text-gray-900"
-                    )}>
+                    <span
+                      className="text-sm font-semibold truncate"
+                      style={{ color: isActive ? "var(--ibx-green)" : "var(--haip-fg)" }}
+                    >
                       {conv.guest_name || conv.guest_phone}
                     </span>
                     {conv.ad_title && (
@@ -504,12 +492,12 @@ export function ConversationList({
                 {/* Row 4: Status badges + unread pill */}
                 <div className="flex items-center gap-1 flex-wrap">
                   {conv.sla_status === "breached" && (
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 flex items-center gap-0.5 flex-shrink-0">
+                    <span className="ibx-badge sla">
                       <AlertTriangle size={7} />SLA breached
                     </span>
                   )}
                   {conv.sla_status === "warning" && (
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 flex-shrink-0">
+                    <span className="ibx-badge vip">
                       SLA due soon
                     </span>
                   )}
@@ -542,12 +530,12 @@ export function ConversationList({
                     </span>
                   )}
                   {conv.has_ai_draft && (
-                    <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-teal-100 text-teal-600 flex items-center gap-0.5 flex-shrink-0">
+                    <span className="ibx-badge ai">
                       <Sparkles size={8} />Draft
                     </span>
                   )}
                   {conv.unread_count > 0 && (
-                    <span className="ml-auto bg-teal-500 text-white text-[9px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 flex-shrink-0">
+                    <span className="ibx-unread-pill ml-auto">
                       {conv.unread_count > 99 ? "99+" : conv.unread_count}
                     </span>
                   )}

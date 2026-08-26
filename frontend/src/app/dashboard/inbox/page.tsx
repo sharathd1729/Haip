@@ -720,7 +720,7 @@ export default function InboxPage() {
   // Three-pane inbox: white panes over the shell's grey canvas, per the
   // prototype's .inbox (grey) / .inbox-pane (white) split.
   return (
-    <div className="h-full flex overflow-hidden">
+    <div className="haip-inbox-v2 h-full flex overflow-hidden">
       {/* Left: conversation list — full-width on mobile when mobileView==="list", sidebar on md+ */}
       <div className={cn(
         "flex-col bg-card",
@@ -854,8 +854,8 @@ export default function InboxPage() {
               {detail ? (
                 <>
                   <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
-                    style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
+                    className="ibx-avatar"
+                    style={{ width: 32, height: 32, fontSize: 13 }}
                   >
                     {detail.guest_name?.[0]?.toUpperCase() ?? "?"}
                   </div>
@@ -973,11 +973,11 @@ export default function InboxPage() {
                   <button
                     onClick={() => draftMutation.mutate()}
                     disabled={draftMutation.isPending || aiTyping}
-                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors duration-150 disabled:opacity-50"
+                    className="ibx-pill flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 transition-colors duration-150 disabled:opacity-50"
                     style={{
-                      background: "color-mix(in srgb, var(--primary) 8%, transparent)",
-                      border: "1px solid color-mix(in srgb, var(--primary) 20%, transparent)",
-                      color: "var(--primary)",
+                      background: "var(--ibx-iris-soft)",
+                      border: "1px solid color-mix(in srgb, var(--ibx-iris) 30%, transparent)",
+                      color: "var(--ibx-iris)",
                     }}
                   >
                     {draftMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
@@ -1407,22 +1407,25 @@ export default function InboxPage() {
                   onKeyDown={handleKeyDown}
                   rows={1}
                   placeholder={isInternalNote ? "Write an internal note…" : "Type a message or / for saved replies…"}
-                  className={cn("flex-1 text-sm rounded-xl px-3.5 py-2.5 focus:outline-none resize-none transition-all", emptyPulse && "animate-pulse")}
+                  className={cn("flex-1 text-sm rounded-full px-4 py-2.5 focus:outline-none resize-none transition-all", emptyPulse && "animate-pulse")}
                   style={{
                     minHeight: "42px",
                     background: isInternalNote ? "rgba(245,158,11,0.06)" : "var(--input-bg)",
-                    border: `1px solid ${emptyPulse ? "var(--haip-red)" : isInternalNote ? "rgba(245,158,11,0.4)" : "var(--haip-border)"}`,
+                    border: `1.5px solid ${emptyPulse ? "var(--haip-red)" : isInternalNote ? "rgba(245,158,11,0.4)" : "var(--haip-border)"}`,
                     color: "var(--haip-fg)",
                   }}
                 />
                 {/* Send button + Schedule dropdown trigger */}
-                <div className="flex flex-shrink-0">
+                <div className="flex flex-shrink-0 items-center gap-1">
                   <button
                     onClick={() => handleSend()}
                     disabled={sendMutation.isPending}
-                    className="h-10 px-3 rounded-l-xl flex items-center justify-center transition-colors duration-150"
+                    className={cn(
+                      "h-10 w-10 rounded-full flex items-center justify-center transition-colors duration-150",
+                      !isEmpty && !isInternalNote && !scheduledFor && "ibx-send-btn",
+                    )}
                     style={{
-                      background: isEmpty ? "var(--muted)" : isInternalNote ? "#F59E0B" : scheduledFor ? "#2563EB" : "var(--primary)",
+                      background: isEmpty ? "var(--muted)" : isInternalNote ? "#F59E0B" : scheduledFor ? "#2563EB" : undefined,
                       color: isEmpty ? "var(--haip-fg-subtle)" : "var(--primary-foreground)",
                       cursor: isEmpty ? "not-allowed" : "pointer",
                     }}
@@ -1437,11 +1440,10 @@ export default function InboxPage() {
                     <button
                       onClick={() => setShowSchedule(v => !v)}
                       title="Schedule send"
-                      className="h-10 w-6 rounded-r-xl flex items-center justify-center transition-colors duration-150"
+                      className="h-10 w-6 rounded-full flex items-center justify-center transition-colors duration-150"
                     style={{
                       background: isEmpty ? "var(--muted)" : scheduledFor ? "#2563EB" : "var(--primary)",
                       color: isEmpty ? "var(--haip-fg-subtle)" : "var(--primary-foreground)",
-                      borderLeft: "1px solid rgba(255,255,255,0.15)",
                     }}
                     >
                       <ChevronDown size={11} />
@@ -1467,7 +1469,7 @@ export default function InboxPage() {
 
       {/* Mobile: Guest 360 as a sheet instead of a permanent panel */}
       <Sheet open={showGuestSheet} onOpenChange={setShowGuestSheet}>
-        <SheetContent side="right" className="p-0 w-[85vw] sm:max-w-sm">
+        <SheetContent side="right" className="haip-inbox-v2 p-0 w-[85vw] sm:max-w-sm">
           {detail && <GuestPanel detail={detail} mobileVariant />}
         </SheetContent>
       </Sheet>
