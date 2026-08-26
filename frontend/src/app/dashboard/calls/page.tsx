@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
-import { Phone, Upload, X, Filter, Calendar, Sparkles, Search, ChevronRight, TrendingUp, TrendingDown, Minus, AlertCircle, MessageSquare, Loader2, PhoneIncoming, PhoneOutgoing, PhoneMissed, Delete, PhoneCall } from "@/lib/icons";
+import { Phone, Upload, X, Filter, Calendar, Sparkles, Search, ChevronRight, TrendingUp, TrendingDown, Minus, AlertCircle, MessageSquare, Loader2, PhoneIncoming, PhoneOutgoing, PhoneMissed, Delete, PhoneCall, User } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { EmptyCalls } from "@/components/empty-states/EmptyCalls";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -70,11 +70,18 @@ function qaScoreClass(score?: number) {
   return "text-rose-600 dark:text-rose-400";
 }
 
-function qaBadgeStyle(score?: number): React.CSSProperties {
-  if (!score) return { background: "var(--muted)", color: "var(--haip-fg-subtle)" };
-  if (score >= 90) return { background: "rgba(16,185,129,0.1)", color: "#059669" };
-  if (score >= 70) return { background: "rgba(245,158,11,0.1)", color: "#D97706" };
-  return { background: "rgba(239,68,68,0.1)", color: "#DC2626" };
+function qaTier(score?: number): "high" | "mid" | "low" | "" {
+  if (!score) return "";
+  if (score >= 90) return "high";
+  if (score >= 70) return "mid";
+  return "low";
+}
+
+// Absolute timestamp alongside the relative "Nago" label -- e.g. "Aug 26, 4:12 PM".
+function fullTimestamp(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("en-IN", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
 function SentimentIcon({ s }: { s?: string }) {
@@ -105,19 +112,13 @@ function CallRow({ call, onClick }: { call: CallItem; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="w-full text-left px-5 py-3 transition-colors duration-150 hover:bg-muted/50 group"
+      className="clx-row w-full text-left px-5 py-3 group"
       style={{ borderBottom: "1px solid var(--haip-border)" }}
     >
       <div className="flex items-center gap-3">
         {/* Avatar initial, direction badge in the corner */}
         <div className="relative flex-shrink-0">
-          <div
-            className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold"
-            style={{
-              background: "color-mix(in srgb, var(--primary) 12%, transparent)",
-              color: "var(--primary)",
-            }}
-          >
+          <div className="clx-avatar w-9 h-9 rounded-full flex items-center justify-center text-sm">
             {name[0].toUpperCase()}
           </div>
           <div
@@ -129,10 +130,14 @@ function CallRow({ call, onClick }: { call: CallItem; onClick: () => void }) {
           </div>
         </div>
 
-        {/* Left: name + phone token */}
-        <div className="w-36 flex-shrink-0 min-w-0">
+        {/* Left: name + phone token + agent */}
+        <div className="w-44 flex-shrink-0 min-w-0">
           <p className="text-sm font-medium truncate" style={{ color: "var(--haip-fg)" }}>{name}</p>
           <p className="text-[10px] tabular-nums" style={{ color: "var(--haip-fg-subtle)" }}>{phoneToken}</p>
+          <p className="clx-agent-line mt-0.5">
+            <User size={10} />
+            {call.agent_name || (call.is_missed ? "Unattended" : "—")}
+          </p>
         </div>
 
         {/* Center: transcript snippet */}
@@ -145,10 +150,7 @@ function CallRow({ call, onClick }: { call: CallItem; onClick: () => void }) {
         {/* Right: QA badge + duration + time */}
         <div className="flex items-center gap-3 flex-shrink-0">
           {call.qa_score != null ? (
-            <span
-              className="text-xs font-bold tabular-nums px-2 py-0.5 rounded-full"
-              style={qaBadgeStyle(call.qa_score)}
-            >
+            <span className={`clx-qa-pill ${qaTier(call.qa_score)} text-xs px-2.5 py-0.5`}>
               {call.qa_score}
             </span>
           ) : (
@@ -162,8 +164,9 @@ function CallRow({ call, onClick }: { call: CallItem; onClick: () => void }) {
               {fmt(call.duration_seconds)}
             </span>
           )}
-          <span className="text-[10px] hidden sm:block" style={{ color: "var(--haip-fg-subtle)" }}>
-            {dt ? timeAgo(dt) : "—"}
+          <span className="clx-tstamp hidden sm:block" style={{ minWidth: 64, textAlign: "right" }}>
+            <span className="clx-tago">{dt ? timeAgo(dt) : "—"}</span>
+            {dt && <span className="clx-tabs">{fullTimestamp(dt)}</span>}
           </span>
           <ChevronRight size={13} className="transition-colors duration-150 group-hover:opacity-60" style={{ color: "var(--haip-fg-subtle)" }} />
         </div>
@@ -247,24 +250,11 @@ function CallSlideOver({ callId, onClose }: { callId: string; onClose: () => voi
             <>
               {/* Score hero — navy gradient with the QA score as the anchor,
                   per the prototype's .score-hero / .big-score */}
-              <div
-                className="flex items-center gap-[18px] rounded-lg px-[22px] py-[18px]"
-                style={{
-                  background: "linear-gradient(135deg, #0B1F3A 0%, #163458 100%)",
-                  color: "#fff",
-                }}
-              >
+              <div className="clx-hero flex items-center gap-[18px] px-[22px] py-[18px]" style={{ color: "#fff" }}>
                 {call.qa_score != null ? (
                   <div
-                    className="w-[84px] h-[84px] rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{
-                      background: "rgba(20,184,166,0.15)",
-                      border: "3px solid var(--haip-sidebar-accent)",
-                      color: "var(--haip-sidebar-accent)",
-                      fontFamily: "var(--font-display), sans-serif",
-                      fontSize: 28,
-                      fontWeight: 800,
-                    }}
+                    className="clx-score-ring w-[84px] h-[84px] rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ fontSize: 28 }}
                   >
                     {call.qa_score}
                   </div>
@@ -290,8 +280,7 @@ function CallSlideOver({ callId, onClose }: { callId: string; onClose: () => voi
                         onClick={() => clickToCall.mutate(call.guest_phone)}
                         disabled={clickToCall.isPending}
                         title="Call via IVR"
-                        className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold disabled:opacity-50"
-                        style={{ background: "rgba(20,184,166,0.2)", color: "var(--haip-sidebar-accent)" }}
+                        className="clx-hero-call-btn flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold disabled:opacity-50"
                       >
                         {clickToCall.isPending
                           ? <Loader2 size={11} className="animate-spin" />
@@ -313,10 +302,7 @@ function CallSlideOver({ callId, onClose }: { callId: string; onClose: () => voi
                   so it reads as part of the design rather than a raw
                   browser control floating on the page. */}
               {call.recording_url ? (
-                <div
-                  className="rounded-lg px-4 py-3"
-                  style={{ background: "#0B1F3A" }}
-                >
+                <div className="clx-rec-block px-4 py-3">
                   <p
                     className="text-[10px] font-bold uppercase tracking-[0.08em] mb-2"
                     style={{ color: "rgba(255,255,255,0.45)" }}
@@ -341,13 +327,13 @@ function CallSlideOver({ callId, onClose }: { callId: string; onClose: () => voi
 
               {/* AI Summary */}
               {call.ai_summary && (
-                <div className="rounded-xl p-4" style={{ background: "color-mix(in srgb, var(--primary) 5%, transparent)", border: "1px solid color-mix(in srgb, var(--primary) 15%, transparent)" }}>
-                  <p className="text-xs font-medium uppercase tracking-wider mb-2 flex items-center gap-1.5" style={{ color: "var(--primary)" }}>
+                <div className="clx-ai-card p-4">
+                  <p className="clx-ai-label text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5">
                     <Sparkles size={11} /> AI Summary
                   </p>
                   <p className="text-sm leading-relaxed" style={{ color: "var(--haip-fg-2)" }}>{call.ai_summary}</p>
                   {call.ai_next_action && (
-                    <p className="text-xs font-medium mt-2 pt-2" style={{ color: "var(--primary)", borderTop: "1px solid color-mix(in srgb, var(--primary) 15%, transparent)" }}>
+                    <p className="clx-ai-action text-xs font-semibold mt-2 pt-2">
                       → {call.ai_next_action}
                     </p>
                   )}
@@ -359,7 +345,7 @@ function CallSlideOver({ callId, onClose }: { callId: string; onClose: () => voi
                         messageId: call.recommended_action!.target,
                       })}
                       disabled={approveAndSendMutation.isPending}
-                      className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition-colors"
+                      className="clx-ai-send-btn mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 disabled:opacity-60 text-xs font-semibold transition-colors"
                     >
                       {approveAndSendMutation.isPending ? (
                         <Loader2 size={12} className="animate-spin" />
@@ -376,12 +362,12 @@ function CallSlideOver({ callId, onClose }: { callId: string; onClose: () => voi
               {call.transcript_text && (
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wider mb-3" style={{ color: "var(--haip-fg-subtle)" }}>Transcript</p>
-                  <div className="space-y-2 max-h-64 overflow-y-auto haip-scrollbar rounded-xl p-3" style={{ background: "var(--muted)" }}>
+                  <div className="clx-transcript space-y-2 max-h-64 overflow-y-auto haip-scrollbar p-3">
                     {call.transcript_text.split("\n").filter(Boolean).map((line, i) => {
                       const isAgent = line.toLowerCase().startsWith("agent:");
                       const isGuest = line.toLowerCase().startsWith("guest:");
                       return (
-                        <p key={i} className="text-xs leading-relaxed" style={{ color: isAgent ? "var(--primary)" : isGuest ? "var(--haip-fg)" : "var(--haip-fg-subtle)" }}>
+                        <p key={i} className={`text-xs leading-relaxed ${isAgent ? "agent" : ""}`} style={!isAgent ? { color: isGuest ? "var(--haip-fg)" : "var(--haip-fg-subtle)" } : undefined}>
                           {line}
                         </p>
                       );
@@ -391,7 +377,7 @@ function CallSlideOver({ callId, onClose }: { callId: string; onClose: () => voi
               )}
 
               {/* Disposition */}
-              <div className="rounded-xl p-4" style={{ background: "var(--muted)" }}>
+              <div className="clx-outcome-block p-4">
                 <p className="text-xs font-medium uppercase tracking-wider mb-2" style={{ color: "var(--haip-fg-subtle)" }}>Outcome</p>
                 <p className="text-sm font-medium capitalize" style={{ color: "var(--haip-fg)" }}>{call.disposition || "—"}</p>
               </div>
@@ -450,7 +436,7 @@ function DialerModal({ onClose }: { onClose: () => void }) {
     <>
       <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
       <div
-        className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[300px] rounded-2xl overflow-hidden"
+        className="clx-dialer-modal fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[300px] overflow-hidden"
         style={{ background: "var(--haip-card, #fff)", boxShadow: "0 20px 40px rgba(0,0,0,0.2)" }}
       >
         <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid var(--haip-border)" }}>
@@ -482,7 +468,7 @@ function DialerModal({ onClose }: { onClose: () => void }) {
               <button
                 key={k}
                 onClick={() => press(k)}
-                className="w-14 h-14 rounded-full text-lg font-semibold transition-colors duration-150"
+                className="clx-dial-key w-14 h-14 text-lg font-semibold transition-colors duration-150"
                 style={{ background: "var(--muted)", color: "var(--haip-fg)" }}
               >
                 {k}
@@ -493,8 +479,7 @@ function DialerModal({ onClose }: { onClose: () => void }) {
           <button
             onClick={() => number.trim() && call.mutate(toE164In(number))}
             disabled={call.isPending || !number.trim()}
-            className="w-14 h-14 rounded-full flex items-center justify-center text-white disabled:opacity-50 mt-1"
-            style={{ background: "var(--primary)" }}
+            className="clx-dial-call-btn w-14 h-14 flex items-center justify-center text-white disabled:opacity-50 mt-1"
           >
             {call.isPending ? <Loader2 size={20} className="animate-spin" /> : <PhoneCall size={20} />}
           </button>
@@ -598,7 +583,7 @@ export default function CallsPage() {
   const hasFilters = Object.values(filters).some(Boolean);
 
   return (
-    <div className="h-full flex flex-col bg-background">
+    <div className="haip-calls-v2 h-full flex flex-col bg-background">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="px-5 py-4 flex-shrink-0" style={{ borderBottom: "1px solid var(--haip-border)" }}>
         <div className="flex items-center justify-between mb-3">
@@ -615,26 +600,22 @@ export default function CallsPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowDialer(true)}
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium transition-colors duration-150"
-              style={{ background: "var(--haip-sidebar, #0B1F3A)", color: "#fff" }}
+              className="clx-btn-dial flex items-center gap-1.5 text-xs px-3 py-1.5 font-medium transition-colors duration-150"
             >
               <PhoneCall size={12} /> Dial
             </button>
             <button
               onClick={() => setShowFilters(v => !v)}
-              className={cn("hidden md:flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors duration-150 font-medium")}
-              style={hasFilters
-                ? { background: "color-mix(in srgb, var(--primary) 8%, transparent)", borderColor: "var(--primary)", color: "var(--primary)" }
-                : { background: "transparent", borderColor: "var(--haip-border)", color: "var(--haip-fg-muted)" }}
+              className={cn("clx-btn-filter hidden md:flex items-center gap-1.5 text-xs px-3 py-1.5 border transition-colors duration-150 font-medium", hasFilters && "active")}
+              style={!hasFilters ? { background: "transparent", borderColor: "var(--haip-border)", color: "var(--haip-fg-muted)" } : undefined}
             >
               <Filter size={12} /> Filters
-              {hasFilters && <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--primary)" }} />}
+              {hasFilters && <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--clx-teal)" }} />}
             </button>
             <MobileFilterTrigger onClick={() => setShowMobileFilters(true)} hasActiveFilters={hasFilters} />
             <button
               onClick={() => setShowUpload(true)}
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium transition-colors duration-150"
-              style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
+              className="clx-btn-upload flex items-center gap-1.5 text-xs px-3 py-1.5 font-medium transition-colors duration-150"
             >
               <Upload size={12} /> Upload
             </button>
@@ -664,10 +645,8 @@ export default function CallsPage() {
             <button
               key={key}
               onClick={() => setCallType(key)}
-              className="text-xs px-2.5 py-1 rounded-full font-medium border transition-colors duration-150"
-              style={callType === key
-                ? { background: "color-mix(in srgb, var(--primary) 10%, transparent)", borderColor: "var(--primary)", color: "var(--primary)" }
-                : { background: "transparent", borderColor: "var(--haip-border)", color: "var(--haip-fg-muted)" }}
+              className={cn("clx-chip text-xs px-2.5 py-1 border transition-colors duration-150", callType === key && "active")}
+              style={callType !== key ? { background: "transparent", borderColor: "var(--haip-border)", color: "var(--haip-fg-muted)" } : undefined}
             >
               {label}
             </button>
@@ -701,7 +680,7 @@ export default function CallsPage() {
       <div className="flex-shrink-0 px-5 py-2 grid items-center"
         style={{
           borderBottom: "1px solid var(--haip-border)",
-          gridTemplateColumns: "36px 144px 1fr auto",
+          gridTemplateColumns: "36px 176px 1fr auto",
           gap: "12px",
         }}>
         {["", "Guest", "Transcript", "Score / Time"].map((h, i) => (

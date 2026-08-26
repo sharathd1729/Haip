@@ -871,3 +871,211 @@
   background: var(--ibx-green-soft) !important;
   border-color: color-mix(in srgb, var(--ibx-green) 35%, transparent) !important;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Calls v2 -- scoped visual redesign (dashboard/calls only)
+
+   Own identity, not a copy of Inbox's WhatsApp green -- navy/teal, kept
+   from the existing score-hero gradient this page already shipped, plus
+   the same QA-tier semantic colors (emerald/amber/rose) the row/badge
+   logic already computes. Iris marks AI-generated content, same accent
+   Inbox uses for AI drafts -- one consistent "this came from the model"
+   signal across modules.
+
+   Scoped under .haip-calls-v2 (applied once, on the Calls page's outer
+   wrapper) so nothing outside this module changes.
+   ══════════════════════════════════════════════════════════════════════════ */
+.haip-calls-v2 {
+  --clx-font: var(--font-inbox), ui-sans-serif, system-ui, sans-serif;
+  --clx-mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --clx-navy: #0B1F3A;
+  --clx-navy-2: #163458;
+  --clx-teal: #14B8A6;
+  --clx-teal-soft: rgba(20, 184, 166, 0.12);
+
+  --clx-iris: #5B5BCE;
+  --clx-iris-soft: rgba(91, 91, 206, 0.12);
+  --clx-green: #059669;
+  --clx-green-soft: rgba(5, 150, 105, 0.10);
+  --clx-amber: #B45309;
+  --clx-amber-soft: rgba(217, 158, 11, 0.14);
+  --clx-red: #DC2626;
+  --clx-red-soft: rgba(220, 38, 38, 0.10);
+  --clx-blue: #2563EB;
+  --clx-blue-soft: rgba(37, 99, 235, 0.10);
+
+  --clx-card-radius: 16px;
+  --clx-shadow-card: 0 2px 10px rgba(16, 36, 60, 0.06), 0 1px 2px rgba(16, 36, 60, 0.05);
+
+  font-family: var(--clx-font);
+}
+.dark .haip-calls-v2 {
+  --clx-teal: #2DD4C4;
+  --clx-teal-soft: rgba(45, 212, 196, 0.16);
+  --clx-iris: #8382E8;
+  --clx-iris-soft: rgba(131, 130, 232, 0.16);
+  --clx-green: #34D399;
+  --clx-green-soft: rgba(52, 211, 153, 0.14);
+  --clx-amber: #F0B33D;
+  --clx-amber-soft: rgba(240, 179, 61, 0.16);
+  --clx-red: #F0645F;
+  --clx-red-soft: rgba(240, 100, 95, 0.14);
+  --clx-blue: #5B9CF6;
+  --clx-blue-soft: rgba(91, 156, 246, 0.14);
+  --clx-shadow-card: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+.haip-calls-v2 .haip-page-title {
+  font-family: var(--clx-font);
+  font-weight: 800;
+}
+
+/* Row */
+.clx-row {
+  transition: background 0.12s ease;
+}
+.clx-row:hover {
+  background: color-mix(in srgb, var(--clx-teal) 4%, transparent);
+}
+.clx-row.selected {
+  background: var(--clx-teal-soft);
+  box-shadow: inset 3px 0 0 var(--clx-teal);
+}
+
+.clx-avatar {
+  background: linear-gradient(135deg, var(--clx-navy-2) 0%, var(--clx-teal) 150%);
+  color: #fff;
+  font-family: var(--clx-font);
+  font-weight: 800;
+}
+
+.clx-agent-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--clx-teal);
+}
+
+.clx-tstamp .clx-tago {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--haip-fg-2);
+}
+.clx-tstamp .clx-tabs {
+  display: block;
+  font-family: var(--clx-mono);
+  font-size: 9.5px;
+  color: var(--haip-fg-subtle);
+  font-variant-numeric: tabular-nums;
+  margin-top: 1px;
+}
+
+.clx-qa-pill {
+  font-family: var(--clx-mono);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  border-radius: 999px;
+}
+.clx-qa-pill.high { background: var(--clx-green-soft); color: var(--clx-green); }
+.clx-qa-pill.mid  { background: var(--clx-amber-soft); color: var(--clx-amber); }
+.clx-qa-pill.low  { background: var(--clx-red-soft);   color: var(--clx-red); }
+
+.clx-chip {
+  border-radius: 999px;
+  font-weight: 700;
+}
+.clx-chip.active {
+  background: var(--clx-teal-soft) !important;
+  border-color: var(--clx-teal) !important;
+  color: var(--clx-teal) !important;
+}
+
+.clx-btn-dial {
+  background: linear-gradient(135deg, var(--clx-navy) 0%, var(--clx-navy-2) 100%) !important;
+  color: #fff !important;
+  border-radius: 999px !important;
+  box-shadow: 0 4px 14px rgba(11, 31, 58, 0.28);
+}
+.clx-btn-upload {
+  background: var(--clx-teal) !important;
+  color: #06221E !important;
+  border-radius: 999px !important;
+}
+.clx-btn-filter {
+  border-radius: 999px !important;
+}
+.clx-btn-filter.active {
+  background: var(--clx-teal-soft) !important;
+  border-color: var(--clx-teal) !important;
+  color: var(--clx-teal) !important;
+}
+
+/* Detail panel */
+.clx-hero {
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--clx-navy) 0%, var(--clx-navy-2) 100%);
+}
+.clx-score-ring {
+  background: var(--clx-teal-soft);
+  border: 3px solid var(--clx-teal);
+  color: var(--clx-teal);
+  font-family: var(--clx-mono);
+  font-weight: 800;
+}
+.clx-hero-call-btn {
+  background: rgba(20, 184, 166, 0.22);
+  color: var(--clx-teal);
+  border-radius: 999px;
+}
+
+.clx-rec-block {
+  border-radius: 14px;
+  background: var(--clx-navy);
+}
+.clx-rec-block audio {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+.clx-ai-card {
+  border-radius: 14px;
+  background: var(--clx-iris-soft);
+  border: 1.5px dashed var(--clx-iris);
+}
+.clx-ai-card .clx-ai-label {
+  color: var(--clx-iris);
+}
+.clx-ai-card .clx-ai-action {
+  color: var(--clx-iris);
+  border-top: 1px solid color-mix(in srgb, var(--clx-iris) 25%, transparent);
+}
+.clx-ai-send-btn {
+  background: var(--clx-iris) !important;
+  color: #fff !important;
+  border-radius: 999px !important;
+}
+
+.clx-transcript {
+  border-radius: 14px;
+  background: var(--muted);
+}
+.clx-transcript .agent { color: var(--clx-teal); }
+
+.clx-outcome-block {
+  border-radius: 14px;
+  background: var(--muted);
+}
+
+.clx-dialer-modal {
+  border-radius: 20px !important;
+}
+.clx-dial-key {
+  border-radius: 999px !important;
+}
+.clx-dial-call-btn {
+  background: linear-gradient(135deg, var(--clx-navy) 0%, var(--clx-navy-2) 100%) !important;
+  border-radius: 999px !important;
+}
