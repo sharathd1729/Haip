@@ -89,6 +89,53 @@ class TestExtractionFillsEmptyFields:
         assert updated.special_requests == "vegetarian meals only"
 
 
+class TestExtractionAcceptsStringTypedNumbers:
+    """Real bug confirmed live: NVIDIA's nemotron models frequently emit a
+    numeric extracted field as a JSON string ("4" instead of 4) despite the
+    prompt specifying an integer -- a plain isinstance(x, (int, float))
+    check then silently drops a value the model got right. A guest who
+    explicitly said "4 guests, Nov 20th" got the correct free-text
+    next_action but adults/budget stayed null in the DB and the Trip
+    Details card never rendered."""
+
+    def test_string_typed_adults_children_budget_are_still_written(self, db):
+        tenant_id, inquiry_id = _setup(db)
+        adapter = _fake_adapter({
+            "check_in": None, "check_out": None,
+            "adults": "4", "children": "0",
+            "occasion": None, "budget": "25,000", "special_requests": None,
+        })
+        updated = _run(db, tenant_id, inquiry_id, adapter)
+
+        assert updated.adults == 4
+        assert updated.children == 0
+        assert float(updated.budget) == 25000
+
+    def test_boolean_is_never_treated_as_a_count(self, db):
+        # bool is a subclass of int in Python -- True/False must never slip
+        # through as adults=1/adults=0.
+        tenant_id, inquiry_id = _setup(db)
+        adapter = _fake_adapter({
+            "check_in": None, "check_out": None,
+            "adults": True, "children": None,
+            "occasion": None, "budget": None, "special_requests": None,
+        })
+        updated = _run(db, tenant_id, inquiry_id, adapter)
+
+        assert updated.adults is None
+
+    def test_non_numeric_string_is_rejected(self, db):
+        tenant_id, inquiry_id = _setup(db)
+        adapter = _fake_adapter({
+            "check_in": None, "check_out": None,
+            "adults": "a few", "children": None,
+            "occasion": None, "budget": None, "special_requests": None,
+        })
+        updated = _run(db, tenant_id, inquiry_id, adapter)
+
+        assert updated.adults is None
+
+
 class TestExtractionNeverOverwritesExistingData:
     def test_manually_entered_adults_survives_a_conflicting_extraction(self, db):
         # Staff already corrected the guest count to 6 (e.g. after a phone

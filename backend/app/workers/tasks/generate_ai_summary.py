@@ -133,6 +133,28 @@ def _valid_iso_date(value) -> str | None:
     return value
 
 
+def _coerce_number(value):
+    """NVIDIA's nemotron models frequently emit a numeric extracted field as
+    a JSON string ("4" instead of 4) despite the prompt specifying
+    "<integer ... else null>" -- a plain `isinstance(x, (int, float))` check
+    then silently rejects a value the model got right, with no error and no
+    log line. Confirmed live: a guest who explicitly said "4 guests" got the
+    correct free-text next_action but adults stayed null. Accept a numeric
+    string too; reject anything else (None stays None, "unknown" stays
+    rejected)."""
+    if isinstance(value, bool):
+        return None  # bool is a subclass of int -- never treat True/False as a count
+    if isinstance(value, (int, float)):
+        return value
+    if isinstance(value, str):
+        stripped = value.strip().replace(",", "")
+        try:
+            return float(stripped) if "." in stripped else int(stripped)
+        except ValueError:
+            return None
+    return None
+
+
 def _apply_extracted_fields(inquiry, extracted: dict) -> list[str]:
     """Fill in Inquiry trip fields the guest explicitly stated in chat, but
     ONLY where the column is currently empty -- never overwrites a value
@@ -151,13 +173,13 @@ def _apply_extracted_fields(inquiry, extracted: dict) -> list[str]:
         inquiry.check_out = check_out
         written.append("check_out")
 
-    adults = extracted.get("adults")
-    if isinstance(adults, (int, float)) and adults > 0 and inquiry.adults is None:
+    adults = _coerce_number(extracted.get("adults"))
+    if adults is not None and adults > 0 and inquiry.adults is None:
         inquiry.adults = int(adults)
         written.append("adults")
 
-    children = extracted.get("children")
-    if isinstance(children, (int, float)) and children >= 0 and inquiry.children is None:
+    children = _coerce_number(extracted.get("children"))
+    if children is not None and children >= 0 and inquiry.children is None:
         inquiry.children = int(children)
         written.append("children")
 
@@ -166,8 +188,8 @@ def _apply_extracted_fields(inquiry, extracted: dict) -> list[str]:
         inquiry.occasion = occasion.strip()[:100]
         written.append("occasion")
 
-    budget = extracted.get("budget")
-    if isinstance(budget, (int, float)) and budget > 0 and inquiry.budget is None:
+    budget = _coerce_number(extracted.get("budget"))
+    if budget is not None and budget > 0 and inquiry.budget is None:
         from decimal import Decimal
         inquiry.budget = Decimal(str(budget))
         written.append("budget")
