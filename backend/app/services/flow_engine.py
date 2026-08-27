@@ -119,10 +119,16 @@ def _evaluate_condition(db: Session, tenant_id: str, guest_id: str, conversation
     if condition == "is_vip":
         from app.models.guest import Guest
         from app.api.v1.endpoints.messaging import WASubscriber
-        guest = db.query(Guest).filter_by(id=guest_id, tenant_id=tenant_id).first()
-        if not guest or not guest.phone:
-            return False
-        sub = db.query(WASubscriber).filter_by(tenant_id=tenant_id, phone=guest.phone).first()
+        # guest_id (migration 091) is the reliable match -- exact phone
+        # equality silently missed whenever the subscriber's number wasn't
+        # typed in the same E.164 form Guest.phone is normalized to. Kept
+        # as a fallback for subscriber rows created before the backfill.
+        sub = db.query(WASubscriber).filter_by(tenant_id=tenant_id, guest_id=guest_id).first()
+        if not sub:
+            guest = db.query(Guest).filter_by(id=guest_id, tenant_id=tenant_id).first()
+            if not guest or not guest.phone:
+                return False
+            sub = db.query(WASubscriber).filter_by(tenant_id=tenant_id, phone=guest.phone).first()
         return bool(sub and "VIP" in (sub.tags or []))
 
     if condition == "has_booking":

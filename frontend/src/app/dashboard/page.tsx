@@ -1,14 +1,26 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { Users, Clock, CheckCircle2, Phone, CalendarCheck, TrendingUp, IndianRupee, ListChecks, AlertTriangle, PhoneMissed, Bot, Sparkles } from "@/lib/icons";
+import { Users, Clock, CheckCircle2, Phone, CalendarCheck, TrendingUp, IndianRupee, ListChecks, AlertTriangle, PhoneMissed, Bot, Sparkles, Settings2 } from "@/lib/icons";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateRangeFilterBar, DateRangeValue } from "@/components/dashboard/DateRangeFilterBar";
 import { AIInsightsPanel } from "@/components/analytics/AIInsightsPanel";
+import { WidgetShell } from "@/components/dashboard/WidgetShell";
+import { useDashboardWidgets, useInvalidateDashboardWidgets, type WidgetSnapshot } from "@/hooks/useDashboardWidgets";
+
+// Widget library picker pulls in its own icon set + form chrome -- keep it
+// out of the initial dashboard chunk, same reasoning as overview.tsx's
+// original (never-wired-in) use of this component.
+const WidgetLibraryModal = dynamic(
+  () => import("@/components/dashboard/WidgetLibraryModal").then(m => m.WidgetLibraryModal),
+  { ssr: false }
+);
 
 // Role-aware Analytics Dashboard (V1) -- claude-fable-5-lovely-biscuit.md.
 // One page, one component tree, for both owner and agent roles -- the
@@ -83,6 +95,113 @@ function KpiTile({ icon, label, value, delta }: { icon: React.ReactNode; label: 
   );
 }
 
+function StageFunnel({ stages }: { stages: FunnelRow[] }) {
+  const display = stages.map(s => ({
+    stage: s.stage.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+    count: s.count,
+  }));
+  return (
+    <ResponsiveContainer width="100%" height={160}>
+      <BarChart data={display} layout="vertical" margin={{ top: 0, right: 32, left: 8, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--haip-border)" horizontal={false} />
+        <XAxis type="number" tick={{ fontSize: 10, fill: "var(--haip-fg-subtle)" }} tickLine={false} axisLine={false} />
+        <YAxis type="category" dataKey="stage" tick={{ fontSize: 11, fill: "var(--haip-fg-muted)" }} tickLine={false} axisLine={false} width={80} />
+        <Tooltip
+          contentStyle={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", borderRadius: 8, fontSize: 12 }}
+          cursor={{ fill: "color-mix(in srgb, var(--primary) 6%, transparent)" }}
+        />
+        <Bar dataKey="count" radius={[0, 4, 4, 0]} fill="var(--primary)" opacity={0.85} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+// Grafted from the never-wired-in overview.tsx (see CLAUDE.md-adjacent
+// investigation notes) -- this is the one widget system in the codebase
+// that already implements "don't show empty/fake metrics" for real, via
+// WidgetShell's unavailable/early_signal/full_insight states.
+function AdaptiveInsights() {
+  const [rangeDays] = useState(30);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [localWidgets, setLocalWidgets] = useState<WidgetSnapshot[] | null>(null);
+  const invalidate = useInvalidateDashboardWidgets();
+
+  const { data, isLoading } = useDashboardWidgets(rangeDays);
+  const widgets = localWidgets ?? data?.widgets ?? [];
+
+  function handleRefresh(key: string, fresh: WidgetSnapshot) {
+    setLocalWidgets((prev) => {
+      const base = prev ?? data?.widgets ?? [];
+      return base.map((w) => (w.key === key ? fresh : w));
+    });
+  }
+
+  function handleSaved() {
+    invalidate();
+    setLocalWidgets(null);
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <p className="haip-label flex items-center gap-1.5">
+          <Sparkles size={12} style={{ color: "var(--primary)" }} />
+          AI insights
+        </p>
+        <button
+          onClick={() => setPickerOpen(true)}
+          className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border"
+          style={{ borderColor: "var(--haip-border)", color: "var(--haip-fg-subtle)" }}
+          title="Customize widgets"
+        >
+          <Settings2 size={11} />
+          Customize
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="rounded-xl border h-44 animate-pulse" style={{ background: "var(--muted)", borderColor: "var(--haip-border)" }} />
+          ))}
+        </div>
+      ) : widgets.length === 0 ? (
+        <div className="haip-card p-8 text-center">
+          <Sparkles size={20} style={{ color: "var(--haip-fg-subtle)" }} className="mx-auto mb-2" />
+          <p className="text-sm font-medium" style={{ color: "var(--haip-fg)" }}>
+            No insight widgets selected
+          </p>
+          <p className="text-xs mt-1" style={{ color: "var(--haip-fg-muted)" }}>
+            Pick the signals you want tracked and HAIP will keep them current.
+          </p>
+          <button
+            onClick={() => setPickerOpen(true)}
+            className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold"
+            style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
+          >
+            <Settings2 size={12} />
+            Choose widgets
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {widgets.map((snap) => (
+            <WidgetShell key={snap.key} snap={snap} onRefresh={handleRefresh} />
+          ))}
+        </div>
+      )}
+
+      {pickerOpen && (
+        <WidgetLibraryModal
+          selected={widgets.map((w) => w.key)}
+          onClose={() => setPickerOpen(false)}
+          onSaved={handleSaved}
+        />
+      )}
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const { data: session } = useSession();
   const role = session?.user?.role;
@@ -108,10 +227,10 @@ export default function DashboardPage() {
 
   return (
     <div className="h-full flex flex-col overflow-y-auto">
-      <div className="px-6 py-5 bg-white border-b border-gray-100 flex-shrink-0 space-y-3">
+      <div className="px-6 py-5 flex-shrink-0 space-y-3" style={{ background: "var(--haip-card)", borderBottom: "1px solid var(--haip-border)" }}>
         <div>
           <h1 className="haip-page-title">Dashboard</h1>
-          <p className="text-sm text-gray-400 mt-0.5">
+          <p className="text-sm mt-0.5" style={{ color: "var(--haip-fg-subtle)" }}>
             {isOwnerView ? "Your team's numbers, today." : "Your numbers, today."}
           </p>
         </div>
@@ -173,17 +292,7 @@ export default function DashboardPage() {
                 {data.funnel.length === 0 ? (
                   <p className="text-xs" style={{ color: "var(--haip-fg-subtle)" }}>No leads in this period.</p>
                 ) : (
-                  <div className="space-y-2">
-                    {data.funnel.map(f => (
-                      <div key={f.stage} className="flex items-center gap-2">
-                        <span className="text-xs w-28 truncate" style={{ color: "var(--haip-fg)" }}>{f.stage}</span>
-                        <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "var(--muted)" }}>
-                          <div className="h-full rounded-full" style={{ width: `${f.pct}%`, background: "var(--primary)" }} />
-                        </div>
-                        <span className="text-xs w-10 text-right" style={{ color: "var(--haip-fg-subtle)" }}>{f.count}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <StageFunnel stages={data.funnel} />
                 )}
               </div>
 
@@ -269,6 +378,11 @@ export default function DashboardPage() {
               </p>
               <AIInsightsPanel />
             </div>
+
+            {/* Widget grid -- each card only ever shows real data (WidgetShell's
+                unavailable/early_signal/full_insight states), never a fabricated
+                number for a signal HAIP doesn't have enough of yet. */}
+            <AdaptiveInsights />
           </>
         )}
       </div>

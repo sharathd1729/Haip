@@ -90,6 +90,10 @@ class WASubscriber(Base, TimestampMixin, TenantMixin):
     opt_out_at = Column(String(50), nullable=True)
     source = Column(String(100), nullable=True)   # "web_widget", "import", "inbound"
     tags = Column(JSON, default=list)
+    # migration 091 -- resolved at write time by phone match against Guest,
+    # so VIP-tag/campaign-audience matching no longer depends on the
+    # subscriber's phone having been typed in exact E.164 form.
+    guest_id = Column(String, nullable=True, index=True)
 
 
 class WAFlow(Base, TimestampMixin, TenantMixin):
@@ -176,6 +180,7 @@ class SubscriberOut(BaseModel):
     opt_out_at: Optional[str] = None
     source: Optional[str] = None
     tags: list
+    guest_id: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -287,6 +292,34 @@ def lint_template(
     }
 
 
+def _missing_variable_examples(components: list) -> list[str]:
+    """Meta rejects a template component containing {{n}} placeholders
+    unless it also carries a matching example (header_text / body_text).
+    The create form now collects these, but a template created before that
+    fix (or via direct API) can still reach here without them -- fail
+    loudly with the exact field, rather than let Meta's opaque rejection
+    be the first sign anything was wrong."""
+    import re
+    var_pattern = re.compile(r"\{\{(\d+)\}\}")
+    missing = []
+    for comp in components or []:
+        ctype = (comp.get("type") or "").upper()
+        text = comp.get("text") or ""
+        var_indices = sorted({int(m) for m in var_pattern.findall(text)})
+        if not var_indices:
+            continue
+        example = comp.get("example") or {}
+        if ctype == "HEADER":
+            values = example.get("header_text") or []
+            if not values or not str(values[0]).strip():
+                missing.append("header")
+        elif ctype == "BODY":
+            values = (example.get("body_text") or [[]])[0]
+            if len(values) < len(var_indices) or any(not str(v).strip() for v in values[:len(var_indices)]):
+                missing.extend(f"body {{{{{i}}}}}" for i in var_indices)
+    return missing
+
+
 @router.post("/templates/{template_id}/submit")
 def submit_template(
     template_id: str,
@@ -297,6 +330,14 @@ def submit_template(
     tmpl = db.query(WATemplate).filter_by(id=template_id, tenant_id=current_user.tenant_id).first()
     if not tmpl:
         raise HTTPException(status_code=404, detail="Template not found")
+
+    missing = _missing_variable_examples(tmpl.components)
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Missing example value for: {', '.join(missing)}. "
+                    "Meta requires an example for every {{n}} variable — edit the template and add one before submitting.",
+        )
 
     # Look up the tenant's WhatsApp integration -- kind="whatsapp_meta" is
     # primary, but every other WhatsApp code path (send_whatsapp.py,
@@ -314,7 +355,18 @@ def submit_template(
             tenant_id=current_user.tenant_id, kind="whatsapp", status="active",
         ).first()
 
-    if not wa_int or not wa_int.config.get("access_token") or not wa_int.config.get("waba_id"):
+    # access_token is a secret and never lives in integration.config (spread
+    # wholesale into GET /integrations responses) -- it's only ever in the
+    # encrypted credentials_kms_blob. This endpoint was the one WhatsApp
+    # call site still reading wa_int.config.get("access_token") after the
+    # rest (send_whatsapp.py, automation_engine.py, run_campaign.py) were
+    # already fixed to use _get_wa_access_token (see that function's
+    # docstring) -- it always read "", so submission always 400'd here with
+    # "not connected" even for a tenant that was sending real messages.
+    from app.workers.tasks.whatsapp import _get_wa_access_token
+    access_token = _get_wa_access_token(db, current_user.tenant_id) if wa_int else ""
+
+    if not wa_int or not access_token or not wa_int.config.get("waba_id"):
         # Fail loudly instead of silently marking the template "Pending" --
         # that used to return 200 with no indication nothing was actually
         # submitted to Meta.
@@ -327,7 +379,7 @@ def submit_template(
     try:
         resp = httpx.post(
             f"https://graph.facebook.com/v18.0/{wa_int.config['waba_id']}/message_templates",
-            headers={"Authorization": f"Bearer {wa_int.config['access_token']}"},
+            headers={"Authorization": f"Bearer {access_token}"},
             json={
                 "name": tmpl.name,
                 "language": tmpl.language,
@@ -491,20 +543,31 @@ def upsert_subscriber(
     current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER, UserRole.MARKETING)),
     db: Session = Depends(get_db),
 ):
-    sub = db.query(WASubscriber).filter_by(tenant_id=current_user.tenant_id, phone=body.phone).first()
+    # Normalize to E.164 -- Guest.phone already is (guest_service.normalize_phone),
+    # and matching WASubscriber to Guest by exact phone string (VIP tags,
+    # campaign audience) silently failed whenever this wasn't typed in
+    # exact "+91XXXXXXXXXX" form, which the old "+91 98765 43210"-style
+    # placeholder actively invited.
+    from app.services.guest_service import normalize_phone
+    from app.models.guest import Guest
+
+    phone = normalize_phone(body.phone)
+    sub = db.query(WASubscriber).filter_by(tenant_id=current_user.tenant_id, phone=phone).first()
     now = datetime.now(timezone.utc).isoformat()
+    guest = db.query(Guest).filter_by(tenant_id=current_user.tenant_id, phone=phone, is_deleted=False).first()
 
     if not sub:
         sub = WASubscriber(
             id=str(uuid.uuid4()),
             tenant_id=current_user.tenant_id,
-            phone=body.phone,
+            phone=phone,
             name=body.name,
             opted_in=body.opted_in,
             opt_in_at=now if body.opted_in else None,
             opt_out_at=None if body.opted_in else now,
             source=body.source,
             tags=body.tags or [],
+            guest_id=guest.id if guest else None,
         )
         db.add(sub)
     else:
@@ -517,6 +580,8 @@ def upsert_subscriber(
             sub.opt_out_at = now
         if body.tags:
             sub.tags = list(set((sub.tags or []) + body.tags))
+        if not sub.guest_id and guest:
+            sub.guest_id = guest.id
 
     db.commit()
     db.refresh(sub)
@@ -551,6 +616,20 @@ def opt_in(
     sub.opt_in_at = datetime.now(timezone.utc).isoformat()
     sub.opt_out_at = None
     db.commit()
+
+    # "opt_in" is a real Flow Builder trigger option (flows/page.tsx) that
+    # had no fire point anywhere in the codebase -- a flow set to fire on
+    # opt-in silently never ran. Only fires when the subscriber resolves to
+    # a real guest (every flow trigger requires guest_id, same as every
+    # other trigger -- see automation_engine._fire_matching_flows).
+    if sub.guest_id:
+        from app.workers.tasks.automation_engine import fire_trigger
+        fire_trigger.delay(
+            event="opt_in",
+            tenant_id=current_user.tenant_id,
+            context={"guest_id": sub.guest_id, "subscriber_id": sub.id},
+        )
+
     return {"status": "opted_in"}
 
 

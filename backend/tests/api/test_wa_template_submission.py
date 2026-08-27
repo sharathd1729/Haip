@@ -9,6 +9,16 @@ import pytest
 
 from app.api.v1.endpoints.messaging import WATemplate, TemplateStatus
 from app.models.integration import Integration
+from app.core.encryption import encrypt_credentials
+
+# access_token is a secret and only ever lives in the encrypted
+# credentials_kms_blob (see _get_wa_access_token's docstring in
+# app/workers/tasks/whatsapp.py) -- config carries only non-secret fields
+# like waba_id, since it's spread wholesale into GET /integrations
+# responses. A template needs {{n}} variables to also carry a matching
+# example or Meta rejects it regardless of credentials, so every fixture
+# below includes one.
+_EXAMPLE_COMPONENTS = [{"type": "BODY", "text": "Hi {{1}}", "example": {"body_text": [["Priya"]]}}]
 
 
 @pytest.fixture()
@@ -16,12 +26,13 @@ def wa_template(db, tenant_and_user):
     tenant_id = tenant_and_user["tenant"]["id"] if isinstance(tenant_and_user["tenant"], dict) else tenant_and_user["tenant"].id
     tmpl = WATemplate(
         id=str(uuid.uuid4()), tenant_id=tenant_id, name="booking_confirmation",
-        status=TemplateStatus.DRAFT, components=[{"type": "BODY", "text": "Hi {{1}}"}],
+        status=TemplateStatus.DRAFT, components=_EXAMPLE_COMPONENTS,
     )
     db.add(tmpl)
     integ = Integration(
         id=str(uuid.uuid4()), tenant_id=tenant_id, kind="whatsapp_meta", status="active",
-        config={"access_token": "tok", "waba_id": "waba123"},
+        config={"waba_id": "waba123"},
+        credentials_kms_blob=encrypt_credentials({"access_token": "tok"}),
     )
     db.add(integ)
     db.commit()
@@ -52,7 +63,7 @@ def test_submit_template_no_integration_fails_loudly(client, db, tenant_and_user
     tenant_id = tenant_and_user["tenant"]["id"] if isinstance(tenant_and_user["tenant"], dict) else tenant_and_user["tenant"].id
     tmpl = WATemplate(
         id=str(uuid.uuid4()), tenant_id=tenant_id, name="no_integration_case",
-        status=TemplateStatus.DRAFT, components=[{"type": "BODY", "text": "Hi {{1}}"}],
+        status=TemplateStatus.DRAFT, components=_EXAMPLE_COMPONENTS,
     )
     db.add(tmpl)
     db.commit()
@@ -75,12 +86,13 @@ def test_submit_template_falls_back_to_whatsapp_kind_integration(client, db, ten
     tenant_id = tenant_and_user["tenant"]["id"] if isinstance(tenant_and_user["tenant"], dict) else tenant_and_user["tenant"].id
     tmpl = WATemplate(
         id=str(uuid.uuid4()), tenant_id=tenant_id, name="whatsapp_kind_case",
-        status=TemplateStatus.DRAFT, components=[{"type": "BODY", "text": "Hi {{1}}"}],
+        status=TemplateStatus.DRAFT, components=_EXAMPLE_COMPONENTS,
     )
     db.add(tmpl)
     db.add(Integration(
         id=str(uuid.uuid4()), tenant_id=tenant_id, kind="whatsapp", status="active",
-        config={"access_token": "tok", "waba_id": "waba123"},
+        config={"waba_id": "waba123"},
+        credentials_kms_blob=encrypt_credentials({"access_token": "tok"}),
     ))
     db.commit()
 

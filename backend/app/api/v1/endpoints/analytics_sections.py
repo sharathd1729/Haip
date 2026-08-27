@@ -422,16 +422,12 @@ def campaign_analytics(
     now = _now()
     start, _ = _period(range_days)
 
-    # Import messaging models
-    try:
-        from app.models.messaging import WACampaign, WATemplate, WASubscriber
-    except ImportError:
-        # Models may be in different location
-        from sqlalchemy import Table, MetaData
-        # Return empty if models unavailable
-        result = CampaignAnalyticsStats()
-        set_cached(ck, result.model_dump(), ttl=300)
-        return result
+    # WACampaign/WATemplate/WASubscriber live inline in the messaging
+    # endpoints module, not app.models.messaging (that module doesn't
+    # exist) -- this import always raised ImportError, silently caught
+    # below, so this endpoint always returned empty stats regardless of
+    # real campaign/template/subscriber data.
+    from app.api.v1.endpoints.messaging import WACampaign, WATemplate, WASubscriber
 
     # Campaign list
     camp_rows = db.query(WACampaign).filter(
@@ -458,7 +454,10 @@ def campaign_analytics(
             sent=s, delivered=d, read=r, failed=f,
             delivery_rate=_safe_pct(d, s),
             read_rate=_safe_pct(r, d),
-            scheduled_at=c.scheduled_at.isoformat() if c.scheduled_at else None,
+            # WACampaign.scheduled_at is a plain String column, not
+            # DateTime -- .isoformat() would raise AttributeError on it,
+            # previously unreachable since the import above always failed.
+            scheduled_at=c.scheduled_at or None,
         ))
 
     avg_del = _safe_pct(total_del, total_sent)
@@ -485,7 +484,10 @@ def campaign_analytics(
     sub_prev = db.query(func.count(WASubscriber.id)).filter(
         WASubscriber.tenant_id == tid,
         WASubscriber.opted_in == True,
-        WASubscriber.created_at < start.isoformat(),
+        # created_at is a real DateTime column (TimestampMixin) -- compare
+        # against the datetime object directly, not its string form
+        # (Postgres has no implicit text->timestamptz cast for `<`).
+        WASubscriber.created_at < start,
     ).scalar() or 0
 
     # Subscriber trend

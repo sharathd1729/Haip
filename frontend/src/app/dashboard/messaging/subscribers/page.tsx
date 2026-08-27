@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { UserX, Plus, Search, Download, Upload, CheckCircle2, XCircle, X, Loader2, AlertCircle, Tag, Phone, Clock, Filter } from "@/lib/icons";
 import { UserCheck } from "lucide-react";
@@ -30,6 +30,41 @@ function timeAgo(iso: string | null): string {
   if (d === 1) return "yesterday";
   if (d < 30) return `${d}d ago`;
   return new Date(iso).toLocaleDateString();
+}
+
+// One field per line, comma-split with basic double-quote support -- no
+// dependency needed for a 3-column phone/name/tags import.
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  for (const rawLine of text.split(/\r\n|\n|\r/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const cells: string[] = [];
+    let cur = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { inQuotes = !inQuotes; continue; }
+      if (ch === "," && !inQuotes) { cells.push(cur.trim()); cur = ""; continue; }
+      cur += ch;
+    }
+    cells.push(cur.trim());
+    rows.push(cells);
+  }
+  return rows;
+}
+
+function downloadCsv(filename: string, rows: string[][]) {
+  const csv = rows.map(r => r.map(c => `"${(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function Toast({ msg, type, onClose }: { msg: string; type: "success" | "error"; onClose: () => void }) {
@@ -128,6 +163,8 @@ export default function SubscribersPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "opted_in" | "opted_out">("all");
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const showToast = (msg: string, type: "success" | "error") => {
     setToast({ msg, type });
@@ -157,6 +194,48 @@ export default function SubscribersPage() {
     onError: () => showToast("Failed to opt in.", "error"),
   });
 
+  const handleExport = () => {
+    if (subscribers.length === 0) { showToast("No subscribers to export.", "error"); return; }
+    downloadCsv("wa-subscribers.csv", [
+      ["phone", "name", "opted_in", "source", "tags"],
+      ...subscribers.map(s => [s.phone, s.name ?? "", String(s.opted_in), s.source ?? "", s.tags.join("|")]),
+    ]);
+  };
+
+  const handleImportFile = async (file: File) => {
+    const text = await file.text();
+    const rows = parseCsv(text);
+    if (rows.length === 0) { showToast("CSV file is empty.", "error"); return; }
+    // Skip a header row if the first cell of the first row isn't a phone number.
+    const dataRows = /^\+?\d/.test(rows[0][0] ?? "") ? rows : rows.slice(1);
+    if (dataRows.length === 0) { showToast("No contact rows found in the CSV.", "error"); return; }
+
+    setImporting(true);
+    let ok = 0, failed = 0;
+    for (const row of dataRows) {
+      const [phone, name, tagsCell] = row;
+      if (!phone?.trim()) { failed++; continue; }
+      try {
+        await api.post("/messaging/subscribers", {
+          phone: phone.trim(),
+          name: name?.trim() || null,
+          opted_in: true,
+          source: "import",
+          tags: tagsCell ? tagsCell.split("|").map(t => t.trim()).filter(Boolean) : [],
+        });
+        ok++;
+      } catch {
+        failed++;
+      }
+    }
+    setImporting(false);
+    queryClient.invalidateQueries({ queryKey: ["wa-subscribers"] });
+    showToast(
+      failed === 0 ? `Imported ${ok} contact${ok === 1 ? "" : "s"}.` : `Imported ${ok}, ${failed} failed — check the phone numbers and try again.`,
+      failed === 0 ? "success" : "error",
+    );
+  };
+
   const filtered = subscribers.filter(s =>
     !search.trim() ||
     s.phone.includes(search) ||
@@ -177,7 +256,25 @@ export default function SubscribersPage() {
             <p className="text-sm text-gray-400 mt-0.5">Manage opt-in/opt-out status for your WhatsApp marketing list.</p>
           </div>
           <div className="flex items-center gap-2">
-            <button className="flex items-center gap-1.5 text-xs border border-gray-200 text-gray-600 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors font-medium">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={e => {
+                const file = e.target.files?.[0];
+                if (file) handleImportFile(file);
+                e.target.value = "";
+              }}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importing}
+              className="flex items-center gap-1.5 text-xs border border-gray-200 text-gray-600 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors font-medium disabled:opacity-50"
+            >
+              {importing ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} Import CSV
+            </button>
+            <button onClick={handleExport} className="flex items-center gap-1.5 text-xs border border-gray-200 text-gray-600 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors font-medium">
               <Download size={13} /> Export
             </button>
             <button onClick={() => setShowAdd(true)}

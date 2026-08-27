@@ -15,8 +15,12 @@ Supported triggers:
     no_response_2h      fired by check_automation_timers beat task
     no_response_24h     fired by check_automation_timers beat task
     inquiry_lost        fired when inquiry stage → LOST / GHOSTED
-    stay_check_in_1d    fired by check_automation_timers beat task
-    stay_check_out_1d   fired by check_automation_timers beat task
+    stay_check_in_1d    fired by check_automation_timers beat task (Flow Builder's
+                         "check_in" trigger via _FLOW_TRIGGER_ALIASES below)
+    stay_check_out_1d   fired by check_automation_timers beat task (Flow Builder's
+                         "check_out" trigger via _FLOW_TRIGGER_ALIASES below)
+    opt_in              fired by messaging.py's opt_in endpoint (Flow Builder only --
+                         no AutomationRule uses this trigger name today)
 
 Supported actions:
     send_whatsapp_template   sends an approved WA template to the guest
@@ -49,13 +53,16 @@ def fire_trigger(event: str, tenant_id: str, context: dict):
     same task -- deterministic, single point of truth for ordering, no
     risk of double-firing from two different call sites for one event.
 
-    Only "new_inquiry" is wired end-to-end today: it's the one flow
-    trigger value (see flows/page.tsx's TRIGGER_OPTIONS) with a fire point
-    that already exists and fires with the right context shape (guest_id).
-    "keyword" / "opt_in" / "campaign_reply" have no equivalent fire_trigger
-    call anywhere in the codebase yet -- wiring those needs new hook points
-    (inbound-message keyword matching, WASubscriber opt-in, campaign reply
-    detection) and is deliberately left unbuilt rather than guessed.
+    Flow trigger wiring status (see flows/page.tsx's TRIGGER_OPTIONS):
+    "new_inquiry" fires from Inquiry creation; "check_in"/"check_out" fire
+    via the _FLOW_TRIGGER_ALIASES translation below (check_automation_timers
+    fires "stay_check_in_1d"/"stay_check_out_1d", which never matched the
+    UI's shorter trigger names until this alias was added); "opt_in" fires
+    from messaging.py's opt_in endpoint once a subscriber resolves to a real
+    guest. "keyword" and "campaign_reply" have no fire point anywhere and
+    are deliberately not offered in the UI (removed from TRIGGER_OPTIONS) --
+    wiring them needs new hook points (inbound-message keyword matching,
+    campaign-reply-window detection) not built yet.
     """
     from app.core.database import set_tenant_context
     from app.models.automation import AutomationRule
@@ -127,15 +134,30 @@ def _execute_rule(db, rule, event: str, context: dict, tenant_id: str):
     )
 
 
+# The Flow Builder UI stores its own trigger vocabulary (flows/page.tsx's
+# TRIGGER_OPTIONS: "check_in"/"check_out"), which never matched the actual
+# event names check_automation_timers.py fires ("stay_check_in_1d"/
+# "stay_check_out_1d") -- so a flow set to fire on check-in silently never
+# ran, with no error anywhere. Translate the fired event into flow-trigger
+# vocabulary before querying, rather than renaming either side (avoids a
+# data migration on existing WAFlow rows and keeps AutomationRule, which
+# already matches the raw event name above, untouched).
+_FLOW_TRIGGER_ALIASES = {
+    "stay_check_in_1d": "check_in",
+    "stay_check_out_1d": "check_out",
+}
+
+
 def _fire_matching_flows(db, event: str, tenant_id: str, context: dict) -> None:
     guest_id = context.get("guest_id")
     if not guest_id:
-        return   # every flow trigger today (new_inquiry) requires a guest to run against
+        return   # every flow trigger today requires a guest to run against
 
     from app.api.v1.endpoints.messaging import WAFlow
     from app.services.flow_engine import run_flow
 
-    flows = db.query(WAFlow).filter_by(tenant_id=tenant_id, trigger=event, is_active=True).all()
+    flow_trigger = _FLOW_TRIGGER_ALIASES.get(event, event)
+    flows = db.query(WAFlow).filter_by(tenant_id=tenant_id, trigger=flow_trigger, is_active=True).all()
     for flow in flows:
         try:
             run_flow(db, tenant_id, flow, guest_id, conversation_id=context.get("conversation_id"))
@@ -348,7 +370,7 @@ def _action_move_followup(db, cfg: dict, context: dict, tenant_id: str) -> str:
 
 
 def _action_tag_guest(db, cfg: dict, context: dict, tenant_id: str) -> str:
-    """Add tags to the WASubscriber record for the guest's phone."""
+    """Add tags to the WASubscriber record for the guest."""
     tags = cfg.get("tags", [])
     if not tags:
         return "skipped — no tags configured"
@@ -360,11 +382,14 @@ def _action_tag_guest(db, cfg: dict, context: dict, tenant_id: str) -> str:
     from app.models.guest import Guest
     from app.api.v1.endpoints.messaging import WASubscriber
 
-    guest = db.query(Guest).filter_by(id=guest_id, tenant_id=tenant_id).first()
-    if not guest or not guest.phone:
-        return "skipped — guest has no phone"
-
-    sub = db.query(WASubscriber).filter_by(tenant_id=tenant_id, phone=guest.phone).first()
+    # guest_id (migration 091) is the reliable match; fall back to phone
+    # equality for subscriber rows the backfill didn't reach.
+    sub = db.query(WASubscriber).filter_by(tenant_id=tenant_id, guest_id=guest_id).first()
+    if not sub:
+        guest = db.query(Guest).filter_by(id=guest_id, tenant_id=tenant_id).first()
+        if not guest or not guest.phone:
+            return "skipped — guest has no phone"
+        sub = db.query(WASubscriber).filter_by(tenant_id=tenant_id, phone=guest.phone).first()
     if not sub:
         return "skipped — no subscriber record for guest phone"
 

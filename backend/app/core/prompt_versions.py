@@ -89,6 +89,8 @@ PROMPT_VERSIONS: dict[str, str] = {
     # HAIP Inbox prototype-wiring plan, ticket 3: real translate/tone-fix
     # rewrite of an existing pending AI draft.
     "concierge_rewrite": "concierge-rewrite-v1",
+    # Today (Worklist) AI Daily Briefing: cross-worklist pattern summary.
+    "daily_briefing": "daily-briefing-v1",
 }
 
 UNKNOWN = "unregistered"

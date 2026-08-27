@@ -25,7 +25,10 @@ interface TemplateComponent {
   format?: string;
   text?: string;
   buttons?: { type: string; text: string; url?: string; phone_number?: string }[];
+  example?: { header_text?: string[]; body_text?: string[][] };
 }
+
+interface LintFinding { level: "error" | "warn"; message: string; field_path: string }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -55,6 +58,17 @@ function extractBody(components: TemplateComponent[]): string {
 function extractHeader(components: TemplateComponent[]): string | null {
   const h = components.find(c => c.type === "HEADER");
   return h?.text ?? null;
+}
+
+// Meta rejects a template with {{n}} variables unless every one has a
+// matching example value on the component -- the create form never asked
+// for these, so every template using the variable syntax it itself
+// suggests was rejected at submission with no clear reason surfaced back
+// to the user. This is the actual "not able to create" bug.
+function extractVarIndices(text: string): number[] {
+  const found = new Set<number>();
+  for (const m of text.matchAll(/\{\{(\d+)\}\}/g)) found.add(parseInt(m[1], 10));
+  return [...found].sort((a, b) => a - b);
 }
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -87,14 +101,35 @@ function CreateTemplateModal({ onClose, onCreated }: { onClose: () => void; onCr
     ctaUrl: "",
     ctaPhone: "",
     ctaType: "none" as "none" | "url" | "phone",
+    headerExample: "",
+    bodyExamples: {} as Record<number, string>,
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [lintFindings, setLintFindings] = useState<LintFinding[] | null>(null);
+  const [linting, setLinting] = useState(false);
+
+  const headerVars = extractVarIndices(form.header);
+  const bodyVars = extractVarIndices(form.body);
+  const missingExamples = [
+    ...(headerVars.length && !form.headerExample.trim() ? ["header"] : []),
+    ...bodyVars.filter(i => !(form.bodyExamples[i] ?? "").trim()).map(i => `body {{${i}}}`),
+  ];
 
   const buildComponents = (): TemplateComponent[] => {
     const comps: TemplateComponent[] = [];
-    if (form.header) comps.push({ type: "HEADER", format: "TEXT", text: form.header });
-    if (form.body) comps.push({ type: "BODY", text: form.body });
+    if (form.header) {
+      comps.push({
+        type: "HEADER", format: "TEXT", text: form.header,
+        ...(headerVars.length ? { example: { header_text: [form.headerExample] } } : {}),
+      });
+    }
+    if (form.body) {
+      comps.push({
+        type: "BODY", text: form.body,
+        ...(bodyVars.length ? { example: { body_text: [bodyVars.map(i => form.bodyExamples[i] ?? "")] } } : {}),
+      });
+    }
     if (form.footer) comps.push({ type: "FOOTER", text: form.footer });
     if (form.ctaType !== "none" && form.ctaText) {
       comps.push({
@@ -109,8 +144,35 @@ function CreateTemplateModal({ onClose, onCreated }: { onClose: () => void; onCr
     return comps;
   };
 
+  // Runs Meta's known-rejection-reason checks (URL shorteners, promo
+  // language in a UTILITY template, header var+URL combo, etc.) before the
+  // user saves -- the endpoint already existed but nothing on this page
+  // ever called it.
+  const runLint = async () => {
+    setLinting(true);
+    try {
+      const res = await api.post("/messaging/templates/lint", {
+        name: form.name, language: form.language, category: form.category,
+        components: buildComponents(),
+      });
+      setLintFindings(res.data?.findings ?? []);
+    } catch {
+      setLintFindings(null);
+    } finally {
+      setLinting(false);
+    }
+  };
+
+  const lintErrors = (lintFindings ?? []).filter(f => f.level === "error");
+  const canSave = missingExamples.length === 0 && lintErrors.length === 0;
+
   const handleCreate = async () => {
     if (!form.name.trim() || !form.body.trim()) { setError("Template name and body are required."); return; }
+    if (missingExamples.length > 0) {
+      setError(`Add an example value for every variable before saving (missing: ${missingExamples.join(", ")}).`);
+      return;
+    }
+    if (lintErrors.length > 0) { setError(lintErrors[0].message); return; }
     setError("");
     setSubmitting(true);
     try {
@@ -123,14 +185,13 @@ function CreateTemplateModal({ onClose, onCreated }: { onClose: () => void; onCr
       onCreated();
       onClose();
     } catch (err: any) {
-      // Surface the status when the backend gives no `detail` (a 500 from
-      // response-model validation did exactly that, leaving the user with a
-      // bare "Failed to create template." and nothing to act on).
       const detail = err?.response?.data?.detail;
       const status = err?.response?.status;
       setError(
         detail
           ? String(detail)
+          : status === 403
+          ? "Only Owner, Manager, and Marketing roles can create templates."
           : status
           ? `Failed to create template (HTTP ${status}). Please retry — if it persists, check the server logs.`
           : "Failed to create template — could not reach the server."
@@ -220,6 +281,16 @@ function CreateTemplateModal({ onClose, onCreated }: { onClose: () => void; onCr
                 <input value={form.header} onChange={e => setForm(f => ({ ...f, header: e.target.value }))}
                   placeholder="Welcome to {{1}}"
                   className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
+                {headerVars.length > 0 && (
+                  <div className="mt-2 p-2.5 bg-amber-50 border border-amber-100 rounded-xl">
+                    <p className="text-[10px] font-semibold text-amber-800 mb-1.5">
+                      Example value for {`{{1}}`} <span className="font-normal text-amber-600">— Meta requires this to review the template</span>
+                    </p>
+                    <input value={form.headerExample} onChange={e => setForm(f => ({ ...f, headerExample: e.target.value }))}
+                      placeholder="e.g. Ratha Retreats"
+                      className="w-full px-2.5 py-1.5 border border-amber-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-amber-400/30" />
+                  </div>
+                )}
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-700 block mb-1.5">Body <span className="text-red-500">*</span></label>
@@ -227,6 +298,21 @@ function CreateTemplateModal({ onClose, onCreated }: { onClose: () => void; onCr
                   placeholder={"Hi {{1}},\n\nYour booking at {{2}} is confirmed for {{3}}.\n\nLooking forward to welcoming you!"}
                   className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
                 <p className="text-[10px] text-gray-400 mt-1">Use {`{{1}}`}, {`{{2}}`} etc. for dynamic variables.</p>
+                {bodyVars.length > 0 && (
+                  <div className="mt-2 p-2.5 bg-amber-50 border border-amber-100 rounded-xl space-y-2">
+                    <p className="text-[10px] font-semibold text-amber-800">
+                      Example values <span className="font-normal text-amber-600">— Meta rejects a template with variables and no examples</span>
+                    </p>
+                    {bodyVars.map(i => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="text-xs font-mono text-amber-700 w-10 flex-shrink-0">{`{{${i}}}`}</span>
+                        <input value={form.bodyExamples[i] ?? ""} onChange={e => setForm(f => ({ ...f, bodyExamples: { ...f.bodyExamples, [i]: e.target.value } }))}
+                          placeholder={`Example value for {{${i}}}`}
+                          className="flex-1 px-2.5 py-1.5 border border-amber-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-amber-400/30" />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-700 block mb-1.5">Footer <span className="text-gray-400 font-normal">(optional)</span></label>
@@ -271,6 +357,32 @@ function CreateTemplateModal({ onClose, onCreated }: { onClose: () => void; onCr
                     <div className="flex gap-2"><span className="text-gray-400 w-20">Category:</span><span className="capitalize">{form.category.toLowerCase()}</span></div>
                     <div className="flex gap-2"><span className="text-gray-400 w-20">Components:</span><span>{previewComponents.length} components</span></div>
                   </div>
+
+                  {/* Meta-rejection-reason checks -- the endpoint already
+                      existed (T4) but nothing on this page ever called it,
+                      so a template could sail through creation and only
+                      find out it was rejected after Submit. */}
+                  <div className="mt-4">
+                    <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
+                      Pre-submit check
+                      {linting && <Loader2 size={11} className="animate-spin text-gray-400" />}
+                    </p>
+                    {lintFindings === null && !linting ? (
+                      <p className="text-[11px] text-gray-400">Checking…</p>
+                    ) : (lintFindings ?? []).length === 0 ? (
+                      <p className="text-[11px] text-green-600 flex items-center gap-1"><CheckCircle2 size={12} /> No issues found.</p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {(lintFindings ?? []).map((f, i) => (
+                          <p key={i} className={cn("text-[11px] flex items-start gap-1.5",
+                            f.level === "error" ? "text-red-600" : "text-amber-600")}>
+                            {f.level === "error" ? <XCircle size={11} className="mt-0.5 flex-shrink-0" /> : <AlertCircle size={11} className="mt-0.5 flex-shrink-0" />}
+                            {f.message}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-gray-700 mb-3">WhatsApp preview</p>
@@ -310,7 +422,17 @@ function CreateTemplateModal({ onClose, onCreated }: { onClose: () => void; onCr
             )}
             {step !== "preview" ? (
               <button
-                onClick={() => setStep(s => s === "info" ? "body" : "preview")}
+                onClick={() => {
+                  if (step === "info") { setStep("body"); return; }
+                  if (missingExamples.length > 0) {
+                    setError(`Add an example value for every variable before continuing (missing: ${missingExamples.join(", ")}).`);
+                    return;
+                  }
+                  setError("");
+                  setStep("preview");
+                  setLintFindings(null);
+                  runLint();
+                }}
                 disabled={step === "info" ? !form.name.trim() : !form.body.trim()}
                 className="px-5 py-2 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 disabled:opacity-50 transition-colors"
               >
@@ -319,7 +441,8 @@ function CreateTemplateModal({ onClose, onCreated }: { onClose: () => void; onCr
             ) : (
               <button
                 onClick={handleCreate}
-                disabled={submitting}
+                disabled={submitting || !canSave}
+                title={!canSave ? "Fix the issues above before saving" : undefined}
                 className="px-5 py-2 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 disabled:opacity-50 transition-colors flex items-center gap-2"
               >
                 {submitting ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />}

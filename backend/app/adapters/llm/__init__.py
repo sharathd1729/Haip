@@ -104,6 +104,12 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # scorecard numbers + call summaries + lead outcomes. Internal
     # (owner/agent report), not guest-facing -- same tier as lead_summary.
     "agent_performance_narrative": ("nvidia", "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
+    # Today (Worklist) AI Daily Briefing: one short narrative + flags
+    # summarizing patterns across a tenant's *entire* current worklist
+    # snapshot (repeated questions, missed-call time clusters). Internal
+    # synthesis over already-fetched structured rows, same tier as
+    # lead_summary/agent_performance_narrative -- not guest-facing.
+    "daily_briefing": ("nvidia", "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
 }
 
 

@@ -78,6 +78,8 @@ celery_app = Celery(
         "app.workers.tasks.invalidate_cache",
         # Module activation / deactivation
         "app.workers.tasks.module_activation",
+        # Today (Worklist) AI Daily Briefing
+        "app.workers.tasks.daily_briefing",
     ],
 )
 
@@ -199,6 +201,7 @@ celery_app.conf.update(
         "reports.daily_agent_report_all_tenants": {"queue": "ai_scoring"},
         "calls.recover_stalled_scoring":              {"queue": "ai_scoring"},
         "calls.recover_stalled_scoring_all_tenants":  {"queue": "ai_scoring"},
+        "tasks.daily_briefing.generate":              {"queue": "ai_scoring"},
     },
 )
 
@@ -294,6 +297,14 @@ celery_app.conf.beat_schedule = {
     "check-alerts-hourly": {
         "task": "app.workers.tasks.check_alerts.check_all_tenants",
         "schedule": crontab(minute=45),
+    },
+    # Today (Worklist) AI Daily Briefing — every 30 min. Offset from
+    # automation-timers-30min/sync-wa-templates-30min (same
+    # spread-load-across-the-beat-cycle reasoning as sync-wa-templates-30min).
+    "daily-briefing-30min": {
+        "task": "tasks.daily_briefing.generate",
+        "schedule": crontab(minute="12,42"),
+        "kwargs": {"tenant_id": "__all__"},
     },
     # Metrics Engine / Goal evaluator / Adaptive dashboard widgets --
     # DEACTIVATED 2026-08-08, dashboard/analytics/intelligence hub being

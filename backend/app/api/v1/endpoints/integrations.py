@@ -227,6 +227,12 @@ def connect_whatsapp_manual(
         raise HTTPException(status_code=400, detail="phone_number_id is required")
     if not access_token:
         raise HTTPException(status_code=400, detail="access_token is required")
+    if not waba_id:
+        # The UI already requires this client-side (canSubmit), but nothing
+        # enforced it server-side -- template submission needs waba_id and
+        # fails opaquely later if a connect happened without one (e.g. via
+        # direct API, or an integration saved before this field existed).
+        raise HTTPException(status_code=400, detail="waba_id is required")
 
     # Soft validation — try to verify token with Meta, but don't block save on failure.
     # Users can use "Test Connection" after saving to confirm credentials are working.

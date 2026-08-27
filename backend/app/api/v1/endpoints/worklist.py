@@ -77,6 +77,31 @@ def get_worklist(
     return data
 
 
+@router.get("/briefing")
+def get_daily_briefing(
+    current_user: User = Depends(get_current_user),
+):
+    """The AI Daily Briefing card -- cache-only read, never an inline LLM
+    call (CLAUDE.md: never call LLM inline in a request handler). On a
+    cache miss this kicks off async generation (beat also regenerates
+    every 30 min) and returns unavailable immediately; the next poll
+    picks up the result once it lands."""
+    from app.core.cache import idem_check_and_set
+    from app.services.daily_briefing_service import get_cached_briefing
+    from app.workers.tasks.daily_briefing import generate_daily_briefing
+
+    cached = get_cached_briefing(current_user.tenant_id)
+    if cached:
+        return {"available": True, **cached}
+
+    # Guard against re-enqueuing on every poll while generation is in
+    # flight -- a client polling this while "unavailable" would otherwise
+    # queue one Celery task per request.
+    if idem_check_and_set(f"haip:daily_briefing:pending:{current_user.tenant_id}", ttl=90):
+        generate_daily_briefing.delay(tenant_id=current_user.tenant_id)
+    return {"available": False}
+
+
 @router.get("/daily-report")
 def preview_daily_report(
     day: Optional[str] = Query(default=None, description="YYYY-MM-DD (IST). Defaults to yesterday."),

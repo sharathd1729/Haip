@@ -2,10 +2,9 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { MessageSquare, PhoneMissed, Inbox, Clock, AlertCircle, RefreshCw, ChevronRight, Phone, Mail, AtSign } from "@/lib/icons";
+import { MessageSquare, PhoneMissed, Inbox, Clock, AlertCircle, RefreshCw, ChevronRight, Phone, Mail, AtSign, Sparkles, Zap } from "@/lib/icons";
 import { UserCheck } from "lucide-react";
 import api from "@/lib/api";
-import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface Contact { type: string; value: string }
@@ -54,42 +53,48 @@ interface Worklist {
   new_dms: Row[];
   overdue_followups: Row[];
 }
+interface BriefingFlag { type: "quick_win" | "coverage_gap" | "pattern"; text: string }
+interface Briefing { available: boolean; narrative?: string; flags?: BriefingFlag[]; generated_at?: string }
 
+// Real semantic tokens (--haip-red/--haip-amber) exist for two of these;
+// the rest follow this file's own established "var(--token, #fallback)"
+// pattern (see DeltaBadge in dashboard/page.tsx) for tones globals.css
+// doesn't define yet.
 const SECTIONS = [
   {
     key: "awaiting_reply",
     label: "Waiting on us",
     blurb: "They messaged last and nobody has replied",
     icon: <MessageSquare size={15} />,
-    tone: "text-red-600 bg-red-50 border-red-200",
+    color: "var(--haip-red, #dc2626)",
   },
   {
     key: "missed_calls",
     label: "Missed calls",
     blurb: "Came in, nobody picked up, not yet called back",
     icon: <PhoneMissed size={15} />,
-    tone: "text-orange-600 bg-orange-50 border-orange-200",
+    color: "var(--haip-orange, #c2540a)",
   },
   {
     key: "shared_details",
     label: "Shared their details",
     blurb: "Gave us a phone number or email — high intent",
     icon: <UserCheck size={15} />,
-    tone: "text-teal-700 bg-teal-50 border-teal-200",
+    color: "var(--primary)",
   },
   {
     key: "new_dms",
     label: "New messages",
     blurb: "Everything that came in",
     icon: <Inbox size={15} />,
-    tone: "text-blue-600 bg-blue-50 border-blue-200",
+    color: "var(--haip-blue, #2563eb)",
   },
   {
     key: "overdue_followups",
     label: "Overdue follow-ups",
     blurb: "Tasks past their due date",
     icon: <Clock size={15} />,
-    tone: "text-amber-700 bg-amber-50 border-amber-200",
+    color: "var(--haip-amber, #d97706)",
   },
 ] as const;
 
@@ -121,12 +126,16 @@ function ContactChips({ lead }: { lead: Lead }) {
   }
   if (!items.length && lead.phone) items.push({ icon: <Phone size={10} />, value: lead.phone });
   if (!items.length) {
-    return <span className="text-[11px] text-gray-400">No contact details yet</span>;
+    return <span className="text-[11px] italic" style={{ color: "var(--haip-fg-subtle)" }}>No contact details yet</span>;
   }
   return (
     <div className="flex flex-wrap gap-1">
       {items.map(i => (
-        <span key={i.value} className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-100 rounded text-[11px] text-gray-700 font-medium">
+        <span
+          key={i.value}
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium"
+          style={{ background: "var(--muted)", color: "var(--haip-fg)" }}
+        >
           {i.icon}{i.value}
         </span>
       ))}
@@ -151,54 +160,104 @@ function LeadRow({ row, sectionKey }: { row: Row; sectionKey: string }) {
   };
 
   return (
-    <div className="px-4 py-3 hover:bg-gray-50/70 transition-colors border-b border-gray-50 last:border-0">
+    <div className="px-4 py-3 transition-colors last:border-0" style={{ borderBottom: "1px solid var(--haip-border)" }}>
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-semibold text-gray-900">{lead.name}</p>
+            <p className="text-sm font-semibold" style={{ color: "var(--haip-fg)" }}>{lead.name}</p>
             {row.channel && (
-              <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide text-gray-500">
+              <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide" style={{ color: "var(--haip-fg-subtle)" }}>
                 {row.channel === "instagram" ? <AtSign size={10} /> : <MessageSquare size={10} />}
                 {row.channel}
               </span>
             )}
             {lead.source && (
-              <span className="text-[10px] text-gray-400">via {lead.source.replace(/_/g, " ")}</span>
+              <span className="text-[10px]" style={{ color: "var(--haip-fg-subtle)" }}>via {lead.source.replace(/_/g, " ")}</span>
             )}
             {sectionKey === "awaiting_reply" && row.waiting_minutes != null && (
-              <span className={cn(
-                "text-[10px] font-semibold px-1.5 py-0.5 rounded",
-                row.waiting_minutes > 240 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700",
-              )}>
+              <span
+                className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                style={row.waiting_minutes > 240
+                  ? { background: "color-mix(in srgb, var(--haip-red, #dc2626) 12%, transparent)", color: "var(--haip-red, #dc2626)" }
+                  : { background: "color-mix(in srgb, var(--haip-amber, #d97706) 14%, transparent)", color: "var(--haip-amber, #d97706)" }}
+              >
                 waiting {waitLabel(row.waiting_minutes)}
               </span>
             )}
           </div>
 
-          {text && <p className="text-xs text-gray-600 mt-1 line-clamp-2">{text}</p>}
+          {text && <p className="text-xs mt-1 line-clamp-2" style={{ color: "var(--haip-fg-muted)" }}>{text}</p>}
 
           {/* What the agent needs before making contact */}
           <div className="mt-1.5 space-y-1">
             <ContactChips lead={lead} />
             {!!stay.length && (
-              <p className="text-[11px] text-gray-500">{stay.join(" · ")}</p>
+              <p className="text-[11px]" style={{ color: "var(--haip-fg-subtle)" }}>{stay.join(" · ")}</p>
             )}
             {lead.ai_summary && (
-              <p className="text-[11px] text-gray-500 italic line-clamp-2">{lead.ai_summary}</p>
+              <p className="text-[11px] italic line-clamp-2" style={{ color: "var(--haip-fg-subtle)" }}>{lead.ai_summary}</p>
             )}
           </div>
         </div>
 
         <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-          <span className="text-[10px] text-gray-400 whitespace-nowrap">{whenOf(row)}</span>
+          <span className="text-[10px] whitespace-nowrap" style={{ color: "var(--haip-fg-subtle)" }}>{whenOf(row)}</span>
           <button
             onClick={open}
-            className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-[11px] font-semibold text-gray-700 hover:border-teal-400 hover:text-teal-700 transition-colors"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors"
+            style={{ background: "var(--haip-card)", border: "1.5px solid var(--haip-border)", color: "var(--haip-fg-2, var(--haip-fg))" }}
           >
             Open <ChevronRight size={11} />
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── AI Daily Briefing ─────────────────────────────────────────────────────
+
+function AiBriefing() {
+  const { data } = useQuery<Briefing>({
+    queryKey: ["worklist-briefing"],
+    queryFn: () => api.get("/worklist/briefing").then(r => r.data),
+    // Not yet generated -- poll briefly until the async task lands. Once
+    // available it's cached server-side for ~30 min, so stop polling.
+    refetchInterval: (query) => (query.state.data?.available ? false : 8000),
+    staleTime: 5 * 60_000,
+  });
+
+  if (!data?.available || !data.narrative) return null;
+
+  return (
+    <div
+      className="p-4 rounded-xl mb-1"
+      style={{ background: "var(--haip-card)", border: "1.5px dashed var(--haip-iris, #5b5bce)" }}
+    >
+      <div className="flex items-center gap-2 mb-2">
+        <div
+          className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{ background: "color-mix(in srgb, var(--haip-iris, #5b5bce) 12%, transparent)", color: "var(--haip-iris, #5b5bce)" }}
+        >
+          <Sparkles size={14} />
+        </div>
+        <div>
+          <p className="text-[13px] font-bold" style={{ color: "var(--haip-iris, #5b5bce)" }}>Today's Briefing</p>
+          <p className="text-[10.5px]" style={{ color: "var(--haip-fg-subtle)" }}>Patterns across everyone waiting on you right now</p>
+        </div>
+      </div>
+      <p className="text-[12.5px] leading-relaxed mb-2.5" style={{ color: "var(--haip-fg-2, var(--haip-fg))" }}>{data.narrative}</p>
+      {!!data.flags?.length && (
+        <div className="flex flex-col gap-1.5">
+          {data.flags.map((f, i) => (
+            <div key={i} className="flex items-start gap-2 text-[11.5px]" style={{ color: "var(--haip-fg-2, var(--haip-fg))" }}>
+              {f.type === "quick_win" ? <Zap size={13} style={{ color: "var(--haip-iris, #5b5bce)", marginTop: 1, flexShrink: 0 }} />
+                : <Clock size={13} style={{ color: "var(--haip-iris, #5b5bce)", marginTop: 1, flexShrink: 0 }} />}
+              <span>{f.text}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -243,12 +302,12 @@ export default function WorklistPage() {
   const section = SECTIONS.find(s => s.key === active)!;
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="px-6 py-5 bg-white border-b border-gray-100 flex-shrink-0">
+    <div className="h-full flex flex-col overflow-y-auto">
+      <div className="px-6 py-5 flex-shrink-0" style={{ background: "var(--haip-card)", borderBottom: "1px solid var(--haip-border)" }}>
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="haip-page-title">Today</h1>
-            <p className="text-sm text-gray-400 mt-0.5">
+            <p className="text-sm mt-0.5" style={{ color: "var(--haip-fg-subtle)" }}>
               Everyone waiting on a reply, in the order they should be dealt with.
             </p>
           </div>
@@ -256,7 +315,8 @@ export default function WorklistPage() {
             <select
               value={range}
               onChange={e => setRange(e.target.value)}
-              className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+              className="px-3 py-1.5 rounded-lg text-xs"
+              style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", color: "var(--haip-fg)" }}
             >
               {RANGES.map(r => (
                 <option key={r.key} value={r.key}>{r.label}</option>
@@ -270,15 +330,17 @@ export default function WorklistPage() {
                   value={from}
                   max={to || undefined}
                   onChange={e => setFrom(e.target.value)}
-                  className="px-2 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                  className="px-2 py-1.5 rounded-lg text-xs"
+                  style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", color: "var(--haip-fg)" }}
                 />
-                <span className="text-gray-400 text-xs">→</span>
+                <span className="text-xs" style={{ color: "var(--haip-fg-subtle)" }}>→</span>
                 <input
                   type="date"
                   value={to}
                   min={from || undefined}
                   onChange={e => setTo(e.target.value)}
-                  className="px-2 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                  className="px-2 py-1.5 rounded-lg text-xs"
+                  style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", color: "var(--haip-fg)" }}
                 />
               </div>
             )}
@@ -286,51 +348,75 @@ export default function WorklistPage() {
             <button
               onClick={() => refetch()}
               title="Refresh"
-              className="p-2 text-gray-400 hover:text-gray-700 transition-colors"
+              className="p-2 transition-colors"
+              style={{ color: "var(--haip-fg-subtle)" }}
             >
               <RefreshCw size={14} className={isFetching ? "animate-spin" : ""} />
             </button>
           </div>
         </div>
-
-        {/* Section tabs double as the count summary */}
-        <div className="flex flex-wrap gap-2 mt-4">
-          {SECTIONS.map(s => {
-            const n = data?.counts?.[s.key] ?? 0;
-            const isActive = active === s.key;
-            return (
-              <button
-                key={s.key}
-                onClick={() => setActive(s.key)}
-                className={cn(
-                  "flex items-center gap-2 px-3 py-2 rounded-xl border text-left transition-all",
-                  isActive ? s.tone : "bg-white border-gray-200 text-gray-600 hover:border-gray-300",
-                )}
-              >
-                {s.icon}
-                <span className="text-xs font-semibold">{s.label}</span>
-                <span className={cn(
-                  "text-xs font-bold px-1.5 rounded",
-                  isActive ? "bg-white/70" : "bg-gray-100 text-gray-700",
-                )}>
-                  {n}
-                </span>
-              </button>
-            );
-          })}
-        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-4xl">
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-gray-800">{section.label}</p>
-                <p className="text-[11px] text-gray-400">{section.blurb}</p>
+      <div className="flex-1 p-6 space-y-4">
+        <div className="max-w-4xl mx-auto space-y-4 w-full">
+          <AiBriefing />
+
+          {/* Infographic hero: 5 real stat cards, doubling as the section switcher */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+            {SECTIONS.map(s => {
+              const n = data?.counts?.[s.key] ?? 0;
+              const isActive = active === s.key;
+              const isZero = n === 0;
+              return (
+                <button
+                  key={s.key}
+                  onClick={() => setActive(s.key)}
+                  className="rounded-xl p-3.5 text-left transition-transform hover:-translate-y-0.5"
+                  style={{
+                    background: "var(--haip-card)",
+                    border: isActive ? `1.5px solid ${s.color}` : "1.5px solid var(--haip-border)",
+                    boxShadow: isActive ? `0 0 0 3px color-mix(in srgb, ${s.color} 12%, transparent)` : undefined,
+                  }}
+                >
+                  <div
+                    className="w-7 h-7 rounded-lg flex items-center justify-center mb-2"
+                    style={{
+                      background: isZero ? "var(--muted)" : `color-mix(in srgb, ${s.color} 12%, transparent)`,
+                      color: isZero ? "var(--haip-fg-subtle)" : s.color,
+                    }}
+                  >
+                    {s.icon}
+                  </div>
+                  <p className="text-2xl font-extrabold leading-none tabular-nums" style={{ color: isZero ? "var(--haip-fg-subtle)" : "var(--haip-fg)" }}>
+                    {n}
+                  </p>
+                  <p className="text-[11px] font-semibold mt-1.5" style={{ color: "var(--haip-fg-2, var(--haip-fg))" }}>{s.label}</p>
+                  <p className="text-[10px] mt-0.5 leading-tight" style={{ color: "var(--haip-fg-subtle)" }}>{s.blurb}</p>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Active section list */}
+          <div className="haip-card overflow-hidden">
+            <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid var(--haip-border)" }}>
+              <div className="flex items-center gap-2.5">
+                <div
+                  className="w-6.5 h-6.5 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ background: `color-mix(in srgb, ${section.color} 12%, transparent)`, color: section.color, width: 26, height: 26 }}
+                >
+                  {section.icon}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold" style={{ color: "var(--haip-fg)" }}>{section.label}</p>
+                  <p className="text-[11px]" style={{ color: "var(--haip-fg-subtle)" }}>{section.blurb}</p>
+                </div>
               </div>
               {data?.truncated?.[active] && (
-                <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg">
+                <span
+                  className="text-[11px] font-semibold px-2 py-1 rounded-lg flex-shrink-0"
+                  style={{ background: "color-mix(in srgb, var(--haip-amber, #d97706) 14%, transparent)", color: "var(--haip-amber, #d97706)" }}
+                >
                   Showing first {data.section_limit} of {data.counts[active]}
                 </span>
               )}
@@ -338,31 +424,38 @@ export default function WorklistPage() {
 
             {isCustom && from > to ? (
               <div className="py-10 text-center">
-                <p className="text-sm font-medium text-gray-600">Check the dates</p>
-                <p className="text-xs text-gray-400 mt-0.5">The start date is after the end date.</p>
+                <p className="text-sm font-medium" style={{ color: "var(--haip-fg-2, var(--haip-fg))" }}>Check the dates</p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--haip-fg-subtle)" }}>The start date is after the end date.</p>
               </div>
             ) : isLoading ? (
               <div className="p-4 space-y-2">
                 {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 rounded-xl" />)}
               </div>
             ) : isError ? (
-              <div className="flex items-start gap-3 m-4 px-4 py-3.5 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+              <div
+                className="flex items-start gap-3 m-4 px-4 py-3.5 rounded-xl text-sm"
+                style={{ background: "color-mix(in srgb, var(--haip-red, #dc2626) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--haip-red, #dc2626) 30%, transparent)", color: "var(--haip-red, #dc2626)" }}
+              >
                 <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
                 <p className="flex-1 font-medium">Couldn&apos;t load your worklist.</p>
                 <button
                   onClick={() => refetch()}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-red-300 text-red-700 rounded-lg text-xs font-semibold hover:bg-red-100 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                  style={{ background: "var(--haip-card)", border: "1px solid color-mix(in srgb, var(--haip-red, #dc2626) 40%, transparent)", color: "var(--haip-red, #dc2626)" }}
                 >
                   <RefreshCw size={12} /> Retry
                 </button>
               </div>
             ) : rows.length === 0 ? (
               <div className="py-12 text-center">
-                <div className="w-9 h-9 rounded-full bg-teal-50 flex items-center justify-center mx-auto mb-2">
-                  <UserCheck size={16} className="text-teal-500" />
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center mx-auto mb-2"
+                  style={{ background: "color-mix(in srgb, var(--primary) 12%, transparent)" }}
+                >
+                  <UserCheck size={16} style={{ color: "var(--primary)" }} />
                 </div>
-                <p className="text-sm font-medium text-gray-600">Nothing here</p>
-                <p className="text-xs text-gray-400 mt-0.5">{section.blurb} — all clear.</p>
+                <p className="text-sm font-medium" style={{ color: "var(--haip-fg-2, var(--haip-fg))" }}>Nothing here</p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--haip-fg-subtle)" }}>{section.blurb} — all clear.</p>
               </div>
             ) : (
               <div>

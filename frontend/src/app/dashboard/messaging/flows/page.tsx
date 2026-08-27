@@ -49,10 +49,13 @@ const NODE_TYPES = {
   end: { label: "End", icon: <Hash size={14} />, color: "bg-gray-50 border-gray-300 text-gray-500", dot: "bg-gray-400" },
 };
 
+// "Keyword reply" and "Campaign reply" were offered here with no fire
+// point anywhere in the backend -- a flow set to either trigger silently
+// never ran. Removed rather than left to quietly do nothing; each needs a
+// real hook (inbound-message keyword matching, campaign-reply-window
+// detection) before it belongs in this list again.
 const TRIGGER_OPTIONS = [
   { value: "opt_in", label: "Contact opts in" },
-  { value: "keyword", label: "Keyword reply" },
-  { value: "campaign_reply", label: "Campaign reply" },
   { value: "new_inquiry", label: "New inquiry created" },
   { value: "check_in", label: "Guest check-in (D-1)" },
   { value: "check_out", label: "Guest check-out (D+1)" },
