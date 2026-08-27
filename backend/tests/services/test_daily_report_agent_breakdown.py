@@ -112,7 +112,7 @@ class TestRenderWithByAgent:
             "insights": [],
             "by_agent": [{
                 "agent_name": "Agent",
-                "scorecard": {"leads_handled": 3, "calls_answered": 3, "calls_missed": 1, "ai_drafts_approved": 2, "ai_drafts_total": 3},
+                "scorecard": {"leads_handled": 3, "calls_answered": 3, "calls_missed": 1, "conversions": 1},
                 "notable_calls": [{"disposition": "hot", "summary": "Guest interested in a Goa trip."}],
                 "narrative": "Responded quickly and stayed on-topic across all conversations.",
             }],

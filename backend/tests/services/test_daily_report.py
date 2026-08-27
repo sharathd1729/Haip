@@ -121,7 +121,7 @@ def test_tenant_isolation(db):
 
 def _insight(db, t, severity, title, **kw):
     i = Insight(
-        tenant_id=t.id, category_code="A1", category="urgency",
+        tenant_id=t.id, category_code=kw.get("category_code", "A1"), category="urgency",
         severity=severity, title=title,
         is_dismissed=kw.get("dismissed", False),
         is_auto_resolved=kw.get("resolved", False),
@@ -148,6 +148,16 @@ def test_dismissed_and_resolved_insights_excluded(db):
     _insight(db, t, "high", "live one")
     out = drs.get_active_insights(db, t.id)
     assert [i["title"] for i in out] == ["live one"]
+
+
+def test_integration_degraded_insight_is_excluded(db):
+    """D3 (integration health degraded) is suppressed from every surface
+    this function feeds -- flagged as not wanted in the surfaced feed."""
+    t = _tenant(db)
+    _insight(db, t, "high", "Integrations degraded: vobiz, whatsapp_meta", category_code="D3")
+    _insight(db, t, "high", "5 missed calls never called back", category_code="B2")
+    out = drs.get_active_insights(db, t.id)
+    assert [i["title"] for i in out] == ["5 missed calls never called back"]
 
 
 # ─── email rendering ─────────────────────────────────────────────────────────

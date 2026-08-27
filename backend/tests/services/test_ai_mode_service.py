@@ -10,8 +10,8 @@ class _T:
 
 
 class _C:
-    def __init__(self, channel="whatsapp", ai_mode="shadow"):
-        self.channel, self.ai_mode = channel, ai_mode
+    def __init__(self, channel="whatsapp", ai_mode="shadow", human_owned=False):
+        self.channel, self.ai_mode, self.human_owned = channel, ai_mode, human_owned
 
 
 # ─── kill switch ─────────────────────────────────────────────────────────────
@@ -72,6 +72,38 @@ def test_invalid_mode_falls_back_to_shadow():
 
 def test_missing_tenant_is_safe():
     assert ams.resolve_mode(None, _C()) == "shadow"
+
+
+# ─── human_owned (auto-shadow on handoff) ─────────────────────────────────────
+
+def test_human_owned_forces_shadow_over_autonomous_default():
+    t = _T(wa="autonomous")
+    assert ams.resolve_mode(t, _C(human_owned=True)) == "shadow"
+
+
+def test_human_owned_false_leaves_autonomous_default_intact():
+    t = _T(wa="autonomous")
+    assert ams.resolve_mode(t, _C(human_owned=False)) == "autonomous"
+
+
+def test_explicit_off_still_wins_over_human_owned():
+    """Muting a thread is a stronger, more explicit decision than the
+    implicit "a human replied once" signal -- off must still win."""
+    t = _T(wa="autonomous")
+    assert ams.resolve_mode(t, _C(ai_mode="off", human_owned=True)) == "off"
+
+
+def test_kill_switch_still_wins_over_human_owned():
+    t = _T(wa="autonomous", kill=True)
+    assert ams.resolve_mode(t, _C(human_owned=True)) == "shadow"
+
+
+def test_human_owned_defaults_false_for_objects_without_the_attribute():
+    """Safety net for any caller passing an older/partial conversation
+    object that predates this column."""
+    class _Bare:
+        channel, ai_mode = "whatsapp", "shadow"
+    assert ams.resolve_mode(_T(wa="autonomous"), _Bare()) == "autonomous"
 
 
 def test_kill_switch_defaults_to_off_on_a_fresh_tenant(db):

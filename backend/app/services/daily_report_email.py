@@ -168,7 +168,7 @@ def render_daily_report(report: dict, *, tenant_name: str, dashboard_url: str) -
                 <tr>
                   {_stat("Leads", sc['leads_handled'])}
                   {_stat("Calls", f"{sc['calls_answered']}/{sc['calls_answered'] + sc['calls_missed']}", note="answered/total")}
-                  {_stat("AI drafts ok", f"{sc['ai_drafts_approved']}/{sc['ai_drafts_total']}")}
+                  {_stat("Conversions", sc['conversions'], accent=BRAND)}
                 </tr>
               </table>
               {narrative_html}
@@ -275,7 +275,6 @@ def render_agent_report_html(block: dict, *, tenant_name: str, dashboard_url: st
         <tr>
           {_stat("Avg response", f"{int(sc['avg_response_seconds'])}s" if sc['avg_response_seconds'] else "—")}
           {_stat("Follow-ups", f"{sc['followups_completed']}/{sc['followups_total']}", note=f"{sc['followups_overdue']} overdue" if sc['followups_overdue'] else "")}
-          {_stat("AI drafts approved", f"{sc['ai_drafts_approved']}/{sc['ai_drafts_total']}")}
         </tr>
       </table>
       {narrative_html}

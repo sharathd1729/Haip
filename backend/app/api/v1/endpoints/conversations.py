@@ -396,6 +396,10 @@ def send_message(
     db.add(msg)
 
     conv.last_message_at = datetime.now(timezone.utc).isoformat()
+    # An internal note was never seen by the guest -- it isn't "taking over"
+    # the conversation, so it must not force the AI into shadow mode.
+    if not body.is_internal:
+        conv.human_owned = True
     db.commit()
     db.refresh(msg)
 
@@ -489,6 +493,7 @@ def send_template_message(
     )
     db.add(msg)
     conv.last_message_at = datetime.now(timezone.utc).isoformat()
+    conv.human_owned = True
     db.commit()
     db.refresh(msg)
 
@@ -883,6 +888,8 @@ def approve_ai_draft(
     msg.was_approved = True
     msg.sender_id = current_user.id
     msg.delivery_state = MessageDeliveryState.QUEUED
+    if conversation is not None:
+        conversation.human_owned = True
 
     ai_draft_outcomes_service.record_outcome(
         db, tenant_id=current_user.tenant_id, draft=msg,

@@ -48,6 +48,13 @@ KIND_EVENING = "evening"
 KIND_MORNING = "morning"
 
 
+# Suppressed from every surface this function feeds (dashboard, analytics,
+# daily report email) -- the detector still runs and upserts a row, this
+# only hides it from consumption. D3 (integration health degraded) flagged
+# out per explicit request: not actionable/wanted in the surfaced feed.
+EXCLUDED_CATEGORY_CODES = {"D3"}
+
+
 def get_active_insights(db: Session, tenant_id: str, limit: int = 5) -> list[dict]:
     """Active insights, most severe first.
 
@@ -62,6 +69,7 @@ def get_active_insights(db: Session, tenant_id: str, limit: int = 5) -> list[dic
             Insight.tenant_id == tenant_id,
             Insight.is_dismissed.is_(False),
             Insight.is_auto_resolved.is_(False),
+            Insight.category_code.notin_(EXCLUDED_CATEGORY_CODES),
         )
         .all()
     )

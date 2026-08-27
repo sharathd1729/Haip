@@ -13,12 +13,17 @@ the setting mean what the UI says it means.
 Precedence:
   1. conversation.ai_mode == "off"  -> off. An agent muting one thread is an
      explicit, per-thread decision and always wins.
-  2. tenant.<channel>_ai_mode_default -> the tenant's current policy.
+  2. conversation.human_owned == True -> shadow. A human agent has sent (or
+     approved) at least one reply in this thread -- a real, programmatic
+     decision, not a stale snapshot -- so the bot stops auto-sending but
+     keeps drafting suggestions.
+  3. tenant.<channel>_ai_mode_default -> the tenant's current policy.
 
 Note the asymmetry is deliberate: a per-conversation "off" overrides the
-tenant, but a per-conversation "shadow"/"autonomous" does not. Those values
-are almost always just the stale snapshot taken at creation time, not a
-decision anyone made.
+tenant, but a per-conversation "shadow"/"autonomous" on `ai_mode` does not.
+Those values are almost always just the stale snapshot taken at creation
+time, not a decision anyone made -- human_owned is the real signal for
+"someone is actively handling this."
 """
 
 from __future__ import annotations
@@ -57,6 +62,9 @@ def resolve_mode(tenant, conversation) -> str:
 
     if conversation is not None and (conversation.ai_mode or "").lower() == "off":
         return "off"
+
+    if conversation is not None and getattr(conversation, "human_owned", False):
+        return "shadow"
 
     prefix = _channel_key(getattr(conversation, "channel", None))
     if prefix is None or tenant is None:

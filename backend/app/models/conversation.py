@@ -75,6 +75,14 @@ class Conversation(Base, TimestampMixin, TenantMixin):
     ai_mode = Column(String(20), default="shadow")  # shadow / autonomous / off
     ai_draft = Column(Text, nullable=True)           # Pending AI reply
 
+    # Set the first time a human agent sends/approves an outbound message in
+    # this thread (conversations.py's send/send-template/approve-draft
+    # endpoints). ai_mode_service.resolve_mode() checks this before the
+    # tenant default -- a person actively working a lead forces shadow mode
+    # (AI drafts suggestions, never auto-sends) regardless of the tenant's
+    # autonomous default. See migration 092.
+    human_owned = Column(Boolean, default=False, nullable=False)
+
     guest = relationship("Guest")
     inquiry = relationship("Inquiry", back_populates="conversations")
     messages = relationship("Message", back_populates="conversation", lazy="dynamic", order_by="Message.created_at")
