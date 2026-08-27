@@ -188,30 +188,79 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
           </div>
         ) : (
           <>
-            {/* LTV stats */}
-            {(guest?.lifetime_value != null || guest?.total_stays != null || guest?.total_inquiries != null) && (
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { val: guest?.total_stays, label: "Stays" },
-                  { val: guest?.total_inquiries, label: "Inquiries" },
-                  { val: guest?.lifetime_value != null
-                      ? `₹${guest.lifetime_value >= 1000 ? `${(guest.lifetime_value / 1000).toFixed(0)}k` : guest.lifetime_value}`
-                      : null,
-                    label: "LTV" },
-                ].filter(s => s.val != null).map(s => (
-                  <div
-                    key={s.label}
-                    className="text-center p-2 rounded-lg"
-                    style={{ background: "color-mix(in srgb, var(--primary) 7%, transparent)" }}
-                  >
-                    <p className="text-sm font-bold leading-none tabular-nums" style={{ color: "var(--primary)" }}>
-                      {s.val}
-                    </p>
-                    <p className="text-[9px] mt-1" style={{ color: "var(--haip-fg-subtle)" }}>{s.label}</p>
+            {/* Trip Details -- same card as leads/[inquiryId]/page.tsx's
+                Overview tab: guests, dates, property/route, budget,
+                occasion, special requests. Reads the same /leads/{inquiry_id}
+                response GuestPanel already fetches -- special_requests
+                comes off the Lead Field Registry (migration 044) via
+                custom_field_values, same as the Leads360 detail page.
+                Placed first in the panel body (replacing the old LTV
+                stats row, which was frequently all-zero noise for a
+                fresh lead) since trip intent is the most actionable
+                thing an agent needs at a glance. */}
+            {(() => {
+              const specialRequests = (leadOwnerStage?.custom_field_values ?? []).find(f => f.field_key === "special_requests");
+              const guestCountLabel = leadOwnerStage
+                ? [
+                    leadOwnerStage.adults ? `${leadOwnerStage.adults} adult${leadOwnerStage.adults > 1 ? "s" : ""}` : null,
+                    leadOwnerStage.children ? `${leadOwnerStage.children} child${leadOwnerStage.children > 1 ? "ren" : ""}` : null,
+                  ].filter(Boolean).join(", ") || null
+                : null;
+              const datesLabel = leadOwnerStage?.check_in
+                ? `${new Date(leadOwnerStage.check_in).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}${leadOwnerStage.check_out ? ` → ${new Date(leadOwnerStage.check_out).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}` : ""}`
+                : null;
+              const budgetLabel = leadOwnerStage?.budget_range_label
+                ?? (leadOwnerStage?.budget_estimate != null ? `${leadOwnerStage.budget_currency ?? "INR"} ${leadOwnerStage.budget_estimate.toLocaleString("en-IN")}` : null);
+              const routeLabel = (leadOwnerStage?.property_interest ?? [])[0] ?? null;
+              const hasAny = guestCountLabel || datesLabel || routeLabel || budgetLabel || leadOwnerStage?.occasion || (specialRequests?.value != null && specialRequests.value !== "");
+              if (!hasAny) return null;
+              return (
+                <div className="haip-card p-3.5 space-y-2" style={{ background: "var(--muted)" }}>
+                  <p className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: "var(--haip-fg-subtle)" }}>
+                    <FileText size={11} />
+                    Trip Details
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    {guestCountLabel && (
+                      <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
+                        <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><Users size={9} />Guests</span>
+                        <span className="font-bold" style={{ color: "var(--haip-fg)" }}>{guestCountLabel}</span>
+                      </div>
+                    )}
+                    {datesLabel && (
+                      <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
+                        <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><Calendar size={9} />Dates</span>
+                        <span className="font-bold tabular-nums" style={{ color: "var(--haip-fg)" }}>{datesLabel}</span>
+                      </div>
+                    )}
+                    {routeLabel && (
+                      <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
+                        <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><MapPin size={9} />Property / Route</span>
+                        <span className="font-bold truncate block" style={{ color: "var(--haip-fg)" }}>{routeLabel}</span>
+                      </div>
+                    )}
+                    {budgetLabel && (
+                      <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
+                        <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><Wallet size={9} />Budget</span>
+                        <span className="font-bold" style={{ color: "var(--haip-fg)" }}>{budgetLabel}</span>
+                      </div>
+                    )}
+                    {leadOwnerStage?.occasion && (
+                      <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
+                        <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><Heart size={9} />Occasion</span>
+                        <span className="font-bold capitalize" style={{ color: "var(--haip-fg)" }}>{leadOwnerStage.occasion}</span>
+                      </div>
+                    )}
+                    {specialRequests?.value != null && specialRequests.value !== "" && (
+                      <div className="col-span-2 p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
+                        <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><MessageSquare size={9} />Special Requests</span>
+                        <span className="font-medium" style={{ color: "var(--haip-fg)" }}>{String(specialRequests.value)}</span>
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              );
+            })()}
 
             {/* Tags */}
             {(guest?.tags ?? []).length > 0 && (
@@ -378,83 +427,6 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
                 )}
               </div>
             )}
-
-            {/* Trip Details -- same card as leads/[inquiryId]/page.tsx's
-                Overview tab (ported here per user request): guests, dates,
-                property/route, budget, occasion, special requests. Reads
-                the same /leads/{inquiry_id} response GuestPanel already
-                fetches -- special_requests comes off the Lead Field
-                Registry (migration 044) via custom_field_values, same as
-                the Leads360 detail page. A field renders only when the
-                underlying Inquiry column actually has a value -- for a
-                WhatsApp/Instagram lead these are usually still null today
-                (nothing extracts them from free-text messages yet; only
-                manual entry, Dograh voice calls, or Hostaway sync populate
-                them), so an empty-looking card here reflects real missing
-                data, not a rendering bug. */}
-            {(() => {
-              const specialRequests = (leadOwnerStage?.custom_field_values ?? []).find(f => f.field_key === "special_requests");
-              const guestCountLabel = leadOwnerStage
-                ? [
-                    leadOwnerStage.adults ? `${leadOwnerStage.adults} adult${leadOwnerStage.adults > 1 ? "s" : ""}` : null,
-                    leadOwnerStage.children ? `${leadOwnerStage.children} child${leadOwnerStage.children > 1 ? "ren" : ""}` : null,
-                  ].filter(Boolean).join(", ") || null
-                : null;
-              const datesLabel = leadOwnerStage?.check_in
-                ? `${new Date(leadOwnerStage.check_in).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}${leadOwnerStage.check_out ? ` → ${new Date(leadOwnerStage.check_out).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}` : ""}`
-                : null;
-              const budgetLabel = leadOwnerStage?.budget_range_label
-                ?? (leadOwnerStage?.budget_estimate != null ? `${leadOwnerStage.budget_currency ?? "INR"} ${leadOwnerStage.budget_estimate.toLocaleString("en-IN")}` : null);
-              const routeLabel = (leadOwnerStage?.property_interest ?? [])[0] ?? null;
-              const hasAny = guestCountLabel || datesLabel || routeLabel || budgetLabel || leadOwnerStage?.occasion || (specialRequests?.value != null && specialRequests.value !== "");
-              if (!hasAny) return null;
-              return (
-                <div className="haip-card p-3.5 space-y-2" style={{ background: "var(--muted)" }}>
-                  <p className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: "var(--haip-fg-subtle)" }}>
-                    <FileText size={11} />
-                    Trip Details
-                  </p>
-                  <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    {guestCountLabel && (
-                      <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
-                        <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><Users size={9} />Guests</span>
-                        <span className="font-bold" style={{ color: "var(--haip-fg)" }}>{guestCountLabel}</span>
-                      </div>
-                    )}
-                    {datesLabel && (
-                      <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
-                        <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><Calendar size={9} />Dates</span>
-                        <span className="font-bold tabular-nums" style={{ color: "var(--haip-fg)" }}>{datesLabel}</span>
-                      </div>
-                    )}
-                    {routeLabel && (
-                      <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
-                        <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><MapPin size={9} />Property / Route</span>
-                        <span className="font-bold truncate block" style={{ color: "var(--haip-fg)" }}>{routeLabel}</span>
-                      </div>
-                    )}
-                    {budgetLabel && (
-                      <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
-                        <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><Wallet size={9} />Budget</span>
-                        <span className="font-bold" style={{ color: "var(--haip-fg)" }}>{budgetLabel}</span>
-                      </div>
-                    )}
-                    {leadOwnerStage?.occasion && (
-                      <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
-                        <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><Heart size={9} />Occasion</span>
-                        <span className="font-bold capitalize" style={{ color: "var(--haip-fg)" }}>{leadOwnerStage.occasion}</span>
-                      </div>
-                    )}
-                    {specialRequests?.value != null && specialRequests.value !== "" && (
-                      <div className="col-span-2 p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
-                        <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><MessageSquare size={9} />Special Requests</span>
-                        <span className="font-medium" style={{ color: "var(--haip-fg)" }}>{String(specialRequests.value)}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
 
             {/* Recent stays */}
             {(guest?.recent_stays ?? []).length > 0 && (
