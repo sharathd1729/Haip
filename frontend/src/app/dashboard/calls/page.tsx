@@ -586,8 +586,12 @@ export default function CallsPage() {
     <div className="haip-calls-v2 h-full flex flex-col bg-background">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="px-5 py-4 flex-shrink-0" style={{ borderBottom: "1px solid var(--haip-border)" }}>
-        <div className="flex items-center justify-between mb-3">
-          <div>
+        {/* Title and Dial/Filters/Upload stack on mobile -- forced onto one
+            row, the subtitle wrapped to 2 lines and the buttons ended up
+            vertically centered against just the first line, reading as
+            overlapping/cramped at 375px. */}
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between mb-3">
+          <div className="min-w-0">
             <h1 className="haip-page-title">
               Calls
             </h1>

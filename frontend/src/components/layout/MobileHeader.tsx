@@ -39,10 +39,23 @@ const ROUTE_LABELS: Record<string, string> = {
 function PageTitle() {
   const pathname = usePathname();
   const segments = pathname.split("/").filter(Boolean);
-  const last = segments[segments.length - 1] ?? "dashboard";
+  // Dynamic-id routes (/dashboard/leads/{inquiryId}, /dashboard/calls/{id},
+  // /dashboard/guests/{id}, etc.) have no ROUTE_LABELS entry for their last
+  // segment -- it's a raw uuid/id, not a route name. Walking back to the
+  // nearest labeled ancestor avoids showing that id verbatim as the title
+  // (the page body already shows the guest/record's real name).
+  let label: string | undefined;
+  for (let i = segments.length - 1; i >= 0; i--) {
+    label = ROUTE_LABELS[segments[i]];
+    if (label) break;
+  }
+  if (!label) {
+    const last = segments[segments.length - 1] ?? "dashboard";
+    label = last.charAt(0).toUpperCase() + last.slice(1);
+  }
   return (
     <span className="font-semibold text-sm tracking-tight" style={{ color: "var(--haip-fg)" }}>
-      {ROUTE_LABELS[last] ?? last.charAt(0).toUpperCase() + last.slice(1)}
+      {label}
     </span>
   );
 }

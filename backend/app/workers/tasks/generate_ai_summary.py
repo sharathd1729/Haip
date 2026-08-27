@@ -41,23 +41,37 @@ respond with ONLY a JSON object (no markdown fences, no other text):
     "objection": "<the guest's main objection/blocker in one short phrase, or null if none>",
     "reply_urgency": "<one of: high | medium | low — how urgently the team should reply>",
     "next_action": "<one specific action for the sales agent>"
+  },
+  "extracted": {
+    "check_in": "<ISO date YYYY-MM-DD ONLY if the guest explicitly stated a check-in/travel date, else null>",
+    "check_out": "<ISO date YYYY-MM-DD ONLY if the guest explicitly stated a check-out/return date, else null>",
+    "adults": "<integer number of adults ONLY if explicitly stated, else null>",
+    "children": "<integer number of children ONLY if explicitly stated, else null>",
+    "occasion": "<short phrase, e.g. 'anniversary', ONLY if explicitly stated, else null>",
+    "budget": "<number, the guest's stated budget in INR, ONLY if explicitly stated, else null>",
+    "special_requests": "<short phrase of a specific request the guest explicitly made (dietary, accessibility, celebration setup, etc.), else null>"
   }
 }
 
 Be specific and concise. If data is missing, state what's unknown rather than
-inventing it. Output only the JSON object."""
+inventing it. "extracted" fields are a strict, literal readback of what the
+guest actually said in this conversation -- never infer, guess, or estimate
+a value the guest did not state. When in doubt, use null. Output only the
+JSON object."""
 
 
 _ANALYSIS_KEYS = ("intent", "sentiment", "objection", "reply_urgency", "next_action")
+_EXTRACTED_KEYS = ("check_in", "check_out", "adults", "children", "occasion", "budget", "special_requests")
 
 
-def _parse_summary_response(raw: str) -> tuple[str, dict | None]:
-    """Parse the v2 JSON response into (summary_text, analysis_dict).
+def _parse_summary_response(raw: str) -> tuple[str, dict | None, dict | None]:
+    """Parse the v3 JSON response into (summary_text, analysis_dict, extracted_dict).
 
     Degrades gracefully: markdown fences and reasoning-model <think> blocks
     are stripped; a truncated JSON payload (max_tokens hit mid-object) still
     yields its "summary" field via regex instead of leaking raw JSON into
-    the UI; plain prose is kept as-is with analysis=None."""
+    the UI (analysis/extracted are simply absent in that case); plain prose
+    is kept as-is with analysis=extracted=None."""
     import json as _json
     import re as _re
 
@@ -83,7 +97,11 @@ def _parse_summary_response(raw: str) -> tuple[str, dict | None]:
         analysis = None
         if isinstance(analysis_raw, dict):
             analysis = {k: analysis_raw.get(k) for k in _ANALYSIS_KEYS}
-        return summary or raw, analysis
+        extracted_raw = parsed.get("extracted")
+        extracted = None
+        if isinstance(extracted_raw, dict):
+            extracted = {k: extracted_raw.get(k) for k in _EXTRACTED_KEYS}
+        return summary or raw, analysis, extracted
 
     # Truncated/malformed JSON: salvage the summary value rather than storing
     # a raw JSON fragment as the "prose" summary.
@@ -95,10 +113,71 @@ def _parse_summary_response(raw: str) -> tuple[str, dict | None]:
             except (ValueError, TypeError):
                 salvaged = m.group(1)
             if salvaged.strip():
-                return salvaged.strip(), None
-        return "", None   # unusable JSON fragment — caller logs + keeps old summary
+                return salvaged.strip(), None, None
+        return "", None, None   # unusable JSON fragment — caller logs + keeps old summary
 
-    return raw, None
+    return raw, None, None
+
+
+def _valid_iso_date(value) -> str | None:
+    """Accept only a real, strictly-formatted YYYY-MM-DD string -- a
+    malformed model output must never reach the DB as a bogus date."""
+    import datetime as _dt
+
+    if not isinstance(value, str):
+        return None
+    try:
+        _dt.datetime.strptime(value, "%Y-%m-%d")
+    except ValueError:
+        return None
+    return value
+
+
+def _apply_extracted_fields(inquiry, extracted: dict) -> list[str]:
+    """Fill in Inquiry trip fields the guest explicitly stated in chat, but
+    ONLY where the column is currently empty -- never overwrites a value
+    that came from manual staff entry, a Dograh voice-call event, or PMS
+    sync (all of which are more authoritative than a chat-text guess).
+    Returns the list of field names actually written, for logging."""
+    written = []
+
+    check_in = _valid_iso_date(extracted.get("check_in"))
+    if check_in and not inquiry.check_in:
+        inquiry.check_in = check_in
+        written.append("check_in")
+
+    check_out = _valid_iso_date(extracted.get("check_out"))
+    if check_out and not inquiry.check_out:
+        inquiry.check_out = check_out
+        written.append("check_out")
+
+    adults = extracted.get("adults")
+    if isinstance(adults, (int, float)) and adults > 0 and inquiry.adults is None:
+        inquiry.adults = int(adults)
+        written.append("adults")
+
+    children = extracted.get("children")
+    if isinstance(children, (int, float)) and children >= 0 and inquiry.children is None:
+        inquiry.children = int(children)
+        written.append("children")
+
+    occasion = extracted.get("occasion")
+    if isinstance(occasion, str) and occasion.strip() and not inquiry.occasion:
+        inquiry.occasion = occasion.strip()[:100]
+        written.append("occasion")
+
+    budget = extracted.get("budget")
+    if isinstance(budget, (int, float)) and budget > 0 and inquiry.budget is None:
+        from decimal import Decimal
+        inquiry.budget = Decimal(str(budget))
+        written.append("budget")
+
+    special_requests = extracted.get("special_requests")
+    if isinstance(special_requests, str) and special_requests.strip() and not inquiry.special_requests:
+        inquiry.special_requests = special_requests.strip()
+        written.append("special_requests")
+
+    return written
 
 
 def _run_async(coro):
@@ -202,7 +281,7 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
             log.warning("generate_ai_summary_empty_response", inquiry_id=inquiry_id)
             return
 
-        summary_text, analysis = _parse_summary_response(raw_text)
+        summary_text, analysis, extracted = _parse_summary_response(raw_text)
         if not summary_text:
             log.warning("generate_ai_summary_unparseable", inquiry_id=inquiry_id)
             return
@@ -211,6 +290,7 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
         inquiry.ai_summary = summary_text
         if analysis is not None:
             inquiry.ai_analysis = analysis
+        fields_written = _apply_extracted_fields(inquiry, extracted) if extracted else []
         db.add(inquiry)
         db.commit()
 
@@ -219,6 +299,7 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
             inquiry_id=inquiry_id,
             tenant_id=tenant_id,
             chars=len(summary_text),
+            fields_extracted=fields_written,
             **stamp("leads360_summary", model=result.get("model")),
         )
 

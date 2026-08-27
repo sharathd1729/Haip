@@ -305,8 +305,11 @@ export default function Leads360Page() {
     <div className="haip-leads-v2 flex flex-col h-full overflow-hidden">
 
       {/* ── Page header ─────────────────────────────────────────────────── */}
+      {/* Title and controls (stage pills + Add Lead/Settings/Refresh) stack
+          on mobile -- forced onto one row, the stage-pill scroller crowded
+          the title with almost no breathing room at 375px. */}
       <div
-        className="flex-shrink-0 flex items-center justify-between px-5 py-3.5"
+        className="flex-shrink-0 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between px-5 py-3.5"
         style={{
           background: "var(--haip-card)",
           borderBottom: "1px solid var(--haip-border)",

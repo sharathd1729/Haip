@@ -1,6 +1,6 @@
 "use client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Star, Sparkles, Calendar, Users, Wallet, Building2, Phone, Mail, Loader2 } from "@/lib/icons";
+import { ExternalLink, Star, Sparkles, Calendar, Users, Wallet, Phone, Mail, Loader2, MapPin, Heart, MessageSquare, FileText } from "@/lib/icons";
 import { Bed, UserCheck } from "lucide-react";
 import { ChannelIcon, channelLabel } from "./ChannelIcon";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -43,7 +43,13 @@ interface LeadOwnerStage {
   children?: number | null;
   budget_estimate?: number | null;
   budget_currency?: string;
+  budget_range_label?: string | null;
+  occasion?: string | null;
   property_interest?: string[];
+  // special_requests arrives via the tenant-configurable Lead Field
+  // Registry (migration 044), not a dedicated schema field -- same source
+  // leads/[inquiryId]/page.tsx's Trip Details card reads.
+  custom_field_values?: { field_key: string; label: string; data_type: string; value: unknown }[];
   // Auto-send soft-escalation plan: the AI's last reply already went out,
   // but it judged the outcome needs a human's personal follow-up.
   needs_agent_followup?: boolean;
@@ -373,50 +379,82 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
               </div>
             )}
 
-            {/* HAIP Inbox full-parity pass, ticket 3: Inquiry Specifications
-                grid -- same already-fetched lead-detail data
-                PinnedInquiryBanner shows a condensed one-line version of. */}
-            {leadOwnerStage && (leadOwnerStage.check_in || leadOwnerStage.budget_estimate != null || (leadOwnerStage.property_interest ?? []).length > 0) && (
-              <div
-                className="haip-card p-3.5 space-y-2"
-                style={{ background: "var(--muted)" }}
-              >
-                <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--haip-fg-subtle)" }}>
-                  Inquiry Specifications
-                </p>
-                <div className="grid grid-cols-2 gap-2 text-[11px]">
-                  {(leadOwnerStage.property_interest ?? []).length > 0 && (
-                    <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
-                      <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><Building2 size={9} />Property</span>
-                      <span className="font-bold truncate block" style={{ color: "var(--haip-fg)" }}>{leadOwnerStage.property_interest![0]}</span>
-                    </div>
-                  )}
-                  {leadOwnerStage.budget_estimate != null && (
-                    <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
-                      <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><Wallet size={9} />Budget</span>
-                      <span className="font-bold" style={{ color: "var(--haip-fg)" }}>{leadOwnerStage.budget_currency ?? "INR"} {leadOwnerStage.budget_estimate.toLocaleString("en-IN")}</span>
-                    </div>
-                  )}
-                  {leadOwnerStage.check_in && (
-                    <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
-                      <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><Calendar size={9} />Travel Dates</span>
-                      <span className="font-bold" style={{ color: "var(--haip-fg)" }}>
-                        {new Date(leadOwnerStage.check_in).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-                        {leadOwnerStage.check_out && ` → ${new Date(leadOwnerStage.check_out).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`}
-                      </span>
-                    </div>
-                  )}
-                  {leadOwnerStage.adults != null && (
-                    <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
-                      <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><Users size={9} />Guests</span>
-                      <span className="font-bold" style={{ color: "var(--haip-fg)" }}>
-                        {leadOwnerStage.adults} adult{leadOwnerStage.adults === 1 ? "" : "s"}{leadOwnerStage.children ? ` + ${leadOwnerStage.children} kids` : ""}
-                      </span>
-                    </div>
-                  )}
+            {/* Trip Details -- same card as leads/[inquiryId]/page.tsx's
+                Overview tab (ported here per user request): guests, dates,
+                property/route, budget, occasion, special requests. Reads
+                the same /leads/{inquiry_id} response GuestPanel already
+                fetches -- special_requests comes off the Lead Field
+                Registry (migration 044) via custom_field_values, same as
+                the Leads360 detail page. A field renders only when the
+                underlying Inquiry column actually has a value -- for a
+                WhatsApp/Instagram lead these are usually still null today
+                (nothing extracts them from free-text messages yet; only
+                manual entry, Dograh voice calls, or Hostaway sync populate
+                them), so an empty-looking card here reflects real missing
+                data, not a rendering bug. */}
+            {(() => {
+              const specialRequests = (leadOwnerStage?.custom_field_values ?? []).find(f => f.field_key === "special_requests");
+              const guestCountLabel = leadOwnerStage
+                ? [
+                    leadOwnerStage.adults ? `${leadOwnerStage.adults} adult${leadOwnerStage.adults > 1 ? "s" : ""}` : null,
+                    leadOwnerStage.children ? `${leadOwnerStage.children} child${leadOwnerStage.children > 1 ? "ren" : ""}` : null,
+                  ].filter(Boolean).join(", ") || null
+                : null;
+              const datesLabel = leadOwnerStage?.check_in
+                ? `${new Date(leadOwnerStage.check_in).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}${leadOwnerStage.check_out ? ` → ${new Date(leadOwnerStage.check_out).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}` : ""}`
+                : null;
+              const budgetLabel = leadOwnerStage?.budget_range_label
+                ?? (leadOwnerStage?.budget_estimate != null ? `${leadOwnerStage.budget_currency ?? "INR"} ${leadOwnerStage.budget_estimate.toLocaleString("en-IN")}` : null);
+              const routeLabel = (leadOwnerStage?.property_interest ?? [])[0] ?? null;
+              const hasAny = guestCountLabel || datesLabel || routeLabel || budgetLabel || leadOwnerStage?.occasion || (specialRequests?.value != null && specialRequests.value !== "");
+              if (!hasAny) return null;
+              return (
+                <div className="haip-card p-3.5 space-y-2" style={{ background: "var(--muted)" }}>
+                  <p className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: "var(--haip-fg-subtle)" }}>
+                    <FileText size={11} />
+                    Trip Details
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    {guestCountLabel && (
+                      <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
+                        <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><Users size={9} />Guests</span>
+                        <span className="font-bold" style={{ color: "var(--haip-fg)" }}>{guestCountLabel}</span>
+                      </div>
+                    )}
+                    {datesLabel && (
+                      <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
+                        <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><Calendar size={9} />Dates</span>
+                        <span className="font-bold tabular-nums" style={{ color: "var(--haip-fg)" }}>{datesLabel}</span>
+                      </div>
+                    )}
+                    {routeLabel && (
+                      <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
+                        <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><MapPin size={9} />Property / Route</span>
+                        <span className="font-bold truncate block" style={{ color: "var(--haip-fg)" }}>{routeLabel}</span>
+                      </div>
+                    )}
+                    {budgetLabel && (
+                      <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
+                        <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><Wallet size={9} />Budget</span>
+                        <span className="font-bold" style={{ color: "var(--haip-fg)" }}>{budgetLabel}</span>
+                      </div>
+                    )}
+                    {leadOwnerStage?.occasion && (
+                      <div className="p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
+                        <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><Heart size={9} />Occasion</span>
+                        <span className="font-bold capitalize" style={{ color: "var(--haip-fg)" }}>{leadOwnerStage.occasion}</span>
+                      </div>
+                    )}
+                    {specialRequests?.value != null && specialRequests.value !== "" && (
+                      <div className="col-span-2 p-2 rounded-lg" style={{ background: "var(--card)", border: "1px solid var(--haip-border)" }}>
+                        <span className="flex items-center gap-1 text-[9px]" style={{ color: "var(--haip-fg-subtle)" }}><MessageSquare size={9} />Special Requests</span>
+                        <span className="font-medium" style={{ color: "var(--haip-fg)" }}>{String(specialRequests.value)}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Recent stays */}
             {(guest?.recent_stays ?? []).length > 0 && (

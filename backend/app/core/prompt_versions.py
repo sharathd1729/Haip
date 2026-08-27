@@ -77,7 +77,7 @@ PROMPT_VERSIONS: dict[str, str] = {
     "agent_performance_narrative": "agent-performance-narrative-v1",  # agent_performance_narrative.jinja
 
     # Inline prompts built in Python
-    "leads360_summary":       "leads360-summary-v2",  # generate_ai_summary.py
+    "leads360_summary":       "leads360-summary-v3",  # generate_ai_summary.py -- v3 adds structured trip-fact extraction
     "ask_haip_intent":        "ask-haip-intent-v1",
     "ask_haip_rca":           "ask-haip-rca-v1",
     "ask_haip_report":        "ask-haip-report-v1",
