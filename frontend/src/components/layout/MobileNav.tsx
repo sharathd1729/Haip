@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { signOut } from "next-auth/react";
-import { Inbox, Phone, Users, Menu, X, Home, Target, Building2, Calendar, Calculator, MessageSquare, Megaphone, Sparkles, FileDown, Star, Shield, Zap, Settings, CreditCard, UserCircle, HelpCircle, Palette, FileText, LogOut, ListChecks } from "@/lib/icons";
+import { Inbox, Phone, Users, Menu, X, Home, Target, Building2, Calendar, Calculator, MessageSquare, Megaphone, FileDown, Star, Shield, Zap, Settings, CreditCard, UserCircle, HelpCircle, Palette, FileText, LogOut, ListChecks } from "@/lib/icons";
 import { UserCheck, GitBranch, Plug2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canSeeNav, type Resource } from "@/lib/permissions";
@@ -76,7 +76,6 @@ const ALL_SECTIONS = [
     // /dashboard/insights still works for direct links, just unlinked.
     label: "Intelligence",
     items: [
-      { label: "Ask HAIP",    href: "/dashboard/analytics/ask", icon: Sparkles,  resource: "analytics"   as Resource },
       { label: "Reports",     href: "/dashboard/reports",       icon: FileDown,  resource: "reports"     as Resource },
       { label: "QA & Scores", href: "/dashboard/qa",            icon: Star,      resource: "qa"          as Resource },
       { label: "Compliance",  href: "/dashboard/compliance",    icon: Shield,    resource: "compliance"  as Resource },

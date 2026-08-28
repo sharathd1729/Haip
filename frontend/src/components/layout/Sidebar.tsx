@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { signOut } from "next-auth/react";
-import { Inbox, Phone, Users, Building2, Sparkles, BarChart2, Zap, Link2, Settings, HelpCircle, LogOut, ChevronDown, ChevronRight, ChevronLeft, MessageSquare, AtSign, Bot, Target, Megaphone, FileText, LayoutDashboard, ListChecks } from "@/lib/icons";
+import { Inbox, Phone, Users, Building2, BarChart2, Zap, Link2, Settings, HelpCircle, LogOut, ChevronDown, ChevronRight, ChevronLeft, MessageSquare, AtSign, Bot, Target, Megaphone, FileText, LayoutDashboard, ListChecks } from "@/lib/icons";
 import { UserCheck, GitBranch } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canSeeNav, type Resource } from "@/lib/permissions";
@@ -137,22 +137,9 @@ const NAV_GROUPS: NavGroup[] = [
         icon: BarChart2,
         resource: "analytics",
       },
-      {
-        label: "Ask HAIP",
-        // Point at the real page, not the /dashboard/ask-haip redirect stub:
-        // the stub bounces to this URL, after which neither isActive() nor
-        // childActive matches "/dashboard/ask-haip", so the nav item
-        // silently stopped highlighting. Also matches the Reports/Free-Form
-        // siblings below.
-        href: "/dashboard/analytics/ask",
-        icon: Sparkles,
-        resource: "analytics",
-        children: [
-          { label: "Ask",       href: "/dashboard/analytics/ask" },
-          { label: "Reports",   href: "/dashboard/analytics/ask/reports" },
-          { label: "Free-Form", href: "/dashboard/analytics/ask/freeform", ownerOnly: true },
-        ],
-      },
+      // "Ask HAIP" (Ask / Reports sub-tab / Free-Form) removed entirely --
+      // not effective, being rebuilt from scratch as a real property-data
+      // analysis assistant + prompt-driven dashboard generator.
     ],
   },
   {

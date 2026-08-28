@@ -3,7 +3,7 @@ import { useState, useEffect, Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Eye, EyeOff, ArrowRight, Zap, Shield, BarChart3, Phone, MessageSquare } from "@/lib/icons";
+import { Eye, EyeOff, ArrowRight, Zap, Shield, BarChart3 } from "@/lib/icons";
 import api from "@/lib/api";
 
 const SELLING_POINTS = [
@@ -22,13 +22,6 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [remember, setRemember] = useState(true);
-
-  // Phone+OTP
-  const [loginMode, setLoginMode] = useState<"email" | "phone">("email");
-  const [phone, setPhone] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
-  const [otp, setOtp] = useState("");
-  const [otpExpiry, setOtpExpiry] = useState(0); // seconds remaining
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -116,82 +109,11 @@ function LoginForm() {
     }
   };
 
-  const handleSendOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    try {
-      const data = await api.post("/auth/otp/send", { phone }).then(r => r.data);
-      setOtpSent(true);
-      setOtpExpiry(data.expires_in ?? 300);
-      const timer = setInterval(() => setOtpExpiry(t => {
-        if (t <= 1) { clearInterval(timer); return 0; }
-        return t - 1;
-      }), 1000);
-    } catch (err: unknown) {
-      const e = err as { response?: { data?: { detail?: string } } };
-      setError(e?.response?.data?.detail || "Failed to send OTP. Check your phone number.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    try {
-      const data = await api.post("/auth/otp/verify", { phone, code: otp }).then(r => r.data);
-      const res = await signIn("credentials", {
-        preAuthAccessToken: data.access_token,
-        preAuthRefreshToken: data.refresh_token,
-        remember: remember ? "1" : "0",
-        redirect: false,
-      });
-      if (res?.error) {
-        setError("Sign-in failed. Please try again.");
-        return;
-      }
-      router.push("/dashboard");
-    } catch (err: unknown) {
-      const e = err as { response?: { data?: { detail?: string } } };
-      setError(e?.response?.data?.detail || "Invalid OTP. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="w-full max-w-sm">
       <div className="mb-8">
         <h2 className="text-2xl font-bold text-foreground mb-1">Welcome back</h2>
         <p className="text-muted-foreground text-sm">Sign in to your workspace</p>
-      </div>
-
-      {/* Login mode toggle */}
-      <div className="flex gap-1 p-1 bg-muted rounded-xl mb-6">
-        <button
-          type="button"
-          onClick={() => { setLoginMode("email"); setError(""); setOtpSent(false); }}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-all ${
-            loginMode === "email"
-              ? "bg-card shadow-sm text-foreground"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Eye size={13} /> Email
-        </button>
-        <button
-          type="button"
-          onClick={() => { setLoginMode("phone"); setError(""); }}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-all ${
-            loginMode === "phone"
-              ? "bg-card shadow-sm text-foreground"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <MessageSquare size={13} /> WhatsApp OTP
-        </button>
       </div>
 
       {successMsg && (
@@ -249,7 +171,7 @@ function LoginForm() {
       )}
 
       {/* ── Email + password form ── */}
-      {!mfaRequired && loginMode === "email" && (
+      {!mfaRequired && (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">
@@ -324,102 +246,6 @@ function LoginForm() {
             )}
           </button>
         </form>
-      )}
-
-      {/* ── Phone + OTP form ── */}
-      {loginMode === "phone" && (
-        <div className="space-y-4">
-          {!otpSent ? (
-            <form onSubmit={handleSendOtp} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">
-                  WhatsApp number
-                </label>
-                <div className="relative">
-                  <Phone size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    type="tel"
-                    required
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 border border-border rounded-xl text-sm bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
-                    placeholder="+91 98765 43210"
-                  />
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-1.5">
-                  Enter your number in international format. OTP will be sent via WhatsApp.
-                </p>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading || !phone}
-                className="w-full py-3 bg-green-600 hover:bg-green-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
-              >
-                {loading ? (
-                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                ) : <MessageSquare size={14} />}
-                {loading ? "Sending OTP…" : "Send OTP via WhatsApp"}
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleVerifyOtp} className="space-y-4">
-              <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-xl text-sm text-green-400 text-center">
-                <MessageSquare size={18} className="mx-auto mb-1.5 text-green-400" />
-                OTP sent to <strong>{phone}</strong> via WhatsApp.
-                {otpExpiry > 0 && (
-                  <span className="block text-xs text-green-500/70 mt-0.5">
-                    Expires in {Math.floor(otpExpiry / 60)}:{String(otpExpiry % 60).padStart(2, "0")}
-                  </span>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">
-                  Enter 6-digit OTP
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]{6}"
-                  maxLength={6}
-                  required
-                  autoFocus
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  className="w-full px-4 py-3 border border-border rounded-xl text-sm bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow text-center tracking-widest text-xl font-mono"
-                  placeholder="______"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading || otp.length !== 6}
-                className="w-full py-3 bg-teal-600 hover:bg-teal-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
-              >
-                {loading ? (
-                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                ) : null}
-                {loading ? "Verifying…" : <>Verify OTP <ArrowRight size={15} /></>}
-              </button>
-
-              <button
-                type="button"
-                disabled={otpExpiry > 0 && loading}
-                onClick={() => { setOtpSent(false); setOtp(""); setError(""); }}
-                className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                ← Change number or resend OTP
-              </button>
-            </form>
-          )}
-        </div>
       )}
 
       <div className="mt-6 pt-6 border-t border-border text-center text-sm text-muted-foreground">
