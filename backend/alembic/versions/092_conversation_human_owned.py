@@ -34,7 +34,7 @@ def upgrade() -> None:
     if not _column_exists("conversations", "human_owned"):
         op.add_column(
             "conversations",
-            sa.Column("human_owned", sa.Boolean(), nullable=False, server_default="false"),
+            sa.Column("human_owned", sa.Boolean(), nullable=False, server_default=sa.text("false")),
         )
 
 

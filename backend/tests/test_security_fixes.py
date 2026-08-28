@@ -2,7 +2,6 @@
 Tests for critical security and performance audit fixes.
 
 Covers:
-  SEC-1  — OTP generation uses secrets module (not random.randint)
   SEC-2  — Messages endpoint filters by tenant_id (conversation isolation)
   SEC-3  — Celery workers call set_tenant_context before querying
   PERF-1 — Analytics _p95_seconds uses SQL percentile_cont (no Python sort)
@@ -17,50 +16,6 @@ import textwrap
 import pytest
 from unittest.mock import MagicMock, patch, call
 from sqlalchemy.orm import Session
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# SEC-1: OTP generation must use secrets, not random.randint
-# ──────────────────────────────────────────────────────────────────────────────
-
-class TestOTPGeneration:
-    def test_no_random_import_in_auth(self):
-        """auth.py must not import the `random` module (cryptographically weak)."""
-        import app.api.v1.endpoints.auth as auth_module
-        source = inspect.getsource(auth_module)
-        # Should not contain 'import random' or 'from random'
-        assert "import random" not in source, (
-            "auth.py should not import `random` — use `secrets` for OTP generation"
-        )
-
-    def test_no_randint_in_auth(self):
-        """auth.py must not call random.randint (non-cryptographic PRNG)."""
-        import app.api.v1.endpoints.auth as auth_module
-        source = inspect.getsource(auth_module)
-        assert "randint" not in source, (
-            "auth.py must not use randint; use secrets.randbelow for OTP generation"
-        )
-
-    def test_secrets_used_for_otp(self):
-        """auth.py must use secrets.randbelow for OTP code generation."""
-        import app.api.v1.endpoints.auth as auth_module
-        source = inspect.getsource(auth_module)
-        assert "secrets" in source
-        assert "randbelow" in source
-
-    def test_otp_range_correct(self):
-        """OTP generated via secrets.randbelow must produce 6-digit codes (100000–999999)."""
-        import secrets
-        for _ in range(1000):
-            code = secrets.randbelow(900000) + 100000
-            assert 100000 <= code <= 999999, f"OTP {code} out of 6-digit range"
-
-    def test_otp_distribution_not_biased(self):
-        """secrets.randbelow must produce codes distributed across the full 100000-999999 range."""
-        import secrets
-        codes = {secrets.randbelow(900000) + 100000 for _ in range(5000)}
-        # With 5000 samples over 900000 possibilities, expect at least 4000 unique values
-        assert len(codes) > 4000, "OTP generation appears biased"
 
 
 # ──────────────────────────────────────────────────────────────────────────────

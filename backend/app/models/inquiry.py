@@ -110,6 +110,16 @@ class Inquiry(Base, TimestampMixin, TenantMixin):
     ai_analysis = Column(JSON, nullable=True)
     ai_next_action = Column(Text, nullable=True)
     ai_confidence = Column(Numeric(3, 2), nullable=True)
+    # Detailed per-lead report (migration 093): a synthesized read on this
+    # lead's current state (risk, what stalled it, next step) -- distinct
+    # from ai_summary's neutral 3-sentence recap. Refreshed on every
+    # generate_ai_summary run, unlike the trip-fact fields below.
+    ai_lead_analysis = Column(Text, nullable=True)
+    # Trip facts extracted from chat (write-once-if-empty, same rule as
+    # check_in/adults/occasion above -- see generate_ai_summary.py v4).
+    route_mentioned = Column(String(255), nullable=True)
+    upsell_offered = Column(String(255), nullable=True)   # what was offered, null = nothing offered
+    upsell_accepted = Column(Boolean, nullable=True)       # null = n/a (nothing offered)
 
     # Metadata
     tags = Column(JSON, default=list)

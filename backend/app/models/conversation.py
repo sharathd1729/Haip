@@ -1,4 +1,5 @@
 from sqlalchemy import Column, String, Boolean, JSON, ForeignKey, Text, Enum as SAEnum, DateTime
+from sqlalchemy import text as sa_text
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 from app.models.base import TimestampMixin, TenantMixin, gen_uuid
@@ -81,7 +82,14 @@ class Conversation(Base, TimestampMixin, TenantMixin):
     # tenant default -- a person actively working a lead forces shadow mode
     # (AI drafts suggestions, never auto-sends) regardless of the tenant's
     # autonomous default. See migration 092.
-    human_owned = Column(Boolean, default=False, nullable=False)
+    # server_default (not just default=) matters here: a raw-SQL insert
+    # that bypasses the ORM (e.g. an Alembic backfill migration) has no
+    # Python-side default to fall back on -- only the DB-level default
+    # protects it from a NOT NULL violation. sa_text("false"), not a bare
+    # string: a plain server_default="false" on a Boolean column is a real,
+    # already-documented SQLite gotcha (see ai_kill_switch on Tenant) --
+    # SQLite stores the literal string and reads it back as truthy.
+    human_owned = Column(Boolean, nullable=False, server_default=sa_text("false"), default=False)
 
     guest = relationship("Guest")
     inquiry = relationship("Inquiry", back_populates="conversations")

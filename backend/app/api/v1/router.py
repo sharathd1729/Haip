@@ -21,6 +21,7 @@ from app.api.v1.endpoints import (
     dashboard_overview,
     knowledge,
     worklist,
+    lead_activity,
 )
 
 api_router = APIRouter(prefix="/api/v1")
@@ -49,6 +50,7 @@ api_router.include_router(lead_fields.router)
 api_router.include_router(conversations.router)
 api_router.include_router(knowledge.router)
 api_router.include_router(worklist.router)
+api_router.include_router(lead_activity.router)
 api_router.include_router(saved_replies.router)
 api_router.include_router(saved_views.router)
 api_router.include_router(properties.router)

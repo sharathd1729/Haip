@@ -6,11 +6,15 @@ LLM-written narrative and logged success. These assert the report carries
 real data and that the HTML is safe to put in an inbox.
 """
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
+from app.models.call import Call, CallDirection, CallDisposition
 from app.models.conversation import Conversation, Message, ChannelType, MessageDirection
 from app.models.guest import Guest
+from app.models.inquiry import Inquiry, InquirySource, LostReason
 from app.models.insight import Insight
+from app.models.pipeline_stage import PipelineStage
+from app.models.property import Property, Stay
 from app.models.tenant import Tenant
 from app.services import daily_report_service as drs
 from app.services.daily_report_email import render_daily_report, render_subject
@@ -109,6 +113,105 @@ def test_evening_reports_today_not_yesterday(db):
     assert r["kind"] == drs.KIND_EVENING
 
 
+# ─── everything that happened that day ─────────────────────────────────────
+
+def _property(db, t):
+    p = Property(tenant_id=t.id, name="White Caravan", slug=f"wc-{uuid.uuid4().hex[:6]}")
+    db.add(p); db.flush()
+    return p
+
+
+def test_bookings_and_revenue_use_when_the_booking_was_made(db):
+    """Deliberately Stay.created_at, not Stay.check_in -- "what happened
+    today" means bookings made today, not guests arriving today."""
+    t = _tenant(db)
+    p = _property(db, t)
+    g = Guest(tenant_id=t.id, name="Ritik")
+    db.add(g); db.flush()
+    db.add(Stay(
+        tenant_id=t.id, guest_id=g.id, property_id=p.id,
+        check_in=date.today() + timedelta(days=30), check_out=date.today() + timedelta(days=31),
+        status="confirmed", total_amount=42000, created_at=_yesterday_utc_noon(),
+    ))
+    db.commit()
+
+    r = drs.build_daily_report(db, t.id)
+    assert r["metrics"]["bookings"] == 1
+    assert r["metrics"]["revenue"] == 42000.0
+
+
+def test_cancelled_stays_are_excluded_from_bookings(db):
+    t = _tenant(db)
+    p = _property(db, t)
+    g = Guest(tenant_id=t.id, name="Ritik")
+    db.add(g); db.flush()
+    db.add(Stay(
+        tenant_id=t.id, guest_id=g.id, property_id=p.id,
+        check_in=date.today(), check_out=date.today() + timedelta(days=1),
+        status="cancelled", total_amount=42000, created_at=_yesterday_utc_noon(),
+    ))
+    db.commit()
+
+    assert drs.build_daily_report(db, t.id)["metrics"]["bookings"] == 0
+
+
+def test_lost_today_groups_by_reason(db):
+    t = _tenant(db)
+    lost_stage = PipelineStage(tenant_id=t.id, key="lost", label="Lost", is_closed_lost=True)
+    db.add(lost_stage); db.flush()
+    g = Guest(tenant_id=t.id, name="Deepa")
+    db.add(g); db.flush()
+    db.add(Inquiry(
+        tenant_id=t.id, guest_id=g.id, source=InquirySource.PHONE, stage_id=lost_stage.id,
+        lost_reason=LostReason.BUDGET_MISMATCH, quoted_amount=25000, route_mentioned="Bangalore to Coorg",
+        current_stage_entered_at=_yesterday_utc_noon(),
+    ))
+    db.commit()
+
+    r = drs.build_daily_report(db, t.id)
+    assert r["lost_today"]["count"] == 1
+    assert r["lost_today"]["reasons"] == [{"reason": "budget_mismatch", "count": 1}]
+    assert r["lost_today"]["examples"][0]["guest_name"] == "Deepa"
+
+
+def test_lost_today_excludes_leads_lost_on_other_days(db):
+    t = _tenant(db)
+    lost_stage = PipelineStage(tenant_id=t.id, key="lost", label="Lost", is_closed_lost=True)
+    db.add(lost_stage); db.flush()
+    g = Guest(tenant_id=t.id, name="Deepa")
+    db.add(g); db.flush()
+    db.add(Inquiry(
+        tenant_id=t.id, guest_id=g.id, source=InquirySource.PHONE, stage_id=lost_stage.id,
+        lost_reason=LostReason.BUDGET_MISMATCH,
+        current_stage_entered_at=_yesterday_utc_noon() - timedelta(days=5),
+    ))
+    db.commit()
+
+    assert drs.build_daily_report(db, t.id)["lost_today"]["count"] == 0
+
+
+def test_calls_by_disposition_and_notable_calls(db):
+    t = _tenant(db)
+    db.add(Call(
+        tenant_id=t.id, ivr_provider="vobiz", ivr_call_id=str(uuid.uuid4()),
+        direction=CallDirection.INBOUND, from_number="+911111111111", to_number="+912222222222",
+        human_disposition=CallDisposition.BOOKED, ai_score=95, ai_summary="Booked a caravan trip.",
+        started_at=_yesterday_utc_noon().isoformat(), created_at=_yesterday_utc_noon(),
+    ))
+    db.add(Call(
+        tenant_id=t.id, ivr_provider="vobiz", ivr_call_id=str(uuid.uuid4()),
+        direction=CallDirection.INBOUND, from_number="+911111111112", to_number="+912222222222",
+        ai_disposition=CallDisposition.LOST, ai_score=20, ai_summary="Guest declined the quote.",
+        started_at=_yesterday_utc_noon().isoformat(), created_at=_yesterday_utc_noon(),
+    ))
+    db.commit()
+
+    r = drs.build_daily_report(db, t.id)
+    assert r["calls_by_disposition"] == {"booked": 1, "lost": 1}
+    assert r["notable_calls"][0]["disposition"] == "booked"  # higher ai_score first
+    assert "Booked" in r["notable_calls"][0]["summary"]
+
+
 def test_tenant_isolation(db):
     t1, t2 = _tenant(db), _tenant(db)
     _conv_with_message(db, t1, MessageDirection.INBOUND)
@@ -169,8 +272,11 @@ def _report_stub(**overrides):
             "dms_in": 3, "replies_out": 2, "by_channel": {"instagram": 3},
             "new_leads": 2, "qualified_leads": 0, "shared_details": 1,
             "calls_total": 0, "calls_missed": 0, "missed_not_returned": 0,
-            "awaiting_reply": 206,
+            "awaiting_reply": 206, "bookings": 0, "revenue": 0.0, "conversion_rate": 0.0,
         },
+        "calls_by_disposition": {},
+        "notable_calls": [],
+        "lost_today": {"count": 0, "reasons": [], "examples": []},
         "top_waiting": [],
         "insights": [],
     }

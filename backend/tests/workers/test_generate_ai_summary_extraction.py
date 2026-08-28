@@ -49,8 +49,10 @@ def _setup(db, **inquiry_overrides):
     return tenant_id, inquiry_id
 
 
-def _fake_adapter(extracted: dict, summary="Guest wants a caravan trip.", analysis=None):
+def _fake_adapter(extracted: dict, summary="Guest wants a caravan trip.", analysis=None, lead_analysis=None):
     payload = {"summary": summary, "analysis": analysis or {}, "extracted": extracted}
+    if lead_analysis is not None:
+        payload["lead_analysis"] = lead_analysis
 
     class _Fake:
         async def complete(self, **kwargs):
@@ -194,3 +196,74 @@ class TestTenantIsolation:
 
         assert reloaded.adults is None
         assert reloaded.ai_summary is None
+
+
+class TestV4LeadReportFields:
+    """Detailed per-lead report (migration 093): route_mentioned,
+    quoted_amount (a real write path -- the column existed but nothing
+    ever wrote it, confirmed via grep), upsell_offered/accepted, and a
+    synthesized ai_lead_analysis paragraph, distinct from ai_summary."""
+
+    def test_route_quoted_amount_and_upsell_are_written(self, db):
+        tenant_id, inquiry_id = _setup(db)
+        adapter = _fake_adapter(
+            {
+                "check_in": None, "check_out": None, "adults": None, "children": None,
+                "occasion": None, "budget": None, "special_requests": None,
+                "route_mentioned": "Shirdi to Mumbai", "quoted_amount": 42000,
+                "upsell_offered": "Sunset photography add-on", "upsell_accepted": True,
+            },
+            lead_analysis="Fast-moving, high-intent guest who accepted the upsell without hesitation.",
+        )
+        updated = _run(db, tenant_id, inquiry_id, adapter)
+
+        assert updated.route_mentioned == "Shirdi to Mumbai"
+        assert float(updated.quoted_amount) == 42000
+        assert updated.quoted_at is not None
+        assert updated.upsell_offered == "Sunset photography add-on"
+        assert updated.upsell_accepted is True
+        assert "accepted the upsell" in updated.ai_lead_analysis
+
+    def test_quoted_amount_never_overwrites_an_existing_quote(self, db):
+        tenant_id, inquiry_id = _setup(db, quoted_amount=25000, quoted_at="2026-08-01T00:00:00+00:00")
+        adapter = _fake_adapter({
+            "check_in": None, "check_out": None, "adults": None, "children": None,
+            "occasion": None, "budget": None, "special_requests": None,
+            "route_mentioned": None, "quoted_amount": 99999,
+            "upsell_offered": None, "upsell_accepted": None,
+        })
+        updated = _run(db, tenant_id, inquiry_id, adapter)
+
+        assert float(updated.quoted_amount) == 25000
+        assert updated.quoted_at == "2026-08-01T00:00:00+00:00"
+
+    def test_upsell_accepted_can_fill_in_on_a_later_run_once_offered(self, db):
+        """upsell_accepted's empty sentinel is None (not offered / not yet
+        answered) -- unlike the write-once fields above, this is allowed to
+        go from None to a real False once the guest actually answers an
+        offer already on record."""
+        tenant_id, inquiry_id = _setup(db, upsell_offered="Sunset photography add-on")
+        adapter = _fake_adapter({
+            "check_in": None, "check_out": None, "adults": None, "children": None,
+            "occasion": None, "budget": None, "special_requests": None,
+            "route_mentioned": None, "quoted_amount": None,
+            "upsell_offered": "Sunset photography add-on", "upsell_accepted": False,
+        })
+        updated = _run(db, tenant_id, inquiry_id, adapter)
+
+        assert updated.upsell_accepted is False
+
+    def test_missing_lead_analysis_key_does_not_crash(self, db):
+        """Older-shaped responses (or a model that omits the new field)
+        must still save the rest of the summary."""
+        tenant_id, inquiry_id = _setup(db)
+        adapter = _fake_adapter({
+            "check_in": None, "check_out": None, "adults": None, "children": None,
+            "occasion": None, "budget": None, "special_requests": None,
+            "route_mentioned": None, "quoted_amount": None,
+            "upsell_offered": None, "upsell_accepted": None,
+        })
+        updated = _run(db, tenant_id, inquiry_id, adapter)
+
+        assert updated.ai_summary == "Guest wants a caravan trip."
+        assert updated.ai_lead_analysis is None

@@ -16,7 +16,7 @@ from app.models.inquiry import Inquiry
 from app.models.call import Call, CallDisposition
 from app.core.security import get_password_hash
 from app.services import daily_report_service
-from app.services.daily_report_email import render_daily_report
+from app.services.daily_report_email import render_daily_report, render_agent_report_html
 
 
 @pytest.fixture(autouse=True)
@@ -106,8 +106,11 @@ class TestRenderWithByAgent:
                 "dms_in": 10, "replies_out": 8, "by_channel": {"whatsapp": 10},
                 "new_leads": 3, "qualified_leads": 1, "shared_details": 2,
                 "calls_total": 4, "calls_missed": 1, "missed_not_returned": 0,
-                "awaiting_reply": 0,
+                "awaiting_reply": 0, "bookings": 1, "revenue": 42000.0, "conversion_rate": 33.3,
             },
+            "calls_by_disposition": {"booked": 1},
+            "notable_calls": [],
+            "lost_today": {"count": 0, "reasons": [], "examples": []},
             "top_waiting": [],
             "insights": [],
             "by_agent": [{
@@ -121,3 +124,158 @@ class TestRenderWithByAgent:
         assert "Team performance" in html
         assert "Agent" in html
         assert "Goa" in html
+
+
+_SAMPLE_LEAD = {
+    "inquiry_id": "inq-1", "guest_name": "Ritik Raje", "channel": "instagram",
+    "snippet": "anniversary weekend", "when": "2026-08-27T11:05:00+00:00", "status": "booked",
+    "intent": "anniversary caravan weekend", "route_mentioned": "Bangalore -> Nandi Hills",
+    "guest_count": "2 adults", "quoted_amount": 42000.0, "special_requests": None,
+    "upsell_offered": "Sunset photography add-on", "upsell_accepted": True,
+    "lead_quality": {"label": "hot"},
+    "ai_lead_analysis": "Fast-moving, high-intent guest who accepted the upsell without hesitation.",
+}
+_SAMPLE_LOST_LEAD = {
+    **_SAMPLE_LEAD, "inquiry_id": "inq-2", "guest_name": "Deepa Krishnan", "channel": "call",
+    "status": "lost", "upsell_offered": None, "upsell_accepted": None,
+    "ai_lead_analysis": "Objected to the day-rate immediately.",
+}
+
+
+class TestOwnerEmailLeadBreakdown:
+    def test_top_leads_condensed_with_view_all_link_for_the_rest(self):
+        report = {
+            "kind": "morning", "date": "2026-08-27", "backlog_days": 5,
+            "metrics": {
+                "dms_in": 3, "replies_out": 3, "by_channel": {"whatsapp": 2, "instagram": 1},
+                "new_leads": 1, "qualified_leads": 0, "shared_details": 0,
+                "calls_total": 1, "calls_missed": 0, "missed_not_returned": 0,
+                "awaiting_reply": 0, "bookings": 1, "revenue": 42000.0, "conversion_rate": 33.0,
+            },
+            "calls_by_disposition": {}, "notable_calls": [],
+            "lost_today": {"count": 0, "reasons": [], "examples": []},
+            "top_waiting": [], "insights": [],
+            "by_agent": [{
+                "agent_id": "agent-1", "agent_name": "Krisha",
+                "scorecard": {"leads_handled": 3, "calls_answered": 1, "calls_missed": 0, "conversions": 1},
+                "notable_calls": [], "narrative": "",
+                "leads": [_SAMPLE_LEAD, _SAMPLE_LOST_LEAD, {**_SAMPLE_LEAD, "inquiry_id": "inq-3", "status": "progress"}],
+            }],
+        }
+        html = render_daily_report(report, tenant_name="Ratha", dashboard_url="https://example.com")
+
+        assert "Ritik Raje" in html
+        assert "Deepa Krishnan" in html
+        # the third (in-progress) lead is not decision-relevant enough for
+        # the top-2 condensed slots -- only reachable via "View all"
+        assert "View all 3 leads" in html
+        assert "agent_id=agent-1" in html
+        assert "accepted the upsell without hesitation" in html
+
+    def test_two_or_fewer_leads_has_no_view_all_link(self):
+        report = {
+            "kind": "morning", "date": "2026-08-27", "backlog_days": 5,
+            "metrics": {
+                "dms_in": 1, "replies_out": 1, "by_channel": {},
+                "new_leads": 1, "qualified_leads": 0, "shared_details": 0,
+                "calls_total": 0, "calls_missed": 0, "missed_not_returned": 0,
+                "awaiting_reply": 0, "bookings": 0, "revenue": 0.0, "conversion_rate": 0.0,
+            },
+            "calls_by_disposition": {}, "notable_calls": [],
+            "lost_today": {"count": 0, "reasons": [], "examples": []},
+            "top_waiting": [], "insights": [],
+            "by_agent": [{
+                "agent_id": "agent-1", "agent_name": "Krisha",
+                "scorecard": {"leads_handled": 1, "calls_answered": 0, "calls_missed": 0, "conversions": 0},
+                "notable_calls": [], "narrative": "", "leads": [_SAMPLE_LEAD],
+            }],
+        }
+        html = render_daily_report(report, tenant_name="Ratha", dashboard_url="https://example.com")
+        assert "View all" not in html
+
+
+class TestOwnerEmailBookingsChannelsLost:
+    def test_bookings_revenue_channel_mix_and_lost_today_render(self):
+        report = {
+            "kind": "morning", "date": "2026-08-27", "backlog_days": 5,
+            "metrics": {
+                "dms_in": 3, "replies_out": 3, "by_channel": {"whatsapp": 2, "instagram": 1},
+                "new_leads": 1, "qualified_leads": 0, "shared_details": 0,
+                "calls_total": 1, "calls_missed": 0, "missed_not_returned": 0,
+                "awaiting_reply": 0, "bookings": 1, "revenue": 42000.0, "conversion_rate": 100.0,
+            },
+            "calls_by_disposition": {"booked": 1, "lost": 1},
+            "notable_calls": [{"disposition": "booked", "summary": "Booked a caravan trip.", "duration_seconds": 300}],
+            "lost_today": {
+                "count": 1, "reasons": [{"reason": "budget_mismatch", "count": 1}],
+                "examples": [{"guest_name": "Deepa", "route_mentioned": "Bangalore to Coorg", "quoted_amount": 25000.0, "lost_reason": "budget_mismatch"}],
+            },
+            "top_waiting": [], "insights": [], "by_agent": [],
+        }
+        html = render_daily_report(report, tenant_name="Ratha", dashboard_url="https://example.com")
+
+        assert "₹42,000" in html
+        assert "Bookings" in html
+        assert "Whatsapp" in html and "Instagram" in html
+        assert "Booked 1" in html
+        assert "1 lead lost" in html
+        assert "budget mismatch" in html
+        assert "Deepa" in html
+
+    def test_zero_lost_today_renders_nothing(self):
+        report = {
+            "kind": "morning", "date": "2026-08-27", "backlog_days": 5,
+            "metrics": {
+                "dms_in": 0, "replies_out": 0, "by_channel": {},
+                "new_leads": 0, "qualified_leads": 0, "shared_details": 0,
+                "calls_total": 0, "calls_missed": 0, "missed_not_returned": 0,
+                "awaiting_reply": 0, "bookings": 0, "revenue": 0.0, "conversion_rate": 0.0,
+            },
+            "calls_by_disposition": {}, "notable_calls": [],
+            "lost_today": {"count": 0, "reasons": [], "examples": []},
+            "top_waiting": [], "insights": [], "by_agent": [],
+        }
+        html = render_daily_report(report, tenant_name="Ratha", dashboard_url="https://example.com")
+        assert "Lost today" not in html
+
+
+class TestAgentEmailLeadBreakdownSummaryFeedback:
+    def test_full_lead_cards_summary_and_feedback_render(self):
+        block = {
+            "agent_id": "agent-1", "agent_name": "Krisha", "date": "2026-08-27",
+            "scorecard": {
+                "leads_handled": 2, "calls_answered": 1, "calls_missed": 0, "conversions": 1,
+                "avg_response_seconds": 120, "followups_completed": 1, "followups_total": 1, "followups_overdue": 0,
+            },
+            "notable_calls": [], "narrative": "Handled two leads today.",
+            "leads": [_SAMPLE_LEAD, _SAMPLE_LOST_LEAD],
+            "leads_summary": "One booking with an accepted upsell, one price objection.",
+            "leads_feedback": [
+                {"type": "good", "text": "Ritik's upsell landed because it was offered mid-conversation."},
+                {"type": "improve", "text": "Quote Deepa's day-rate earlier next time."},
+            ],
+        }
+        html = render_agent_report_html(block, tenant_name="Ratha", dashboard_url="https://example.com")
+
+        assert "Lead breakdown" in html
+        assert "Bangalore -&gt; Nandi Hills" in html or "Bangalore -> Nandi Hills" in html
+        assert "Upsell accepted" in html
+        assert "Leads summary" in html
+        assert "One booking with an accepted upsell" in html
+        assert "Feedback" in html
+        assert "upsell landed" in html
+        assert "day-rate earlier" in html
+
+    def test_no_leads_renders_no_new_sections(self):
+        block = {
+            "agent_id": "agent-1", "agent_name": "Krisha", "date": "2026-08-27",
+            "scorecard": {
+                "leads_handled": 0, "calls_answered": 0, "calls_missed": 0, "conversions": 0,
+                "avg_response_seconds": 0, "followups_completed": 0, "followups_total": 0, "followups_overdue": 0,
+            },
+            "notable_calls": [], "narrative": "", "leads": [], "leads_summary": None, "leads_feedback": [],
+        }
+        html = render_agent_report_html(block, tenant_name="Ratha", dashboard_url="https://example.com")
+        assert "Lead breakdown" not in html
+        assert "Leads summary" not in html
+        assert "Feedback" not in html

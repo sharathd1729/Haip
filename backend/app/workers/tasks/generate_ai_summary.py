@@ -15,6 +15,7 @@ Constitution checks:
 """
 
 import asyncio
+from datetime import datetime, timezone
 import structlog
 
 from app.workers.celery_app import celery_app
@@ -49,29 +50,39 @@ respond with ONLY a JSON object (no markdown fences, no other text):
     "children": "<integer number of children ONLY if explicitly stated, else null>",
     "occasion": "<short phrase, e.g. 'anniversary', ONLY if explicitly stated, else null>",
     "budget": "<number, the guest's stated budget in INR, ONLY if explicitly stated, else null>",
-    "special_requests": "<short phrase of a specific request the guest explicitly made (dietary, accessibility, celebration setup, etc.), else null>"
-  }
+    "special_requests": "<short phrase of a specific request the guest explicitly made (dietary, accessibility, celebration setup, etc.), else null>",
+    "route_mentioned": "<the route or locations mentioned, e.g. 'Shirdi to Mumbai' or 'Bangalore to Coorg', ONLY if explicitly stated, else null. If the guest changes their mind mid-conversation, use their LATEST stated route>",
+    "quoted_amount": "<number, the exact price figure that was actually quoted to the guest in this conversation (by a human agent or in a call), ONLY if a specific number was stated, else null. Never a guess or a range -- only a real quoted figure>",
+    "upsell_offered": "<short phrase naming an add-on/upgrade that was offered to the guest, ONLY if one was actually offered, else null>",
+    "upsell_accepted": "<true if the guest accepted the offered upsell, false if they explicitly declined it, else null if not offered or not yet answered>"
+  },
+  "lead_analysis": "<2-3 sentences, YOUR OWN synthesis (unlike 'extracted' above, this is not a literal readback): what's the real state of this lead, what's stalling it or drove the outcome, and one concrete next step. Ground it strictly in what's actually in this conversation/call data -- never invent facts not present.>"
 }
 
 Be specific and concise. If data is missing, state what's unknown rather than
 inventing it. "extracted" fields are a strict, literal readback of what the
 guest actually said in this conversation -- never infer, guess, or estimate
-a value the guest did not state. When in doubt, use null. Output only the
-JSON object."""
+a value the guest did not state. "lead_analysis" is the one exception: it is
+your own reasoned assessment, not a literal readback, but it must still be
+grounded strictly in this conversation's actual content. When in doubt, use
+null. Output only the JSON object."""
 
 
 _ANALYSIS_KEYS = ("intent", "sentiment", "objection", "reply_urgency", "next_action")
-_EXTRACTED_KEYS = ("check_in", "check_out", "adults", "children", "occasion", "budget", "special_requests")
+_EXTRACTED_KEYS = (
+    "check_in", "check_out", "adults", "children", "occasion", "budget", "special_requests",
+    "route_mentioned", "quoted_amount", "upsell_offered", "upsell_accepted",
+)
 
 
-def _parse_summary_response(raw: str) -> tuple[str, dict | None, dict | None]:
-    """Parse the v3 JSON response into (summary_text, analysis_dict, extracted_dict).
+def _parse_summary_response(raw: str) -> tuple[str, dict | None, dict | None, str | None]:
+    """Parse the v4 JSON response into (summary_text, analysis_dict, extracted_dict, lead_analysis).
 
     Degrades gracefully: markdown fences and reasoning-model <think> blocks
     are stripped; a truncated JSON payload (max_tokens hit mid-object) still
     yields its "summary" field via regex instead of leaking raw JSON into
-    the UI (analysis/extracted are simply absent in that case); plain prose
-    is kept as-is with analysis=extracted=None."""
+    the UI (analysis/extracted/lead_analysis are simply absent in that
+    case); plain prose is kept as-is with analysis=extracted=lead_analysis=None."""
     import json as _json
     import re as _re
 
@@ -101,7 +112,9 @@ def _parse_summary_response(raw: str) -> tuple[str, dict | None, dict | None]:
         extracted = None
         if isinstance(extracted_raw, dict):
             extracted = {k: extracted_raw.get(k) for k in _EXTRACTED_KEYS}
-        return summary or raw, analysis, extracted
+        lead_analysis_raw = parsed.get("lead_analysis")
+        lead_analysis = lead_analysis_raw.strip() if isinstance(lead_analysis_raw, str) and lead_analysis_raw.strip() else None
+        return summary or raw, analysis, extracted, lead_analysis
 
     # Truncated/malformed JSON: salvage the summary value rather than storing
     # a raw JSON fragment as the "prose" summary.
@@ -113,10 +126,10 @@ def _parse_summary_response(raw: str) -> tuple[str, dict | None, dict | None]:
             except (ValueError, TypeError):
                 salvaged = m.group(1)
             if salvaged.strip():
-                return salvaged.strip(), None, None
-        return "", None, None   # unusable JSON fragment — caller logs + keeps old summary
+                return salvaged.strip(), None, None, None
+        return "", None, None, None   # unusable JSON fragment — caller logs + keeps old summary
 
-    return raw, None, None
+    return raw, None, None, None
 
 
 def _valid_iso_date(value) -> str | None:
@@ -198,6 +211,35 @@ def _apply_extracted_fields(inquiry, extracted: dict) -> list[str]:
     if isinstance(special_requests, str) and special_requests.strip() and not inquiry.special_requests:
         inquiry.special_requests = special_requests.strip()
         written.append("special_requests")
+
+    route_mentioned = extracted.get("route_mentioned")
+    if isinstance(route_mentioned, str) and route_mentioned.strip() and not inquiry.route_mentioned:
+        inquiry.route_mentioned = route_mentioned.strip()[:255]
+        written.append("route_mentioned")
+
+    # quoted_amount/quoted_at already exist on Inquiry but had no write path
+    # anywhere in the codebase before this (confirmed via grep) -- a formal
+    # quote is a fact once made, same write-once rule as check_in/occasion.
+    quoted_amount = _coerce_number(extracted.get("quoted_amount"))
+    if quoted_amount is not None and quoted_amount > 0 and inquiry.quoted_amount is None:
+        from decimal import Decimal
+        inquiry.quoted_amount = Decimal(str(quoted_amount))
+        inquiry.quoted_at = datetime.now(timezone.utc).isoformat()
+        written.append("quoted_amount")
+
+    upsell_offered = extracted.get("upsell_offered")
+    if isinstance(upsell_offered, str) and upsell_offered.strip() and not inquiry.upsell_offered:
+        inquiry.upsell_offered = upsell_offered.strip()[:255]
+        written.append("upsell_offered")
+
+    # Unlike the fields above, upsell_accepted's empty sentinel is None
+    # (not offered / not yet answered) -- False is a real, meaningful
+    # answer, so this is allowed to fill in on a later run once the guest
+    # actually responds to an offer that was already recorded.
+    upsell_accepted = extracted.get("upsell_accepted")
+    if isinstance(upsell_accepted, bool) and inquiry.upsell_accepted is None:
+        inquiry.upsell_accepted = upsell_accepted
+        written.append("upsell_accepted")
 
     return written
 
@@ -303,7 +345,7 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
             log.warning("generate_ai_summary_empty_response", inquiry_id=inquiry_id)
             return
 
-        summary_text, analysis, extracted = _parse_summary_response(raw_text)
+        summary_text, analysis, extracted, lead_analysis = _parse_summary_response(raw_text)
         if not summary_text:
             log.warning("generate_ai_summary_unparseable", inquiry_id=inquiry_id)
             return
@@ -312,6 +354,8 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
         inquiry.ai_summary = summary_text
         if analysis is not None:
             inquiry.ai_analysis = analysis
+        if lead_analysis is not None:
+            inquiry.ai_lead_analysis = lead_analysis
         fields_written = _apply_extracted_fields(inquiry, extracted) if extracted else []
         db.add(inquiry)
         db.commit()

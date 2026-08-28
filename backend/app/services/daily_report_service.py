@@ -12,12 +12,13 @@ presets -- an owner reading "yesterday" means their yesterday, not UTC's.
 
 from __future__ import annotations
 
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import structlog
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.call import Call
 from app.models.conversation import Conversation, Message, MessageDirection
@@ -25,8 +26,9 @@ from app.models.guest_identity import GuestIdentity
 from app.models.inquiry import Inquiry
 from app.models.insight import Insight
 from app.models.pipeline_stage import PipelineStage
+from app.models.property import Stay
 from app.models.user import User, UserRole
-from app.services import agent_analytics_service, call_status_service, worklist_service
+from app.services import agent_analytics_service, call_status_service, lead_activity_service, worklist_service
 from app.services.date_presets import IST, ist_range_to_utc
 
 log = structlog.get_logger()
@@ -112,7 +114,10 @@ def build_agent_block(db: Session, tenant_id: str, agent, target: str) -> Option
         .all()
     )
     narrative = agent_analytics_service.generate_agent_narrative(db, tenant_id, agent.id, target, target)
+    leads = lead_activity_service.get_agent_lead_cards(db, tenant_id, agent, target)
+    leads_summary_feedback = agent_analytics_service.generate_leads_summary_and_feedback(db, tenant_id, agent.id, leads)
     return {
+        "agent_id": agent.id,
         "agent_name": agent.name,
         "scorecard": scorecard,
         "notable_calls": [
@@ -123,6 +128,9 @@ def build_agent_block(db: Session, tenant_id: str, agent, target: str) -> Option
             for c in calls
         ],
         "narrative": narrative,
+        "leads": leads,
+        "leads_summary": leads_summary_feedback.get("summary") if leads_summary_feedback else None,
+        "leads_feedback": leads_summary_feedback.get("feedback") if leads_summary_feedback else [],
     }
 
 
@@ -282,6 +290,68 @@ def build_daily_report(
         .scalar()
     ) or 0
 
+    # Disposition breakdown + the day's most notable calls (highest AI score
+    # first, same as build_agent_block's per-agent notable_calls) -- "calls"
+    # in the report meant only a total/missed count before this.
+    calls_by_disposition: dict[str, int] = {}
+    for c in call_rows:
+        disp = str(getattr(c.human_disposition or c.ai_disposition, "value", None) or "unclassified")
+        calls_by_disposition[disp] = calls_by_disposition.get(disp, 0) + 1
+
+    _MAX_NOTABLE_CALLS_TENANT = 2
+    notable_calls = [
+        {
+            "disposition": str(getattr(c.human_disposition or c.ai_disposition, "value", None) or "unclassified"),
+            "summary": (c.ai_summary or "")[:200],
+            "duration_seconds": c.duration_seconds or 0,
+        }
+        for c in sorted(call_rows, key=lambda c: c.ai_score or 0, reverse=True)[:_MAX_NOTABLE_CALLS_TENANT]
+    ]
+
+    # ── Bookings / revenue ────────────────────────────────────────────────
+    # Deliberately Stay.created_at (when the booking was MADE), not
+    # Stay.check_in (when the guest arrives) -- dashboard_overview.py's KPI
+    # snapshot uses check_in-date range on purpose (upcoming occupancy in a
+    # date range), but "what happened today" means bookings made today.
+    stay_q = db.query(Stay).filter(
+        Stay.tenant_id == tenant_id,
+        Stay.status.in_(["confirmed", "checked_in", "checked_out"]),
+        Stay.created_at >= start_dt, Stay.created_at <= end_dt,
+    )
+    bookings = stay_q.count()
+    revenue = float(stay_q.with_entities(func.coalesce(func.sum(Stay.total_amount), 0)).scalar() or 0)
+    conversion_rate = round(bookings / new_leads * 100, 1) if new_leads else 0.0
+
+    # ── Lost today ───────────────────────────────────────────────────────
+    lost_today_rows = (
+        db.query(Inquiry)
+        .join(PipelineStage, PipelineStage.id == Inquiry.stage_id)
+        .filter(
+            Inquiry.tenant_id == tenant_id,
+            PipelineStage.is_closed_lost.is_(True),
+            Inquiry.current_stage_entered_at >= start_dt,
+            Inquiry.current_stage_entered_at <= end_dt,
+        )
+        .options(joinedload(Inquiry.guest))
+        .all()
+    )
+    lost_reason_counts = Counter(
+        (r.lost_reason.value if r.lost_reason else "unspecified") for r in lost_today_rows
+    )
+    lost_today = {
+        "count": len(lost_today_rows),
+        "reasons": [{"reason": reason, "count": count} for reason, count in lost_reason_counts.most_common()],
+        "examples": [
+            {
+                "guest_name": r.guest.name if r.guest else "Unnamed lead",
+                "route_mentioned": r.route_mentioned,
+                "quoted_amount": float(r.quoted_amount) if r.quoted_amount is not None else None,
+                "lost_reason": r.lost_reason.value if r.lost_reason else None,
+            }
+            for r in lost_today_rows[:3]
+        ],
+    }
+
     # ── Still waiting on us ──────────────────────────────────────────────
     # Evening: only what arrived today, since the point is catching them
     # before the day ends. Morning: the last BACKLOG_DAYS, so yesterday's
@@ -323,7 +393,13 @@ def build_daily_report(
             "calls_missed": calls_missed,
             "missed_not_returned": missed_not_returned,
             "awaiting_reply": awaiting,
+            "bookings": bookings,
+            "revenue": revenue,
+            "conversion_rate": conversion_rate,
         },
+        "calls_by_disposition": calls_by_disposition,
+        "notable_calls": notable_calls,
+        "lost_today": lost_today,
         "top_waiting": top_waiting,
         "insights": get_active_insights(db, tenant_id),
         "by_agent": get_agent_breakdown(db, tenant_id, target),

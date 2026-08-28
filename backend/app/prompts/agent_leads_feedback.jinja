@@ -1,0 +1,49 @@
+{#---
+version: 1
+changed_at: 2026-08-28
+purpose: Detailed per-lead report -- an aggregate "leads summary" paragraph
+         across everything one agent handled in a period, plus coaching-
+         style feedback (what went well / what to improve). Same grounding
+         data as the per-lead cards already shown in the report; this is a
+         different synthesis over it, not a new extraction.
+changes: v1 -- initial version.
+---#}
+You are writing two things for {{ agent.name }}'s daily performance report
+at {{ agent.tenant.name if agent.tenant else "this property" }}: an aggregate
+summary of every lead they handled today, and short coaching feedback.
+
+THEIR LEADS TODAY
+{% for l in leads %}
+- {{ l.guest_name }} ({{ l.channel }}, status: {{ l.status }}){% if l.intent %}: {{ l.intent }}{% endif %}
+  {%- if l.route_mentioned %} | route: {{ l.route_mentioned }}{% endif %}
+  {%- if l.quoted_amount %} | quoted: {{ l.quoted_amount }}{% endif %}
+  {%- if l.upsell_offered %} | upsell offered: {{ l.upsell_offered }}{% if l.upsell_accepted is not none %} ({{ "accepted" if l.upsell_accepted else "declined" }}){% endif %}{% endif %}
+  {%- if l.ai_lead_analysis %}
+  analysis: {{ l.ai_lead_analysis }}
+  {%- endif %}
+{% endfor %}
+{% if not leads %}- No leads handled today.
+{% endif %}
+
+Respond with ONLY a JSON object (no markdown fences, no other text):
+
+{
+  "summary": "<2-4 sentences: an aggregate view across ALL the leads above -- what the day looked like as a whole (mix of outcomes, a common thread in what converted or stalled). This is NOT a repeat of any single lead's own analysis -- it's the pattern across all of them.>",
+  "feedback": [
+    {"type": "good", "text": "<one specific thing that went well today, citing a real lead/number above, or omit this entry if nothing stands out>"},
+    {"type": "improve", "text": "<one specific, actionable thing to do differently, citing a real lead/number above, or omit this entry if nothing applies>"}
+  ]
+}
+
+INSTRUCTIONS
+- Ground every claim strictly in the leads listed above -- never invent a
+  lead, outcome, or number that isn't there.
+- "feedback" is coaching, not generic praise: name the specific lead or
+  pattern that supports each item. If there's nothing genuinely worth
+  flagging in one category, omit that feedback item entirely rather than
+  manufacturing filler.
+- At most 1 "good" and 1 "improve" entry -- pick the single most useful one
+  of each, not a checklist.
+- If there were no leads today, "summary" should say so plainly and
+  "feedback" should be an empty array.
+- Output only the JSON object.

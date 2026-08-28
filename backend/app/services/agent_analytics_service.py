@@ -305,3 +305,82 @@ def generate_agent_narrative(
     except Exception as exc:
         log.warning("agent_narrative_failed", tenant_id=tenant_id, agent_id=agent_id, error=str(exc))
         return ""
+
+
+# ── Leads summary + coaching feedback (detailed per-lead report) ───────────
+# Aggregate view across everything one agent handled in a period, plus short
+# coaching feedback -- distinct from generate_agent_narrative (a general
+# how-the-day-went paragraph over scorecard numbers) and from each lead
+# card's own ai_lead_analysis (a per-lead read). Takes the already-fetched
+# lead cards from lead_activity_service rather than re-querying.
+
+_FEEDBACK_TYPES = ("good", "improve")
+
+
+def _parse_leads_feedback_response(raw: str) -> Optional[dict]:
+    """Returns None (never raises) on unparseable output -- caller degrades
+    to no summary/feedback this period, same discipline as
+    generate_agent_narrative's empty-string fallback."""
+    import json as _json
+    import re as _re
+
+    text = raw.strip()
+    text = _re.sub(r"<think>.*?</think>", "", text, flags=_re.DOTALL).strip()
+    if text.startswith("```"):
+        text = text.strip("`")
+        if text.startswith("json"):
+            text = text[4:]
+        text = text.strip()
+
+    try:
+        parsed = _json.loads(text)
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(parsed, dict):
+        return None
+
+    summary = parsed.get("summary")
+    if not isinstance(summary, str) or not summary.strip():
+        return None
+
+    feedback = []
+    for item in (parsed.get("feedback") or [])[:2]:
+        if isinstance(item, dict) and isinstance(item.get("text"), str) and item["text"].strip():
+            feedback.append({
+                "type": item.get("type") if item.get("type") in _FEEDBACK_TYPES else "improve",
+                "text": item["text"].strip(),
+            })
+    return {"summary": summary.strip(), "feedback": feedback}
+
+
+def generate_leads_summary_and_feedback(
+    db: Session, tenant_id: str, agent_id: str, leads: list[dict],
+) -> Optional[dict]:
+    """Returns None (never raises) on any failure or empty input -- the
+    report simply omits this section rather than showing a broken one."""
+    from app.adapters.llm import get_llm
+    from app.core.prompt_versions import stamp
+
+    if not leads:
+        return None
+
+    agent = db.query(User).filter_by(id=agent_id, tenant_id=tenant_id).first()
+    if not agent:
+        return None
+
+    try:
+        template = _jinja_env.get_template("agent_leads_feedback.jinja")
+        prompt = template.render(agent=agent, leads=leads)
+        adapter = get_llm("agent_leads_feedback")
+        import asyncio
+        result = asyncio.run(adapter.complete(system_prompt=prompt, user_message="Generate the JSON response."))
+        raw = (result.get("content") or "").strip()
+        parsed = _parse_leads_feedback_response(raw) if raw else None
+        if parsed is None:
+            log.warning("agent_leads_feedback_unparseable", tenant_id=tenant_id, agent_id=agent_id)
+            return None
+        log.info("agent_leads_feedback_generated", tenant_id=tenant_id, agent_id=agent_id, **stamp("agent_leads_feedback"))
+        return parsed
+    except Exception as exc:
+        log.warning("agent_leads_feedback_failed", tenant_id=tenant_id, agent_id=agent_id, error=str(exc))
+        return None
