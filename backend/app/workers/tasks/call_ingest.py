@@ -90,8 +90,21 @@ def _link_recovered_call(db: Session, tenant_id: str, guest_id: str, outbound_ca
     )
     if missed:
         missed.recovered_by_call_id = outbound_call.id
+
+        # Whoever actually calls the lead back owns it -- linking the
+        # recovery call alone left the missed call itself (and the lead)
+        # permanently unattributed, since only the separate outbound Call
+        # row carried agent_id. Propagate it backward, same "don't clobber
+        # an existing signal" rule as every other attribution field.
+        if outbound_call.agent_id and missed.agent_id is None:
+            missed.agent_id = outbound_call.agent_id
+            if missed.inquiry_id:
+                inquiry = db.query(Inquiry).filter_by(id=missed.inquiry_id, tenant_id=tenant_id).first()
+                if inquiry and not inquiry.assigned_to:
+                    inquiry.assigned_to = outbound_call.agent_id
+
         db.commit()
-        log.info("missed_call_recovered", missed_call_id=missed.id, recovery_call_id=outbound_call.id)
+        log.info("missed_call_recovered", missed_call_id=missed.id, recovery_call_id=outbound_call.id, agent_id=missed.agent_id)
 
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=30, name="call_ingest.process")
