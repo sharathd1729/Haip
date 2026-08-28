@@ -566,18 +566,27 @@ def test_dial_status_webhook_does_not_raise_on_unexpected_payload_shape(client, 
     assert res.json()["status"] == "ok"
 
 
-def test_dial_status_webhook_caches_agent_on_dial_b_leg_to_match(client, tenant_and_user, db):
-    tenant = tenant_and_user["tenant"]
-    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret")
-
+def _add_agent(db, tenant, phone="+919000000000", name="Agent Answered"):
     from app.models.user import User, UserRole
     agent = User(
-        id=str(uuid.uuid4()), tenant_id=tenant.id, name="Agent Answered",
+        id=str(uuid.uuid4()), tenant_id=tenant.id, name=name,
         email=f"agent-{uuid.uuid4().hex[:6]}@test.com", hashed_password="x",
-        role=UserRole.RESERVATIONS, phone="+919000000000", is_active=True,
+        role=UserRole.RESERVATIONS, phone=phone, is_active=True,
     )
     db.add(agent)
     db.commit()
+    return agent
+
+
+def test_dial_b_leg_to_alone_does_not_yet_attribute_the_call(client, tenant_and_user, db):
+    """Real bug, confirmed live: a guest who hung up before anyone answered
+    still showed up with an agent's name attached on the Calls page.
+    DialBLegTo can appear on a leg that was merely dialed, not one that
+    answered -- it must only be a PROVISIONAL match until a terminal
+    DialStatus == "completed" confirms an actual connect."""
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret")
+    agent = _add_agent(db, tenant)
 
     res = client.post(
         f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/dial-status",
@@ -587,7 +596,53 @@ def test_dial_status_webhook_caches_agent_on_dial_b_leg_to_match(client, tenant_
     assert res.json()["status"] == "ok"
 
     from app.workers.tasks.call_ingest import _lookup_click_to_call_agent
+    assert _lookup_click_to_call_agent(tenant.id, "call-abc-123") is None
+
+
+def test_dial_status_completed_promotes_the_provisional_match(client, tenant_and_user, db):
+    """DialBLegTo (one POST) followed by a terminal DialStatus == "completed"
+    (a later POST, matching Vobiz's documented separate-events shape) is
+    what actually confirms a real connect -- only then is the attribution
+    written to the cache call_ingest.py reads."""
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret")
+    agent = _add_agent(db, tenant)
+
+    client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/dial-status",
+        data={"CallUUID": "call-abc-123", "DialBLegTo": "+919000000000"},
+    )
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/dial-status",
+        data={"CallUUID": "call-abc-123", "DialStatus": "completed"},
+    )
+    assert res.status_code == 200
+
+    from app.workers.tasks.call_ingest import _lookup_click_to_call_agent
     assert _lookup_click_to_call_agent(tenant.id, "call-abc-123") == agent.id
+
+
+def test_dial_status_no_answer_never_promotes_the_match(client, tenant_and_user, db):
+    """The exact scenario the live bug report described: the guest hangs up
+    before anyone picks up. DialBLegTo may still show up (a leg was dialed),
+    but DialStatus will not be "completed" -- the call must stay
+    unattributed."""
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret")
+    _add_agent(db, tenant)
+
+    client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/dial-status",
+        data={"CallUUID": "call-abc-123", "DialBLegTo": "+919000000000"},
+    )
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/dial-status",
+        data={"CallUUID": "call-abc-123", "DialStatus": "no-answer"},
+    )
+    assert res.status_code == 200
+
+    from app.workers.tasks.call_ingest import _lookup_click_to_call_agent
+    assert _lookup_click_to_call_agent(tenant.id, "call-abc-123") is None
 
 
 def test_dial_status_webhook_no_agent_match_leaves_cache_empty(client, tenant_and_user, db):

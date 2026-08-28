@@ -49,6 +49,10 @@ def _dial_status_cache_key(tenant_id: str, call_uuid: str) -> str:
     return f"haip:vobiz:dialstatus:{tenant_id}:{call_uuid}"
 
 
+def _dial_bleg_provisional_key(tenant_id: str, call_uuid: str) -> str:
+    return f"haip:vobiz:dial_bleg_provisional:{tenant_id}:{call_uuid}"
+
+
 def _to_e164_in(number: str) -> str:
     """Normalize a domestic-format Indian number (e.g. "08071581336") to
     full E.164 ("+918071581336"). Vobiz's own DID/callerId records are
@@ -306,12 +310,27 @@ async def vobiz_dial_status_webhook(
     (which of several parallel-rung numbers it was); the terminal event
     carries DialStatus (completed/busy/failed/cancel/timeout/no-answer).
 
-    UNCONFIRMED against a real call yet -- logs the full raw payload
-    unconditionally first so the exact field names are settled from ground
-    truth, same practice as vobiz_recording_webhook's own comment. Never
-    raises on an unexpected shape: this is a best-effort signal, and its
-    total absence is exactly today's status quo (no attribution, duration-
-    based missed-call guess) -- not a regression.
+    Confirmed live, real bug (not the "unconfirmed" state this docstring
+    used to describe): DialBLegTo showed up -- and got attributed as the
+    answering agent -- on a call the guest hung up on before anyone
+    picked up (recording stopped mid-greeting, disposition "Pending").
+    So DialBLegTo alone does not reliably mean "this leg answered" the
+    way Vobiz's docs implied; it can appear on a leg that was merely
+    dialed. Fix: DialBLegTo only ever writes a PROVISIONAL match now --
+    it's promoted into the real click-to-call cache (the one
+    call_ingest.py actually reads) only once a terminal
+    DialStatus == "completed" is also seen for the same CallUUID,
+    whichever payload it arrives in. Every other DialStatus value
+    (busy/failed/cancel/timeout/no-answer) -- or no DialStatus ever
+    arriving at all, e.g. a guest hangup mid-greeting -- leaves the call
+    unattributed, same as today's status quo before this webhook existed.
+
+    Still logs the full raw payload unconditionally first so field names
+    stay verified against ground truth, same practice as
+    vobiz_recording_webhook's own comment. Never raises on an unexpected
+    shape: this is a best-effort signal, and its total absence is exactly
+    the pre-webhook status quo (no attribution, duration-based missed-call
+    guess) -- not a regression.
     """
     tenant, creds = _resolve_tenant_and_creds(db, tenant_slug, url_secret)
     form = await request.form()
@@ -323,10 +342,10 @@ async def vobiz_dial_status_webhook(
     if not call_uuid:
         return {"status": "ignored"}
 
+    matched_agent_id = None
     dial_b_leg_to = data.get("DialBLegTo", "")
     if dial_b_leg_to:
         try:
-            from app.workers.tasks.call_ingest import cache_click_to_call_agent
             from app.models.user import User
 
             e164 = _to_e164_in(dial_b_leg_to)
@@ -341,18 +360,32 @@ async def vobiz_dial_status_webhook(
                 .first()
             )
             if agent:
-                # Reuses the exact cache function/key already built for
-                # outbound click-to-call attribution -- same cache, same
-                # TTL, read back by the same lookup at ingest time
-                # (call_ingest.py), so inbound and outbound are symmetric.
-                cache_click_to_call_agent(tenant.id, call_uuid, agent.id)
-                log.info("vobiz_dial_answered_by", tenant=tenant_slug, call_uuid=call_uuid, agent_id=agent.id)
+                # Provisional only -- see docstring. Not written to the
+                # real click-to-call cache until DialStatus confirms a
+                # genuine connect.
+                set_cached(_dial_bleg_provisional_key(tenant.id, call_uuid), agent.id, ttl=_CACHE_TTL)
+                matched_agent_id = agent.id
+                log.info("vobiz_dial_bleg_matched", tenant=tenant_slug, call_uuid=call_uuid, agent_id=agent.id)
         except Exception as exc:
             log.warning("vobiz_dial_status_agent_lookup_failed", tenant=tenant_slug, error=str(exc))
 
     dial_status = data.get("DialStatus", "")
     if dial_status:
         set_cached(_dial_status_cache_key(tenant.id, call_uuid), dial_status, ttl=_CACHE_TTL)
+        if dial_status == "completed":
+            try:
+                from app.workers.tasks.call_ingest import cache_click_to_call_agent
+
+                # Same payload (matched_agent_id) or an earlier one (the
+                # provisional cache) -- Vobiz's docs describe DialBLegTo
+                # and the terminal DialStatus as arriving in separate
+                # POSTs, so the earlier-payload path is the expected one.
+                agent_id = matched_agent_id or get_cached(_dial_bleg_provisional_key(tenant.id, call_uuid))
+                if agent_id:
+                    cache_click_to_call_agent(tenant.id, call_uuid, agent_id)
+                    log.info("vobiz_dial_answered_by", tenant=tenant_slug, call_uuid=call_uuid, agent_id=agent_id)
+            except Exception as exc:
+                log.warning("vobiz_dial_status_promote_failed", tenant=tenant_slug, error=str(exc))
 
     return {"status": "ok"}
 
