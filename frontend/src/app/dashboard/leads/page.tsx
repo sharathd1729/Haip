@@ -1,7 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { useSession } from "next-auth/react";
 import { useInfiniteQuery, useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { Target, RefreshCw, Settings2, ChevronDown, Plus } from "@/lib/icons";
 import api from "@/lib/api";
@@ -242,31 +241,12 @@ function MobileStageSection({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Leads360Page() {
-  const { data: session } = useSession();
   const [stageFilter, setStageFilter] = useState(ALL_STAGES_ID);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [addLeadOpen, setAddLeadOpen] = useState(false);
   const [filters, setFilters] = useState<LeadsFilters>({});
   const [stageMeta, setStageMeta] = useState<Record<string, StageMetaEntry>>({});
-  const [mineDefaultApplied, setMineDefaultApplied] = useState(false);
   const queryClient = useQueryClient();
-
-  // Non-owner/manager roles land on "my leads" by default, same posture
-  // as /dashboard/overview's role scoping -- the assigned_to filter
-  // already exists and works (LeadsFilterBar's "Assigned to" select),
-  // it just previously defaulted to unfiltered (every lead in the
-  // tenant) for every role. Applied once after the session loads, via
-  // setFilters rather than the initial useState value, since useSession()
-  // isn't populated on the first render -- doesn't clobber anything the
-  // user's already picked if they interact before the session resolves.
-  useEffect(() => {
-    if (mineDefaultApplied || !session?.user?.id) return;
-    const role = session.user.role;
-    if (role && role !== "owner" && role !== "manager") {
-      setFilters(f => ({ ...f, assigned_to: f.assigned_to ?? session.user.id }));
-    }
-    setMineDefaultApplied(true);
-  }, [session, mineDefaultApplied]);
 
   const { data: pipelineStages = [] } = usePipelineStages();
 
