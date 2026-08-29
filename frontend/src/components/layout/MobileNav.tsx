@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { signOut } from "next-auth/react";
-import { Inbox, Phone, Users, Menu, X, Home, Target, Building2, Calendar, Calculator, MessageSquare, Megaphone, FileDown, Star, Shield, Zap, Settings, CreditCard, UserCircle, HelpCircle, Palette, FileText, LogOut, ListChecks } from "@/lib/icons";
+import { Inbox, Phone, Users, Menu, X, Home, Target, Calendar, Calculator, MessageSquare, Megaphone, FileDown, Star, Shield, Zap, Settings, CreditCard, UserCircle, HelpCircle, Palette, FileText, LogOut, ListChecks, BookmarkIcon } from "@/lib/icons";
 import { UserCheck, GitBranch, Plug2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canSeeNav, type Resource } from "@/lib/permissions";
@@ -54,7 +54,7 @@ const ALL_SECTIONS = [
   {
     label: "Portfolio",
     items: [
-      { label: "Properties",      href: "/dashboard/properties",          icon: Building2,  resource: "properties" as Resource, hideForBusinessTypes: ["caravan"] },
+      { label: "Properties",      href: "/dashboard/properties",          icon: Home,  resource: "properties" as Resource, hideForBusinessTypes: ["caravan"] },
       { label: "Calendar",        href: "/dashboard/portfolio/calendar",  icon: Calendar,   resource: "properties" as Resource },
       { label: "Rate Calculator", href: "/dashboard/calculator",          icon: Calculator, resource: "properties" as Resource, hideForBusinessTypes: ["caravan"] },
     ],
@@ -66,6 +66,7 @@ const ALL_SECTIONS = [
       { label: "Campaigns",    href: "/dashboard/messaging/campaigns",   icon: Megaphone,     resource: "campaigns"   as Resource },
       { label: "Subscribers",  href: "/dashboard/messaging/subscribers", icon: UserCheck,     resource: "subscribers" as Resource },
       { label: "Flow Builder", href: "/dashboard/messaging/flows",       icon: GitBranch,     resource: "flows"       as Resource },
+      { label: "Saved Replies", href: "/dashboard/settings/saved-replies", icon: BookmarkIcon, resource: "templates"  as Resource },
     ],
   },
   {
