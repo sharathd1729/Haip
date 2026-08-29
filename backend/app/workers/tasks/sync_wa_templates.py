@@ -58,8 +58,15 @@ def sync_tenant_templates(self, tenant_id: str):
         if not intg:
             return
 
+        from app.workers.tasks.whatsapp import _get_wa_access_token
+
         config = intg.config or {}
-        access_token = config.get("access_token")
+        # access_token lives in the encrypted credentials_kms_blob, never in
+        # config -- config.get("access_token") was always empty here (the
+        # same bug already fixed in send_whatsapp.py/automation_engine.py/
+        # run_campaign.py, just never propagated to this file), so this task
+        # silently no-op'd on every run and templates never left PENDING.
+        access_token = _get_wa_access_token(db, tenant_id)
         waba_id = config.get("waba_id")
         if not access_token or not waba_id:
             return
