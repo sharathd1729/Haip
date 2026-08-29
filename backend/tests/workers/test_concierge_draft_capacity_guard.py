@@ -54,6 +54,22 @@ class TestCheckGroundingCapacity:
         ok, reason = _check_grounding("Thanks for reaching out! How can I help?", [])
         assert ok is True
 
+    def test_host_phrasing_matching_known_value_is_grounded(self):
+        facts = [{"tool": "check_availability", "args": {}, "result": [], "max_capacity_note": 8}]
+        ok, reason = _check_grounding("A caravan can comfortably host 8 guests.", facts)
+        assert ok is True
+
+    def test_host_phrasing_not_matching_known_value_is_ungrounded(self):
+        """Confirmed live: a guest stated her own party size (4) and the
+        model echoed it back as 'can comfortably host 4 guests' while the
+        real, grounded max_capacity_note was 8. 'host' previously wasn't in
+        _CAPACITY_RE's verb list, so this evaded the guard entirely and
+        auto-sent unchecked."""
+        facts = [{"tool": "check_availability", "args": {}, "result": [], "max_capacity_note": 8}]
+        ok, reason = _check_grounding("A caravan can comfortably host 4 guests.", facts)
+        assert ok is False
+        assert "4" in reason
+
 
 class TestMaxKnownCapacity:
     def test_returns_max_across_active_properties(self, db):

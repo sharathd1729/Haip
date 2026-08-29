@@ -169,10 +169,17 @@ _STAY_CONTEXT_RE = re.compile(
     re.IGNORECASE,
 )
 # Catches "designed for up to 4 guests", "sleeps 8", "max 6 people", "fits
-# 4 pax" -- any specific headcount-capacity claim, which must trace back to
-# a real max_adults value (see _check_grounding's capacity check below).
+# 4 pax", "can host 4 guests" -- any specific headcount-capacity claim,
+# which must trace back to a real max_adults value (see _check_grounding's
+# capacity check below).
+#
+# "host(s)?" added after a confirmed live miss: a guest stated her own
+# party size (4) and the model echoed it back as "can comfortably host 4
+# guests" -- not factually wrong (real max_adults was 8, grounded and
+# available), but exactly the phrasing this guard exists to catch, since
+# it evaded every other verb in this alternation and auto-sent unchecked.
 _CAPACITY_RE = re.compile(
-    r"\b(?:up to|max(?:imum)?|fits?|sleeps?|holds?|seats?|accommodat\w*|capacity of)\s+(\d+)\s*"
+    r"\b(?:up to|max(?:imum)?|fits?|sleeps?|holds?|seats?|hosts?|accommodat\w*|capacity of)\s+(\d+)\s*"
     r"(?:guests?|people|persons?|pax|adults?)\b",
     re.IGNORECASE,
 )
