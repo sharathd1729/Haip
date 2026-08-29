@@ -6,6 +6,12 @@ const nextConfig: NextConfig = {
   // Standalone output bundles only what's needed — makes Docker images ~60% smaller
   output: "standalone",
   experimental: {},
+  // Without this, Turbopack's root inference picks up a stray package-lock.json
+  // in the user's home directory (a sibling lockfile outside this repo) instead
+  // of this frontend/ directory, breaking route resolution intermittently.
+  turbopack: {
+    root: __dirname,
+  },
   async rewrites() {
     return [
       {
