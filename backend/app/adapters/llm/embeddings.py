@@ -10,10 +10,20 @@ part of `_TASK_ROUTES` (that dict maps chat tasks to chat models), so this
 module is the embedding equivalent of `get_llm()` -- callers ask for
 `embed_texts()` and never touch the provider.
 
-Model: nvidia/nv-embedqa-e5-v5 (1024 dims). This is an *asymmetric*
+Model: nvidia/nemotron-3-embed-1b (2048 dims). This is an *asymmetric*
 retrieval model: stored passages and search queries must be embedded with
 different `input_type` values or recall degrades badly. Callers must say
 which they are producing -- there is deliberately no default.
+
+nvidia/nv-embedqa-e5-v5 (1024 dims, the original model here) reached NIM
+end-of-life 2026-08-25 -- confirmed live via HTTP 410 Gone. Every other
+embedqa-family model on NIM's catalog 404s as "not found for account" on
+this NVIDIA account (not entitled, confirmed live) -- nemotron-3-embed-1b
+is the only embedding model actually callable, and it does not support a
+dimensions= truncation param ("dimensions must be one of 2048", confirmed
+live). See migration 094 for the resulting schema/reindex change and
+knowledge_service.py's MIN_SCORE/PHRASING_MIN_SIMILARITY for this model's
+real, re-measured score distribution (different from e5-v5's).
 """
 
 from __future__ import annotations
@@ -29,8 +39,8 @@ log = structlog.get_logger()
 
 _BASE_URL = "https://integrate.api.nvidia.com/v1"
 
-EMBED_MODEL = "nvidia/nv-embedqa-e5-v5"
-EMBED_DIM = 1024
+EMBED_MODEL = "nvidia/nemotron-3-embed-1b"
+EMBED_DIM = 2048
 
 # NVIDIA's embedding endpoint rejects oversized batches; keep well under it.
 _MAX_BATCH = 32
@@ -101,7 +111,7 @@ async def embed_texts(texts: Sequence[str], input_type: InputType) -> list[list[
             if len(vec) != EMBED_DIM:
                 raise EmbeddingError(
                     f"Expected {EMBED_DIM}-dim vectors from {EMBED_MODEL}, got {len(vec)}. "
-                    "The embeddings column and migration 078 assume 1024."
+                    "The embeddings/transcripts columns are sized per migration 094."
                 )
             out.append(vec)
 

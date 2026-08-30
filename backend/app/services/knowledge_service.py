@@ -34,23 +34,25 @@ log = structlog.get_logger()
 KB_NAMESPACE = "kb"
 KB_REF_TYPE = "knowledge_entry"
 
-# nv-embedqa-e5-v5 similarity scores sit far below the 0.7-0.8 range people
-# expect from OpenAI-style embeddings -- an exact-topic match measures ~0.36
-# in practice (verified against the live endpoint). A conventional threshold
-# would silently return nothing on every query, so this floor is deliberately
-# low and exists only to drop obvious noise; ranking does the real work.
-MIN_SCORE = 0.15
+# nv-embedqa-e5-v5 (the model these numbers were originally tuned for)
+# reached NIM end-of-life 2026-08-25 -- replaced with nemotron-3-embed-1b
+# (see embeddings.py, migration 094), which has a materially different,
+# better-separated score distribution. Re-measured live 2026-08-30 against
+# a realistic on-topic/near-miss/off-topic sample: exact-topic match ~0.64,
+# same-topic near-miss ~0.40, off-topic noise ~0.03-0.11. Floor set to sit
+# clearly above the noise band while still keeping the near-miss case.
+MIN_SCORE = 0.25
 DEFAULT_TOP_K = 5
 
 # An entry's answer plus its alternate phrasings.
 MAX_VECTORS_PER_ENTRY = 10
 
 # How close a generated phrasing must sit to its own answer to be kept.
-# Calibrated against a measured sample: on-topic phrasings scored 0.52-0.62
-# and off-topic drift 0.40-0.48, so the gap is real but narrow. Set to
-# favour dropping a borderline-useful phrasing over keeping one that
-# misroutes another topic's question to this entry.
-PHRASING_MIN_SIMILARITY = 0.50
+# Re-measured live 2026-08-30 against nemotron-3-embed-1b (see MIN_SCORE
+# above for why): on-topic phrasings scored 0.896, off-topic drift 0.372 --
+# a much wider, cleaner gap than the previous model's 0.52-0.62 vs
+# 0.40-0.48. Set with generous margin on both sides of that gap.
+PHRASING_MIN_SIMILARITY = 0.65
 
 
 def _cosine(a: list[float], b: list[float]) -> float:

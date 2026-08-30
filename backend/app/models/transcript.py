@@ -20,6 +20,6 @@ class Transcript(Base, TimestampMixin, TenantMixin):
     # [{ "speaker": "agent|guest", "t0": float, "t1": float, "text": str }]
     turns = Column(Text, nullable=True)             # JSON stored as text
     raw_text = Column(Text, nullable=True)
-    embedding = Column(Vector(1024), nullable=True) # pgvector
+    embedding = Column(Vector(2048), nullable=True) # pgvector -- see migration 094
 
     call = relationship("Call", back_populates="transcript")
