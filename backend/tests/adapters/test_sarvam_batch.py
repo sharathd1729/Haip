@@ -86,6 +86,48 @@ def test_parse_labels_unknown_when_diarization_collapses_to_one_speaker():
     assert all(t.speaker == "unknown" for t in result.turns)
 
 
+def test_parse_handles_saaras_v3_field_names():
+    """Confirmed live: saaras:v3 (the current model -- v2.5 is Sarvam's own
+    explicitly-named legacy model) renamed diarized entry fields from
+    "speaker"/"start"/"end" to "speaker_id"/"start_time_seconds"/
+    "end_time_seconds". Real bug this was masking: the old field names
+    silently returned None for every v3 entry, so diarization looked
+    broken even on a real 30-minute call with two clearly alternating
+    speakers -- it was actually just reading the wrong keys."""
+    payload = {
+        "transcript": "hello there general kenobi",
+        "language_code": "en-IN",
+        "diarized_transcript": {
+            "entries": [
+                {"speaker_id": "speaker_1", "transcript": "hello there", "start_time_seconds": 1.1, "end_time_seconds": 9.07},
+                {"speaker_id": "speaker_2", "transcript": "general kenobi", "start_time_seconds": 9.5, "end_time_seconds": 12.0},
+            ]
+        },
+    }
+    result = _adapter()._parse(payload, "en-IN")
+    assert len(result.turns) == 2
+    assert result.turns[0].speaker == "agent"
+    assert result.turns[0].t0 == 1.1
+    assert result.turns[0].t1 == 9.07
+    assert result.turns[1].speaker == "guest"
+    assert result.turns[1].t0 == 9.5
+
+
+def test_parse_v3_field_names_also_detect_a_collapsed_single_speaker():
+    payload = {
+        "transcript": "hello there general kenobi",
+        "language_code": "en-IN",
+        "diarized_transcript": {
+            "entries": [
+                {"speaker_id": "speaker_1", "transcript": "hello there", "start_time_seconds": 0.0, "end_time_seconds": 1.2},
+                {"speaker_id": "speaker_1", "transcript": "general kenobi", "start_time_seconds": 1.2, "end_time_seconds": 2.5},
+            ]
+        },
+    }
+    result = _adapter()._parse(payload, "en-IN")
+    assert all(t.speaker == "unknown" for t in result.turns)
+
+
 def test_parse_falls_back_to_timestamps_when_no_diarization():
     payload = {
         "transcript": "hello world",
@@ -151,7 +193,7 @@ async def test_transcribe_runs_full_batch_job_flow(tmp_path):
 
     fake_client.speech_to_text_translate_job.create_job.assert_called_once()
     call_kwargs = fake_client.speech_to_text_translate_job.create_job.call_args.kwargs
-    assert call_kwargs["model"] == "saaras:v2.5"
+    assert call_kwargs["model"] == "saaras:v3"
     assert call_kwargs["with_diarization"] is True
     assert call_kwargs["num_speakers"] == 2
 

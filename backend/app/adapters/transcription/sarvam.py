@@ -98,7 +98,18 @@ class SarvamAdapter(TranscriptionAdapter):
                 f.write(audio_bytes)
 
             job = client.speech_to_text_translate_job.create_job(
-                model="saaras:v2.5",
+                # Confirmed live: this was the actual root cause of every
+                # "Agent"/"Guest" showing as "Unknown" -- saaras:v2.5 is
+                # Sarvam's own docs' explicitly named legacy model ("legacy
+                # and being phased out, not a version choice to replicate"),
+                # and diarization on it consistently collapsed a real,
+                # clearly-alternating 30-minute two-person call onto a
+                # single speaker id. Re-ran the identical audio through
+                # saaras:v3 (the current model) and diarization worked
+                # correctly -- real, alternating speaker_1/speaker_2 turns
+                # with real timestamps. v3 also changed the diarized entry
+                # field names (see _turns_from_diarized below).
+                model="saaras:v3",
                 with_diarization=True,
                 # Every HAIP call is a 2-party conversation (agent + guest).
                 # Left unset, the diarization model has to guess the speaker
@@ -140,27 +151,26 @@ class SarvamAdapter(TranscriptionAdapter):
         """
         Parse Sarvam STT response into TranscriptResult.
 
-        Response shape (saarika:v2 with timestamps):
+        Response shape confirmed live against a real saaras:v3 batch job:
         {
+          "request_id": "...",
           "transcript": "full text",
           "language_code": "hi-IN",
-          "timestamps": [
-            {
-              "word": "hello",
-              "start": 0.24,
-              "end": 0.56
-            }, ...
-          ],
+          "language_probability": 0.9,
           "diarized_transcript": {           # present when diarization available
             "entries": [
               {
-                "speaker": "SPEAKER_00",
+                "speaker_id": "speaker_1",   # v2.5 used "speaker" -- see _turns_from_diarized
                 "transcript": "...",
-                "start": 0.0,
-                "end": 3.2
+                "start_time_seconds": 0.0,   # v2.5 used "start"/"end"
+                "end_time_seconds": 3.2
               }, ...
             ]
           }
+          # "timestamps" (word-level, used by _turns_from_timestamps below)
+          # was present on older/non-diarized responses -- not observed on
+          # a real v3 diarized response, kept as the no-diarization fallback
+          # path since nothing here confirms it was removed outright.
         }
         """
         raw_text = payload.get("transcript", "")
@@ -194,25 +204,38 @@ class SarvamAdapter(TranscriptionAdapter):
 
     @staticmethod
     def _turns_from_diarized(entries: list[dict]) -> list[TranscriptTurn]:
-        """Build turns from diarized_transcript entries."""
+        """Build turns from diarized_transcript entries.
+
+        saaras:v3 renamed the per-entry fields from v2.5's "speaker"/
+        "start"/"end" to "speaker_id"/"start_time_seconds"/
+        "end_time_seconds" (confirmed live via a real job response -- the
+        old key names silently returned None for every entry under v3,
+        which is what made diarization look broken even after num_speakers
+        pinning and the audio-format fix; it was actually a field-name
+        mismatch on top of the deprecated model). Checks the new key first,
+        falls back to the old one so this survives either response shape."""
         turns = []
-        # SPEAKER_00 heuristic → agent (first speaker on the call)
+        # First speaker encountered → agent (heuristic)
         # Refine by matching phone number / agent IDs later in the pipeline
         seen_speakers: dict[str, str] = {}
 
+        def _speaker_id(entry: dict) -> str:
+            return entry.get("speaker_id") or entry.get("speaker") or "speaker_1"
+
         # Diarization sometimes collapses the whole call onto a single raw
-        # speaker id (crossed/noisy audio, very short calls) -- confirmed
-        # live: a call clearly alternating between two people came back
-        # entirely labeled "Agent" because every entry had the same raw
-        # speaker id, and "first speaker == agent" is trivially true when
-        # there's only ever one id. Label honestly as "unknown" instead of
-        # guessing when diarization didn't actually distinguish anyone.
-        unique_raw_speakers = {entry.get("speaker", "SPEAKER_00") for entry in entries}
+        # speaker id (crossed/noisy audio, very short calls, or the
+        # deprecated model -- confirmed live) -- confirmed live: a call
+        # clearly alternating between two people came back entirely
+        # labeled "Agent" because every entry had the same raw speaker id,
+        # and "first speaker == agent" is trivially true when there's only
+        # ever one id. Label honestly as "unknown" instead of guessing when
+        # diarization didn't actually distinguish anyone.
+        unique_raw_speakers = {_speaker_id(entry) for entry in entries}
         diarization_worked = len(unique_raw_speakers) > 1
 
         for entry in entries:
             if diarization_worked:
-                raw_speaker = entry.get("speaker", "SPEAKER_00")
+                raw_speaker = _speaker_id(entry)
                 if raw_speaker not in seen_speakers:
                     # First speaker encountered → agent, rest → guest
                     role = "agent" if len(seen_speakers) == 0 else "guest"
@@ -221,10 +244,12 @@ class SarvamAdapter(TranscriptionAdapter):
             else:
                 speaker = "unknown"
 
+            t0 = entry.get("start_time_seconds", entry.get("start", 0.0))
+            t1 = entry.get("end_time_seconds", entry.get("end", 0.0))
             turns.append(TranscriptTurn(
                 speaker=speaker,
-                t0=float(entry.get("start", 0.0)),
-                t1=float(entry.get("end", 0.0)),
+                t0=float(t0 or 0.0),
+                t1=float(t1 or 0.0),
                 text=entry.get("transcript", "").strip(),
             ))
         return turns
