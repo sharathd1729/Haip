@@ -453,6 +453,31 @@ def test_answer_webhook_returns_xml_with_record_and_dial(client, tenant_and_user
     assert f"/webhooks/vobiz/{tenant.slug}/correct-secret/recording" in res.text
 
 
+def test_answer_webhook_normalizes_double_prefixed_from_number_before_caching(client, tenant_and_user, db):
+    """Confirmed live on Ratha: Vobiz's own "From" for some inbound calls
+    arrives with a duplicated "91" baked in (a real 7249066854 shows up as
+    "917249066854"). _to_e164_in()'s dedup fix already existed and was
+    already tested directly, but this cache write -- the only place the
+    guest's raw number gets captured for an inbound call -- stored it
+    verbatim, so the malformed number is what became Call.from_number (and
+    from there, the guest's own phone identity) even after that fix
+    shipped. 7 real guests on Ratha had this corruption before it was
+    caught and backfilled."""
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret", forward_number="+919000000000")
+
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/answer",
+        data={"CallUUID": "call-abc-123", "From": "+91917249066854", "To": "+912271264296", "Direction": "inbound"},
+    )
+    assert res.status_code == 200
+
+    from app.api.v1.endpoints.webhooks_vobiz import _cache_key
+    from app.core.cache import get_cached
+    cached = get_cached(_cache_key(tenant.id, "call-abc-123"))
+    assert cached["From"] == "+917249066854"
+
+
 def test_answer_webhook_dial_sets_both_callbackurl_and_action(client, tenant_and_user, db):
     """Confirmed live against vobiz.ai/docs/xml/dial: DialAnswer/
     DialConnected (with DialBLegTo) go to callbackUrl, but the terminal

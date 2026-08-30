@@ -133,10 +133,20 @@ async def vobiz_answer_webhook(
 
     log.info("vobiz_answer_received", tenant=tenant_slug, call_uuid=call_uuid)
 
+    # Confirmed live on Ratha: Vobiz's own "From" field for some inbound
+    # calls arrives with a duplicated "91" prefix baked in (e.g. a real
+    # 7249066854 shows up as "917249066854"). _to_e164_in()'s dedup fix
+    # below already existed for the callerId/dial-number paths, but this
+    # cache write -- the ONLY place the guest's raw number gets captured
+    # for this call -- stored it verbatim, so the malformed number was
+    # what ended up as Call.from_number (and, from there, the guest's
+    # phone identity) even after that fix shipped. Normalizing here means
+    # everything downstream that reads this cache (recording webhook,
+    # call_ingest) gets the corrected number for free.
     set_cached(
         _cache_key(tenant.id, call_uuid),
         {
-            "From": data.get("From", ""),
+            "From": _to_e164_in(data.get("From", "")),
             "To": data.get("To", ""),
             "Direction": data.get("Direction", "inbound"),
             "started_at": data.get("StartTime", ""),
