@@ -32,7 +32,10 @@ _THINKING_MODELS = frozenset({
 _MODEL_KEY_GROUP: dict[str, str] = {
     "nvidia/nemotron-3-ultra-550b-a55b":       "NVIDIA_API_KEY_HEAVY",
     "nvidia/llama-3.3-nemotron-super-49b-v1.5":  "NVIDIA_API_KEY_MID",
-    "meta/llama-3.1-8b-instruct":              "NVIDIA_API_KEY_FAST",
+    # meta/llama-3.1-8b-instruct reached NIM end-of-life 2026-08-26 (HTTP
+    # 410) -- openai/gpt-oss-20b is its replacement in _TASK_ROUTES, same
+    # rate-limit isolation group.
+    "openai/gpt-oss-20b":                      "NVIDIA_API_KEY_FAST",
     "mistralai/mistral-medium-3.5-128b":       "NVIDIA_API_KEY_FALLBACK",
 }
 

@@ -1,7 +1,8 @@
 """
 Classify task — sentiment, intent, language, themes via LLM.
-Uses get_llm("quick_classify") — NVIDIA meta/llama-3.1-8b-instruct per the
-locked routing table. Chains to judge.
+Uses get_llm("quick_classify") — NVIDIA openai/gpt-oss-20b per the locked
+routing table (meta/llama-3.1-8b-instruct reached NIM end-of-life
+2026-08-26, HTTP 410). Chains to judge.
 """
 import asyncio
 import json
@@ -30,11 +31,13 @@ def _run_async(coro):
 
 
 def _coerce_bool(value, default: bool = False) -> bool:
-    """CLAUDE.md's own routing-table note: meta/llama-3.1-8b-instruct
-    (quick_classify's model) "answers tool-call prompts in prose rather
-    than emitting a tool call" -- confirmed live here as a narrower version
-    of the same weakness: is_code_mixed frequently comes back as the JSON
-    string "true"/"false" instead of a real boolean. SQLAlchemy's Boolean
+    """Seen live under quick_classify's former model (meta/llama-3.1-8b-
+    instruct, retired 2026-08-26): a narrower version of CLAUDE.md's
+    documented small-model weakness -- is_code_mixed frequently came back
+    as the JSON string "true"/"false" instead of a real boolean. Kept as
+    cheap defense-in-depth under the new model (openai/gpt-oss-20b) too,
+    since nothing guarantees a future NIM model never does this.
+    SQLAlchemy's Boolean
     column type raises TypeError on any non-bool value rather than
     coercing it (the literal string "false" is truthy in plain Python
     bool(), so it deliberately refuses to guess) -- this crashed every

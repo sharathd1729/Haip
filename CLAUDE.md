@@ -53,8 +53,10 @@ Active clients:
 Routing is **NVIDIA NIM-first**. `concierge_draft` moved off NVIDIA to Gemini
 (2026-08-25) — NVIDIA's nemotron-49b was hanging indefinitely on certain guest
 replies with no timeout and no exception (confirmed via a direct uncapped call).
-Scoped to `concierge_draft` only; every other task stays on NVIDIA. No Claude,
-no OpenAI in the live table.
+Scoped to `concierge_draft` only; every other task stays on NVIDIA. No Claude
+in the live table, and no direct OpenAI key either — `openai/gpt-oss-20b` (see
+below) is OpenAI's open-weight model served through NVIDIA NIM on the existing
+`NVIDIA_API_KEY`, not a separate OpenAI account.
 
 Task keys below are the exact strings accepted by `get_llm(task)` — verified against
 `_TASK_ROUTES` in `backend/app/adapters/llm/__init__.py`. That dict is the source of
@@ -69,9 +71,10 @@ truth; if this table and the code disagree, the code wins and this table is stal
 | `ask_haip_rca` | NVIDIA | nvidia/nemotron-3-ultra-550b-a55b |
 | `ask_haip_freeform_sql` | NVIDIA | nvidia/nemotron-3-ultra-550b-a55b |
 | `deep_reason` · `report_gen` | NVIDIA | nvidia/nemotron-3-ultra-550b-a55b |
-| `ask_haip_intent` | NVIDIA | meta/llama-3.1-8b-instruct |
-| `ask_haip_freeform_summary` | NVIDIA | meta/llama-3.1-8b-instruct |
-| `quick_classify` · `bulk_batch` | NVIDIA | meta/llama-3.1-8b-instruct |
+| `ask_haip_intent` | NVIDIA | openai/gpt-oss-20b |
+| `ask_haip_freeform_summary` | NVIDIA | openai/gpt-oss-20b |
+| `quick_classify` · `bulk_batch` | NVIDIA | openai/gpt-oss-20b |
+| `concierge_rewrite` | NVIDIA | openai/gpt-oss-20b |
 | `fallback` | NVIDIA | mistralai/mistral-nemotron |
 | `concierge_draft` | Gemini | gemini-3.6-flash |
 
@@ -80,11 +83,18 @@ which fails in prod — no `ANTHROPIC_API_KEY` is provisioned there).
 
 ⚠️ **NIM models reach end-of-life and start returning HTTP 410.**
 `mistralai/mistral-medium-3.5-128b` died on 2026-08-07 and sat broken in this
-table until 2026-08-20. Verify a model still serves before routing to it:
-`GET https://integrate.api.nvidia.com/v1/models` lists what is currently
-available. Note also that `mistral-nemotron` and `meta/llama-3.1-8b-instruct`
-answer tool-call prompts in prose rather than emitting a tool call — route
-structured-output work to the 49B/ultra models.
+table until 2026-08-20. `meta/llama-3.1-8b-instruct` died the same way on
+2026-08-26 — took out `quick_classify`/`classify.py` in prod until routed to
+`openai/gpt-oss-20b` (2026-08-30, verified live: correct tool call, no
+cold-start lag, same NVIDIA key). Verify a model still serves before routing
+to it: `GET https://integrate.api.nvidia.com/v1/models` lists what is
+currently available. Note also that `mistral-nemotron` answers tool-call
+prompts in prose rather than emitting a tool call — route structured-output
+work to `openai/gpt-oss-20b` or the 49B/ultra models instead. `moonshotai/
+kimi-k3` and `openai/gpt-oss-120b` are also live on NIM with correct
+tool-calling (verified 2026-08-30) but had 90s+ cold-start latency in
+testing — worth considering for a heavier task, wrong fit for the
+fast/cheap tier.
 
 Per-tenant override: `tenants.llm_provider_override` (cached 300s).
 

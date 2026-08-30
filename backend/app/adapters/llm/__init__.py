@@ -15,9 +15,9 @@ Routing rules:
   call_analysis    → nvidia   nvidia/llama-3.3-nemotron-super-49b-v1.5
   call_scoring     → nvidia   nvidia/llama-3.3-nemotron-super-49b-v1.5
   ask_haip_rca     → nvidia   nvidia/nemotron-3-ultra-550b-a55b  (thinking=True)
-  ask_haip_intent  → nvidia   meta/llama-3.1-8b-instruct
-  quick_classify   → nvidia   meta/llama-3.1-8b-instruct
-  bulk_batch       → nvidia   meta/llama-3.1-8b-instruct
+  ask_haip_intent  → nvidia   openai/gpt-oss-20b
+  quick_classify   → nvidia   openai/gpt-oss-20b
+  bulk_batch       → nvidia   openai/gpt-oss-20b
   deep_reason      → nvidia   nvidia/nemotron-3-ultra-550b-a55b  (thinking=True)
   report_gen       → nvidia   nvidia/nemotron-3-ultra-550b-a55b
   concierge_draft  → gemini   gemini-3.6-flash
@@ -50,9 +50,16 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     "call_analysis":   ("nvidia",  "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
     "call_scoring":    ("nvidia",  "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
     "ask_haip_rca":    ("nvidia",  "nvidia/nemotron-3-ultra-550b-a55b"),
-    "ask_haip_intent": ("nvidia",  "meta/llama-3.1-8b-instruct"),
-    "quick_classify":  ("nvidia",  "meta/llama-3.1-8b-instruct"),
-    "bulk_batch":      ("nvidia",  "meta/llama-3.1-8b-instruct"),
+    # meta/llama-3.1-8b-instruct reached NVIDIA NIM end-of-life on
+    # 2026-08-26 (confirmed live: HTTP 410 Gone, took out classify.py's
+    # quick_classify calls in prod). openai/gpt-oss-20b is a real,
+    # currently-live NIM model (confirmed in /v1/models) verified live
+    # against this exact tool-call shape -- correct classify_intent tool
+    # call, no prose fallback, no cold-start lag. Same NVIDIA key, same
+    # provider branch, just a model-string swap.
+    "ask_haip_intent": ("nvidia",  "openai/gpt-oss-20b"),
+    "quick_classify":  ("nvidia",  "openai/gpt-oss-20b"),
+    "bulk_batch":      ("nvidia",  "openai/gpt-oss-20b"),
     "deep_reason":     ("nvidia",  "nvidia/nemotron-3-ultra-550b-a55b"),
     "report_gen":      ("nvidia",  "nvidia/nemotron-3-ultra-550b-a55b"),
     "ruflo_domain":    ("nvidia",  "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
@@ -66,7 +73,7 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # tier as ask_haip_rca/deep_reason), summarizing already-fetched rows
     # into a narrative + chart spec is cheap classification-tier work.
     "ask_haip_freeform_sql":     ("nvidia", "nvidia/nemotron-3-ultra-550b-a55b"),
-    "ask_haip_freeform_summary": ("nvidia", "meta/llama-3.1-8b-instruct"),
+    "ask_haip_freeform_summary": ("nvidia", "openai/gpt-oss-20b"),
     # mistral-medium-3.5-128b reached end of life on 2026-08-07 and the
     # endpoint now returns HTTP 410, so this route was dead. mistral-nemotron
     # is the surviving mid-tier Mistral on NIM and was verified live.
@@ -78,7 +85,7 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # draft in a new tone or language. Narrower/cheaper than a full
     # concierge_draft (no context gathering, no grounding), same cost tier
     # as quick_classify.
-    "concierge_rewrite": ("nvidia", "meta/llama-3.1-8b-instruct"),
+    "concierge_rewrite": ("nvidia", "openai/gpt-oss-20b"),
     # Moved NVIDIA -> Gemini (2026-08-25): NVIDIA's nemotron-49b was hanging
     # on certain prompts with no timeout and no exception (confirmed via a
     # direct 90s-ceiling call, no wrapper) -- a real, unresolved reliability

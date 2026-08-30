@@ -77,7 +77,7 @@ async def test_explicit_model_kwarg_still_overrides_the_routed_default():
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
         llm = get_llm("ask_haip_freeform_sql")
-        await llm.complete(system_prompt="sys", user_message="hi", model="meta/llama-3.1-8b-instruct", max_tokens=50)
+        await llm.complete(system_prompt="sys", user_message="hi", model="openai/gpt-oss-20b", max_tokens=50)
 
         call_kwargs = mock_client.chat.completions.create.call_args.kwargs
-        assert call_kwargs["model"] == "meta/llama-3.1-8b-instruct"
+        assert call_kwargs["model"] == "openai/gpt-oss-20b"

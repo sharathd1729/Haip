@@ -111,10 +111,11 @@ def test_empty_guest_name_leaves_placeholder_untouched(db, monkeypatch):
 
 class TestCoerceBool:
     """Regression: classify.py's Call.is_code_mixed is a SQLAlchemy
-    Boolean column, but meta/llama-3.1-8b-instruct (quick_classify's
-    model -- CLAUDE.md's own routing table already documents its weak
-    tool-calling) frequently returns the JSON string "true"/"false"
-    instead of a real boolean. SQLAlchemy's Boolean type raises TypeError
+    Boolean column, but quick_classify's former model (meta/llama-3.1-8b-
+    instruct, retired 2026-08-26 -- CLAUDE.md's own routing table already
+    documented its weak tool-calling) frequently returned the JSON string
+    "true"/"false" instead of a real boolean. Kept as defense-in-depth
+    under the current model too. SQLAlchemy's Boolean type raises TypeError
     on any non-bool value rather than guessing -- confirmed live in
     production: every classify run that hit this crashed, retried 3x,
     then died, meaning judge/wrap_up (and the call's disposition) never
