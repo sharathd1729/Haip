@@ -218,15 +218,31 @@ def shared_contact_details(db: Session, tenant_id: str, since: Optional[datetime
         rows = rows.filter(GuestIdentity.first_seen_at >= since)
     if until is not None:
         rows = rows.filter(GuestIdentity.first_seen_at <= until)
-    rows = rows.limit(limit).all()
+    # Was `.limit(limit)` here, applied to raw signal rows before the
+    # by-guest dedupe below -- a guest with both a phone AND an email
+    # signal counts as 2 rows here but 1 entry in `out`, so limiting first
+    # silently under-filled the list (e.g. 50 raw rows -> ~30 unique
+    # guests) while the count query above correctly counts distinct
+    # guest_id, producing a "Showing first 50 of 298" label that never
+    # actually rendered 50. Fetch every matching signal in the window and
+    # cap the final deduped-by-guest list to `limit` instead.
+    rows = rows.all()
 
     by_guest: dict[str, dict] = {}
     for r in rows:
         entry = by_guest.setdefault(r.guest_id, {"shared": [], "at": r.first_seen_at})
         entry["shared"].append({"type": r.identity_type, "value": r.identity_value})
 
+    # rows is already ORDER BY first_seen_at DESC and setdefault() only
+    # records a guest's first (i.e. most recent) occurrence, so dict
+    # insertion order already reflects recency -- slice to `limit` here,
+    # before the per-guest Inquiry/Conversation/_lead_context lookups
+    # below, so a large "all time" window doesn't do that work for every
+    # matching guest just to throw away all but the first `limit`.
+    limited_guest_ids = list(by_guest.items())[:limit]
+
     out = []
-    for guest_id, info in by_guest.items():
+    for guest_id, info in limited_guest_ids:
         guest = db.query(Guest).filter_by(id=guest_id, tenant_id=tenant_id).first()
         inquiry = (
             db.query(Inquiry)

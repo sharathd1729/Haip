@@ -150,6 +150,38 @@ def test_shared_details_ignores_internal_identity_types(db):
     assert ws.shared_contact_details(db, t.id, now - timedelta(hours=1)) == []
 
 
+def test_shared_details_limit_counts_guests_not_raw_signal_rows(db):
+    """Confirmed live on Ratha: the count card said 298, "Showing first 50
+    of 298", but only ~30 rows ever rendered. Root cause -- `.limit(limit)`
+    was applied to raw GuestIdentity rows (phone + email = 2 rows per
+    guest) *before* the by-guest dedupe, so 50 raw rows collapsed to far
+    fewer unique guests. 30 guests here each have 2 signals (60 raw rows);
+    a limit of 20 must still return 20 distinct guests, not ~10."""
+    t = _tenant(db)
+    now = datetime.now(timezone.utc)
+    guests = []
+    for i in range(30):
+        g, c = _conv(db, t, name=f"Guest{i}")
+        guests.append(g)
+        db.add(GuestIdentity(
+            tenant_id=t.id, guest_id=g.id, identity_type=IdentityType.PHONE.value,
+            identity_value=f"+9198765{i:05d}", confidence=0.9,
+            first_seen_at=now - timedelta(minutes=i),
+        ))
+        db.add(GuestIdentity(
+            tenant_id=t.id, guest_id=g.id, identity_type=IdentityType.EMAIL.value,
+            identity_value=f"guest{i}@example.com", confidence=0.9,
+            first_seen_at=now - timedelta(minutes=i),
+        ))
+    db.commit()
+
+    rows = ws.shared_contact_details(db, t.id, now - timedelta(hours=1), limit=20)
+    assert len(rows) == 20
+    assert len({r["shared_at"] for r in rows}) == 20  # 20 distinct guests, not fewer
+    for r in rows:
+        assert len(r["shared"]) == 2  # each guest's phone + email both retained
+
+
 # ─── lead context ────────────────────────────────────────────────────────────
 
 def test_placeholder_names_are_labelled_unnamed(db):
