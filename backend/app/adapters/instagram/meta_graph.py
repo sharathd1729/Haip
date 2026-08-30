@@ -147,13 +147,80 @@ class InstagramGraphAdapter:
     # ── Account insights ──────────────────────────────────────────────────────
 
     def get_account_insights(self, metrics: list[str], period: str = "day") -> list[dict]:
-        """Organic account-level insights (reach, follower_count, profile_views,
-        etc.) -- requires instagram_manage_insights. Confirmed live: Meta
-        silently omits a metric from the response instead of erroring the
-        whole call when that metric isn't available for this account/period,
-        so callers must not assume every requested metric comes back."""
+        """Organic account-level time-series insights (reach, follower_count,
+        profile_views) -- requires instagram_manage_insights. Confirmed live:
+        Meta silently omits a metric from the response instead of erroring
+        the whole call when that metric isn't available for this
+        account/period, so callers must not assume every requested metric
+        comes back."""
         data = self._get(
             f"/{self._account_id}/insights",
             params={"metric": ",".join(metrics), "period": period},
         )
         return data.get("data", [])
+
+    def get_account_engagement_totals(self, metrics: list[str]) -> dict[str, int]:
+        """Confirmed live: engagement-style metrics (likes, comments, shares,
+        saves, replies, accounts_engaged, total_interactions,
+        profile_links_taps) return empty/omitted under the plain time-series
+        call above -- they need metric_type=total_value instead. Returns
+        {metric_name: value}, only for metrics Meta actually returned."""
+        data = self._get(
+            f"/{self._account_id}/insights",
+            params={"metric": ",".join(metrics), "metric_type": "total_value", "period": "day"},
+        )
+        return {
+            m["name"]: m.get("total_value", {}).get("value")
+            for m in data.get("data", [])
+            if m.get("total_value", {}).get("value") is not None
+        }
+
+    def get_follower_demographics(self, breakdown: str) -> list[dict]:
+        """breakdown: one of city|country|age|gender. Confirmed live: needs
+        Ratha's real follower count (5000+) comfortably clears whatever
+        minimum-audience threshold Meta enforces before returning data --
+        not independently confirmed what that minimum is, so a small/new
+        account may get an empty result here, which is a real "not enough
+        data yet" case, not a bug. Returns the raw
+        [{"dimension_values": [...], "value": N}, ...] result list."""
+        data = self._get(
+            f"/{self._account_id}/insights",
+            params={
+                "metric": "follower_demographics", "metric_type": "total_value",
+                "period": "lifetime", "breakdown": breakdown,
+            },
+        )
+        try:
+            return data["data"][0]["total_value"]["breakdowns"][0]["results"]
+        except (KeyError, IndexError):
+            return []
+
+    def get_account_fields(self) -> dict:
+        """followers_count, follows_count (following), media_count, name,
+        biography -- plain object fields, not the /insights sub-endpoint."""
+        return self._get(f"/{self._account_id}", params={
+            "fields": "followers_count,follows_count,media_count,name,biography",
+        })
+
+    def get_recent_media(self, limit: int = 12) -> list[dict]:
+        data = self._get(f"/{self._account_id}/media", params={
+            "fields": "id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,like_count,comments_count",
+            "limit": limit,
+        })
+        return data.get("data", [])
+
+    def get_media_insights(self, media_id: str, metrics: list[str]) -> dict[str, int]:
+        """Per-post insights (reach, saved, shares, total_interactions).
+        Confirmed live against a real recent post: reach=5115. NOT confirmed:
+        whether a metric unsupported for a given media_type (e.g. a
+        video-only metric requested against a photo) gets silently omitted
+        (like account insights do) or raises for the whole call -- callers
+        should catch httpx.HTTPStatusError per-post rather than assume
+        either behavior, since this is called once per post in a loop and
+        one bad metric/media_type combination must not abort the rest."""
+        data = self._get(f"/{media_id}/insights", params={"metric": ",".join(metrics)})
+        return {
+            m["name"]: m["values"][0]["value"]
+            for m in data.get("data", [])
+            if m.get("values")
+        }
