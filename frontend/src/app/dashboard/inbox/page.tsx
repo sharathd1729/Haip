@@ -1,5 +1,6 @@
 "use client";
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
@@ -180,7 +181,7 @@ function ChannelFilterRow({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function InboxPage() {
+function InboxPageInner() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { data: session } = useSession();
@@ -193,6 +194,24 @@ export default function InboxPage() {
     markRead,
     setAiDraft,
   } = useInboxStore();
+
+  // Deep link from outside the inbox (Worklist's "Open" button, a lead
+  // card, a search result) -- e.g. /dashboard/inbox?conversation=<id>.
+  // Confirmed live: this page never read the param at all, so "Open"
+  // always landed on the inbox's default view instead of the actual
+  // thread. Applied once per id (not on every render) so a manual
+  // selection afterward isn't clobbered back to the link target if the
+  // param is still sitting in the URL.
+  const searchParams = useSearchParams();
+  const deepLinkConversationId = searchParams.get("conversation");
+  const appliedDeepLinkRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (deepLinkConversationId && appliedDeepLinkRef.current !== deepLinkConversationId) {
+      appliedDeepLinkRef.current = deepLinkConversationId;
+      setActiveConversation(deepLinkConversationId);
+      setMobileView("thread");
+    }
+  }, [deepLinkConversationId, setActiveConversation]);
 
   // Mobile: single-panel navigation ("list" | "thread")
   const [mobileView, setMobileView] = useState<"list" | "thread">("list");
@@ -1482,5 +1501,17 @@ export default function InboxPage() {
         />
       )}
     </div>
+  );
+}
+
+// useSearchParams (for the ?conversation= deep link, see InboxPageInner)
+// requires a Suspense boundary around any Client Component that calls it,
+// or a static production build fails with "Missing Suspense boundary with
+// useSearchParams".
+export default function InboxPage() {
+  return (
+    <Suspense fallback={<div className="h-full" style={{ background: "var(--haip-bg, transparent)" }} />}>
+      <InboxPageInner />
+    </Suspense>
   );
 }
