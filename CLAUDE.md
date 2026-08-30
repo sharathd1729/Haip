@@ -64,10 +64,10 @@ truth; if this table and the code disagree, the code wins and this table is stal
 
 | Task key | Provider | Model |
 |---|---|---|
-| `call_analysis` | NVIDIA | nvidia/llama-3.3-nemotron-super-49b-v1.5 |
-| `call_scoring` | NVIDIA | nvidia/llama-3.3-nemotron-super-49b-v1.5 |
-| `lead_summary` | NVIDIA | nvidia/llama-3.3-nemotron-super-49b-v1.5 |
-| `ruflo_domain` · `ruflo_synthesis` | NVIDIA | nvidia/llama-3.3-nemotron-super-49b-v1.5 |
+| `call_analysis` · `call_scoring` | NVIDIA | openai/gpt-oss-120b |
+| `lead_summary` | NVIDIA | openai/gpt-oss-120b |
+| `ruflo_domain` · `ruflo_synthesis` | NVIDIA | openai/gpt-oss-120b |
+| `agent_performance_narrative` · `agent_leads_feedback` · `daily_briefing` | NVIDIA | openai/gpt-oss-120b |
 | `ask_haip_rca` | NVIDIA | nvidia/nemotron-3-ultra-550b-a55b |
 | `ask_haip_freeform_sql` | NVIDIA | nvidia/nemotron-3-ultra-550b-a55b |
 | `deep_reason` · `report_gen` | NVIDIA | nvidia/nemotron-3-ultra-550b-a55b |
@@ -83,10 +83,20 @@ which fails in prod — no `ANTHROPIC_API_KEY` is provisioned there).
 
 ⚠️ **NIM models reach end-of-life and start returning HTTP 410.**
 `mistralai/mistral-medium-3.5-128b` died on 2026-08-07 and sat broken in this
-table until 2026-08-20. `meta/llama-3.1-8b-instruct` died the same way on
-2026-08-26 — took out `quick_classify`/`classify.py` in prod until routed to
-`openai/gpt-oss-20b` (2026-08-30, verified live: correct tool call, no
-cold-start lag, same NVIDIA key). Verify a model still serves before routing
+table until 2026-08-20. `meta/llama-3.1-8b-instruct` AND
+`nvidia/llama-3.3-nemotron-super-49b-v1.5` both died the same way on
+2026-08-26 — took out `quick_classify`/`classify.py`, `judge.py`,
+`generate_ai_summary.py` (Leads360 AI summaries), and `daily_briefing_service.py`
+in prod simultaneously, not caught until 2026-08-30. Routed to
+`openai/gpt-oss-20b` (small tier) and `openai/gpt-oss-120b` (mid tier)
+respectively — both verified live: correct tool calls, no prose fallback,
+same NVIDIA key. **Also fix any call site that hardcodes `model=` directly**
+on `.complete()` instead of relying on `get_llm(task)`'s routed default —
+`generate_ai_summary.py` and `daily_briefing_service.py` both did this with
+the literal dead model string, which silently overrode the routing-table fix
+(an explicit `model=` kwarg always wins over the adapter's bound default —
+see `_build_adapter`'s docstring in `adapters/llm/__init__.py`). Verify a
+model still serves before routing
 to it: `GET https://integrate.api.nvidia.com/v1/models` lists what is
 currently available. Note also that `mistral-nemotron` answers tool-call
 prompts in prose rather than emitting a tool call — route structured-output

@@ -333,7 +333,14 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
             adapter.complete(
                 system_prompt=SYSTEM_PROMPT,
                 user_message=user_message,
-                model="nvidia/llama-3.3-nemotron-super-49b-v1.5",
+                # No explicit model= here -- let it use get_llm("lead_summary")'s
+                # routed default. This used to hardcode the dead
+                # nvidia/llama-3.3-nemotron-super-49b-v1.5 (EOL 2026-08-26,
+                # HTTP 410), which silently overrode the routing table's
+                # replacement model since an explicit model= kwarg always
+                # wins over the adapter's bound default (see _build_adapter's
+                # docstring) -- confirmed live as the actual cause of
+                # generate_ai_summary_failed even after _TASK_ROUTES was fixed.
                 # Reasoning model: internal thinking counts against the
                 # completion budget — 512 truncated the visible JSON mid-key.
                 max_tokens=2048,

@@ -132,7 +132,11 @@ def generate_briefing(db: Session, tenant_id: str) -> Optional[dict]:
                     adapter.complete(
                         system_prompt=SYSTEM_PROMPT,
                         user_message=f"Worklist snapshot:\n{context}\n\nGenerate the JSON response.",
-                        model="nvidia/llama-3.3-nemotron-super-49b-v1.5",
+                        # No explicit model= -- let it use get_llm("daily_briefing")'s
+                        # routed default. Used to hardcode the dead
+                        # nvidia/llama-3.3-nemotron-super-49b-v1.5 (EOL
+                        # 2026-08-26), which silently overrode the routing
+                        # table's replacement model via an explicit kwarg.
                         max_tokens=800,
                     )
                 )

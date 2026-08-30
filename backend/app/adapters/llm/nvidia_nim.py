@@ -31,10 +31,11 @@ _THINKING_MODELS = frozenset({
 # Falls back to NVIDIA_API_KEY if group key is empty.
 _MODEL_KEY_GROUP: dict[str, str] = {
     "nvidia/nemotron-3-ultra-550b-a55b":       "NVIDIA_API_KEY_HEAVY",
-    "nvidia/llama-3.3-nemotron-super-49b-v1.5":  "NVIDIA_API_KEY_MID",
-    # meta/llama-3.1-8b-instruct reached NIM end-of-life 2026-08-26 (HTTP
-    # 410) -- openai/gpt-oss-20b is its replacement in _TASK_ROUTES, same
-    # rate-limit isolation group.
+    # nvidia/llama-3.3-nemotron-super-49b-v1.5 and meta/llama-3.1-8b-instruct
+    # both reached NIM end-of-life 2026-08-26 (HTTP 410) -- openai/gpt-oss-120b
+    # and openai/gpt-oss-20b are their _TASK_ROUTES replacements, same
+    # rate-limit isolation groups.
+    "openai/gpt-oss-120b":                     "NVIDIA_API_KEY_MID",
     "openai/gpt-oss-20b":                      "NVIDIA_API_KEY_FAST",
     "mistralai/mistral-medium-3.5-128b":       "NVIDIA_API_KEY_FALLBACK",
 }
@@ -46,7 +47,7 @@ def _get_api_key(model: str) -> str:
 
 
 class NvidiaNIMAdapter(LLMAdapter):
-    def __init__(self, api_key: str | None = None, default_model: str = "nvidia/llama-3.3-nemotron-super-49b-v1.5"):
+    def __init__(self, api_key: str | None = None, default_model: str = "openai/gpt-oss-120b"):
         self._api_key_override = api_key  # explicit override (e.g. tests)
         self._default_model = default_model
 

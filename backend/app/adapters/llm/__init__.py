@@ -4,16 +4,16 @@ LLM adapter factory with task-based routing.
 Usage:
   # Task-based routing (preferred — no vendor lock-in):
   from app.adapters.llm import get_llm
-  adapter = get_llm("call_analysis")      # → Nemotron 70B (or Claude if key present)
-  adapter = get_llm("quick_classify")     # → Llama 3.1 8B
+  adapter = get_llm("call_analysis")      # → gpt-oss-120b
+  adapter = get_llm("quick_classify")     # → gpt-oss-20b
 
   # Direct provider (legacy / override):
   from app.adapters.llm import get_llm_adapter
   adapter = get_llm_adapter("nvidia")
 
 Routing rules:
-  call_analysis    → nvidia   nvidia/llama-3.3-nemotron-super-49b-v1.5
-  call_scoring     → nvidia   nvidia/llama-3.3-nemotron-super-49b-v1.5
+  call_analysis    → nvidia   openai/gpt-oss-120b
+  call_scoring     → nvidia   openai/gpt-oss-120b
   ask_haip_rca     → nvidia   nvidia/nemotron-3-ultra-550b-a55b  (thinking=True)
   ask_haip_intent  → nvidia   openai/gpt-oss-20b
   quick_classify   → nvidia   openai/gpt-oss-20b
@@ -21,8 +21,8 @@ Routing rules:
   deep_reason      → nvidia   nvidia/nemotron-3-ultra-550b-a55b  (thinking=True)
   report_gen       → nvidia   nvidia/nemotron-3-ultra-550b-a55b
   concierge_draft  → gemini   gemini-3.6-flash
-  ruflo_domain     → nvidia   nvidia/llama-3.3-nemotron-super-49b-v1.5
-  ruflo_synthesis  → nvidia   nvidia/llama-3.3-nemotron-super-49b-v1.5
+  ruflo_domain     → nvidia   openai/gpt-oss-120b
+  ruflo_synthesis  → nvidia   openai/gpt-oss-120b
   fallback         → nvidia   mistralai/mistral-nemotron
                               (also where unknown task keys land)
 
@@ -47,8 +47,15 @@ log = logging.getLogger(__name__)
 # (provider, model)
 _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # ── NVIDIA NIM (primary) ──────────────────────────────────────────────────
-    "call_analysis":   ("nvidia",  "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
-    "call_scoring":    ("nvidia",  "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
+    # nvidia/llama-3.3-nemotron-super-49b-v1.5 reached NVIDIA NIM
+    # end-of-life on 2026-08-26 alongside meta/llama-3.1-8b-instruct
+    # (confirmed live: HTTP 410 Gone, took out judge.py and
+    # generate_ai_summary.py in prod). openai/gpt-oss-120b is a real,
+    # currently-live NIM model verified live against a call-scoring tool
+    # spec -- correct tool call, high-quality structured summary, ~30s
+    # once warm. Same NVIDIA key, same provider branch.
+    "call_analysis":   ("nvidia",  "openai/gpt-oss-120b"),
+    "call_scoring":    ("nvidia",  "openai/gpt-oss-120b"),
     "ask_haip_rca":    ("nvidia",  "nvidia/nemotron-3-ultra-550b-a55b"),
     # meta/llama-3.1-8b-instruct reached NVIDIA NIM end-of-life on
     # 2026-08-26 (confirmed live: HTTP 410 Gone, took out classify.py's
@@ -62,13 +69,13 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     "bulk_batch":      ("nvidia",  "openai/gpt-oss-20b"),
     "deep_reason":     ("nvidia",  "nvidia/nemotron-3-ultra-550b-a55b"),
     "report_gen":      ("nvidia",  "nvidia/nemotron-3-ultra-550b-a55b"),
-    "ruflo_domain":    ("nvidia",  "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
-    "ruflo_synthesis": ("nvidia",  "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
+    "ruflo_domain":    ("nvidia",  "openai/gpt-oss-120b"),
+    "ruflo_synthesis": ("nvidia",  "openai/gpt-oss-120b"),
     # Leads360 summary + structured analysis. Split off from concierge_draft
     # (guest-facing tone, now Gemini -- see below) because this is an
     # internal summary that should stay on NVIDIA regardless of what the
     # guest-facing task uses.
-    "lead_summary":    ("nvidia",  "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
+    "lead_summary":    ("nvidia",  "openai/gpt-oss-120b"),
     # Ask HAIP free-form analyst: SQL generation needs real reasoning (same
     # tier as ask_haip_rca/deep_reason), summarizing already-fetched rows
     # into a narrative + chart spec is cheap classification-tier work.
@@ -110,17 +117,17 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # agent handled guests over a period, synthesized from their own
     # scorecard numbers + call summaries + lead outcomes. Internal
     # (owner/agent report), not guest-facing -- same tier as lead_summary.
-    "agent_performance_narrative": ("nvidia", "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
+    "agent_performance_narrative": ("nvidia", "openai/gpt-oss-120b"),
     # Detailed per-lead report: aggregate leads-summary + coaching feedback,
     # same tier as agent_performance_narrative (internal synthesis over
     # already-fetched structured data, not guest-facing).
-    "agent_leads_feedback": ("nvidia", "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
+    "agent_leads_feedback": ("nvidia", "openai/gpt-oss-120b"),
     # Today (Worklist) AI Daily Briefing: one short narrative + flags
     # summarizing patterns across a tenant's *entire* current worklist
     # snapshot (repeated questions, missed-call time clusters). Internal
     # synthesis over already-fetched structured rows, same tier as
     # lead_summary/agent_performance_narrative -- not guest-facing.
-    "daily_briefing": ("nvidia", "nvidia/llama-3.3-nemotron-super-49b-v1.5"),
+    "daily_briefing": ("nvidia", "openai/gpt-oss-120b"),
 }
 
 
