@@ -10,7 +10,7 @@ from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
 from app.workers.celery_app import celery_app
 from app.core.database import SessionLocal
-from app.models.call import Call
+from app.models.call import Call, CallDirection
 from app.models.guest import Guest
 from app.models.transcript import Transcript
 from app.models.property import Property
@@ -150,6 +150,30 @@ def classify(self, call_id: str, tenant_id: str):
         transcript_text = redact_pii(
             "\n".join(f"[{t['t0']:.1f}s] {t['speaker'].upper()}: {t['text']}" for t in turns)
         )
+
+        # Confirmed live: an inbound call attributed to an agent via Vobiz's
+        # DialStatus=="completed" signal (webhooks_vobiz.py's dial-status
+        # webhook) can still be nothing but the automated greeting + hold
+        # music -- "completed" means the call connected at the telecom/SIP
+        # level, not that the person who picked up ever said anything.
+        # Diarization already surfaces this correctly: with only one real
+        # speaker cluster (the recorded greeting), every turn lands as
+        # "unknown", never "agent" (see sarvam.py's _turns_from_diarized).
+        # Outbound click-to-call attribution is untouched here -- it's
+        # written directly from the agent's own dial action, a fundamentally
+        # more reliable signal than Vobiz's terminal dial status, and this
+        # gate only ever applies to the inbound dial-status path.
+        if call.agent_id and call.direction == CallDirection.INBOUND:
+            has_agent_speech = any(
+                t.get("speaker") == "agent" and (t.get("text") or "").strip()
+                for t in turns
+            )
+            if not has_agent_speech:
+                log.info(
+                    "vobiz_dial_attribution_unconfirmed_no_agent_speech",
+                    call_id=call_id, agent_id=call.agent_id,
+                )
+                call.agent_id = None
 
         prop = db.query(Property).filter_by(id=call.property_id).first() if call.property_id else None
         agent = db.query(User).filter_by(id=call.agent_id).first() if call.agent_id else None

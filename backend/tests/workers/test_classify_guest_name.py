@@ -137,6 +137,102 @@ class TestCoerceBool:
 
     def test_missing_value_uses_default(self):
         assert _coerce_bool(None, default=False) is False
+
+
+class TestVobizDialAttributionCorrection:
+    """Confirmed live: an inbound call attributed to an agent via Vobiz's
+    DialStatus=="completed" signal can be nothing but the automated
+    greeting + hold music -- "completed" means the call connected at the
+    telecom/SIP level, not that the person who picked up ever spoke.
+    classify.py clears a bogus inbound attribution once the diarized
+    transcript proves no real agent speech."""
+
+    def _setup_with_agent(self, db, turns, direction=CallDirection.INBOUND):
+        from app.models.user import User, UserRole
+        from app.core.security import get_password_hash
+
+        tenant = Tenant(id=str(uuid.uuid4()), name="T", slug=f"t-{uuid.uuid4().hex[:6]}", plan="growth")
+        db.add(tenant); db.commit()
+
+        guest = Guest(id=str(uuid.uuid4()), tenant_id=tenant.id, phone="+919876543210", name="Unknown Guest")
+        db.add(guest); db.commit()
+
+        agent = User(
+            id=str(uuid.uuid4()), tenant_id=tenant.id, name="Jishanth",
+            email=f"agent-{uuid.uuid4().hex[:6]}@test.com",
+            hashed_password=get_password_hash("testpassword123"),
+            role=UserRole.CONCIERGE,
+            is_active=True,
+        )
+        db.add(agent); db.commit()
+
+        call = Call(
+            id=str(uuid.uuid4()), tenant_id=tenant.id, guest_id=guest.id, agent_id=agent.id,
+            ivr_provider="vobiz", ivr_call_id=str(uuid.uuid4()), ivr_dial_status="completed",
+            direction=direction, from_number="+919876543210", to_number="+911234567890",
+        )
+        db.add(call); db.commit()
+
+        transcript = Transcript(
+            id=str(uuid.uuid4()), tenant_id=tenant.id, call_id=call.id,
+            provider="sarvam", language="en", turns=json.dumps(turns),
+            raw_text=" ".join(t["text"] for t in turns),
+        )
+        db.add(transcript); db.commit()
+
+        return tenant, guest, agent, call
+
+    def _run(self, db, call_id, tenant_id):
+        class _FakeLLM:
+            async def complete(self, **kwargs):
+                return {"tool_use": _base_classification()}
+
+        with patch("app.workers.tasks.classify.get_llm", lambda task: _FakeLLM()), \
+             patch("app.workers.tasks.judge.judge.delay", MagicMock()), \
+             patch("app.workers.tasks.classify.SessionLocal", return_value=db):
+            classify(call_id=call_id, tenant_id=tenant_id)
+
+    def test_no_agent_speech_clears_bogus_attribution(self, db):
+        turns = [
+            {"speaker": "unknown", "t0": 0.0, "t1": 5.0, "text": "Namaskara and welcome to Ratha Retreats..."},
+            {"speaker": "unknown", "t0": 5.0, "t1": 30.0, "text": "Music"},
+        ]
+        tenant, guest, agent, call = self._setup_with_agent(db, turns)
+        call_id, tenant_id = call.id, tenant.id
+
+        self._run(db, call_id, tenant_id)
+
+        refreshed = db.query(Call).filter_by(id=call_id).first()
+        assert refreshed.agent_id is None
+
+    def test_real_agent_speech_keeps_attribution(self, db):
+        turns = [
+            {"speaker": "agent", "t0": 0.0, "t1": 2.0, "text": "Hello, thanks for calling, how can I help?"},
+            {"speaker": "guest", "t0": 2.0, "t1": 5.0, "text": "I wanted to check availability."},
+        ]
+        tenant, guest, agent, call = self._setup_with_agent(db, turns)
+        call_id, tenant_id, agent_id = call.id, tenant.id, agent.id
+
+        self._run(db, call_id, tenant_id)
+
+        refreshed = db.query(Call).filter_by(id=call_id).first()
+        assert refreshed.agent_id == agent_id
+
+    def test_outbound_call_attribution_never_touched(self, db):
+        """Outbound click-to-call attribution comes from the agent's own
+        dial action, not Vobiz's dial-status signal -- must never be
+        cleared by this check even with an identical greeting-only
+        transcript."""
+        turns = [
+            {"speaker": "unknown", "t0": 0.0, "t1": 5.0, "text": "Namaskara and welcome to Ratha Retreats..."},
+        ]
+        tenant, guest, agent, call = self._setup_with_agent(db, turns, direction=CallDirection.OUTBOUND)
+        call_id, tenant_id, agent_id = call.id, tenant.id, agent.id
+
+        self._run(db, call_id, tenant_id)
+
+        refreshed = db.query(Call).filter_by(id=call_id).first()
+        assert refreshed.agent_id == agent_id
         assert _coerce_bool(None, default=True) is True
 
     def test_garbage_string_uses_default(self):
