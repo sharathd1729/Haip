@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { signOut } from "next-auth/react";
-import { Inbox, Phone, Users, Building2, Home, BarChart2, Zap, Link2, Settings, HelpCircle, LogOut, ChevronDown, ChevronRight, ChevronLeft, MessageSquare, AtSign, Bot, Target, Megaphone, Send, FileText, LayoutDashboard, ListChecks, BookmarkIcon } from "@/lib/icons";
+import { Inbox, Phone, Users, Building2, Home, BarChart2, Zap, Link2, Settings, HelpCircle, LogOut, ChevronDown, ChevronRight, ChevronLeft, MessageSquare, AtSign, Bot, Target, Megaphone, Send, FileText, LayoutDashboard, ListChecks, BookmarkIcon, TrendingUp } from "@/lib/icons";
 import { UserCheck, GitBranch } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canSeeNav, type Resource } from "@/lib/permissions";
@@ -84,6 +84,7 @@ const NAV_GROUPS: NavGroup[] = [
     section: "Sales",
     items: [
       { label: "Leads360", href: "/dashboard/leads", icon: Target, resource: "guests" },
+      { label: "Targets", href: "/dashboard/targets", icon: TrendingUp, resource: "guests" },
       {
         label: "Guests",
         href: "/dashboard/guests",

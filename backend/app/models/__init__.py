@@ -5,6 +5,7 @@ from app.models.property import Property, RatePlan, Stay
 from app.models.inquiry import Inquiry
 from app.models.inquiry_360 import InquiryStageLog, InquiryQuote, InquiryPropertyLink
 from app.models.pipeline_stage import PipelineStage
+from app.models.sales_target import SalesTarget
 from app.models.lead_field_definition import LeadFieldDefinition
 from app.models.conversation import Conversation, Message
 from app.models.call import Call

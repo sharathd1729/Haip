@@ -20,6 +20,7 @@ from app.api.v1.endpoints import (
     dashboards, metrics, widgets_api, goals,
     dashboard_overview,
     knowledge,
+    targets,
     worklist,
     lead_activity,
 )
@@ -49,6 +50,7 @@ api_router.include_router(pipeline_stages.router)
 api_router.include_router(lead_fields.router)
 api_router.include_router(conversations.router)
 api_router.include_router(knowledge.router)
+api_router.include_router(targets.router)
 api_router.include_router(worklist.router)
 api_router.include_router(lead_activity.router)
 api_router.include_router(saved_replies.router)
