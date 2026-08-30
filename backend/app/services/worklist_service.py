@@ -35,6 +35,7 @@ from app.models.guest import Guest
 from app.models.guest_identity import GuestIdentity, IdentityType
 from app.models.inquiry import Inquiry
 from app.models.task import Task
+from app.models.tenant import Tenant
 from app.services import call_status_service
 
 log = structlog.get_logger()
@@ -200,12 +201,23 @@ def new_dms(db: Session, tenant_id: str, since: Optional[datetime], *, until: Op
     return out
 
 
-def shared_contact_details(db: Session, tenant_id: str, since: Optional[datetime], *, until: Optional[datetime] = None, limit: int = 50) -> list[dict]:
-    """Leads who gave us a phone number or email in the window.
+def _qualifying_shared_detail_guests(
+    db: Session, tenant_id: str, since: Optional[datetime], until: Optional[datetime],
+) -> dict[str, dict]:
+    """Guests who shared a phone/email in the window AND whose most recent
+    inquiry is a `valid`-category pipeline stage.
 
-    The highest-intent signal in the product: someone who hands over contact
-    details is asking to be contacted.
+    Confirmed live: without this filter, "shared their details" counted
+    every guest regardless of stage -- of 293 real guests tenant-wide, 180
+    were `invalid` (general_enquiry/RNR) and 1 was `marketing`, only 113
+    were real (`valid`) leads. Every other dashboard/metric in this
+    product already excludes invalid/marketing stages from lead counts
+    (CLAUDE.md's own documented rule) -- this widget hadn't been brought
+    in line with that rule. Guests with no inquiry at all don't qualify
+    either -- there's nothing to follow up on without one.
     """
+    from sqlalchemy import text
+
     rows = (
         db.query(GuestIdentity)
         .filter(
@@ -233,12 +245,47 @@ def shared_contact_details(db: Session, tenant_id: str, since: Optional[datetime
         entry = by_guest.setdefault(r.guest_id, {"shared": [], "at": r.first_seen_at})
         entry["shared"].append({"type": r.identity_type, "value": r.identity_value})
 
-    # rows is already ORDER BY first_seen_at DESC and setdefault() only
-    # records a guest's first (i.e. most recent) occurrence, so dict
-    # insertion order already reflects recency -- slice to `limit` here,
-    # before the per-guest Inquiry/Conversation/_lead_context lookups
-    # below, so a large "all time" window doesn't do that work for every
-    # matching guest just to throw away all but the first `limit`.
+    if not by_guest:
+        return {}
+
+    # Each guest's MOST RECENT inquiry decides eligibility. ROW_NUMBER()
+    # rather than Postgres's DISTINCT ON so this also runs against SQLite
+    # in tests (both support window functions). Must run before the
+    # `limit` slice below, not after -- filtering post-slice could drop
+    # qualifying guests further down the list while keeping non-qualifying
+    # ones near the top.
+    guest_ids = list(by_guest.keys())
+    ph = ",".join(f"'{g}'" for g in guest_ids)
+    stage_rows = db.execute(text(f"""
+        SELECT guest_id, category FROM (
+            SELECT i.guest_id, ps.category,
+                   ROW_NUMBER() OVER (PARTITION BY i.guest_id ORDER BY i.created_at DESC) AS rn
+            FROM inquiries i
+            LEFT JOIN pipeline_stages ps ON ps.id = i.stage_id
+            WHERE i.tenant_id = :tid AND i.guest_id IN ({ph})
+        ) sub WHERE rn = 1
+    """), {"tid": tenant_id}).fetchall()
+    valid_guest_ids = {row[0] for row in stage_rows if row[1] == "valid"}
+
+    return {gid: info for gid, info in by_guest.items() if gid in valid_guest_ids}
+
+
+def shared_contact_details(db: Session, tenant_id: str, since: Optional[datetime], *, until: Optional[datetime] = None, limit: int = 50) -> list[dict]:
+    """Leads who gave us a phone number or email in the window, scoped to
+    real (`valid`-stage) leads only -- see _qualifying_shared_detail_guests.
+
+    The highest-intent signal in the product: someone who hands over contact
+    details is asking to be contacted.
+    """
+    by_guest = _qualifying_shared_detail_guests(db, tenant_id, since, until)
+
+    # by_guest preserves the identity-row query's ORDER BY first_seen_at
+    # DESC (setdefault() only records a guest's first, i.e. most recent,
+    # occurrence), so dict insertion order already reflects recency --
+    # slice to `limit` here, before the per-guest Inquiry/Conversation/
+    # _lead_context lookups below, so a large "all time" window doesn't do
+    # that work for every matching guest just to throw away all but the
+    # first `limit`.
     limited_guest_ids = list(by_guest.items())[:limit]
 
     out = []
@@ -284,6 +331,12 @@ def missed_calls(db: Session, tenant_id: str, since: Optional[datetime], *, unti
         )
         .order_by(Call.started_at.desc())
     )
+    # Excludes historical calls from a tenant's now-disconnected IVR
+    # provider (e.g. Ratha's Mcube history from before migration 064) --
+    # see the matching comment in _totals() for the full rationale.
+    tenant = db.query(Tenant).filter_by(id=tenant_id).first()
+    if tenant and tenant.ivr_provider:
+        q = q.filter(Call.ivr_provider == tenant.ivr_provider)
     # started_at is a String column -- ISO string comparison, never a cast.
     if since is not None:
         q = q.filter(Call.started_at >= _iso(since))
@@ -394,21 +447,22 @@ def _totals(
             Call.recovered_by_call_id.is_(None),
         )
     )
-    shared_q = (
-        db.query(func.count(func.distinct(GuestIdentity.guest_id)))
-        .filter(
-            GuestIdentity.tenant_id == tenant_id,
-            GuestIdentity.identity_type.in_(CONTACT_IDENTITY_TYPES),
-        )
-    )
+    # Confirmed live: 384 of 394 "missed calls" tenant-wide were ivr_provider
+    # "mcube" -- Ratha's IVR provider before migration 064 moved it to
+    # Vobiz-only. Mcube's Integration row is disconnected, not deleted, so
+    # its historical calls stay in the table forever unless excluded here.
+    # Scoping to the tenant's current, active provider (not a hardcoded
+    # "mcube"/"callerdesk" blocklist) means this also does the right thing
+    # automatically for Jade (acefone) and any future provider migration.
+    tenant = db.query(Tenant).filter_by(id=tenant_id).first()
+    if tenant and tenant.ivr_provider:
+        missed_q = missed_q.filter(Call.ivr_provider == tenant.ivr_provider)
     if since is not None:
         dms_q = dms_q.filter(Message.created_at >= since)
         missed_q = missed_q.filter(Call.started_at >= _iso(since))
-        shared_q = shared_q.filter(GuestIdentity.first_seen_at >= since)
     if until is not None:
         dms_q = dms_q.filter(Message.created_at <= until)
         missed_q = missed_q.filter(Call.started_at <= _iso(until))
-        shared_q = shared_q.filter(GuestIdentity.first_seen_at <= until)
     followups_q = (
         db.query(func.count(Task.id))
         .filter(Task.tenant_id == tenant_id, Task.is_done.is_(False), Task.due_date < func.now())
@@ -416,10 +470,12 @@ def _totals(
     if scope_user_id:
         followups_q = followups_q.filter(Task.assigned_to == scope_user_id)
 
+    shared_count = len(_qualifying_shared_detail_guests(db, tenant_id, since, until))
+
     return {
         "awaiting_reply": awaiting_q.scalar() or 0,
         "missed_calls": missed_q.scalar() or 0,
-        "shared_details": shared_q.scalar() or 0,
+        "shared_details": shared_count,
         "new_dms": dms_q.scalar() or 0,
         "overdue_followups": followups_q.scalar() or 0,
     }
