@@ -64,10 +64,10 @@ truth; if this table and the code disagree, the code wins and this table is stal
 
 | Task key | Provider | Model |
 |---|---|---|
-| `call_analysis` · `call_scoring` | NVIDIA | openai/gpt-oss-120b |
-| `lead_summary` | NVIDIA | openai/gpt-oss-120b |
-| `ruflo_domain` · `ruflo_synthesis` | NVIDIA | openai/gpt-oss-120b |
-| `agent_performance_narrative` · `agent_leads_feedback` · `daily_briefing` | NVIDIA | openai/gpt-oss-120b |
+| `call_analysis` · `call_scoring` | NVIDIA | deepseek-ai/deepseek-v4-flash-0731 |
+| `lead_summary` | NVIDIA | deepseek-ai/deepseek-v4-flash-0731 |
+| `ruflo_domain` · `ruflo_synthesis` | NVIDIA | deepseek-ai/deepseek-v4-flash-0731 |
+| `agent_performance_narrative` · `agent_leads_feedback` · `daily_briefing` | NVIDIA | deepseek-ai/deepseek-v4-flash-0731 |
 | `ask_haip_rca` | NVIDIA | nvidia/nemotron-3-ultra-550b-a55b |
 | `ask_haip_freeform_sql` | NVIDIA | nvidia/nemotron-3-ultra-550b-a55b |
 | `deep_reason` · `report_gen` | NVIDIA | nvidia/nemotron-3-ultra-550b-a55b |
@@ -88,9 +88,15 @@ table until 2026-08-20. `meta/llama-3.1-8b-instruct` AND
 2026-08-26 — took out `quick_classify`/`classify.py`, `judge.py`,
 `generate_ai_summary.py` (Leads360 AI summaries), and `daily_briefing_service.py`
 in prod simultaneously, not caught until 2026-08-30. Routed to
-`openai/gpt-oss-20b` (small tier) and `openai/gpt-oss-120b` (mid tier)
-respectively — both verified live: correct tool calls, no prose fallback,
-same NVIDIA key. **Also fix any call site that hardcodes `model=` directly**
+`openai/gpt-oss-20b` (small tier, verified live: correct tool calls, fast,
+no cold-start lag) and, for the mid tier, `openai/gpt-oss-120b` first —
+also correct tool calls, but confirmed live it runs close to NIM's gateway
+timeout ceiling (100s+ even on tiny prompts, occasional 504 Gateway Timeout
+on `generate_ai_summary`'s real prompt size — Celery's retry always
+recovered it, never an indefinite hang like the old 49B bug, but still too
+slow). Switched the mid tier to `deepseek-ai/deepseek-v4-flash-0731`
+instead (2026-08-30): same correct tool-call shape, ~46s, zero 504s
+observed. Same NVIDIA key throughout. **Also fix any call site that hardcodes `model=` directly**
 on `.complete()` instead of relying on `get_llm(task)`'s routed default —
 `generate_ai_summary.py` and `daily_briefing_service.py` both did this with
 the literal dead model string, which silently overrode the routing-table fix
