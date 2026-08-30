@@ -282,6 +282,11 @@ export default function WorklistPage() {
   const [from, setFrom] = useState(todayISO());
   const [to, setTo] = useState(todayISO());
   const [active, setActive] = useState<string>("awaiting_reply");
+  // Rows fetched beyond the first page, keyed by section -- reset whenever
+  // the active section or time window changes so an old page never lingers
+  // under a different filter.
+  const [extraRows, setExtraRows] = useState<Row[]>([]);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const isCustom = range === "custom";
   const preset = RANGES.find(r => r.key === range);
@@ -298,8 +303,28 @@ export default function WorklistPage() {
     enabled: !isCustom || (!!from && !!to && from <= to),
   });
 
-  const rows = (data?.[active as keyof Worklist] as Row[] | undefined) ?? [];
+  const baseRows = (data?.[active as keyof Worklist] as Row[] | undefined) ?? [];
+  const rows = [...baseRows, ...extraRows];
   const section = SECTIONS.find(s => s.key === active)!;
+  const totalForSection = data?.counts?.[active] ?? 0;
+  const canLoadMore = rows.length < totalForSection;
+
+  const changeSection = (key: string) => {
+    setActive(key);
+    setExtraRows([]);
+  };
+
+  const loadMore = async () => {
+    setIsLoadingMore(true);
+    try {
+      const resp = await api.get(`/worklist/section/${active}`, {
+        params: { ...params, offset: rows.length, limit: data?.section_limit ?? 50 },
+      });
+      setExtraRows(prev => [...prev, ...(resp.data.rows as Row[])]);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
 
   return (
     <div className="h-full flex flex-col overflow-y-auto">
@@ -314,7 +339,7 @@ export default function WorklistPage() {
           <div className="flex flex-wrap items-center justify-end gap-2">
             <select
               value={range}
-              onChange={e => setRange(e.target.value)}
+              onChange={e => { setRange(e.target.value); setExtraRows([]); }}
               className="px-3 py-1.5 rounded-lg text-xs"
               style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", color: "var(--haip-fg)" }}
             >
@@ -329,7 +354,7 @@ export default function WorklistPage() {
                   type="date"
                   value={from}
                   max={to || undefined}
-                  onChange={e => setFrom(e.target.value)}
+                  onChange={e => { setFrom(e.target.value); setExtraRows([]); }}
                   className="px-2 py-1.5 rounded-lg text-xs"
                   style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", color: "var(--haip-fg)" }}
                 />
@@ -338,7 +363,7 @@ export default function WorklistPage() {
                   type="date"
                   value={to}
                   min={from || undefined}
-                  onChange={e => setTo(e.target.value)}
+                  onChange={e => { setTo(e.target.value); setExtraRows([]); }}
                   className="px-2 py-1.5 rounded-lg text-xs"
                   style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", color: "var(--haip-fg)" }}
                 />
@@ -370,7 +395,7 @@ export default function WorklistPage() {
               return (
                 <button
                   key={s.key}
-                  onClick={() => setActive(s.key)}
+                  onClick={() => changeSection(s.key)}
                   className="rounded-xl p-3.5 text-left transition-transform hover:-translate-y-0.5"
                   style={{
                     background: "var(--haip-card)",
@@ -412,12 +437,12 @@ export default function WorklistPage() {
                   <p className="text-[11px]" style={{ color: "var(--haip-fg-subtle)" }}>{section.blurb}</p>
                 </div>
               </div>
-              {data?.truncated?.[active] && (
+              {totalForSection > rows.length && (
                 <span
                   className="text-[11px] font-semibold px-2 py-1 rounded-lg flex-shrink-0"
                   style={{ background: "color-mix(in srgb, var(--haip-amber, #d97706) 14%, transparent)", color: "var(--haip-amber, #d97706)" }}
                 >
-                  Showing first {data.section_limit} of {data.counts[active]}
+                  Showing {rows.length} of {totalForSection}
                 </span>
               )}
             </div>
@@ -462,6 +487,19 @@ export default function WorklistPage() {
                 {rows.map((r, i) => (
                   <LeadRow key={r.conversation_id || r.call_id || r.task_id || i} row={r} sectionKey={active} />
                 ))}
+                {canLoadMore && (
+                  <div className="p-3 flex justify-center" style={{ borderTop: "1px solid var(--haip-border)" }}>
+                    <button
+                      onClick={loadMore}
+                      disabled={isLoadingMore}
+                      className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold transition-colors disabled:opacity-60"
+                      style={{ background: "var(--haip-card)", border: "1.5px solid var(--haip-border)", color: "var(--haip-fg-2, var(--haip-fg))" }}
+                    >
+                      {isLoadingMore ? <RefreshCw size={12} className="animate-spin" /> : null}
+                      {isLoadingMore ? "Loading…" : `Load ${Math.min(data?.section_limit ?? 50, totalForSection - rows.length)} more`}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

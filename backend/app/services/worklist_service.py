@@ -106,7 +106,7 @@ def _lead_context(db: Session, tenant_id: str, guest: Optional[Guest], inquiry: 
 
 def awaiting_reply(
     db: Session, tenant_id: str, *, scope_user_id: Optional[str] = None,
-    since: Optional[datetime] = None, until: Optional[datetime] = None, limit: int = 50,
+    since: Optional[datetime] = None, until: Optional[datetime] = None, limit: int = 50, offset: int = 0,
 ) -> list[dict]:
     """Conversations whose most recent message is from the guest.
 
@@ -154,7 +154,7 @@ def awaiting_reply(
 
     now = datetime.now(timezone.utc)
     out = []
-    for msg, conv in q.limit(limit).all():
+    for msg, conv in q.offset(offset).limit(limit).all():
         created = msg.created_at
         if created is not None and created.tzinfo is None:
             created = created.replace(tzinfo=timezone.utc)
@@ -171,7 +171,7 @@ def awaiting_reply(
     return out
 
 
-def new_dms(db: Session, tenant_id: str, since: Optional[datetime], *, until: Optional[datetime] = None, limit: int = 50) -> list[dict]:
+def new_dms(db: Session, tenant_id: str, since: Optional[datetime], *, until: Optional[datetime] = None, limit: int = 50, offset: int = 0) -> list[dict]:
     """Inbound WhatsApp/Instagram messages received in the window, newest first."""
     q = (
         db.query(Message, Conversation)
@@ -189,7 +189,7 @@ def new_dms(db: Session, tenant_id: str, since: Optional[datetime], *, until: Op
     if until is not None:
         q = q.filter(Message.created_at <= until)
     out = []
-    for msg, conv in q.limit(limit).all():
+    for msg, conv in q.offset(offset).limit(limit).all():
         channel = getattr(conv.channel, "value", conv.channel)
         out.append({
             "conversation_id": conv.id,
@@ -270,7 +270,10 @@ def _qualifying_shared_detail_guests(
     return {gid: info for gid, info in by_guest.items() if gid in valid_guest_ids}
 
 
-def shared_contact_details(db: Session, tenant_id: str, since: Optional[datetime], *, until: Optional[datetime] = None, limit: int = 50) -> list[dict]:
+def shared_contact_details(
+    db: Session, tenant_id: str, since: Optional[datetime], *,
+    until: Optional[datetime] = None, limit: int = 50, offset: int = 0,
+) -> list[dict]:
     """Leads who gave us a phone number or email in the window, scoped to
     real (`valid`-stage) leads only -- see _qualifying_shared_detail_guests.
 
@@ -282,11 +285,11 @@ def shared_contact_details(db: Session, tenant_id: str, since: Optional[datetime
     # by_guest preserves the identity-row query's ORDER BY first_seen_at
     # DESC (setdefault() only records a guest's first, i.e. most recent,
     # occurrence), so dict insertion order already reflects recency --
-    # slice to `limit` here, before the per-guest Inquiry/Conversation/
-    # _lead_context lookups below, so a large "all time" window doesn't do
-    # that work for every matching guest just to throw away all but the
-    # first `limit`.
-    limited_guest_ids = list(by_guest.items())[:limit]
+    # slice to `offset:offset+limit` here, before the per-guest Inquiry/
+    # Conversation/_lead_context lookups below, so a large "all time"
+    # window doesn't do that work for every matching guest just to throw
+    # away all but the requested page.
+    limited_guest_ids = list(by_guest.items())[offset:offset + limit]
 
     out = []
     for guest_id, info in limited_guest_ids:
@@ -313,7 +316,7 @@ def shared_contact_details(db: Session, tenant_id: str, since: Optional[datetime
     return out
 
 
-def missed_calls(db: Session, tenant_id: str, since: Optional[datetime], *, until: Optional[datetime] = None, limit: int = 50) -> list[dict]:
+def missed_calls(db: Session, tenant_id: str, since: Optional[datetime], *, until: Optional[datetime] = None, limit: int = 50, offset: int = 0) -> list[dict]:
     """Inbound calls not answered by a person, with no recorded call-back yet.
 
     Missed status comes from call_status_service (disposition first, zero
@@ -343,7 +346,7 @@ def missed_calls(db: Session, tenant_id: str, since: Optional[datetime], *, unti
     if until is not None:
         q = q.filter(Call.started_at <= _iso(until))
     out = []
-    for call in q.limit(limit).all():
+    for call in q.offset(offset).limit(limit).all():
         guest = call.guest if getattr(call, "guest", None) else None
         inquiry = (
             db.query(Inquiry)
@@ -361,7 +364,7 @@ def missed_calls(db: Session, tenant_id: str, since: Optional[datetime], *, unti
     return out
 
 
-def overdue_followups(db: Session, tenant_id: str, *, scope_user_id: Optional[str] = None, limit: int = 50) -> list[dict]:
+def overdue_followups(db: Session, tenant_id: str, *, scope_user_id: Optional[str] = None, limit: int = 50, offset: int = 0) -> list[dict]:
     q = (
         db.query(Task)
         .filter(
@@ -375,7 +378,7 @@ def overdue_followups(db: Session, tenant_id: str, *, scope_user_id: Optional[st
         q = q.filter(Task.assigned_to == scope_user_id)
 
     out = []
-    for t in q.limit(limit).all():
+    for t in q.offset(offset).limit(limit).all():
         guest = db.query(Guest).filter_by(id=t.guest_id).first() if t.guest_id else None
         inquiry = db.query(Inquiry).filter_by(id=t.inquiry_id).first() if t.inquiry_id else None
         out.append({
