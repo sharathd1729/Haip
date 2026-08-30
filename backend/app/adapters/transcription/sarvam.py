@@ -42,6 +42,20 @@ _JOB_TIMEOUT_SECONDS = 900
 _COST_PER_MIN_USD = 0.0012
 
 
+def _sniff_audio_extension(audio_bytes: bytes) -> str:
+    """The recording bytes handed to transcribe() come straight from S3 with
+    zero format conversion (see transcribe.py) -- this call was writing them
+    to a file unconditionally named "recording.wav" regardless of actual
+    content, even though Vobiz (the only confirmed live provider) stores
+    recordings as .mp3. A decoder that trusts the extension over the real
+    bytes could misread compressed MP3 frames as raw PCM. Sniffed from the
+    real magic bytes rather than assumed, so this stays correct if a future
+    provider genuinely sends WAV."""
+    if audio_bytes[:4] == b"RIFF":
+        return "wav"
+    return "mp3"
+
+
 class SarvamAdapter(TranscriptionAdapter):
     """
     Transcribes AND translates call audio to English using Sarvam AI's
@@ -79,7 +93,7 @@ class SarvamAdapter(TranscriptionAdapter):
         client = SarvamAI(api_subscription_key=self._api_key)
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            audio_path = os.path.join(tmpdir, "recording.wav")
+            audio_path = os.path.join(tmpdir, f"recording.{_sniff_audio_extension(audio_bytes)}")
             with open(audio_path, "wb") as f:
                 f.write(audio_bytes)
 

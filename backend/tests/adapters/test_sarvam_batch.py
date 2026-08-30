@@ -17,11 +17,31 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.adapters.transcription.sarvam import SarvamAdapter
+from app.adapters.transcription.sarvam import SarvamAdapter, _sniff_audio_extension
 
 
 def _adapter():
     return SarvamAdapter(api_key="test-key")
+
+
+# ── _sniff_audio_extension() ────────────────────────────────────────────────
+
+def test_sniff_audio_extension_detects_wav_by_riff_header():
+    assert _sniff_audio_extension(b"RIFF\x00\x00\x00\x00WAVEfmt ") == "wav"
+
+
+def test_sniff_audio_extension_defaults_to_mp3():
+    """Confirmed live: transcribe.py fetches the recording straight from S3
+    with zero format conversion, and Vobiz (the only confirmed live
+    provider) stores recordings as .mp3 -- this adapter previously wrote
+    those exact MP3 bytes into a file unconditionally named "recording.wav",
+    regardless of actual content."""
+    mp3_bytes = b"\xff\xfb\x90\x00" + b"\x00" * 20
+    assert _sniff_audio_extension(mp3_bytes) == "mp3"
+
+
+def test_sniff_audio_extension_defaults_to_mp3_for_unrecognized_bytes():
+    assert _sniff_audio_extension(b"not a real audio file") == "mp3"
 
 
 # ── _parse() ─────────────────────────────────────────────────────────────────
