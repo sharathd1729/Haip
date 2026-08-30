@@ -2,10 +2,11 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useRouter, usePathname } from "next/navigation";
-import { Building2, Users, Shield, QrCode, Loader2, CheckCircle, AlertCircle, Bell, Bot, ChevronRight, KeyRound, Lock, BookOpen } from "@/lib/icons";
+import { Building2, Users, Shield, QrCode, Loader2, CheckCircle, AlertCircle, Bell, BellOff, BellRing, Bot, ChevronRight, KeyRound, Lock, BookOpen } from "@/lib/icons";
 import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
+import { getPushStatus, subscribeToPush, isIOSStandaloneRequired, type PushStatus } from "@/components/PWARegister";
 
 type Tab = "workspace" | "ai" | "notifications" | "security";
 
@@ -696,6 +697,104 @@ const DEFAULT_PREFS = {
 
 type NotifPrefs = typeof DEFAULT_PREFS;
 
+// Confirmed live: the preference toggles below only control whether a push
+// GETS SENT once a real browser subscription exists -- they say nothing
+// about whether this device has ever actually subscribed. Production had
+// zero real subscriptions for an entire tenant despite users believing
+// notifications were "enabled," because the only subscribe attempt was a
+// silent, automatic one on page load (see PWARegister.tsx) with no user
+// gesture and no visible feedback on failure. This card makes the real
+// device-level state visible and gives a real button that -- because it's
+// a genuine click -- actually gets the OS permission prompt to show on
+// Safari/iOS and modern Chrome, unlike the automatic attempt.
+function PushSubscriptionCard() {
+  const [status, setStatus] = useState<PushStatus | "checking">("checking");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = () => { getPushStatus().then(setStatus); };
+  useEffect(() => { refresh(); }, []);
+
+  async function enable() {
+    setBusy(true);
+    setError(null);
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const result = await subscribeToPush(reg);
+      if (!result.ok) {
+        setError(
+          result.reason === "denied"
+            ? "Notifications are blocked for this site. Enable them in your browser's site settings, then try again."
+            : result.reason === "server-unconfigured"
+            ? "Push isn't configured on this server yet."
+            : "Couldn't turn on notifications. Please try again."
+        );
+      }
+    } catch {
+      setError("Couldn't turn on notifications. Please try again.");
+    } finally {
+      setBusy(false);
+      refresh();
+    }
+  }
+
+  const iosBlocked = status === "ios-needs-install" || (status !== "checking" && status !== "subscribed" && isIOSStandaloneRequired());
+
+  return (
+    <Card title="Push notifications on this device">
+      <div className="flex items-start gap-3">
+        <div className={cn(
+          "w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0",
+          status === "subscribed" ? "bg-emerald-50 text-emerald-600" : "bg-gray-50 text-gray-400"
+        )}>
+          {status === "subscribed" ? <BellRing size={16} /> : <BellOff size={16} />}
+        </div>
+        <div className="flex-1 min-w-0">
+          {status === "checking" && <p className="text-sm text-gray-500">Checking…</p>}
+
+          {status === "subscribed" && (
+            <p className="text-sm text-gray-700">Enabled — you&apos;ll get calls and new messages as notifications here.</p>
+          )}
+
+          {status === "unsupported" && (
+            <p className="text-sm text-gray-500">This browser doesn&apos;t support push notifications.</p>
+          )}
+
+          {iosBlocked && (
+            <div>
+              <p className="text-sm text-gray-700">Add HAIP to your Home Screen first.</p>
+              <p className="text-xs text-gray-400 mt-0.5">iOS only allows notifications for installed apps: open this page in Safari, tap Share, then &quot;Add to Home Screen,&quot; and open HAIP from there.</p>
+            </div>
+          )}
+
+          {status === "denied" && !iosBlocked && (
+            <div>
+              <p className="text-sm text-gray-700">Blocked in your browser.</p>
+              <p className="text-xs text-gray-400 mt-0.5">Open this site&apos;s settings in your browser (usually the lock icon in the address bar) and allow notifications, then refresh this page.</p>
+            </div>
+          )}
+
+          {status === "not-subscribed" && !iosBlocked && (
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-gray-700">Not enabled on this device yet.</p>
+              <button
+                onClick={enable}
+                disabled={busy}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-gray-900 hover:bg-gray-800 disabled:opacity-60 flex-shrink-0"
+              >
+                {busy ? <Loader2 size={12} className="animate-spin" /> : <Bell size={12} />}
+                Enable notifications
+              </button>
+            </div>
+          )}
+
+          {error && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function NotificationSettings() {
   const queryClient = useQueryClient();
   const [prefs, setPrefs] = useState<NotifPrefs>(DEFAULT_PREFS);
@@ -775,6 +874,7 @@ function NotificationSettings() {
   return (
     <div className="space-y-6">
       <SectionHeader title="Notifications" sub="Choose when and how HAIP contacts you" />
+      <PushSubscriptionCard />
       {GROUPS.map(g => (
         <Card key={g.label} title={g.label}>
           <div className="space-y-1">

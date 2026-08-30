@@ -17,17 +17,65 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
 }
 
-async function subscribeToPush(reg: ServiceWorkerRegistration): Promise<void> {
+// iOS Safari's Push API is entirely absent from `window` unless the site has
+// been "Added to Home Screen" (iOS 16.4+) -- a plain browser tab, even with
+// Settings > Notifications allowed for Safari, can never receive push.
+// Exported so the Settings page can show the real reason instead of a dead
+// "Enable" button that silently does nothing for iOS visitors who never
+// installed the app.
+export function isIOSStandaloneRequired(): boolean {
+  if (typeof window === "undefined" || typeof navigator === "undefined") return false;
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !("MSStream" in window);
+  const isStandalone =
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true;
+  return isIOS && !isStandalone;
+}
+
+export type PushStatus = "unsupported" | "ios-needs-install" | "denied" | "subscribed" | "not-subscribed";
+
+// Real status for the Settings UI -- PWARegister's own silent auto-attempt
+// gives no way for a user (or this app) to tell "it worked" from "it's
+// stuck," which is exactly why nobody noticed zero subscriptions existed.
+export async function getPushStatus(): Promise<PushStatus> {
+  if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+    return isIOSStandaloneRequired() ? "ios-needs-install" : "unsupported";
+  }
+  if (Notification.permission === "denied") return "denied";
   try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) return "not-subscribed";
+    const existing = await reg.pushManager.getSubscription();
+    return existing ? "subscribed" : "not-subscribed";
+  } catch {
+    return "not-subscribed";
+  }
+}
+
+// Exported so a real user click (Settings' "Enable notifications" button)
+// can drive the exact same subscribe path PWARegister attempts
+// automatically. A user gesture matters here, not just as UX polish --
+// Safari (and increasingly Chrome's "quiet" permission UI) can silently
+// suppress a Notification.requestPermission() prompt that wasn't triggered
+// by direct user interaction, which is the likely reason the automatic
+// page-load attempt produced zero real subscriptions in production despite
+// users believing OS-level notifications were "enabled."
+export async function subscribeToPush(reg: ServiceWorkerRegistration): Promise<{ ok: boolean; reason?: string }> {
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+      return { ok: false, reason: permission === "denied" ? "denied" : "dismissed" };
+    }
+
     // Already subscribed?
     const existing = await reg.pushManager.getSubscription();
-    if (existing) return;
+    if (existing) return { ok: true };
 
     // Fetch VAPID public key — if server has none, push is disabled
     const res = await fetch("/api/v1/push/vapid-public-key");
-    if (!res.ok) return;
+    if (!res.ok) return { ok: false, reason: "server-unconfigured" };
     const { public_key } = await res.json();
-    if (!public_key) return;
+    if (!public_key) return { ok: false, reason: "server-unconfigured" };
 
     const subscription = await reg.pushManager.subscribe({
       userVisibleOnly: true,
@@ -39,7 +87,7 @@ async function subscribeToPush(reg: ServiceWorkerRegistration): Promise<void> {
       ? document.cookie.match(/access_token=([^;]+)/)?.[1]
       : null;
 
-    await fetch("/api/v1/push/subscribe", {
+    const saveRes = await fetch("/api/v1/push/subscribe", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -50,10 +98,13 @@ async function subscribeToPush(reg: ServiceWorkerRegistration): Promise<void> {
         keys: { p256dh: json.keys?.p256dh ?? "", auth: json.keys?.auth ?? "" },
       }),
     });
+    if (!saveRes.ok) return { ok: false, reason: "save-failed" };
+    return { ok: true };
   } catch (err) {
     if (process.env.NODE_ENV === "development") {
       console.warn("[HAIP Push] subscribe failed:", err);
     }
+    return { ok: false, reason: "error" };
   }
 }
 
@@ -113,12 +164,19 @@ export function PWARegister() {
           if (document.visibilityState === "visible") reg.update();
         });
 
-        // Request notification permission and subscribe to push
-        if ("Notification" in window && "PushManager" in window) {
-          const permission = await Notification.requestPermission();
-          if (permission === "granted") {
-            await subscribeToPush(reg);
-          }
+        // Re-subscribe silently ONLY if permission was already granted in a
+        // previous, explicit session (Settings' "Enable notifications"
+        // button) -- e.g. the subscription itself expired and needs
+        // refreshing. Deliberately never calls requestPermission() here:
+        // doing that automatically on page load, with no user gesture, is
+        // exactly what a real production check found producing zero real
+        // subscriptions despite users believing notifications were on --
+        // Safari silently suppresses non-gesture-triggered prompts, and
+        // Chrome's "quiet" permission UI does the same for repeat
+        // auto-triggered requests. The explicit button is the only path
+        // that reliably shows the OS prompt.
+        if ("Notification" in window && "PushManager" in window && Notification.permission === "granted") {
+          await subscribeToPush(reg);
         }
       })
       .catch((err) => {
