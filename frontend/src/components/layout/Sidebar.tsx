@@ -138,6 +138,12 @@ const NAV_GROUPS: NavGroup[] = [
         icon: BarChart2,
         resource: "analytics",
       },
+      {
+        label: "Instagram Insights",
+        href: "/dashboard/instagram-insights",
+        icon: AtSign,
+        resource: "analytics",
+      },
       // "Ask HAIP" (Ask / Reports sub-tab / Free-Form) removed entirely --
       // not effective, being rebuilt from scratch as a real property-data
       // analysis assistant + prompt-driven dashboard generator.

@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     auth, calls, dashboard, workspace_context,
     tenants, users, guests, inquiries, conversations, properties,
-    qa, integrations, analytics, analytics_executive, analytics_sections, analytics_intelligence, analytics_forecasting, ask_haip, audit, sse, messaging, reports, saved_replies, saved_views,
+    qa, integrations, analytics, analytics_executive, analytics_sections, analytics_intelligence, analytics_forecasting, instagram_insights, ask_haip, audit, sse, messaging, reports, saved_replies, saved_views,
     webhooks_callerdesk, webhooks_acefone, webhooks_mcube, webhooks_whatsapp, webhooks_instagram,
     webhooks_dograh, webhooks_vobiz,
     voice_settings,
@@ -70,6 +70,7 @@ api_router.include_router(analytics_executive.router)
 api_router.include_router(analytics_sections.router)
 api_router.include_router(analytics_intelligence.router)
 api_router.include_router(analytics_forecasting.router)
+api_router.include_router(instagram_insights.router)
 api_router.include_router(ask_haip.router)
 
 # Integrations & compliance

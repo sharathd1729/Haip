@@ -64,6 +64,8 @@ celery_app = Celery(
         "app.workers.tasks.sync_wa_templates",
         # WhatsApp/Instagram access-token health check + expiry alerting
         "app.workers.tasks.check_meta_credentials",
+        # Organic Instagram account insights -- daily snapshot
+        "app.workers.tasks.instagram_insights_poll",
         # Automations engine + timer triggers
         "app.workers.tasks.automation_engine",
         "app.workers.tasks.check_automation_timers",
@@ -186,6 +188,7 @@ celery_app.conf.update(
         "meta_quality.poll_all_tenants":             {"queue": "whatsapp"},
         "meta_credentials.check_all_tenants":        {"queue": "whatsapp"},
         "meta_credentials.check_tenant":             {"queue": "whatsapp"},
+        "instagram_insights.poll_all_tenants":       {"queue": "whatsapp"},
         "owner_digest.orchestrate":                  {"queue": "ai_scoring"},
         "retention.nightly_purge":                   {"queue": "call_ingest"},
         "call_ingest.fetch_recording":                {"queue": "call_ingest"},
@@ -244,6 +247,10 @@ celery_app.conf.beat_schedule = {
     "meta-credentials-health-daily": {
         "task": "meta_credentials.check_all_tenants",
         "schedule": crontab(hour=6, minute=0),
+    },
+    "instagram-insights-daily": {
+        "task": "instagram_insights.poll_all_tenants",
+        "schedule": crontab(hour=6, minute=30),
     },
     "sync-retalwise-hourly": {
         "task": "app.workers.tasks.sync_all_pms.sync_retalwise_all_tenants",

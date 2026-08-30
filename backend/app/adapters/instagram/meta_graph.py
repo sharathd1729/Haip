@@ -143,3 +143,17 @@ class InstagramGraphAdapter:
             params={"fields": "id,message,from,created_time", "limit": limit},
         )
         return data.get("data", [])
+
+    # ── Account insights ──────────────────────────────────────────────────────
+
+    def get_account_insights(self, metrics: list[str], period: str = "day") -> list[dict]:
+        """Organic account-level insights (reach, follower_count, profile_views,
+        etc.) -- requires instagram_manage_insights. Confirmed live: Meta
+        silently omits a metric from the response instead of erroring the
+        whole call when that metric isn't available for this account/period,
+        so callers must not assume every requested metric comes back."""
+        data = self._get(
+            f"/{self._account_id}/insights",
+            params={"metric": ",".join(metrics), "period": period},
+        )
+        return data.get("data", [])
