@@ -317,7 +317,7 @@ class TestConciergeDraftEndToEnd:
             return _FakeIntentLLM() if task == "quick_classify" else _SlowConciergeLLM()
 
         monkeypatch.setattr("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm)
-        monkeypatch.setattr("app.workers.tasks.concierge_draft.MAX_REPLY_SECONDS", 0.01)
+        monkeypatch.setattr("app.workers.tasks.concierge_draft.MAX_REPLY_SECONDS_DEFAULT", 0.01)
 
         with patch("app.workers.tasks.concierge_draft.SessionLocal", return_value=db), \
              patch("app.services.push_service.send_to_tenant"):
@@ -395,7 +395,7 @@ class TestConciergeDraftEndToEnd:
             return _FakeIntentLLM() if task == "quick_classify" else _FlakyConciergeLLM()
 
         monkeypatch.setattr("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm)
-        monkeypatch.setattr("app.workers.tasks.concierge_draft.MAX_REPLY_SECONDS", 0.01)
+        monkeypatch.setattr("app.workers.tasks.concierge_draft.MAX_REPLY_SECONDS_DEFAULT", 0.01)
 
         with patch("app.workers.tasks.concierge_draft.SessionLocal", return_value=db), \
              patch("app.services.push_service.send_to_tenant"):

@@ -190,24 +190,32 @@ def _build_adapter(provider: str, model: Optional[str]) -> LLMAdapter:
     # instead of the routed nemotron-3-ultra-550b-a55b thinking model.
     if provider == "nvidia":
         from app.adapters.llm.nvidia_nim import NvidiaNIMAdapter
-        return NvidiaNIMAdapter(default_model=model) if model else NvidiaNIMAdapter()
+        adapter = NvidiaNIMAdapter(default_model=model) if model else NvidiaNIMAdapter()
 
-    if provider == "claude":
+    elif provider == "claude":
         from app.adapters.llm.anthropic_claude import ClaudeAdapter
-        return ClaudeAdapter(default_model=model) if model else ClaudeAdapter()
+        adapter = ClaudeAdapter(default_model=model) if model else ClaudeAdapter()
 
-    if provider == "gemini":
+    elif provider == "gemini":
         from app.adapters.llm.gemini import GeminiAdapter
-        return GeminiAdapter(default_model=model) if model else GeminiAdapter()
+        adapter = GeminiAdapter(default_model=model) if model else GeminiAdapter()
 
-    if provider == "openai":
+    elif provider == "openai":
         from app.adapters.llm.openai_gpt import OpenAIAdapter
-        return OpenAIAdapter(default_model=model) if model else OpenAIAdapter()
+        adapter = OpenAIAdapter(default_model=model) if model else OpenAIAdapter()
 
-    raise ValueError(
-        f"Unknown LLM provider: {provider!r}. "
-        f"Valid values: nvidia | claude | gemini | openai"
-    )
+    else:
+        raise ValueError(
+            f"Unknown LLM provider: {provider!r}. "
+            f"Valid values: nvidia | claude | gemini | openai"
+        )
+
+    # Duck-typed, not on the LLMAdapter ABC -- lets callers pick
+    # provider-specific behavior (e.g. concierge_draft.py's per-provider
+    # reply timeout) without re-deriving the provider from _TASK_ROUTES
+    # themselves, which would silently go stale against a tenant override.
+    adapter.provider = provider
+    return adapter
 
 
 def _auto_detect_llm() -> str:

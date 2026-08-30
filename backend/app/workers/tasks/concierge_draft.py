@@ -131,8 +131,24 @@ MAX_TOOL_CALLS = 4
 # with a fresh request (new client, new connection) has a real chance of
 # succeeding where a stuck one won't, so this is now bounded attempts at a
 # shorter per-attempt timeout rather than one long wait.
-MAX_REPLY_SECONDS = 20  # per attempt
-MAX_REPLY_ATTEMPTS = 2  # worst case ~2x MAX_REPLY_SECONDS before falling back
+#
+# That reasoning is NVIDIA-specific (a documented infinite-hang bug, not
+# ordinary slowness) and doesn't transfer to concierge_draft's current
+# provider, Gemini -- confirmed live 2026-08-30 healthy at 3.8s on the real
+# CONCIERGE_TOOL shape, and the account is on paid billing (no free-tier
+# 15rpm queuing risk either). A real guest (Instagram DM) still hit "timed
+# out after 2 attempts" the same day, most likely an ordinary transient
+# latency spike getting killed by a timeout tuned for a different
+# provider's known failure mode rather than Gemini's actual behavior. Giving
+# Gemini more headroom before falling back to the generic reply costs
+# nothing (Gemini has no known hang bug to guard against) and gives a real
+# transient spike room to clear.
+MAX_REPLY_SECONDS_BY_PROVIDER = {
+    "nvidia": 20,   # keep tight -- the known-hang provider above
+    "gemini": 40,   # no known hang bug; paid tier; give real latency room
+}
+MAX_REPLY_SECONDS_DEFAULT = 20
+MAX_REPLY_ATTEMPTS = 2  # worst case ~2x the per-provider bound before falling back
 
 # Confirmed live: one specific conversation's completion call never returned
 # even with NO timeout at all (tested directly against NVIDIA with a 90s
@@ -590,12 +606,15 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             qualified=qualified,
         )
 
-        # No explicit model= here: NVIDIA-only routing (2026-08-05) means the
-        # routed default_model set by get_llm("concierge_draft") is what
-        # should fire -- an explicit override here previously hardcoded the
-        # Claude model string, which would silently break once this task
-        # moved to the NVIDIA adapter.
+        # No explicit model= here: whatever get_llm("concierge_draft") routes
+        # to (Gemini as of 2026-08-25, see _TASK_ROUTES) is what should
+        # fire -- an explicit override here previously hardcoded the Claude
+        # model string, which would silently break once this task moved off
+        # whatever provider it was on at the time.
         adapter = get_llm("concierge_draft")
+        reply_timeout = MAX_REPLY_SECONDS_BY_PROVIDER.get(
+            getattr(adapter, "provider", None), MAX_REPLY_SECONDS_DEFAULT
+        )
         result = None
         for attempt in range(1, MAX_REPLY_ATTEMPTS + 1):
             completion_start = time.monotonic()
@@ -608,15 +627,15 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
                             tools=[CONCIERGE_TOOL],
                             max_tokens=REPLY_MAX_TOKENS,
                         ),
-                        timeout=MAX_REPLY_SECONDS,
+                        timeout=reply_timeout,
                     )
                 )
                 break
             except asyncio.TimeoutError:
                 log.warning(
                     "concierge_completion_timed_out", conversation_id=conversation_id,
-                    message_id=message_id, attempt=attempt,
-                    elapsed_sec=round(time.monotonic() - completion_start, 2),
+                    message_id=message_id, attempt=attempt, provider=getattr(adapter, "provider", None),
+                    timeout_sec=reply_timeout, elapsed_sec=round(time.monotonic() - completion_start, 2),
                 )
         if result is None:
             result = {"tool_use": {
