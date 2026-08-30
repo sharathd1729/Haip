@@ -8,6 +8,7 @@ has been approved (or autonomous mode with confidence >= threshold).
 from __future__ import annotations
 import logging
 from datetime import datetime, timezone
+import httpx
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
@@ -19,6 +20,41 @@ from app.models.guest_identity import GuestIdentity, IdentityType
 from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
+
+# Meta's Messenger-Platform-style error for "the guest hasn't messaged us in
+# the last 24 hours" -- error_subcode 2018278 is the documented value for
+# Messenger; not independently confirmed against a live Instagram Graph API
+# occurrence (the diagnostic POST that would have confirmed it was correctly
+# blocked as a real send action), so the message-text fallback below is the
+# one actually verified against this incident.
+_OUTSIDE_WINDOW_SUBCODE = 2018278
+_OUTSIDE_WINDOW_PHRASES = ("outside of allowed window", "outside the allowed window")
+
+
+def _meta_error_detail(exc: Exception) -> tuple[str, bool]:
+    """Returns (human-readable detail, is_outside_messaging_window).
+
+    meta_graph.py's _post() already logs exc.response.text on failure, but
+    that never made it into delivery_error -- only httpx's generic
+    exception summary did, which is why a Meta permission/window rejection
+    read as an opaque "Max retries exceeded" in the inbox instead of
+    something an agent could act on."""
+    if not isinstance(exc, httpx.HTTPStatusError):
+        return str(exc), False
+
+    try:
+        body = exc.response.json()
+        err = body.get("error", {})
+        message = err.get("message", "") or exc.response.text[:300]
+        subcode = err.get("error_subcode")
+    except Exception:
+        message = exc.response.text[:300]
+        subcode = None
+
+    is_window = subcode == _OUTSIDE_WINDOW_SUBCODE or any(
+        phrase in message.lower() for phrase in _OUTSIDE_WINDOW_PHRASES
+    )
+    return message, is_window
 
 
 def _mark_failed(db: Session, message: Message, reason: str) -> None:
@@ -135,11 +171,34 @@ def send_instagram_dm(self, message_id: str, tenant_id: str) -> dict:
 
     except Exception as exc:
         logger.error("send_instagram_dm failed for message %s: %s", message_id, exc)
+        detail, is_outside_window = _meta_error_detail(exc)
+
+        if is_outside_window:
+            # Confirmed live: Instagram rejects every send once the guest
+            # hasn't messaged in 24h, with the same error on every retry --
+            # retrying wastes 3 rounds of Celery backoff for something that
+            # only a fresh inbound message from the guest can fix. No
+            # rollback here -- the exception fires on the external HTTP
+            # call, before this function touches the DB, so there is
+            # nothing uncommitted to discard.
+            try:
+                msg = db.query(Message).filter_by(id=message_id, tenant_id=tenant_id).first()
+                if msg:
+                    _mark_failed(
+                        db, msg,
+                        "Instagram won't deliver this -- the guest hasn't messaged in "
+                        "over 24 hours, so we can't message them first. Ask them to "
+                        f"send anything to reopen the conversation. (Meta: {detail})",
+                    )
+            except Exception:
+                pass
+            return {"status": "error", "reason": "outside_24h_window"}
+
         if self.request.retries >= self.max_retries:
             try:
                 msg = db.query(Message).filter_by(id=message_id, tenant_id=tenant_id).first()
                 if msg:
-                    _mark_failed(db, msg, f"Max retries exceeded: {exc}")
+                    _mark_failed(db, msg, f"Max retries exceeded: {detail}")
             except Exception:
                 pass
         db.rollback()
