@@ -150,6 +150,54 @@ async def send_welcome_email(*, to_email: str, name: str, tenant_name: str) -> b
     return await _send(to=to_email, subject=subject, html=html)
 
 
+async def send_integration_expired_alert_email(
+    *, to_email: str, tenant_name: str, channel: str, detail: str,
+) -> bool:
+    channel_label = {"whatsapp": "WhatsApp", "instagram": "Instagram"}.get(channel, channel.title())
+    subject = f"Action needed: {channel_label} messaging is down for {tenant_name}"
+    html = f"""
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 520px; margin: 0 auto; padding: 40px 24px; color: #1a1a2e;">
+      <div style="text-align: center; margin-bottom: 32px;">
+        <div style="display: inline-block; background: #0B1F3A; color: white; font-size: 18px; font-weight: 800; padding: 8px 20px; border-radius: 10px; letter-spacing: 1px;">
+          HAIP
+        </div>
+      </div>
+
+      <h1 style="font-size: 22px; font-weight: 700; margin-bottom: 8px; color: #b91c1c;">
+        {channel_label} messages are failing to send
+      </h1>
+      <p style="color: #6b7280; font-size: 15px; line-height: 1.6; margin-bottom: 16px;">
+        HAIP tried a routine check on <strong>{tenant_name}</strong>'s {channel_label} connection and it was
+        rejected. This usually means the access token expired or was revoked -- every outbound
+        {channel_label} message (both AI drafts and messages your team sends manually) is failing silently
+        until this is fixed.
+      </p>
+
+      <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 14px 16px; margin-bottom: 24px; font-size: 13px; color: #7f1d1d; font-family: ui-monospace, monospace;">
+        {detail}
+      </div>
+
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="https://www.genhaip.com/dashboard/settings/integrations"
+           style="display: inline-block; background: #14b8a6; color: white; text-decoration: none;
+                  font-weight: 700; font-size: 15px; padding: 14px 32px; border-radius: 12px;">
+          Reconnect {channel_label} →
+        </a>
+      </div>
+
+      <p style="color: #9ca3af; font-size: 12px; text-align: center; margin-top: 24px;">
+        You'll get this alert at most once every 24 hours per channel while the issue persists.
+      </p>
+
+      <hr style="border: none; border-top: 1px solid #f3f4f6; margin: 32px 0;" />
+      <p style="color: #d1d5db; font-size: 11px; text-align: center;">
+        HAIP · Hospitality AI Intelligence Platform
+      </p>
+    </div>
+    """
+    return await _send(to=to_email, subject=subject, html=html)
+
+
 async def send_password_reset_email(*, to_email: str, name: str, reset_link: str) -> bool:
     subject = "Reset your HAIP password"
     html = f"""

@@ -62,6 +62,8 @@ celery_app = Celery(
         # WhatsApp: campaign runner + template status sync
         "app.workers.tasks.run_campaign",
         "app.workers.tasks.sync_wa_templates",
+        # WhatsApp/Instagram access-token health check + expiry alerting
+        "app.workers.tasks.check_meta_credentials",
         # Automations engine + timer triggers
         "app.workers.tasks.automation_engine",
         "app.workers.tasks.check_automation_timers",
@@ -182,6 +184,8 @@ celery_app.conf.update(
         "sync_retalwise":                            {"queue": "call_ingest"},
         "sync_retalwise_all_tenants":                {"queue": "call_ingest"},
         "meta_quality.poll_all_tenants":             {"queue": "whatsapp"},
+        "meta_credentials.check_all_tenants":        {"queue": "whatsapp"},
+        "meta_credentials.check_tenant":             {"queue": "whatsapp"},
         "owner_digest.orchestrate":                  {"queue": "ai_scoring"},
         "retention.nightly_purge":                   {"queue": "call_ingest"},
         "call_ingest.fetch_recording":                {"queue": "call_ingest"},
@@ -236,6 +240,10 @@ celery_app.conf.beat_schedule = {
     "meta-quality-hourly": {
         "task": "app.workers.tasks.meta_quality_poll.poll_all_tenants",
         "schedule": crontab(minute=15),
+    },
+    "meta-credentials-health-daily": {
+        "task": "meta_credentials.check_all_tenants",
+        "schedule": crontab(hour=6, minute=0),
     },
     "sync-retalwise-hourly": {
         "task": "app.workers.tasks.sync_all_pms.sync_retalwise_all_tenants",
