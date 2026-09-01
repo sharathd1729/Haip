@@ -298,3 +298,132 @@ def test_build_timeline_cap(db):
 
     assert len(timeline) == 50
     assert capped is True
+
+
+# ── trigger_summary_refresh: burst-of-messages catch-up ─────────────────────
+# Regression coverage: a guest's second message (e.g. travel dates + guest
+# count) arriving inside the 30-min debounce window used to be silently
+# dropped forever -- no scheduled run ever reflected it unless some unrelated
+# later trigger (a call, a manual refresh) happened to fire. Confirmed live
+# against Ratha production: a lead sat with a stale AI summary/extracted
+# fields for a full week after the guest's dates+count message, because
+# nothing else ever re-triggered a refresh. Fixed by scheduling exactly one
+# trailing catch-up run at window-close instead of dropping the trigger.
+
+def _fake_cache(monkeypatch, module):
+    """Same in-memory Redis stand-in pattern as test_daily_briefing_service.py
+    and test_concierge_draft_debounce.py -- get_cached/set_cached fail open
+    to None on a real Redis outage, which would make every debounce
+    assertion here vacuously pass."""
+    store: dict = {}
+
+    def _get(key):
+        return store.get(key)
+
+    def _set(key, value, ttl=300):
+        store[key] = value
+
+    monkeypatch.setattr(module, "get_cached", _get)
+    monkeypatch.setattr(module, "set_cached", _set)
+    return store
+
+
+class TestTriggerSummaryRefreshBurst:
+    def test_first_message_in_window_fires_immediately(self, db, monkeypatch):
+        _fake_cache(monkeypatch, leads_service)
+        calls = []
+        monkeypatch.setattr(
+            "app.workers.tasks.generate_ai_summary.generate_ai_summary.delay",
+            lambda **kw: calls.append(("delay", kw)),
+        )
+
+        fired = leads_service.trigger_summary_refresh(db, "inq-1", "tenant-1", source="message")
+
+        assert fired is True
+        assert calls == [("delay", {"inquiry_id": "inq-1", "tenant_id": "tenant-1"})]
+
+    def test_second_message_in_window_schedules_one_trailing_catchup(self, db, monkeypatch):
+        _fake_cache(monkeypatch, leads_service)
+        immediate_calls = []
+        scheduled_calls = []
+        monkeypatch.setattr(
+            "app.workers.tasks.generate_ai_summary.generate_ai_summary.delay",
+            lambda **kw: immediate_calls.append(kw),
+        )
+        monkeypatch.setattr(
+            "app.workers.tasks.generate_ai_summary.generate_ai_summary.apply_async",
+            lambda **kw: scheduled_calls.append(kw),
+        )
+
+        first = leads_service.trigger_summary_refresh(db, "inq-1", "tenant-1", source="message")
+        second = leads_service.trigger_summary_refresh(db, "inq-1", "tenant-1", source="message")
+
+        assert first is True
+        assert len(immediate_calls) == 1
+        # The second message must not be silently dropped -- it schedules a
+        # trailing run instead, so the guest's later reply still gets picked up.
+        assert second is True
+        assert len(scheduled_calls) == 1
+        assert scheduled_calls[0]["kwargs"] == {"inquiry_id": "inq-1", "tenant_id": "tenant-1"}
+        assert scheduled_calls[0]["countdown"] == leads_service.SUMMARY_DEBOUNCE_TTL
+
+    def test_third_message_in_window_does_not_stack_a_second_catchup(self, db, monkeypatch):
+        """A burst of many messages must schedule exactly one trailing run,
+        not one per message."""
+        _fake_cache(monkeypatch, leads_service)
+        scheduled_calls = []
+        monkeypatch.setattr(
+            "app.workers.tasks.generate_ai_summary.generate_ai_summary.delay",
+            lambda **kw: None,
+        )
+        monkeypatch.setattr(
+            "app.workers.tasks.generate_ai_summary.generate_ai_summary.apply_async",
+            lambda **kw: scheduled_calls.append(kw),
+        )
+
+        leads_service.trigger_summary_refresh(db, "inq-1", "tenant-1", source="message")
+        second = leads_service.trigger_summary_refresh(db, "inq-1", "tenant-1", source="message")
+        third = leads_service.trigger_summary_refresh(db, "inq-1", "tenant-1", source="message")
+
+        assert second is True
+        assert third is False   # absorbed by the already-scheduled catch-up
+        assert len(scheduled_calls) == 1
+
+    def test_call_and_manual_sources_always_fire_immediately_even_when_debounced(self, db, monkeypatch):
+        _fake_cache(monkeypatch, leads_service)
+        calls = []
+        monkeypatch.setattr(
+            "app.workers.tasks.generate_ai_summary.generate_ai_summary.delay",
+            lambda **kw: calls.append(kw),
+        )
+        monkeypatch.setattr(
+            "app.workers.tasks.generate_ai_summary.generate_ai_summary.apply_async",
+            lambda **kw: pytest.fail("call/manual sources must never go through the debounce path"),
+        )
+
+        leads_service.trigger_summary_refresh(db, "inq-1", "tenant-1", source="message")
+        fired_call = leads_service.trigger_summary_refresh(db, "inq-1", "tenant-1", source="call")
+        fired_manual = leads_service.trigger_summary_refresh(db, "inq-1", "tenant-1", source="manual")
+
+        assert fired_call is True
+        assert fired_manual is True
+        assert len(calls) == 3
+
+    def test_burst_isolated_per_inquiry(self, db, monkeypatch):
+        """A debounced/scheduled state for one inquiry must never suppress
+        another inquiry's first message."""
+        _fake_cache(monkeypatch, leads_service)
+        monkeypatch.setattr(
+            "app.workers.tasks.generate_ai_summary.generate_ai_summary.delay",
+            lambda **kw: None,
+        )
+        monkeypatch.setattr(
+            "app.workers.tasks.generate_ai_summary.generate_ai_summary.apply_async",
+            lambda **kw: None,
+        )
+
+        leads_service.trigger_summary_refresh(db, "inq-1", "tenant-1", source="message")
+        leads_service.trigger_summary_refresh(db, "inq-1", "tenant-1", source="message")
+        fired_other = leads_service.trigger_summary_refresh(db, "inq-2", "tenant-1", source="message")
+
+        assert fired_other is True
