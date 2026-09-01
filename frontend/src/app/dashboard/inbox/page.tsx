@@ -1102,13 +1102,48 @@ function InboxPageInner() {
                     type Row = { key: string; at: number } & (
                       | { kind: "message"; msg: Message }
                       | { kind: "call"; call: CallTimelineItem }
+                      | { kind: "date"; label: string }
                     );
                     const rows: Row[] = [
                       ...msgs.map(m => ({ key: `m-${m.id}`, at: new Date(m.timestamp).getTime(), kind: "message" as const, msg: m })),
                       ...callItems.map(c => ({ key: `c-${c.call.id}`, at: new Date(c.occurred_at).getTime(), kind: "call" as const, call: c.call })),
                     ].sort((a, b) => a.at - b.at);
 
-                    return rows.map(row => row.kind === "call" ? (
+                    // Insert a date separator before the first row of each
+                    // calendar day -- without this, a message from a week
+                    // ago and one from just now show identical bare times
+                    // ("10:23 am") with nothing marking the gap between
+                    // them, which is exactly what read like "this whole
+                    // thread happened today" for an old conversation with
+                    // one recent reply spliced in.
+                    const withDates: Row[] = [];
+                    let lastDateKey = "";
+                    for (const row of rows) {
+                      const d = new Date(row.at);
+                      const dateKey = d.toDateString();
+                      if (dateKey !== lastDateKey) {
+                        lastDateKey = dateKey;
+                        const today = new Date();
+                        const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+                        const label =
+                          dateKey === today.toDateString() ? "Today" :
+                          dateKey === yesterday.toDateString() ? "Yesterday" :
+                          d.toLocaleDateString(undefined, { day: "numeric", month: "long", year: d.getFullYear() !== today.getFullYear() ? "numeric" : undefined });
+                        withDates.push({ key: `date-${dateKey}`, at: row.at, kind: "date", label });
+                      }
+                      withDates.push(row);
+                    }
+
+                    return withDates.map(row => row.kind === "date" ? (
+                      <div key={row.key} className="flex justify-center my-2">
+                        <span
+                          className="text-[11px] font-medium px-2.5 py-1 rounded-full"
+                          style={{ background: "var(--haip-card)", color: "var(--haip-fg-subtle)", border: "1px solid var(--haip-border)" }}
+                        >
+                          {row.label}
+                        </span>
+                      </div>
+                    ) : row.kind === "call" ? (
                       <CallLogCard key={row.key} call={row.call} />
                     ) : (
                       <MessageBubble

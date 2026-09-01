@@ -39,14 +39,27 @@ async function refreshAccessToken(refreshToken: string): Promise<RefreshResult> 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ refresh_token: refreshToken }),
       });
-      if (!res.ok) return { error: "RefreshAccessTokenError" };
+      if (!res.ok) {
+        // Swallowed silently before -- every "keep me signed in" logout ever
+        // reported showed up as a bare "RefreshAccessTokenError" with no way
+        // to tell an unreachable BACKEND_URL apart from a genuinely revoked
+        // refresh token. Log which apiBase was used and the real status/body
+        // so the next occurrence is diagnosable from Vercel logs alone.
+        const bodyText = await res.text().catch(() => "");
+        console.error("[AUTH] token refresh failed", { apiBase, status: res.status, body: bodyText.slice(0, 300) });
+        return { error: "RefreshAccessTokenError" };
+      }
       const data = await res.json();
       return {
         accessToken: data.access_token,
         refreshToken: data.refresh_token ?? refreshToken,
         accessTokenExpires: getTokenExpiry(data.access_token),
       };
-    } catch {
+    } catch (e) {
+      // A thrown fetch error (unreachable host, DNS failure, relative URL
+      // rejected by Node's fetch) is exactly the class of bug that broke
+      // "keep me signed in" on Vercel -- BACKEND_URL pointing nowhere real.
+      console.error("[AUTH] token refresh threw", { apiBase, error: e instanceof Error ? e.message : String(e) });
       return { error: "RefreshAccessTokenError" };
     }
   })();
