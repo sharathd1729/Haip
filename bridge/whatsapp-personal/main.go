@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"sync"
 	"time"
@@ -67,8 +68,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("session manager init failed: %v", err)
 	}
-	if proxyURL != "" {
-		log.Printf("routing whatsmeow connections through configured proxy")
+	if proxyURL == "" {
+		log.Printf("connection mode: direct (WHATSAPP_PROXY_URL not set)")
+	} else {
+		log.Printf("connection mode: proxy (%s)", redactProxyURL(proxyURL))
 	}
 
 	// Reconnect every previously-paired session on startup -- a bridge
@@ -90,6 +93,19 @@ func main() {
 	if err := http.ListenAndServe(":"+port, mux); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// redactProxyURL strips userinfo (SOCKS5 username/password) before this
+// ever reaches a log line -- credentials must never appear in logs. Falls
+// back to a fixed placeholder rather than the raw value if the URL
+// doesn't parse, since that raw value could still contain a password.
+func redactProxyURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "(configured, unparseable -- check WHATSAPP_PROXY_URL format)"
+	}
+	u.User = nil
+	return u.String()
 }
 
 // ── HTTP handlers ────────────────────────────────────────────────────────

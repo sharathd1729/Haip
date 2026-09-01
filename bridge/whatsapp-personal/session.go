@@ -384,6 +384,14 @@ func (m *sessionManager) reconnectAll(ctx context.Context) error {
 
 // ── event handling ───────────────────────────────────────────────────────
 
+// registerHandlers wires whatsmeow's connection-lifecycle events to (a)
+// HAIP's status webhook (unchanged behavior) and (b) an explicit stdout
+// diagnostic line per event. (b) exists because whatsmeow's own internal
+// log wording ("Got device removed stream error...") isn't a stable,
+// greppable signal to depend on -- these lines are ours, one per
+// lifecycle stage, so "did it pair / authenticate / stay connected / get
+// removed" is answerable directly from `docker compose logs` without
+// interpreting library internals.
 func (m *sessionManager) registerHandlers(sessionID string, ac *activeClient) {
 	ac.client.AddEventHandler(func(rawEvt interface{}) {
 		switch evt := rawEvt.(type) {
@@ -392,14 +400,27 @@ func (m *sessionManager) registerHandlers(sessionID string, ac *activeClient) {
 		case *events.PairSuccess:
 			jid := evt.ID.String()
 			_ = m.backend.setJID(context.Background(), sessionID, jid)
+			fmt.Printf("[diag] session %s: pairing succeeded, jid=%s\n", sessionID, jid)
 			postStatus(ac, "connected", jid, evt.ID.User)
 		case *events.Connected:
+			fmt.Printf("[diag] session %s: connection established\n", sessionID)
 			if ac.client.Store.ID != nil {
 				postStatus(ac, "connected", ac.client.Store.ID.String(), ac.client.Store.ID.User)
 			}
 		case *events.Disconnected:
+			fmt.Printf("[diag] session %s: disconnected\n", sessionID)
 			postStatus(ac, "disconnected", "", "")
+		case *events.StreamError:
+			// Server sent <stream:error> with a code whatsmeow doesn't
+			// translate into a dedicated event (device-removed and a few
+			// others are handled internally and surface as LoggedOut
+			// instead, below) -- logging the raw code here since this is
+			// exactly the kind of signal we don't want to guess at.
+			fmt.Printf("[diag] session %s: stream error, code=%s\n", sessionID, evt.Code)
+		case *events.PairError:
+			fmt.Printf("[diag] session %s: pair error: %v\n", sessionID, evt.Error)
 		case *events.LoggedOut:
+			fmt.Printf("[diag] session %s: logged out, reason=%v (onConnect=%v)\n", sessionID, evt.Reason, evt.OnConnect)
 			postStatus(ac, "logged_out", "", "")
 		}
 	})
