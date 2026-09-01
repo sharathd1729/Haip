@@ -150,11 +150,15 @@ export default function WhatsAppPersonalPage() {
 
           {isLoading && <p className="text-sm text-gray-400">Checking…</p>}
 
-          {!isLoading && (!mySession || status === "logged_out") && !qr && !pairingCode && !showPhoneEntry && (
+          {!isLoading && (!mySession || status === "logged_out" || status === "pending_pairing") && !qr && !pairingCode && !showPhoneEntry && (
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm text-gray-700">Not connected yet.</p>
-                <p className="text-xs text-gray-400 mt-0.5">Pair your phone to start tracking these conversations in HAIP.</p>
+                <p className="text-sm text-gray-700">{status === "pending_pairing" ? "Code expired." : "Not connected yet."}</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {status === "pending_pairing"
+                    ? "The window closed before it was used. Generate a new one to try again."
+                    : "Pair your phone to start tracking these conversations in HAIP."}
+                </p>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 <button
@@ -169,13 +173,13 @@ export default function WhatsAppPersonalPage() {
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-60"
                 >
                   {pairMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <QrCode size={13} />}
-                  Pair my WhatsApp
+                  {status === "pending_pairing" ? "Generate new QR" : "Pair my WhatsApp"}
                 </button>
               </div>
             </div>
           )}
 
-          {!isLoading && (!mySession || status === "logged_out") && !qr && !pairingCode && showPhoneEntry && (
+          {!isLoading && (!mySession || status === "logged_out" || status === "pending_pairing") && !qr && !pairingCode && showPhoneEntry && (
             <div>
               <p className="text-sm text-gray-700">Enter your WhatsApp number</p>
               <p className="text-xs text-gray-400 mt-0.5 mb-3">Include country code, e.g. +919876543210. WhatsApp will show an 8-character code to enter on your phone instead of scanning.</p>
@@ -228,25 +232,6 @@ export default function WhatsAppPersonalPage() {
               <div className="flex items-center justify-center gap-1.5 mt-3 text-xs text-amber-600">
                 <Loader2 size={12} className="animate-spin" /> Waiting for confirmation…
               </div>
-            </div>
-          )}
-
-          {!qr && !pairingCode && status === "pending_pairing" && (
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm text-gray-700 flex items-center gap-1.5">
-                  <StatusDot status={status} /> Code expired
-                </p>
-                <p className="text-xs text-gray-400 mt-0.5">The scan window closed before it was used. Generate a new code to try again.</p>
-              </div>
-              <button
-                onClick={() => pairMutation.mutate(undefined)}
-                disabled={pairMutation.isPending}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-60 flex-shrink-0"
-              >
-                {pairMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-                Generate new code
-              </button>
             </div>
           )}
 
