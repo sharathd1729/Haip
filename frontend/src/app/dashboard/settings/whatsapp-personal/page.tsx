@@ -11,6 +11,7 @@ interface SessionOut {
   status: "pending_pairing" | "connected" | "disconnected" | "logged_out";
   phone_number: string | null;
   agent_name?: string | null;
+  qr_code_data_url?: string | null;
   last_seen_at: string | null;
   created_at: string;
 }
@@ -59,15 +60,28 @@ export default function WhatsAppPersonalPage() {
     },
   });
 
-  // Once the bridge reports "connected" (via the status webhook the
-  // backend receives independently), the QR is stale -- clear it so the
-  // success state renders instead of a scannable-looking code that no
-  // longer does anything.
+  // Once the bridge reports "connected" (paired) or "logged_out" (WhatsApp
+  // gave up rotating codes -- see the bridge's "timeout" handling), the
+  // displayed QR is stale either way -- clear it so the success/expired
+  // state renders instead of a scannable-looking code that no longer
+  // does anything.
   useEffect(() => {
-    if (mySession?.status === "connected" && qr) {
+    if ((mySession?.status === "connected" || mySession?.status === "logged_out") && qr) {
       setQr(null);
     }
   }, [mySession?.status, qr]);
+
+  // WhatsApp rotates the QR roughly every 20-30s while unscanned -- a
+  // real pairing attempt failed ("Couldn't link device, try again later")
+  // because the displayed code had already expired by the time someone
+  // actually scanned it. The bridge now pushes each rotation to the
+  // backend, and polling picks it up here so the image on screen keeps
+  // itself current instead of silently going stale.
+  useEffect(() => {
+    if (mySession?.status === "pending_pairing" && mySession.qr_code_data_url && mySession.qr_code_data_url !== qr) {
+      setQr(mySession.qr_code_data_url);
+    }
+  }, [mySession?.status, mySession?.qr_code_data_url, qr]);
 
   const pairMutation = useMutation({
     mutationFn: () => api.post<PairingOut>("/whatsapp-personal/sessions").then(r => r.data),

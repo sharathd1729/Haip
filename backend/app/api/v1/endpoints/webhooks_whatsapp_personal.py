@@ -59,5 +59,6 @@ def bridge_status_update(
     svc.apply_status_update(
         db, session,
         status=body.status, phone_number=body.phone_number, device_jid=body.device_jid,
+        qr_code_data_url=body.qr_code_data_url,
     )
     return {"status": "ok"}

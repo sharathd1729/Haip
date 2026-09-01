@@ -20,6 +20,7 @@ import structlog
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.cache import get_cached, set_cached
 from app.core.config import settings
 from app.core.encryption import encrypt_credentials, decrypt_credentials
 from app.models.conversation import Conversation, Message, ChannelType, MessageDirection
@@ -113,6 +114,15 @@ def start_or_restart_pairing(db: Session, tenant_id: str, user_id: str) -> tuple
         log.error("wa_personal_bridge_start_failed", session_id=session.id, error=str(exc))
         raise
 
+    if qr:
+        # Cache the initial code too, not just later rotations -- keeps
+        # /sessions/me authoritative from the very first poll rather than
+        # briefly returning null until the bridge's first rotation webhook
+        # arrives (the frontend already has this exact value from this
+        # call's own return value, so this only matters for a second tab
+        # or a page reload during the same pairing attempt).
+        set_cached(_qr_cache_key(session.id), qr, ttl=60)
+
     db.commit()
     log.info("wa_personal_pairing_started", tenant_id=tenant_id, user_id=user_id, session_id=session.id)
     return session, qr
@@ -131,12 +141,32 @@ def logout_session(db: Session, tenant_id: str, user_id: str) -> bool:
     return True
 
 
+def _qr_cache_key(session_id: str) -> str:
+    return f"haip:wa_personal_qr:{session_id}"
+
+
+def get_cached_qr(session_id: str) -> Optional[str]:
+    """The QR the agent is currently looking at, if pairing is still in
+    progress. WhatsApp rotates the code roughly every 20-30s; the bridge
+    pushes each rotation here so a polling frontend can refresh the image
+    instead of showing one that's already expired -- a real pairing
+    attempt failed ("Couldn't link device") from exactly that gap."""
+    return get_cached(_qr_cache_key(session_id))
+
+
 def apply_status_update(
     db: Session, session: WhatsAppPersonalSession, *,
     status: str, phone_number: Optional[str] = None, device_jid: Optional[str] = None,
+    qr_code_data_url: Optional[str] = None,
 ) -> None:
     """Bridge reports its own connection state -- HAIP's DB is a mirror,
     never the source of truth for whether the socket is actually alive."""
+    if qr_code_data_url:
+        # A rotated code during an ongoing pairing attempt -- status is
+        # already "pending_pairing" in the DB, cache the fresh QR
+        # alongside it rather than writing to the DB on every rotation.
+        set_cached(_qr_cache_key(session.id), qr_code_data_url, ttl=60)
+
     try:
         session.status = WhatsAppPersonalSessionStatus(status)
     except ValueError:

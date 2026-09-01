@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -222,21 +223,58 @@ func (m *sessionManager) startOrResumePairing(ctx context.Context, sessionID, se
 		return nil, fmt.Errorf("connect: %w", err)
 	}
 
-	for evt := range qrChan {
-		if evt.Event == "code" {
-			png, err := qrcode.Encode(evt.Code, qrcode.Medium, 320)
-			if err != nil {
-				return nil, fmt.Errorf("encode qr: %w", err)
-			}
-			return png, nil
-		}
-		if evt.Event == "success" {
-			// Paired before we ever emitted a "code" event to the caller
-			// (rare -- e.g. an already-scanned session from a race).
-			return blankPNG()
-		}
+	// WhatsApp rotates the QR roughly every 20-30s while unscanned -- a
+	// real pairing attempt failed ("Couldn't link device") because this
+	// used to return only the FIRST code and stop reading the channel, so
+	// anyone who took longer than one rotation to actually scan it (the
+	// realistic case for a first-time user finding Linked Devices) tried
+	// to link an already-expired code. The first code still returns
+	// synchronously so the HTTP call doesn't block, but a background
+	// goroutine keeps draining the channel and pushes every later
+	// rotation to HAIP over the same status webhook the frontend already
+	// polls, so the displayed QR refreshes itself instead of going stale
+	// with no indication.
+	first, ok := <-qrChan
+	if !ok {
+		return nil, fmt.Errorf("qr channel closed before first code (timed out or cancelled)")
 	}
-	return nil, fmt.Errorf("qr channel closed before pairing (timed out or cancelled)")
+	if first.Event == "success" {
+		// Paired before we ever emitted a "code" event (rare -- e.g. an
+		// already-scanned session from a race).
+		return blankPNG()
+	}
+	if first.Event != "code" {
+		return nil, fmt.Errorf("unexpected first qr event: %s", first.Event)
+	}
+	firstPNG, err := qrcode.Encode(first.Code, qrcode.Medium, 320)
+	if err != nil {
+		return nil, fmt.Errorf("encode qr: %w", err)
+	}
+
+	go func() {
+		for evt := range qrChan {
+			switch evt.Event {
+			case "code":
+				png, err := qrcode.Encode(evt.Code, qrcode.Medium, 320)
+				if err != nil {
+					fmt.Printf("session %s: qr rotation encode failed: %v\n", sessionID, err)
+					continue
+				}
+				payload := map[string]interface{}{
+					"status":            "pending_pairing",
+					"qr_code_data_url": "data:image/png;base64," + base64.StdEncoding.EncodeToString(png),
+				}
+				postJSON(ac.statusCallbackURL, ac.webhookSecret, payload)
+			case "timeout":
+				// WhatsApp gave up rotating codes -- the agent needs to hit
+				// Pair again for a fresh attempt rather than stare at a
+				// permanently dead QR with no signal anything changed.
+				postJSON(ac.statusCallbackURL, ac.webhookSecret, map[string]interface{}{"status": "logged_out"})
+			}
+		}
+	}()
+
+	return firstPNG, nil
 }
 
 func (m *sessionManager) deviceFor(ctx context.Context, jid string) (*store.Device, error) {

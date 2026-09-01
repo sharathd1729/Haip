@@ -170,6 +170,48 @@ class TestVerifyBridgeSecret:
         assert svc.verify_bridge_secret(session, "anything") is False
 
 
+class TestQrRotationCaching:
+    """A real pairing attempt failed ("Couldn't link device, try again
+    later") because the bridge only ever forwarded the FIRST QR code and
+    WhatsApp rotates it roughly every 20-30s -- anyone who took longer
+    than one rotation to actually scan was linking an already-expired
+    code. The bridge now pushes every rotation here via the status
+    webhook; this covers the caching half of that fix (session.go's own
+    rotation-forwarding isn't unit-testable from Python)."""
+
+    def _fake_cache(self, monkeypatch):
+        store: dict = {}
+        monkeypatch.setattr(svc, "get_cached", lambda key: store.get(key))
+        monkeypatch.setattr(svc, "set_cached", lambda key, value, ttl=300: store.__setitem__(key, value))
+        return store
+
+    def test_rotated_qr_is_cached_and_retrievable(self, db, monkeypatch):
+        self._fake_cache(monkeypatch)
+        tenant = _make_tenant(db)
+        agent = _make_agent(db, tenant.id)
+        session = _make_session(db, tenant.id, agent.id)
+        session.status = WhatsAppPersonalSessionStatus.PENDING_PAIRING
+        db.commit()
+
+        svc.apply_status_update(db, session, status="pending_pairing", qr_code_data_url="data:image/png;base64,ROTATED")
+
+        assert svc.get_cached_qr(session.id) == "data:image/png;base64,ROTATED"
+
+    def test_status_update_without_qr_does_not_clear_a_cached_one(self, db, monkeypatch):
+        """An unrelated status ping (e.g. a plain reconnect) must not wipe
+        out a QR that's still valid -- only a real rotation event carries
+        qr_code_data_url at all."""
+        self._fake_cache(monkeypatch)
+        tenant = _make_tenant(db)
+        agent = _make_agent(db, tenant.id)
+        session = _make_session(db, tenant.id, agent.id)
+
+        svc.apply_status_update(db, session, status="pending_pairing", qr_code_data_url="data:image/png;base64,FIRST")
+        svc.apply_status_update(db, session, status="pending_pairing")  # no qr this time
+
+        assert svc.get_cached_qr(session.id) == "data:image/png;base64,FIRST"
+
+
 class TestStartOrRestartPairing:
     def test_calls_bridge_and_persists_encrypted_secret(self, db):
         _ensure_fernet_key()

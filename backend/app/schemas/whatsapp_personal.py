@@ -9,6 +9,11 @@ class WhatsAppPersonalSessionOut(BaseModel):
     status: str
     phone_number: Optional[str] = None
     agent_name: Optional[str] = None  # populated by the directory list endpoint only
+    # Only ever populated on the self-view (GET /sessions/me) while status
+    # is pending_pairing -- the latest rotated code, refreshed roughly
+    # every 20-30s by the bridge, so the frontend keeps showing a QR that
+    # actually still works instead of one that's silently gone stale.
+    qr_code_data_url: Optional[str] = None
     last_seen_at: Optional[datetime] = None
     created_at: datetime
 

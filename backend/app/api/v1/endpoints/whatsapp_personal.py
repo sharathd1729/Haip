@@ -52,8 +52,10 @@ def get_my_session(
     session = svc.get_session(db, current_user.tenant_id, current_user.id)
     if not session:
         return None
+    qr = svc.get_cached_qr(session.id) if session.status.value == "pending_pairing" else None
     return WhatsAppPersonalSessionOut(
         id=session.id, status=session.status.value, phone_number=session.phone_number,
+        qr_code_data_url=qr,
         last_seen_at=session.last_seen_at, created_at=session.created_at,
     )
 
