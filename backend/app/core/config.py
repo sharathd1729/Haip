@@ -100,6 +100,16 @@ class Settings(BaseSettings):
     META_INSTAGRAM_PAGE_ID: str = ""
     INSTAGRAM_APP_ID: str = ""
 
+    # Personal/Business-app WhatsApp bridge (whatsmeow, unofficial -- Phase 1
+    # read-only capture only; see whatsapp_personal_service.py). Internal
+    # network address of the bridge microservice.
+    WHATSAPP_BRIDGE_URL: str = "http://whatsapp-bridge:8085"
+    # This API's own public base URL, so the bridge can call back into it
+    # (webhooks_whatsapp_personal.py). No existing setting covers this --
+    # every other webhook is inbound-only (a third party calls us), this is
+    # the first case of HAIP needing to hand its own address to a callee.
+    PUBLIC_API_BASE_URL: str = "http://api:8000"
+
     # Email
     RESEND_API_KEY: str = ""
     # Resend only accepts a sender on a domain verified in the account.

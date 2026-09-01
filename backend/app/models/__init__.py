@@ -33,6 +33,7 @@ from app.models.capability import Capability, RoleCapability
 from app.models.ai_draft_outcome import AIDraftOutcome
 from app.models.task import Task
 from app.models.lead_attribution import LeadAttribution
+from app.models.whatsapp_personal_session import WhatsAppPersonalSession, WhatsAppPersonalSessionStatus
 
 __all__ = [
     "Tenant", "User", "RefreshToken", "UserInvitation",
@@ -52,4 +53,5 @@ __all__ = [
     "Capability", "RoleCapability",
     "AIDraftOutcome", "Task",
     "LeadAttribution",
+    "WhatsAppPersonalSession", "WhatsAppPersonalSessionStatus",
 ]

@@ -22,6 +22,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      whatsapp-bridge:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -76,6 +78,31 @@ services:
       - "3000:3000"
     depends_on:
       - api
+
+  whatsapp-bridge:
+    build:
+      context: ./bridge/whatsapp-personal
+      dockerfile: Dockerfile
+    container_name: haip_whatsapp_bridge
+    restart: unless-stopped
+    environment:
+      # Personal/Business-app WhatsApp bridge (whatsmeow, unofficial --
+      # Phase 1 read-only capture only). Plain `postgres://` DSN, same
+      # host/credentials as DATABASE_URL but WITHOUT a SQLAlchemy dialect
+      # suffix (+psycopg2 etc.) -- lib/pq needs the bare scheme.
+      - BRIDGE_DB_DSN=${WHATSAPP_BRIDGE_DB_DSN}
+      - HTTP_PORT=8085
+    # Not exposed externally -- only the api container calls this, over
+    # the compose network, matching WHATSAPP_BRIDGE_URL's default in
+    # backend/app/core/config.py.
+    healthcheck:
+      # Distroless runtime image has no shell/wget -- re-invokes the same
+      # static binary with its own self-check mode instead.
+      test: ["CMD", "/bridge", "--healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   redis:
     image: redis:7-alpine

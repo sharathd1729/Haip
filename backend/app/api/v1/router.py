@@ -4,7 +4,8 @@ from app.api.v1.endpoints import (
     tenants, users, guests, inquiries, conversations, properties,
     qa, integrations, analytics, analytics_executive, analytics_sections, analytics_intelligence, analytics_forecasting, instagram_insights, ask_haip, audit, sse, messaging, reports, saved_replies, saved_views,
     webhooks_callerdesk, webhooks_acefone, webhooks_mcube, webhooks_whatsapp, webhooks_instagram,
-    webhooks_dograh, webhooks_vobiz,
+    webhooks_dograh, webhooks_vobiz, webhooks_whatsapp_personal,
+    whatsapp_personal,
     voice_settings,
     mcp_tokens,
     capabilities,
@@ -117,6 +118,8 @@ api_router.include_router(webhooks_whatsapp.router)
 api_router.include_router(webhooks_instagram.router)
 api_router.include_router(webhooks_dograh.router)
 api_router.include_router(webhooks_vobiz.router)
+api_router.include_router(webhooks_whatsapp_personal.router)
+api_router.include_router(whatsapp_personal.router)
 api_router.include_router(mcp_tokens.router)
 api_router.include_router(capabilities.router)
 api_router.include_router(voice_settings.router)
