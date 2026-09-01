@@ -46,7 +46,7 @@ respond with ONLY a JSON object (no markdown fences, no other text):
   "extracted": {
     "check_in": "<ISO date YYYY-MM-DD ONLY if the guest explicitly stated a check-in/travel date, else null>",
     "check_out": "<ISO date YYYY-MM-DD ONLY if the guest explicitly stated a check-out/return date, else null>",
-    "adults": "<integer number of adults ONLY if explicitly stated, else null>",
+    "adults": "<integer number of adults ONLY if explicitly stated, else null. If the guest gives a total group/party size without breaking it into adults and children (e.g. '5 guests', 'party of 6', 'we are 4'), use that total number here -- guests overwhelmingly phrase headcount this way, and it is still a literal readback of what they said, not a guess. Only leave this null if the guest genuinely gave no headcount at all, or if they explicitly split out children and gave NO adult figure.>",
     "children": "<integer number of children ONLY if explicitly stated, else null>",
     "occasion": "<short phrase, e.g. 'anniversary', ONLY if explicitly stated, else null>",
     "budget": "<number, the guest's stated budget in INR, ONLY if explicitly stated, else null>",

@@ -81,7 +81,12 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v4 adds route_mentioned/quoted_amount/upsell_offered/upsell_accepted
     # extraction + a synthesized lead_analysis paragraph (detailed
     # per-lead report).
-    "leads360_summary":       "leads360-summary-v4",  # generate_ai_summary.py -- v3 adds structured trip-fact extraction
+    # v5: "adults" now accepts an unqualified total party size ("5 guests",
+    # "we are 4") instead of only a figure explicitly labeled "adults" --
+    # guests almost never say the word "adults", which left the Guest 360
+    # completeness checklist permanently stuck even when a headcount was
+    # given. Confirmed live against a real lead stuck exactly this way.
+    "leads360_summary":       "leads360-summary-v5",  # generate_ai_summary.py -- v3 adds structured trip-fact extraction
     "ask_haip_intent":        "ask-haip-intent-v1",
     "ask_haip_rca":           "ask-haip-rca-v1",
     "ask_haip_report":        "ask-haip-report-v1",
