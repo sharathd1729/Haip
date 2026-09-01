@@ -36,6 +36,13 @@ export type Resource =
   | "qa"
   | "compliance"
   | "settings"
+  // Deliberately separate from "settings" (owner/manager only) -- pairing
+  // your OWN personal WhatsApp is self-service for every role, backend
+  // already allows any authenticated user (whatsapp_personal.py has no
+  // role gate on the self endpoints, only the owner/manager directory
+  // view does). This resource exists so the nav link renders without
+  // granting Team/Billing/Roles/Integrations access too.
+  | "whatsapp_personal"
   | "users"
   | "integrations"
   | "messaging"
@@ -55,34 +62,38 @@ export type Resource =
 export const navByRole: Record<UserRole, Resource[]> = {
   read_only: [
     "dashboard", "calls", "inbox", "inquiries", "guests", "analytics",
-    "profile", "help",
+    "profile", "help", "whatsapp_personal",
   ],
   owner: [
     "dashboard", "calls", "inbox", "inquiries", "guests", "properties",
     "analytics", "qa", "compliance", "settings", "users", "integrations",
     "messaging", "templates", "campaigns", "subscribers", "flows",
-    "reports", "billing", "profile", "help", "branding",
+    "reports", "billing", "profile", "help", "branding", "whatsapp_personal",
   ],
   manager: [
     "dashboard", "calls", "inbox", "inquiries", "guests", "properties",
     "analytics", "qa", "settings", "users", "messaging", "templates",
     "campaigns", "subscribers", "flows", "reports", "profile", "help", "branding",
+    "whatsapp_personal",
   ],
   concierge: [
     "dashboard", "calls", "inbox", "guests", "properties", "profile", "help",
+    "whatsapp_personal",
   ],
   reservations: [
     "dashboard", "calls", "inquiries", "guests", "properties", "inbox", "profile", "help",
+    "whatsapp_personal",
   ],
   compliance: [
-    "compliance", "analytics", "profile", "help",
+    "compliance", "analytics", "profile", "help", "whatsapp_personal",
   ],
   marketing: [
     "dashboard", "guests", "messaging", "templates", "campaigns",
-    "subscribers", "flows", "analytics", "profile", "help",
+    "subscribers", "flows", "analytics", "profile", "help", "whatsapp_personal",
   ],
   foh: [
     "dashboard", "inbox", "calls", "guests", "properties", "inquiries", "profile", "help",
+    "whatsapp_personal",
   ],
 };
 
@@ -102,6 +113,7 @@ const permissions: Record<UserRole, Record<Resource, Action[]>> = {
     qa:           ["read", "write", "manage"],
     compliance:   ["read", "manage"],
     settings:     ["read", "write", "manage"],
+    whatsapp_personal: ["read", "write"],
     users:        ["read", "write", "delete", "manage"],
     integrations: ["read", "write", "manage"],
     messaging:    ["read", "write", "manage"],
@@ -126,6 +138,7 @@ const permissions: Record<UserRole, Record<Resource, Action[]>> = {
     qa:           ["read", "write"],
     compliance:   [],
     settings:     ["read", "write"],
+    whatsapp_personal: ["read", "write"],
     users:        ["read", "write"],
     integrations: ["read"],
     messaging:    ["read", "write", "manage"],
@@ -150,6 +163,7 @@ const permissions: Record<UserRole, Record<Resource, Action[]>> = {
     qa:           [],
     compliance:   [],
     settings:     [],
+    whatsapp_personal: ["read", "write"],
     users:        [],
     integrations: [],
     messaging:    [],
@@ -174,6 +188,7 @@ const permissions: Record<UserRole, Record<Resource, Action[]>> = {
     qa:           [],
     compliance:   [],
     settings:     [],
+    whatsapp_personal: ["read", "write"],
     users:        [],
     integrations: [],
     messaging:    [],
@@ -198,6 +213,7 @@ const permissions: Record<UserRole, Record<Resource, Action[]>> = {
     qa:           ["read"],
     compliance:   ["read", "manage"],
     settings:     [],
+    whatsapp_personal: ["read", "write"],
     users:        ["read"],
     integrations: [],
     messaging:    [],
@@ -222,6 +238,7 @@ const permissions: Record<UserRole, Record<Resource, Action[]>> = {
     qa:           [],
     compliance:   [],
     settings:     [],
+    whatsapp_personal: ["read", "write"],
     users:        [],
     integrations: [],
     messaging:    ["read", "write", "manage"],
@@ -246,6 +263,7 @@ const permissions: Record<UserRole, Record<Resource, Action[]>> = {
     qa:           [],
     compliance:   [],
     settings:     [],
+    whatsapp_personal: ["read", "write"],
     users:        [],
     integrations: [],
     messaging:    [],
@@ -270,6 +288,7 @@ const permissions: Record<UserRole, Record<Resource, Action[]>> = {
     qa:           ["read"],
     compliance:   ["read"],
     settings:     [],
+    whatsapp_personal: ["read", "write"],
     users:        ["read"],
     integrations: [],
     messaging:    ["read"],

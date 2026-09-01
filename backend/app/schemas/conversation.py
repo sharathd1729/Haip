@@ -34,6 +34,7 @@ class ConversationOut(BaseModel):
     guest_id: str
     inquiry_id: Optional[str] = None
     channel: str
+    source: Optional[str] = None
     is_open: bool = True
     ai_mode: Optional[str] = "shadow"
     last_message_at: Optional[datetime] = None

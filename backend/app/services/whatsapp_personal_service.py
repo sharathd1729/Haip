@@ -226,6 +226,7 @@ def ingest_inbound_message(
             tenant_id=session.tenant_id,
             guest_id=guest_id,
             channel=ChannelType.WHATSAPP,
+            source="personal_bridge",
             is_open=True,
             assigned_to=session.user_id,
             # "shadow" (never auto-sent), not the tenant's wa_ai_mode_default --

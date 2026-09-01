@@ -48,6 +48,7 @@ def _parse_cursor(value: str, param_name: str) -> datetime:
 @router.get("", response_model=List[ConversationOut])
 def list_conversations(
     channel: str = None,
+    source: str = None,
     is_open: bool = None,
     sort: str = Query(default="smart", pattern="^(smart|recent|unread)$"),
     limit: int = Query(default=50, le=200),
@@ -55,11 +56,20 @@ def list_conversations(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    from sqlalchemy import case, func
+    from sqlalchemy import case, func, or_
     from sqlalchemy.orm import joinedload
     q = db.query(Conversation).filter_by(tenant_id=current_user.tenant_id)
     if channel:
         q = q.filter_by(channel=channel)
+    if source:
+        q = q.filter_by(source=source)
+    else:
+        # Personal-bridge conversations (whatsmeow, unofficial -- see
+        # whatsapp_personal_service) share channel="whatsapp" with the
+        # official Cloud API but aren't ready to mix into the main Inbox
+        # yet (product decision) -- excluded here by default, reachable
+        # only via an explicit ?source=personal_bridge request.
+        q = q.filter(or_(Conversation.source.is_(None), Conversation.source != "personal_bridge"))
     if is_open is not None:
         q = q.filter_by(is_open=is_open)
     if before:
@@ -843,6 +853,7 @@ def get_conversation_detail(
         "guest_name": guest.name if guest else None,
         "guest_phone": guest.phone if guest else "",
         "channel": channel_val,
+        "source": conv.source,
         "status": status,
         "last_inbound_at": last_inbound_at,
         "messages": [_msg_dict(m) for m in messages],

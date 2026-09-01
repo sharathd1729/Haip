@@ -63,6 +63,7 @@ interface ConversationDetail {
   guest_name?: string;
   guest_phone: string;
   channel: string;
+  source?: string | null;
   status: "open" | "resolved" | "snoozed";
   messages: Message[];
   last_inbound_at?: string | null;  // D9: WhatsApp 24h service window
@@ -113,6 +114,12 @@ const CHANNEL_FILTERS = [
   { value: "instagram", label: "Instagram" },
   { value: "voice",     label: "Call" },
   { value: "webchat",   label: "Web" },
+  // Personal/Business-app WhatsApp bridge (whatsmeow, unofficial) -- kept
+  // out of "WhatsApp"/"All" for now (product decision) since it shares
+  // channel="whatsapp" with the official Cloud API but isn't the same
+  // pipe; this tab is the only way to reach conversations tagged
+  // source="personal_bridge" (backend excludes them from every other filter).
+  { value: "personal_whatsapp", label: "Personal WhatsApp" },
 ];
 
 // ─── M1: Channel filter row with scroll-fade ──────────────────────────────────
@@ -267,6 +274,17 @@ function InboxPageInner() {
   // far, matching how the list is already sorted server-side.
   const CONVERSATION_PAGE_SIZE = 50;
 
+  // "personal_whatsapp" isn't a real ChannelType -- it's this UI's tab for
+  // Conversation.source="personal_bridge" rows, which all carry
+  // channel="whatsapp". Translate the tab selection into the real params
+  // the backend understands (see conversations.py's list_conversations).
+  function channelQueryParams(filterValue: string): { channel?: string; source?: string } {
+    if (filterValue === "personal_whatsapp") {
+      return { channel: "whatsapp", source: "personal_bridge" };
+    }
+    return { channel: filterValue };
+  }
+
   // Always-unfiltered feed: source of truth for useInboxStore (Sidebar's
   // unread badge etc. read the global store, not whatever's currently
   // rendered here) and what's shown when channelFilter === "" ("All").
@@ -312,7 +330,7 @@ function InboxPageInner() {
     queryKey: ["conversations", channelFilter],
     queryFn: ({ pageParam }: { pageParam?: string }) =>
       api.get("/conversations", {
-        params: { limit: CONVERSATION_PAGE_SIZE, channel: channelFilter, ...(pageParam ? { before: pageParam } : {}) },
+        params: { limit: CONVERSATION_PAGE_SIZE, ...channelQueryParams(channelFilter), ...(pageParam ? { before: pageParam } : {}) },
       }).then(r => r.data as any[]),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) =>
@@ -480,6 +498,10 @@ function InboxPageInner() {
   // D9: derived service window state — only meaningful for WhatsApp
   // windowTick dependency ensures re-render every 60s to refresh countdown
   const isWhatsApp = detail?.channel === "whatsapp";
+  // The 24h service window is a WhatsApp Cloud API concept -- the personal
+  // bridge (whatsmeow) has no such window and doesn't send through HAIP at
+  // all yet (Phase 1 read-only), so showing a countdown here is meaningless.
+  const isOfficialWhatsApp = isWhatsApp && detail?.source !== "personal_bridge";
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const windowSecsLeft = isWhatsApp ? getWindowSecondsLeft(detail?.last_inbound_at) : Infinity;
   const windowOpen = windowSecsLeft > 0 || !isWhatsApp;
@@ -903,7 +925,7 @@ function InboxPageInner() {
                         </button>
                       )}
                       {/* D9: WhatsApp 24h service window indicator -- desktop only, same reasoning as above */}
-                      {isWhatsApp && detail.last_inbound_at && (
+                      {isOfficialWhatsApp && detail.last_inbound_at && (
                         windowOpen ? (
                           <span
                             className="hidden md:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium"

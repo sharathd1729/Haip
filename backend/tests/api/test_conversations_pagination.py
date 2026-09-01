@@ -86,6 +86,46 @@ class TestConversationListPagination:
         assert resp.status_code == 422
 
 
+class TestPersonalBridgeSourceFiltering:
+    """Personal WhatsApp bridge conversations (source="personal_bridge")
+    share channel="whatsapp" with the official Cloud API but are kept out
+    of the main Inbox for now (product decision) -- excluded from every
+    list unless source is explicitly requested."""
+
+    def test_personal_bridge_conversation_excluded_by_default(self, client, db, auth_headers, tenant_and_user, guest):
+        tenant_id = tenant_and_user["tenant"].id
+        now = datetime.now(timezone.utc).isoformat()
+        official = _make_conversation(db, tenant_id, guest.id, now)
+        bridged = _make_conversation(db, tenant_id, guest.id, now)
+        bridged.source = "personal_bridge"
+        db.commit()
+
+        client.headers.update(auth_headers)
+        resp = client.get("/api/v1/conversations")
+        ids = [c["id"] for c in resp.json()]
+        assert official.id in ids
+        assert bridged.id not in ids
+
+        # The "WhatsApp" channel tab must not leak it in either.
+        resp_ch = client.get("/api/v1/conversations", params={"channel": "whatsapp"})
+        ch_ids = [c["id"] for c in resp_ch.json()]
+        assert bridged.id not in ch_ids
+
+    def test_explicit_source_param_returns_only_bridged(self, client, db, auth_headers, tenant_and_user, guest):
+        tenant_id = tenant_and_user["tenant"].id
+        now = datetime.now(timezone.utc).isoformat()
+        official = _make_conversation(db, tenant_id, guest.id, now)
+        bridged = _make_conversation(db, tenant_id, guest.id, now)
+        bridged.source = "personal_bridge"
+        db.commit()
+
+        client.headers.update(auth_headers)
+        resp = client.get("/api/v1/conversations", params={"source": "personal_bridge"})
+        ids = [c["id"] for c in resp.json()]
+        assert ids == [bridged.id]
+        assert official.id not in ids
+
+
 # ── Conversation detail: most recent messages, not oldest ──────────────────────
 
 class TestConversationDetailMessageOrdering:

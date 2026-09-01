@@ -15,6 +15,7 @@ import (
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
+	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
@@ -447,12 +448,29 @@ func (m *sessionManager) handleMessage(sessionID string, ac *activeClient, evt *
 
 	payload := map[string]interface{}{
 		"bridge_message_id": evt.Info.ID,
-		"from_phone":        "+" + evt.Info.Sender.User,
+		"from_phone":        "+" + senderPhoneUser(evt.Info.Sender, evt.Info.SenderAlt),
 		"from_name":         evt.Info.PushName,
 		"body":              body,
 		"occurred_at":       evt.Info.Timestamp.UTC().Format(time.RFC3339),
 	}
 	postJSON(ac.messageCallbackURL, ac.webhookSecret, payload)
+}
+
+// senderPhoneUser returns the real phone-number digits for a message
+// sender. WhatsApp's newer "LID" addressing can put a @lid identifier
+// (not a phone number at all) in Sender, with the real phone-number JID
+// only in SenderAlt -- a real message from a LID-addressed sender was
+// stored with garbage in Guest.phone (e.g. "+46463425978582", not a
+// real number) before this fix, because Sender.User was used
+// unconditionally regardless of which JID it actually was.
+func senderPhoneUser(sender, senderAlt types.JID) string {
+	if sender.Server == types.DefaultUserServer {
+		return sender.User
+	}
+	if senderAlt.Server == types.DefaultUserServer {
+		return senderAlt.User
+	}
+	return sender.User
 }
 
 func postStatus(ac *activeClient, status, jid, phoneUser string) {

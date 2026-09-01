@@ -61,6 +61,12 @@ class Conversation(Base, TimestampMixin, TenantMixin):
     channel_conversation_id = Column(String(255), nullable=True, index=True)  # WA thread ID etc.
     is_open = Column(Boolean, default=True, nullable=False, index=True)
 
+    # Distinguishes a pipe sharing `channel` with another (e.g. the personal
+    # WhatsApp bridge vs the official Cloud API, both channel="whatsapp").
+    # NULL for every existing/official conversation -- set to
+    # "personal_bridge" only by whatsapp_personal_service.ingest_inbound_message.
+    source = Column(String(30), nullable=True)
+
     # SLA
     first_response_at = Column(String, nullable=True)
     last_message_at = Column(String, nullable=True)
