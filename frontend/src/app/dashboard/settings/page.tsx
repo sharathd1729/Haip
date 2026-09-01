@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useRouter, usePathname } from "next/navigation";
-import { Building2, Users, Shield, QrCode, Loader2, CheckCircle, AlertCircle, Bell, BellOff, BellRing, Bot, ChevronRight, KeyRound, Lock, BookOpen } from "@/lib/icons";
+import { Building2, Users, Shield, QrCode, Loader2, CheckCircle, AlertCircle, Bell, BellOff, BellRing, Bot, ChevronRight, KeyRound, Lock, BookOpen, MessageCircle } from "@/lib/icons";
 import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
@@ -84,6 +84,19 @@ export default function SettingsPage() {
           <div>
             <div className="text-sm font-medium">External Assistant Access</div>
             <div className="text-[10px] text-gray-400 leading-none mt-0.5">Perisclaw, MCP tokens</div>
+          </div>
+          <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-40 transition-opacity" />
+        </button>
+
+        {/* Personal WhatsApp bridge — every agent pairs their own */}
+        <button
+          onClick={() => router.push("/dashboard/settings/whatsapp-personal")}
+          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-colors group text-gray-600 hover:bg-gray-50"
+        >
+          <span className="text-gray-400"><MessageCircle size={15} /></span>
+          <div>
+            <div className="text-sm font-medium">Personal WhatsApp</div>
+            <div className="text-[10px] text-gray-400 leading-none mt-0.5">Pair your own phone, track chats in HAIP</div>
           </div>
           <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-40 transition-opacity" />
         </button>

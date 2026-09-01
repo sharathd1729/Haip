@@ -18,6 +18,17 @@ log = structlog.get_logger()
 router = APIRouter(prefix="/whatsapp-personal", tags=["whatsapp-personal"])
 
 
+def _mask_phone(phone: str | None) -> str | None:
+    """Owner/manager see that an agent's personal number is paired and
+    its live status -- not the number itself. It's the agent's own
+    personal device, not a tenant-owned credential like the official
+    WABA number; the business value (conversations, AI insights) already
+    flows into the shared Inbox/Leads360 regardless of this masking."""
+    if not phone or len(phone) < 4:
+        return phone
+    return phone[:3] + "•" * (len(phone) - 5) + phone[-2:]
+
+
 @router.post("/sessions", response_model=WhatsAppPersonalPairingOut)
 def start_pairing(
     current_user: User = Depends(get_current_user),
@@ -74,7 +85,7 @@ def list_all_sessions(
     } if sessions else {}
     return [
         WhatsAppPersonalSessionOut(
-            id=s.id, status=s.status.value, phone_number=s.phone_number,
+            id=s.id, status=s.status.value, phone_number=_mask_phone(s.phone_number),
             agent_name=getattr(users_by_id.get(s.user_id), "name", None),
             last_seen_at=s.last_seen_at, created_at=s.created_at,
         )

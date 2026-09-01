@@ -79,6 +79,23 @@ class TestDirectoryListRoleGate:
         resp = client.get("/api/v1/whatsapp-personal/sessions", headers=h)
         assert resp.status_code == 403
 
+    def test_directory_masks_phone_but_self_view_shows_it_in_full(self, client, db, tenant_and_user):
+        from app.models.whatsapp_personal_session import WhatsAppPersonalSession, WhatsAppPersonalSessionStatus
+        agent, agent_headers = _make_user(db, _tenant_id(tenant_and_user), UserRole.RESERVATIONS)
+        db.add(WhatsAppPersonalSession(
+            id=str(uuid.uuid4()), tenant_id=_tenant_id(tenant_and_user), user_id=agent.id,
+            status=WhatsAppPersonalSessionStatus.CONNECTED, phone_number="+919812345678",
+        ))
+        db.commit()
+
+        directory = client.get("/api/v1/whatsapp-personal/sessions", headers=_headers(tenant_and_user)).json()
+        assert directory[0]["phone_number"] != "+919812345678"
+        assert directory[0]["phone_number"].endswith("78")
+        assert "•" in directory[0]["phone_number"]
+
+        own = client.get("/api/v1/whatsapp-personal/sessions/me", headers=agent_headers).json()
+        assert own["phone_number"] == "+919812345678"
+
 
 class TestBridgeIngestWebhook:
     def _make_session_with_secret(self, db, tenant_id, user_id, secret="valid-secret"):
