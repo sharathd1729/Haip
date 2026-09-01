@@ -86,7 +86,13 @@ PROMPT_VERSIONS: dict[str, str] = {
     # guests almost never say the word "adults", which left the Guest 360
     # completeness checklist permanently stuck even when a headcount was
     # given. Confirmed live against a real lead stuck exactly this way.
-    "leads360_summary":       "leads360-summary-v5",  # generate_ai_summary.py -- v3 adds structured trip-fact extraction
+    # v6: a year-less date ("sept 16-18") had no anchor to resolve the year
+    # against, so the model guessed -- confirmed live: the same guest's
+    # date came back as 2026 on one run and 2023 on the next. Context now
+    # includes a "Reference date" line (the most recent inbound message's
+    # own timestamp, not run-time) and check_in/check_out are instructed to
+    # resolve to the nearest occurrence on/after it.
+    "leads360_summary":       "leads360-summary-v6",  # generate_ai_summary.py -- v3 adds structured trip-fact extraction
     "ask_haip_intent":        "ask-haip-intent-v1",
     "ask_haip_rca":           "ask-haip-rca-v1",
     "ask_haip_report":        "ask-haip-report-v1",

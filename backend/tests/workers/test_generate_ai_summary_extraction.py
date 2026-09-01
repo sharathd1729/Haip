@@ -16,6 +16,7 @@ is still empty (manual/Dograh/PMS data always wins over a chat-text guess).
 """
 import json
 import uuid
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 from tests.conftest import *  # noqa: F401,F403
@@ -23,6 +24,7 @@ from tests.conftest import *  # noqa: F401,F403
 from app.models.tenant import Tenant
 from app.models.guest import Guest
 from app.models.inquiry import Inquiry, InquirySource
+from app.models.conversation import Conversation, Message, ChannelType, MessageDirection
 from app.workers.tasks.generate_ai_summary import generate_ai_summary
 
 
@@ -253,6 +255,110 @@ class TestV4LeadReportFields:
 
         assert updated.upsell_accepted is False
 
+class TestReferenceDateAnchoring:
+    """v6: a year-less date ("sept 16-18") has no anchor to resolve the year
+    against on its own -- confirmed live, the same guest's message came back
+    as 2026 on one extraction run and 2023 on the next. The context now
+    carries a "Reference date" line so the model has something to resolve
+    against, anchored to the most recent INBOUND message's own timestamp --
+    never wall-clock "now" (this task can run days after the guest actually
+    spoke, e.g. via the debounce catch-up path), which would wrongly roll an
+    already-passed date into the following year."""
+
+    def _capturing_adapter(self):
+        captured = {}
+
+        class _Capturing:
+            async def complete(self, **kwargs):
+                captured.update(kwargs)
+                return {
+                    "content": json.dumps({
+                        "summary": "Guest wants a caravan trip.",
+                        "analysis": {},
+                        "extracted": {
+                            "check_in": None, "check_out": None, "adults": None, "children": None,
+                            "occasion": None, "budget": None, "special_requests": None,
+                        },
+                    }),
+                    "model": "test-model",
+                }
+        return _Capturing(), captured
+
+    def _add_message(self, db, tenant_id, conv_id, guest_id, direction, body, created_at):
+        db.add(Message(
+            id=str(uuid.uuid4()), tenant_id=tenant_id, conversation_id=conv_id,
+            direction=direction, channel=ChannelType.WHATSAPP,
+            body=body, created_at=created_at,
+        ))
+        db.commit()
+
+    def test_reference_date_anchored_to_latest_inbound_message_not_wall_clock_now(self, db):
+        tenant_id, inquiry_id = _setup(db)
+        tenant_row = db.query(Tenant).filter_by(id=tenant_id).first()
+        guest_id = db.query(Guest).filter_by(tenant_id=tenant_id).first().id
+
+        conv = Conversation(
+            id=str(uuid.uuid4()), tenant_id=tenant_id, guest_id=guest_id,
+            inquiry_id=inquiry_id, channel=ChannelType.WHATSAPP, is_open=True,
+        )
+        db.add(conv); db.commit()
+
+        # The guest spoke a full year ago (simulates this task running long
+        # after the message, e.g. a delayed catch-up run) -- the reference
+        # date must reflect when they actually spoke, not today.
+        spoken_at = datetime.now(timezone.utc) - timedelta(days=365)
+        self._add_message(db, tenant_id, conv.id, guest_id, MessageDirection.INBOUND, "sept 16-18, 5 guests", spoken_at)
+
+        adapter, captured = self._capturing_adapter()
+        with patch("app.workers.tasks.generate_ai_summary.get_llm", return_value=adapter), \
+             patch("app.workers.tasks.generate_ai_summary.SessionLocal", return_value=db):
+            generate_ai_summary.run(inquiry_id=inquiry_id, tenant_id=tenant_id)
+
+        assert f"Reference date (when this conversation was last active): {spoken_at.date().isoformat()}" in captured["user_message"]
+        # And explicitly NOT today's wall-clock date.
+        assert datetime.now(timezone.utc).date().isoformat() not in captured["user_message"].split("\n")[0]
+
+    def test_reference_date_ignores_outbound_only_messages(self, db):
+        """An outbound-only message (e.g. staff follow-up with no guest
+        reply yet) must not become the anchor -- only what the guest
+        themselves said establishes when "sept 16-18" was spoken."""
+        tenant_id, inquiry_id = _setup(db)
+        guest_id = db.query(Guest).filter_by(tenant_id=tenant_id).first().id
+
+        conv = Conversation(
+            id=str(uuid.uuid4()), tenant_id=tenant_id, guest_id=guest_id,
+            inquiry_id=inquiry_id, channel=ChannelType.WHATSAPP, is_open=True,
+        )
+        db.add(conv); db.commit()
+
+        inbound_at = datetime.now(timezone.utc) - timedelta(days=10)
+        outbound_at = datetime.now(timezone.utc)  # a later staff message
+        self._add_message(db, tenant_id, conv.id, guest_id, MessageDirection.INBOUND, "sept 16-18", inbound_at)
+        self._add_message(db, tenant_id, conv.id, guest_id, MessageDirection.OUTBOUND, "Calling you shortly", outbound_at)
+
+        adapter, captured = self._capturing_adapter()
+        with patch("app.workers.tasks.generate_ai_summary.get_llm", return_value=adapter), \
+             patch("app.workers.tasks.generate_ai_summary.SessionLocal", return_value=db):
+            generate_ai_summary.run(inquiry_id=inquiry_id, tenant_id=tenant_id)
+
+        assert f"Reference date (when this conversation was last active): {inbound_at.date().isoformat()}" in captured["user_message"]
+
+    def test_reference_date_falls_back_to_inquiry_created_at_when_no_messages(self, db):
+        tenant_id, inquiry_id = _setup(db)
+        # Captured as a plain value before run() -- the task closes `db` in
+        # its own finally block, leaving any pre-existing ORM reference
+        # detached+expired afterward (see this file's _run() docstring).
+        created_at_date = db.query(Inquiry).filter_by(id=inquiry_id).first().created_at.date().isoformat()
+
+        adapter, captured = self._capturing_adapter()
+        with patch("app.workers.tasks.generate_ai_summary.get_llm", return_value=adapter), \
+             patch("app.workers.tasks.generate_ai_summary.SessionLocal", return_value=db):
+            generate_ai_summary.run(inquiry_id=inquiry_id, tenant_id=tenant_id)
+
+        assert f"Reference date (when this conversation was last active): {created_at_date}" in captured["user_message"]
+
+
+class TestV4LeadReportGracefulDegradation:
     def test_missing_lead_analysis_key_does_not_crash(self, db):
         """Older-shaped responses (or a model that omits the new field)
         must still save the rest of the summary."""

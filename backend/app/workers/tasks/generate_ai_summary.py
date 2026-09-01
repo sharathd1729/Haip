@@ -44,8 +44,8 @@ respond with ONLY a JSON object (no markdown fences, no other text):
     "next_action": "<one specific action for the sales agent>"
   },
   "extracted": {
-    "check_in": "<ISO date YYYY-MM-DD ONLY if the guest explicitly stated a check-in/travel date, else null>",
-    "check_out": "<ISO date YYYY-MM-DD ONLY if the guest explicitly stated a check-out/return date, else null>",
+    "check_in": "<ISO date YYYY-MM-DD ONLY if the guest explicitly stated a check-in/travel date, else null. If the guest gave a date with no year (e.g. 'sept 16-18', 'the 20th'), resolve the year using the 'Reference date' given in the lead context below -- pick the nearest occurrence of that month/day ON OR AFTER the reference date, never a year already in the past relative to it, and never guess a year with no anchor.>",
+    "check_out": "<ISO date YYYY-MM-DD ONLY if the guest explicitly stated a check-out/return date, else null. Same year-resolution rule as check_in above.>",
     "adults": "<integer number of adults ONLY if explicitly stated, else null. If the guest gives a total group/party size without breaking it into adults and children (e.g. '5 guests', 'party of 6', 'we are 4'), use that total number here -- guests overwhelmingly phrase headcount this way, and it is still a literal readback of what they said, not a guess. Only leave this null if the guest genuinely gave no headcount at all, or if they explicitly split out children and gave NO adult figure.>",
     "children": "<integer number of children ONLY if explicitly stated, else null>",
     "occasion": "<short phrase, e.g. 'anniversary', ONLY if explicitly stated, else null>",
@@ -308,9 +308,16 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
             .filter_by(tenant_id=tenant_id, inquiry_id=inquiry_id)
             .all()
         ]
+        # Anchors year-less date resolution ("sept 16-18") below -- the most
+        # recent INBOUND message's own timestamp, not "now": this task can
+        # run days after the guest actually spoke (debounced/catch-up runs),
+        # and anchoring to run-time would wrongly roll a since-passed date
+        # into next year even though the guest clearly meant the year they
+        # were speaking in.
+        reference_date = None
         if conv_ids:
             messages = (
-                db.query(Message.body, Message.direction)
+                db.query(Message.body, Message.direction, Message.created_at)
                 .filter(
                     Message.tenant_id == tenant_id,
                     Message.conversation_id.in_(conv_ids),
@@ -319,10 +326,18 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
                 .limit(10)
                 .all()
             )
-            for body, direction in reversed(messages):
+            for body, direction, created_at in messages:
+                dir_label = direction.value if hasattr(direction, "value") else str(direction)
+                if reference_date is None and dir_label == "inbound":
+                    reference_date = created_at
+            for body, direction, created_at in reversed(messages):
                 if body:
                     dir_label = direction.value if hasattr(direction, "value") else str(direction)
                     lines.append(f"[{dir_label}] {body[:150]}")
+
+        if reference_date is None:
+            reference_date = inquiry.created_at or datetime.now(timezone.utc)
+        lines.insert(0, f"Reference date (when this conversation was last active): {reference_date.date().isoformat()}")
 
         context = "\n".join(lines)
         user_message = f"Lead context:\n{context}\n\nGenerate the JSON response."
