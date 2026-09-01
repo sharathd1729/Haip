@@ -18,7 +18,8 @@ interface SessionOut {
 
 interface PairingOut {
   session_id: string;
-  qr_code_data_url: string;
+  qr_code_data_url?: string | null;
+  pairing_code?: string | null;
   status: string;
 }
 
@@ -46,7 +47,10 @@ export default function WhatsAppPersonalPage() {
   const isOwnerOrManager = role === "owner" || role === "manager";
   const queryClient = useQueryClient();
   const [qr, setQr] = useState<string | null>(null);
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showPhoneEntry, setShowPhoneEntry] = useState(false);
+  const [phoneInput, setPhoneInput] = useState("");
 
   const { data: mySession, isLoading } = useQuery<SessionOut | null>({
     queryKey: ["whatsapp-personal", "me"],
@@ -66,10 +70,11 @@ export default function WhatsAppPersonalPage() {
   // state renders instead of a scannable-looking code that no longer
   // does anything.
   useEffect(() => {
-    if ((mySession?.status === "connected" || mySession?.status === "logged_out") && qr) {
+    if ((mySession?.status === "connected" || mySession?.status === "logged_out") && (qr || pairingCode)) {
       setQr(null);
+      setPairingCode(null);
     }
-  }, [mySession?.status, qr]);
+  }, [mySession?.status, qr, pairingCode]);
 
   // WhatsApp rotates the QR roughly every 20-30s while unscanned -- a
   // real pairing attempt failed ("Couldn't link device, try again later")
@@ -84,9 +89,11 @@ export default function WhatsAppPersonalPage() {
   }, [mySession?.status, mySession?.qr_code_data_url, qr]);
 
   const pairMutation = useMutation({
-    mutationFn: () => api.post<PairingOut>("/whatsapp-personal/sessions").then(r => r.data),
+    mutationFn: (phone_number?: string) =>
+      api.post<PairingOut>("/whatsapp-personal/sessions", phone_number ? { phone_number } : {}).then(r => r.data),
     onSuccess: (data) => {
-      setQr(data.qr_code_data_url);
+      setQr(data.qr_code_data_url ?? null);
+      setPairingCode(data.pairing_code ?? null);
       setError(null);
       queryClient.invalidateQueries({ queryKey: ["whatsapp-personal", "me"] });
     },
@@ -143,20 +150,58 @@ export default function WhatsAppPersonalPage() {
 
           {isLoading && <p className="text-sm text-gray-400">Checking…</p>}
 
-          {!isLoading && (!mySession || status === "logged_out") && !qr && (
+          {!isLoading && (!mySession || status === "logged_out") && !qr && !pairingCode && !showPhoneEntry && (
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm text-gray-700">Not connected yet.</p>
                 <p className="text-xs text-gray-400 mt-0.5">Pair your phone to start tracking these conversations in HAIP.</p>
               </div>
-              <button
-                onClick={() => pairMutation.mutate()}
-                disabled={pairMutation.isPending}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-60 flex-shrink-0"
-              >
-                {pairMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <QrCode size={13} />}
-                Pair my WhatsApp
-              </button>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={() => setShowPhoneEntry(true)}
+                  className="text-xs font-medium text-gray-500 hover:text-gray-700"
+                >
+                  Use phone number
+                </button>
+                <button
+                  onClick={() => pairMutation.mutate(undefined)}
+                  disabled={pairMutation.isPending}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-60"
+                >
+                  {pairMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <QrCode size={13} />}
+                  Pair my WhatsApp
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!isLoading && (!mySession || status === "logged_out") && !qr && !pairingCode && showPhoneEntry && (
+            <div>
+              <p className="text-sm text-gray-700">Enter your WhatsApp number</p>
+              <p className="text-xs text-gray-400 mt-0.5 mb-3">Include country code, e.g. +919876543210. WhatsApp will show an 8-character code to enter on your phone instead of scanning.</p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="tel"
+                  value={phoneInput}
+                  onChange={(e) => setPhoneInput(e.target.value)}
+                  placeholder="+919876543210"
+                  className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400"
+                />
+                <button
+                  onClick={() => setShowPhoneEntry(false)}
+                  className="text-xs font-medium text-gray-500 hover:text-gray-700 px-2"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => pairMutation.mutate(phoneInput)}
+                  disabled={pairMutation.isPending || phoneInput.trim().length < 8}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-60 flex-shrink-0"
+                >
+                  {pairMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Phone size={13} />}
+                  Get code
+                </button>
+              </div>
             </div>
           )}
 
@@ -173,7 +218,20 @@ export default function WhatsAppPersonalPage() {
             </div>
           )}
 
-          {!qr && status === "pending_pairing" && (
+          {pairingCode && status !== "connected" && (
+            <div className="text-center py-4">
+              <p className="text-3xl font-bold tracking-[0.2em] text-gray-800">{pairingCode}</p>
+              <p className="text-sm text-gray-700 mt-3 font-medium">Enter this code in WhatsApp</p>
+              <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto">
+                On your phone: WhatsApp → Settings → Linked Devices → Link a Device → Link with phone number instead.
+              </p>
+              <div className="flex items-center justify-center gap-1.5 mt-3 text-xs text-amber-600">
+                <Loader2 size={12} className="animate-spin" /> Waiting for confirmation…
+              </div>
+            </div>
+          )}
+
+          {!qr && !pairingCode && status === "pending_pairing" && (
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm text-gray-700 flex items-center gap-1.5">
@@ -182,7 +240,7 @@ export default function WhatsAppPersonalPage() {
                 <p className="text-xs text-gray-400 mt-0.5">The scan window closed before it was used. Generate a new code to try again.</p>
               </div>
               <button
-                onClick={() => pairMutation.mutate()}
+                onClick={() => pairMutation.mutate(undefined)}
                 disabled={pairMutation.isPending}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-60 flex-shrink-0"
               >
@@ -222,7 +280,7 @@ export default function WhatsAppPersonalPage() {
                 <StatusDot status={status} /> Disconnected — {mySession?.phone_number}
               </p>
               <button
-                onClick={() => pairMutation.mutate()}
+                onClick={() => pairMutation.mutate(undefined)}
                 disabled={pairMutation.isPending}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-gray-900 hover:bg-gray-800 disabled:opacity-60 flex-shrink-0"
               >

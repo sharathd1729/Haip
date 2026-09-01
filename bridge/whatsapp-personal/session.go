@@ -160,18 +160,18 @@ func newSessionManager(ctx context.Context, dsn string, logger waLog.Logger) (*s
 }
 
 // startOrResumePairing is called for a brand-new session, a re-pair after
-// logout, and (indirectly, via reconnectAll) a bridge restart. Returns the
-// QR code as PNG bytes -- the caller only needs it for a fresh pairing;
-// on a silent reconnect of an already-paired device there is no QR to show,
-// but the endpoint always returns *some* image so the caller's response
-// shape stays uniform (a 1x1 blank PNG in that case is fine -- the agent's
-// UI only renders it if status comes back "pending_pairing").
-func (m *sessionManager) startOrResumePairing(ctx context.Context, sessionID, secret, msgCB, statusCB string) ([]byte, error) {
+// logout, and (indirectly, via reconnectAll) a bridge restart. Returns
+// (qrPNG, pairingCode, err) -- exactly one of qrPNG/pairingCode is set for
+// a fresh pairing, depending on whether phoneNumber was given; on a silent
+// reconnect of an already-paired device there's nothing to show at all
+// (blank PNG, empty code) -- the agent's UI only renders either if status
+// comes back "pending_pairing".
+func (m *sessionManager) startOrResumePairing(ctx context.Context, sessionID, secret, msgCB, statusCB, phoneNumber string) ([]byte, string, error) {
 	if err := m.backend.upsert(ctx, sessionRow{
 		SessionID: sessionID, WebhookSecret: secret,
 		MessageCallbackURL: msgCB, StatusCallbackURL: statusCB,
 	}); err != nil {
-		return nil, fmt.Errorf("persist session row: %w", err)
+		return nil, "", fmt.Errorf("persist session row: %w", err)
 	}
 
 	m.mu.Lock()
@@ -183,7 +183,8 @@ func (m *sessionManager) startOrResumePairing(ctx context.Context, sessionID, se
 		existing.statusCallbackURL = statusCB
 		m.mu.Unlock()
 		if existing.client.IsLoggedIn() {
-			return blankPNG()
+			png, err := blankPNG()
+			return png, "", err
 		}
 	} else {
 		m.mu.Unlock()
@@ -191,12 +192,12 @@ func (m *sessionManager) startOrResumePairing(ctx context.Context, sessionID, se
 
 	row, err := m.backend.get(ctx, sessionID)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	deviceStore, err := m.deviceFor(ctx, row.JID)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	client := whatsmeow.NewClient(deviceStore, m.waLog)
@@ -208,19 +209,63 @@ func (m *sessionManager) startOrResumePairing(ctx context.Context, sessionID, se
 
 	if client.Store.ID != nil {
 		// Already paired (a restart, or a re-pair call that raced with an
-		// existing connect) -- just reconnect, no QR needed.
+		// existing connect) -- just reconnect, nothing to show.
 		if err := client.Connect(); err != nil {
-			return nil, fmt.Errorf("reconnect: %w", err)
+			return nil, "", fmt.Errorf("reconnect: %w", err)
 		}
-		return blankPNG()
+		png, err := blankPNG()
+		return png, "", err
 	}
 
+	if phoneNumber != "" {
+		return m.startPhoneCodePairing(ctx, sessionID, ac, phoneNumber)
+	}
+	return m.startQRPairing(ctx, sessionID, ac)
+}
+
+// startPhoneCodePairing is the alternate to QR pairing: WhatsApp shows an
+// 8-character code on the phone number entered here instead of a scan.
+// Tried as a workaround for the "Couldn't link device" QR failures --
+// WhatsApp's server-side companion_reg_refresh notification (added ~July
+// 2026, unhandled by whatsmeow and Baileys alike -- see session notes)
+// was observed specifically on the post-QR-scan handshake; unconfirmed
+// whether this path hits the same gap or a different one.
+func (m *sessionManager) startPhoneCodePairing(ctx context.Context, sessionID string, ac *activeClient, phoneNumber string) ([]byte, string, error) {
+	if err := ac.client.Connect(); err != nil {
+		return nil, "", fmt.Errorf("connect: %w", err)
+	}
+	// PairPhone requires the websocket to be fully established first.
+	// There's no QR channel to block on in this flow (that's the point --
+	// no scan at all), so a short fixed pause substitutes for it, per
+	// whatsmeow's own docs on this method.
+	time.Sleep(2 * time.Second)
+
+	digits := onlyDigits(phoneNumber)
+	code, err := ac.client.PairPhone(ctx, digits, true, whatsmeow.PairClientChrome, "Chrome (Linux)")
+	if err != nil {
+		return nil, "", fmt.Errorf("pair phone: %w", err)
+	}
+	return nil, code, nil
+}
+
+func onlyDigits(s string) string {
+	var b []byte
+	for i := 0; i < len(s); i++ {
+		if s[i] >= '0' && s[i] <= '9' {
+			b = append(b, s[i])
+		}
+	}
+	return string(b)
+}
+
+func (m *sessionManager) startQRPairing(ctx context.Context, sessionID string, ac *activeClient) ([]byte, string, error) {
+	client := ac.client
 	qrChan, err := client.GetQRChannel(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("get qr channel: %w", err)
+		return nil, "", fmt.Errorf("get qr channel: %w", err)
 	}
 	if err := client.Connect(); err != nil {
-		return nil, fmt.Errorf("connect: %w", err)
+		return nil, "", fmt.Errorf("connect: %w", err)
 	}
 
 	// WhatsApp rotates the QR roughly every 20-30s while unscanned -- a
@@ -236,19 +281,20 @@ func (m *sessionManager) startOrResumePairing(ctx context.Context, sessionID, se
 	// with no indication.
 	first, ok := <-qrChan
 	if !ok {
-		return nil, fmt.Errorf("qr channel closed before first code (timed out or cancelled)")
+		return nil, "", fmt.Errorf("qr channel closed before first code (timed out or cancelled)")
 	}
 	if first.Event == "success" {
 		// Paired before we ever emitted a "code" event (rare -- e.g. an
 		// already-scanned session from a race).
-		return blankPNG()
+		png, err := blankPNG()
+		return png, "", err
 	}
 	if first.Event != "code" {
-		return nil, fmt.Errorf("unexpected first qr event: %s", first.Event)
+		return nil, "", fmt.Errorf("unexpected first qr event: %s", first.Event)
 	}
 	firstPNG, err := qrcode.Encode(first.Code, qrcode.Medium, 320)
 	if err != nil {
-		return nil, fmt.Errorf("encode qr: %w", err)
+		return nil, "", fmt.Errorf("encode qr: %w", err)
 	}
 
 	go func() {
@@ -274,7 +320,7 @@ func (m *sessionManager) startOrResumePairing(ctx context.Context, sessionID, se
 		}
 	}()
 
-	return firstPNG, nil
+	return firstPNG, "", nil
 }
 
 func (m *sessionManager) deviceFor(ctx context.Context, jid string) (*store.Device, error) {

@@ -21,12 +21,22 @@ class WhatsAppPersonalSessionOut(BaseModel):
         from_attributes = True
 
 
+class WhatsAppPersonalPairingIn(BaseModel):
+    """Optional body for POST /whatsapp-personal/sessions. When
+    phone_number is given, pairing uses WhatsApp's phone-number-entry code
+    flow instead of a QR scan."""
+    phone_number: Optional[str] = None
+
+
 class WhatsAppPersonalPairingOut(BaseModel):
     """Returned once, immediately after starting/restarting pairing --
-    never persisted or re-fetchable, matching how a WhatsApp Web QR itself
-    is single-use and expires in ~60s."""
+    never persisted or re-fetchable, matching how a WhatsApp Web QR/pairing
+    code itself is single-use and expires quickly. Exactly one of
+    qr_code_data_url/pairing_code is populated, depending on which flow
+    was requested."""
     session_id: str
-    qr_code_data_url: str  # "data:image/png;base64,..."
+    qr_code_data_url: Optional[str] = None  # "data:image/png;base64,..."
+    pairing_code: Optional[str] = None  # e.g. "ABCD-1234"
     status: str
 
 

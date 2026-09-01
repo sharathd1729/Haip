@@ -222,9 +222,10 @@ class TestStartOrRestartPairing:
             mock_post.return_value.raise_for_status = lambda: None
             mock_post.return_value.json = lambda: {"qr_code_data_url": "data:image/png;base64,xyz"}
 
-            session, qr = svc.start_or_restart_pairing(db, tenant.id, agent.id)
+            session, qr, pairing_code = svc.start_or_restart_pairing(db, tenant.id, agent.id)
 
         assert qr == "data:image/png;base64,xyz"
+        assert pairing_code == ""
         assert session.status == WhatsAppPersonalSessionStatus.PENDING_PAIRING
         assert session.webhook_secret_enc is not None
 
@@ -232,7 +233,7 @@ class TestStartOrRestartPairing:
         with patch("app.services.whatsapp_personal_service.httpx.post") as mock_post:
             mock_post.return_value.raise_for_status = lambda: None
             mock_post.return_value.json = lambda: {"qr_code_data_url": "data:image/png;base64,new"}
-            session2, _ = svc.start_or_restart_pairing(db, tenant.id, agent.id)
+            session2, _, _ = svc.start_or_restart_pairing(db, tenant.id, agent.id)
 
         assert session2.id == session.id
         assert db.query(WhatsAppPersonalSession).filter_by(tenant_id=tenant.id, user_id=agent.id).count() == 1

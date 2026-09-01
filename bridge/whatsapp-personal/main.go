@@ -83,14 +83,19 @@ func main() {
 // ── HTTP handlers ────────────────────────────────────────────────────────
 
 type startSessionRequest struct {
-	SessionID         string `json:"session_id"`
-	WebhookSecret     string `json:"webhook_secret"`
+	SessionID          string `json:"session_id"`
+	WebhookSecret      string `json:"webhook_secret"`
 	MessageCallbackURL string `json:"message_callback_url"`
 	StatusCallbackURL  string `json:"status_callback_url"`
+	// Optional -- when set, pairing uses WhatsApp's phone-number-entry
+	// code flow instead of a QR scan. Digits with or without a leading
+	// "+", country code included.
+	PhoneNumber string `json:"phone_number,omitempty"`
 }
 
 type startSessionResponse struct {
-	QRCodeDataURL string `json:"qr_code_data_url"`
+	QRCodeDataURL string `json:"qr_code_data_url,omitempty"`
+	PairingCode   string `json:"pairing_code,omitempty"`
 }
 
 func (m *sessionManager) handleStartSession(w http.ResponseWriter, r *http.Request) {
@@ -100,17 +105,19 @@ func (m *sessionManager) handleStartSession(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	qrPNG, err := m.startOrResumePairing(r.Context(), req.SessionID, req.WebhookSecret, req.MessageCallbackURL, req.StatusCallbackURL)
+	qrPNG, pairingCode, err := m.startOrResumePairing(r.Context(), req.SessionID, req.WebhookSecret, req.MessageCallbackURL, req.StatusCallbackURL, req.PhoneNumber)
 	if err != nil {
 		log.Printf("session %s: start pairing failed: %v", req.SessionID, err)
 		http.Error(w, "could not start pairing", http.StatusBadGateway)
 		return
 	}
 
+	resp := startSessionResponse{PairingCode: pairingCode}
+	if len(qrPNG) > 0 {
+		resp.QRCodeDataURL = "data:image/png;base64," + base64.StdEncoding.EncodeToString(qrPNG)
+	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(startSessionResponse{
-		QRCodeDataURL: "data:image/png;base64," + base64.StdEncoding.EncodeToString(qrPNG),
-	})
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 func (m *sessionManager) handleDeleteSession(w http.ResponseWriter, r *http.Request) {

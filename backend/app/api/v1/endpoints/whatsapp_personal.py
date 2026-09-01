@@ -11,7 +11,7 @@ import structlog
 
 from app.api.v1.deps import get_current_user, get_db, require_roles
 from app.models.user import User, UserRole
-from app.schemas.whatsapp_personal import WhatsAppPersonalSessionOut, WhatsAppPersonalPairingOut
+from app.schemas.whatsapp_personal import WhatsAppPersonalSessionOut, WhatsAppPersonalPairingOut, WhatsAppPersonalPairingIn
 from app.services import whatsapp_personal_service as svc
 
 log = structlog.get_logger()
@@ -31,17 +31,25 @@ def _mask_phone(phone: str | None) -> str | None:
 
 @router.post("/sessions", response_model=WhatsAppPersonalPairingOut)
 def start_pairing(
+    body: WhatsAppPersonalPairingIn | None = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Start (or restart) pairing this agent's own phone. Returns a QR the
-    frontend renders for the agent to scan with WhatsApp -> Linked Devices."""
+    """Start (or restart) pairing this agent's own phone. Returns a QR to
+    scan, or -- if phone_number is given -- an 8-character code to enter
+    on WhatsApp -> Linked Devices -> Link with phone number instead."""
+    phone_number = body.phone_number if body else None
     try:
-        session, qr = svc.start_or_restart_pairing(db, current_user.tenant_id, current_user.id)
+        session, qr, pairing_code = svc.start_or_restart_pairing(
+            db, current_user.tenant_id, current_user.id, phone_number=phone_number,
+        )
     except Exception as exc:
         log.error("whatsapp_personal_pairing_endpoint_failed", error=str(exc))
         raise HTTPException(status_code=502, detail="Could not reach the WhatsApp bridge service. Try again shortly.")
-    return WhatsAppPersonalPairingOut(session_id=session.id, qr_code_data_url=qr, status=session.status.value)
+    return WhatsAppPersonalPairingOut(
+        session_id=session.id, qr_code_data_url=qr or None, pairing_code=pairing_code or None,
+        status=session.status.value,
+    )
 
 
 @router.get("/sessions/me", response_model=WhatsAppPersonalSessionOut | None)

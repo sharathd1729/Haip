@@ -71,12 +71,17 @@ def verify_bridge_secret(session: WhatsAppPersonalSession, provided_secret: str)
     return secrets.compare_digest(real, provided_secret)
 
 
-def start_or_restart_pairing(db: Session, tenant_id: str, user_id: str) -> tuple[WhatsAppPersonalSession, str]:
+def start_or_restart_pairing(
+    db: Session, tenant_id: str, user_id: str, phone_number: Optional[str] = None,
+) -> tuple[WhatsAppPersonalSession, str, str]:
     """Create (or reuse) this agent's session row, mint a fresh webhook
     secret, and ask the bridge service to start a whatsmeow client for it.
 
-    Returns (session, qr_code_data_url). The QR is single-use and expires
-    quickly on WhatsApp's side -- never persisted, only returned once.
+    Returns (session, qr_code_data_url, pairing_code) -- exactly one of the
+    last two is populated, depending on whether phone_number was given.
+    Both are single-use / short-lived on WhatsApp's side -- never
+    persisted, only returned once (the QR additionally gets cached for
+    rotation pickup, see get_cached_qr).
     """
     session = get_session(db, tenant_id, user_id)
     new_secret = secrets.token_hex(32)
@@ -97,19 +102,19 @@ def start_or_restart_pairing(db: Session, tenant_id: str, user_id: str) -> tuple
 
     callback_base = settings.PUBLIC_API_BASE_URL.rstrip("/")
     try:
-        resp = httpx.post(
-            f"{_bridge_base_url()}/sessions",
-            json={
-                "session_id": session.id,
-                "webhook_secret": new_secret,
-                "message_callback_url": f"{callback_base}/api/v1/webhooks/whatsapp-personal/{session.id}/message",
-                "status_callback_url": f"{callback_base}/api/v1/webhooks/whatsapp-personal/{session.id}/status",
-            },
-            timeout=15.0,
-        )
+        payload = {
+            "session_id": session.id,
+            "webhook_secret": new_secret,
+            "message_callback_url": f"{callback_base}/api/v1/webhooks/whatsapp-personal/{session.id}/message",
+            "status_callback_url": f"{callback_base}/api/v1/webhooks/whatsapp-personal/{session.id}/status",
+        }
+        if phone_number:
+            payload["phone_number"] = phone_number
+        resp = httpx.post(f"{_bridge_base_url()}/sessions", json=payload, timeout=15.0)
         resp.raise_for_status()
         data = resp.json()
         qr = data.get("qr_code_data_url", "")
+        pairing_code = data.get("pairing_code", "")
     except Exception as exc:
         log.error("wa_personal_bridge_start_failed", session_id=session.id, error=str(exc))
         raise
@@ -124,8 +129,11 @@ def start_or_restart_pairing(db: Session, tenant_id: str, user_id: str) -> tuple
         set_cached(_qr_cache_key(session.id), qr, ttl=60)
 
     db.commit()
-    log.info("wa_personal_pairing_started", tenant_id=tenant_id, user_id=user_id, session_id=session.id)
-    return session, qr
+    log.info(
+        "wa_personal_pairing_started", tenant_id=tenant_id, user_id=user_id, session_id=session.id,
+        via="phone_code" if phone_number else "qr",
+    )
+    return session, qr, pairing_code
 
 
 def logout_session(db: Session, tenant_id: str, user_id: str) -> bool:
