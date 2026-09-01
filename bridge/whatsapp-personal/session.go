@@ -147,16 +147,31 @@ func (s *bridgeStore) all(ctx context.Context) ([]sessionRow, error) {
 
 // ── session manager ──────────────────────────────────────────────────────
 
-func newSessionManager(ctx context.Context, dsn string, logger waLog.Logger) (*sessionManager, error) {
+func newSessionManager(ctx context.Context, dsn string, logger waLog.Logger, proxyURL string) (*sessionManager, error) {
 	store, err := newBridgeStore(ctx, dsn, logger)
 	if err != nil {
 		return nil, err
 	}
 	return &sessionManager{
-		active:  make(map[string]*activeClient),
-		backend: store,
-		waLog:   logger,
+		active:   make(map[string]*activeClient),
+		backend:  store,
+		waLog:    logger,
+		proxyURL: proxyURL,
 	}, nil
+}
+
+// newClient builds a whatsmeow client and, if a proxy is configured,
+// routes its connection through it before the caller ever calls Connect.
+// SetProxyAddress must be called before Connect() -- it only affects
+// connections made after it's set.
+func (m *sessionManager) newClient(deviceStore *store.Device) *whatsmeow.Client {
+	client := whatsmeow.NewClient(deviceStore, m.waLog)
+	if m.proxyURL != "" {
+		if err := client.SetProxyAddress(m.proxyURL); err != nil {
+			fmt.Printf("failed to set proxy address: %v\n", err)
+		}
+	}
+	return client
 }
 
 // startOrResumePairing is called for a brand-new session, a re-pair after
@@ -200,7 +215,7 @@ func (m *sessionManager) startOrResumePairing(ctx context.Context, sessionID, se
 		return nil, "", err
 	}
 
-	client := whatsmeow.NewClient(deviceStore, m.waLog)
+	client := m.newClient(deviceStore)
 	ac := &activeClient{client: client, webhookSecret: secret, messageCallbackURL: msgCB, statusCallbackURL: statusCB}
 	m.mu.Lock()
 	m.active[sessionID] = ac
@@ -351,7 +366,7 @@ func (m *sessionManager) reconnectAll(ctx context.Context) error {
 			fmt.Printf("reconnectAll: session %s: %v\n", row.SessionID, err)
 			continue
 		}
-		client := whatsmeow.NewClient(deviceStore, m.waLog)
+		client := m.newClient(deviceStore)
 		ac := &activeClient{
 			client: client, webhookSecret: row.WebhookSecret,
 			messageCallbackURL: row.MessageCallbackURL, statusCallbackURL: row.StatusCallbackURL,

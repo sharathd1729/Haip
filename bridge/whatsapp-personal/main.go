@@ -53,10 +53,22 @@ func main() {
 		port = "8085"
 	}
 
+	// Optional -- routes every whatsmeow client's connection through a
+	// SOCKS5 (or HTTP) proxy instead of connecting to WhatsApp directly
+	// from this VPS. Testing whether pairing from a datacenter IP is why
+	// a device gets force-removed by WhatsApp's server ~1 minute after a
+	// real, successful pair (confirmed via bridge logs: full handshake
+	// completes, then a server-initiated "device removed" stream error
+	// kills it) -- see session notes. Empty by default, no behavior change.
+	proxyURL := os.Getenv("WHATSAPP_PROXY_URL")
+
 	waLogger := waLog.Stdout("whatsmeow", "INFO", true)
-	mgr, err := newSessionManager(context.Background(), dsn, waLogger)
+	mgr, err := newSessionManager(context.Background(), dsn, waLogger, proxyURL)
 	if err != nil {
 		log.Fatalf("session manager init failed: %v", err)
+	}
+	if proxyURL != "" {
+		log.Printf("routing whatsmeow connections through configured proxy")
 	}
 
 	// Reconnect every previously-paired session on startup -- a bridge
@@ -142,8 +154,9 @@ type activeClient struct {
 }
 
 type sessionManager struct {
-	mu      sync.Mutex
-	active  map[string]*activeClient // keyed by HAIP session_id
-	backend *bridgeStore
-	waLog   waLog.Logger
+	mu       sync.Mutex
+	active   map[string]*activeClient // keyed by HAIP session_id
+	backend  *bridgeStore
+	waLog    waLog.Logger
+	proxyURL string // empty = connect directly, no proxy
 }

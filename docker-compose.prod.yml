@@ -92,6 +92,10 @@ services:
       # suffix (+psycopg2 etc.) -- lib/pq needs the bare scheme.
       - BRIDGE_DB_DSN=${WHATSAPP_BRIDGE_DB_DSN}
       - HTTP_PORT=8085
+      # Optional -- SOCKS5 (or HTTP) proxy URL, e.g. socks5://user:pass@host:port.
+      # Routes whatsmeow's WhatsApp connection through it instead of connecting
+      # directly from this VPS. Empty (unset) = no change from today.
+      - WHATSAPP_PROXY_URL=${WHATSAPP_PROXY_URL:-}
     # Not exposed externally -- only the api container calls this, over
     # the compose network, matching WHATSAPP_BRIDGE_URL's default in
     # backend/app/core/config.py.
