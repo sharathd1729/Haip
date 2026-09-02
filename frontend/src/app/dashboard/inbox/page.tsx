@@ -1117,7 +1117,20 @@ function InboxPageInner() {
                     </div>
                   )}
                   {(() => {
-                    const msgs = [...olderMessages, ...(detail?.messages ?? [])];
+                    // Real bug, reported live: a rejected AI draft
+                    // (was_approved=false) fell out of isAiDraft's gate
+                    // (which only checks was_approved == null) and rendered
+                    // as an ordinary outbound bubble -- same green styling,
+                    // same checkmark treatment -- with nothing distinguishing
+                    // it from a message that was actually delivered. It was
+                    // never sent to the guest at all, so showing it in the
+                    // thread as if it were is actively misleading to
+                    // whoever's reading the conversation. Excluded entirely
+                    // rather than given a "rejected" visual treatment --
+                    // there's nothing useful about seeing a reply that never
+                    // reached the guest sitting in their conversation history.
+                    const msgs = [...olderMessages, ...(detail?.messages ?? [])]
+                      .filter(m => !(m.ai_drafted && m.direction === "outbound" && m.was_approved === false));
                     // Interleave calls (ticket 2) by timestamp -- messages
                     // keep their own tested render path, calls are spliced
                     // in purely for chronological display.
