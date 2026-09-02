@@ -61,6 +61,7 @@ class KnowledgeEntryOut(BaseModel):
     source: str
     source_url: Optional[str] = None
     source_ref: Optional[str] = None
+    file_s3_key: Optional[str] = None
     alt_phrasings: Optional[List[str]] = None
     priority: int
     is_active: bool
@@ -105,4 +106,21 @@ class WebsiteIngestRequest(BaseModel):
 class IngestJobResponse(BaseModel):
     job_id: str
     status: str
+    message: str
+
+
+class KnowledgeCrawlRequest(BaseModel):
+    """Explicit list of page URLs to ingest -- not a recursive crawler
+    (no link-following). A tenant pastes the specific pages that actually
+    matter (FAQ, amenities, policies) rather than the AI wandering their
+    whole site; keeps this bounded, fast, and predictable.
+
+    max_length must match knowledge_ingest.MAX_URLS_PER_REQUEST -- this is
+    the actual enforcement point (a 422 before the endpoint body ever
+    runs); keep the two in sync if either changes."""
+    urls: List[str] = Field(min_length=1, max_length=5)
+
+
+class KnowledgeIngestResult(BaseModel):
+    entries_created: int
     message: str

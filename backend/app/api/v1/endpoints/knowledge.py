@@ -7,12 +7,15 @@ DELETE /knowledge/{id}            delete an entry (and its vector)
 POST   /knowledge/{id}/reembed    force re-embedding
 POST   /knowledge/search          retrieval preview -- "what would the AI find?"
 GET    /knowledge/stats           counts by status, for the settings header
+POST   /knowledge/upload          ingest a document (PDF/Word/text) -- pending review
+POST   /knowledge/crawl           ingest website page(s) by URL -- pending review
 """
 
 from typing import Optional
+from pathlib import Path
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
 from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_current_user, require_module
@@ -27,8 +30,10 @@ from app.schemas.knowledge import (
     KnowledgeEntryUpdate,
     KnowledgeSearchHit,
     KnowledgeSearchResponse,
+    KnowledgeCrawlRequest,
+    KnowledgeIngestResult,
 )
-from app.services import knowledge_service
+from app.services import knowledge_service, knowledge_ingest
 
 log = structlog.get_logger()
 
@@ -135,6 +140,110 @@ def create_entry(
     _queue_embed(entry.tenant_id, entry.id)
     log.info("kb_entry_created", entry_id=entry.id, tenant_id=entry.tenant_id, category=entry.category)
     return KnowledgeEntryOut.model_validate(entry)
+
+
+@router.post("/upload", response_model=KnowledgeIngestResult, status_code=status.HTTP_201_CREATED)
+async def upload_knowledge_document(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _cap=Depends(require_capability("settings.manage")),
+    _module=Depends(require_module("ai_concierge")),
+):
+    """Ingest a document (PDF, Word, or plain text) into the knowledge
+    base. The extracted content lands as one or more pending entries --
+    a human must review and approve before the AI uses any of it, same
+    gate scraped/mined content already goes through. The original file
+    itself is stored in R2 (never Supabase storage) so it stays
+    retrievable for reference."""
+    import uuid as uuid_lib
+    from app.services import media_storage
+
+    filename = file.filename or "document"
+    ext = Path(filename).suffix.lower()
+    if ext not in knowledge_ingest.ALLOWED_UPLOAD_EXTS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type '{ext}'. Use PDF, Word (.docx), or plain text.",
+        )
+
+    content = await file.read()
+    size_mb = len(content) / (1024 * 1024)
+    if len(content) > knowledge_ingest.MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File too large ({size_mb:.1f} MB). Max {knowledge_ingest.MAX_UPLOAD_MB} MB.",
+        )
+    if not content:
+        raise HTTPException(status_code=400, detail="File is empty.")
+
+    try:
+        text = knowledge_ingest.extract_text_from_upload(filename, file.content_type or "", content)
+    except knowledge_ingest.IngestError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="Couldn't find any readable text in this file.")
+
+    upload_id = str(uuid_lib.uuid4())
+    file_key = media_storage.upload_knowledge_file(
+        current_user.tenant_id, upload_id, content, file.content_type or "application/octet-stream", filename,
+    )
+
+    entries = knowledge_ingest.ingest_chunks(
+        db, current_user.tenant_id, text,
+        source="document", source_ref=filename, file_s3_key=file_key,
+        created_by=current_user.id,
+    )
+    log.info("kb_document_uploaded", tenant_id=current_user.tenant_id, filename=filename, chunk_count=len(entries))
+    return KnowledgeIngestResult(
+        entries_created=len(entries),
+        message=f"Added {len(entries)} entr{'y' if len(entries) == 1 else 'ies'} from \"{filename}\" -- review and approve them below before the AI uses this content.",
+    )
+
+
+@router.post("/crawl", response_model=KnowledgeIngestResult, status_code=status.HTTP_201_CREATED)
+def crawl_knowledge_urls(
+    body: KnowledgeCrawlRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _cap=Depends(require_capability("settings.manage")),
+    _module=Depends(require_module("ai_concierge")),
+):
+    """Ingest one or more web pages (e.g. your own site's FAQ or amenities
+    page) into the knowledge base. Same pending-review gate as document
+    upload -- nothing here is used by the AI until a human approves it."""
+    # KnowledgeCrawlRequest's own max_length=5 already rejects more than
+    # MAX_URLS_PER_REQUEST at the schema level (422) before this ever runs.
+    urls = [u.strip() for u in body.urls if u.strip()]
+    if not urls:
+        raise HTTPException(status_code=422, detail="At least one URL is required.")
+
+    total_entries = 0
+    failures: list[str] = []
+    for url in urls:
+        try:
+            text = knowledge_ingest.fetch_url_text(url)
+        except knowledge_ingest.IngestError as exc:
+            failures.append(str(exc))
+            continue
+        entries = knowledge_ingest.ingest_chunks(
+            db, current_user.tenant_id, text,
+            source="website", source_url=url, created_by=current_user.id,
+        )
+        total_entries += len(entries)
+
+    if total_entries == 0:
+        raise HTTPException(status_code=400, detail="; ".join(failures) or "Couldn't ingest any of the given URLs.")
+
+    log.info(
+        "kb_urls_crawled", tenant_id=current_user.tenant_id, url_count=len(urls),
+        entries_created=total_entries, failure_count=len(failures),
+    )
+    message = f"Added {total_entries} entr{'y' if total_entries == 1 else 'ies'} from {len(urls) - len(failures)} page(s) -- review and approve them below before the AI uses this content."
+    if failures:
+        message += f" {len(failures)} page(s) failed: {'; '.join(failures)}"
+    return KnowledgeIngestResult(entries_created=total_entries, message=message)
 
 
 @router.patch("/{entry_id}", response_model=KnowledgeEntryOut)

@@ -62,6 +62,17 @@ sqlglot==25.34.1
 # against undocumented exact field names when an official client exists.
 sarvamai==0.1.28
 
+# ── Knowledge base ingestion (website + document upload) ───────────────────────
+# pypdf — pure-Python PDF text extraction, no system deps (no poppler/etc to
+# add to the Docker image). python-docx — same reasoning for .docx. Both are
+# the standard, most-maintained choice for their format; hand-parsing either
+# binary format is not worth doing when a mature library exists.
+pypdf==5.1.0
+python-docx==1.1.2
+# beautifulsoup4 — HTML text extraction for website ingestion, using stdlib
+# html.parser (no lxml/C-extension build dependency needed).
+beautifulsoup4==4.12.3
+
 # ── Testing ───────────────────────────────────────────────────────────────────
 pytest==8.3.4
 pytest-asyncio==0.24.0

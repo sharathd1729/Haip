@@ -100,6 +100,32 @@ def upload_user_avatar(
     return s3_key
 
 
+def upload_knowledge_file(
+    tenant_id: str, upload_id: str, content: bytes, content_type: str, filename: str,
+) -> str:
+    """Upload a document a tenant provided to train the AI concierge's
+    knowledge base (rate card, brochure, T&Cs, etc.), return the storage
+    key. One key per upload (upload_id, not a fixed per-tenant path like
+    the avatar/IVR helpers above) -- a tenant can upload many documents
+    over time and each must stay individually retrievable, not overwrite
+    the last one."""
+    safe_name = filename.replace("/", "_").replace("\\", "_")[:200] or "document"
+    s3_key = f"{tenant_id}/knowledge/{upload_id}/{safe_name}"
+    s3 = _s3_client()
+    put_kwargs = dict(
+        Bucket=settings.S3_BUCKET_NAME,
+        Key=s3_key,
+        Body=content,
+        ContentType=content_type,
+    )
+    if settings.KMS_KEY_ID and not settings.AWS_S3_ENDPOINT_URL:
+        put_kwargs["ServerSideEncryption"] = "aws:kms"
+        put_kwargs["SSEKMSKeyId"] = settings.KMS_KEY_ID
+    s3.put_object(**put_kwargs)
+    log.info("knowledge_file_stored", tenant_id=tenant_id, upload_id=upload_id, s3_key=s3_key)
+    return s3_key
+
+
 def get_presigned_media_url(s3_key: str, expires_in: int = 3600) -> str | None:
     """Generate a time-limited download URL for a stored media object.
     Returns None on any failure -- never let a presign error break message

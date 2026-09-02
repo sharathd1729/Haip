@@ -1,7 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, X, Search, Sparkles, AlertCircle, Loader2, RefreshCw, CheckCircle2, BookOpen } from "@/lib/icons";
+import { Plus, Pencil, Trash2, X, Search, Sparkles, AlertCircle, Loader2, RefreshCw, CheckCircle2, BookOpen, Upload, Globe } from "@/lib/icons";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -75,6 +75,9 @@ export default function KnowledgePage() {
   const [categoryFilter, setCategoryFilter] = useState<string>("");
   const [testQuery, setTestQuery] = useState("");
   const [testHits, setTestHits] = useState<SearchHit[] | null>(null);
+  const [crawlOpen, setCrawlOpen] = useState(false);
+  const [crawlUrls, setCrawlUrls] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data, isLoading, isError, refetch } = useQuery<{ items: KnowledgeEntry[]; total: number }>({
     queryKey: ["knowledge", categoryFilter],
@@ -118,6 +121,49 @@ export default function KnowledgePage() {
         variant: "error",
         title: "Couldn't save",
         description: typeof detail === "string" ? detail : "Check the fields and try again.",
+      });
+    },
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => {
+      const body = new FormData();
+      body.append("file", file);
+      return api.post("/knowledge/upload", body, {
+        headers: { "Content-Type": "multipart/form-data" },
+      }).then((r) => r.data as { entries_created: number; message: string });
+    },
+    onSuccess: (d) => {
+      invalidate();
+      toast({ variant: "success", title: "Uploaded", description: d.message });
+    },
+    onError: (e: unknown) => {
+      const err = e as { response?: { data?: { detail?: unknown } } };
+      const detail = err?.response?.data?.detail;
+      toast({
+        variant: "error",
+        title: "Upload failed",
+        description: typeof detail === "string" ? detail : "Try a PDF, Word doc, or plain text file under 15 MB.",
+      });
+    },
+  });
+
+  const crawlMutation = useMutation({
+    mutationFn: (urls: string[]) =>
+      api.post("/knowledge/crawl", { urls }).then((r) => r.data as { entries_created: number; message: string }),
+    onSuccess: (d) => {
+      invalidate();
+      setCrawlOpen(false);
+      setCrawlUrls("");
+      toast({ variant: "success", title: "Added from website", description: d.message });
+    },
+    onError: (e: unknown) => {
+      const err = e as { response?: { data?: { detail?: unknown } } };
+      const detail = err?.response?.data?.detail;
+      toast({
+        variant: "error",
+        title: "Couldn't fetch that page",
+        description: typeof detail === "string" ? detail : "Check the URL and try again.",
       });
     },
   });
@@ -173,12 +219,41 @@ export default function KnowledgePage() {
               calendar automatically — everything else (amenities, add-ons, routes, policies) it learns here.
             </p>
           </div>
-          <button
-            onClick={() => setForm({ ...EMPTY_FORM })}
-            className="flex items-center gap-1.5 px-4 py-2 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors flex-shrink-0"
-          >
-            <Plus size={15} /> Add knowledge
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) uploadMutation.mutate(file);
+                e.target.value = "";
+              }}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadMutation.isPending}
+              title="Upload a PDF, Word doc, or text file -- added as pending entries for you to review"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              {uploadMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+              Upload document
+            </button>
+            <button
+              onClick={() => setCrawlOpen(true)}
+              title="Pull content from your website (e.g. your FAQ or amenities page) -- added as pending entries for you to review"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-50 transition-colors"
+            >
+              <Globe size={15} /> Add from website
+            </button>
+            <button
+              onClick={() => setForm({ ...EMPTY_FORM })}
+              className="flex items-center gap-1.5 px-4 py-2 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors"
+            >
+              <Plus size={15} /> Add knowledge
+            </button>
+          </div>
         </div>
 
         {stats && (
@@ -567,6 +642,58 @@ export default function KnowledgePage() {
               >
                 {saveMutation.isPending && <Loader2 size={13} className="animate-spin" />}
                 Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add from website modal */}
+      {crawlOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white">
+              <p className="text-sm font-semibold text-gray-800">Add from website</p>
+              <button onClick={() => setCrawlOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3">
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                Page URLs <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={crawlUrls}
+                onChange={(e) => setCrawlUrls(e.target.value)}
+                rows={5}
+                placeholder={"https://yourproperty.com/faq\nhttps://yourproperty.com/amenities"}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30 resize-y font-mono"
+              />
+              <p className="text-[11px] text-gray-400">
+                One URL per line, up to 5 pages at a time. Point it at specific pages that actually matter — your
+                FAQ, amenities, or policies page — not your homepage. Content lands as pending entries for you to
+                review before the AI can use it.
+              </p>
+            </div>
+
+            <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-end gap-2 sticky bottom-0 bg-white">
+              <button
+                onClick={() => setCrawlOpen(false)}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const urls = crawlUrls.split("\n").map((u) => u.trim()).filter(Boolean).slice(0, 5);
+                  if (urls.length) crawlMutation.mutate(urls);
+                }}
+                disabled={crawlMutation.isPending || !crawlUrls.trim()}
+                className="flex items-center gap-1.5 px-5 py-2 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors disabled:opacity-50"
+              >
+                {crawlMutation.isPending && <Loader2 size={13} className="animate-spin" />}
+                Fetch &amp; add
               </button>
             </div>
           </div>
