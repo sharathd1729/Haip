@@ -233,10 +233,25 @@ class GeminiAdapter(LLMAdapter):
             payload_copy["generationConfig"] = {**payload["generationConfig"], "temperature": 0.0}
             async with httpx.AsyncClient(timeout=120) as client2:
                 resp2 = await client2.post(retry_url, json=payload_copy)
+            if resp2.status_code != 200:
+                # Previously silent -- a non-200 here fell straight through to
+                # the text fallback with zero indication why the retry itself
+                # didn't even get a response to check finishReason on.
+                log.warning("gemini_fc_retry_http_error", status=resp2.status_code,
+                            body=resp2.text[:300], model=retry_model)
             if resp2.status_code == 200:
                 data2 = resp2.json()
                 cands2 = data2.get("candidates", [])
-                if cands2 and cands2[0].get("finishReason") != "MALFORMED_FUNCTION_CALL":
+                retry_finish_reason = cands2[0].get("finishReason") if cands2 else None
+                if retry_finish_reason == "MALFORMED_FUNCTION_CALL":
+                    # Confirmed live: the retry model itself is reachable and
+                    # healthy (verified independently), it just also failed
+                    # to produce a valid function call for this specific
+                    # prompt -- a genuinely harder case for Gemini's FC
+                    # parser, not a broken retry mechanism. Logged so this is
+                    # distinguishable from a retry that never got a response.
+                    log.warning("gemini_fc_retry_also_malformed", model=retry_model)
+                if cands2 and retry_finish_reason != "MALFORMED_FUNCTION_CALL":
                     log.info("gemini_fc_retry_succeeded", model=retry_model)
                     # Recurse with the retry result
                     parts = cands2[0].get("content", {}).get("parts", [])
@@ -264,7 +279,19 @@ class GeminiAdapter(LLMAdapter):
                 user_message=user_message,
                 gemini_model=gemini_model,
                 tool=tools[0],
-                max_tokens=max_tokens,
+                # Confirmed live: this path was truncating mid-JSON (a raw
+                # response cut off at `"reply": "Each caravan fits`) when
+                # given the same budget as the native function-calling
+                # attempt. Native FC doesn't spend output tokens on JSON
+                # punctuation/keys the way this text-mode fallback has to --
+                # it has to spell out the entire {"reply": ..., "confidence":
+                # ..., "citations": [...], "needs_human": ..., "reason_needs_
+                # human": ...} structure as literal text on top of the same
+                # reply content, so the same budget that's fine for FC mode
+                # genuinely isn't enough here. Padded, not doubled -- this
+                # path is already a last resort, no need to also make it the
+                # slowest/most expensive one.
+                max_tokens=max_tokens + 300,
             )
 
         # Usage metadata

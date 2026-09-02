@@ -7,7 +7,11 @@ where `type` is a scalar, never a list, so every real call using
 CONCIERGE_TOOL failed with a 400: "Proto field is not repeating, cannot
 start list." Reproduced live against the real Gemini API before this fix.
 """
-from app.adapters.llm.gemini import _upcase_schema_types, _anthropic_tool_to_gemini
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from app.adapters.llm.gemini import _upcase_schema_types, _anthropic_tool_to_gemini, GeminiAdapter
 
 
 class TestUpcaseSchemaTypes:
@@ -65,3 +69,80 @@ class TestAnthropicToolToGemini:
         result = _anthropic_tool_to_gemini(tool)
         params = result["function_declarations"][0]["parameters"]
         assert params["properties"]["reason_needs_human"] == {"type": "STRING", "nullable": True}
+
+
+def _candidate_response(finish_reason: str, text: str = "", output_tokens: int = 10):
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.json = MagicMock(return_value={
+        "candidates": [{
+            "finishReason": finish_reason,
+            "content": {"parts": [{"text": text}] if text else []},
+        }],
+        "usageMetadata": {"promptTokenCount": 50, "candidatesTokenCount": output_tokens},
+    })
+    return resp
+
+
+_TOOL = {
+    "name": "concierge_reply",
+    "description": "Draft a reply",
+    "input_schema": {"type": "object", "properties": {"reply": {"type": "string"}}, "required": ["reply"]},
+}
+
+
+class TestMalformedFunctionCallFallbackChain:
+    """Real bug, reported live: a guest question reproducibly made Gemini
+    return MALFORMED_FUNCTION_CALL on both the original call and the
+    retry, then the text-JSON fallback truncated mid-response because it
+    was given the same tight token budget as the native function-calling
+    attempt -- which doesn't have to spend output tokens spelling out
+    JSON structure (keys/braces/quotes) the way text mode does."""
+
+    @pytest.mark.asyncio
+    async def test_retry_also_malformed_falls_back_to_json_mode_with_padded_token_budget(self):
+        # 1st call (native FC): malformed. 2nd call (FC retry): also
+        # malformed. 3rd call (JSON-mode fallback): succeeds.
+        responses = [
+            _candidate_response("MALFORMED_FUNCTION_CALL"),
+            _candidate_response("MALFORMED_FUNCTION_CALL"),
+            _candidate_response("STOP", text='{"reply": "Sure, here are the details!"}'),
+        ]
+        with patch("httpx.AsyncClient") as MockClient:
+            instance = MockClient.return_value.__aenter__.return_value
+            instance.post = AsyncMock(side_effect=responses)
+            result = await GeminiAdapter().complete(
+                system_prompt="You are a concierge.", user_message="Hi",
+                tools=[_TOOL], max_tokens=400,
+            )
+
+        assert result["tool_use"] == {"reply": "Sure, here are the details!"}
+        # The 3rd call is the JSON-mode fallback -- its payload's
+        # maxOutputTokens must be padded above the original 400, not equal
+        # to it (that equality is exactly what caused the live truncation).
+        third_call_payload = instance.post.call_args_list[2].kwargs["json"]
+        assert third_call_payload["generationConfig"]["maxOutputTokens"] == 700
+
+    @pytest.mark.asyncio
+    async def test_retry_http_error_does_not_crash_and_still_reaches_json_fallback(self):
+        """A non-200 on the retry attempt must not raise or hang -- it
+        previously fell through completely silently; now it's logged, but
+        either way the pipeline must still reach the JSON-mode fallback
+        rather than blow up."""
+        error_resp = MagicMock()
+        error_resp.status_code = 500
+        error_resp.text = "internal error"
+        responses = [
+            _candidate_response("MALFORMED_FUNCTION_CALL"),
+            error_resp,
+            _candidate_response("STOP", text='{"reply": "Recovered via fallback."}'),
+        ]
+        with patch("httpx.AsyncClient") as MockClient:
+            instance = MockClient.return_value.__aenter__.return_value
+            instance.post = AsyncMock(side_effect=responses)
+            result = await GeminiAdapter().complete(
+                system_prompt="You are a concierge.", user_message="Hi",
+                tools=[_TOOL], max_tokens=400,
+            )
+
+        assert result["tool_use"] == {"reply": "Recovered via fallback."}
