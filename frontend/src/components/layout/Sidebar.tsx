@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { signOut } from "next-auth/react";
-import { Inbox, Phone, Users, Building2, Home, BarChart2, Zap, Link2, Settings, HelpCircle, LogOut, ChevronDown, ChevronRight, ChevronLeft, MessageSquare, AtSign, Bot, Target, Megaphone, Send, FileText, LayoutDashboard, ListChecks, BookmarkIcon, TrendingUp, MessageCircle } from "@/lib/icons";
+import { Inbox, Phone, Users, Building2, Home, BarChart2, Zap, Link2, Settings, HelpCircle, LogOut, ChevronDown, ChevronRight, ChevronLeft, MessageSquare, AtSign, Bot, Target, Megaphone, Send, FileText, LayoutDashboard, ListChecks, BookmarkIcon, TrendingUp, MessageCircle, User } from "@/lib/icons";
 import { UserCheck, GitBranch } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canSeeNav, type Resource } from "@/lib/permissions";
@@ -164,7 +164,13 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+// Profile was previously only reachable via the TopBar avatar dropdown --
+// a real discoverability gap on desktop (reported live) compared to
+// mobile's dedicated "Account" section in MobileNav, which already lists
+// it plainly. Universal like Support -- no resource gate, every role has
+// their own profile.
 const BOTTOM_ITEMS = [
+  { label: "Profile", href: "/dashboard/profile", icon: User },
   { label: "Support", href: "/dashboard/help",    icon: HelpCircle },
 ];
 

@@ -1,7 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { useSession } from "next-auth/react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { UserCircle, Camera, Save, Lock, Bell, Trash2, CheckCircle, AlertCircle, Loader2, Eye, EyeOff, Shield } from "@/lib/icons";
 import { cn } from "@/lib/utils";
@@ -27,17 +26,21 @@ export default function ProfilePage() {
 
 /* ── Personal Info ──────────────────────────────────────────────────────────── */
 function PersonalInfoCard() {
-  const { data: session } = useSession();
   const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [avatarError, setAvatarError] = useState<string | null>(null);
-  const [form, setForm] = useState({
-    name: session?.user?.name ?? "Sharath D.",
-    email: session?.user?.email ?? "sharath@ratha.in",
-    phone: "+91 98765 43210",
-    role: (session?.user as any)?.role ?? "owner",
-    bio: "",
-  });
+  // Real bug this replaces: a useState initializer only runs once, on the
+  // first render. Seeding it from useSession() -- which is commonly still
+  // `undefined` on that very first render -- baked the hardcoded fallback
+  // literals ("Sharath D." / "sharath@ratha.in") in permanently for
+  // whoever happened to load the page before the session resolved,
+  // regardless of who was actually logged in. `phone` was worse: hardcoded
+  // outright, never read from anywhere real. The actual backend fetch
+  // (`me`, below) was already correct -- its result just never made it
+  // into this form. Fixed by starting blank and syncing from `me` once it
+  // loads (the effect further down), so the form always reflects the
+  // real, current user.
+  const [form, setForm] = useState({ name: "", email: "", phone: "", role: "", bio: "" });
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -45,6 +48,11 @@ function PersonalInfoCard() {
     queryKey: ["users", "me"],
     queryFn: () => api.get("/users/me").then(r => r.data),
   });
+
+  useEffect(() => {
+    if (!me) return;
+    setForm(f => ({ ...f, name: me.name ?? "", email: me.email ?? "", phone: me.phone ?? "", role: me.role ?? "" }));
+  }, [me]);
 
   const uploadAvatar = useMutation({
     mutationFn: (file: File) => {
