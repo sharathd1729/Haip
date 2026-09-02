@@ -27,41 +27,86 @@ type RefreshResult = {
 // Cache in-flight refreshes per token so racing callers share one result.
 const refreshPromises = new Map<string, Promise<RefreshResult>>();
 
-async function refreshAccessToken(refreshToken: string): Promise<RefreshResult> {
+// Transient-failure retry budget. The backend's own rotation logic already
+// tolerates a retried request within a 60s grace window (returns a fresh
+// pair instead of treating it as reuse/theft -- see auth.py's
+// _REFRESH_GRACE_WINDOW_SECONDS) -- but that safety net only helps if the
+// client actually retries. It previously didn't: a single dropped
+// connection (a backend deploy's `--force-recreate` briefly cutting the
+// in-flight request, or any transient network blip during active use)
+// went straight to `RefreshAccessTokenError` and logged the user out, even
+// though the exact same request would very likely have succeeded a moment
+// later. Real symptom this fixes: "logs out immediately when we deploy an
+// update" and sporadic mid-session logouts unrelated to backgrounding.
+const REFRESH_RETRY_ATTEMPTS = 3;
+const REFRESH_RETRY_DELAY_MS = 600;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// A 5xx here is the proxy/backend itself misbehaving momentarily (a
+// container mid-restart, Vercel's rewrite hitting a not-yet-healthy
+// upstream) -- worth retrying, same as a thrown network error. A 4xx is a
+// real rejection (invalid/revoked token) that retrying can't fix and
+// shouldn't be treated the same as a transient blip.
+function isRetryableStatus(status: number): boolean {
+  return status >= 500 && status < 600;
+}
+
+export async function refreshAccessToken(refreshToken: string): Promise<RefreshResult> {
   const inFlight = refreshPromises.get(refreshToken);
   if (inFlight) return inFlight;
 
   const promise = (async (): Promise<RefreshResult> => {
     const apiBase = (process.env.BACKEND_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
-    try {
-      const res = await fetch(`${apiBase}/api/v1/auth/refresh`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refresh_token: refreshToken }),
-      });
-      if (!res.ok) {
-        // Swallowed silently before -- every "keep me signed in" logout ever
-        // reported showed up as a bare "RefreshAccessTokenError" with no way
-        // to tell an unreachable BACKEND_URL apart from a genuinely revoked
-        // refresh token. Log which apiBase was used and the real status/body
-        // so the next occurrence is diagnosable from Vercel logs alone.
-        const bodyText = await res.text().catch(() => "");
-        console.error("[AUTH] token refresh failed", { apiBase, status: res.status, body: bodyText.slice(0, 300) });
+
+    for (let attempt = 1; attempt <= REFRESH_RETRY_ATTEMPTS; attempt++) {
+      const isLastAttempt = attempt === REFRESH_RETRY_ATTEMPTS;
+      try {
+        const res = await fetch(`${apiBase}/api/v1/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        });
+        if (!res.ok) {
+          if (isRetryableStatus(res.status) && !isLastAttempt) {
+            console.warn("[AUTH] token refresh got a retryable status, retrying", { apiBase, status: res.status, attempt });
+            await sleep(REFRESH_RETRY_DELAY_MS);
+            continue;
+          }
+          // Swallowed silently before -- every "keep me signed in" logout ever
+          // reported showed up as a bare "RefreshAccessTokenError" with no way
+          // to tell an unreachable BACKEND_URL apart from a genuinely revoked
+          // refresh token. Log which apiBase was used and the real status/body
+          // so the next occurrence is diagnosable from Vercel logs alone.
+          const bodyText = await res.text().catch(() => "");
+          console.error("[AUTH] token refresh failed", { apiBase, status: res.status, body: bodyText.slice(0, 300), attempt });
+          return { error: "RefreshAccessTokenError" };
+        }
+        const data = await res.json();
+        return {
+          accessToken: data.access_token,
+          refreshToken: data.refresh_token ?? refreshToken,
+          accessTokenExpires: getTokenExpiry(data.access_token),
+        };
+      } catch (e) {
+        // A thrown fetch error (connection reset, DNS blip, a backend
+        // container mid-restart) is exactly the class of transient failure
+        // worth retrying -- as well as the original unreachable-BACKEND_URL
+        // bug this logging was added for.
+        if (!isLastAttempt) {
+          console.warn("[AUTH] token refresh threw, retrying", { apiBase, error: e instanceof Error ? e.message : String(e), attempt });
+          await sleep(REFRESH_RETRY_DELAY_MS);
+          continue;
+        }
+        console.error("[AUTH] token refresh threw", { apiBase, error: e instanceof Error ? e.message : String(e), attempt });
         return { error: "RefreshAccessTokenError" };
       }
-      const data = await res.json();
-      return {
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token ?? refreshToken,
-        accessTokenExpires: getTokenExpiry(data.access_token),
-      };
-    } catch (e) {
-      // A thrown fetch error (unreachable host, DNS failure, relative URL
-      // rejected by Node's fetch) is exactly the class of bug that broke
-      // "keep me signed in" on Vercel -- BACKEND_URL pointing nowhere real.
-      console.error("[AUTH] token refresh threw", { apiBase, error: e instanceof Error ? e.message : String(e) });
-      return { error: "RefreshAccessTokenError" };
     }
+    // Unreachable -- the loop always returns or continues, and the last
+    // iteration never continues. Satisfies TypeScript's control-flow check.
+    return { error: "RefreshAccessTokenError" };
   })();
 
   refreshPromises.set(refreshToken, promise);
