@@ -647,6 +647,10 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         confidence = draft.get("confidence", 0.0)
         reply_text = draft.get("reply", "")
         needs_human = draft.get("needs_human", True)
+        # Persisted so "why didn't this auto-send despite high confidence"
+        # is answerable from the database afterward, not just from a log
+        # line the next container restart erases (migration 088).
+        needs_human_reasons: list[str] = []
 
         # Real bug, reported live: a completion that finishes without
         # timing out but comes back with no usable tool_use (the model
@@ -655,7 +659,10 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         # timeout path just above, there was no fallback text here, so a
         # blank, unreviewable "0%" draft got stored and shown to an agent
         # with literally nothing to approve/edit/reject. Same treatment as
-        # a timeout: a real holding reply, forced to human review.
+        # a timeout: a real holding reply, forced to human review. Confirmed
+        # live and reproducible: Gemini returning MALFORMED_FUNCTION_CALL,
+        # the retry also failing, and the text-JSON fallback also failing
+        # to parse -- not a one-off fluke for this guest's message.
         if not reply_text or not reply_text.strip():
             log.warning(
                 "concierge_completion_empty_reply", conversation_id=conversation_id,
@@ -665,10 +672,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             reply_text = "Thanks for your message! Let me check and get right back to you."
             confidence = 0.0
             needs_human = True
-        # Persisted so "why didn't this auto-send despite high confidence"
-        # is answerable from the database afterward, not just from a log
-        # line the next container restart erases (migration 088).
-        needs_human_reasons: list[str] = []
+            needs_human_reasons.append("AI reply generation returned no usable content")
         # hard_block vs needs_human: needs_human alone conflated two very
         # different things -- the model's own soft "a human should ideally
         # own this" judgment (set above, e.g. a complex custom quote or a

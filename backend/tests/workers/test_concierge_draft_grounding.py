@@ -373,6 +373,7 @@ class TestConciergeDraftEndToEnd:
         assert draft.body.strip() != ""
         assert float(draft.ai_confidence) == 0.0
         assert draft.was_approved is None  # never auto-sent
+        assert draft.ai_needs_human_reason == "AI reply generation returned no usable content"
 
     def test_completion_call_caps_max_tokens(self, db, monkeypatch):
         """Confirmed live: one conversation's completion call never returned
