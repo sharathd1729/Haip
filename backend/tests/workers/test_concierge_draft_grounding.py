@@ -335,6 +335,45 @@ class TestConciergeDraftEndToEnd:
         assert draft.was_approved is None  # never auto-sent
         assert draft.ai_needs_human_reason == "AI reply generation timed out after 2 attempts"
 
+    def test_completion_returns_but_empty_tool_use_falls_back_gracefully(self, db, monkeypatch):
+        """Real bug, reported live: a blank "AI DRAFT 0%" sat in the inbox
+        with nothing to approve/edit/reject. Root cause -- unlike the
+        timeout path above, a completion that finishes normally but comes
+        back with no usable tool_use (model declined the tool call, or
+        returned a malformed/empty one) had no fallback: reply_text
+        defaulted to "" and confidence to 0.0, producing an empty,
+        unreviewable draft instead of a real holding reply."""
+        tenant, guest, conv, inbound = _setup_conversation(db)
+
+        class _FakeIntentLLM:
+            async def complete(self, **kwargs):
+                return {"tool_use": {"intent": "general"}}
+
+        class _EmptyConciergeLLM:
+            async def complete(self, **kwargs):
+                return {"tool_use": {}}  # model declined/malformed -- no "reply" key at all
+
+        def _fake_get_llm(task):
+            return _FakeIntentLLM() if task == "quick_classify" else _EmptyConciergeLLM()
+
+        monkeypatch.setattr("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm)
+
+        with patch("app.workers.tasks.concierge_draft.SessionLocal", return_value=db), \
+             patch("app.services.push_service.send_to_tenant"):
+            concierge_draft.run(message_id=inbound.id, conversation_id=conv.id, tenant_id=tenant.id)
+
+        draft = (
+            db.query(Message)
+            .filter_by(conversation_id=conv.id, direction="outbound", is_ai_generated=True)
+            .order_by(Message.created_at.desc())
+            .first()
+        )
+        assert draft is not None
+        assert draft.body  # never blank -- a real holding reply
+        assert draft.body.strip() != ""
+        assert float(draft.ai_confidence) == 0.0
+        assert draft.was_approved is None  # never auto-sent
+
     def test_completion_call_caps_max_tokens(self, db, monkeypatch):
         """Confirmed live: one conversation's completion call never returned
         even with a 90s ceiling and no exception -- consistent with a
