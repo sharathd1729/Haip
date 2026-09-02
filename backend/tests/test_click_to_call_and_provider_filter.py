@@ -314,6 +314,46 @@ def test_click_to_call_defaults_agent_number_to_forward_number_and_fires_vobiz(
     assert "guest_number=%2B919876543210" in captured["answer_url"]
 
 
+def test_click_to_call_uses_clicking_agents_own_phone_not_shared_forward_number(
+    client, tenant_and_user, db, monkeypatch
+):
+    """Real bug, reported live: every agent's outbound call rang the same
+    tenant-wide forward_number regardless of who clicked, because
+    agent_number defaulted straight past User.phone (the field an agent
+    actually edits on their Profile page) to the shared fallback. Two
+    different agents in the same tenant must each ring from their own
+    number."""
+    tenant = tenant_and_user["tenant"]
+    tenant.ivr_provider = "vobiz"
+    db.commit()
+    _connect_vobiz_full(db, tenant.id)
+
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "API_BASE_URL", "https://haip.example.test")
+
+    # The clicking user has their own phone on file (set via Profile).
+    tenant_and_user["user"].phone = "+919888888888"
+    db.commit()
+
+    captured = {}
+
+    async def fake_initiate(self, agent_number, guest_number, *, did_number="", answer_url=""):
+        captured["agent_number"] = agent_number
+        return "req-uuid-agent-phone"
+
+    from app.adapters.ivr.vobiz import VobizAdapter
+    monkeypatch.setattr(VobizAdapter, "initiate_click_to_call", fake_initiate)
+
+    res = client.post(
+        "/api/v1/calls/click-to-call",
+        json={"guest_number": "+919876543210"},
+        headers={"Authorization": f"Bearer {tenant_and_user['access_token']}"},
+    )
+    assert res.status_code == 200
+    assert captured["agent_number"] == "+919888888888"  # the agent's own phone
+    assert captured["agent_number"] != "+919000000000"  # not the shared forward_number
+
+
 def test_click_to_call_honors_explicit_agent_number_override(client, tenant_and_user, db, monkeypatch):
     tenant = tenant_and_user["tenant"]
     tenant.ivr_provider = "vobiz"

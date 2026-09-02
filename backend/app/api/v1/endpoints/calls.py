@@ -37,10 +37,10 @@ MAX_FILE_MB = 200
 
 class ClickToCallRequest(BaseModel):
     guest_number: str
-    # Optional: for vobiz this defaults server-side to the tenant's
-    # registered forward_number (same number the inbound flow already
-    # bridges to) -- HAIP has no per-agent phone number on file, only one
-    # forwarding number per tenant, so there's nothing else to default to.
+    # Optional override -- almost never sent by the frontend (no call site
+    # passes it). Server-side default is the clicking agent's own
+    # User.phone (Profile page), falling back to the tenant's shared
+    # forward_number only if that agent has no phone on file at all.
     agent_number: Optional[str] = None
     inquiry_id: Optional[str] = None
 
@@ -446,7 +446,14 @@ async def click_to_call(
         did_number = get_credential(blob, "did_number")
         webhook_secret = get_credential(blob, "webhook_secret")
         forward_number = get_credential(blob, "forward_number")
-        agent_number = req.agent_number or forward_number
+        # Real bug fixed here: every agent's outbound click-to-call was
+        # ringing the tenant's single shared forward_number regardless of
+        # who clicked -- no call site sends agent_number, and User.phone
+        # (the field an agent actually edits on their Profile page) was
+        # never consulted. Prefer the clicking agent's own registered
+        # number; forward_number is now only the last-resort fallback for
+        # an agent who hasn't set a phone at all.
+        agent_number = req.agent_number or current_user.phone or forward_number
         missing = [
             name for name, val in [
                 ("did_number", did_number), ("webhook_secret", webhook_secret), ("agent_number", agent_number),
@@ -487,10 +494,14 @@ async def click_to_call(
             log.warning("vobiz_click_to_call_http_error", tenant=current_user.tenant_id, status=status)
             raise HTTPException(status_code=502, detail=detail) from exc
     else:
-        if not req.agent_number:
-            raise HTTPException(status_code=400, detail="agent_number is required for this provider")
+        agent_number = req.agent_number or current_user.phone
+        if not agent_number:
+            raise HTTPException(
+                status_code=400,
+                detail="No phone number on file to call from -- add one in Profile settings.",
+            )
         adapter = get_ivr_adapter(provider)
-        call_id = await adapter.initiate_click_to_call(req.agent_number, req.guest_number)
+        call_id = await adapter.initiate_click_to_call(agent_number, req.guest_number)
 
     from app.workers.tasks.call_ingest import cache_click_to_call_agent
     cache_click_to_call_agent(current_user.tenant_id, call_id, current_user.id)
