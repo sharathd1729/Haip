@@ -207,6 +207,14 @@ def process_instagram_dm(self, payload: dict) -> dict:
                     identity_service.add_signal(
                         db, tenant_id, guest_id, "phone", phone, source="message_text",
                     )
+                    # Confirmed product decision: the guest volunteering
+                    # their phone number is the real signal to hand this
+                    # conversation off to a human agent (who calls them
+                    # with the full details) -- the bot has been answering
+                    # every query autonomously up to this exact point
+                    # (see ai_mode_service.py), and this is where that
+                    # stops, not when a human happens to approve a draft.
+                    conversation.human_owned = True
                     db.commit()
             except Exception as exc:
                 db.rollback()

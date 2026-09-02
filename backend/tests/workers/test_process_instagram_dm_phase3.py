@@ -204,3 +204,33 @@ def test_inbound_dm_sends_push_notification(db):
     assert kwargs["tenant_id"] == tenant.id
     assert kwargs["title"] == "New Instagram DM"
     assert "hi, are villas available" in kwargs["body"]
+
+
+# ── Phone-in-text is the real handoff signal (confirmed product decision) ───
+
+def test_guest_sharing_phone_number_sets_human_owned(db):
+    """The bot answers every query autonomously through the whole
+    info-gathering phase; the guest volunteering a real phone number is
+    the actual handoff point to a human agent, not a human happening to
+    approve a draft somewhere along the way."""
+    tenant = _make_tenant(db, ig_ai_mode_default="autonomous")
+    integration = _make_ig_integration(db, tenant.id)
+
+    result, _ = _run_dm_task(db, tenant, integration, sender_id="guest-phone-001", text="You can reach me at 9876543210")
+
+    assert result["status"] == "ok"
+    conv = db.query(Conversation).filter_by(tenant_id=tenant.id).first()
+    assert conv is not None
+    assert conv.human_owned is True
+
+
+def test_message_without_phone_number_does_not_set_human_owned(db):
+    tenant = _make_tenant(db, ig_ai_mode_default="autonomous")
+    integration = _make_ig_integration(db, tenant.id)
+
+    result, _ = _run_dm_task(db, tenant, integration, sender_id="guest-nophone-001", text="What destinations do you cover?")
+
+    assert result["status"] == "ok"
+    conv = db.query(Conversation).filter_by(tenant_id=tenant.id).first()
+    assert conv is not None
+    assert conv.human_owned is False

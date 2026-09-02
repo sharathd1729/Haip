@@ -13,10 +13,17 @@ the setting mean what the UI says it means.
 Precedence:
   1. conversation.ai_mode == "off"  -> off. An agent muting one thread is an
      explicit, per-thread decision and always wins.
-  2. conversation.human_owned == True -> shadow. A human agent has sent (or
-     approved) at least one reply in this thread -- a real, programmatic
-     decision, not a stale snapshot -- so the bot stops auto-sending but
-     keeps drafting suggestions.
+  2. conversation.human_owned == True -> shadow. Set only by a real handoff
+     signal -- a human agent manually composing/sending their own message
+     (not approving an AI draft), or the guest's phone number being
+     captured (the point the product wants a human taking over a call).
+     Approving/editing/rejecting an AI draft does NOT set this: confirmed
+     product decision -- the bot should keep answering every query
+     autonomously through the whole info-gathering phase regardless of how
+     many drafts a human has approved, right up until the real handoff
+     signal fires. Previously any draft approval set this, which silently
+     downgraded a conversation to manual-only forever after the first
+     approve click, even on tenants configured for full autonomous mode.
   3. tenant.<channel>_ai_mode_default -> the tenant's current policy.
 
 Note the asymmetry is deliberate: a per-conversation "off" overrides the

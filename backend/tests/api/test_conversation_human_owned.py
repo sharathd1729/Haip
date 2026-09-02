@@ -1,9 +1,17 @@
-"""Auto-shadow on handoff: the first time a human agent sends, template-
-sends, or approves an outbound message in a conversation, Conversation.
+"""Auto-shadow on real handoff: the first time a human agent sends or
+template-sends their own message in a conversation, Conversation.
 human_owned flips True -- ai_mode_service.resolve_mode() then forces
 shadow mode regardless of the tenant's autonomous default, so the bot
 never auto-sends into a thread a person is actively working. An internal
 note (never seen by the guest) must not count as taking over.
+
+Approving/editing/rejecting an AI draft deliberately does NOT set this
+(confirmed product decision, reported live: this used to also flip
+human_owned, which silently downgraded every conversation to manual-only
+forever after the first approve click -- even on tenants configured for
+full autonomous mode. The bot should keep answering every query
+autonomously through the whole info-gathering phase regardless of how
+many drafts a human has approved.
 """
 import uuid
 from unittest.mock import patch
@@ -79,7 +87,13 @@ class TestTemplateSend:
 
 
 class TestApproveDraft:
-    def test_approving_a_draft_sets_human_owned(self, client, db, tenant_and_user, conversation):
+    def test_approving_a_draft_does_not_set_human_owned(self, client, db, tenant_and_user, conversation):
+        """Real bug, reported live: approving one AI draft used to
+        permanently lock the conversation to manual-only, even on a
+        tenant configured for full autonomous mode -- the bot stopped
+        auto-replying to every later guest message in that thread for no
+        reason a person would recognize as "taking over." Approving a
+        draft is a human reviewing one reply, not adopting the lead."""
         tenant_id = _tenant_id(tenant_and_user)
         msg = Message(
             id=str(uuid.uuid4()), tenant_id=tenant_id, conversation_id=conversation.id,
@@ -96,4 +110,4 @@ class TestApproveDraft:
             )
         assert resp.status_code == 200
         db.refresh(conversation)
-        assert conversation.human_owned is True
+        assert conversation.human_owned is False

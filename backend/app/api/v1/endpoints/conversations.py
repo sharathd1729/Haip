@@ -899,8 +899,15 @@ def approve_ai_draft(
     msg.was_approved = True
     msg.sender_id = current_user.id
     msg.delivery_state = MessageDeliveryState.QUEUED
-    if conversation is not None:
-        conversation.human_owned = True
+    # Real bug, reported live: this used to set conversation.human_owned =
+    # True unconditionally, which permanently downgraded the conversation
+    # to manual-only for every future guest message -- even on tenants
+    # configured for full autonomous mode, and even though approving a
+    # draft isn't a human "taking over," it's a human reviewing one reply.
+    # Confirmed product decision: the bot should keep answering every
+    # query autonomously through the whole info-gathering phase regardless
+    # of how many drafts get approved -- see ai_mode_service.py's
+    # docstring for the real handoff signals this no longer includes.
 
     ai_draft_outcomes_service.record_outcome(
         db, tenant_id=current_user.tenant_id, draft=msg,
