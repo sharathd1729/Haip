@@ -1,7 +1,7 @@
 "use client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { ExternalLink, Star, Sparkles, Calendar, Users, Wallet, Phone, Mail, Loader2, MapPin, Heart, MessageSquare, FileText } from "@/lib/icons";
+import { Star, Sparkles, Calendar, Users, Wallet, Phone, Mail, Loader2, MapPin, Heart, MessageSquare, FileText } from "@/lib/icons";
 import { Bed, UserCheck } from "lucide-react";
 import { ChannelIcon, channelLabel } from "./ChannelIcon";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -549,17 +549,6 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
         )}
       </div>
 
-      {/* Footer */}
-      <div className="px-4 py-3 flex-shrink-0" style={{ borderTop: "1px solid var(--haip-border)" }}>
-        <a
-          href={`/dashboard/guests?phone=${encodeURIComponent(detail.guest_phone)}`}
-          className="flex items-center gap-1.5 text-xs font-medium transition-colors duration-150"
-          style={{ color: "var(--primary)" }}
-        >
-          <ExternalLink size={11} />
-          View full Guest 360
-        </a>
-      </div>
     </div>
   );
 }
