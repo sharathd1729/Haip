@@ -219,8 +219,30 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
             # snapshot -- but it must not contradict the tenant's setting.
             ai_mode=(tenant.wa_ai_mode_default or "shadow"),
         )
-        db.add(conversation)
-        db.flush()
+        # Real bug, reported live on the Instagram side of this exact
+        # pattern: two webhook deliveries for the same guest arriving
+        # milliseconds apart both see "no open conversation" above and both
+        # try to create one, splitting the guest's messages across two
+        # "twin" conversations -- see migration 099 and
+        # process_instagram_dm.py's identical fix for the full story
+        # (confirmed root cause of a lead's travel dates silently never
+        # reaching generate_ai_summary.py). A SAVEPOINT, not a full
+        # db.rollback(), so losing this race only undoes the conversation
+        # insert, not anything RLS-scoped or already-committed earlier in
+        # this task.
+        try:
+            with db.begin_nested():
+                db.add(conversation)
+                db.flush()
+        except IntegrityError:
+            conversation = (
+                db.query(Conversation)
+                .filter_by(tenant_id=tenant.id, guest_id=guest_id, channel=ChannelType.WHATSAPP, is_open=True)
+                .first()
+            )
+            is_new_conversation = False
+            if conversation is None:
+                raise
 
     # Extract message body
     body = ""

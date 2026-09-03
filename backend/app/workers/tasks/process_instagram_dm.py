@@ -17,6 +17,7 @@ import uuid
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.core.database import SessionLocal
 from app.models.integration import Integration
@@ -127,8 +128,39 @@ def process_instagram_dm(self, payload: dict) -> dict:
                 # a hardcoded "shadow" for every tenant regardless of risk tolerance.
                 ai_mode=integration.tenant.ig_ai_mode_default if integration.tenant else "shadow",
             )
-            db.add(conversation)
-            db.flush()
+            # Real bug, reported live: two webhook deliveries for the same
+            # guest arriving milliseconds apart both saw "no open
+            # conversation" above and both tried to create one -- the
+            # guest's messages then split across two "twin" conversations,
+            # only one of which ever got linked to an inquiry, so
+            # generate_ai_summary.py silently missed whatever the guest
+            # said in the orphan twin (in the real case that broke, their
+            # travel dates and guest count -- never showed up anywhere in
+            # Leads360). Migration 099 makes this a hard DB constraint
+            # (partial unique index on tenant_id+guest_id+channel where
+            # is_open) instead of a race-prone check-then-insert.
+            #
+            # A SAVEPOINT (begin_nested), not a full db.rollback(), so
+            # losing this race only undoes the conversation insert -- not
+            # set_tenant_context()'s `SET LOCAL app.tenant_id` from earlier
+            # in this task (a full rollback would also revert that, since
+            # it's scoped to the outer transaction, and every query after
+            # would then silently return nothing under RLS) or the guest
+            # row (already committed by identity_service by this point).
+            try:
+                with db.begin_nested():
+                    db.add(conversation)
+                    db.flush()
+            except IntegrityError:
+                conversation = (
+                    db.query(Conversation)
+                    .filter_by(tenant_id=tenant_id, guest_id=guest_id, is_open=True)
+                    .filter(Conversation.channel == channel_val)
+                    .first()
+                )
+                is_new_conversation = False
+                if conversation is None:
+                    raise
 
         # ── Store message ──────────────────────────────────────────────────
         body = text or ""
