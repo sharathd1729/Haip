@@ -164,7 +164,24 @@ MAX_REPLY_ATTEMPTS = 2  # worst case ~2x the per-provider bound before falling b
 # generation is completely finished, however long that takes. A tight cap
 # bounds the worst case regardless of what's actually happening inside the
 # model.
-REPLY_MAX_TOKENS = 400
+#
+# Raised 400 -> 2048 after the Gemini migration: confirmed live via worker
+# logs (repeated finish_reason=MAX_TOKENS with only 50-70 *visible* output
+# tokens, and separately finish_reason=MALFORMED_FUNCTION_CALL) that
+# gemini-3.6-flash's hidden "thinking" tokens count against this same
+# budget -- gemini.py's own comment already names this failure mode for
+# "thinking model[s]" on complex FC schemas. At 400, the model was running
+# out of budget mid-thought before ever emitting the actual tool call,
+# every retry in the fallback chain (gemini-flash-latest, then a text-JSON
+# parse) inherited too little headroom to succeed either, and every guest
+# got the generic empty-completion holding reply instead of a real answer
+# -- happening repeatedly across many different conversations, not a rare
+# edge case. 2048 matches the identical fix already proven necessary for
+# the same root cause in generate_ai_summary.py. This doesn't loosen the
+# "under 45 words" guest-facing reply itself (still enforced by the
+# prompt) -- it only stops truncating the model's own reasoning before it
+# gets to write that reply.
+REPLY_MAX_TOKENS = 2048
 
 _MONEY_RE = re.compile(r"₹\s?[\d,]+(?:\.\d+)?")
 _AVAILABILITY_WORDS_RE = re.compile(
