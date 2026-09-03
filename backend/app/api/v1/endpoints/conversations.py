@@ -406,10 +406,16 @@ def send_message(
     db.add(msg)
 
     conv.last_message_at = datetime.now(timezone.utc).isoformat()
-    # An internal note was never seen by the guest -- it isn't "taking over"
-    # the conversation, so it must not force the AI into shadow mode.
-    if not body.is_internal:
-        conv.human_owned = True
+    # Real bug, reported live and reversed by explicit product decision:
+    # this used to set conv.human_owned = True on any manual send, which
+    # permanently downgraded the conversation to shadow mode (see
+    # ai_mode_service.py) -- nothing ever reset it, so one agent reply
+    # (even a routine saved-reply nudge) silently locked every future AI
+    # draft on this thread behind manual approval forever, contradicting
+    # the product's own "every message gets an autonomous reply" policy.
+    # A human sending one message is not a request to permanently take the
+    # AI off this conversation -- do not resurrect this without an explicit
+    # decision to do so.
     db.commit()
     db.refresh(msg)
 
@@ -503,7 +509,8 @@ def send_template_message(
     )
     db.add(msg)
     conv.last_message_at = datetime.now(timezone.utc).isoformat()
-    conv.human_owned = True
+    # See the send_message() comment above -- a manual send (a template
+    # reopening the WA window included) no longer forces shadow mode.
     db.commit()
     db.refresh(msg)
 

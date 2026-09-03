@@ -206,13 +206,14 @@ def test_inbound_dm_sends_push_notification(db):
     assert "hi, are villas available" in kwargs["body"]
 
 
-# ── Phone-in-text is the real handoff signal (confirmed product decision) ───
+# ── Phone-in-text is captured, but never forces the thread to shadow mode
+# (policy reversed after live reports -- see process_instagram_dm.py) ──────
 
-def test_guest_sharing_phone_number_sets_human_owned(db):
-    """The bot answers every query autonomously through the whole
-    info-gathering phase; the guest volunteering a real phone number is
-    the actual handoff point to a human agent, not a human happening to
-    approve a draft somewhere along the way."""
+def test_guest_sharing_phone_number_does_not_set_human_owned(db):
+    """Sharing a phone number is still captured as an identity signal (and
+    still promotes a stuck default-stage inquiry, see the test below), but
+    no longer forces this conversation into shadow mode -- an autonomous
+    tenant keeps auto-replying on this thread regardless."""
     tenant = _make_tenant(db, ig_ai_mode_default="autonomous")
     integration = _make_ig_integration(db, tenant.id)
 
@@ -221,7 +222,7 @@ def test_guest_sharing_phone_number_sets_human_owned(db):
     assert result["status"] == "ok"
     conv = db.query(Conversation).filter_by(tenant_id=tenant.id).first()
     assert conv is not None
-    assert conv.human_owned is True
+    assert conv.human_owned is False
 
 
 def test_message_without_phone_number_does_not_set_human_owned(db):
@@ -234,3 +235,40 @@ def test_message_without_phone_number_does_not_set_human_owned(db):
     conv = db.query(Conversation).filter_by(tenant_id=tenant.id).first()
     assert conv is not None
     assert conv.human_owned is False
+
+
+def test_phone_shared_on_a_later_message_promotes_stuck_default_stage_inquiry(db):
+    """Real bug, reported live: an opener with no phone lands the inquiry in
+    the tenant's default (invalid-category) entry stage -- lead_auto_create
+    only routes at inquiry-creation time. If the guest then shares their
+    phone number a message or two later (the common case), nothing used to
+    re-evaluate the stage: the lead stayed stuck as e.g. "Unqualified"
+    forever even though it now has exactly the info that stage was waiting
+    on, and never surfaced in the "Shared their details" dashboard widget
+    (which only counts valid-category stages)."""
+    from app.services.pipeline_stage_service import seed_default_pipeline_stages
+    from app.models.pipeline_stage import PipelineStage
+    from app.models.conversation import Conversation as Conv
+
+    tenant = _make_tenant(db, ig_ai_mode_default="autonomous")
+    integration = _make_ig_integration(db, tenant.id)
+    seed_default_pipeline_stages(db, tenant.id)
+    db.commit()
+
+    result, _ = _run_dm_task(db, tenant, integration, sender_id="guest-latephone-001", text="Hi, are villas available?")
+    assert result["status"] == "ok"
+
+    conv = db.query(Conv).filter_by(tenant_id=tenant.id).first()
+    assert conv is not None and conv.inquiry_id is not None
+    from app.models.inquiry import Inquiry
+    inquiry = db.query(Inquiry).filter_by(id=conv.inquiry_id).first()
+    default_stage = db.query(PipelineStage).filter_by(tenant_id=tenant.id, is_default_entry=True).first()
+    assert inquiry.stage_id == default_stage.id  # confirms it landed stuck, per the bug
+
+    result2, _ = _run_dm_task(db, tenant, integration, sender_id="guest-latephone-001", text="You can reach me at 9876543210")
+    assert result2["status"] == "ok"
+
+    db.refresh(inquiry)
+    valid_stage = db.query(PipelineStage).filter_by(tenant_id=tenant.id, is_valid_lead_entry=True).first()
+    assert inquiry.stage_id == valid_stage.id
+    assert conv.human_owned is False  # phone capture no longer forces shadow mode

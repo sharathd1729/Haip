@@ -74,11 +74,16 @@ def test_missing_tenant_is_safe():
     assert ams.resolve_mode(None, _C()) == "shadow"
 
 
-# ─── human_owned (auto-shadow on handoff) ─────────────────────────────────────
+# ─── human_owned no longer affects mode resolution ─────────────────────────
+# Policy reversed after live reports: human_owned used to force shadow mode
+# the moment a human replied or a phone was captured, and nothing ever reset
+# it, so a thread stayed locked to manual-only approval forever -- even on
+# an autonomous tenant. resolve_mode() no longer reads the column at all;
+# these are regression guards that it stays fully inert regardless of value.
 
-def test_human_owned_forces_shadow_over_autonomous_default():
+def test_human_owned_true_no_longer_forces_shadow():
     t = _T(wa="autonomous")
-    assert ams.resolve_mode(t, _C(human_owned=True)) == "shadow"
+    assert ams.resolve_mode(t, _C(human_owned=True)) == "autonomous"
 
 
 def test_human_owned_false_leaves_autonomous_default_intact():
@@ -86,14 +91,12 @@ def test_human_owned_false_leaves_autonomous_default_intact():
     assert ams.resolve_mode(t, _C(human_owned=False)) == "autonomous"
 
 
-def test_explicit_off_still_wins_over_human_owned():
-    """Muting a thread is a stronger, more explicit decision than the
-    implicit "a human replied once" signal -- off must still win."""
+def test_explicit_off_still_wins_regardless_of_human_owned():
     t = _T(wa="autonomous")
     assert ams.resolve_mode(t, _C(ai_mode="off", human_owned=True)) == "off"
 
 
-def test_kill_switch_still_wins_over_human_owned():
+def test_kill_switch_still_wins_regardless_of_human_owned():
     t = _T(wa="autonomous", kill=True)
     assert ams.resolve_mode(t, _C(human_owned=True)) == "shadow"
 

@@ -5,8 +5,12 @@ requests, upsell, lead quality, close status, and the synthesized
 ai_lead_analysis paragraph.
 
 Scoped to real human involvement, not bot-only threads:
-  - a WhatsApp/Instagram conversation with Conversation.human_owned=True
-    where THIS agent sent an outbound message that day, or
+  - a WhatsApp/Instagram conversation where THIS agent personally sent an
+    outbound message that day (Message.sender_id == agent.id -- an AI-sent
+    message never carries a sender_id, so this alone already excludes
+    bot-only threads; previously also gated on Conversation.human_owned,
+    dropped when that flag stopped being set -- see ai_mode_service.py),
+    or
   - a call with Call.agent_id set to this agent that day.
 
 One card per Inquiry (a lead touched via both a call and a human-owned
@@ -75,7 +79,6 @@ def get_agent_lead_cards(db: Session, tenant_id: str, agent: User, target: str) 
         .join(Message, Message.conversation_id == Conversation.id)
         .filter(
             Conversation.tenant_id == tenant_id,
-            Conversation.human_owned.is_(True),
             Conversation.inquiry_id.isnot(None),
             Message.sender_id == agent.id,
             Message.direction == MessageDirection.OUTBOUND,
@@ -114,7 +117,7 @@ def get_agent_lead_cards(db: Session, tenant_id: str, agent: User, target: str) 
         db.query(Message, Conversation)
         .join(Conversation, Conversation.id == Message.conversation_id)
         .filter(
-            Conversation.inquiry_id.in_(inquiry_ids), Conversation.human_owned.is_(True),
+            Conversation.inquiry_id.in_(inquiry_ids),
             Message.sender_id == agent.id, Message.direction == MessageDirection.OUTBOUND,
             Message.is_internal.is_(False),
             Message.created_at >= start_dt, Message.created_at <= end_dt,

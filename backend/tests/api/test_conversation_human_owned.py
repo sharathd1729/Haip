@@ -1,17 +1,19 @@
-"""Auto-shadow on real handoff: the first time a human agent sends or
-template-sends their own message in a conversation, Conversation.
-human_owned flips True -- ai_mode_service.resolve_mode() then forces
-shadow mode regardless of the tenant's autonomous default, so the bot
-never auto-sends into a thread a person is actively working. An internal
-note (never seen by the guest) must not count as taking over.
+"""Conversation.human_owned no longer auto-sets on a manual send.
 
-Approving/editing/rejecting an AI draft deliberately does NOT set this
-(confirmed product decision, reported live: this used to also flip
-human_owned, which silently downgraded every conversation to manual-only
-forever after the first approve click -- even on tenants configured for
-full autonomous mode. The bot should keep answering every query
-autonomously through the whole info-gathering phase regardless of how
-many drafts a human has approved.
+Policy reversed after live reports: a manual send/template-send used to
+flip Conversation.human_owned True, which made ai_mode_service.resolve_mode()
+permanently force shadow mode on that thread regardless of the tenant's
+autonomous default -- one routine agent reply (even a saved-reply nudge)
+silently locked every future AI draft on that conversation behind manual
+approval forever. Confirmed product decision: every message gets an
+autonomous reply, whether or not a human has ever manually replied in the
+thread. Nothing in the codebase sets human_owned=True any more; the column/
+mechanism stays (ai_mode_service.py still honors it) in case a future,
+explicit "hand this lead off to me" action needs it, but no current call
+site fires it.
+
+Approving/editing/rejecting an AI draft was already confirmed to not set
+this (see TestApproveDraft below) -- that decision is unchanged.
 """
 import uuid
 from unittest.mock import patch
@@ -39,7 +41,7 @@ def conversation(db, tenant_and_user):
 
 
 class TestManualSend:
-    def test_sending_a_reply_sets_human_owned(self, client, db, tenant_and_user, conversation):
+    def test_sending_a_reply_does_not_set_human_owned(self, client, db, tenant_and_user, conversation):
         headers = {"Authorization": f"Bearer {tenant_and_user['access_token']}"}
         resp = client.post(
             f"/api/v1/conversations/{conversation.id}/messages",
@@ -48,7 +50,7 @@ class TestManualSend:
         )
         assert resp.status_code == 201
         db.refresh(conversation)
-        assert conversation.human_owned is True
+        assert conversation.human_owned is False
 
     def test_internal_note_does_not_set_human_owned(self, client, db, tenant_and_user, conversation):
         """An internal note is never seen by the guest -- it isn't taking
@@ -65,7 +67,7 @@ class TestManualSend:
 
 
 class TestTemplateSend:
-    def test_sending_a_template_sets_human_owned(self, client, db, tenant_and_user, conversation):
+    def test_sending_a_template_does_not_set_human_owned(self, client, db, tenant_and_user, conversation):
         tenant_id = _tenant_id(tenant_and_user)
         tmpl = WATemplate(
             id=str(uuid.uuid4()), tenant_id=tenant_id, name="booking_confirmation", language="en",
@@ -83,7 +85,7 @@ class TestTemplateSend:
             )
         assert resp.status_code == 201
         db.refresh(conversation)
-        assert conversation.human_owned is True
+        assert conversation.human_owned is False
 
 
 class TestApproveDraft:

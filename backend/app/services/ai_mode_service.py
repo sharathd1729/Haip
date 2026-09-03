@@ -13,24 +13,25 @@ the setting mean what the UI says it means.
 Precedence:
   1. conversation.ai_mode == "off"  -> off. An agent muting one thread is an
      explicit, per-thread decision and always wins.
-  2. conversation.human_owned == True -> shadow. Set only by a real handoff
-     signal -- a human agent manually composing/sending their own message
-     (not approving an AI draft), or the guest's phone number being
-     captured (the point the product wants a human taking over a call).
-     Approving/editing/rejecting an AI draft does NOT set this: confirmed
-     product decision -- the bot should keep answering every query
-     autonomously through the whole info-gathering phase regardless of how
-     many drafts a human has approved, right up until the real handoff
-     signal fires. Previously any draft approval set this, which silently
-     downgraded a conversation to manual-only forever after the first
-     approve click, even on tenants configured for full autonomous mode.
-  3. tenant.<channel>_ai_mode_default -> the tenant's current policy.
+  2. tenant.<channel>_ai_mode_default -> the tenant's current policy.
 
 Note the asymmetry is deliberate: a per-conversation "off" overrides the
 tenant, but a per-conversation "shadow"/"autonomous" on `ai_mode` does not.
 Those values are almost always just the stale snapshot taken at creation
-time, not a decision anyone made -- human_owned is the real signal for
-"someone is actively handling this."
+time, not a decision anyone made.
+
+`Conversation.human_owned` previously forced shadow mode here too, on the
+theory that a manual reply or a captured phone number was a real handoff
+signal. Reversed by explicit product decision after live reports: nothing
+ever reset the flag, so one manual reply (or the guest sharing their phone,
+which the bot itself was supposed to keep handling) silently locked a
+thread to manual-only approval forever -- contradicting the product's own
+"every message gets an autonomous reply" policy. The column and the
+call sites that used to set it are gone; do not resurrect this gate without
+an explicit decision to do so, and if it comes back, it needs a data
+backfill too -- resolve_mode() no longer reads it, so existing rows with
+human_owned=True from before this change are not stuck, but a future
+gate reading the column again would need those reset first.
 """
 
 from __future__ import annotations
@@ -69,9 +70,6 @@ def resolve_mode(tenant, conversation) -> str:
 
     if conversation is not None and (conversation.ai_mode or "").lower() == "off":
         return "off"
-
-    if conversation is not None and getattr(conversation, "human_owned", False):
-        return "shadow"
 
     prefix = _channel_key(getattr(conversation, "channel", None))
     if prefix is None or tenant is None:

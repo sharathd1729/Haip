@@ -207,14 +207,54 @@ def process_instagram_dm(self, payload: dict) -> dict:
                     identity_service.add_signal(
                         db, tenant_id, guest_id, "phone", phone, source="message_text",
                     )
-                    # Confirmed product decision: the guest volunteering
-                    # their phone number is the real signal to hand this
-                    # conversation off to a human agent (who calls them
-                    # with the full details) -- the bot has been answering
-                    # every query autonomously up to this exact point
-                    # (see ai_mode_service.py), and this is where that
-                    # stops, not when a human happens to approve a draft.
-                    conversation.human_owned = True
+                    # Product decision reversed after live reports: this
+                    # used to set conversation.human_owned = True here,
+                    # permanently downgrading the thread to shadow mode
+                    # (ai_mode_service.py) the moment a phone appeared --
+                    # nothing ever reset it, so autonomous tenants stopped
+                    # auto-replying on this thread forever, even for
+                    # routine follow-ups. Every message gets an autonomous
+                    # reply now, phone captured or not; do not resurrect
+                    # this without an explicit decision to do so.
+
+                    # Real bug, reported live: a phone shared on a message
+                    # AFTER the opener (the common case -- lead_auto_create
+                    # only routes the entry stage at inquiry-creation time,
+                    # gated on is_new_conversation below) left the inquiry
+                    # stuck in the default/invalid stage forever -- nothing
+                    # ever re-evaluated it once the guest actually gave us
+                    # the exact info that stage was waiting on, so it never
+                    # surfaced in "Shared their details" (that widget only
+                    # counts valid-category stages). Promote it now, same
+                    # target stage lead_auto_create.resolve_entry_stage_id()
+                    # would have picked had the phone been present at
+                    # creation time. Only fires from the tenant's default
+                    # entry stage -- a lead an agent already moved further
+                    # (Active, Unsuitable, ...) is left alone.
+                    if conversation.inquiry_id:
+                        from app.models.inquiry import Inquiry
+                        from app.models.pipeline_stage import PipelineStage
+                        inquiry = db.query(Inquiry).filter_by(
+                            id=conversation.inquiry_id, tenant_id=tenant_id,
+                        ).first()
+                        current_stage = (
+                            db.query(PipelineStage)
+                            .filter_by(id=inquiry.stage_id, tenant_id=tenant_id)
+                            .first()
+                            if inquiry and inquiry.stage_id else None
+                        )
+                        if current_stage and current_stage.is_default_entry:
+                            valid_stage = db.query(PipelineStage).filter_by(
+                                tenant_id=tenant_id, is_valid_lead_entry=True,
+                            ).first()
+                            if valid_stage:
+                                from app.services import inquiry_service
+                                inquiry_service.update_stage_by_id(
+                                    db, tenant_id=tenant_id, inquiry_id=inquiry.id,
+                                    new_stage_id=valid_stage.id,
+                                    actor_user_id="system", actor_role="system",
+                                    reason="Guest shared phone number in conversation",
+                                )
                     db.commit()
             except Exception as exc:
                 db.rollback()
