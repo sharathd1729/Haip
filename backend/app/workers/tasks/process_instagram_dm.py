@@ -249,10 +249,25 @@ def process_instagram_dm(self, payload: dict) -> dict:
                             ).first()
                             if valid_stage:
                                 from app.services import inquiry_service
+                                # actor_user_id=None, not "system" -- it
+                                # flows into audit_events.actor_user_id,
+                                # which has a real FK to users.id. A fake
+                                # sentinel string there violates the FK at
+                                # flush time (inside append_audit's own
+                                # try/except, but the actual INSERT is
+                                # deferred by SQLAlchemy to flush/commit,
+                                # by which point that try/except has
+                                # already exited -- so it wasn't actually
+                                # best-effort here, it crashed the whole
+                                # db.commit() below, silently rolling back
+                                # the phone signal capture too. Confirmed
+                                # live via a FK violation on this exact
+                                # call. None is a legitimate value for the
+                                # nullable FK column; "system" is not.
                                 inquiry_service.update_stage_by_id(
                                     db, tenant_id=tenant_id, inquiry_id=inquiry.id,
                                     new_stage_id=valid_stage.id,
-                                    actor_user_id="system", actor_role="system",
+                                    actor_user_id=None, actor_role="system",
                                     reason="Guest shared phone number in conversation",
                                 )
                     db.commit()

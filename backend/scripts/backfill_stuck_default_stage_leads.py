@@ -88,10 +88,15 @@ def main():
                       f"inquiry={inquiry.id} guest={inquiry.guest_id} "
                       f"'{default_stage.label}' -> '{valid_stage.label}'")
                 if not args.dry_run:
+                    # actor_user_id=None, not "system" -- audit_events.actor_user_id
+                    # has a real FK to users.id, and a fake sentinel string
+                    # violates it at flush time (confirmed live: crashed the
+                    # first real run of this script). None is valid for the
+                    # nullable FK column.
                     inquiry_service.update_stage_by_id(
                         db, tenant_id=tenant_id, inquiry_id=inquiry.id,
                         new_stage_id=valid_stage.id,
-                        actor_user_id="system", actor_role="system",
+                        actor_user_id=None, actor_role="system",
                         reason="Backfill: guest had already shared contact details",
                     )
                     db.commit()
