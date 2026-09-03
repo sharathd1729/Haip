@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { Send, Sparkles, Loader2, BellOff, Search, X, StickyNote, Reply, ChevronDown, ChevronLeft, CalendarClock, Timer, AlertTriangle, LayoutTemplate, Phone, Languages, Wand2, User } from "@/lib/icons";
+import { Send, Sparkles, Loader2, BellOff, Search, X, StickyNote, Reply, ChevronDown, ChevronLeft, ChevronRight, CalendarClock, Timer, AlertTriangle, LayoutTemplate, Phone, Languages, Wand2, User } from "@/lib/icons";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
@@ -149,19 +149,55 @@ function ChannelFilterRow({
     const el = scrollRef.current;
     if (!el) return;
     el.addEventListener("scroll", updateFades, { passive: true });
-    return () => el.removeEventListener("scroll", updateFades);
+    // Recompute on resize too -- filters.length can push this from
+    // non-overflowing to overflowing (or back) as the panel resizes.
+    window.addEventListener("resize", updateFades);
+    return () => {
+      el.removeEventListener("scroll", updateFades);
+      window.removeEventListener("resize", updateFades);
+    };
   }, []);
+
+  // Real bug, reported live: the fade gradients were the only "there's
+  // more" signal, and the scroll container itself hides its native
+  // scrollbar (scrollbar-hide) -- on a plain mouse with no trackpad/touch,
+  // there was no discoverable, clickable way to actually scroll this row
+  // at all. These buttons are that control.
+  function scrollByAmount(direction: 1 | -1) {
+    scrollRef.current?.scrollBy({ left: direction * 140, behavior: "smooth" });
+  }
 
   return (
     <div className="relative">
-      {/* Left fade */}
       {canScrollLeft && (
-        <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-6 z-10"
-          style={{ background: "linear-gradient(to right, var(--haip-card), transparent)" }} />
+        <>
+          <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-6 z-10"
+            style={{ background: "linear-gradient(to right, var(--haip-card), transparent)" }} />
+          <button
+            type="button"
+            aria-label="Scroll channel filters left"
+            onClick={() => scrollByAmount(-1)}
+            className="absolute left-0 top-1/2 -translate-y-1/2 z-20 flex items-center justify-center w-6 h-6 rounded-full"
+            style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", color: "var(--haip-fg-muted)" }}
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+          </button>
+        </>
       )}
       {canScrollRight && (
-        <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 z-10"
-          style={{ background: "linear-gradient(to left, var(--haip-card), transparent)" }} />
+        <>
+          <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 z-10"
+            style={{ background: "linear-gradient(to left, var(--haip-card), transparent)" }} />
+          <button
+            type="button"
+            aria-label="Scroll channel filters right"
+            onClick={() => scrollByAmount(1)}
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-20 flex items-center justify-center w-6 h-6 rounded-full"
+            style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", color: "var(--haip-fg-muted)" }}
+          >
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </>
       )}
       <div
         ref={scrollRef}
