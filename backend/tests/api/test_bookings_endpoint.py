@@ -410,3 +410,24 @@ def test_update_booking_cross_tenant_404(client, db):
         json={"adults": 3},
     )
     assert resp.status_code == 404
+
+
+# ── GET /bookings?guest_id= ──────────────────────────────────────────────────
+
+def test_list_bookings_guest_id_filter_scopes_to_one_guest(client, db):
+    """Added for Profile 360's Booking section -- a guest's own stays only,
+    not the tenant's whole booking list."""
+    tenant = _make_tenant(db, "GuestFilterTenant")
+    user = _make_user(db, tenant.id)
+    prop = _make_property(db, tenant.id)
+    guest_a = _make_guest(db, tenant.id, name="Guest A", phone="+919999900001")
+    guest_b = _make_guest(db, tenant.id, name="Guest B", phone="+919999900002")
+    _make_stay(db, tenant.id, guest_a.id, prop.id)
+    _make_stay(db, tenant.id, guest_b.id, prop.id)
+    db.commit()
+
+    resp = client.get(f"/api/v1/bookings?guest_id={guest_a.id}", headers=_auth(_token(user)))
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["meta"]["total"] == 1
+    assert body["data"][0]["main_guest"]["first_name"] == "Guest"

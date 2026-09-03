@@ -68,6 +68,7 @@ def list_calls(
     limit: int = 20,
     direction: Optional[str] = None,
     agent_id: Optional[str] = None,
+    guest_id: Optional[str] = None,
     missed: Optional[bool] = None,
     date_preset: Optional[str] = None,
     date_from: Optional[str] = None,
@@ -97,6 +98,8 @@ def list_calls(
         q = q.filter(Call.direction == direction)
     if agent_id:
         q = q.filter(Call.agent_id == agent_id)
+    if guest_id:
+        q = q.filter(Call.guest_id == guest_id)
     # A missed call is specifically an unanswered inbound call -- see
     # _guest_facing_number's docstring for why outbound no-answers don't
     # count. Pass missed=true for the Calls page's "Missed" chip, or
