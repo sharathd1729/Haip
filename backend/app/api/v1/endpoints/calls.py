@@ -3,6 +3,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from typing import Optional
 from pathlib import Path
+import hashlib
 import mimetypes
 import os
 import uuid
@@ -33,6 +34,11 @@ ALLOWED_AUDIO_TYPES = {
 }
 ALLOWED_AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".ogg", ".webm", ".aac", ".flac"}
 MAX_FILE_MB = 200
+
+
+def _phone_token(phone: str) -> str:
+    """One-way hash for log correlation without exposing PII phone numbers."""
+    return hashlib.sha256(phone.encode()).hexdigest()[:12]
 
 
 class ClickToCallRequest(BaseModel):
@@ -454,6 +460,14 @@ async def click_to_call(
         # number; forward_number is now only the last-resort fallback for
         # an agent who hasn't set a phone at all.
         agent_number = req.agent_number or current_user.phone or forward_number
+        # Real data found live: a Profile-page phone can carry a stray
+        # space (e.g. "+91 8971946202") -- fine for display, but sent
+        # raw into Vobiz's HTTP API `to` field it's an unvalidated string,
+        # not a parsed phone number, so a malformed value there risks the
+        # call routing unpredictably instead of failing loudly. Normalize
+        # right before it leaves HAIP; storage/display are untouched.
+        from app.services.guest_service import normalize_phone
+        agent_number = normalize_phone(agent_number)
         missing = [
             name for name, val in [
                 ("did_number", did_number), ("webhook_secret", webhook_secret), ("agent_number", agent_number),
@@ -495,6 +509,9 @@ async def click_to_call(
             raise HTTPException(status_code=502, detail=detail) from exc
     else:
         agent_number = req.agent_number or current_user.phone
+        if agent_number:
+            from app.services.guest_service import normalize_phone
+            agent_number = normalize_phone(agent_number)
         if not agent_number:
             raise HTTPException(
                 status_code=400,
@@ -506,7 +523,20 @@ async def click_to_call(
     from app.workers.tasks.call_ingest import cache_click_to_call_agent
     cache_click_to_call_agent(current_user.tenant_id, call_id, current_user.id)
 
-    log.info("click_to_call_initiated", tenant=current_user.tenant_id, provider=provider, call_id=call_id)
+    # Hashed, not raw -- but real enough to answer "did this ring the
+    # clicking agent's own number or fall back?" without needing to
+    # reproduce the bug live. Missing before: a real report of every
+    # agent's calls ringing the tenant's shared forward_number had no log
+    # trail to confirm from, since container restarts wipe prior logs and
+    # click-to-call itself creates no DB row (only the later webhook does).
+    log.info(
+        "click_to_call_initiated",
+        tenant=current_user.tenant_id, user_id=current_user.id, provider=provider,
+        call_id=call_id, agent_number_token=_phone_token(agent_number),
+        used_fallback_forward_number=bool(
+            provider == "vobiz" and not req.agent_number and not current_user.phone
+        ),
+    )
     return {"status": "initiated", "provider_call_id": call_id}
 
 

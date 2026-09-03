@@ -57,6 +57,13 @@ def update_me(
     Cannot change role or is_active (use /users/{id} for that, owner-only).
     """
     changes = body.model_dump(exclude_none=True)
+    if "phone" in changes and changes["phone"]:
+        # Real data found live: a Profile-page phone saved with a stray
+        # space ("+91 8971946202") passes fine for display but is sent raw
+        # into the IVR provider's HTTP API when this agent is called via
+        # click-to-call -- normalize on save so it can't happen again.
+        from app.services.guest_service import normalize_phone
+        changes["phone"] = normalize_phone(changes["phone"])
     for field, value in changes.items():
         setattr(current_user, field, value)
     db.commit()
