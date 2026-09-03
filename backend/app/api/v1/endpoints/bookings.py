@@ -108,6 +108,12 @@ def _seq_for_stay(db: Session, tenant_id: str, stay_id: str) -> int:
 @router.get("")
 def list_bookings(
     search: Optional[str] = Query(None),
+    # Real gap, reported live: the Guest 360 detail page (guests/[id]) needs
+    # one guest's stays, but this endpoint had no way to scope to a single
+    # guest -- `search` is a fuzzy Guest.name/phone LIKE match, not a safe
+    # substitute (two guests sharing a name/phone prefix would leak into
+    # each other's list).
+    guest_id: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     channel: Optional[str] = Query(None),
     sort: str = Query("newest"),
@@ -147,6 +153,8 @@ def list_bookings(
         .filter(Stay.tenant_id == tenant_id)
     )
 
+    if guest_id:
+        q = q.filter(Stay.guest_id == guest_id)
     if status:
         q = q.filter(Stay.status == status)
     if channel:

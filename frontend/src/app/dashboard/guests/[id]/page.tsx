@@ -13,23 +13,48 @@ import { useToast } from "@/components/ui/toast";
 
 interface GuestDetail {
   id: string;
-  full_name?: string;
+  // Real bug, reported live: the field on GuestOut is `name`, not
+  // `full_name` -- this was always undefined, silently falling back to
+  // the phone number everywhere it's used.
+  name?: string;
   phone: string;
   email?: string;
   tags?: string[];
   predicted_csat?: number;
   lifetime_value?: number;
-  consent_recording?: boolean;
-  created_at: string;
-  timeline: Array<{
-    type: "call" | "message" | "stay" | "inquiry";
-    title: string;
-    subtitle?: string;
-    timestamp: string;
-    score?: number;
-  }>;
-  inquiries: Array<{ id: string; stage: string; property_name?: string; check_in?: string; budget?: number }>;
-  stays: Array<{ id: string; property_name?: string; check_in?: string; check_out?: string; status?: string }>;
+  created_at?: string;
+}
+
+// Real bug, reported live: this page's GuestDetail type declared
+// inquiries/stays as if GET /guests/{id} returned them bundled in -- it
+// never has (that endpoint's response_model is GuestOut, which has no
+// such fields). guest.inquiries.length / guest.stays.length threw on
+// every load. Fetched separately below instead, from the endpoints that
+// actually carry this data: GET /inquiries?guest_id= (already supports
+// guest-scoped filtering) and GET /bookings?guest_id= (guest_id filter
+// added alongside this fix -- didn't exist before). `timeline` was
+// already dead in this type -- the journey section below uses its own
+// <GuestJourney> component against GET /guests/{id}/journey, unrelated
+// to this fetch.
+interface GuestInquiry {
+  id: string;
+  stage: string;
+  property_id?: string | null;
+  check_in?: string | null;
+  budget?: number | null;
+}
+
+interface GuestStay {
+  id: string;
+  checkin?: string | null;
+  checkout?: string | null;
+  status?: string;
+  property?: { id: string; name: string } | null;
+}
+
+interface PropertyLite {
+  id: string;
+  name: string;
 }
 
 function formatDate(iso: string) {
@@ -45,6 +70,26 @@ export default function GuestDetailPage() {
     queryKey: ["guest", id],
     queryFn: () => api.get(`/guests/${id}`).then(r => r.data),
   });
+
+  const { data: inquiries = [] } = useQuery<GuestInquiry[]>({
+    queryKey: ["guest-inquiries", id],
+    queryFn: () => api.get(`/inquiries?guest_id=${id}`).then(r => r.data),
+    enabled: !!id,
+  });
+
+  const { data: stays = [] } = useQuery<GuestStay[]>({
+    queryKey: ["guest-stays", id],
+    queryFn: () => api.get(`/bookings?guest_id=${id}&per_page=100`).then(r => r.data.data),
+    enabled: !!id,
+  });
+
+  const { data: properties = [] } = useQuery<PropertyLite[]>({
+    queryKey: ["properties-lite"],
+    queryFn: () => api.get("/properties").then(r => r.data),
+    staleTime: 5 * 60_000,
+  });
+  const propertyName = (propertyId?: string | null) =>
+    properties.find(p => p.id === propertyId)?.name;
 
   const handleDpdpDelete = async () => {
     if (!confirm("This will permanently delete all personal data for this guest. This action cannot be undone.")) return;
@@ -78,9 +123,9 @@ export default function GuestDetailPage() {
           {/* Profile */}
           <div className="haip-card p-5 shadow-sm">
             <div className="flex items-start gap-4 mb-5">
-              <GuestAvatar name={guest.full_name} phone={guest.phone} size="lg" />
+              <GuestAvatar name={guest.name} phone={guest.phone} size="lg" />
               <div className="flex-1 min-w-0">
-                <h1 className="haip-page-title truncate">{guest.full_name || guest.phone}</h1>
+                <h1 className="haip-page-title truncate">{guest.name || guest.phone}</h1>
                 <div className="flex items-center gap-1.5 mt-1">
                   <Phone size={12} className="text-gray-400" />
                   <span className="text-sm text-gray-500">{guest.phone}</span>
@@ -123,9 +168,11 @@ export default function GuestDetailPage() {
               </div>
             </div>
 
-            <p className="text-xs text-gray-400 mt-3 text-center">
-              Guest since {formatDate(guest.created_at)}
-            </p>
+            {guest.created_at && (
+              <p className="text-xs text-gray-400 mt-3 text-center">
+                Guest since {formatDate(guest.created_at)}
+              </p>
+            )}
           </div>
 
           {/* Inquiries */}
@@ -133,14 +180,14 @@ export default function GuestDetailPage() {
             <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
               <Star size={14} className="text-amber-400" /> Inquiries
             </h3>
-            {guest.inquiries.length === 0 ? (
+            {inquiries.length === 0 ? (
               <p className="text-xs text-gray-400">No inquiries yet</p>
             ) : (
               <div className="space-y-2">
-                {guest.inquiries.map(inq => (
+                {inquiries.map(inq => (
                   <div key={inq.id} className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl">
                     <div>
-                      <p className="text-xs font-medium text-gray-800">{inq.property_name || "Property"}</p>
+                      <p className="text-xs font-medium text-gray-800">{propertyName(inq.property_id) || "Property"}</p>
                       {inq.check_in && <p className="text-[11px] text-gray-400">{formatDate(inq.check_in)}</p>}
                     </div>
                     <Badge variant={
@@ -157,17 +204,17 @@ export default function GuestDetailPage() {
             <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
               <Home size={14} className="text-purple-400" /> Stays
             </h3>
-            {guest.stays.length === 0 ? (
+            {stays.length === 0 ? (
               <p className="text-xs text-gray-400">No stays yet</p>
             ) : (
               <div className="space-y-2">
-                {guest.stays.map(stay => (
+                {stays.map(stay => (
                   <div key={stay.id} className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl">
                     <div>
-                      <p className="text-xs font-medium text-gray-800">{stay.property_name || "Property"}</p>
-                      {stay.check_in && (
+                      <p className="text-xs font-medium text-gray-800">{stay.property?.name || "Property"}</p>
+                      {stay.checkin && (
                         <p className="text-[11px] text-gray-400">
-                          {formatDate(stay.check_in)}{stay.check_out && ` – ${formatDate(stay.check_out)}`}
+                          {formatDate(stay.checkin)}{stay.checkout && ` – ${formatDate(stay.checkout)}`}
                         </p>
                       )}
                     </div>
