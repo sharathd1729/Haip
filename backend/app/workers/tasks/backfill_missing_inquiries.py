@@ -32,12 +32,14 @@ from app.models.conversation import Conversation, Message, ChannelType, MessageD
 logger = logging.getLogger(__name__)
 
 
-def _first_qualifying_message(db, conversation_id: str, tenant_id: str) -> str | None:
+def _first_qualifying_message(db, conversation_id: str, tenant_id: str):
     """Earliest inbound message with real, substantive text -- mirrors the
     exact `body and not body.startswith("[")` check process_instagram_dm.py
-    applies live."""
+    applies live. Returns (body, created_at) so the caller can backdate the
+    inquiry to when the guest actually said this, not whenever this sweep
+    happened to run."""
     rows = (
-        db.query(Message.body)
+        db.query(Message.body, Message.created_at)
         .filter(
             Message.tenant_id == tenant_id,
             Message.conversation_id == conversation_id,
@@ -46,10 +48,10 @@ def _first_qualifying_message(db, conversation_id: str, tenant_id: str) -> str |
         .order_by(Message.created_at.asc())
         .all()
     )
-    for (body,) in rows:
+    for body, created_at in rows:
         if body and not body.startswith("["):
-            return body
-    return None
+            return body, created_at
+    return None, None
 
 
 @shared_task(name="backfill_missing_instagram_inquiries")
@@ -71,7 +73,7 @@ def backfill_missing_instagram_inquiries() -> dict:
         )
         created = 0
         for conv in conversations:
-            body = _first_qualifying_message(db, conv.id, conv.tenant_id)
+            body, message_at = _first_qualifying_message(db, conv.id, conv.tenant_id)
             if not body:
                 continue
             try:
@@ -80,6 +82,17 @@ def backfill_missing_instagram_inquiries() -> dict:
                     source=InquirySource.META_IG.value, message_text=body,
                 )
                 conv.inquiry_id = lead_inquiry.id
+                # Real bug, caught live: get_or_create_from_chat() defaults
+                # created_at to "now" (correct for a live message, wrong
+                # here) -- this inquiry is being created retroactively for
+                # something that happened whenever the guest actually sent
+                # this message, not whenever this hourly sweep happened to
+                # run. Left uncorrected once already: 348 inquiries backdated
+                # up to 7 weeks all landed with created_at=now, which
+                # inflated every "last 24h" dashboard metric until caught.
+                if message_at:
+                    lead_inquiry.created_at = message_at
+                    lead_inquiry.current_stage_entered_at = message_at
                 db.commit()
                 created += 1
             except Exception:

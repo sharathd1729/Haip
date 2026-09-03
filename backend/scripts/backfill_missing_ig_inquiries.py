@@ -26,6 +26,15 @@ Run:
   cd backend && python scripts/backfill_missing_ig_inquiries.py [--tenant-id ID] [--dry-run]
 
 Always run --dry-run first and read the output before the real pass.
+
+Real bug, caught live after the first real run of this script: the
+created inquiries all landed with created_at="now" (get_or_create_from_chat's
+default, correct for a live message, wrong here) instead of the date the
+guest actually sent the qualifying message -- 348 inquiries backdated up
+to 7 weeks all showed as "created today," inflating every last-24h
+dashboard metric until caught and corrected by hand. Fixed here: the
+inquiry's created_at/current_stage_entered_at are set to the qualifying
+message's own created_at right after creation.
 """
 
 import sys
@@ -40,9 +49,9 @@ from app.models.conversation import Conversation, Message, ChannelType, MessageD
 def _first_qualifying_message(db, conversation_id: str, tenant_id: str):
     """Earliest inbound message with real, substantive text -- mirrors the
     exact `body and not body.startswith("[")` check process_instagram_dm.py
-    applies live."""
+    applies live. Returns (body, created_at)."""
     rows = (
-        db.query(Message.body)
+        db.query(Message.body, Message.created_at)
         .filter(
             Message.tenant_id == tenant_id,
             Message.conversation_id == conversation_id,
@@ -51,10 +60,10 @@ def _first_qualifying_message(db, conversation_id: str, tenant_id: str):
         .order_by(Message.created_at.asc())
         .all()
     )
-    for (body,) in rows:
+    for body, created_at in rows:
         if body and not body.startswith("["):
-            return body
-    return None
+            return body, created_at
+    return None, None
 
 
 def main():
@@ -80,20 +89,23 @@ def main():
         created = 0
         skipped_no_text = 0
         for conv in conversations:
-            body = _first_qualifying_message(db, conv.id, conv.tenant_id)
+            body, message_at = _first_qualifying_message(db, conv.id, conv.tenant_id)
             if not body:
                 skipped_no_text += 1
                 continue
 
             print(f"  {'[dry-run] would create' if args.dry_run else 'creating'} inquiry "
                   f"conversation={conv.id} guest={conv.guest_id} "
-                  f"from: {body[:70]!r}")
+                  f"dated {message_at} from: {body[:70]!r}")
             if not args.dry_run:
                 lead_inquiry = get_or_create_from_chat(
                     db, conv.tenant_id, conv.guest_id,
                     source=InquirySource.META_IG.value, message_text=body,
                 )
                 conv.inquiry_id = lead_inquiry.id
+                if message_at:
+                    lead_inquiry.created_at = message_at
+                    lead_inquiry.current_stage_entered_at = message_at
                 db.commit()
             created += 1
 

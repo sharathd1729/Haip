@@ -68,7 +68,7 @@ def test_creates_inquiry_for_conversation_with_real_text_and_no_inquiry_id(db):
     guest = _make_guest(db, tenant.id)
     conv = _make_conversation(db, tenant.id, guest.id, inquiry_id=None)
     _add_inbound(db, tenant.id, conv.id, "[ig_post]", offset_seconds=0)
-    _add_inbound(db, tenant.id, conv.id, "How much do your services cost?", offset_seconds=1)
+    real_msg = _add_inbound(db, tenant.id, conv.id, "How much do your services cost?", offset_seconds=1)
     db.commit()
 
     result = _run_backfill(db)
@@ -76,6 +76,37 @@ def test_creates_inquiry_for_conversation_with_real_text_and_no_inquiry_id(db):
     assert result["created"] == 1
     db.refresh(conv)
     assert conv.inquiry_id is not None
+
+
+def test_backdates_inquiry_to_the_qualifying_messages_real_date(db):
+    """Real bug, caught live: the first real run of this exact pattern
+    left created_at at "now" (get_or_create_from_chat's default) instead
+    of when the guest actually sent the message -- 348 inquiries backdated
+    up to 7 weeks all showed as created today, inflating every last-24h
+    dashboard metric until caught and corrected by hand."""
+    from app.models.inquiry import Inquiry
+
+    tenant = _make_tenant(db)
+    guest = _make_guest(db, tenant.id)
+    conv = _make_conversation(db, tenant.id, guest.id, inquiry_id=None)
+    old_timestamp = datetime.now(timezone.utc) - timedelta(days=45)
+    m = Message(
+        id=str(uuid.uuid4()), tenant_id=tenant.id, conversation_id=conv.id,
+        direction=MessageDirection.INBOUND, channel=ChannelType.INSTAGRAM,
+        body="How much do your services cost?", created_at=old_timestamp,
+    )
+    db.add(m)
+    db.commit()
+
+    result = _run_backfill(db)
+
+    assert result["created"] == 1
+    db.refresh(conv)
+    inquiry = db.query(Inquiry).filter_by(id=conv.inquiry_id).first()
+    # SQLite (this test DB) drops tzinfo on round-trip, unlike Postgres
+    # (prod) -- compare naive to naive, the values themselves must match.
+    assert inquiry.created_at.replace(tzinfo=None) == old_timestamp.replace(tzinfo=None)
+    assert inquiry.current_stage_entered_at.replace(tzinfo=None) == old_timestamp.replace(tzinfo=None)
 
 
 def test_skips_conversation_with_no_real_text(db):
