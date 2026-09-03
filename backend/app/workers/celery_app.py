@@ -84,6 +84,9 @@ celery_app = Celery(
         "app.workers.tasks.module_activation",
         # Today (Worklist) AI Daily Briefing
         "app.workers.tasks.daily_briefing",
+        # Hourly safety net: create any Instagram inquiry the gate fix
+        # (commit b72565e) should have created but somehow didn't
+        "app.workers.tasks.backfill_missing_inquiries",
     ],
 )
 
@@ -209,6 +212,7 @@ celery_app.conf.update(
         "calls.recover_stalled_scoring":              {"queue": "ai_scoring"},
         "calls.recover_stalled_scoring_all_tenants":  {"queue": "ai_scoring"},
         "tasks.daily_briefing.generate":              {"queue": "ai_scoring"},
+        "backfill_missing_instagram_inquiries":       {"queue": "ai_scoring"},
     },
 )
 
@@ -263,6 +267,13 @@ celery_app.conf.beat_schedule = {
     "owner-digest-hourly": {
         "task": "app.workers.tasks.owner_digest.orchestrate",
         "schedule": crontab(minute=0),
+    },
+    # Safety net for the process_instagram_dm.py gate fix (commit b72565e) --
+    # see backfill_missing_inquiries.py's own docstring for why this exists.
+    # :20 offset, spread from the other hourly jobs at :00/:05/:10/:45.
+    "backfill-missing-ig-inquiries-hourly": {
+        "task": "backfill_missing_instagram_inquiries",
+        "schedule": crontab(minute=20),
     },
     # Phase 1: AI Insights -- reactivated 2026-08-15 as its own module
     # ("ai_insights", migration 075), decoupled from "analytics" (still off
