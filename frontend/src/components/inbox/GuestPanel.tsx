@@ -1,5 +1,6 @@
 "use client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import { ExternalLink, Star, Sparkles, Calendar, Users, Wallet, Phone, Mail, Loader2, MapPin, Heart, MessageSquare, FileText } from "@/lib/icons";
 import { Bed, UserCheck } from "lucide-react";
 import { ChannelIcon, channelLabel } from "./ChannelIcon";
@@ -28,6 +29,7 @@ interface ConversationDetail {
 interface LeadOwnerStage {
   inquiry_id: string;
   assigned_agent_name?: string | null;
+  assigned_agent_id?: string | null;
   stage_key?: string | null;
   ai_summary?: string | null;
   ai_analysis?: {
@@ -76,10 +78,18 @@ interface GuestSummary {
   recent_stays?: { property_name?: string; check_in?: string; check_out?: string }[];
 }
 
+interface TeamMember {
+  id: string;
+  name: string;
+}
+
 export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDetail; mobileVariant?: boolean }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { data: session } = useSession();
   const inquiryId = detail.inquiry_id ?? null;
+  const currentUserId = session?.user?.id;
+  const canAssignAnyone = session?.user?.role === "owner" || session?.user?.role === "manager";
 
   const { data: leadOwnerStage } = useQuery<LeadOwnerStage>({
     queryKey: ["lead-detail", inquiryId],
@@ -110,6 +120,43 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
     onError: (e: unknown) => {
       const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       toast({ variant: "error", title: "Could not update stage", description: typeof msg === "string" ? msg : "Please try again." });
+    },
+  });
+
+  // GET /users is owner/manager-only server-side (settings/team/page.tsx's
+  // same query) -- only fetched here for roles that can actually call it, so
+  // a reservations-role agent isn't sent a 403 just for opening this panel.
+  const { data: teamMembers } = useQuery<TeamMember[]>({
+    queryKey: ["team-members"],
+    queryFn: () => api.get("/users").then(r => r.data),
+    enabled: canAssignAnyone,
+    staleTime: 60_000,
+  });
+
+  // Real gap, reported live: assign_to already exists as a full backend
+  // action (automation_engine.py's _action_assign_to, reused by
+  // app/mcp/tools.py's _assign_lead) but no UI anywhere ever called it --
+  // "Assigned Owner" was read-only. Same one-click action endpoint
+  // moveStage above already uses. Any authenticated user may call this
+  // (matches execute_recommended_action's own docstring), so a
+  // reservations-role agent can self-assign even without the full
+  // team-member dropdown (which needs owner/manager to populate).
+  const assignLead = useMutation({
+    mutationFn: (userId: string) =>
+      api.post("/automations/actions/execute", {
+        action_type: "assign_to",
+        entity_refs: { inquiry_id: inquiryId },
+        action_config: { user_id: userId },
+        source: "inbox_guest_panel",
+      }),
+    onSuccess: () => {
+      toast({ title: "Lead assigned" });
+      qc.invalidateQueries({ queryKey: ["lead-detail", inquiryId] });
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+    },
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast({ variant: "error", title: "Could not assign lead", description: typeof msg === "string" ? msg : "Please try again." });
     },
   });
 
@@ -352,12 +399,39 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
                     {guest?.email || "N/A"}
                   </span>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span style={{ color: "var(--haip-fg-subtle)" }}>Assigned Owner</span>
-                  <span className="font-semibold flex items-center gap-1" style={{ color: "var(--haip-fg)" }}>
-                    <UserCheck size={11} style={{ color: "var(--primary)" }} />
-                    {leadOwnerStage?.assigned_agent_name || "Unassigned"}
-                  </span>
+                  {canAssignAnyone ? (
+                    <select
+                      value={leadOwnerStage?.assigned_agent_id ?? ""}
+                      onChange={e => e.target.value && assignLead.mutate(e.target.value)}
+                      disabled={assignLead.isPending}
+                      className="font-semibold text-[11px] rounded-md px-1.5 py-0.5 border outline-none disabled:opacity-60"
+                      style={{ borderColor: "var(--haip-border)", background: "var(--card)", color: "var(--primary)" }}
+                    >
+                      <option value="" disabled>Unassigned</option>
+                      {(teamMembers ?? []).map(m => (
+                        <option key={m.id} value={m.id}>{m.id === currentUserId ? `${m.name} (you)` : m.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="font-semibold flex items-center gap-1.5" style={{ color: "var(--haip-fg)" }}>
+                      <UserCheck size={11} style={{ color: "var(--primary)" }} />
+                      {leadOwnerStage?.assigned_agent_id === currentUserId
+                        ? "You"
+                        : leadOwnerStage?.assigned_agent_name || "Unassigned"}
+                      {leadOwnerStage?.assigned_agent_id !== currentUserId && currentUserId && (
+                        <button
+                          onClick={() => assignLead.mutate(currentUserId)}
+                          disabled={assignLead.isPending}
+                          className="text-[10px] font-medium rounded-md px-1.5 py-0.5 border disabled:opacity-60"
+                          style={{ borderColor: "var(--haip-border)", color: "var(--primary)" }}
+                        >
+                          Assign to me
+                        </button>
+                      )}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center justify-between gap-2">
                   <span style={{ color: "var(--haip-fg-subtle)" }}>Lead Stage</span>

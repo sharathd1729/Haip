@@ -1,6 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Clock, AlertCircle, ChevronDown, MessageSquare, Loader2, Calendar } from "@/lib/icons";
 import { UserCheck } from "lucide-react";
@@ -35,6 +36,7 @@ export interface LeadCard {
   ai_summary?: string;
   ai_next_action?: string;
   assigned_agent_name?: string;
+  assigned_agent_id?: string;
   assigned_agent_avatar_url?: string | null;
   last_touch_at?: string;
   created_at?: string;
@@ -227,6 +229,51 @@ function StageSelect({ lead }: { lead: LeadCard }) {
   );
 }
 
+// ─── Assign to me ────────────────────────────────────────────────────────────
+// Real gap, reported live: Inquiry.assigned_to has been settable at manual-
+// lead-creation time all along, but nothing anywhere let an agent claim an
+// already-existing, unassigned lead for themselves. Same PATCH /inquiries
+// endpoint StageSelect above already uses -- assigned_to is a plain field
+// on InquiryUpdateRequest, no new backend work needed. Self-assign only
+// here (claim an unassigned card); reassigning one already owned by someone
+// else is a bigger judgment call left to the lead detail page's fuller
+// owner/manager-only picker (Guest 360 panel).
+function AssignToMeButton({ lead }: { lead: LeadCard }) {
+  const { data: session } = useSession();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
+  const userId = session?.user?.id;
+
+  async function handleAssign(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!userId || saving) return;
+    setSaving(true);
+    try {
+      await api.patch(`/inquiries/${lead.inquiry_id}`, { assigned_to: userId });
+      await queryClient.invalidateQueries({ queryKey: ["leads"] });
+      toast({ title: "Lead assigned to you", variant: "success" });
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast({ title: "Couldn't assign lead", description: typeof msg === "string" ? msg : "Please try again.", variant: "error" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!userId) return null;
+  return (
+    <button
+      onClick={handleAssign}
+      disabled={saving}
+      className="text-[10px] font-medium rounded-full px-2 py-0.5 disabled:opacity-50"
+      style={{ background: "var(--muted)", color: "var(--primary)" }}
+    >
+      Assign to me
+    </button>
+  );
+}
+
 // M5+ WS3: reuses the existing approve-and-queue endpoint
 // (conversations.py::approve_ai_draft) rather than a new one — same one
 // the call detail page's recommended-action button uses.
@@ -352,14 +399,21 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
       {/* Row 6: Assigned agent — AI summary intentionally removed from this
           card (kept on the lead detail page); the card now stays scoped to
           source/name/dates/budget the agent needs at a glance. */}
-      {lead.assigned_agent_name && (
-        <div className="flex items-center gap-1.5 pt-0.5" style={{ borderTop: "1px solid var(--haip-border)" }}>
-          <AgentAvatar name={lead.assigned_agent_name} photoUrl={lead.assigned_agent_avatar_url} />
-          <span className="text-[10px] truncate" style={{ color: "var(--haip-fg-subtle)" }}>
-            {lead.assigned_agent_name}
-          </span>
-        </div>
-      )}
+      <div className="flex items-center justify-between gap-1.5 pt-0.5" style={{ borderTop: "1px solid var(--haip-border)" }}>
+        {lead.assigned_agent_name ? (
+          <>
+            <AgentAvatar name={lead.assigned_agent_name} photoUrl={lead.assigned_agent_avatar_url} />
+            <span className="text-[10px] truncate flex-1" style={{ color: "var(--haip-fg-subtle)" }}>
+              {lead.assigned_agent_name}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="text-[10px]" style={{ color: "var(--haip-fg-subtle)" }}>Unassigned</span>
+            <AssignToMeButton lead={lead} />
+          </>
+        )}
+      </div>
 
       {/* Row 7: pending AI draft — one-click send */}
       {lead.pending_draft && (
