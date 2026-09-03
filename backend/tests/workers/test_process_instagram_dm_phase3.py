@@ -272,3 +272,28 @@ def test_phone_shared_on_a_later_message_promotes_stuck_default_stage_inquiry(db
     valid_stage = db.query(PipelineStage).filter_by(tenant_id=tenant.id, is_valid_lead_entry=True).first()
     assert inquiry.stage_id == valid_stage.id
     assert conv.human_owned is False  # phone capture no longer forces shadow mode
+
+
+def test_share_post_opener_does_not_permanently_block_inquiry_creation(db):
+    """Real bug, reported live: lead_auto_create used to gate on
+    is_new_conversation, true exactly once on the conversation's literal
+    first message. A guest who opens with a shared post/reel
+    (body="[ig_post]", excluded from lead-creation by its own leading "[")
+    got is_new_conversation=True on that excluded message and False on
+    every message after -- so no inquiry was ever created, not then, not
+    on their very next (real, substantive) message, not ever. Every field
+    the Guest 360 panel shows (AI summary, trip details, lead stage) is
+    gated on inquiry_id, so the whole panel silently stayed empty for
+    exactly this guest shape -- confirmed live on a real conversation."""
+    tenant = _make_tenant(db, ig_ai_mode_default="autonomous")
+    integration = _make_ig_integration(db, tenant.id)
+
+    result1, _ = _run_dm_task(db, tenant, integration, sender_id="guest-share-opener-001", text="[ig_post]")
+    assert result1["status"] == "ok"
+    conv = db.query(Conversation).filter_by(tenant_id=tenant.id).first()
+    assert conv is not None and conv.inquiry_id is None  # nothing to create an inquiry from yet
+
+    result2, _ = _run_dm_task(db, tenant, integration, sender_id="guest-share-opener-001", text="How much do your services cost?")
+    assert result2["status"] == "ok"
+    db.refresh(conv)
+    assert conv.inquiry_id is not None  # the fix: retries on this later real message instead of never

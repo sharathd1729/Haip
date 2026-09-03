@@ -326,11 +326,18 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
         except Exception as exc:
             log.warning("wa_attribution_capture_failed", tenant_id=tenant.id, error=str(exc))
 
-    # Leads360 chat auto-create: only fires on the guest's first message in
-    # this channel -- a repeat message on an already-open conversation must
-    # never spawn a second inquiry (identity_service already dedupes the
-    # guest; this dedupes the inquiry).
-    if is_new_conversation and body:
+    # Leads360 chat auto-create. Real bug, reported live on the Instagram
+    # side of this identical pattern: gating on is_new_conversation (true
+    # exactly once, on the literal first message) meant a guest whose
+    # opener had an empty body (a pure media/document forward, no caption)
+    # never got an inquiry created -- not then, not on any later message
+    # either, since is_new_conversation is permanently False after that
+    # first message. Gating on "no inquiry yet" instead retries on every
+    # message until one qualifies, and conversation.inquiry_id being set
+    # the first time this fires still guarantees it only ever creates one
+    # (identity_service already dedupes the guest; this dedupes the
+    # inquiry).
+    if not conversation.inquiry_id and body:
         try:
             from app.services.inquiry_service import get_or_create_from_chat
             from app.models.inquiry import InquirySource

@@ -331,10 +331,25 @@ def process_instagram_dm(self, payload: dict) -> dict:
                 db.rollback()
                 logger.warning("ig_attribution_capture_failed: %s", exc)
 
-        # Leads360 chat auto-create: only on the guest's first DM in this
-        # conversation -- phone detection is text-based on Instagram (no
-        # inherent phone identity like WhatsApp has).
-        if is_new_conversation and body and not body.startswith("["):
+        # Leads360 chat auto-create. Real bug, reported live: this used to
+        # gate on is_new_conversation, which is True exactly once -- on the
+        # literal first message of the conversation. A guest whose opener
+        # is a shared post/reel (body="[ig_post]", excluded by the
+        # startswith("[") check below) got is_new_conversation=True on that
+        # excluded message and False on every message after, so no inquiry
+        # was ever created for them -- not then, not on their next real
+        # message, not ever. Confirmed live: a guest opened with [ig_post],
+        # then asked "How much do your services cost?" two seconds later,
+        # and inquiry_id stayed NULL for the entire conversation -- every
+        # field on the Guest 360 panel that depends on inquiry_id (AI
+        # summary, trip details, lead stage, everything) silently never
+        # populated, and the frontend query itself is disabled without an
+        # inquiry_id, so there wasn't even an error to notice. Gating on
+        # "no inquiry yet" instead of "first message" means this correctly
+        # retries on every subsequent message until one has real text, and
+        # still only ever creates one (conversation.inquiry_id gets set
+        # the first time this fires, so it never fires again after).
+        if not conversation.inquiry_id and body and not body.startswith("["):
             try:
                 from app.services.inquiry_service import get_or_create_from_chat
                 from app.models.inquiry import InquirySource
