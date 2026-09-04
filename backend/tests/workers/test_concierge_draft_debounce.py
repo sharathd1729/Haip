@@ -163,3 +163,61 @@ class TestConciergeDraftBurstEndToEnd:
         )
         assert len(drafts) == 1
         assert drafts[0].ai_intent == "general"
+
+
+class TestConciergeDraftSupersededBeforeSend:
+    def test_second_message_arriving_mid_draft_blocks_the_autonomous_send(self, db, monkeypatch, fake_cache):
+        """Regression: a burst message arriving more than DEBOUNCE_SECONDS
+        after the first doesn't overwrite the pending-draft key until AFTER
+        the first task's entry-time staleness check already passed -- that
+        task then has no way to know it's been superseded unless it checks
+        again before the one irreversible step, the send. Confirmed live:
+        two guest messages 6s apart (just past DEBOUNCE_SECONDS=5) each
+        independently passed their own entry check and both auto-sent,
+        producing a duplicate guest-facing reply and burning an extra
+        rate-limit slot that went on to block a later, real question from
+        auto-sending."""
+        tenant, guest, conv = _setup_conversation(db)
+        tenant.wa_ai_mode_default = "autonomous"
+        tenant.wa_ai_confidence_threshold = 0.5
+        db.commit()
+
+        msg1 = _add_inbound(db, tenant, conv, "What services do you offer?")
+
+        class _FakeIntentLLM:
+            async def complete(self, **kwargs):
+                return {"tool_use": {"intent": "general"}}
+
+        class _FakeConciergeLLM:
+            async def complete(self, **kwargs):
+                # Simulate msg2 arriving while this (slow) completion was in
+                # flight -- exactly the observed live race: dispatch marks
+                # msg2 as the new latest pending draft partway through msg1's
+                # task, well after msg1's own entry-time check already passed.
+                msg2 = _add_inbound(db, tenant, conv, "How much do your services cost?")
+                mark_pending_draft(tenant.id, conv.id, msg2.id)
+                return {"tool_use": {
+                    "reply": "We offer luxury caravan travel experiences.",
+                    "confidence": 0.95, "citations": [], "needs_human": False,
+                }}
+
+        def _fake_get_llm(task):
+            return _FakeIntentLLM() if task == "quick_classify" else _FakeConciergeLLM()
+
+        monkeypatch.setattr("app.workers.tasks.concierge_draft.get_llm", _fake_get_llm)
+        mark_pending_draft(tenant.id, conv.id, msg1.id)
+
+        with patch("app.workers.tasks.concierge_draft.SessionLocal", return_value=db), \
+             patch("app.services.push_service.send_to_tenant"), \
+             patch("app.workers.tasks.send_whatsapp.send_whatsapp.delay") as mock_send:
+            concierge_draft.run(message_id=msg1.id, conversation_id=conv.id, tenant_id=tenant.id)
+
+        mock_send.assert_not_called()
+        draft = (
+            db.query(Message)
+            .filter_by(conversation_id=conv.id, direction="outbound", is_ai_generated=True)
+            .first()
+        )
+        assert draft is not None
+        assert draft.sent_autonomously is False
+        assert "superseded" in (draft.ai_needs_human_reason or "")

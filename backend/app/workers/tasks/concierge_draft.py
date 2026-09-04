@@ -789,6 +789,29 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
                     reason=rate_limited_reason,
                 )
 
+        # Final staleness re-check, immediately before deciding what gets
+        # persisted/sent. Grounding + LLM completion above can take several
+        # seconds (bounded by MAX_GROUNDING_SECONDS + reply_timeout *
+        # MAX_REPLY_ATTEMPTS) -- long enough for a newer guest message to
+        # have arrived, been marked the new "latest pending draft", and
+        # scheduled its own task that already covers this message via
+        # unanswered_guest_text(). Confirmed live: two guest messages 6s
+        # apart (just past DEBOUNCE_SECONDS=5, concierge_service.py) each
+        # independently passed the entry-time staleness check above
+        # ("concierge_draft_superseded") because neither had arrived yet
+        # when the other's check ran -- both then auto-sent, producing a
+        # duplicate guest-facing reply and burning an extra rate-limit slot
+        # that went on to block a later, real, distinct question from
+        # auto-sending. Re-verifying right before the one truly irreversible
+        # step (the guest-facing send) closes that gap regardless of how
+        # DEBOUNCE_SECONDS is tuned -- a fresher task already has this
+        # message's text via unanswered_guest_text(), so this draft would
+        # only ever duplicate it, never add anything.
+        if should_auto_send and not is_latest_pending_draft(tenant_id, conversation_id, message_id):
+            log.info("concierge_draft_send_superseded", conversation_id=conversation_id, message_id=message_id)
+            should_auto_send = False
+            needs_human_reasons.append("superseded by a newer guest message before send")
+
         draft_message_id = str(uuid.uuid4())
 
         # HAIP Inbox UI-fidelity pass, ticket 3: offer the drafted reply
