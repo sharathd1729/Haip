@@ -184,6 +184,20 @@ def list_conversations(
     guest_ids = [c.guest_id for c in conversations]
     completeness_by_guest = leads_service._batch_completeness(db, current_user.tenant_id, guest_ids)
 
+    # Phone-decline alert plan: which of these conversations has an open
+    # "Guest declined phone number" Task (see concierge_draft.py's
+    # _maybe_alert_phone_decline) -- one batched query, not N+1.
+    from app.models.task import Task
+    phone_decline_conv_ids = {
+        row.conversation_id
+        for row in db.query(Task.conversation_id).filter(
+            Task.tenant_id == current_user.tenant_id,
+            Task.conversation_id.in_(conv_ids),
+            Task.is_done.is_(False),
+            Task.title.ilike("Guest declined phone number%"),
+        ).all()
+    }
+
     def _sla_status(inquiry) -> "str | None":
         """Same 30-min/80%-elapsed threshold as insight_detector.py's A2
         detector -- never Inquiry.sla_breached, which is written nowhere."""
@@ -247,6 +261,7 @@ def list_conversations(
             if c.inquiry.stage_id and c.inquiry.stage_id in stage_by_id:
                 out.stage_key, out.stage_label = stage_by_id[c.inquiry.stage_id]
             out.sla_status = _sla_status(c.inquiry)
+        out.has_phone_decline_alert = c.id in phone_decline_conv_ids
         result.append(out)
     return result
 
@@ -703,15 +718,18 @@ def update_conversation(
     ConversationList.tsx's Bulk Resolve button has called
     `PATCH /conversations/{id} {is_open: false}` since it was built, always
     404ing silently client-side (the request's .catch() swallowed it, same
-    class of bug as the pre-fix reject-draft endpoint). Only `is_open` is
-    accepted for now, matching the one field the frontend actually sends."""
+    class of bug as the pre-fix reject-draft endpoint). Only `is_open` and
+    `assigned_to` are accepted, matching what the frontend actually sends
+    (assigned_to added for the phone-decline callout's "Assign to me")."""
     conv = db.query(Conversation).filter_by(id=conversation_id, tenant_id=current_user.tenant_id).first()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
     if "is_open" in body:
         conv.is_open = bool(body["is_open"])
+    if "assigned_to" in body:
+        conv.assigned_to = body["assigned_to"]
     db.commit()
-    return {"status": "updated", "is_open": conv.is_open}
+    return {"status": "updated", "is_open": conv.is_open, "assigned_to": conv.assigned_to}
 
 
 @router.post("/{conversation_id}/snooze")
@@ -853,6 +871,24 @@ def get_conversation_detail(
         )
         inquiry_id = latest_inquiry.id if latest_inquiry else None
 
+    # Phone-decline alert plan: surface the open Task (if any) so the thread
+    # can render the inline callout and let an agent act on it directly,
+    # same title-prefix match as list_conversations' batched flag above and
+    # concierge_draft.py's own dedup check.
+    from app.models.task import Task
+    phone_decline_task_row = (
+        db.query(Task).filter(
+            Task.tenant_id == current_user.tenant_id,
+            Task.conversation_id == conversation_id,
+            Task.is_done.is_(False),
+            Task.title.ilike("Guest declined phone number%"),
+        ).first()
+    )
+    phone_decline_task = (
+        {"id": phone_decline_task_row.id, "title": phone_decline_task_row.title}
+        if phone_decline_task_row else None
+    )
+
     return {
         "id": conv.id,
         "guest_id": conv.guest_id,
@@ -866,6 +902,7 @@ def get_conversation_detail(
         "messages": [_msg_dict(m) for m in messages],
         "total_messages": total_messages,
         "messages_capped": total_messages > len(messages),
+        "phone_decline_task": phone_decline_task,
     }
 
 

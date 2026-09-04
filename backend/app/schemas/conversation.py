@@ -55,6 +55,10 @@ class ConversationOut(BaseModel):
     profile_completeness_pct: Optional[int] = None
     is_waiting_reply: bool = False
     sla_status: Optional[str] = None  # "on_time" | "warning" | "breached" | None (no open inquiry)
+    # Phone-decline alert plan: an open "Guest declined phone number" Task
+    # exists for this conversation (see concierge_draft.py's
+    # _maybe_alert_phone_decline) -- drives the red list badge.
+    has_phone_decline_alert: bool = False
 
     class Config:
         from_attributes = True

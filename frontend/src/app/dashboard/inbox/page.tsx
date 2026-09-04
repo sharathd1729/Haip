@@ -12,6 +12,7 @@ import { ConversationList } from "@/components/inbox/ConversationList";
 import { MessageBubble } from "@/components/inbox/MessageBubble";
 import { SavedReplyMenu } from "@/components/inbox/SavedReplyMenu";
 import { AIDraftPanel } from "@/components/inbox/AIDraftPanel";
+import { PhoneDeclineCallout } from "@/components/inbox/PhoneDeclineCallout";
 import { TypingDots } from "@/components/inbox/TypingDots";
 import { ChannelIcon, channelLabel } from "@/components/inbox/ChannelIcon";
 import { GuestPanel } from "@/components/inbox/GuestPanel";
@@ -69,6 +70,10 @@ interface ConversationDetail {
   last_inbound_at?: string | null;  // D9: WhatsApp 24h service window
   total_messages?: number;
   messages_capped?: boolean;  // true when older history exists beyond `messages`
+  // Phone-decline alert plan: the open "Guest declined phone number" Task
+  // for this conversation, if any (see backend concierge_draft.py's
+  // _maybe_alert_phone_decline).
+  phone_decline_task?: { id: string; title: string } | null;
 }
 
 // HAIP Inbox prototype-wiring plan, ticket 2/5: the call side of the merged
@@ -1063,6 +1068,12 @@ function InboxPageInner() {
                 </>
               ) : <Skeleton className="h-6 w-48" />}
             </div>
+
+            {/* Phone-decline alert plan: sits above the AI draft strip, same
+                position as the approved mockup. */}
+            {detail?.phone_decline_task && (
+              <PhoneDeclineCallout conversationId={detail.id} task={detail.phone_decline_task} />
+            )}
 
             {/* W7: AI tone strip */}
             {(conversations.find(c => c.id === activeConversationId)?.has_ai_draft || aiTyping) && (

@@ -25,6 +25,9 @@ export interface ConversationSummary {
   profile_completeness_pct?: number | null;
   is_waiting_reply?: boolean;
   sla_status?: "on_time" | "warning" | "breached" | null;
+  // Phone-decline alert plan: an open "Guest declined phone number" Task
+  // exists for this conversation.
+  has_phone_decline_alert?: boolean;
 }
 
 interface InboxState {
@@ -38,6 +41,7 @@ interface InboxState {
   setActiveConversation: (id: string | null) => void;
   markRead: (id: string) => void;
   setAiDraft: (conversationId: string, hasDraft: boolean) => void;
+  setPhoneDeclineAlert: (conversationId: string, hasAlert: boolean) => void;
 }
 
 export const useInboxStore = create<InboxState>((set, get) => ({
@@ -79,6 +83,13 @@ export const useInboxStore = create<InboxState>((set, get) => ({
   setAiDraft: (conversationId, hasDraft) => {
     const updated = get().conversations.map(c =>
       c.id === conversationId ? { ...c, has_ai_draft: hasDraft } : c
+    );
+    set({ conversations: updated });
+  },
+
+  setPhoneDeclineAlert: (conversationId, hasAlert) => {
+    const updated = get().conversations.map(c =>
+      c.id === conversationId ? { ...c, has_phone_decline_alert: hasAlert } : c
     );
     set({ conversations: updated });
   },

@@ -535,6 +535,12 @@ def _maybe_alert_phone_decline(
     except Exception as exc:
         log.warning("phone_decline_push_failed", tenant_id=tenant_id, error=str(exc))
 
+    # Live-updates the Inbox list badge and thread callout without a full
+    # refetch -- same SSE channel _emit_sse() already publishes on below,
+    # just its own event name so DashboardSSEBridge.tsx can flip the flag
+    # instead of re-running the "AI draft ready" flow.
+    _emit_sse(tenant_id=tenant_id, event="phone_decline_alert", conversation_id=conversation.id)
+
 
 # ── Task ─────────────────────────────────────────────────────────────────────
 

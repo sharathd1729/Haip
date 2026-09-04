@@ -519,6 +519,11 @@ export function ConversationList({
                       ⚠ Needs reply
                     </span>
                   )}
+                  {conv.has_phone_decline_alert && (
+                    <span className="ibx-badge sla" title="Guest declined to share a phone number">
+                      <AlertTriangle size={7} />No phone shared
+                    </span>
+                  )}
                   {conv.status === "snoozed" && (
                     <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 flex-shrink-0">
                       Snoozed

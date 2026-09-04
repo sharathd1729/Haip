@@ -17,6 +17,7 @@ export function DashboardSSEBridge() {
   const queryClient = useQueryClient();
   const pushWrapUp = useCallsStore(s => s.pushWrapUp);
   const setAiDraft = useInboxStore(s => s.setAiDraft);
+  const setPhoneDeclineAlert = useInboxStore(s => s.setPhoneDeclineAlert);
   const upsertConversation = useInboxStore(s => s.upsertConversation);
   const addNotification = useNotificationsStore(s => s.addEvent);
 
@@ -45,6 +46,19 @@ export function DashboardSSEBridge() {
         // Mark the conversation as having a pending AI draft
         if (payload.conversation_id) {
           setAiDraft(payload.conversation_id, true);
+          queryClient.invalidateQueries({
+            queryKey: ["conversation", payload.conversation_id],
+          });
+        }
+        break;
+      }
+
+      case "phone_decline_alert": {
+        // Guest declined to share a phone number -- flip the list badge
+        // and refresh the thread so the inline callout picks up the
+        // newly-created Task (concierge_draft.py's _maybe_alert_phone_decline).
+        if (payload.conversation_id) {
+          setPhoneDeclineAlert(payload.conversation_id, true);
           queryClient.invalidateQueries({
             queryKey: ["conversation", payload.conversation_id],
           });
