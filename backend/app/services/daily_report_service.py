@@ -29,6 +29,7 @@ from app.models.pipeline_stage import PipelineStage
 from app.models.property import Stay
 from app.models.user import User, UserRole
 from app.services import agent_analytics_service, call_status_service, lead_activity_service, worklist_service
+from app.services import phone_decline_detector
 from app.services.date_presets import IST, ist_range_to_utc
 
 log = structlog.get_logger()
@@ -131,6 +132,11 @@ def build_agent_block(db: Session, tenant_id: str, agent, target: str) -> Option
         "leads": leads,
         "leads_summary": leads_summary_feedback.get("summary") if leads_summary_feedback else None,
         "leads_feedback": leads_summary_feedback.get("feedback") if leads_summary_feedback else [],
+        # Phone-decline alert plan: this agent's own open phone-decline
+        # Tasks -- feeds both their personal EOD email and the owner
+        # report's per-agent section, for free, since both are built on
+        # this one function.
+        "phone_declines": phone_decline_detector.open_tasks(db, tenant_id, agent_id=agent.id),
     }
 
 
@@ -366,6 +372,7 @@ def build_daily_report(
     top_waiting = [
         {
             "name": r["lead"]["name"],
+            "guest_id": r["lead"]["guest_id"],
             "channel": r.get("channel"),
             "waiting_minutes": r.get("waiting_minutes"),
             "message": (r.get("last_message") or "")[:120],
@@ -377,6 +384,13 @@ def build_daily_report(
             reverse=True,
         )[:5]
     ]
+
+    # Phone-decline alert plan: tenant-wide standing backlog of guests who
+    # explicitly refused to share a phone number (see concierge_draft.py's
+    # _maybe_alert_phone_decline) -- not time-windowed, same reasoning as
+    # overdue_followups above: these stay relevant until someone handles
+    # them, not just for the report's own day/window.
+    phone_declines = phone_decline_detector.open_tasks(db, tenant_id)
 
     return {
         "kind": kind,
@@ -401,6 +415,7 @@ def build_daily_report(
         "notable_calls": notable_calls,
         "lost_today": lost_today,
         "top_waiting": top_waiting,
+        "phone_declines": phone_declines,
         "insights": get_active_insights(db, tenant_id),
         "by_agent": get_agent_breakdown(db, tenant_id, target),
     }

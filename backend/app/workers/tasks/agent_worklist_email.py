@@ -19,7 +19,7 @@ from app.core.database import SessionLocal, set_tenant_context
 from app.core.config import settings
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
-from app.services import worklist_service
+from app.services import worklist_service, phone_decline_detector
 from app.services.agent_worklist_email import render_agent_worklist_html, render_agent_worklist_subject
 
 log = structlog.get_logger()
@@ -89,6 +89,11 @@ def send_agent_worklist_email(
             "overdue_followups": worklist_service.overdue_followups(
                 db, tenant_id, scope_user_id=agent_id, limit=worklist_service.SECTION_LIMIT,
             ),
+            # Phone-decline alert plan: rendered as its own section
+            # (agent_worklist_email.py's _phone_declines_html), not folded
+            # into overdue_followups even though it's the same Task model --
+            # these read differently and deserve their own count/heading.
+            "phone_declines": phone_decline_detector.open_tasks(db, tenant_id, agent_id=agent_id),
         }
         worklist["counts"] = {k: len(v) for k, v in worklist.items()}
         total_pending = sum(worklist["counts"].values())

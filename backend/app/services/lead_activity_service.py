@@ -158,6 +158,7 @@ def get_agent_lead_cards(db: Session, tenant_id: str, agent: User, target: str) 
 
         cards.append({
             "inquiry_id": inquiry.id,
+            "guest_id": inquiry.guest_id,
             "guest_name": guest.name if guest else "Unnamed lead",
             "channel": channel,
             "snippet": snippet,

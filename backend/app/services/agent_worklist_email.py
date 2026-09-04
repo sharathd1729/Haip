@@ -41,7 +41,16 @@ def _e(v) -> str:
     return escape(str(v if v is not None else ""), quote=True)
 
 
-def _lead_row_html(lead: dict, meta: str) -> str:
+def _profile_link_html(dashboard_url: str, guest_id: Optional[str]) -> str:
+    if not guest_id:
+        return ""
+    return (
+        f' · <a href="{_e(dashboard_url)}/guests/{_e(guest_id)}" '
+        f'style="color:{BRAND};font-weight:700;text-decoration:none">Profile 360 →</a>'
+    )
+
+
+def _lead_row_html(lead: dict, meta: str, dashboard_url: str) -> str:
     name = lead.get("name") or "Unnamed lead"
     summary = lead.get("ai_summary")
     no_contact = "" if lead.get("has_contact") else (
@@ -54,7 +63,7 @@ def _lead_row_html(lead: dict, meta: str) -> str:
     return f"""
       <tr><td style="padding:10px 0;border-bottom:1px solid {LINE}">
         <div style="font:700 13.5px -apple-system,Segoe UI,Roboto,sans-serif;color:{INK}">{_e(name)}</div>
-        <div style="font:12px -apple-system,Segoe UI,Roboto,sans-serif;color:{MUTED};margin-top:1px">{_e(meta)}</div>
+        <div style="font:12px -apple-system,Segoe UI,Roboto,sans-serif;color:{MUTED};margin-top:1px">{_e(meta)}{_profile_link_html(dashboard_url, lead.get('guest_id'))}</div>
         {summary_html}
         {no_contact}
       </td></tr>"""
@@ -69,7 +78,7 @@ def _waiting_label(mins: Optional[int]) -> str:
     return f"{hours}h" if hours < 24 else f"{hours // 24}d"
 
 
-def _section_rows(kind: str, rows: list[dict]) -> list[str]:
+def _section_rows(kind: str, rows: list[dict], dashboard_url: str) -> list[str]:
     out = []
     for r in rows[:_MAX_ROWS]:
         lead = r.get("lead") or {}
@@ -77,7 +86,7 @@ def _section_rows(kind: str, rows: list[dict]) -> list[str]:
             meta = f"{r.get('channel', '')} · waiting {_waiting_label(r.get('waiting_minutes'))}"
         else:  # overdue_followups
             meta = r.get("title") or "Follow-up overdue"
-        out.append(_lead_row_html(lead, meta))
+        out.append(_lead_row_html(lead, meta, dashboard_url))
     return out
 
 
@@ -85,7 +94,7 @@ def _section_html(kind: str, rows: list[dict], total: int, dashboard_url: str) -
     if not rows:
         return ""
     title = _SECTION_TITLES.get(kind, kind.replace("_", " ").title())
-    row_html = "".join(_section_rows(kind, rows))
+    row_html = "".join(_section_rows(kind, rows, dashboard_url))
     more = ""
     if total > len(rows[:_MAX_ROWS]):
         more = (
@@ -98,6 +107,28 @@ def _section_html(kind: str, rows: list[dict], total: int, dashboard_url: str) -
     <tr><td style="padding:18px 24px 0">
       <div style="font:600 13px -apple-system,Segoe UI,Roboto,sans-serif;color:{MUTED};text-transform:uppercase;letter-spacing:.5px">{_e(title)} · {total}</div>
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:6px">{row_html}{more}</table>
+    </td></tr>"""
+
+
+def _phone_declines_html(items: list[dict], dashboard_url: str) -> str:
+    """Phone-decline alert plan: this agent's own open "Guest declined
+    phone number" Tasks (phone_decline_detector.open_tasks), rendered as
+    their own section rather than folded into the generic overdue-followups
+    list -- the whole point is that these read differently from an
+    ordinary follow-up."""
+    if not items:
+        return ""
+    rows = "".join(f"""
+      <tr><td style="padding:10px 0;border-bottom:1px solid {LINE}">
+        <div style="font:700 13.5px -apple-system,Segoe UI,Roboto,sans-serif;color:#B3261E">{_e(i['guest_name'])}</div>
+        <div style="font:12px -apple-system,Segoe UI,Roboto,sans-serif;color:{MUTED};margin-top:1px">
+          Declined to share a phone number, waiting for a reply in the DM.{_profile_link_html(dashboard_url, i.get('guest_id'))}
+        </div>
+      </td></tr>""" for i in items[:_MAX_ROWS])
+    return f"""
+    <tr><td style="padding:18px 24px 0">
+      <div style="font:600 13px -apple-system,Segoe UI,Roboto,sans-serif;color:{MUTED};text-transform:uppercase;letter-spacing:.5px">Declined to share a phone number · {len(items)}</div>
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:6px">{rows}</table>
     </td></tr>"""
 
 
@@ -120,6 +151,7 @@ def render_agent_worklist_html(
         _section_html(kind, worklist.get(kind) or [], counts.get(kind, 0), dashboard_url)
         for kind in _SECTION_ORDER
     )
+    sections_html += _phone_declines_html(worklist.get("phone_declines") or [], dashboard_url)
 
     return f"""<!DOCTYPE html>
 <html><body style="margin:0;padding:0;background:#F3F4F6">

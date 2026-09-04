@@ -72,7 +72,7 @@ def _lead_meta_parts(lead: dict) -> list[str]:
     return parts
 
 
-def _lead_card_html(lead: dict) -> str:
+def _lead_card_html(lead: dict, dashboard_url: str) -> str:
     """Full per-lead card -- the agent's own email. Detailed per-lead
     report: route/guests/price/special-request grid, an upsell callout if
     one was offered, and the synthesized ai_lead_analysis paragraph."""
@@ -121,7 +121,10 @@ def _lead_card_html(lead: dict) -> str:
           <table width="100%" cellpadding="0" cellspacing="0"><tr>
             <td>
               <div style="font:700 13.5px -apple-system,Segoe UI,Roboto,sans-serif;color:{INK}">{_e(lead['guest_name'])}</div>
-              <div style="font:11px -apple-system,Segoe UI,Roboto,sans-serif;color:{MUTED};margin-top:1px">{_e(lead['channel'])}{f" · {_e(lead['intent'])}" if lead.get('intent') else ""}</div>
+              <div style="font:11px -apple-system,Segoe UI,Roboto,sans-serif;color:{MUTED};margin-top:1px">
+                {_e(lead['channel'])}{f" · {_e(lead['intent'])}" if lead.get('intent') else ""}
+                {f' · <a href="{_profile_link(dashboard_url, lead.get("guest_id"))}" style="color:{BRAND};font-weight:700;text-decoration:none">Profile 360 →</a>' if lead.get('guest_id') else ''}
+              </div>
             </td>
             <td align="right" valign="top">{_status_badge(lead['status'])}</td>
           </tr></table>
@@ -260,6 +263,37 @@ def _waiting(mins: Optional[int]) -> str:
     return f"{hours}h" if hours < 24 else f"{hours // 24}d"
 
 
+def _profile_link(dashboard_url: str, guest_id: Optional[str]) -> str:
+    """Profile 360 deep link for one guest, or '' when there's no guest_id
+    to link to (e.g. a lead whose identity never resolved to a Guest row)."""
+    if not guest_id:
+        return ""
+    return f'{_e(dashboard_url)}/guests/{_e(guest_id)}'
+
+
+def _phone_declines_html(items: list[dict], dashboard_url: str) -> str:
+    """Phone-decline alert plan: guests who explicitly refused to share a
+    phone number and are still waiting on a human reply in the DM (see
+    concierge_draft.py's _maybe_alert_phone_decline) -- a standing backlog,
+    not scoped to this report's day/window, same reasoning as the
+    still-waiting section above."""
+    if not items:
+        return ""
+    rows = "".join(f"""
+      <tr><td style="padding:8px 0;border-bottom:1px solid {LINE}">
+        <div style="font:600 13px -apple-system,Segoe UI,Roboto,sans-serif;color:#B3261E">{_e(i['guest_name'])}</div>
+        <div style="font:12px -apple-system,Segoe UI,Roboto,sans-serif;color:{MUTED};margin-top:2px">
+          Declined to share a phone number, asking to be helped in the DM directly.
+          {f'<a href="{_profile_link(dashboard_url, i["guest_id"])}" style="color:{BRAND};font-weight:700;text-decoration:none">View Profile 360 →</a>' if i.get('guest_id') else ''}
+        </div>
+      </td></tr>""" for i in items)
+    return f"""
+    <tr><td style="padding:20px 24px 0">
+      <div style="font:600 13px -apple-system,Segoe UI,Roboto,sans-serif;color:{MUTED};text-transform:uppercase;letter-spacing:.5px">Declined to share a phone number &middot; {len(items)}</div>
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:6px">{rows}</table>
+    </td></tr>"""
+
+
 def _stat(label: str, value, *, accent: str = INK, note: str = "") -> str:
     note_html = (
         f'<div style="font:12px -apple-system,Segoe UI,Roboto,sans-serif;color:{MUTED};margin-top:2px">{_e(note)}</div>'
@@ -338,6 +372,7 @@ def render_daily_report(report: dict, *, tenant_name: str, dashboard_url: str) -
               </div>
               <div style="font:13px -apple-system,Segoe UI,Roboto,sans-serif;color:{MUTED};margin-top:2px">{_e(w['message'])}</div>
               {'' if w['has_contact'] else f'<div style="font:12px -apple-system,Segoe UI,Roboto,sans-serif;color:#B45309;margin-top:2px">No contact details captured</div>'}
+              {f'<a href="{_profile_link(dashboard_url, w.get("guest_id"))}" style="font:11px -apple-system,Segoe UI,Roboto,sans-serif;color:{BRAND};font-weight:700;text-decoration:none">View Profile 360 →</a>' if w.get('guest_id') else ''}
             </td>
           </tr>""" for w in report["top_waiting"])
         waiting_html = f"""
@@ -461,6 +496,7 @@ def render_daily_report(report: dict, *, tenant_name: str, dashboard_url: str) -
     {_calls_detail_html(report)}
     {_lost_today_html(report.get("lost_today"))}
     {waiting_html}
+    {_phone_declines_html(report.get("phone_declines") or [], dashboard_url)}
     {insights_html}
     {team_html}
 
@@ -509,7 +545,7 @@ def render_agent_report_html(block: dict, *, tenant_name: str, dashboard_url: st
     leads = block.get("leads") or []
     leads_html = ""
     if leads:
-        cards = "".join(_lead_card_html(l) for l in leads)
+        cards = "".join(_lead_card_html(l, dashboard_url) for l in leads)
         leads_html = f"""
         <tr><td style="padding:20px 24px 0">
           <div style="font:600 13px -apple-system,Segoe UI,Roboto,sans-serif;color:{MUTED};text-transform:uppercase;letter-spacing:.5px">Lead breakdown</div>
@@ -548,6 +584,7 @@ def render_agent_report_html(block: dict, *, tenant_name: str, dashboard_url: st
     {leads_summary_html}
     {feedback_html}
     {calls_html}
+    {_phone_declines_html(block.get("phone_declines") or [], dashboard_url)}
 
     <tr><td style="padding:24px" align="center">
       <a href="{_e(dashboard_url)}" style="display:inline-block;background:{BRAND};color:#fff;text-decoration:none;font:600 14px -apple-system,Segoe UI,Roboto,sans-serif;padding:11px 22px;border-radius:8px">Open HAIP</a>

@@ -56,3 +56,44 @@ def detect_phone_decline(text: str) -> Optional[str]:
         if pattern.search(lowered):
             return phrase
     return None
+
+
+# Single source of truth for the "Guest declined phone number" title-prefix
+# match -- concierge_draft.py's own dedup check and conversations.py's
+# list/detail flags each re-implement this filter inline; the report emails
+# below (daily_report_service.py, agent_worklist_email.py) use this instead
+# of a fourth copy.
+_TASK_TITLE_PREFIX = "Guest declined phone number%"
+
+
+def open_tasks(db, tenant_id: str, *, agent_id: "str | None" = None) -> list[dict]:
+    """Open phone-decline Tasks for this tenant, each carrying enough to
+    link straight to the guest's Profile 360 page. Pass `agent_id` to scope
+    to one agent's assigned conversations (their own worklist/EOD report),
+    omit it for the tenant-wide standing backlog (the owner report)."""
+    from app.models.task import Task
+    from app.models.conversation import Conversation
+    from app.models.guest import Guest
+
+    q = (
+        db.query(Task, Guest.name)
+        .join(Conversation, Task.conversation_id == Conversation.id)
+        .outerjoin(Guest, Task.guest_id == Guest.id)
+        .filter(
+            Task.tenant_id == tenant_id,
+            Task.is_done.is_(False),
+            Task.title.ilike(_TASK_TITLE_PREFIX),
+        )
+    )
+    if agent_id:
+        q = q.filter(Conversation.assigned_to == agent_id)
+
+    return [
+        {
+            "task_id": task.id,
+            "conversation_id": task.conversation_id,
+            "guest_id": task.guest_id,
+            "guest_name": guest_name or "Unnamed lead",
+        }
+        for task, guest_name in q.order_by(Task.created_at.desc()).all()
+    ]
