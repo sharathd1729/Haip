@@ -477,6 +477,65 @@ def _maybe_create_price_handoff(
         log.warning("price_handoff_push_failed", tenant_id=tenant_id, error=str(exc))
 
 
+def _maybe_alert_phone_decline(
+    db, *, tenant_id: str, conversation, guest, inquiry, phone_decline_phrase: str,
+) -> None:
+    """Queue a human follow-up when a guest explicitly declines to share a
+    phone number and asks to be helped in the DM itself.
+
+    Does NOT touch confidence/hard_block/should_auto_send -- the AI's own
+    reply still goes out same as always (confirmed live, it answers these
+    fine). This is an additional signal for a human to personally pick up
+    the thread on Instagram, same shape as _maybe_create_price_handoff
+    above (which this is often paired with -- a guest declining a number is
+    very often also asking about price). Deduplicated per conversation on
+    the open task, same reasoning: a guest who repeats the refusal produces
+    one task, not one per message.
+    """
+    from app.models.task import Task
+
+    existing = (
+        db.query(Task)
+        .filter_by(
+            tenant_id=tenant_id,
+            conversation_id=conversation.id,
+            is_done=False,
+        )
+        .filter(Task.title.ilike("Guest declined phone number%"))
+        .first()
+    )
+    if existing:
+        return
+
+    guest_label = (getattr(guest, "name", None) or "").strip() or "this lead"
+    task = Task(
+        tenant_id=tenant_id,
+        title=f"Guest declined phone number — {guest_label}",
+        priority="high",
+        guest_id=getattr(guest, "id", None),
+        inquiry_id=getattr(inquiry, "id", None),
+        conversation_id=conversation.id,
+    )
+    db.add(task)
+    db.commit()
+    log.info(
+        "phone_decline_task_created",
+        tenant_id=tenant_id, conversation_id=conversation.id,
+        task_id=task.id, matched=phone_decline_phrase,
+    )
+
+    try:
+        from app.services.push_service import send_to_tenant
+        send_to_tenant(
+            db, tenant_id,
+            title="Needs you now",
+            body=f"{guest_label} declined to share a phone number and is waiting for a reply on Instagram.",
+            url=f"/dashboard/inbox?conversation={conversation.id}",
+        )
+    except Exception as exc:
+        log.warning("phone_decline_push_failed", tenant_id=tenant_id, error=str(exc))
+
+
 # ── Task ─────────────────────────────────────────────────────────────────────
 
 _VALID_TONES = {"warm", "formal", "brief", "persuasive"}
@@ -932,6 +991,24 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         except Exception as exc:
             # A missed task must never cost the guest their reply.
             log.warning("price_handoff_failed", conversation_id=conversation_id, error=str(exc))
+
+        # ── Phone-decline alert ─────────────────────────────────────────────
+        # Instagram-only: a WhatsApp conversation's identity IS a phone
+        # number (that's the channel), so "declined to share a phone
+        # number" only makes sense for Instagram DMs.
+        channel_val_for_decline = str(conversation.channel.value if hasattr(conversation.channel, "value") else conversation.channel)
+        if channel_val_for_decline == "instagram" and burst_text:
+            from app.services.phone_decline_detector import detect_phone_decline
+            phone_decline_phrase = detect_phone_decline(burst_text)
+            if phone_decline_phrase:
+                try:
+                    _maybe_alert_phone_decline(
+                        db, tenant_id=tenant_id, conversation=conversation, guest=guest,
+                        inquiry=inquiry, phone_decline_phrase=phone_decline_phrase,
+                    )
+                except Exception as exc:
+                    # A missed task must never cost the guest their reply.
+                    log.warning("phone_decline_alert_failed", conversation_id=conversation_id, error=str(exc))
 
         if should_auto_send:
             channel_val = str(conversation.channel.value if hasattr(conversation.channel, "value") else conversation.channel)
