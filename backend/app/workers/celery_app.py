@@ -57,6 +57,8 @@ celery_app = Celery(
         "app.workers.tasks.daily_owner_report",
         # Per-agent end-of-day performance report email
         "app.workers.tasks.daily_agent_report",
+        # Per-agent pending-leads worklist reminder, 3x daily
+        "app.workers.tasks.agent_worklist_email",
         # Recovers calls whose classify->judge chain-dispatch silently stalled
         "app.workers.tasks.call_recovery",
         # WhatsApp: campaign runner + template status sync
@@ -209,6 +211,8 @@ celery_app.conf.update(
         "reports.daily_owner_report_all_tenants": {"queue": "ai_scoring"},
         "reports.send_daily_agent_report":      {"queue": "ai_scoring"},
         "reports.daily_agent_report_all_tenants": {"queue": "ai_scoring"},
+        "reports.send_agent_worklist_email":      {"queue": "ai_scoring"},
+        "reports.agent_worklist_email_all_tenants": {"queue": "ai_scoring"},
         "calls.recover_stalled_scoring":              {"queue": "ai_scoring"},
         "calls.recover_stalled_scoring_all_tenants":  {"queue": "ai_scoring"},
         "tasks.daily_briefing.generate":              {"queue": "ai_scoring"},
@@ -303,6 +307,26 @@ celery_app.conf.beat_schedule = {
     "agent-report-evening": {
         "task": "reports.daily_agent_report_all_tenants",
         "schedule": crontab(hour=20, minute=0),
+    },
+    # Per-agent pending-leads worklist reminder, 3x daily -- morning
+    # (planning), afternoon (midday check-in), evening (before close of
+    # business). :10 offset from the owner/agent report jobs above, which
+    # already occupy :00 at 8/19/20 -- same spread-load reasoning as
+    # sync-wa-templates-30min.
+    "agent-worklist-morning": {
+        "task": "reports.agent_worklist_email_all_tenants",
+        "schedule": crontab(hour=9, minute=10),
+        "kwargs": {"time_of_day": "morning"},
+    },
+    "agent-worklist-afternoon": {
+        "task": "reports.agent_worklist_email_all_tenants",
+        "schedule": crontab(hour=14, minute=10),
+        "kwargs": {"time_of_day": "afternoon"},
+    },
+    "agent-worklist-evening": {
+        "task": "reports.agent_worklist_email_all_tenants",
+        "schedule": crontab(hour=19, minute=10),
+        "kwargs": {"time_of_day": "evening"},
     },
     # Phase 3: Intent classification — nightly at 03:00 IST
     "classify-intent-nightly": {
