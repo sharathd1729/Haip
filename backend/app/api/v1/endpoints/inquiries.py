@@ -164,6 +164,20 @@ def update_inquiry(
         if hasattr(inq, k):
             setattr(inq, k, v)
 
+    # Assign-to-me visibility fix: this was the ONLY writer of
+    # Inquiry.assigned_to (used by _action_assign_to/automation_engine.py
+    # and every direct PATCH from GuestPanel.tsx/Profile 360), while every
+    # place an agent actually checks "my leads" reads Conversation.assigned_to
+    # instead (Inbox's "Assigned to Me" chip, worklist_service.py's
+    # scope_user_id filtering). The two columns never synced, so a
+    # self-assigned lead was invisible everywhere except a raw
+    # GET /leads?assigned_to= query. Keep every conversation on this inquiry
+    # in step with it.
+    if "assigned_to" in updates:
+        db.query(Conversation).filter_by(inquiry_id=inq.id, tenant_id=current_user.tenant_id).update(
+            {"assigned_to": updates["assigned_to"]}, synchronize_session=False,
+        )
+
     # Leads360 restructure Phase 4: re-evaluate qualification whenever an
     # inquiry's fields change, since qualification is progressive (a field
     # required_for_lead may have just been filled in). Best-effort -- never

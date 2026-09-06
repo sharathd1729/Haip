@@ -1,11 +1,13 @@
 "use client";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { MessageSquare, PhoneMissed, Inbox, Clock, AlertCircle, RefreshCw, ChevronRight, Phone, Mail, AtSign, Sparkles, Zap } from "@/lib/icons";
+import { useSession } from "next-auth/react";
+import { MessageSquare, PhoneMissed, Inbox, Clock, AlertCircle, RefreshCw, ChevronRight, Phone, Mail, AtSign, Sparkles, Zap, Loader2 } from "@/lib/icons";
 import { UserCheck } from "lucide-react";
 import api from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/toast";
 
 interface Contact { type: string; value: string }
 interface Lead {
@@ -145,6 +147,10 @@ function ContactChips({ lead }: { lead: Lead }) {
 
 function LeadRow({ row, sectionKey }: { row: Row; sectionKey: string }) {
   const router = useRouter();
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data: session } = useSession();
+  const currentUserId = session?.user?.id;
   const lead = row.lead;
   const text = row.last_message || row.body || row.title || (row.from_number ? `Called from ${row.from_number}` : "");
   const stay = [
@@ -158,6 +164,28 @@ function LeadRow({ row, sectionKey }: { row: Row; sectionKey: string }) {
     else if (lead.inquiry_id) router.push(`/dashboard/leads/${lead.inquiry_id}`);
     else if (row.call_id) router.push(`/dashboard/calls/${row.call_id}`);
   };
+
+  // Assign-to-me visibility fix: same one-click action GuestPanel.tsx/
+  // Profile 360 already use (POST /automations/actions/execute,
+  // action_type "assign_to"), now reachable straight from the Worklist
+  // page instead of needing to open the lead first.
+  const assignToMe = useMutation({
+    mutationFn: () =>
+      api.post("/automations/actions/execute", {
+        action_type: "assign_to",
+        entity_refs: { inquiry_id: lead.inquiry_id },
+        action_config: { user_id: currentUserId },
+        source: "worklist",
+      }),
+    onSuccess: () => {
+      toast({ title: "Lead assigned to you" });
+      qc.invalidateQueries({ queryKey: ["worklist"] });
+    },
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast({ variant: "error", title: "Could not assign lead", description: typeof msg === "string" ? msg : "Please try again." });
+    },
+  });
 
   return (
     <div className="px-4 py-3 transition-colors last:border-0" style={{ borderBottom: "1px solid var(--haip-border)" }}>
@@ -202,6 +230,17 @@ function LeadRow({ row, sectionKey }: { row: Row; sectionKey: string }) {
 
         <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
           <span className="text-[10px] whitespace-nowrap" style={{ color: "var(--haip-fg-subtle)" }}>{whenOf(row)}</span>
+          {lead.inquiry_id && currentUserId && (
+            <button
+              onClick={() => assignToMe.mutate()}
+              disabled={assignToMe.isPending}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors disabled:opacity-60"
+              style={{ background: "var(--haip-card)", border: "1.5px solid var(--haip-border)", color: "var(--primary)" }}
+            >
+              {assignToMe.isPending ? <Loader2 size={11} className="animate-spin" /> : <UserCheck size={11} />}
+              Assign to me
+            </button>
+          )}
           <button
             onClick={open}
             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors"

@@ -1,8 +1,10 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { useSession } from "next-auth/react";
 import { useInfiniteQuery, useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { Target, RefreshCw, Settings2, ChevronDown, Plus } from "@/lib/icons";
+import { UserCheck } from "lucide-react";
 import api from "@/lib/api";
 import { LeadCard, type LeadCard as LeadCardType } from "@/components/leads/LeadCard";
 import { SkeletonCard } from "@/components/ui/SkeletonCard";
@@ -247,6 +249,9 @@ export default function Leads360Page() {
   const [filters, setFilters] = useState<LeadsFilters>({});
   const [stageMeta, setStageMeta] = useState<Record<string, StageMetaEntry>>({});
   const queryClient = useQueryClient();
+  const { data: session } = useSession();
+  const currentUserId = session?.user?.id;
+  const assignedToMe = !!currentUserId && filters.assigned_to === currentUserId;
 
   const { data: pipelineStages = [] } = usePipelineStages();
 
@@ -342,6 +347,27 @@ export default function Leads360Page() {
               );
             })}
           </div>
+
+          {/* Assign-to-me visibility fix: one-click "mine" toggle, same
+              quick-filter-chip idiom as ConversationList.tsx's "Assigned to
+              Me" in the Inbox -- previously the only way to see your own
+              leads here was LeadsFilterBar's full assigned_to dropdown,
+              which requires finding your own name in the whole team list. */}
+          {currentUserId && (
+            <button
+              onClick={() => setFilters(f => ({ ...f, assigned_to: assignedToMe ? undefined : currentUserId }))}
+              className="lx-stage-pill flex-shrink-0 flex items-center gap-1 text-[10px] px-2.5 py-1 transition-colors duration-150"
+              style={
+                assignedToMe
+                  ? { background: "var(--lx-iris)", color: "#fff" }
+                  : { background: "transparent", border: "1.5px solid var(--haip-border)", color: "var(--haip-fg-subtle)" }
+              }
+              title="Show only leads assigned to me"
+            >
+              <UserCheck size={11} />
+              Assigned to me
+            </button>
+          )}
 
           {/* Add lead manually */}
           <button

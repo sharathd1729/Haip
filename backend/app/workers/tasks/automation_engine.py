@@ -488,6 +488,24 @@ def _action_assign_to(db, cfg: dict, context: dict, tenant_id: str, actor) -> st
     if not inquiry_id or not assignee_id:
         return "skipped — inquiry_id (entity_refs) and action_config.user_id are both required"
 
+    # Prevent lead overlap: a self-assign ("Assign to me") must not steal a
+    # lead another agent already owns -- two agents both believing they own
+    # the same lead means both contact the guest, confusing them and
+    # duplicating work. Owners/managers keep unrestricted reassignment via
+    # the explicit dropdown (a deliberate supervisory action, not a grab);
+    # this only blocks a peer agent's own self-assign click.
+    actor_role = actor.role.value if hasattr(actor.role, "value") else str(actor.role)
+    is_self_assign = assignee_id == actor.id
+    if is_self_assign and actor_role not in ("owner", "manager"):
+        from app.models.inquiry import Inquiry
+        from app.models.user import User
+        inq = db.query(Inquiry).filter_by(id=inquiry_id, tenant_id=tenant_id).first()
+        if inq and inq.assigned_to and inq.assigned_to != actor.id:
+            owner_name = getattr(
+                db.query(User).filter_by(id=inq.assigned_to).first(), "name", None,
+            ) or "another agent"
+            return f"skipped — already assigned to {owner_name}"
+
     try:
         update_inquiry(
             inquiry_id=inquiry_id, body=InquiryUpdateRequest(assigned_to=assignee_id),
