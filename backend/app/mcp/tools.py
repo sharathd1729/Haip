@@ -12,7 +12,7 @@ caller (see server.py) -- these functions run outside FastAPI's per-request
 dependency cycle, same as a Celery task, so RLS context has to be
 established explicitly rather than relying on a request-scoped dependency.
 """
-from typing import Any
+from typing import Any, Optional
 from sqlalchemy.orm import Session
 
 from app.mcp import redaction
@@ -93,6 +93,16 @@ def _search_conversations(db: Session, user: User, tenant_id: str, args: dict) -
     return redaction.wrap_untrusted(_dump(result), key="results")
 
 
+def _visibility_scope(user: User) -> Optional[str]:
+    """Same guard as leads.py's endpoint -- Ask HAIP must not let a non-owner/
+    manager agent list or open a peer agent's lead just because the UI-level
+    restriction doesn't apply to a tool call."""
+    from app.models.user import UserRole
+    if user.role in (UserRole.OWNER, UserRole.MANAGER):
+        return None
+    return user.id
+
+
 def _list_leads(db: Session, user: User, tenant_id: str, args: dict) -> Any:
     from app.services.leads_service import get_leads_pipeline
     result = get_leads_pipeline(
@@ -101,13 +111,17 @@ def _list_leads(db: Session, user: User, tenant_id: str, args: dict) -> Any:
         stage=args.get("stage"),
         page=args.get("page", 1),
         page_size=args.get("page_size", 25),
+        scope_user_id=_visibility_scope(user),
     )
     return _dump(result)
 
 
 def _get_lead_detail(db: Session, user: User, tenant_id: str, args: dict) -> Any:
     from app.services.leads_service import get_lead_detail
-    result = get_lead_detail(db, tenant_id=tenant_id, inquiry_id=args["inquiry_id"])
+    result = get_lead_detail(
+        db, tenant_id=tenant_id, inquiry_id=args["inquiry_id"],
+        scope_user_id=_visibility_scope(user),
+    )
     if result is None:
         raise ToolError(f"Lead {args['inquiry_id']} not found")
     return _dump(result)

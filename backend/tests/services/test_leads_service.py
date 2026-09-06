@@ -229,6 +229,53 @@ def test_get_leads_pipeline_one_row_per_inquiry(db):
     assert len(inquiry_ids) == 2
 
 
+# ── scope_user_id: non-owner/manager visibility guard ────────────────────────
+
+def test_scope_user_id_hides_peer_agents_leads(db):
+    """Krisha/Jishant case: an agent scoped to their own id must not see a
+    lead assigned to a different agent, only their own + unclaimed ones."""
+    tenant = _make_tenant(db)
+    guest = _make_guest(db, tenant.id)
+    mine = _make_inquiry(db, tenant.id, guest.id)
+    mine.assigned_to = "agent-jishant"
+    theirs = _make_inquiry(db, tenant.id, guest.id)
+    theirs.assigned_to = "agent-krisha"
+    unclaimed = _make_inquiry(db, tenant.id, guest.id)
+    db.commit()
+
+    result = leads_service.get_leads_pipeline(db=db, tenant_id=tenant.id, scope_user_id="agent-jishant")
+
+    visible_ids = {card.inquiry_id for card in result.leads}
+    assert visible_ids == {mine.id, unclaimed.id}
+    assert theirs.id not in visible_ids
+
+
+def test_scope_user_id_none_sees_everything(db):
+    """Owner/manager pass scope_user_id=None -- unchanged tenant-wide view."""
+    tenant = _make_tenant(db)
+    guest = _make_guest(db, tenant.id)
+    a = _make_inquiry(db, tenant.id, guest.id)
+    a.assigned_to = "agent-a"
+    b = _make_inquiry(db, tenant.id, guest.id)
+    b.assigned_to = "agent-b"
+    db.commit()
+
+    result = leads_service.get_leads_pipeline(db=db, tenant_id=tenant.id, scope_user_id=None)
+    assert {card.inquiry_id for card in result.leads} == {a.id, b.id}
+
+
+def test_get_lead_detail_scoped_agent_cannot_open_peers_lead(db):
+    tenant = _make_tenant(db)
+    guest = _make_guest(db, tenant.id)
+    theirs = _make_inquiry(db, tenant.id, guest.id)
+    theirs.assigned_to = "agent-krisha"
+    db.commit()
+
+    assert leads_service.get_lead_detail(db, tenant.id, theirs.id, scope_user_id="agent-jishant") is None
+    assert leads_service.get_lead_detail(db, tenant.id, theirs.id, scope_user_id="agent-krisha") is not None
+    assert leads_service.get_lead_detail(db, tenant.id, theirs.id, scope_user_id=None) is not None
+
+
 # ── T23: profile completeness IG-only → 30% ──────────────────────────────────
 
 def test_profile_completeness_ig_only(db):

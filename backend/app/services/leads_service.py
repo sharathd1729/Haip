@@ -21,7 +21,7 @@ import structlog
 from datetime import datetime, timezone
 from typing import Any, List, Optional
 
-from sqlalchemy import desc, false as sa_false
+from sqlalchemy import desc, false as sa_false, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.cache import cache_key, get_cached, set_cached
@@ -707,11 +707,18 @@ def get_leads_pipeline(
     booked_date_to: Optional[str] = None,
     page: int = 1,
     page_size: int = 25,
+    scope_user_id: Optional[str] = None,
 ) -> LeadsListResponse:
     """
     Paginated pipeline query. One row per inquiry.
     Uses joinedload to avoid N+1 on guest + assigned_user.
     Batch-fetches guest_identities for all guest_ids in the page.
+
+    `scope_user_id` is the tenant-wide-visibility guard (leads.py forces this
+    to the caller's own id for every role except owner/manager) -- distinct
+    from `assigned_to`, which is a caller-chosen filter. A non-owner sees
+    their own leads plus unclaimed ones, never a peer's; owners/managers pass
+    None here regardless of what `assigned_to` narrows the view to.
 
     date_from/date_to filter enquiry date (inquiries.created_at).
     checkin_date_from/to filter inquiries.check_in -- stored as an ISO
@@ -768,6 +775,8 @@ def get_leads_pipeline(
                     q = q.filter(sa_false())
     if property_id:
         q = q.filter(Inquiry.property_id == property_id)
+    if scope_user_id:
+        q = q.filter(or_(Inquiry.assigned_to == scope_user_id, Inquiry.assigned_to.is_(None)))
     if assigned_to:
         q = q.filter(Inquiry.assigned_to == assigned_to)
     if source:
@@ -825,7 +834,7 @@ def get_leads_pipeline(
     ]
 
     # Stage summary (count + potential revenue across ALL filtered leads, not just this page)
-    stage_meta = _build_stage_summary(db, tenant_id, stage, property_id, assigned_to, source)
+    stage_meta = _build_stage_summary(db, tenant_id, stage, property_id, assigned_to, source, scope_user_id)
 
     return LeadsListResponse(
         total=total,
@@ -874,6 +883,7 @@ def _build_stage_summary(
     property_id: Optional[str],
     assigned_to: Optional[str],
     source: Optional[str],
+    scope_user_id: Optional[str] = None,
 ) -> dict[str, PipelineStageMetaSchema]:
     """Compute count + potential_revenue per stage across all matching inquiries.
 
@@ -903,6 +913,8 @@ def _build_stage_summary(
 
     if property_id:
         q = q.filter(Inq.property_id == property_id)
+    if scope_user_id:
+        q = q.filter(or_(Inq.assigned_to == scope_user_id, Inq.assigned_to.is_(None)))
     if assigned_to:
         q = q.filter(Inq.assigned_to == assigned_to)
     if source:
@@ -927,10 +939,16 @@ def get_lead_detail(
     db: Session,
     tenant_id: str,
     inquiry_id: str,
+    scope_user_id: Optional[str] = None,
 ) -> Optional[LeadDetailSchema]:
     """
     Return full lead detail including timeline and quote history.
     Returns None if inquiry not found or belongs to another tenant.
+
+    `scope_user_id` mirrors get_leads_pipeline's guard -- without it, a
+    non-owner/manager agent who can no longer see a peer's lead on the
+    board could still open it directly by guessing/reusing its inquiry_id
+    in the URL. None here (owner/manager) skips the check entirely.
     """
     inquiry = (
         db.query(Inquiry)
@@ -942,6 +960,8 @@ def get_lead_detail(
         .first()
     )
     if not inquiry:
+        return None
+    if scope_user_id and inquiry.assigned_to and inquiry.assigned_to != scope_user_id:
         return None
 
     completeness = get_profile_completeness(db, tenant_id, inquiry.guest_id)

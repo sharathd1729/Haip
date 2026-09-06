@@ -61,6 +61,17 @@ def _require_role(user: User, allowed: set[str], action: str) -> None:
         )
 
 
+def _visibility_scope(user: User) -> Optional[str]:
+    """Only owner/manager see the whole tenant's leads. Every other role
+    (concierge, reservations, foh, marketing, compliance, read_only) is
+    forced to their own assignments plus unclaimed leads -- confirmed live:
+    Krisha's self-assigned lead was otherwise fully visible, thread and all,
+    to every other agent on the same tenant."""
+    if user.role in (UserRole.OWNER, UserRole.MANAGER):
+        return None
+    return user.id
+
+
 # ── GET /leads ────────────────────────────────────────────────────────────────
 
 @router.get("", response_model=LeadsListResponse)
@@ -120,6 +131,7 @@ def list_leads(
         booked_date_to=booked_date_to,
         page=page,
         page_size=page_size,
+        scope_user_id=_visibility_scope(current_user),
     )
 
 
@@ -187,6 +199,7 @@ def get_lead(
         db=db,
         tenant_id=current_user.tenant_id,
         inquiry_id=inquiry_id,
+        scope_user_id=_visibility_scope(current_user),
     )
     if detail is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")

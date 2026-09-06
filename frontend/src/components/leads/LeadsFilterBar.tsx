@@ -201,7 +201,10 @@ export function LeadsFilterBar({
 
   const { data: users = [] } = useQuery<{ id: string; name: string }[]>({
     queryKey: ["users-lite"],
-    queryFn: () => api.get("/users").then(r => r.data),
+    // /users is owner/manager-only and 403s for every other role, which
+    // silently emptied this dropdown -- /users/lite is name-only but open
+    // to any authenticated role.
+    queryFn: () => api.get("/users/lite").then(r => r.data),
     staleTime: 5 * 60_000,
   });
   const { data: properties = [] } = useQuery<{ id: string; name: string }[]>({

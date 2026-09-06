@@ -10,7 +10,7 @@ from app.core.security import get_password_hash
 from app.api.v1.deps import get_current_user, require_roles
 from app.models.user import User, UserRole, UserInvitation
 from app.models.tenant import Tenant
-from app.schemas.user import UserOut, UserInviteRequest, UserUpdateRequest, UserSelfUpdateRequest, InvitationOut
+from app.schemas.user import UserOut, UserLiteOut, UserInviteRequest, UserUpdateRequest, UserSelfUpdateRequest, InvitationOut
 from app.core.audit import append_audit
 from app.core.config import settings
 from app.services.email_service import send_invitation_email
@@ -44,6 +44,25 @@ def _require_self_or_owner(user_id: str, current_user: User) -> None:
 def get_me(current_user: User = Depends(get_current_user)):
     """Return the calling user's own profile including notification prefs and digest opt-in."""
     return current_user
+
+
+@router.get("/lite", response_model=List[UserLiteOut])
+def list_users_lite(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Name-only teammate directory for any authenticated role -- powers
+    "Assigned to" filter dropdowns (Leads360, Worklist) without exposing the
+    email/phone/role that GET /users (owner/manager only) returns. Actually
+    seeing a peer's leads is still enforced separately in leads_service.py's
+    scope_user_id guard; this just lets the dropdown render real names
+    instead of silently coming back empty on a 403."""
+    return (
+        db.query(User)
+        .filter_by(tenant_id=current_user.tenant_id, is_deleted=False, is_active=True)
+        .order_by(User.name)
+        .all()
+    )
 
 
 @router.patch("/me", response_model=UserOut)

@@ -28,6 +28,17 @@ class UserOut(BaseModel):
         from_attributes = True
 
 
+class UserLiteOut(BaseModel):
+    """Name-only directory row -- for "Assigned to" filter dropdowns etc.
+    Deliberately excludes email/phone/role, unlike UserOut, so it's safe to
+    expose to every authenticated role, not just owner/manager."""
+    id: str
+    name: str
+
+    class Config:
+        from_attributes = True
+
+
 class UserInviteRequest(BaseModel):
     name: str
     email: EmailStr

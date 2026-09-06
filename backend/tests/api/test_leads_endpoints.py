@@ -123,6 +123,60 @@ def test_get_lead_detail_cross_tenant_404(client, db):
     assert resp.status_code == 404
 
 
+# ── Visibility scope: agents can't see a peer's leads ────────────────────────
+
+def test_agent_cannot_see_peer_agents_lead_on_board(client, db):
+    """Krisha/Jishant case: GET /leads for a concierge agent must exclude a
+    lead assigned to a different agent, even though it's the same tenant."""
+    tenant = _make_tenant(db, "ScopeTenant")
+    guest = _make_guest(db, tenant.id)
+    krisha = _make_user(db, tenant.id, UserRole.CONCIERGE)
+    jishant = _make_user(db, tenant.id, UserRole.CONCIERGE)
+    krishas_lead = _make_inquiry(db, tenant.id, guest.id)
+    krishas_lead.assigned_to = krisha.id
+    unclaimed = _make_inquiry(db, tenant.id, guest.id)
+    db.commit()
+
+    resp = client.get("/api/v1/leads", headers=_auth(_token(jishant)))
+    assert resp.status_code == 200
+    inquiry_ids = {lead["inquiry_id"] for lead in resp.json()["leads"]}
+    assert krishas_lead.id not in inquiry_ids
+    assert unclaimed.id in inquiry_ids
+
+
+def test_owner_sees_every_agents_lead_on_board(client, db):
+    tenant = _make_tenant(db, "OwnerScopeTenant")
+    guest = _make_guest(db, tenant.id)
+    owner = _make_user(db, tenant.id, UserRole.OWNER)
+    agent = _make_user(db, tenant.id, UserRole.CONCIERGE)
+    agents_lead = _make_inquiry(db, tenant.id, guest.id)
+    agents_lead.assigned_to = agent.id
+    db.commit()
+
+    resp = client.get("/api/v1/leads", headers=_auth(_token(owner)))
+    assert resp.status_code == 200
+    inquiry_ids = {lead["inquiry_id"] for lead in resp.json()["leads"]}
+    assert agents_lead.id in inquiry_ids
+
+
+def test_agent_gets_404_opening_peer_agents_lead_by_url(client, db):
+    """Even with the direct inquiry_id (e.g. a stale link), an agent scoped
+    away from a peer's lead on the board must not be able to open it."""
+    tenant = _make_tenant(db, "ScopeDetailTenant")
+    guest = _make_guest(db, tenant.id)
+    krisha = _make_user(db, tenant.id, UserRole.CONCIERGE)
+    jishant = _make_user(db, tenant.id, UserRole.CONCIERGE)
+    krishas_lead = _make_inquiry(db, tenant.id, guest.id)
+    krishas_lead.assigned_to = krisha.id
+    db.commit()
+
+    resp = client.get(f"/api/v1/leads/{krishas_lead.id}", headers=_auth(_token(jishant)))
+    assert resp.status_code == 404
+
+    resp = client.get(f"/api/v1/leads/{krishas_lead.id}", headers=_auth(_token(krisha)))
+    assert resp.status_code == 200
+
+
 # ── T29: POST /signals forbidden for concierge ───────────────────────────────
 
 def test_add_signal_forbidden_for_concierge_role(client, db):

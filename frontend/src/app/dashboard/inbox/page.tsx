@@ -785,10 +785,12 @@ function InboxPageInner() {
   // W18: presence — heartbeat + poll
   const { onlineUsers } = usePresence(true);
 
-  // W25: @mention — fetch team members
+  // W25: @mention — fetch team members. /users is owner/manager-only and
+  // 403s for every other role, which silently emptied @mention for anyone
+  // else -- /users/lite is name-only but open to any authenticated role.
   const { data: teamMembers = [] } = useQuery({
-    queryKey: ["users"],
-    queryFn: () => api.get("/users").then(r => r.data),
+    queryKey: ["users-lite"],
+    queryFn: () => api.get("/users/lite").then(r => r.data),
     staleTime: 60_000,
   } as any);
 
