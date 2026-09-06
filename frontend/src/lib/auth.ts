@@ -300,6 +300,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (at && at !== "demo" && at !== "owner-bypass" && !token.refreshToken) {
           console.error("[AUTH] session_without_refresh_token", { userId: token.id });
         }
+        token.errorSince = undefined;
         return token;
       }
 
@@ -325,7 +326,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // Token is expired or about to expire — refresh it
       const refreshed = await refreshAccessToken(token.refreshToken as string);
       if ("error" in refreshed && !("accessToken" in refreshed)) {
-        return { ...token, error: "RefreshAccessTokenError" };
+        // Session-logout bug fix: don't overwrite an already-set errorSince
+        // -- the grace window (middleware.ts/api.ts) counts from the FIRST
+        // failure, not from whichever retry happens to run next. This is
+        // what lets a transient failure (a deploy's brief container-restart
+        // window, one dropped connection) self-heal on the next natural
+        // refresh cycle instead of the very first blip being fatal.
+        return { ...token, error: "RefreshAccessTokenError", errorSince: (token.errorSince as number) || Date.now() };
       }
       const r = refreshed as { accessToken: string; refreshToken: string; accessTokenExpires: number };
       return {
@@ -334,6 +341,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         refreshToken: r.refreshToken,
         accessTokenExpires: r.accessTokenExpires,
         error: undefined,
+        errorSince: undefined,
       };
     },
     async session({ session, token }) {
@@ -342,6 +350,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.tenantId = token.tenantId as string;
       (session as any).accessToken = token.accessToken;
       (session as any).error = token.error;
+      (session as any).errorSince = token.errorSince;
       return session;
     },
   },

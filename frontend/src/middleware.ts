@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { isWithinRefreshErrorGrace } from "@/lib/authGrace";
 
 // Subdomains that map directly to a marketing page path.
 // e.g. status.haip.app/ → /status, docs.haip.app/ → /docs
@@ -35,7 +36,17 @@ export default auth((req: NextRequest & { auth: any }) => {
   // user name -- all readable straight off the still-valid JWT payload)
   // before every data query 401'd with no valid token to attach, which is
   // what produced the reported "blank/zero" PWA symptom.
-  const isLoggedIn = !!req.auth && !req.auth.error;
+  //
+  // Session-logout bug fix: a bare `req.auth.error` used to redirect
+  // immediately, even for a single transient RefreshAccessTokenError (most
+  // likely during the exact container-restart window a deploy creates) --
+  // booting the user before the jwt callback's own self-heal (it retries
+  // on the very next natural refresh cycle) ever got a chance to run.
+  // Tolerate that specific error for a bounded grace window instead;
+  // SessionExpired (the deliberate 12h "not remembered" cutoff) still
+  // redirects immediately, same as before -- there's nothing to self-heal.
+  const withinGrace = isWithinRefreshErrorGrace(req.auth?.error, req.auth?.errorSince);
+  const isLoggedIn = !!req.auth && (!req.auth.error || withinGrace);
 
   // ── Logged-in users ────────────────────────────────────────────────────────
   if (isLoggedIn) {

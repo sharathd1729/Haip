@@ -2,6 +2,7 @@ import axios from "axios";
 import { getSession, signOut } from "next-auth/react";
 import { queryClient, QUERY_PERSIST_STORAGE_KEY } from "@/lib/queryClient";
 import { useConnectionStatusStore } from "@/store/connectionStatus";
+import { isWithinRefreshErrorGrace } from "@/lib/authGrace";
 
 // Ensure base URL always ends with /api/v1 regardless of how NEXT_PUBLIC_API_URL is set.
 // e.g. "https://72.61.228.243" → "https://72.61.228.243/api/v1"
@@ -166,8 +167,16 @@ api.interceptors.response.use(
       // permission-denied endpoint or one bad widget query logged the user
       // out of the entire app.
       const sessionError = (session as { error?: string } | null)?.error;
+      // Session-logout bug fix: a transient RefreshAccessTokenError gets the
+      // same bounded grace period middleware.ts applies -- don't sign the
+      // user out for a single failed refresh (a deploy's brief
+      // container-restart window, a dropped connection) before the jwt
+      // callback's own self-heal gets a chance on the next natural cycle.
+      // SessionExpired (the deliberate 12h cutoff) is unaffected.
+      const sessionErrorSince = (session as { errorSince?: number } | null)?.errorSince;
+      const withinGrace = isWithinRefreshErrorGrace(sessionError, sessionErrorSince);
       const unrecoverable =
-        !token && (!session || sessionError === "RefreshAccessTokenError" || sessionError === "SessionExpired");
+        !token && (!session || (sessionError === "RefreshAccessTokenError" && !withinGrace) || sessionError === "SessionExpired");
 
       if (unrecoverable) {
         clearTokenCache();
