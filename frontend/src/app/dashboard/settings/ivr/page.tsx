@@ -7,6 +7,7 @@ import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Phone, Loader2, CheckCircle2, AlertCircle, RefreshCw, Upload, Shuffle, ListOrdered, Users, Sparkles, Play } from "@/lib/icons";
 import { GitBranch, Hourglass, UserCheck } from "lucide-react";
+import { useToast } from "@/components/ui/toast";
 
 // This page used to also carry a "Vobiz SIP Credentials" / DTMF-menu /
 // Dograh-webhook config form (GET/PUT /api/v1/ivr/config), writing to a
@@ -104,6 +105,7 @@ export default function IVRPage() {
 
 function CallRoutingSection() {
   const qc = useQueryClient();
+  const { toast } = useToast();
 
   const { data, isLoading } = useQuery<IVRRoutingSettings>({
     queryKey: ["ivr-routing"],
@@ -114,6 +116,13 @@ function CallRoutingSection() {
     mutationFn: (strategy: string) =>
       api.patch("/tenants/me/ivr-routing", { ivr_routing_strategy: strategy }).then(r => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ivr-routing"] }),
+    // Without this, a rejected strategy (backend validation, stale deploy,
+    // network blip) left the radio silently unchanged with zero feedback --
+    // confirmed live: felt exactly like the option "wasn't clickable".
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast({ variant: "error", title: "Couldn't change routing mode", description: typeof msg === "string" ? msg : "Please try again." });
+    },
   });
 
   if (isLoading) {
@@ -187,6 +196,7 @@ function CallRoutingSection() {
             <input
               type="radio" name="ivr_strategy" className="mt-0.5 accent-teal-500"
               checked={data?.ivr_routing_strategy === s.id}
+              disabled={saveStrategy.isPending}
               onChange={() => saveStrategy.mutate(s.id)}
             />
             <span className="text-teal-500 mt-0.5">{s.icon}</span>
