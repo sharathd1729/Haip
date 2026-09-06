@@ -24,6 +24,8 @@ interface Lead {
   children?: number | null;
   occasion?: string | null;
   ai_summary?: string | null;
+  assigned_to?: string | null;
+  assigned_agent_name?: string | null;
 }
 interface Row {
   conversation_id?: string | null;
@@ -151,6 +153,8 @@ function LeadRow({ row, sectionKey }: { row: Row; sectionKey: string }) {
   const { toast } = useToast();
   const { data: session } = useSession();
   const currentUserId = session?.user?.id;
+  const currentUserRole = (session?.user as { role?: string } | undefined)?.role;
+  const canReassign = currentUserRole === "owner" || currentUserRole === "manager";
   const lead = row.lead;
   const text = row.last_message || row.body || row.title || (row.from_number ? `Called from ${row.from_number}` : "");
   const stay = [
@@ -202,6 +206,19 @@ function LeadRow({ row, sectionKey }: { row: Row; sectionKey: string }) {
             {lead.source && (
               <span className="text-[10px]" style={{ color: "var(--haip-fg-subtle)" }}>via {lead.source.replace(/_/g, " ")}</span>
             )}
+            {lead.assigned_to && (
+              <span
+                className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                style={
+                  lead.assigned_to === currentUserId
+                    ? { background: "color-mix(in srgb, var(--primary) 12%, transparent)", color: "var(--primary)" }
+                    : { background: "var(--muted)", color: "var(--haip-fg-subtle)" }
+                }
+              >
+                <UserCheck size={10} />
+                {lead.assigned_to === currentUserId ? "Assigned to you" : `Assigned to ${lead.assigned_agent_name || "another agent"}`}
+              </span>
+            )}
             {sectionKey === "awaiting_reply" && row.waiting_minutes != null && (
               <span
                 className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
@@ -230,7 +247,7 @@ function LeadRow({ row, sectionKey }: { row: Row; sectionKey: string }) {
 
         <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
           <span className="text-[10px] whitespace-nowrap" style={{ color: "var(--haip-fg-subtle)" }}>{whenOf(row)}</span>
-          {lead.inquiry_id && currentUserId && (
+          {lead.inquiry_id && currentUserId && lead.assigned_to !== currentUserId && (!lead.assigned_to || canReassign) && (
             <button
               onClick={() => assignToMe.mutate()}
               disabled={assignToMe.isPending}

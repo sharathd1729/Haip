@@ -61,8 +61,16 @@ def _guest_label(guest: Optional[Guest]) -> str:
     return "Unnamed lead"
 
 
-def _lead_context(db: Session, tenant_id: str, guest: Optional[Guest], inquiry: Optional[Inquiry]) -> dict:
-    """The at-a-glance facts an agent needs before making contact."""
+def _lead_context(
+    db: Session, tenant_id: str, guest: Optional[Guest], inquiry: Optional[Inquiry],
+    *, assigned_to: Optional[str] = None, assigned_agent_name: Optional[str] = None,
+) -> dict:
+    """The at-a-glance facts an agent needs before making contact.
+
+    `assigned_to`/`assigned_agent_name` surface who already owns this lead --
+    without it, a peer agent's worklist row looked identical to an unclaimed
+    one and still offered "Assign to me", even though the backend already
+    rejects the self-assign (automation_engine.py's overlap guard)."""
     contacts = []
     if guest is not None:
         rows = (
@@ -99,6 +107,25 @@ def _lead_context(db: Session, tenant_id: str, guest: Optional[Guest], inquiry: 
         # Written by the async summariser; the single most useful line for an
         # agent picking up a lead cold.
         "ai_summary": getattr(inquiry, "ai_summary", None),
+        "assigned_to": assigned_to,
+        "assigned_agent_name": assigned_agent_name,
+    }
+
+
+def _assignee_names(db: Session, tenant_id: str, assigned_ids: set) -> dict:
+    """Batch-resolve Conversation.assigned_to ids to display names -- same
+    pattern as conversations.py's owner_name_by_id, so a big worklist page
+    does one query instead of N."""
+    from app.models.user import User
+
+    ids = {i for i in assigned_ids if i}
+    if not ids:
+        return {}
+    return {
+        row.id: row.name
+        for row in db.query(User.id, User.name)
+        .filter(User.tenant_id == tenant_id, User.id.in_(ids))
+        .all()
     }
 
 
@@ -152,9 +179,12 @@ def awaiting_reply(
     if until is not None:
         q = q.filter(Message.created_at <= until)
 
+    rows = q.offset(offset).limit(limit).all()
+    names_by_id = _assignee_names(db, tenant_id, {conv.assigned_to for _, conv in rows})
+
     now = datetime.now(timezone.utc)
     out = []
-    for msg, conv in q.offset(offset).limit(limit).all():
+    for msg, conv in rows:
         created = msg.created_at
         if created is not None and created.tzinfo is None:
             created = created.replace(tzinfo=timezone.utc)
@@ -166,7 +196,10 @@ def awaiting_reply(
             "last_message": (msg.body or "")[:280],
             "last_message_at": created.isoformat() if created else None,
             "waiting_minutes": waiting_min,
-            "lead": _lead_context(db, tenant_id, conv.guest, conv.inquiry),
+            "lead": _lead_context(
+                db, tenant_id, conv.guest, conv.inquiry,
+                assigned_to=conv.assigned_to, assigned_agent_name=names_by_id.get(conv.assigned_to),
+            ),
         })
     return out
 
@@ -188,15 +221,21 @@ def new_dms(db: Session, tenant_id: str, since: Optional[datetime], *, until: Op
         q = q.filter(Message.created_at >= since)
     if until is not None:
         q = q.filter(Message.created_at <= until)
+    rows = q.offset(offset).limit(limit).all()
+    names_by_id = _assignee_names(db, tenant_id, {conv.assigned_to for _, conv in rows})
+
     out = []
-    for msg, conv in q.offset(offset).limit(limit).all():
+    for msg, conv in rows:
         channel = getattr(conv.channel, "value", conv.channel)
         out.append({
             "conversation_id": conv.id,
             "channel": str(channel).lower(),
             "body": (msg.body or "")[:280],
             "received_at": msg.created_at.isoformat() if msg.created_at else None,
-            "lead": _lead_context(db, tenant_id, conv.guest, conv.inquiry),
+            "lead": _lead_context(
+                db, tenant_id, conv.guest, conv.inquiry,
+                assigned_to=conv.assigned_to, assigned_agent_name=names_by_id.get(conv.assigned_to),
+            ),
         })
     return out
 
@@ -291,7 +330,7 @@ def shared_contact_details(
     # away all but the requested page.
     limited_guest_ids = list(by_guest.items())[offset:offset + limit]
 
-    out = []
+    rows = []
     for guest_id, info in limited_guest_ids:
         guest = db.query(Guest).filter_by(id=guest_id, tenant_id=tenant_id).first()
         inquiry = (
@@ -306,11 +345,21 @@ def shared_contact_details(
             .order_by(Conversation.created_at.desc())
             .first()
         )
+        rows.append((info, guest, inquiry, conv))
+
+    names_by_id = _assignee_names(db, tenant_id, {getattr(conv, "assigned_to", None) for *_, conv in rows})
+
+    out = []
+    for info, guest, inquiry, conv in rows:
+        assigned_to = getattr(conv, "assigned_to", None)
         out.append({
             "conversation_id": getattr(conv, "id", None),
             "shared": info["shared"],
             "shared_at": info["at"].isoformat() if info["at"] else None,
-            "lead": _lead_context(db, tenant_id, guest, inquiry),
+            "lead": _lead_context(
+                db, tenant_id, guest, inquiry,
+                assigned_to=assigned_to, assigned_agent_name=names_by_id.get(assigned_to),
+            ),
         })
     out.sort(key=lambda r: r["shared_at"] or "", reverse=True)
     return out

@@ -14,6 +14,7 @@ from app.models.guest_identity import GuestIdentity, IdentityType
 from app.models.inquiry import Inquiry
 from app.models.pipeline_stage import PipelineStage
 from app.models.tenant import Tenant
+from app.models.user import User
 from app.services import worklist_service as ws
 
 
@@ -136,6 +137,30 @@ def test_tenant_isolation(db):
     assert [r["lead"]["name"] for r in ws.awaiting_reply(db, t1.id)] == ["T1 lead"]
 
 
+def test_assignee_name_surfaced_so_other_agents_see_who_owns_it(db):
+    """A lead self-assigned by one agent must show that agent's name to
+    everyone else viewing the worklist -- otherwise a peer's row looks
+    unclaimed and still offers "Assign to me" even though the backend
+    already rejects that self-assign (automation_engine.py's overlap guard)."""
+    t = _tenant(db)
+    krisha = User(tenant_id=t.id, email="krisha@ratha.test", name="Krisha")
+    db.add(krisha); db.commit()
+    g, c = _conv(db, t, name="Prithvi", assigned_to=krisha.id)
+    _msg(db, t, c, MessageDirection.INBOUND)
+    rows = ws.awaiting_reply(db, t.id)
+    assert rows[0]["lead"]["assigned_to"] == krisha.id
+    assert rows[0]["lead"]["assigned_agent_name"] == "Krisha"
+
+
+def test_unassigned_lead_has_no_assignee_name(db):
+    t = _tenant(db)
+    g, c = _conv(db, t)
+    _msg(db, t, c, MessageDirection.INBOUND)
+    rows = ws.awaiting_reply(db, t.id)
+    assert rows[0]["lead"]["assigned_to"] is None
+    assert rows[0]["lead"]["assigned_agent_name"] is None
+
+
 # ─── shared contact details ──────────────────────────────────────────────────
 
 def test_shared_details_picks_up_phone_and_email(db):
@@ -200,6 +225,22 @@ def test_shared_details_limit_counts_guests_not_raw_signal_rows(db):
     assert len({r["shared_at"] for r in rows}) == 20  # 20 distinct guests, not fewer
     for r in rows:
         assert len(r["shared"]) == 2  # each guest's phone + email both retained
+
+
+def test_shared_details_surfaces_assignee_name(db):
+    t = _tenant(db)
+    jishant = User(tenant_id=t.id, email="jishant@ratha.test", name="Jishant")
+    db.add(jishant); db.commit()
+    g, c = _conv(db, t, assigned_to=jishant.id)
+    _valid_inquiry(db, t, g)
+    now = datetime.now(timezone.utc)
+    db.add(GuestIdentity(
+        tenant_id=t.id, guest_id=g.id, identity_type=IdentityType.PHONE.value,
+        identity_value="+919876500002", confidence=0.9, first_seen_at=now,
+    ))
+    db.commit()
+    rows = ws.shared_contact_details(db, t.id, now - timedelta(hours=1))
+    assert rows[0]["lead"]["assigned_agent_name"] == "Jishant"
 
 
 # ─── lead context ────────────────────────────────────────────────────────────
