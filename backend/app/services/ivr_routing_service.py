@@ -35,9 +35,18 @@ STRATEGY_PARALLEL = "parallel"
 STRATEGY_FIXED_ORDER = "fixed_order"
 STRATEGY_LONGEST_IDLE = "longest_idle"
 STRATEGY_STICKY_AGENT = "sticky_agent"
+# A repeat caller always reaches the specific agent who last answered them
+# (never round-robin'd elsewhere, unlike STRATEGY_STICKY_AGENT); a
+# first-time caller (or one whose previous agent is no longer eligible)
+# rings every eligible agent in parallel instead of a single round-robin
+# pick. See resolve_dial_numbers and vobiz_dial_status_webhook (which
+# records the answering agent as the new sticky pick -- parallel ringing
+# means the answerer isn't known until the call actually connects).
+STRATEGY_STICKY_PARALLEL = "sticky_agent_parallel"
 VALID_STRATEGIES = (
     STRATEGY_SINGLE, STRATEGY_ROUND_ROBIN, STRATEGY_PARALLEL,
     STRATEGY_FIXED_ORDER, STRATEGY_LONGEST_IDLE, STRATEGY_STICKY_AGENT,
+    STRATEGY_STICKY_PARALLEL,
 )
 
 # Strategies that ring several numbers in the same <Dial> (simultaneous)
@@ -120,21 +129,44 @@ def _sticky_key(tenant_id: str, caller_number: str) -> str:
     return f"haip:ivr:sticky:{tenant_id}:{caller_number}"
 
 
+def _sticky_lookup(tenant_id: str, caller_number: str | None, agents: list[User]) -> User | None:
+    """Read-only sticky-cache lookup -- no round-robin fallback, no cache
+    write. Shared by STRATEGY_STICKY_AGENT (which adds its own fallback/
+    write below) and STRATEGY_STICKY_PARALLEL (whose caller falls through to
+    a full parallel ring on a miss, and whose cache write happens only once
+    someone actually answers -- see record_sticky_answer)."""
+    if not caller_number:
+        return None
+    sticky_phone = cache.get_cached(_sticky_key(tenant_id, caller_number))
+    if not sticky_phone:
+        return None
+    return next((a for a in agents if a.phone == sticky_phone), None)
+
+
 def _sticky_agent_pick(tenant_id: str, caller_number: str | None, agents: list[User]) -> User:
     """Route a repeat caller back to whoever they were routed to last time,
     if that agent is still eligible. First-time callers (or a stale/no-
     longer-eligible previous agent) fall back to round robin, which also
     becomes the new sticky pick for next time."""
-    if caller_number:
-        sticky_phone = cache.get_cached(_sticky_key(tenant_id, caller_number))
-        if sticky_phone:
-            match = next((a for a in agents if a.phone == sticky_phone), None)
-            if match:
-                return match
+    match = _sticky_lookup(tenant_id, caller_number, agents)
+    if match:
+        return match
     picked = _round_robin_pick(tenant_id, agents)
     if caller_number:
         cache.set_cached(_sticky_key(tenant_id, caller_number), picked.phone, ttl=_STICKY_TTL)
     return picked
+
+
+def record_sticky_answer(tenant_id: str, caller_number: str | None, agent_phone: str) -> None:
+    """Record which agent actually answered a STRATEGY_STICKY_PARALLEL call,
+    so the same caller reaches them directly next time. Called from
+    webhooks_vobiz.py's dial-status webhook at the moment DialStatus
+    confirms "completed" -- written at answer-time rather than dial-time
+    because parallel ringing means the answering agent isn't known until
+    the call actually connects."""
+    if not caller_number:
+        return
+    cache.set_cached(_sticky_key(tenant_id, caller_number), agent_phone, ttl=_STICKY_TTL)
 
 
 def resolve_dial_numbers(
@@ -154,6 +186,18 @@ def resolve_dial_numbers(
         return [fallback_number] if fallback_number else []
 
     strategy = tenant.ivr_routing_strategy or STRATEGY_SINGLE
+
+    if strategy == STRATEGY_STICKY_PARALLEL:
+        sticky_match = _sticky_lookup(tenant.id, caller_number, agents)
+        if sticky_match:
+            _mark_dialed(db, [sticky_match])
+            return [sticky_match.phone]
+        # No sticky match (first-time caller, or their previous agent is no
+        # longer eligible) -- ring everyone, same as STRATEGY_PARALLEL.
+        # Deliberately does NOT write the sticky cache here: whoever
+        # actually answers is recorded by record_sticky_answer() once the
+        # dial-status webhook confirms it, not whoever happened to be rung.
+        strategy = STRATEGY_PARALLEL
 
     if strategy in (STRATEGY_PARALLEL, STRATEGY_FIXED_ORDER):
         _mark_dialed(db, agents)

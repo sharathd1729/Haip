@@ -261,6 +261,77 @@ def test_sticky_agent_with_no_caller_number_still_resolves(db):
         assert ivr.resolve_dial_numbers(db, t, fallback_number=None, caller_number=None) == ["+911"]
 
 
+# ─── sticky_agent_parallel ──────────────────────────────────────────────────────
+
+def test_sticky_parallel_first_time_caller_rings_everyone(db):
+    """No sticky match -- unlike plain sticky_agent, this must NOT round-robin
+    to a single pick, it rings every eligible agent."""
+    t = _tenant(db, ivr_routing_strategy="sticky_agent_parallel")
+    _user(db, t, phone="+911")
+    _user(db, t, phone="+912")
+    _user(db, t, phone="+913")
+    with patch("app.services.ivr_routing_service.cache.get_cached", return_value=None), \
+         patch("app.services.ivr_routing_service.cache.set_cached") as mock_set, \
+         patch("app.services.ivr_routing_service.cache.incr") as mock_incr:
+        result = ivr.resolve_dial_numbers(db, t, fallback_number=None, caller_number="+91999")
+    assert result == ["+911", "+912", "+913"]
+    mock_incr.assert_not_called()  # never falls to round-robin
+    mock_set.assert_not_called()   # sticky cache is written on answer, not at dial time
+
+
+def test_sticky_parallel_repeat_caller_rings_only_their_previous_agent(db):
+    t = _tenant(db, ivr_routing_strategy="sticky_agent_parallel")
+    _user(db, t, phone="+911")
+    _user(db, t, phone="+912")
+    with patch("app.services.ivr_routing_service.cache.get_cached", return_value="+912"):
+        result = ivr.resolve_dial_numbers(db, t, fallback_number=None, caller_number="+91999")
+    assert result == ["+912"]
+
+
+def test_sticky_parallel_falls_back_to_everyone_when_previous_agent_ineligible(db):
+    t = _tenant(db, ivr_routing_strategy="sticky_agent_parallel")
+    _user(db, t, phone="+911")
+    _user(db, t, phone="+912")
+    with patch("app.services.ivr_routing_service.cache.get_cached", return_value="+999-no-longer-eligible"):
+        result = ivr.resolve_dial_numbers(db, t, fallback_number=None, caller_number="+91999")
+    assert result == ["+911", "+912"]
+
+
+def test_sticky_parallel_with_no_caller_number_rings_everyone(db):
+    t = _tenant(db, ivr_routing_strategy="sticky_agent_parallel")
+    _user(db, t, phone="+911")
+    _user(db, t, phone="+912")
+    assert ivr.resolve_dial_numbers(db, t, fallback_number=None, caller_number=None) == ["+911", "+912"]
+
+
+def test_record_sticky_answer_writes_the_cache(db):
+    t = _tenant(db, ivr_routing_strategy="sticky_agent_parallel")
+    with patch("app.services.ivr_routing_service.cache.set_cached") as mock_set:
+        ivr.record_sticky_answer(t.id, "+91999", "+912")
+    mock_set.assert_called_once_with("haip:ivr:sticky:" + t.id + ":+91999", "+912", ttl=60 * 60 * 24 * 90)
+
+
+def test_record_sticky_answer_no_op_without_caller_number(db):
+    with patch("app.services.ivr_routing_service.cache.set_cached") as mock_set:
+        ivr.record_sticky_answer("tenant-1", None, "+912")
+    mock_set.assert_not_called()
+
+
+def test_sticky_agent_plain_strategy_unaffected_by_new_strategy(db):
+    """Regression guard: refactoring _sticky_agent_pick to share
+    _sticky_lookup must not change plain sticky_agent's own dial-time
+    round-robin-and-write behaviour."""
+    t = _tenant(db, ivr_routing_strategy="sticky_agent")
+    _user(db, t, phone="+911")
+    _user(db, t, phone="+912")
+    with patch("app.services.ivr_routing_service.cache.get_cached", return_value=None), \
+         patch("app.services.ivr_routing_service.cache.incr", return_value=1), \
+         patch("app.services.ivr_routing_service.cache.set_cached") as mock_set:
+        result = ivr.resolve_dial_numbers(db, t, fallback_number=None, caller_number="+91999")
+    assert result == ["+912"]
+    mock_set.assert_called_once_with("haip:ivr:sticky:" + t.id + ":+91999", "+912", ttl=60 * 60 * 24 * 90)
+
+
 # ─── dial_mode ──────────────────────────────────────────────────────────────────
 
 def test_dial_mode_fixed_order_is_sequential(db):
@@ -269,7 +340,7 @@ def test_dial_mode_fixed_order_is_sequential(db):
 
 
 def test_dial_mode_everything_else_is_simultaneous(db):
-    for strategy in ("single", "round_robin", "parallel", "longest_idle", "sticky_agent"):
+    for strategy in ("single", "round_robin", "parallel", "longest_idle", "sticky_agent", "sticky_agent_parallel"):
         t = _tenant(db, ivr_routing_strategy=strategy)
         assert ivr.dial_mode(t) == "simultaneous"
 

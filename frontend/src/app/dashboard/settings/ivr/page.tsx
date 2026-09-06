@@ -60,6 +60,10 @@ const ROUTING_STRATEGIES = [
     id: "sticky_agent", label: "Sticky agent", icon: <UserCheck size={14} />,
     desc: "A repeat caller rings the same agent they reached last time, when that agent is still available. New callers get round robin.",
   },
+  {
+    id: "sticky_agent_parallel", label: "Sticky agent + parallel", icon: <UserCheck size={14} />,
+    desc: "A repeat caller always rings the specific agent who last answered them — never round robin'd elsewhere. First-time callers (or if that agent is no longer available) ring every opted-in agent at once.",
+  },
 ];
 
 // Sarvam bulbul:v2 female voices. anushka is Sarvam's flagship/default.

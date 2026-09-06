@@ -397,6 +397,27 @@ async def vobiz_dial_status_webhook(
             except Exception as exc:
                 log.warning("vobiz_dial_status_promote_failed", tenant=tenant_slug, error=str(exc))
 
+            # sticky_agent_parallel: record the answering agent as the new
+            # sticky pick for this caller, since parallel ringing means
+            # resolve_dial_numbers couldn't know who would answer at dial
+            # time. Scoped to this one strategy only -- STRATEGY_STICKY_AGENT
+            # already sets its own sticky pick at dial time and must not be
+            # double-written here.
+            if tenant.ivr_routing_strategy == "sticky_agent_parallel":
+                try:
+                    from app.models.user import User as _User
+                    from app.services import ivr_routing_service
+
+                    agent_id = matched_agent_id or get_cached(_dial_bleg_provisional_key(tenant.id, call_uuid))
+                    call_meta = get_cached(_cache_key(tenant.id, call_uuid)) or {}
+                    caller_number = call_meta.get("From")
+                    if agent_id and caller_number:
+                        agent = db.query(_User).filter_by(id=agent_id, tenant_id=tenant.id).first()
+                        if agent and agent.phone:
+                            ivr_routing_service.record_sticky_answer(tenant.id, caller_number, agent.phone)
+                except Exception as exc:
+                    log.warning("vobiz_sticky_parallel_record_failed", tenant=tenant_slug, error=str(exc))
+
     return {"status": "ok"}
 
 
