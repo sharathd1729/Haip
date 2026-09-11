@@ -453,6 +453,39 @@ def test_answer_webhook_returns_xml_with_record_and_dial(client, tenant_and_user
     assert f"/webhooks/vobiz/{tenant.slug}/correct-secret/recording" in res.text
 
 
+def test_answer_webhook_parallel_dial_dedupes_agents_sharing_a_phone_number(client, tenant_and_user, db):
+    """Confirmed live on Ratha: parallel ring went completely silent both
+    ways while every single-number strategy kept working. Root cause --
+    _get_eligible_agents() has no phone dedup, so two agents sharing/
+    reusing one number collapsed into two sibling <Number> tags in the same
+    <Dial>, dialing one physical handset twice at once. Only the parallel
+    path (2+ <Number> tags in one <Dial>) can ever expose this; every other
+    strategy resolves to a single number."""
+    from app.models.user import User, UserRole
+
+    tenant = tenant_and_user["tenant"]
+    tenant.ivr_routing_strategy = "parallel"
+    db.add(tenant)
+
+    for name in ("Agent One", "Agent Two"):
+        db.add(User(
+            id=str(uuid.uuid4()), tenant_id=tenant.id, name=name,
+            email=f"{name.lower().replace(' ', '')}@test.com",
+            role=UserRole.CONCIERGE, is_active=True,
+            phone="+919876500001", ivr_call_routing_enabled=True,
+        ))
+    db.commit()
+
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret", forward_number="+919000000000")
+
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/answer",
+        data={"CallUUID": "call-dup-1", "From": "+919876543210", "To": "+912271264296", "Direction": "inbound"},
+    )
+    assert res.status_code == 200
+    assert res.text.count("<Number>+919876500001</Number>") == 1
+
+
 def test_answer_webhook_normalizes_double_prefixed_from_number_before_caching(client, tenant_and_user, db):
     """Confirmed live on Ratha: Vobiz's own "From" for some inbound calls
     arrives with a duplicated "91" baked in (a real 7249066854 shows up as

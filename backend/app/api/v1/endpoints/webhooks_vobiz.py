@@ -198,7 +198,30 @@ async def vobiz_answer_webhook(
     # silently failing account-ownership validation (CALL_REJECTED, no SIP
     # code, confirmed via the account's own CDR export).
     caller_id = _to_e164_in(data.get("To", ""))
-    e164_numbers = [n if n.startswith("+") else _to_e164_in(n) for n in dial_numbers]
+    # Confirmed live: parallel ring (STRATEGY_PARALLEL, and STICKY_PARALLEL's
+    # first-time-caller fallback -- the only strategies that ever put more
+    # than one <Number> in a single <Dial>) went completely silent both ways
+    # on a real call, while every single-number strategy kept working.
+    # ivr_routing_service._get_eligible_agents() has no phone dedup, and two
+    # agents sharing/reusing the same number -- or the same raw number
+    # merely formatted differently in User.phone (e.g. "9876543210" and
+    # "+919876543210") -- collapses to the identical E164 value here and
+    # gets written into the <Dial> as two sibling <Number> tags dialing the
+    # same physical handset at once. That's outside anything Vobiz's own
+    # simultaneous-dial docs describe (they assume distinct destinations
+    # racing), and is the one difference between the parallel path and every
+    # strategy that only ever resolves to a single number. Dedup after
+    # normalization (raw User.phone values may differ in format even when
+    # they're the same number) rather than in ivr_routing_service, whose own
+    # docstring already defers all E164 normalization to this caller.
+    seen: set[str] = set()
+    e164_numbers = []
+    for n in dial_numbers:
+        normalized = n if n.startswith("+") else _to_e164_in(n)
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        e164_numbers.append(normalized)
 
     # Outside business_hours: skip the Dial attempt entirely rather than
     # ringing agents who aren't expected to be working. No new audio slot
