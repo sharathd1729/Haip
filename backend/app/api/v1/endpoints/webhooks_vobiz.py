@@ -53,6 +53,27 @@ def _dial_bleg_provisional_key(tenant_id: str, call_uuid: str) -> str:
     return f"haip:vobiz:dial_bleg_provisional:{tenant_id}:{call_uuid}"
 
 
+def _voicemail_xml(tenant: Tenant) -> str:
+    """"Nobody is coming to the phone" -- the prompt plus a window to speak.
+
+    The second <Record> deliberately has no callbackUrl: reusing the session
+    recording's would fire that webhook twice for one call.
+
+    Shared by the answer webhook (outside business hours, and the sequential
+    fixed_order fall-through) and the dial-action handler (no-answer/busy/
+    failed/cancel/timeout), so the caller hears the same thing either way.
+    """
+    from app.services import ivr_routing_service
+
+    voicemail_url = ivr_routing_service.resolve_voicemail_url(tenant)
+    if not voicemail_url:
+        return ""
+    return (
+        f'<Play>{xml_escape(voicemail_url)}</Play>'
+        f'<Record playBeep="true" maxLength="60" redirect="false"/>'
+    )
+
+
 def _to_e164_in(number: str) -> str:
     """Normalize a domestic-format Indian number (e.g. "08071581336") to
     full E.164 ("+918071581336"). Vobiz's own DID/callerId records are
@@ -180,6 +201,7 @@ async def vobiz_answer_webhook(
     base = (settings.API_BASE_URL or str(request.base_url).rstrip("/")).rstrip("/")
     recording_callback_url = f"{base}/api/v1/webhooks/vobiz/{tenant_slug}/{url_secret}/recording"
     dial_status_callback_url = f"{base}/api/v1/webhooks/vobiz/{tenant_slug}/{url_secret}/dial-status"
+    dial_action_url = f"{base}/api/v1/webhooks/vobiz/{tenant_slug}/{url_secret}/dial-action"
     log.info(
         "vobiz_answer_xml_built",
         tenant=tenant_slug,
@@ -267,6 +289,31 @@ async def vobiz_answer_webhook(
     # contains. Both attributes point at the same endpoint -- the handler
     # already reads whichever fields (DialBLegTo vs DialStatus) are present
     # in a given POST, so no handler change is needed.
+    #
+    # Voicemail-after-a-good-call fix (confirmed live in call transcripts):
+    # `redirect="false"` means execution ALWAYS falls through to the next
+    # verb once <Dial> finishes -- including when the dial succeeded and a
+    # real conversation happened. Because the agent usually hangs up first,
+    # the guest's leg was still up at that moment and they got
+    # "Sorry we couldn't take your call, please leave a message" right after
+    # a perfectly good conversation. Measured at 12 of 71 answered inbound
+    # calls; the session recordings contain the voicemail prompt appended to
+    # a full transcript.
+    #
+    # Per vobiz.ai/docs/xml/dial: `action` is requested when Dial finishes
+    # regardless of outcome, and `redirect="true"` makes Vobiz execute the
+    # XML it returns *instead of* the remaining verbs. So the simultaneous
+    # branch hands the decision to vobiz_dial_action_webhook, which plays
+    # voicemail only when DialStatus says nobody actually took the call.
+    #
+    # The sequential (fixed_order) branch deliberately keeps
+    # redirect="false": its whole "try A, then B, then C" idiom depends on
+    # an unanswered <Dial> falling through to the next <Dial>, which
+    # redirect="true" would replace outright. It therefore keeps the inline
+    # voicemail fall-through (and the pre-existing quirk that a completed
+    # call there still rings the next candidate). No tenant uses fixed_order
+    # today; fixing it needs a different shape than this one-line switch.
+    action_owns_voicemail = False
     if not within_hours:
         dial_xml = ""
     elif ivr_routing_service.dial_mode(tenant) == "sequential" and len(e164_numbers) > 1:
@@ -279,10 +326,11 @@ async def vobiz_answer_webhook(
     else:
         number_tags = "".join(f"<Number>{n}</Number>" for n in e164_numbers)
         dial_xml = (
-            f'<Dial callerId="{caller_id}" timeout="30" timeLimit="1800" redirect="false" '
-            f'callbackUrl="{dial_status_callback_url}" action="{dial_status_callback_url}">'
+            f'<Dial callerId="{caller_id}" timeout="30" timeLimit="1800" redirect="true" '
+            f'callbackUrl="{dial_status_callback_url}" action="{dial_action_url}">'
             f"{number_tags}</Dial>"
         )
+        action_owns_voicemail = True
 
     # Plays before the Dial rather than as hold audio during it -- Vobiz's
     # XML dialect (Plivo-style) executes verbs sequentially, and a nested
@@ -295,24 +343,13 @@ async def vobiz_answer_webhook(
     greeting_url = ivr_routing_service.resolve_greeting_url(tenant) if within_hours else None
     greeting_xml = f'<Play>{xml_escape(greeting_url)}</Play>' if greeting_url else ""
 
-    # Plays after Dial falls through unanswered, or immediately (no Dial at
-    # all) when outside business hours -- either way this is "no one's
-    # coming to the phone." The whole-session <Record> above already
-    # captures whatever the caller says after this plays, so the second
-    # <Record> here exists only to give a beep + a window to speak, not
-    # for its own completion callback (deliberately omitted -- reusing
-    # recording_callback_url would risk that webhook firing twice for one
-    # call, once for the real session recording and once for this tail).
-    # UNCONFIRMED against real Vobiz behavior: whether a <Record> without
-    # callbackUrl is accepted, and whether Dial-timeout fallthrough reaches
-    # a non-Dial verb the same way it reaches a sequential Dial->Dial.
-    # Worst case if either assumption is wrong: identical to today's
-    # behavior (silent hangup) -- no regression, just no new behavior.
-    voicemail_url = ivr_routing_service.resolve_voicemail_url(tenant)
-    voicemail_xml = (
-        f'<Play>{xml_escape(voicemail_url)}</Play>'
-        f'<Record playBeep="true" maxLength="60" redirect="false"/>'
-    ) if voicemail_url else ""
+    # Inline voicemail only covers the cases the dial-action handler can't:
+    # outside business hours (no <Dial> at all, so `action` never fires) and
+    # the sequential fixed_order branch (still redirect="false"). When the
+    # simultaneous <Dial> is in play, vobiz_dial_action_webhook decides --
+    # playing this only when DialStatus says nobody took the call, instead
+    # of unconditionally after every finished conversation.
+    voicemail_xml = "" if action_owns_voicemail else _voicemail_xml(tenant)
 
     xml = (
         '<?xml version="1.0" encoding="UTF-8"?>'
@@ -368,12 +405,26 @@ async def vobiz_dial_status_webhook(
     tenant, creds = _resolve_tenant_and_creds(db, tenant_slug, url_secret)
     form = await request.form()
     data = dict(form)
+    if not data.get("CallUUID", ""):
+        log.info("vobiz_dial_status_raw_payload", tenant=tenant_slug, raw_form=data)
+        return {"status": "ignored"}
+    _process_dial_payload(db, tenant, tenant_slug, data)
+    return {"status": "ok"}
 
+
+def _process_dial_payload(db: Session, tenant: Tenant, tenant_slug: str, data: dict) -> str:
+    """Shared by the Dial `callbackUrl` and `action` handlers.
+
+    Both carry the same field vocabulary (DialBLegTo on the real-time
+    events, DialStatus on the terminal one), so attribution logic lives
+    here once. Returns the DialStatus seen in this payload ("" if none),
+    which the action handler uses to decide whether to play voicemail.
+    """
     log.info("vobiz_dial_status_raw_payload", tenant=tenant_slug, raw_form=data)
 
     call_uuid = data.get("CallUUID", "")
     if not call_uuid:
-        return {"status": "ignored"}
+        return ""
 
     matched_agent_id = None
     dial_b_leg_to = data.get("DialBLegTo", "")
@@ -441,7 +492,59 @@ async def vobiz_dial_status_webhook(
                 except Exception as exc:
                     log.warning("vobiz_sticky_parallel_record_failed", tenant=tenant_slug, error=str(exc))
 
-    return {"status": "ok"}
+    return dial_status
+
+
+@router.post("/vobiz/{tenant_slug}/{url_secret}/dial-action")
+async def vobiz_dial_action_webhook(
+    tenant_slug: str,
+    url_secret: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Vobiz Dial `action` URL -- fires once, when <Dial> finishes, and (with
+    redirect="true") the XML returned here REPLACES the remaining verbs.
+
+    This exists to stop the voicemail prompt playing after a successful
+    call. Previously the answer XML listed voicemail as the verb after
+    <Dial>, and redirect="false" meant it ran on every fall-through --
+    including a completed conversation, since the agent usually hangs up
+    first and the guest's leg is still up at that moment. Guests heard
+    "Sorry we couldn't take your call" right after talking to an agent
+    (12 of 71 answered inbound calls, visible in the session transcripts).
+
+    DialStatus "completed" means someone took the call, so just hang up.
+    Every other value (busy/failed/cancel/timeout/no-answer) -- and a
+    missing/unparseable status, which is treated as "not answered" so the
+    caller is never left with dead air -- gets the voicemail prompt.
+    """
+    tenant, creds = _resolve_tenant_and_creds(db, tenant_slug, url_secret)
+    form = await request.form()
+    data = dict(form)
+
+    dial_status = _process_dial_payload(db, tenant, tenant_slug, data)
+
+    if dial_status == "completed":
+        body = ""
+    else:
+        body = _voicemail_xml(tenant)
+
+    log.info(
+        "vobiz_dial_action_resolved",
+        tenant=tenant_slug,
+        call_uuid=data.get("CallUUID", ""),
+        dial_status=dial_status or None,
+        played_voicemail=bool(body),
+    )
+
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        "<Response>"
+        f"{body}"
+        "<Hangup/>"
+        "</Response>"
+    )
+    return Response(content=xml, media_type="application/xml")
 
 
 @router.post("/vobiz/{tenant_slug}/{url_secret}/outbound-answer")

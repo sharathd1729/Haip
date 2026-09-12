@@ -525,10 +525,104 @@ def test_answer_webhook_dial_sets_both_callbackurl_and_action(client, tenant_and
         data={"CallUUID": "call-abc-123", "From": "+919876543210", "To": "+912271264296", "Direction": "inbound"},
     )
     assert res.status_code == 200
-    dial_status_path = f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/dial-status"
-    assert f'callbackUrl="' in res.text and dial_status_path in res.text
-    assert res.text.count(dial_status_path) == 2  # once for callbackUrl, once for action
-    assert f'action="' in res.text
+    base = f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret"
+    # Real-time B-leg events still go to dial-status; the terminal result now
+    # goes to dial-action, which returns the XML that replaces the remaining
+    # verbs (see the voicemail-after-a-good-call fix).
+    assert f'callbackUrl="' in res.text and f"{base}/dial-status" in res.text
+    assert f'action="' in res.text and f"{base}/dial-action" in res.text
+
+
+def test_answer_xml_no_longer_queues_voicemail_after_the_dial(client, tenant_and_user, db, monkeypatch):
+    """The voicemail-after-a-good-call bug: with redirect="false" the verb
+    after <Dial> ran on EVERY fall-through, including a completed
+    conversation (the agent hangs up first, so the guest's leg is still up).
+    Guests heard "Sorry we couldn't take your call" right after talking to
+    an agent. The simultaneous <Dial> now uses redirect="true" and lets the
+    dial-action handler decide, so no voicemail is queued up front."""
+    from app.services import ivr_routing_service
+
+    monkeypatch.setattr(ivr_routing_service, "resolve_voicemail_url", lambda t, **kw: "https://x/vm.mp3")
+
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret", forward_number="+919000000000")
+
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/answer",
+        data={"CallUUID": "call-vm-1", "From": "+919876543210", "To": "+912271264296", "Direction": "inbound"},
+    )
+    assert res.status_code == 200
+    assert 'redirect="true"' in res.text
+    assert "vm.mp3" not in res.text  # voicemail is the action handler's call now
+
+
+def test_dial_action_stays_silent_when_the_call_was_answered(client, tenant_and_user, db, monkeypatch):
+    """DialStatus=completed -- someone took the call. Hang up, don't
+    apologise for missing it."""
+    from app.services import ivr_routing_service
+
+    monkeypatch.setattr(ivr_routing_service, "resolve_voicemail_url", lambda t, **kw: "https://x/vm.mp3")
+
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret", forward_number="+919000000000")
+
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/dial-action",
+        data={"CallUUID": "call-vm-2", "DialStatus": "completed"},
+    )
+    assert res.status_code == 200
+    assert res.headers["content-type"].startswith("application/xml")
+    assert "vm.mp3" not in res.text
+    assert "<Hangup/>" in res.text
+
+
+@pytest.mark.parametrize("status", ["no-answer", "busy", "failed", "cancel", "timeout", ""])
+def test_dial_action_plays_voicemail_when_nobody_took_the_call(
+    client, tenant_and_user, db, monkeypatch, status,
+):
+    """Every non-completed outcome still reaches voicemail -- including a
+    missing DialStatus, which is treated as "not answered" so the caller is
+    never left with dead air."""
+    from app.services import ivr_routing_service
+
+    monkeypatch.setattr(ivr_routing_service, "resolve_voicemail_url", lambda t, **kw: "https://x/vm.mp3")
+
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret", forward_number="+919000000000")
+
+    payload = {"CallUUID": f"call-vm-{status or 'none'}"}
+    if status:
+        payload["DialStatus"] = status
+
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/dial-action",
+        data=payload,
+    )
+    assert res.status_code == 200
+    assert "vm.mp3" in res.text
+    assert "<Hangup/>" in res.text
+
+
+def test_dial_action_still_records_agent_attribution(client, tenant_and_user, db):
+    """The action handler shares the callbackUrl handler's logic, so moving
+    the terminal DialStatus onto its own endpoint must not lose the
+    provisional-match promotion that inbound agent attribution depends on."""
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret", forward_number="+919000000000")
+    agent = _add_agent(db, tenant, phone="+919876500055")
+
+    client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/dial-status",
+        data={"CallUUID": "call-attr-1", "DialBLegTo": "+919876500055"},
+    )
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/dial-action",
+        data={"CallUUID": "call-attr-1", "DialStatus": "completed"},
+    )
+    assert res.status_code == 200
+
+    from app.workers.tasks.call_ingest import _lookup_click_to_call_agent
+    assert _lookup_click_to_call_agent(tenant.id, "call-attr-1") == agent.id
 
 
 def test_answer_webhook_hangs_up_gracefully_when_forward_number_unset(client, tenant_and_user, db):
