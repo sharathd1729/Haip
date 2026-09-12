@@ -19,6 +19,7 @@ an unguessable per-tenant secret embedded in the URL path itself, checked
 with secrets.compare_digest. Vobiz's own X-Vobiz-Signature HMAC is not used
 for authorization since it signs the URL, not the body.
 """
+import hashlib
 import secrets
 from xml.sax.saxutils import escape as xml_escape
 
@@ -51,6 +52,12 @@ def _dial_status_cache_key(tenant_id: str, call_uuid: str) -> str:
 
 def _dial_bleg_provisional_key(tenant_id: str, call_uuid: str) -> str:
     return f"haip:vobiz:dial_bleg_provisional:{tenant_id}:{call_uuid}"
+
+
+def _phone_token(phone: str) -> str:
+    """One-way hash for log correlation without exposing PII phone numbers --
+    same helper shape as workers/tasks/whatsapp.py."""
+    return hashlib.sha256((phone or "").encode()).hexdigest()[:12]
 
 
 def _voicemail_xml(tenant: Tenant) -> str:
@@ -361,6 +368,27 @@ async def vobiz_answer_webhook(
         f"{voicemail_xml}"
         "<Hangup/>"
         "</Response>"
+    )
+
+    # One line that says what this call was actually told to do. Diagnosing
+    # the "nobody could hear anyone" incident meant reconstructing all of
+    # this from Vobiz's dashboard and stored transcripts days later, because
+    # nothing recorded which numbers were dialled, under which strategy, or
+    # whether a greeting was in play. Numbers are hashed (CLAUDE.md: never
+    # log phone numbers in plaintext) -- the tokens are still stable enough
+    # to correlate legs across calls.
+    log.info(
+        "vobiz_answer_dial_plan",
+        tenant=tenant_slug,
+        call_uuid=call_uuid,
+        strategy=tenant.ivr_routing_strategy,
+        dial_mode=ivr_routing_service.dial_mode(tenant),
+        agent_count=len(e164_numbers),
+        agent_tokens=[_phone_token(n) for n in e164_numbers],
+        caller_token=_phone_token(_to_e164_in(data.get("From", ""))),
+        within_business_hours=within_hours,
+        has_greeting=bool(greeting_xml),
+        voicemail_owner="dial_action" if action_owns_voicemail else ("inline" if voicemail_xml else "none"),
     )
     return Response(content=xml, media_type="application/xml")
 
