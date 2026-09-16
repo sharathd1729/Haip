@@ -66,6 +66,8 @@ celery_app = Celery(
         "app.workers.tasks.sync_wa_templates",
         # WhatsApp/Instagram access-token health check + expiry alerting
         "app.workers.tasks.check_meta_credentials",
+        # Keeps the Instagram long-lived token from ever reaching expiry
+        "app.workers.tasks.refresh_instagram_token",
         # Organic Instagram account insights -- daily snapshot
         "app.workers.tasks.instagram_insights_poll",
         # Automations engine + timer triggers
@@ -193,6 +195,8 @@ celery_app.conf.update(
         "meta_quality.poll_all_tenants":             {"queue": "whatsapp"},
         "meta_credentials.check_all_tenants":        {"queue": "whatsapp"},
         "meta_credentials.check_tenant":             {"queue": "whatsapp"},
+        "instagram_token.refresh_all_tenants":       {"queue": "whatsapp"},
+        "instagram_token.refresh_tenant":            {"queue": "whatsapp"},
         "instagram_insights.poll_all_tenants":       {"queue": "whatsapp"},
         "owner_digest.orchestrate":                  {"queue": "ai_scoring"},
         "retention.nightly_purge":                   {"queue": "call_ingest"},
@@ -255,6 +259,15 @@ celery_app.conf.beat_schedule = {
     "meta-credentials-health-daily": {
         "task": "meta_credentials.check_all_tenants",
         "schedule": crontab(hour=6, minute=0),
+    },
+    # Refresh well before the 60-day cliff. Meta makes an expired token
+    # permanently non-refreshable, and check_meta_credentials above only
+    # alerts once it is already dead -- by which point a human has to redo
+    # OAuth. Daily keeps the window topped up; offset from the health check
+    # so a refreshed token is what that check then validates.
+    "instagram-token-refresh-daily": {
+        "task": "instagram_token.refresh_all_tenants",
+        "schedule": crontab(hour=5, minute=30),
     },
     "instagram-insights-daily": {
         "task": "instagram_insights.poll_all_tenants",

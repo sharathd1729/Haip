@@ -489,6 +489,13 @@ def instagram_oauth_callback(
         )
         long_data = long_resp.json()
         access_token = long_data.get("access_token", short_data["access_token"])
+        # Meta returns the lifetime (~60 days) here and we used to drop it,
+        # so nothing in the system knew when Instagram was going to stop
+        # working -- Ratha's token died silently on 10-Sep-2026 and five
+        # days of bot replies were rejected before anyone noticed. Recorded
+        # so refresh_instagram_token can keep it alive and so the expiry is
+        # visible rather than implicit.
+        token_expires_in = int(long_data.get("expires_in") or 0)
 
         me_resp = httpx.get(
             "https://graph.instagram.com/me",
@@ -510,6 +517,11 @@ def instagram_oauth_callback(
     row.config = {
         "instagram_business_account_id": ig_account_id,
         "username": username,
+        "token_refreshed_at": _now().isoformat(),
+        **(
+            {"token_expires_at": (_now() + timedelta(seconds=token_expires_in)).isoformat()}
+            if token_expires_in else {}
+        ),
     }
     row.status = "active"
     row.installed_at = _now()
