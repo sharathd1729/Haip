@@ -13,7 +13,7 @@ from secrets import compare_digest
 from fastapi import APIRouter, Request, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 from app.core.config import settings
-from app.core.webhook_security import verify_meta_signature
+from app.core.webhook_security import verify_meta_signature_any
 import structlog
 
 log = structlog.get_logger()
@@ -54,8 +54,10 @@ async def receive_instagram_webhook(request: Request):
     if payload.get("object") != "instagram":
         return {"status": "ignored"}
 
-    # Resolve app_secret from the tenant integration matching this IG account,
-    # falling back to the global env var only if no per-tenant secret is found.
+    # Tenant-stored app_secret for the integration matching this IG account.
+    # Verified alongside the server's META_APP_SECRET below -- see
+    # verify_meta_signature_any for why a wrong tenant value must not be
+    # allowed to block inbound on its own.
     app_secret = ""
     entries = payload.get("entry", [])
     ig_account_id = entries[0].get("id") if entries else None
@@ -87,16 +89,23 @@ async def receive_instagram_webhook(request: Request):
         except Exception as _e:
             log.warning("instagram_webhook_secret_lookup_failed", error=str(_e))
 
-    if not app_secret:
-        app_secret = settings.META_APP_SECRET
-
-    # Raises 401 on failure; in dev with no secret logs a warning and continues
-    verify_meta_signature(
+    # Raises 401 when no held secret matches; in dev with none configured it
+    # logs a warning and continues.
+    matched = verify_meta_signature_any(
         body=body,
         signature_header=sig,
         env=settings.ENVIRONMENT,
-        secret=app_secret,
+        secrets=[("tenant_app_secret", app_secret), ("META_APP_SECRET", settings.META_APP_SECRET)],
     )
+    if app_secret and matched == "META_APP_SECRET":
+        # Accepted, but the secret saved on the integration is wrong. Loud so
+        # it gets corrected rather than silently depending on the fallback.
+        log.error(
+            "instagram_tenant_app_secret_stale",
+            ig_account_id=ig_account_id,
+            detail="Webhook verified via META_APP_SECRET; the app_secret saved on "
+                   "the Instagram integration does not match what Meta signs with.",
+        )
 
     for entry in payload.get("entry", []):
         ig_account_id = entry.get("id")
