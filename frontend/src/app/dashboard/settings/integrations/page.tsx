@@ -853,6 +853,28 @@ function IntegrationCard({
       {/* Actions */}
       <div className="flex flex-col gap-2 pt-1">
         {isConnected ? (
+          <>
+          {/* Instagram DMs are sent via graph.instagram.com, which only
+              accepts a token minted by Instagram Login -- a hand-pasted
+              Facebook Page token is rejected with "Cannot parse access
+              token". Saving one manually still flips status to active,
+              which used to hide this button (it rendered only in the
+              disconnected branch below), leaving no way back to OAuth
+              except Disconnect -- and that wipes credentials_kms_blob and
+              config, App Secret included. Confirmed live on Ratha: four
+              reconnect attempts, every one a pasted token, inbound and
+              outbound both dead for days. Offer the real flow here. */}
+          {item.provider === "instagram" && igOAuthUrl && (
+            <a
+              href={igOAuthUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-teal-500 text-white rounded-xl text-xs font-semibold hover:bg-teal-600 transition-colors shadow-sm shadow-teal-200"
+            >
+              <Plug size={13} />
+              Reconnect via Instagram Login
+            </a>
+          )}
           <div className="flex items-center gap-2">
             <button
               onClick={() => onConnect(item.provider)}
@@ -880,6 +902,7 @@ function IntegrationCard({
               Disconnect
             </button>
           </div>
+          </>
         ) : item.provider === "instagram" && igOAuthUrl ? (
           <>
             <a
