@@ -2,6 +2,7 @@ import uuid
 import os
 import httpx
 from datetime import datetime, timezone, timedelta
+from urllib.parse import urlencode
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from fastapi.responses import RedirectResponse, HTMLResponse
 from sqlalchemy.orm import Session
@@ -418,12 +419,23 @@ def start_instagram_oauth(token: str, db: Session = Depends(get_db)):
         "instagram_business_content_publish",
         "instagram_business_manage_insights",
     ])
-    auth_url = (
-        "https://www.instagram.com/oauth/authorize"
-        f"?force_reauth=true&client_id={settings.INSTAGRAM_APP_ID}"
-        f"&redirect_uri={redirect_uri}"
-        f"&response_type=code&scope={scope}&state={state}"
-    )
+    # Every parameter percent-encoded via urlencode rather than f-string
+    # interpolation. Meta compares the redirect_uri from the dialog against
+    # the one sent at token exchange byte-for-byte, and rejects any
+    # difference with "Error validating verification code. Please make sure
+    # your redirect_uri is identical to the one you used in the OAuth dialog
+    # request" -- the exchange sends it form-encoded, so the dialog has to
+    # carry the same encoding. `state` is a JWT and `scope` is a
+    # comma-separated list; both contain characters that must not travel raw
+    # in a query string either.
+    auth_url = "https://www.instagram.com/oauth/authorize?" + urlencode({
+        "force_reauth": "true",
+        "client_id": settings.INSTAGRAM_APP_ID,
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": scope,
+        "state": state,
+    })
     return RedirectResponse(auth_url)
 
 
