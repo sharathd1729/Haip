@@ -419,7 +419,16 @@ def process_instagram_dm(self, payload: dict) -> dict:
         # "matched_ai_drafted" from the plan doc's naming has no reachable
         # branch in this mutually-exclusive if/elif (a matched rule always
         # takes the auto-reply path, never the AI-draft one).
-        if matched_rule:
+        # Backfill guard: importing historical DMs must not fire the
+        # auto-reply/concierge path. Replaying three days of messages would
+        # otherwise blast quick-replies and AI drafts at guests for
+        # conversations that have long since moved on -- and for anything
+        # older than 24h Meta refuses the send anyway, so it produces
+        # nothing but noise and failed rows. Webhooks never set this, so
+        # live behaviour is unchanged.
+        if payload.get("suppress_automation"):
+            message.automation_outcome = "backfilled_no_automation"
+        elif matched_rule:
             from app.services.ig_quick_reply import dispatch_quick_reply
             dispatch_quick_reply(
                 db, tenant_id, matched_rule,
