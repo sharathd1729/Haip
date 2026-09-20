@@ -822,6 +822,49 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             confidence = 0.0
             needs_human_reasons.append(f"price leak: {price_leak!r}")
 
+        # ── Handoff: a guest asking for a human gets a real way to reach one ──
+        # The Instagram quick-reply rule already does this for a fixed keyword
+        # list, but it REPLACES the AI reply -- so "what's the price, and can
+        # you call me?" returned the canned contact block and never answered
+        # the question. This appends instead, so the model's answer stands and
+        # the contact details follow it.
+        #
+        # Deliberately after the price guard: the contact block contains a
+        # phone number, and detect_price() would read those digits as a quoted
+        # rate and block the draft.
+        from app.services import handoff_service
+
+        reply_text, handoff_intent = handoff_service.append_handoff(reply_text, tenant, burst_text)
+
+        # Most leads never ask outright -- they just go quiet. So the first
+        # reply in a thread states both routes up front (keep chatting here,
+        # or reach a human now) rather than waiting for intent that usually
+        # never arrives. Once only: repeating it on every reply reads as a
+        # bot trying to get rid of the guest.
+        if not handoff_intent.wanted:
+            from app.models.conversation import Message as _Msg, MessageDirection as _Dir
+
+            prior_outbound = (
+                db.query(_Msg)
+                .filter(
+                    _Msg.conversation_id == conversation_id,
+                    _Msg.direction == _Dir.OUTBOUND,
+                    _Msg.is_internal.is_(False),
+                )
+                .count()
+            )
+            if prior_outbound == 0:
+                reply_text = handoff_service.append_offer(reply_text, tenant)
+
+        if handoff_intent.wanted:
+            log.info(
+                "draft_handoff_offered",
+                conversation_id=conversation_id, message_id=message_id,
+                wants_call=handoff_intent.wants_call,
+                wants_whatsapp=handoff_intent.wants_whatsapp,
+                offered=bool(handoff_service.build_handoff_block(tenant, handoff_intent)),
+            )
+
         # Determine mode. Resolved per-channel from the tenant's current
         # policy (ai_mode_service), NOT from the snapshot copied into
         # conversations.ai_mode at creation time -- otherwise switching the
