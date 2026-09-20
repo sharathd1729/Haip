@@ -197,6 +197,19 @@ def process_instagram_dm(self, payload: dict) -> dict:
         if shared_post_url:
             channel_metadata["shared_post_url"] = shared_post_url
 
+        # Meta's own event time, when it was supplied. Live webhooks carry
+        # it within a second of now, so this is a no-op there -- but a
+        # backfill replays messages that are days old, and without this they
+        # all landed stamped with the import time. The inbox then showed a
+        # week of history as having arrived "1m" ago, in the wrong order.
+        occurred_at = None
+        raw_ts = payload.get("timestamp")
+        if raw_ts:
+            try:
+                occurred_at = datetime.fromtimestamp(int(raw_ts) / 1000, tz=timezone.utc)
+            except (TypeError, ValueError, OSError, OverflowError):
+                occurred_at = None
+
         message = Message(
             id=str(uuid.uuid4()),
             tenant_id=tenant_id,
@@ -209,9 +222,15 @@ def process_instagram_dm(self, payload: dict) -> dict:
             media_type=media_type,
             channel_status="received",
             channel_metadata=channel_metadata or None,
+            **({"created_at": occurred_at} if occurred_at else {}),
         )
         db.add(message)
-        conversation.last_message_at = datetime.now(timezone.utc).isoformat()
+        # Only ever move the conversation's clock forward: importing an old
+        # message must not drag a thread back down the inbox below newer
+        # traffic that arrived while the backfill was running.
+        new_last = (occurred_at or datetime.now(timezone.utc)).isoformat()
+        if not conversation.last_message_at or str(conversation.last_message_at) < new_last:
+            conversation.last_message_at = new_last
         db.flush()
         db.commit()
 

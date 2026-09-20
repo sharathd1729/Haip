@@ -82,6 +82,9 @@ def main():
     p.add_argument("--with-replies", action="store_true",
                    help="let the concierge/auto-reply run on imported messages")
     p.add_argument("--max-pages", type=int, default=20)
+    p.add_argument("--fix-timestamps", action="store_true",
+                   help="repair created_at on messages already imported with the "
+                        "wrong time (stamped at import instead of Meta's event time)")
     args = p.parse_args()
 
     if args.send and args.dry_run:
@@ -163,6 +166,88 @@ def main():
                 existing.add(found)
 
         fresh = [c for c in candidates if c["mid"] and c["mid"] not in existing]
+
+        # ── repair mode ───────────────────────────────────────────────────
+        # Messages imported before the task honoured Meta's event time all
+        # carry the import time instead, so the inbox shows days-old DMs as
+        # having just arrived. Re-stamp them from Meta rather than deleting
+        # and re-importing, which would lose any reply already attached.
+        if args.fix_timestamps:
+            by_mid = {c["mid"]: c for c in candidates if c["mid"]}
+            rows = db.query(Message).filter(
+                Message.tenant_id == tenant.id,
+                Message.channel == ChannelType.INSTAGRAM,
+                Message.channel_message_id.in_(list(by_mid.keys()) or [""]),
+            ).all()
+
+            drifted = []
+            for row in rows:
+                truth = by_mid[row.channel_message_id]["ts"]
+                current = row.created_at
+                if current and current.tzinfo is None:
+                    current = current.replace(tzinfo=timezone.utc)
+                if current is None or abs((current - truth).total_seconds()) > 120:
+                    drifted.append((row, current, truth))
+
+            print(f"  timestamps needing repair   : {len(drifted)}")
+            for row, current, truth in sorted(drifted, key=lambda r: r[2])[:40]:
+                print(f"    {row.channel_message_id[:24]}  "
+                      f"{current:%d-%b %H:%M} -> {truth:%d-%b %H:%M}")
+
+            if drifted and args.send:
+                for row, _current, truth in drifted:
+                    row.created_at = truth
+                db.flush()
+
+                # A wrong created_at does more than reorder the inbox: the
+                # conversation and the inquiry the import created were also
+                # stamped at import time, so days-old DMs counted as today's
+                # leads. Re-derive both from the real message times.
+                from app.models.conversation import Conversation
+                from app.models.inquiry import Inquiry
+
+                conv_ids = {r.conversation_id for r, _c, _t in drifted if r.conversation_id}
+                convs_fixed = inqs_fixed = 0
+                for conv in db.query(Conversation).filter(Conversation.id.in_(conv_ids)).all():
+                    times = [
+                        m.created_at for m in db.query(Message)
+                        .filter(Message.conversation_id == conv.id).all()
+                        if m.created_at
+                    ]
+                    if not times:
+                        continue
+                    earliest, latest = min(times), max(times)
+
+                    conv.last_message_at = (
+                        latest if latest.tzinfo else latest.replace(tzinfo=timezone.utc)
+                    ).isoformat()
+
+                    conv_created = conv.created_at
+                    if conv_created and conv_created.tzinfo is None:
+                        conv_created = conv_created.replace(tzinfo=timezone.utc)
+                    if conv_created and conv_created > earliest:
+                        conv.created_at = earliest
+                        convs_fixed += 1
+
+                    if conv.inquiry_id:
+                        inq = db.query(Inquiry).filter_by(id=conv.inquiry_id).first()
+                        inq_created = getattr(inq, "created_at", None)
+                        if inq_created and inq_created.tzinfo is None:
+                            inq_created = inq_created.replace(tzinfo=timezone.utc)
+                        if inq and inq_created and inq_created > earliest:
+                            inq.created_at = earliest
+                            inqs_fixed += 1
+
+                db.commit()
+                print(f"\n  repaired {len(drifted)} message timestamp(s)")
+                print(f"  re-dated {convs_fixed} conversation(s) and {inqs_fixed} inquiry/lead(s)")
+                print("  -> the inbox re-sorts by real time, and these stop "
+                      "counting as today's leads")
+            elif drifted:
+                print(f"\n  would repair {len(drifted)} timestamp(s), plus the "
+                      "conversations and leads they created. Re-run with --send.")
+            if not fresh:
+                return
 
         print(f"  in-window inbound messages : {len(candidates)}")
         print(f"  already in HAIP            : {len(candidates) - len(fresh)}")
