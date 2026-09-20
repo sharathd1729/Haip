@@ -1,6 +1,7 @@
 import uuid
 import os
 import httpx
+import structlog
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlencode
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
@@ -17,6 +18,7 @@ from app.models.integration import Integration
 from app.schemas.integration import IntegrationOut, IntegrationConnectRequest, IntegrationHealthResponse
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
+log = structlog.get_logger()
 
 # ─── Catalog ─────────────────────────────────────────────────────────────────
 
@@ -520,24 +522,44 @@ def instagram_oauth_callback(
     except Exception as exc:
         return HTMLResponse(f"<h3>Instagram OAuth exchange error: {exc}</h3>", status_code=500)
 
-    row = _upsert_integration(db, tenant_id, "instagram")
-    row.credentials_kms_blob = encrypt_credentials({
-        "access_token": access_token,
-        "app_secret": app_secret,
-        "instagram_business_account_id": ig_account_id,
-    })
-    row.config = {
-        "instagram_business_account_id": ig_account_id,
-        "username": username,
-        "token_refreshed_at": _now().isoformat(),
-        **(
-            {"token_expires_at": (_now() + timedelta(seconds=token_expires_in)).isoformat()}
-            if token_expires_in else {}
-        ),
-    }
-    row.status = "active"
-    row.installed_at = _now()
-    db.commit()
+    # _now() already returns an ISO string, so it must not be treated as a
+    # datetime. Calling .isoformat() on it (AttributeError) or adding a
+    # timedelta to it (TypeError) both raise here, outside the try above,
+    # which surfaces to the browser as a bare "Internal Server Error" right
+    # after a successful token exchange -- exactly the failure this flow hit
+    # in production once expiry tracking was added.
+    now_dt = datetime.now(timezone.utc)
+    try:
+        row = _upsert_integration(db, tenant_id, "instagram")
+        row.credentials_kms_blob = encrypt_credentials({
+            "access_token": access_token,
+            "app_secret": app_secret,
+            "instagram_business_account_id": ig_account_id,
+        })
+        row.config = {
+            "instagram_business_account_id": ig_account_id,
+            "username": username,
+            "token_refreshed_at": now_dt.isoformat(),
+            **(
+                {"token_expires_at": (now_dt + timedelta(seconds=token_expires_in)).isoformat()}
+                if token_expires_in else {}
+            ),
+        }
+        row.status = "active"
+        row.installed_at = _now()
+        db.commit()
+    except Exception as exc:
+        # The token itself was minted successfully by this point, so a blank
+        # 500 here is the worst possible outcome: it looks identical to an
+        # auth failure while actually being a persistence bug.
+        db.rollback()
+        log.error("instagram_oauth_persist_failed", error=str(exc), exc_info=True)
+        return HTMLResponse(
+            f"<h3>Instagram authorized, but saving the connection failed: {exc}</h3>"
+            "<p>The authorization itself succeeded — retry the connect, and if this "
+            "repeats, the error above is the cause.</p>",
+            status_code=500,
+        )
 
     return HTMLResponse(
         f"<h3>Instagram connected: @{username or ig_account_id}</h3>"
