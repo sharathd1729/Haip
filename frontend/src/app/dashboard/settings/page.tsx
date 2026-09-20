@@ -528,6 +528,147 @@ interface AIModeSettings {
   ig_ai_confidence_threshold: number;
 }
 
+interface HandoffSettingsDTO {
+  handoff_phone: string | null;
+  handoff_whatsapp_url: string | null;
+  handoff_enabled: boolean;
+}
+
+/** Where the bot points a guest who wants a human.
+ *
+ *  These details used to live only as free text inside one Instagram
+ *  automation rule's canned message, so the AI had no access to them -- a
+ *  guest whose phrasing the rule's keywords missed got a reply with no way
+ *  to reach anyone. */
+function HandoffCard() {
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState({ phone: "", whatsapp: "", enabled: true });
+  const [loadedOnce, setLoadedOnce] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const { data, isLoading, isError } = useQuery<HandoffSettingsDTO>({
+    queryKey: ["handoff-settings"],
+    queryFn: () => api.get("/tenants/me/handoff").then(r => r.data),
+    retry: 1,
+  });
+
+  useEffect(() => {
+    if (data && !loadedOnce) {
+      setForm({
+        phone: data.handoff_phone ?? "",
+        whatsapp: data.handoff_whatsapp_url ?? "",
+        enabled: data.handoff_enabled ?? true,
+      });
+      setLoadedOnce(true);
+    }
+  }, [data, loadedOnce]);
+
+  const save = useMutation({
+    mutationFn: (payload: Partial<HandoffSettingsDTO>) =>
+      api.patch("/tenants/me/handoff", payload).then(r => r.data),
+    onSuccess: () => {
+      setError(null);
+      queryClient.invalidateQueries({ queryKey: ["handoff-settings"] });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    },
+    onError: (e: unknown) => {
+      // The API validates that the number is dialable and the link is https,
+      // since both go straight to a guest -- surface exactly what it said
+      // rather than a generic failure.
+      const detail = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+      const msg = Array.isArray(detail)
+        ? (detail[0] as { msg?: string })?.msg
+        : typeof detail === "string" ? detail : null;
+      setError(msg || "Couldn't save. Check the number and link and try again.");
+    },
+  });
+
+  const nothingConfigured = !form.phone.trim() && !form.whatsapp.trim();
+
+  return (
+    <Card title="Talk to a human — call & WhatsApp handoff">
+      <p className="text-xs text-gray-500 mb-4">
+        The concierge opens each new thread by offering these alongside its answer, and
+        sends them again whenever a guest asks to call or move to WhatsApp. Leave blank
+        to keep the bot from offering that route at all.
+      </p>
+
+      <div className="space-y-4 mb-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Phone number</label>
+          <input
+            type="tel"
+            value={form.phone}
+            onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+            placeholder="+918071581336"
+            className="w-full max-w-xs px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+          />
+          <p className="text-xs text-gray-400 mt-1">
+            Include the country code — guests dial this exactly as shown.
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">WhatsApp link</label>
+          <input
+            type="url"
+            value={form.whatsapp}
+            onChange={e => setForm(f => ({ ...f, whatsapp: e.target.value }))}
+            placeholder="https://wa.me/message/XXXXXXXX"
+            className="w-full max-w-md px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+          />
+          <p className="text-xs text-gray-400 mt-1">
+            A click-to-chat link (wa.me), not just the number.
+          </p>
+        </div>
+
+        <label className="flex items-start gap-3 p-3 rounded-xl border-2 border-gray-200 cursor-pointer hover:border-gray-300 transition-colors">
+          <input
+            type="checkbox"
+            checked={form.enabled}
+            onChange={e => setForm(f => ({ ...f, enabled: e.target.checked }))}
+            className="mt-0.5 accent-teal-500"
+          />
+          <div>
+            <div className="text-sm font-semibold text-gray-900">Let the concierge offer these</div>
+            <div className="text-xs text-gray-500">
+              Turn off to save the details without the bot volunteering them yet.
+            </div>
+          </div>
+        </label>
+      </div>
+
+      {form.enabled && nothingConfigured && (
+        <p className="text-xs text-amber-600 mb-2">
+          Nothing to hand off yet — add a number or link, or the bot stays silent about
+          how to reach you.
+        </p>
+      )}
+      {isError && (
+        <p className="text-xs text-red-600 mb-2">
+          Couldn&apos;t load current settings — saving may overwrite them.
+        </p>
+      )}
+      {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
+
+      <SaveButton
+        saved={saved}
+        loading={save.isPending || isLoading}
+        onClick={() => {
+          setError(null);
+          save.mutate({
+            handoff_phone: form.phone.trim() || null,
+            handoff_whatsapp_url: form.whatsapp.trim() || null,
+            handoff_enabled: form.enabled,
+          });
+        }}
+      />
+    </Card>
+  );
+}
+
 function AISettings() {
   const queryClient = useQueryClient();
   // This form used to be a mock: state initialised from a hardcoded
@@ -579,6 +720,8 @@ function AISettings() {
       <SectionHeader title="AI Concierge" sub="Control automation behaviour per channel" />
 
       <KillSwitchCard />
+
+      <HandoffCard />
 
       {/* WhatsApp */}
       <Card title="WhatsApp — AI mode">
