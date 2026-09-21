@@ -148,3 +148,101 @@ class TestOutsideMessagingWindow:
             # dict and never raises).
             with pytest.raises(Exception):
                 send_instagram_dm.run(message_id=msg_id, tenant_id=tenant_id)
+
+
+# ── Replies to Instagram comments go out as private replies ──────────────────
+# Confirmed live on Ratha: every failed AI reply over 2 days answered a guest
+# who had only COMMENTED on a post. A plain DM to such a person is rejected
+# by Meta as "outside of allowed window"; it has to be a private reply tied
+# to the comment (once per comment, within 7 days).
+
+from datetime import datetime, timedelta, timezone  # noqa: E402
+
+
+def _add_inbound(db, conv, *, comment_id=None, age=timedelta(minutes=1)):
+    meta = {"source": "comment", "comment_id": comment_id, "media_id": "m1"} if comment_id else {"source": "dm"}
+    m = Message(
+        id=str(uuid.uuid4()), tenant_id=conv.tenant_id, conversation_id=conv.id,
+        direction="inbound", channel=ChannelType.INSTAGRAM, body="Bhadra.",
+        channel_metadata=meta, created_at=datetime.now(timezone.utc) - age,
+    )
+    db.add(m); db.commit()
+    return m
+
+
+def _ok_response(mid="mid.1"):
+    resp = MagicMock()
+    resp.raise_for_status.return_value = None
+    resp.json.return_value = {"message_id": mid}
+    return resp
+
+
+def _run(db, tenant_id, msg_id):
+    with patch("app.workers.tasks.send_instagram_dm.SessionLocal", return_value=db), \
+         patch("app.workers.tasks.send_instagram_dm.instagram_mark_seen") as seen, \
+         patch("httpx.post", return_value=_ok_response()) as post:
+        seen.delay = MagicMock()
+        result = send_instagram_dm.run(message_id=msg_id, tenant_id=tenant_id)
+    return result, post
+
+
+class TestCommentPrivateReply:
+    def test_reply_to_comment_uses_private_reply(self, db, tenant_and_user):
+        tenant_id = _tenant_id(tenant_and_user)
+        _make_integration(db, tenant_id)
+        guest, conv, msg = _make_conversation_with_pending_message(db, tenant_id)
+        _add_inbound(db, conv, comment_id="c-777")
+        msg_id = msg.id
+
+        result, post = _run(db, tenant_id, msg_id)
+
+        assert result["status"] == "sent"
+        body = post.call_args.kwargs.get("json") or post.call_args.args[1]
+        assert body["recipient"] == {"comment_id": "c-777"}
+        meta = db.execute(text("SELECT channel_metadata FROM messages WHERE id = :id"), {"id": msg_id}).scalar()
+        assert "c-777" in str(meta)
+
+    def test_reply_to_dm_still_uses_normal_dm(self, db, tenant_and_user):
+        tenant_id = _tenant_id(tenant_and_user)
+        _make_integration(db, tenant_id)
+        guest, conv, msg = _make_conversation_with_pending_message(db, tenant_id, igsid="ig-dm-9")
+        _add_inbound(db, conv)
+        result, post = _run(db, tenant_id, msg.id)
+        assert result["status"] == "sent"
+        body = post.call_args.kwargs.get("json") or post.call_args.args[1]
+        assert body["recipient"] == {"id": "ig-dm-9"}
+
+    def test_second_reply_to_same_comment_is_blocked_clearly(self, db, tenant_and_user):
+        tenant_id = _tenant_id(tenant_and_user)
+        _make_integration(db, tenant_id)
+        guest, conv, msg = _make_conversation_with_pending_message(db, tenant_id)
+        _add_inbound(db, conv, comment_id="c-888")
+        db.add(Message(
+            id=str(uuid.uuid4()), tenant_id=tenant_id, conversation_id=conv.id,
+            direction="outbound", channel=ChannelType.INSTAGRAM, body="first answer",
+            delivery_state=MessageDeliveryState.SENT,
+            channel_metadata={"private_reply_comment_id": "c-888"},
+        ))
+        db.commit()
+        msg_id = msg.id
+
+        result, post = _run(db, tenant_id, msg_id)
+
+        assert result["reason"] == "comment_reply_blocked"
+        post.assert_not_called()
+        state, error = _delivery_state_and_error(db, msg_id)
+        assert state == MessageDeliveryState.FAILED.value
+        assert "one reply per comment" in error
+
+    def test_comment_older_than_7_days_is_blocked(self, db, tenant_and_user):
+        tenant_id = _tenant_id(tenant_and_user)
+        _make_integration(db, tenant_id)
+        guest, conv, msg = _make_conversation_with_pending_message(db, tenant_id)
+        _add_inbound(db, conv, comment_id="c-old", age=timedelta(days=8))
+        msg_id = msg.id
+
+        result, post = _run(db, tenant_id, msg_id)
+
+        assert result["reason"] == "comment_reply_blocked"
+        post.assert_not_called()
+        assert "over 7 days" in _delivery_state_and_error(db, msg_id)[1]

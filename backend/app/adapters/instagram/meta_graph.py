@@ -99,6 +99,17 @@ class InstagramGraphAdapter:
             "messaging_type": "RESPONSE",
         })
 
+    def send_private_reply(self, comment_id: str, text: str) -> dict:
+        """DM someone in response to their comment on our post or ad
+        ("private reply"). A plain send_text to a person who has only
+        commented is rejected by Meta as "outside of allowed window" -- the
+        comment itself is what opens this one reply. Meta allows one private
+        reply per comment, within 7 days of it."""
+        return self._post(f"/{self._account_id}/messages", {
+            "recipient": {"comment_id": comment_id},
+            "message": {"text": text},
+        })
+
     def reply_to_comment(self, comment_id: str, message: str) -> dict:
         """Post a public reply to a comment (T2.3 — comment-sourced quick replies)."""
         return self._post(f"/{comment_id}/replies", {"message": message})

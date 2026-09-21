@@ -57,6 +57,70 @@ def _meta_error_detail(exc: Exception) -> tuple[str, bool]:
     return message, is_window
 
 
+# Meta: one private reply per comment, within 7 days of the comment.
+_PRIVATE_REPLY_MAX_AGE_SECONDS = 7 * 86400
+
+
+class _CommentReplyBlocked(Exception):
+    """A reply to a comment that Meta's private-reply rules won't allow."""
+
+
+def _private_reply_target(db: Session, message: Message) -> str | None:
+    """comment_id to answer privately, if the guest's latest message in this
+    conversation is an Instagram comment rather than a DM.
+
+    Confirmed live on Ratha: every failed AI reply over 2 days answered a
+    comment ("Bhadra.", "We had enquired earlier but no response") with a
+    plain DM, which Meta rejects as "outside of allowed window" because the
+    person never DM'd. A reply to a comment has to go out as a private reply
+    tied to that comment. Raises _CommentReplyBlocked when Meta's limits
+    (once per comment, within 7 days) rule it out."""
+    latest_in = (
+        db.query(Message)
+        .filter(
+            Message.conversation_id == message.conversation_id,
+            Message.tenant_id == message.tenant_id,
+            Message.direction == "inbound",
+        )
+        .order_by(Message.created_at.desc())
+        .first()
+    )
+    meta = (latest_in.channel_metadata or {}) if latest_in else {}
+    if meta.get("source") != "comment" or not meta.get("comment_id"):
+        return None
+    comment_id = meta["comment_id"]
+
+    created = latest_in.created_at
+    if created is not None:
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        if (datetime.now(timezone.utc) - created).total_seconds() > _PRIVATE_REPLY_MAX_AGE_SECONDS:
+            raise _CommentReplyBlocked(
+                "This guest only commented on a post, over 7 days ago -- Instagram no longer "
+                "allows a private reply. They need to send us a DM first."
+            )
+
+    already = (
+        db.query(Message.id)
+        .filter(
+            Message.conversation_id == message.conversation_id,
+            Message.tenant_id == message.tenant_id,
+            Message.id != message.id,
+            Message.delivery_state.in_([
+                MessageDeliveryState.SENT, MessageDeliveryState.DELIVERED, MessageDeliveryState.READ,
+            ]),
+            Message.channel_metadata["private_reply_comment_id"].as_string() == comment_id,
+        )
+        .first()
+    )
+    if already:
+        raise _CommentReplyBlocked(
+            "Already replied privately to this comment -- Instagram allows one reply per "
+            "comment. The conversation continues once the guest replies to that message."
+        )
+    return comment_id
+
+
 def _mark_failed(db: Session, message: Message, reason: str) -> None:
     """Transition message to FAILED and record the reason -- mirrors
     send_whatsapp.py's _mark_failed so both channels give the inbox UI the
@@ -135,7 +199,17 @@ def send_instagram_dm(self, message_id: str, tenant_id: str) -> dict:
         # Send — typing indicator and mark_seen are cosmetic, not required for
         # delivery, so they're dispatched as fire-and-forget tasks below instead
         # of blocking the critical path with two extra Meta API round trips.
-        result = adapter.send_text(recipient_id=sender_id, text=message.body)
+        try:
+            comment_id = _private_reply_target(db, message)
+        except _CommentReplyBlocked as blocked:
+            _mark_failed(db, message, str(blocked))
+            return {"status": "error", "reason": "comment_reply_blocked"}
+
+        if comment_id:
+            result = adapter.send_private_reply(comment_id=comment_id, text=message.body)
+            message.channel_metadata = {**(message.channel_metadata or {}), "private_reply_comment_id": comment_id}
+        else:
+            result = adapter.send_text(recipient_id=sender_id, text=message.body)
         ig_message_id = result.get("message_id", "")
 
         # Mark sent -- delivery_state wasn't set here at all (send_whatsapp's
