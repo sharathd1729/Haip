@@ -484,7 +484,11 @@ export default function Leads360Page() {
         </div>
       </div>
 
-      {view === "action" && <NeedsActionView />}
+      {view === "action" && (
+        <NeedsActionView
+          onOpenPipeline={f => { setFilters(f); setStageFilter(ALL_STAGES_ID); setView("pipeline"); }}
+        />
+      )}
 
       {view === "pipeline" && (<>
       <LeadsFilterBar filters={filters} onChange={setFilters} />

@@ -160,7 +160,7 @@ function FilterControls({
       <Select
         value={filters.assigned_to}
         onChange={v => set({ assigned_to: v || undefined })}
-        options={users.map(u => ({ value: u.id, label: u.name }))}
+        options={[{ value: "unassigned", label: "Unassigned" }, ...users.map(u => ({ value: u.id, label: u.name }))]}
         placeholder="Assigned to"
         className={fieldCls}
       />

@@ -88,3 +88,22 @@ def test_booked_date_filter_tenant_isolation(db):
         db, t2.id, booked_date_from="2026-06-01", booked_date_to="2026-08-01",
     )
     assert len(result_t2.leads) == 0
+
+
+def test_unassigned_filter_returns_only_unowned_leads(db):
+    from app.models.user import User, UserRole
+    t = _make_tenant(db)
+    u = User(id=str(uuid.uuid4()), tenant_id=t.id, name="A", email=f"a-{uuid.uuid4().hex[:6]}@t.com",
+             role=UserRole.CONCIERGE, is_active=True)
+    db.add(u)
+    db.flush()
+    owned = _make_inquiry(db, t.id)
+    owned.assigned_to = u.id
+    free = _make_inquiry(db, t.id)
+    other_tenant_free = _make_inquiry(db, _make_tenant(db).id)
+    db.flush()
+
+    ids = {l.inquiry_id for l in leads_service.get_leads_pipeline(db, t.id, assigned_to="unassigned").leads}
+    assert free.id in ids
+    assert owned.id not in ids
+    assert other_tenant_free.id not in ids

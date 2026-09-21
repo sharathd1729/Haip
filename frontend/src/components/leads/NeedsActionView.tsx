@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { ChannelIcon } from "@/components/inbox/ChannelIcon";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { formatDuration, useApproveAndSendDraft, type LeadCard } from "@/components/leads/LeadCard";
+import type { LeadsFilters } from "@/components/leads/LeadsFilterBar";
 
 type BucketKey = "draft_ready" | "waiting" | "call" | "followup";
 
@@ -88,29 +89,52 @@ function datesLabel(lead: LeadCard): string | null {
 
 // ─── Summary tiles ────────────────────────────────────────────────────────────
 
-function Kpis({ data }: { data: NeedsActionResponse }) {
+// IST calendar date, `daysAgo` days back -- the leads list filters by IST day.
+function istDate(daysAgo = 0): string {
+  const d = new Date(Date.now() + 5.5 * 3600_000 - daysAgo * 86_400_000);
+  return d.toISOString().slice(0, 10);
+}
+
+function Kpis({
+  data, focus, onFocus, onOpenPipeline,
+}: {
+  data: NeedsActionResponse; focus: BucketKey | null;
+  onFocus: (b: BucketKey | null) => void; onOpenPipeline?: (f: LeadsFilters) => void;
+}) {
   const k = data.kpis;
-  const tiles = [
-    { label: "Waiting on us", value: k.waiting, note: k.waiting_oldest_seconds ? `oldest ${formatDuration(k.waiting_oldest_seconds)}` : "all caught up", tone: "text-amber-700", dot: "bg-amber-500" },
-    { label: "AI replies to send", value: k.drafts_ready, note: "ready now", tone: "text-teal-700", dot: "bg-teal-600" },
-    { label: "Shared a phone", value: k.phone_not_called, note: "not called yet", tone: "text-emerald-700", dot: "bg-emerald-600" },
-    { label: "Unassigned", value: k.unassigned_recent, note: "last 3 days", tone: "text-gray-700", dot: "bg-gray-400" },
-    { label: "Sold this month", value: k.sold_this_month, note: "closed won", tone: "text-violet-700", dot: "bg-violet-500" },
+  // The first three narrow this list to one group (click again to show all);
+  // the last two open the Pipeline board with the matching filter.
+  const tiles: { label: string; value: number; note: string; tone: string; dot: string; bucket?: BucketKey; filters?: LeadsFilters }[] = [
+    { label: "Waiting on us", value: k.waiting, note: k.waiting_oldest_seconds ? `oldest ${formatDuration(k.waiting_oldest_seconds)}` : "all caught up", tone: "text-amber-700", dot: "bg-amber-500", bucket: "waiting" },
+    { label: "AI replies to send", value: k.drafts_ready, note: "ready now", tone: "text-teal-700", dot: "bg-teal-600", bucket: "draft_ready" },
+    { label: "Shared a phone", value: k.phone_not_called, note: "not called yet", tone: "text-emerald-700", dot: "bg-emerald-600", bucket: "call" },
+    { label: "Unassigned", value: k.unassigned_recent, note: "last 3 days", tone: "text-gray-700", dot: "bg-gray-400", filters: { assigned_to: "unassigned", date_from: istDate(2) } },
+    { label: "Sold this month", value: k.sold_this_month, note: "closed won", tone: "text-violet-700", dot: "bg-violet-500", filters: { booked_date_from: `${istDate().slice(0, 8)}01` } },
   ];
   return (
     <div className="flex gap-2.5 overflow-x-auto haip-scrollbar-x pb-1 lg:grid lg:grid-cols-5 lg:overflow-visible">
-      {tiles.map(t => (
-        <div key={t.label} className="haip-card flex-shrink-0 min-w-[150px] px-4 py-3">
-          <p className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: "var(--haip-fg-subtle)" }}>
+      {tiles.map(t => {
+        const on = !!t.bucket && focus === t.bucket;
+        const click = () => {
+          if (t.bucket) onFocus(on ? null : t.bucket);
+          else if (t.filters) onOpenPipeline?.(t.filters);
+        };
+        return (
+        <button key={t.label} type="button" onClick={click} aria-pressed={t.bucket ? on : undefined}
+          title={t.bucket ? (on ? "Show all groups" : `Show only “${t.label}”`) : "Open in Pipeline"}
+          className={cn("haip-card flex-shrink-0 min-w-[150px] px-4 py-3 text-left cursor-pointer transition-shadow hover:shadow-md outline-none focus-visible:ring-2 focus-visible:ring-teal-600",
+            on && "ring-2 ring-teal-600")}>
+          <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: "var(--haip-fg-subtle)" }}>
             <span className={cn("w-2 h-2 rounded-full", t.dot)} />
             {t.label}
-          </p>
-          <p className="mt-1 flex items-baseline gap-2">
+          </span>
+          <span className="mt-1 flex items-baseline gap-2">
             <span className={cn("text-2xl font-bold tabular-nums", t.tone)} style={{ fontFamily: "var(--font-display)" }}>{t.value}</span>
             <span className="text-xs" style={{ color: "var(--haip-fg-muted)" }}>{t.note}</span>
-          </p>
-        </div>
-      ))}
+          </span>
+        </button>
+        );
+      })}
     </div>
   );
 }
@@ -263,11 +287,12 @@ function DetailPanel({ lead, bucket, stageLabel }: { lead: LeadCard; bucket: Buc
 
 // ─── View ─────────────────────────────────────────────────────────────────────
 
-export function NeedsActionView() {
+export function NeedsActionView({ onOpenPipeline }: { onOpenPipeline?: (f: LeadsFilters) => void } = {}) {
   const router = useRouter();
   const { data: stages = [] } = usePipelineStages();
   const stageLabels = useMemo(() => Object.fromEntries(stages.map(s => [s.key, s.label])), [stages]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [focus, setFocus] = useState<BucketKey | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery<NeedsActionResponse>({
     // Under ["leads", ...] so the page's refresh button and the send-draft
@@ -279,8 +304,8 @@ export function NeedsActionView() {
   });
 
   const flat = useMemo(
-    () => (data?.buckets ?? []).flatMap(b => b.leads.map(l => ({ lead: l, bucket: b.key }))),
-    [data],
+    () => (data?.buckets ?? []).filter(b => !focus || b.key === focus).flatMap(b => b.leads.map(l => ({ lead: l, bucket: b.key }))),
+    [data, focus],
   );
   const selected = flat.find(f => f.lead.inquiry_id === selectedId) ?? flat[0];
 
@@ -314,11 +339,11 @@ export function NeedsActionView() {
     );
   }
 
-  const nonEmpty = data.buckets.filter(b => b.total > 0);
+  const nonEmpty = data.buckets.filter(b => b.total > 0 && (!focus || b.key === focus));
 
   return (
     <div className="flex-1 overflow-y-auto haip-scrollbar px-3 sm:px-5 py-4 space-y-5">
-      <Kpis data={data} />
+      <Kpis data={data} focus={focus} onFocus={setFocus} onOpenPipeline={onOpenPipeline} />
 
       {nonEmpty.length === 0 ? (
         <div className="haip-card py-14 flex flex-col items-center gap-2 text-center">

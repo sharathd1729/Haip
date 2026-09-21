@@ -785,7 +785,9 @@ def get_leads_pipeline(
         q = q.filter(Inquiry.property_id == property_id)
     if scope_user_id:
         q = q.filter(or_(Inquiry.assigned_to == scope_user_id, Inquiry.assigned_to.is_(None)))
-    if assigned_to:
+    if assigned_to == UNASSIGNED:
+        q = q.filter(Inquiry.assigned_to.is_(None))
+    elif assigned_to:
         q = q.filter(Inquiry.assigned_to == assigned_to)
     if source:
         q = q.filter(Inquiry.source == source)
@@ -851,6 +853,10 @@ def get_leads_pipeline(
         stages=stage_meta,
         leads=leads,
     )
+
+
+# `assigned_to=unassigned` on the leads list means "nobody owns it yet".
+UNASSIGNED = "unassigned"
 
 
 def _booked_inquiry_ids(
@@ -923,7 +929,9 @@ def _build_stage_summary(
         q = q.filter(Inq.property_id == property_id)
     if scope_user_id:
         q = q.filter(or_(Inq.assigned_to == scope_user_id, Inq.assigned_to.is_(None)))
-    if assigned_to:
+    if assigned_to == UNASSIGNED:
+        q = q.filter(Inq.assigned_to.is_(None))
+    elif assigned_to:
         q = q.filter(Inq.assigned_to == assigned_to)
     if source:
         q = q.filter(Inq.source == source)
