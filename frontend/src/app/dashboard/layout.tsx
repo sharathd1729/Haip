@@ -66,8 +66,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <MobileHeader user={user} />
           </div>
 
-          {/* Health status bar (X8) — visible only when degraded */}
-          <StatusBarSlot />
+          {/* Health status bar (X8) — visible only when degraded; desktop
+              only, it took too much room above the content on phones. */}
+          <div className="hidden md:block">
+            <StatusBarSlot />
+          </div>
 
           {/* Sample data banner (O2) — amber strip when viewing sample data */}
           <SampleDataBanner />

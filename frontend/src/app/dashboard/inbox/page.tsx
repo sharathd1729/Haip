@@ -770,7 +770,7 @@ function InboxPageInner() {
       >
         {/* W18: online agents indicator */}
         {onlineUsers.length > 0 && (
-          <div className="px-3 py-1.5 flex items-center gap-1.5" style={{ borderBottom: "1px solid var(--haip-border)" }}>
+          <div className="hidden md:flex px-3 py-1.5 items-center gap-1.5" style={{ borderBottom: "1px solid var(--haip-border)" }}>
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
             <span className="text-[10px]" style={{ color: "var(--haip-fg-subtle)" }}>
               {onlineUsers.length === 1
