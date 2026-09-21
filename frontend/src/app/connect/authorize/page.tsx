@@ -6,9 +6,9 @@
 // already forced a normal HAIP login (MFA included) before this renders.
 // Approve/Deny posts to /oauth/consent, which re-validates every param --
 // nothing in this URL is trusted -- and returns where to send the browser.
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 import { Bot, ShieldCheck, Loader2, AlertCircle, Check } from "@/lib/icons";
 import api from "@/lib/api";
@@ -27,6 +27,22 @@ function hostOf(uri: string | null): string {
   } catch {
     return uri;
   }
+}
+
+function isSessionExpired(err: unknown): boolean {
+  return (err as { response?: { status?: number } })?.response?.status === 401;
+}
+
+/** A 401 here means the HAIP session behind this page is stale (e.g. its
+ *  token refresh failed during an API restart). Clear it and log in again,
+ *  returning to this exact screen with the OAuth params intact. Signing out
+ *  first matters: middleware bounces a still-"logged-in" user away from
+ *  /login straight to the dashboard. */
+function reauthenticate() {
+  const back = window.location.pathname + window.location.search;
+  signOut({ callbackUrl: `/login?callbackUrl=${encodeURIComponent(back)}` }).catch(() => {
+    window.location.href = `/login?callbackUrl=${encodeURIComponent(back)}`;
+  });
 }
 
 function errorText(err: unknown, fallback: string): string {
@@ -54,6 +70,11 @@ function ConsentCard() {
     retry: false,
   });
 
+  const sessionExpired = isSessionExpired(clientError);
+  useEffect(() => {
+    if (sessionExpired) reauthenticate();
+  }, [sessionExpired]);
+
   const decide = async (decision: "approve" | "deny") => {
     setError("");
     setSubmitting(decision);
@@ -68,6 +89,10 @@ function ConsentCard() {
       // callback URL on another origin (or a localhost port for CLI tools).
       window.location.assign(redirect_to);
     } catch (err) {
+      if (isSessionExpired(err)) {
+        reauthenticate();
+        return;
+      }
       setError(errorText(err, "Couldn't complete the connection. Start again from the app."));
       setSubmitting(null);
     }
@@ -80,6 +105,10 @@ function ConsentCard() {
         body="Open HAIP's connector from Claude, ChatGPT or your AI app again — it will bring you back here with the right details."
       />
     );
+  }
+
+  if (sessionExpired) {
+    return <Notice title="Your HAIP session expired" body="Taking you to sign in — you'll come straight back here." />;
   }
 
   if (clientError) {

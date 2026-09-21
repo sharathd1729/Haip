@@ -46,7 +46,12 @@ export default auth((req: NextRequest & { auth: any }) => {
   // SessionExpired (the deliberate 12h "not remembered" cutoff) still
   // redirects immediately, same as before -- there's nothing to self-heal.
   const withinGrace = isWithinRefreshErrorGrace(req.auth?.error, req.auth?.errorSince);
-  const isLoggedIn = !!req.auth && (!req.auth.error || withinGrace);
+  // The AI-assistant consent screen (/connect) gets no grace window: it
+  // makes one authenticated call the moment it renders, with no later
+  // refresh cycle to self-heal into -- a stale session there just shows an
+  // error. Send it through login instead.
+  const graceAllowed = withinGrace && !pathname.startsWith("/connect");
+  const isLoggedIn = !!req.auth && (!req.auth.error || graceAllowed);
 
   // ── Logged-in users ────────────────────────────────────────────────────────
   if (isLoggedIn) {
