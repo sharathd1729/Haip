@@ -1,0 +1,235 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1000" viewBox="0 0 1440 1000"><title>Leads — Pipeline (desktop)</title>
+<rect width="1440" height="1000" fill="#F3F5F4"/>
+<g id="App navigation">
+<rect x="0" y="0" width="72" height="1000" rx="0" fill="#0B2B28"/>
+<text x="36" y="42" font-family="Outfit, sans-serif" font-size="24" font-weight="700" fill="#5EEAD4" text-anchor="middle">H</text>
+<rect x="26" y="102" width="20" height="16" rx="4" fill="#3E6B66"/>
+<text x="36" y="134" font-family="Manrope, sans-serif" font-size="10" font-weight="600" fill="#8FB3AE" text-anchor="middle">Home</text>
+<rect x="26" y="166" width="20" height="16" rx="4" fill="#3E6B66"/>
+<text x="36" y="198" font-family="Manrope, sans-serif" font-size="10" font-weight="600" fill="#8FB3AE" text-anchor="middle">Inbox</text>
+<rect x="12" y="222" width="48" height="48" rx="12" fill="#134E48"/>
+<rect x="26" y="230" width="20" height="16" rx="4" fill="#5EEAD4"/>
+<text x="36" y="262" font-family="Manrope, sans-serif" font-size="10" font-weight="600" fill="#FFFFFF" text-anchor="middle">Leads</text>
+<rect x="26" y="294" width="20" height="16" rx="4" fill="#3E6B66"/>
+<text x="36" y="326" font-family="Manrope, sans-serif" font-size="10" font-weight="600" fill="#8FB3AE" text-anchor="middle">Calls</text>
+<rect x="26" y="358" width="20" height="16" rx="4" fill="#3E6B66"/>
+<text x="36" y="390" font-family="Manrope, sans-serif" font-size="10" font-weight="600" fill="#8FB3AE" text-anchor="middle">Guests</text>
+<rect x="26" y="422" width="20" height="16" rx="4" fill="#3E6B66"/>
+<text x="36" y="454" font-family="Manrope, sans-serif" font-size="10" font-weight="600" fill="#8FB3AE" text-anchor="middle">Reports</text>
+</g>
+<g id="Header">
+<text x="104" y="52" font-family="Outfit, sans-serif" font-size="28" font-weight="700" fill="#101828" text-anchor="start">Leads</text>
+<text x="104" y="76" font-family="Manrope, sans-serif" font-size="13" font-weight="500" fill="#667085" text-anchor="start">Only real leads are on the board · 1,293 enquiries are sorted into Triage</text>
+<rect x="938" y="30" width="260" height="38" rx="10" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="1"/>
+<circle cx="958" cy="48" r="6" fill="none" stroke="#98A2B3" stroke-width="1"/>
+<line x1="962" y1="52" x2="966" y2="56" stroke="#98A2B3" stroke-width="1.5"/>
+<text x="974" y="53" font-family="Manrope, sans-serif" font-size="13" font-weight="500" fill="#98A2B3" text-anchor="start">Search name, phone, trip…</text>
+<rect x="1210" y="33" width="84" height="34" rx="8" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="1"/>
+<text x="1252.0" y="54.5" font-family="Manrope, sans-serif" font-size="12.5" font-weight="700" fill="#344054" text-anchor="middle">Filters</text>
+<rect x="1302" y="33" width="106" height="34" rx="8" fill="#0F766E"/>
+<text x="1355.0" y="54.5" font-family="Manrope, sans-serif" font-size="12.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">+ Add lead</text>
+</g>
+<g id="Summary tiles">
+<rect x="104.0" y="96" width="251.2" height="84" rx="14" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="1"/>
+<rect x="120.0" y="114" width="8" height="8" rx="4" fill="#B54708"/>
+<text x="136.0" y="122" font-family="Manrope, sans-serif" font-size="12.5" font-weight="600" fill="#667085" text-anchor="start">Waiting on us</text>
+<text x="120.0" y="160" font-family="Outfit, sans-serif" font-size="30" font-weight="700" fill="#B54708" text-anchor="start">6</text>
+<text x="147.4" y="160" font-family="Manrope, sans-serif" font-size="12" font-weight="500" fill="#98A2B3" text-anchor="start">oldest 3h</text>
+<rect x="367.2" y="96" width="251.2" height="84" rx="14" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="1"/>
+<rect x="383.2" y="114" width="8" height="8" rx="4" fill="#0F766E"/>
+<text x="399.2" y="122" font-family="Manrope, sans-serif" font-size="12.5" font-weight="600" fill="#667085" text-anchor="start">AI replies to send</text>
+<text x="383.2" y="160" font-family="Outfit, sans-serif" font-size="30" font-weight="700" fill="#0F766E" text-anchor="start">1</text>
+<text x="410.59999999999997" y="160" font-family="Manrope, sans-serif" font-size="12" font-weight="500" fill="#98A2B3" text-anchor="start">ready now</text>
+<rect x="630.4" y="96" width="251.2" height="84" rx="14" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="1"/>
+<rect x="646.4" y="114" width="8" height="8" rx="4" fill="#067647"/>
+<text x="662.4" y="122" font-family="Manrope, sans-serif" font-size="12.5" font-weight="600" fill="#667085" text-anchor="start">Shared a phone</text>
+<text x="646.4" y="160" font-family="Outfit, sans-serif" font-size="30" font-weight="700" fill="#067647" text-anchor="start">9</text>
+<text x="673.8" y="160" font-family="Manrope, sans-serif" font-size="12" font-weight="500" fill="#98A2B3" text-anchor="start">not called yet</text>
+<rect x="893.5999999999999" y="96" width="251.2" height="84" rx="14" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="1"/>
+<rect x="909.5999999999999" y="114" width="8" height="8" rx="4" fill="#344054"/>
+<text x="925.5999999999999" y="122" font-family="Manrope, sans-serif" font-size="12.5" font-weight="600" fill="#667085" text-anchor="start">Unassigned</text>
+<text x="909.5999999999999" y="160" font-family="Outfit, sans-serif" font-size="30" font-weight="700" fill="#344054" text-anchor="start">28</text>
+<text x="954.3999999999999" y="160" font-family="Manrope, sans-serif" font-size="12" font-weight="500" fill="#98A2B3" text-anchor="start">last 3 days</text>
+<rect x="1156.8" y="96" width="251.2" height="84" rx="14" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="1"/>
+<rect x="1172.8" y="114" width="8" height="8" rx="4" fill="#6941C6"/>
+<text x="1188.8" y="122" font-family="Manrope, sans-serif" font-size="12.5" font-weight="600" fill="#667085" text-anchor="start">Sold this month</text>
+<text x="1172.8" y="160" font-family="Outfit, sans-serif" font-size="30" font-weight="700" fill="#6941C6" text-anchor="start">14</text>
+<text x="1217.6" y="160" font-family="Manrope, sans-serif" font-size="12" font-weight="500" fill="#98A2B3" text-anchor="start">₹4.2L booked</text>
+</g>
+<g id="View switch and filters">
+<rect x="104" y="200" width="332" height="38" rx="10" fill="#E7ECEA"/>
+<text x="160" y="224" font-family="Manrope, sans-serif" font-size="13" font-weight="600" fill="#667085" text-anchor="middle">Needs action</text>
+<rect x="216" y="204" width="104" height="30" rx="8" fill="#FFFFFF"/>
+<text x="268" y="224" font-family="Manrope, sans-serif" font-size="13" font-weight="700" fill="#101828" text-anchor="middle">Pipeline</text>
+<text x="376" y="224" font-family="Manrope, sans-serif" font-size="13" font-weight="600" fill="#667085" text-anchor="middle">All leads</text>
+<rect x="452" y="205" width="172.16" height="28" rx="14" fill="#E7F3F1" stroke="#99D5CC" stroke-width="1"/>
+<text x="465" y="223" font-family="Manrope, sans-serif" font-size="12" font-weight="600" fill="#0B5B55" text-anchor="start">Enquired: Last 3 days</text>
+<rect x="632.16" y="205" width="102.55999999999999" height="28" rx="14" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="1"/>
+<text x="645.16" y="223" font-family="Manrope, sans-serif" font-size="12" font-weight="600" fill="#344054" text-anchor="start">Source: All</text>
+<rect x="742.7199999999999" y="205" width="137.35999999999999" height="28" rx="14" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="1"/>
+<text x="755.7199999999999" y="223" font-family="Manrope, sans-serif" font-size="12" font-weight="600" fill="#344054" text-anchor="start">Assigned: Anyone</text>
+<rect x="888.0799999999999" y="205" width="88.63999999999999" height="28" rx="14" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="1"/>
+<text x="901.0799999999999" y="223" font-family="Manrope, sans-serif" font-size="12" font-weight="600" fill="#344054" text-anchor="start">Has phone</text>
+</g>
+<g id="Triage strip">
+<rect x="104" y="258" width="1304" height="52" rx="12" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="1"/>
+<text x="122" y="290" font-family="Outfit, sans-serif" font-size="14" font-weight="700" fill="#101828" text-anchor="start">Triage</text>
+<text x="186" y="290" font-family="Manrope, sans-serif" font-size="12.5" font-weight="500" fill="#667085" text-anchor="start">Not on the board — review in bulk</text>
+<rect x="434" y="273" width="148.23999999999998" height="24" rx="12.0" fill="#F2F4F7"/>
+<text x="442" y="289.32" font-family="Manrope, sans-serif" font-size="12" font-weight="600" fill="#667085" text-anchor="start">Unqualified · 1,067</text>
+<rect x="592.24" y="273" width="176.07999999999998" height="24" rx="12.0" fill="#FEF0C7"/>
+<text x="600.24" y="289.32" font-family="Manrope, sans-serif" font-size="12" font-weight="600" fill="#B54708" text-anchor="start">No response (RNR) · 197</text>
+<rect x="778.3199999999999" y="273" width="148.23999999999998" height="24" rx="12.0" fill="#F4F3FF"/>
+<text x="786.3199999999999" y="289.32" font-family="Manrope, sans-serif" font-size="12" font-weight="600" fill="#6941C6" text-anchor="start">Collaborations · 29</text>
+<text x="1390" y="290" font-family="Manrope, sans-serif" font-size="12.5" font-weight="700" fill="#0F766E" text-anchor="end">Open triage →</text>
+</g>
+<g id="Column · General enquiry">
+<rect x="104.0" y="330" width="314.0" height="640" rx="14" fill="#EAEEEC"/>
+<rect x="118.0" y="348" width="10" height="10" rx="5" fill="#175CD3"/>
+<text x="136.0" y="358" font-family="Outfit, sans-serif" font-size="14" font-weight="700" fill="#101828" text-anchor="start">General enquiry</text>
+<text x="265.8" y="358" font-family="Manrope, sans-serif" font-size="13" font-weight="700" fill="#667085" text-anchor="start">230</text>
+<text x="118.0" y="380" font-family="Manrope, sans-serif" font-size="12" font-weight="500" fill="#667085" text-anchor="start">₹20K potential</text>
+<g id="Card · Priya Srinivas">
+<rect x="114.0" y="396" width="294.0" height="104" rx="12" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="1"/>
+<circle cx="138.0" cy="424" r="14" fill="#E7F3F1"/>
+<text x="138.0" y="429.04" font-family="Outfit, sans-serif" font-size="11.200000000000001" font-weight="700" fill="#0B5B55" text-anchor="middle">PS</text>
+<text x="160.0" y="429" font-family="Manrope, sans-serif" font-size="14" font-weight="700" fill="#101828" text-anchor="start">Priya Srinivas</text>
+<rect x="128.0" y="446" width="76.81" height="20" rx="10.0" fill="#FDF2FA"/>
+<circle cx="138.0" cy="456.0" r="3" fill="#C11574"/>
+<text x="145.0" y="459.78" font-family="Manrope, sans-serif" font-size="10.5" font-weight="600" fill="#C11574" text-anchor="start">Instagram</text>
+<text x="128.0" y="486" font-family="Manrope, sans-serif" font-size="12" font-weight="500" fill="#667085" text-anchor="start">24h trip · 12 guests</text>
+<rect x="301.82" y="446" width="92.17999999999999" height="20" rx="10.0" fill="#E7F3F1"/>
+<circle cx="311.82" cy="456.0" r="3" fill="#0F766E"/>
+<text x="318.82" y="459.96" font-family="Manrope, sans-serif" font-size="11" font-weight="600" fill="#0F766E" text-anchor="start">Draft ready</text>
+</g>
+<g id="Card · Nikhita Rao">
+<rect x="114.0" y="512" width="294.0" height="104" rx="12" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="1"/>
+<circle cx="138.0" cy="540" r="14" fill="#E7F3F1"/>
+<text x="138.0" y="545.04" font-family="Outfit, sans-serif" font-size="11.200000000000001" font-weight="700" fill="#0B5B55" text-anchor="middle">NR</text>
+<text x="160.0" y="545" font-family="Manrope, sans-serif" font-size="14" font-weight="700" fill="#101828" text-anchor="start">Nikhita Rao</text>
+<rect x="128.0" y="562" width="76.81" height="20" rx="10.0" fill="#FDF2FA"/>
+<circle cx="138.0" cy="572.0" r="3" fill="#C11574"/>
+<text x="145.0" y="575.78" font-family="Manrope, sans-serif" font-size="10.5" font-weight="600" fill="#C11574" text-anchor="start">Instagram</text>
+<text x="128.0" y="602" font-family="Manrope, sans-serif" font-size="12" font-weight="500" fill="#667085" text-anchor="start">Family of 5 · 27 Sep</text>
+<rect x="308.2" y="562" width="85.8" height="20" rx="10.0" fill="#FEF0C7"/>
+<circle cx="318.2" cy="572.0" r="3" fill="#B54708"/>
+<text x="325.2" y="575.96" font-family="Manrope, sans-serif" font-size="11" font-weight="600" fill="#B54708" text-anchor="start">Waiting 3h</text>
+</g>
+<g id="Card · Rahul Kumar">
+<rect x="114.0" y="628" width="294.0" height="104" rx="12" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="1"/>
+<circle cx="138.0" cy="656" r="14" fill="#E7F3F1"/>
+<text x="138.0" y="661.04" font-family="Outfit, sans-serif" font-size="11.200000000000001" font-weight="700" fill="#0B5B55" text-anchor="middle">RK</text>
+<text x="160.0" y="661" font-family="Manrope, sans-serif" font-size="14" font-weight="700" fill="#101828" text-anchor="start">Rahul Kumar</text>
+<rect x="128.0" y="678" width="76.81" height="20" rx="10.0" fill="#FDF2FA"/>
+<circle cx="138.0" cy="688.0" r="3" fill="#C11574"/>
+<text x="145.0" y="691.78" font-family="Manrope, sans-serif" font-size="10.5" font-weight="600" fill="#C11574" text-anchor="start">Instagram</text>
+<text x="128.0" y="718" font-family="Manrope, sans-serif" font-size="12" font-weight="500" fill="#667085" text-anchor="start">Wants to book</text>
+<rect x="346.48" y="678" width="47.519999999999996" height="20" rx="10.0" fill="#DCFAE6"/>
+<circle cx="356.48" cy="688.0" r="3" fill="#067647"/>
+<text x="363.48" y="691.96" font-family="Manrope, sans-serif" font-size="11" font-weight="600" fill="#067647" text-anchor="start">Call</text>
+</g>
+<text x="261.0" y="764" font-family="Manrope, sans-serif" font-size="12.5" font-weight="700" fill="#0F766E" text-anchor="middle">Show all 230</text>
+</g>
+<g id="Column · Active">
+<rect x="434.0" y="330" width="314.0" height="640" rx="14" fill="#EAEEEC"/>
+<rect x="448.0" y="348" width="10" height="10" rx="5" fill="#0F766E"/>
+<text x="466.0" y="358" font-family="Outfit, sans-serif" font-size="14" font-weight="700" fill="#101828" text-anchor="start">Active</text>
+<text x="522.72" y="358" font-family="Manrope, sans-serif" font-size="13" font-weight="700" fill="#667085" text-anchor="start">36</text>
+<text x="448.0" y="380" font-family="Manrope, sans-serif" font-size="12" font-weight="500" fill="#667085" text-anchor="start">₹3.1L in quotes</text>
+<g id="Card · Sanjay Hegde">
+<rect x="444.0" y="396" width="294.0" height="104" rx="12" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="1"/>
+<circle cx="468.0" cy="424" r="14" fill="#E7F3F1"/>
+<text x="468.0" y="429.04" font-family="Outfit, sans-serif" font-size="11.200000000000001" font-weight="700" fill="#0B5B55" text-anchor="middle">SH</text>
+<text x="490.0" y="429" font-family="Manrope, sans-serif" font-size="14" font-weight="700" fill="#101828" text-anchor="start">Sanjay Hegde</text>
+<rect x="458.0" y="446" width="76.81" height="20" rx="10.0" fill="#FDF2FA"/>
+<circle cx="468.0" cy="456.0" r="3" fill="#C11574"/>
+<text x="475.0" y="459.78" font-family="Manrope, sans-serif" font-size="10.5" font-weight="600" fill="#C11574" text-anchor="start">Instagram</text>
+<text x="458.0" y="486" font-family="Manrope, sans-serif" font-size="12" font-weight="500" fill="#667085" text-anchor="start">Pet-friendly · 4 guests</text>
+<rect x="676.48" y="446" width="47.519999999999996" height="20" rx="10.0" fill="#DCFAE6"/>
+<circle cx="686.48" cy="456.0" r="3" fill="#067647"/>
+<text x="693.48" y="459.96" font-family="Manrope, sans-serif" font-size="11" font-weight="600" fill="#067647" text-anchor="start">Call</text>
+</g>
+<g id="Card · Meera Joshi">
+<rect x="444.0" y="512" width="294.0" height="104" rx="12" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="1"/>
+<circle cx="468.0" cy="540" r="14" fill="#E7F3F1"/>
+<text x="468.0" y="545.04" font-family="Outfit, sans-serif" font-size="11.200000000000001" font-weight="700" fill="#0B5B55" text-anchor="middle">MJ</text>
+<text x="490.0" y="545" font-family="Manrope, sans-serif" font-size="14" font-weight="700" fill="#101828" text-anchor="start">Meera Joshi</text>
+<rect x="458.0" y="562" width="70.72" height="20" rx="10.0" fill="#EDFCF2"/>
+<circle cx="468.0" cy="572.0" r="3" fill="#087443"/>
+<text x="475.0" y="575.78" font-family="Manrope, sans-serif" font-size="10.5" font-weight="600" fill="#087443" text-anchor="start">WhatsApp</text>
+<text x="458.0" y="602" font-family="Manrope, sans-serif" font-size="12" font-weight="500" fill="#667085" text-anchor="start">Quoted ₹42,000 · 3 Oct</text>
+<rect x="644.58" y="562" width="79.41999999999999" height="20" rx="10.0" fill="#FEF0C7"/>
+<circle cx="654.58" cy="572.0" r="3" fill="#B54708"/>
+<text x="661.58" y="575.96" font-family="Manrope, sans-serif" font-size="11" font-weight="600" fill="#B54708" text-anchor="start">Follow up</text>
+</g>
+<g id="Card · Karthik Nair">
+<rect x="444.0" y="628" width="294.0" height="104" rx="12" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="1"/>
+<circle cx="468.0" cy="656" r="14" fill="#E7F3F1"/>
+<text x="468.0" y="661.04" font-family="Outfit, sans-serif" font-size="11.200000000000001" font-weight="700" fill="#0B5B55" text-anchor="middle">KN</text>
+<text x="490.0" y="661" font-family="Manrope, sans-serif" font-size="14" font-weight="700" fill="#101828" text-anchor="start">Karthik Nair</text>
+<rect x="458.0" y="678" width="82.9" height="20" rx="10.0" fill="#EFF4FF"/>
+<circle cx="468.0" cy="688.0" r="3" fill="#175CD3"/>
+<text x="475.0" y="691.78" font-family="Manrope, sans-serif" font-size="10.5" font-weight="600" fill="#175CD3" text-anchor="start">Phone call</text>
+<text x="458.0" y="718" font-family="Manrope, sans-serif" font-size="12" font-weight="500" fill="#667085" text-anchor="start">Anniversary · 11 Oct</text>
+<rect x="638.2" y="678" width="85.8" height="20" rx="10.0" fill="#E7F3F1"/>
+<circle cx="648.2" cy="688.0" r="3" fill="#0F766E"/>
+<text x="655.2" y="691.96" font-family="Manrope, sans-serif" font-size="11" font-weight="600" fill="#0F766E" text-anchor="start">Quote sent</text>
+</g>
+<text x="591.0" y="764" font-family="Manrope, sans-serif" font-size="12.5" font-weight="700" fill="#0F766E" text-anchor="middle">Show all 36</text>
+</g>
+<g id="Column · Sold">
+<rect x="764.0" y="330" width="314.0" height="640" rx="14" fill="#EAEEEC"/>
+<rect x="778.0" y="348" width="10" height="10" rx="5" fill="#067647"/>
+<text x="796.0" y="358" font-family="Outfit, sans-serif" font-size="14" font-weight="700" fill="#101828" text-anchor="start">Sold</text>
+<text x="836.48" y="358" font-family="Manrope, sans-serif" font-size="13" font-weight="700" fill="#667085" text-anchor="start">14</text>
+<text x="778.0" y="380" font-family="Manrope, sans-serif" font-size="12" font-weight="500" fill="#667085" text-anchor="start">₹4.2L this month</text>
+<g id="Card · Ananya Das">
+<rect x="774.0" y="396" width="294.0" height="104" rx="12" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="1"/>
+<circle cx="798.0" cy="424" r="14" fill="#E7F3F1"/>
+<text x="798.0" y="429.04" font-family="Outfit, sans-serif" font-size="11.200000000000001" font-weight="700" fill="#0B5B55" text-anchor="middle">AD</text>
+<text x="820.0" y="429" font-family="Manrope, sans-serif" font-size="14" font-weight="700" fill="#101828" text-anchor="start">Ananya Das</text>
+<rect x="788.0" y="446" width="70.72" height="20" rx="10.0" fill="#EDFCF2"/>
+<circle cx="798.0" cy="456.0" r="3" fill="#087443"/>
+<text x="805.0" y="459.78" font-family="Manrope, sans-serif" font-size="10.5" font-weight="600" fill="#087443" text-anchor="start">WhatsApp</text>
+<text x="788.0" y="486" font-family="Manrope, sans-serif" font-size="12" font-weight="500" fill="#667085" text-anchor="start">₹38,500 · 19 Sep</text>
+<rect x="1006.48" y="446" width="47.519999999999996" height="20" rx="10.0" fill="#DCFAE6"/>
+<circle cx="1016.48" cy="456.0" r="3" fill="#067647"/>
+<text x="1023.48" y="459.96" font-family="Manrope, sans-serif" font-size="11" font-weight="600" fill="#067647" text-anchor="start">Paid</text>
+</g>
+<g id="Card · Vikram Shetty">
+<rect x="774.0" y="512" width="294.0" height="104" rx="12" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="1"/>
+<circle cx="798.0" cy="540" r="14" fill="#E7F3F1"/>
+<text x="798.0" y="545.04" font-family="Outfit, sans-serif" font-size="11.200000000000001" font-weight="700" fill="#0B5B55" text-anchor="middle">VS</text>
+<text x="820.0" y="545" font-family="Manrope, sans-serif" font-size="14" font-weight="700" fill="#101828" text-anchor="start">Vikram Shetty</text>
+<rect x="788.0" y="562" width="76.81" height="20" rx="10.0" fill="#FDF2FA"/>
+<circle cx="798.0" cy="572.0" r="3" fill="#C11574"/>
+<text x="805.0" y="575.78" font-family="Manrope, sans-serif" font-size="10.5" font-weight="600" fill="#C11574" text-anchor="start">Instagram</text>
+<text x="788.0" y="602" font-family="Manrope, sans-serif" font-size="12" font-weight="500" fill="#667085" text-anchor="start">₹52,000 · 26 Sep</text>
+<rect x="987.34" y="562" width="66.66" height="20" rx="10.0" fill="#DCFAE6"/>
+<circle cx="997.34" cy="572.0" r="3" fill="#067647"/>
+<text x="1004.34" y="575.96" font-family="Manrope, sans-serif" font-size="11" font-weight="600" fill="#067647" text-anchor="start">Advance</text>
+</g>
+<text x="921.0" y="648" font-family="Manrope, sans-serif" font-size="12.5" font-weight="700" fill="#0F766E" text-anchor="middle">Show all 14</text>
+</g>
+<g id="Column · Lost">
+<rect x="1094.0" y="330" width="314.0" height="640" rx="14" fill="#EAEEEC"/>
+<rect x="1108.0" y="348" width="10" height="10" rx="5" fill="#B42318"/>
+<text x="1126.0" y="358" font-family="Outfit, sans-serif" font-size="14" font-weight="700" fill="#101828" text-anchor="start">Lost</text>
+<text x="1166.48" y="358" font-family="Manrope, sans-serif" font-size="13" font-weight="700" fill="#667085" text-anchor="start">23</text>
+<text x="1108.0" y="380" font-family="Manrope, sans-serif" font-size="12" font-weight="500" fill="#667085" text-anchor="start">Top reason: dates</text>
+<g id="Card · Rohan Pillai">
+<rect x="1104.0" y="396" width="294.0" height="104" rx="12" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="1"/>
+<circle cx="1128.0" cy="424" r="14" fill="#E7F3F1"/>
+<text x="1128.0" y="429.04" font-family="Outfit, sans-serif" font-size="11.200000000000001" font-weight="700" fill="#0B5B55" text-anchor="middle">RP</text>
+<text x="1150.0" y="429" font-family="Manrope, sans-serif" font-size="14" font-weight="700" fill="#101828" text-anchor="start">Rohan Pillai</text>
+<rect x="1118.0" y="446" width="70.72" height="20" rx="10.0" fill="#EDFCF2"/>
+<circle cx="1128.0" cy="456.0" r="3" fill="#087443"/>
+<text x="1135.0" y="459.78" font-family="Manrope, sans-serif" font-size="10.5" font-weight="600" fill="#087443" text-anchor="start">WhatsApp</text>
+<text x="1118.0" y="486" font-family="Manrope, sans-serif" font-size="12" font-weight="500" fill="#667085" text-anchor="start">Dates unavailable</text>
+<rect x="1323.72" y="446" width="60.279999999999994" height="20" rx="10.0" fill="#FEF0C7"/>
+<circle cx="1333.72" cy="456.0" r="3" fill="#B54708"/>
+<text x="1340.72" y="459.96" font-family="Manrope, sans-serif" font-size="11" font-weight="600" fill="#B54708" text-anchor="start">Closed</text>
+</g>
+<text x="1251.0" y="532" font-family="Manrope, sans-serif" font-size="12.5" font-weight="700" fill="#0F766E" text-anchor="middle">Show all 23</text>
+</g>
+</svg>

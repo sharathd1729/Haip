@@ -11,6 +11,7 @@ import { SkeletonCard } from "@/components/ui/SkeletonCard";
 import { cn } from "@/lib/utils";
 import { usePipelineStages, type PipelineStageRow } from "@/hooks/usePipelineStages";
 import { LeadsFilterBar, type LeadsFilters } from "@/components/leads/LeadsFilterBar";
+import { NeedsActionView } from "@/components/leads/NeedsActionView";
 
 // B5: only needed once the user opens pipeline settings -- keep it out of
 // this route's initial chunk.
@@ -242,7 +243,11 @@ function MobileStageSection({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+type LeadsView = "action" | "pipeline";
+
 export default function Leads360Page() {
+  // "Needs action" is the default for every role -- the board is one tab away.
+  const [view, setView] = useState<LeadsView>("action");
   const [stageFilter, setStageFilter] = useState(ALL_STAGES_ID);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [addLeadOpen, setAddLeadOpen] = useState(false);
@@ -308,13 +313,31 @@ export default function Leads360Page() {
               Leads360
             </h1>
             <p className="text-xs" style={{ color: "var(--haip-fg-muted)" }}>
-              {total} active leads
+              {view === "action" ? "What to do next, most urgent first" : `${total} active leads`}
             </p>
           </div>
         </div>
 
         {/* Controls */}
         <div className="flex items-center gap-2">
+          <div role="tablist" aria-label="Leads view" className="flex flex-shrink-0 rounded-lg p-0.5" style={{ background: "var(--muted)" }}>
+            {([["action", "Needs action"], ["pipeline", "Pipeline"]] as const).map(([key, label]) => (
+              <button
+                key={key}
+                role="tab"
+                aria-selected={view === key}
+                onClick={() => setView(key)}
+                className="text-xs font-semibold px-3 py-1.5 rounded-md transition-colors"
+                style={view === key
+                  ? { background: "var(--haip-card)", color: "var(--haip-fg)", boxShadow: "0 1px 2px rgb(0 0 0 / 0.06)" }
+                  : { color: "var(--haip-fg-subtle)" }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {view === "pipeline" && (<>
           {/* Stage filter pills — scrollable on mobile */}
           <div className="flex items-center gap-1 overflow-x-auto haip-scrollbar-x pb-0.5 max-w-xs sm:max-w-md">
             <button
@@ -368,6 +391,7 @@ export default function Leads360Page() {
               Assigned to me
             </button>
           )}
+          </>)}
 
           {/* Add lead manually */}
           <button
@@ -401,6 +425,9 @@ export default function Leads360Page() {
         </div>
       </div>
 
+      {view === "action" && <NeedsActionView />}
+
+      {view === "pipeline" && (<>
       <LeadsFilterBar filters={filters} onChange={setFilters} />
 
       {/* ── Kanban board (desktop) ──────────────────────────────────────── */}
@@ -439,6 +466,8 @@ export default function Leads360Page() {
           </div>
         ))}
       </div>
+
+      </>)}
 
       {/* ── Pipeline settings modal ──────────────────────────────────────── */}
       {settingsOpen && (

@@ -29,7 +29,8 @@ from app.models.guest_identity import GuestIdentity, IdentityType
 from app.models.inquiry import Inquiry, InquiryStage, InquirySource
 from app.models.pipeline_stage import PipelineStage
 from app.schemas.leads import (
-    LeadCardSchema, LeadDetailSchema, LeadsListResponse, PendingDraftSchema,
+    LeadCardSchema, LeadDetailSchema, LeadsListResponse, NeedsActionBucket,
+    NeedsActionKpis, NeedsActionResponse, PendingDraftSchema,
     PipelineStageMetaSchema, QuoteHistorySchema, TimelineEntrySchema,
 )
 
@@ -220,6 +221,13 @@ def _batch_response_time(
             Message.tenant_id == tenant_id,
             Message.direction == MessageDirection.OUTBOUND,
             Message.created_at > last_inbound_sq.c.last_in_at,
+            # Only messages that actually reached the guest count as a reply.
+            # A pending (was_approved=None) or rejected (False) AI draft is
+            # also an OUTBOUND row -- counting it marked guests "responded"
+            # the moment a draft was written, so a lead whose only answer
+            # was an unsent draft never showed as waiting. Auto-sent and
+            # approved AI replies carry was_approved=True.
+            or_(Message.is_ai_generated.isnot(True), Message.was_approved.is_(True)),
         )
         .group_by(Message.conversation_id)
         .all()
@@ -1106,3 +1114,179 @@ def get_daily_lead_funnel(
         }
         for row in q.all()
     ]
+
+
+# ── Needs action (Leads default view) ─────────────────────────────────────────
+
+# Most urgent first -- a lead lands in the first bucket that applies, so it
+# never shows up twice. A ready AI draft outranks "waiting" because sending
+# it IS the reply; a phone number outranks the AI's soft follow-up flag
+# because a call resolves that flag too.
+NEEDS_ACTION_BUCKETS = ("draft_ready", "waiting", "call", "followup")
+_NEEDS_ACTION_CANDIDATES = 400
+_NEEDS_ACTION_PER_BUCKET = 30
+# A guest silent-on-our-side for longer than this is no longer actionable
+# from here: Meta's messaging window for a human reply on WhatsApp/Instagram
+# closes at 7 days at most. Measured on Ratha: without this, a 48-day-old
+# WhatsApp thread topped the "waiting" list.
+_WAITING_MAX_SECONDS = 7 * 86400
+
+
+def _batch_spoken_since(
+    db: Session, tenant_id: str, inquiries: list[Inquiry],
+) -> set[str]:
+    """Inquiry ids whose guest has had a real phone conversation since the
+    inquiry was created: any outbound call, or an inbound call that wasn't
+    missed. One query over the page's guests, no N+1."""
+    from app.models.call import Call, CallDirection
+    from app.services.call_status_service import is_missed_call
+
+    by_guest: dict[str, list[Inquiry]] = {}
+    for inq in inquiries:
+        if inq.guest_id:
+            by_guest.setdefault(inq.guest_id, []).append(inq)
+    if not by_guest:
+        return set()
+
+    earliest = min(_aware_dt(i.created_at) for i in inquiries if i.created_at) if inquiries else None
+    q = db.query(Call).filter(Call.tenant_id == tenant_id, Call.guest_id.in_(list(by_guest)))
+    if earliest:
+        q = q.filter(Call.created_at >= earliest)
+
+    spoken: set[str] = set()
+    for call in q.all():
+        if call.direction != CallDirection.OUTBOUND and is_missed_call(call):
+            continue
+        call_at = _aware_dt(call.created_at)
+        for inq in by_guest.get(call.guest_id, []):
+            if inq.created_at is None or call_at >= _aware_dt(inq.created_at):
+                spoken.add(inq.id)
+    return spoken
+
+
+def _aware_dt(dt: datetime) -> datetime:
+    # SQLite (tests) returns naive datetimes even for timezone=True columns
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def get_needs_action(
+    db: Session,
+    tenant_id: str,
+    scope_user_id: Optional[str] = None,
+    window_days: int = 14,
+) -> NeedsActionResponse:
+    """Open leads touched in the last `window_days`, grouped by what an agent
+    should do next. Reuses the same batch helpers as the pipeline board so
+    "waiting", "draft ready" and "follow-up" mean exactly what they mean on
+    the cards there.
+
+    Closed (won/lost) and unqualified inquiries are excluded. `scope_user_id`
+    is the same visibility guard as get_leads_pipeline: non-owners see their
+    own leads plus unclaimed ones."""
+    from datetime import timedelta
+    from app.services.date_presets import ist_range_to_utc, resolve_preset
+
+    now = datetime.now(timezone.utc)
+    closed_stage_ids = [
+        r.id for r in db.query(PipelineStage.id).filter(
+            PipelineStage.tenant_id == tenant_id,
+            or_(PipelineStage.is_closed_won.is_(True), PipelineStage.is_closed_lost.is_(True)),
+        ).all()
+    ]
+
+    q = (
+        db.query(Inquiry)
+        .options(
+            joinedload(Inquiry.guest),
+            joinedload(Inquiry.assigned_user),
+            joinedload(Inquiry.pipeline_stage),
+        )
+        .filter(
+            Inquiry.tenant_id == tenant_id,
+            Inquiry.qualification_status != "unqualified",
+            Inquiry.updated_at >= now - timedelta(days=window_days),
+            Inquiry.stage.notin_([InquiryStage.LOST, InquiryStage.GHOSTED]),
+        )
+    )
+    if closed_stage_ids:
+        q = q.filter(or_(Inquiry.stage_id.is_(None), Inquiry.stage_id.notin_(closed_stage_ids)))
+    if scope_user_id:
+        q = q.filter(or_(Inquiry.assigned_to == scope_user_id, Inquiry.assigned_to.is_(None)))
+    inquiries = q.order_by(desc(Inquiry.updated_at)).limit(_NEEDS_ACTION_CANDIDATES).all()
+
+    ids = [inq.id for inq in inquiries]
+    guest_ids = [inq.guest_id for inq in inquiries]
+    completeness_map = _batch_completeness(db, tenant_id, guest_ids)
+    signals_map = _batch_signals(db, tenant_id, guest_ids)
+    prop_interest_map = _batch_property_interest(db, tenant_id, ids)
+    response_time_map = _batch_response_time(db, tenant_id, ids, now=now)
+    pending_draft_map = _batch_pending_drafts(db, tenant_id, ids)
+    needs_followup_map = _batch_needs_agent_followup(db, tenant_id, ids)
+    spoken = _batch_spoken_since(db, tenant_id, inquiries)
+
+    buckets: dict[str, list[LeadCardSchema]] = {k: [] for k in NEEDS_ACTION_BUCKETS}
+    for inq in inquiries:
+        card = _build_lead_card(
+            inq,
+            completeness=completeness_map.get(inq.guest_id, 0),
+            signals=signals_map.get(inq.guest_id, []),
+            property_interest=prop_interest_map.get(inq.id, []),
+            response_time=response_time_map.get(inq.id),
+            pending_draft=pending_draft_map.get(inq.id),
+            needs_agent_followup_reason=needs_followup_map.get(inq.id),
+        )
+        waiting = (
+            card.response_time_status == "waiting"
+            and (card.response_time_seconds or 0) <= _WAITING_MAX_SECONDS
+        )
+        # A pending draft only means "reply ready" while the guest is still
+        # waiting. Once any reply went out the draft is superseded -- on
+        # Ratha 9 of 10 pending drafts were leftovers from message bursts
+        # the AI had already answered.
+        if waiting and card.pending_draft:
+            buckets["draft_ready"].append(card)
+        elif waiting:
+            buckets["waiting"].append(card)
+        elif "phone" in (card.identity_signals or []) and inq.id not in spoken:
+            buckets["call"].append(card)
+        elif card.needs_agent_followup:
+            buckets["followup"].append(card)
+
+    # Longest-waiting first where waiting time means something; newest
+    # enquiry first for "call" (a fresh number is the warmest lead).
+    buckets["waiting"].sort(key=lambda c: -(c.response_time_seconds or 0))
+    buckets["call"].sort(key=lambda c: c.created_at or now, reverse=True)
+
+    waiting = buckets["waiting"] + buckets["draft_ready"]
+    recent_cutoff = now - timedelta(days=3)
+    unassigned_recent = sum(
+        1 for inq in inquiries
+        if inq.assigned_to is None and inq.created_at and _aware_dt(inq.created_at) >= recent_cutoff
+    )
+    m_from, m_to = resolve_preset("this_month")
+    month_from, month_to, _, _ = ist_range_to_utc(m_from.isoformat(), m_to.isoformat())
+    sold_ids = _booked_inquiry_ids(db, tenant_id, month_from, month_to)
+    if scope_user_id and sold_ids:
+        sold_ids = [
+            r.id for r in db.query(Inquiry.id).filter(
+                Inquiry.id.in_(sold_ids),
+                or_(Inquiry.assigned_to == scope_user_id, Inquiry.assigned_to.is_(None)),
+            ).all()
+        ]
+
+    kpis = NeedsActionKpis(
+        waiting=len(waiting),
+        waiting_oldest_seconds=max((c.response_time_seconds or 0 for c in waiting), default=None),
+        drafts_ready=len(buckets["draft_ready"]),
+        phone_not_called=len(buckets["call"]),
+        unassigned_recent=unassigned_recent,
+        sold_this_month=len(set(sold_ids)),
+    )
+    return NeedsActionResponse(
+        window_days=window_days,
+        kpis=kpis,
+        buckets=[
+            NeedsActionBucket(key=k, total=len(buckets[k]), leads=buckets[k][:_NEEDS_ACTION_PER_BUCKET])
+            for k in NEEDS_ACTION_BUCKETS
+        ],
+    )

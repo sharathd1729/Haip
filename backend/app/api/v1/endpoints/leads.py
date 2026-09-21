@@ -28,7 +28,7 @@ from app.core.database import get_db
 from app.models.user import User, UserRole
 from app.schemas.leads import (
     AddSignalRequest, AddSignalResponse,
-    LeadDetailSchema, LeadsListResponse,
+    LeadDetailSchema, LeadsListResponse, NeedsActionResponse,
     ManualLeadCreateRequest, ManualLeadCreateResponse,
     ManualMergeRequest, ManualMergeResponse,
     RefreshSummaryResponse,
@@ -132,6 +132,27 @@ def list_leads(
         page=page,
         page_size=page_size,
         scope_user_id=_visibility_scope(current_user),
+    )
+
+
+# ── GET /leads/needs-action — default Leads view ─────────────────────────────
+# Declared before /{inquiry_id} so "needs-action" isn't parsed as a lead id.
+
+@router.get("/needs-action", response_model=NeedsActionResponse)
+def needs_action(
+    window_days: int = Query(14, ge=1, le=60, description="Only leads active in the last N days"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Open leads grouped by the next thing an agent should do: send the
+    ready AI reply, reply to a waiting guest, call a guest who shared a
+    number, or pick up an AI-flagged follow-up. Same visibility rule as the
+    board: non-owner/manager roles see their own and unclaimed leads."""
+    return leads_service.get_needs_action(
+        db,
+        tenant_id=current_user.tenant_id,
+        scope_user_id=_visibility_scope(current_user),
+        window_days=window_days,
     )
 
 

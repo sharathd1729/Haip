@@ -169,6 +169,31 @@ class LeadsListResponse(BaseModel):
     leads: List[LeadCardSchema] = []
 
 
+# ─── Needs action (Leads default view) ────────────────────────────────────────
+
+class NeedsActionBucket(BaseModel):
+    """One "what to do next" group. A lead appears in exactly one bucket --
+    the most urgent that applies (see leads_service.get_needs_action)."""
+    key: str                      # draft_ready | waiting | call | followup
+    total: int                    # leads in this bucket (may exceed len(leads))
+    leads: List[LeadCardSchema] = []
+
+
+class NeedsActionKpis(BaseModel):
+    waiting: int = 0
+    waiting_oldest_seconds: Optional[int] = None
+    drafts_ready: int = 0
+    phone_not_called: int = 0
+    unassigned_recent: int = 0    # created in the last 3 days, no agent
+    sold_this_month: int = 0
+
+
+class NeedsActionResponse(BaseModel):
+    window_days: int
+    kpis: NeedsActionKpis
+    buckets: List[NeedsActionBucket] = []
+
+
 # ─── Signal Management ────────────────────────────────────────────────────────
 
 class AddSignalRequest(BaseModel):

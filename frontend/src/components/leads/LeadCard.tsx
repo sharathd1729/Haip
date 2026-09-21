@@ -28,6 +28,8 @@ export interface LeadCard {
   group_type?: string;
   check_in?: string;
   check_out?: string;
+  adults?: number | null;
+  children?: number | null;
   budget_estimate?: number;
   budget_currency?: string;
   budget_range_label?: string;
@@ -35,6 +37,8 @@ export interface LeadCard {
   property_interest?: string[];
   ai_summary?: string;
   ai_next_action?: string;
+  // Structured LLM analysis (intent, sentiment, objection, next_action...).
+  ai_analysis?: { intent?: string; [key: string]: unknown } | null;
   assigned_agent_name?: string;
   assigned_agent_id?: string;
   assigned_agent_avatar_url?: string | null;
@@ -284,7 +288,7 @@ function AssignToMeButton({ lead }: { lead: LeadCard }) {
 // send_whatsapp_draft handler used by AIRecommendationCard). Redirected to
 // the shared one-click action endpoint so all three surfaces share one
 // dispatch path and one audit trail; the compact card UI is unchanged.
-function useApproveAndSendDraft(inquiryId: string) {
+export function useApproveAndSendDraft(inquiryId: string) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   return useMutation({
