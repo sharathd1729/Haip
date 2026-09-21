@@ -198,13 +198,13 @@ export function ConversationList({
                 onClick={() => onViewChange(v.key)}
                 className={cn(
                   "flex-shrink-0 inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full transition-colors border",
-                  on ? "bg-gray-900 text-white border-gray-900 dark:bg-white dark:text-gray-900 dark:border-white" : "border-[color:var(--haip-border)]",
+                  "border-[color:var(--haip-border)]",
                 )}
-                style={on ? undefined : { color: "var(--haip-fg-2, var(--haip-fg))", background: "var(--haip-card)" }}
+                style={on ? { background: "color-mix(in srgb, var(--primary) 12%, var(--haip-card))", color: "var(--primary)", borderColor: "color-mix(in srgb, var(--primary) 50%, transparent)" } : { color: "var(--haip-fg-2, var(--haip-fg))", background: "var(--haip-card)" }}
               >
                 {v.label}
                 {n != null && n > 0 && (
-                  <span className={cn("tabular-nums", on ? "text-teal-300 dark:text-teal-700" : "text-teal-700")}>{n}</span>
+                  <span className={"tabular-nums text-teal-700 dark:text-teal-300"}>{n}</span>
                 )}
               </button>
             );

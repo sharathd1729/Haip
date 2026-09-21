@@ -239,10 +239,10 @@ export default function CallsPage() {
                 return (
                   <button key={key} role="tab" aria-selected={on} onClick={() => setTab(key)}
                     className={cn("flex-shrink-0 inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border",
-                      on ? "bg-gray-900 text-white border-gray-900 dark:bg-white dark:text-gray-900" : "border-[color:var(--haip-border)]")}
-                    style={on ? undefined : { color: "var(--haip-fg-2, var(--haip-fg))", background: "var(--haip-card)" }}>
+                      "border-[color:var(--haip-border)]")}
+                    style={on ? { background: "color-mix(in srgb, var(--primary) 12%, var(--haip-card))", color: "var(--primary)", borderColor: "color-mix(in srgb, var(--primary) 50%, transparent)" } : { color: "var(--haip-fg-2, var(--haip-fg))", background: "var(--haip-card)" }}>
                     {label}
-                    {n != null && n > 0 && <span className={on ? "text-red-300 dark:text-red-600" : "text-red-600"}>{n}</span>}
+                    {n != null && n > 0 && <span className="text-red-600 tabular-nums">{n}</span>}
                   </button>
                 );
               })}

@@ -111,8 +111,8 @@ export default function DashboardPage() {
               {RANGES.map(r => (
                 <button key={r.value} type="button" role="tab" aria-selected={range === r.value} onClick={() => setRange(r.value)}
                   className={cn("text-xs font-bold px-3 py-1.5 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-teal-600",
-                    range === r.value ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "hover:bg-[color:var(--haip-card)]")}
-                  style={range === r.value ? undefined : { color: "var(--haip-fg-muted)" }}>
+                    range === r.value ? "shadow-sm" : "hover:bg-[color:var(--haip-card)]")}
+                  style={range === r.value ? { background: "var(--haip-card)", color: "var(--primary)" } : { color: "var(--haip-fg-muted)" }}>
                   {r.label}
                 </button>
               ))}
