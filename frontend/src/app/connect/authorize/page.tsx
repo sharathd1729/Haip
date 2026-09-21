@@ -38,6 +38,10 @@ function isSessionExpired(err: unknown): boolean {
  *  returning to this exact screen with the OAuth params intact. Signing out
  *  first matters: middleware bounces a still-"logged-in" user away from
  *  /login straight to the dashboard. */
+function isForbidden(err: unknown): boolean {
+  return (err as { response?: { status?: number } })?.response?.status === 403;
+}
+
 function reauthenticate() {
   const back = window.location.pathname + window.location.search;
   signOut({ callbackUrl: `/login?callbackUrl=${encodeURIComponent(back)}` }).catch(() => {
@@ -59,6 +63,7 @@ function ConsentCard() {
   const [access, setAccess] = useState<Access>("read_write");
   const [submitting, setSubmitting] = useState<"approve" | "deny" | null>(null);
   const [error, setError] = useState("");
+  const [forbidden, setForbidden] = useState(false);
 
   const clientId = params.get("client_id");
   const redirectHost = hostOf(params.get("redirect_uri"));
@@ -93,6 +98,7 @@ function ConsentCard() {
         reauthenticate();
         return;
       }
+      setForbidden(isForbidden(err));
       setError(errorText(err, "Couldn't complete the connection. Start again from the app."));
       setSubmitting(null);
     }
@@ -138,6 +144,17 @@ function ConsentCard() {
 
       <div className="text-sm leading-relaxed flex flex-col gap-2" style={{ color: "var(--haip-fg)" }}>
         <p>It will act as you{user?.name ? <> (<strong>{user.name}</strong>)</> : null} and see what you can see in HAIP:</p>
+        {user?.name && (
+          <p className="text-xs" style={{ color: "var(--haip-fg-subtle)" }}>
+            Not {user.name}?{" "}
+            {/* The screen always uses whoever is signed in to HAIP in this
+                browser -- this is how an owner connects from a shared
+                machine an agent last used. */}
+            <button type="button" onClick={reauthenticate} className="font-medium text-teal-700 underline underline-offset-2">
+              Use a different HAIP account
+            </button>
+          </p>
+        )}
         <ul className="flex flex-col gap-1.5 pl-1">
           {[
             "Leads, pipeline stages and notes",
@@ -189,7 +206,14 @@ function ConsentCard() {
       {error && (
         <div className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm bg-red-50 text-red-700">
           <AlertCircle size={15} className="mt-0.5 flex-shrink-0" />
-          <span>{error}</span>
+          <span className="flex flex-col gap-1.5 items-start">
+            <span>{error}</span>
+            {forbidden && (
+              <button type="button" onClick={reauthenticate} className="font-semibold underline underline-offset-2">
+                Switch to an owner or manager account
+              </button>
+            )}
+          </span>
         </div>
       )}
 
