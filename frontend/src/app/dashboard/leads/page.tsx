@@ -241,6 +241,56 @@ function MobileStageSection({
   );
 }
 
+// ─── Triage strip ─────────────────────────────────────────────────────────────
+
+function TriageStrip({
+  stages, counts, activeKey, onOpen, onBack,
+}: {
+  stages: PipelineStageRow[];
+  counts: Record<string, StageMetaEntry>;
+  activeKey: string;
+  onOpen: (key: string) => void;
+  onBack: () => void;
+}) {
+  const viewing = stages.find(st => st.key === activeKey);
+  return (
+    <div
+      className="flex-shrink-0 flex items-center gap-2 px-4 sm:px-5 py-2 overflow-x-auto haip-scrollbar-x"
+      style={{ borderBottom: "1px solid var(--haip-border)" }}
+    >
+      <span className="text-xs font-bold flex-shrink-0" style={{ color: "var(--haip-fg)" }}>Triage</span>
+      <span className="hidden sm:inline text-xs flex-shrink-0" style={{ color: "var(--haip-fg-subtle)" }}>
+        {viewing ? `Reviewing ${viewing.label}` : "Not on the board"}
+      </span>
+      {stages.map(st => {
+        const active = st.key === activeKey;
+        const n = counts[st.key]?.count;
+        return (
+          <button
+            key={st.key}
+            onClick={() => onOpen(st.key)}
+            className="flex-shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-full transition-colors"
+            style={active
+              ? { background: st.color, color: "#fff" }
+              : { background: `color-mix(in srgb, ${st.color} 12%, transparent)`, color: st.color }}
+          >
+            {st.label}{n != null ? ` · ${n.toLocaleString("en-IN")}` : ""}
+          </button>
+        );
+      })}
+      {viewing && (
+        <button
+          onClick={onBack}
+          className="flex-shrink-0 ml-auto text-xs font-semibold"
+          style={{ color: "var(--primary)" }}
+        >
+          ← Back to board
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 type LeadsView = "action" | "pipeline";
@@ -265,8 +315,17 @@ export default function Leads360Page() {
   // rendered every column regardless of the pill (only mobile narrowed),
   // which meant picking a stage silently emptied every other desktop column
   // instead of hiding them.
+  // Triage: stages the tenant itself marked as not-a-real-lead (category
+  // "invalid" or "marketing" -- the same rule dashboards use for lead
+  // counts) stay off the board. On Ratha that's Unqualified / RNR /
+  // Collaboration, ~1,300 enquiries that buried the few dozen real leads.
+  // Still one click away: a triage chip opens that stage as its own column.
+  const isTriage = (s: PipelineStageRow) => s.category === "invalid" || s.category === "marketing";
+  const boardStages = pipelineStages.filter(s => !isTriage(s));
+  const triageStages = pipelineStages.filter(isTriage);
+
   const columnsToRender = stageFilter === ALL_STAGES_ID
-    ? pipelineStages
+    ? boardStages
     : pipelineStages.filter(s => s.key === stageFilter);
 
   // Every column's response carries the same full per-stage summary
@@ -285,7 +344,7 @@ export default function Leads360Page() {
   }, []);
 
   const total = stageFilter === ALL_STAGES_ID
-    ? Object.values(stageMeta).reduce((sum, m) => sum + m.count, 0)
+    ? boardStages.reduce((sum, st) => sum + (stageMeta[st.key]?.count ?? 0), 0)
     : stageMeta[stageFilter]?.count ?? 0;
 
   const isFetching = useIsFetching({ queryKey: ["leads"] }) > 0;
@@ -429,6 +488,16 @@ export default function Leads360Page() {
 
       {view === "pipeline" && (<>
       <LeadsFilterBar filters={filters} onChange={setFilters} />
+
+      {triageStages.length > 0 && (
+        <TriageStrip
+          stages={triageStages}
+          counts={stageMeta}
+          activeKey={stageFilter}
+          onOpen={setStageFilter}
+          onBack={() => setStageFilter(ALL_STAGES_ID)}
+        />
+      )}
 
       {/* ── Kanban board (desktop) ──────────────────────────────────────── */}
       <div className="hidden md:block flex-1 overflow-x-auto overflow-y-hidden">
