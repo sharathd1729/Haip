@@ -31,7 +31,7 @@ from app.models.ai_draft_outcome import AIDraftOutcome
 from app.models.insight import Insight
 from app.services.date_presets import VALID_PRESETS, resolve_range, ist_range_to_utc
 from app.services.message_metrics import chat_response_avg_seconds
-from app.services import call_status_service
+from app.services import call_status_service, dashboard_service
 from app.services.agent_analytics_service import get_agent_scorecard_rows
 from app.api.v1.endpoints.analytics import _delta
 
@@ -206,6 +206,9 @@ def dashboard_overview(
         Inquiry.created_at >= range_start,
         Inquiry.created_at <= range_end,
         Inquiry.qualification_status != "unqualified",
+        # Real leads only -- triage (invalid) and marketing stages aren't
+        # part of the sales funnel.
+        PipelineStage.category == "valid",
     )
     if scope_user_id:
         funnel_q = funnel_q.filter(Inquiry.assigned_to == scope_user_id)
@@ -275,11 +278,15 @@ def dashboard_overview(
     }
 
     # ── AI Intelligence (existing insight_detector output, capped) ──────────
+    # Sort by severity BEFORE taking the top few -- this used to take the
+    # first 4 rows and then sort them, so a critical insight could be
+    # dropped in favour of an older low one.
     insight_rows = db.query(Insight).filter(
         Insight.tenant_id == tid, Insight.is_dismissed == False, Insight.is_auto_resolved == False,  # noqa: E712
-    ).limit(4).all()
+    ).order_by(Insight.created_at.desc()).limit(50).all()
     _SEV = {"critical": 5, "high": 4, "medium": 3, "low": 2, "info": 1}
     insight_rows.sort(key=lambda r: _SEV.get(r.severity, 0), reverse=True)
+    insight_rows = insight_rows[:4]
     top_insights = [
         {"id": r.id, "severity": r.severity, "title": r.title, "body": r.body, "cta_label": r.cta_label, "cta_href": r.cta_href}
         for r in insight_rows
@@ -295,6 +302,11 @@ def dashboard_overview(
         "calls": calls_section,
         "needs_attention": needs_attention,
         "top_insights": top_insights,
+        # Owner Daily redesign (dashboard_service): live queues, per-day
+        # series for sparklines/charts, lead sources.
+        "needs_you_now": dashboard_service.needs_you_now(db, tenant, scope_user_id),
+        "series": dashboard_service.daily_series(db, tenant, scope_user_id, d_from, d_to),
+        "sources": dashboard_service.lead_sources(db, tid, scope_user_id, range_start, range_end),
     }
 
     # ── All-agents comparison table (owner/manager only, tenant-wide only
