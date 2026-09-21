@@ -175,6 +175,16 @@ class CalculatorService:
         if nights < 0:
             return []
 
+        # Adults and children are limited separately -- Property carries both
+        # max_adults and max_children. Lumping them into one total made
+        # max_adults mean "max people", so a party of 8 adults + 1 toddler was
+        # refused by an 8-adult caravan. Confirmed live on Ratha: a guest
+        # asking about 8 adults plus a toddler was told the limit was "8 in
+        # total, regardless of age".
+        #
+        # max_children == 0 is the column default and reads as "not
+        # configured" rather than "children forbidden", so it is not enforced;
+        # a property that genuinely caps children sets a real number.
         total_guests = adults + children
 
         # Build property query
@@ -190,8 +200,11 @@ class CalculatorService:
         results: list[PropertyRate] = []
 
         for prop in properties:
-            # Capacity check
-            if total_guests > prop.max_adults:
+            # Capacity check -- adults against max_adults, children against
+            # max_children (only when that is actually configured).
+            if adults > (prop.max_adults or 0):
+                continue
+            if prop.max_children and children > prop.max_children:
                 continue
 
             rate = self._resolve_rate(

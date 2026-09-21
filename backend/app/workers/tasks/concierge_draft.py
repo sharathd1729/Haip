@@ -301,9 +301,11 @@ async def _ground_reply(db, tenant_id: str, latest_message: str, inquiry) -> tup
         ],
     }
     if not results:
-        total_guests = adults + children
+        # Adults only -- max_adults caps adults, and children have their own
+        # max_children. Counting a toddler against the adult limit is what
+        # made an 8-adult party "too big" for an 8-adult caravan.
         capacity = _max_known_capacity(db, tenant_id, property_id)
-        if capacity is not None and total_guests > capacity:
+        if capacity is not None and adults > capacity:
             availability_fact["max_capacity_note"] = capacity
     grounded_facts.append(availability_fact)
 
@@ -360,6 +362,25 @@ def _max_known_capacity(db, tenant_id: str, property_id: "str | None") -> "int |
         q = q.filter(Property.id == property_id)
     values = [p.max_adults for p in q.all() if p.max_adults]
     return max(values) if values else None
+
+
+def _known_home_bases(db, tenant_id: str) -> list:
+    """Cities the tenant's active vehicles actually depart from
+    (Property.home_base). Distinct, so a two-caravan fleet based in one city
+    renders as one place rather than a repeated list."""
+    from app.models.property import Property
+    rows = (
+        db.query(Property.home_base)
+        .filter(Property.tenant_id == tenant_id, Property.is_active.is_(True))
+        .all()
+    )
+    seen, out = set(), []
+    for (base,) in rows:
+        base = (base or "").strip()
+        if base and base.lower() not in seen:
+            seen.add(base.lower())
+            out.append(base)
+    return out
 
 
 def _check_grounding(reply_text: str, grounded_facts: list) -> tuple[bool, "str | None"]:
@@ -647,6 +668,16 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
                     "tool": "check_availability",
                     "args": {}, "result": [], "max_capacity_note": _capacity,
                 })
+
+        # Where trips actually start. Property.home_base is real, per-vehicle
+        # data ("Bengaluru" on both Ratha caravans); without it in the prompt
+        # the model simply accepted whatever starting point a guest proposed
+        # -- confirmed live, a guest naming another origin was told that was
+        # fine. Rendered as a constraint, not a suggestion. Read from the
+        # tenant's own properties so it stays correct for any fleet.
+        _home_bases = _known_home_bases(db, tenant_id)
+        if _home_bases:
+            grounded_facts.append({"tool": "home_base", "result": _home_bases})
 
         # HAIP Inbox UI-fidelity pass, ticket 3: widen the AI card trigger
         # beyond price_quote-only. One query, checked alongside the rest of

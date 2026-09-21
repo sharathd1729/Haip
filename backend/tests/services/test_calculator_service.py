@@ -147,3 +147,52 @@ class TestVillaUnaffected:
         assert len(results) == 1
         assert results[0].price_per_night == 8000
         assert results[0].subtotal_accommodation == 16000  # 8000 * 2 nights, unchanged
+
+
+class TestCapacityCountsAdultsOnly:
+    """max_adults caps ADULTS; children have their own max_children.
+
+    Confirmed live on Ratha: 8 adults + 1 toddler was refused by an 8-adult
+    caravan because the check compared adults + children against max_adults,
+    and the concierge then told the guest the limit was "8 in total,
+    regardless of age". The schema always carried max_children separately.
+    """
+
+    def _search(self, db, tenant, prop, adults, children=0):
+        return calculator_service.search(
+            db, tenant_id=tenant.id, checkin="2026-12-10", checkout="2026-12-11",
+            adults=adults, children=children, property_id=prop.id,
+        )
+
+    def test_eight_adults_plus_a_toddler_fits_an_eight_adult_caravan(self, db):
+        tenant = _make_tenant(db)
+        prop = _make_caravan(db, tenant)
+        assert len(self._search(db, tenant, prop, adults=8, children=1)) == 1
+
+    def test_nine_adults_still_does_not_fit(self, db):
+        """Loosening children must not loosen the adult limit."""
+        tenant = _make_tenant(db)
+        prop = _make_caravan(db, tenant)
+        assert self._search(db, tenant, prop, adults=9) == []
+
+    def test_unset_max_children_does_not_forbid_children(self, db):
+        """max_children defaults to 0 -- that means 'not configured', not
+        'no children allowed'."""
+        tenant = _make_tenant(db)
+        prop = _make_caravan(db, tenant)
+        assert prop.max_children in (0, None)
+        assert len(self._search(db, tenant, prop, adults=2, children=3)) == 1
+
+    def test_configured_max_children_is_enforced(self, db):
+        tenant = _make_tenant(db)
+        prop = _make_caravan(db, tenant)
+        prop.max_children = 2
+        db.commit()
+        assert len(self._search(db, tenant, prop, adults=4, children=2)) == 1
+        assert self._search(db, tenant, prop, adults=4, children=3) == []
+
+    def test_villa_adult_limit_unchanged(self, db):
+        tenant = _make_tenant(db)
+        prop = _make_villa(db, tenant)
+        assert len(self._search(db, tenant, prop, adults=4)) == 1
+        assert self._search(db, tenant, prop, adults=5) == []
