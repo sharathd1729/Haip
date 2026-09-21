@@ -9,6 +9,7 @@
 
 All queries are batched and tenant-scoped; nothing here is per-row.
 """
+from datetime import datetime, timedelta, timezone
 from typing import Iterable
 
 from sqlalchemy import case, func, or_
@@ -27,6 +28,12 @@ _CHANNEL_KEY = {
 _ORDER = ("instagram", "whatsapp", "call")
 
 VIEWS = ("needs_reply", "unassigned", "mine")
+
+# Meta closes the window for a human reply on WhatsApp / Instagram at 7 days
+# at most, so a guest who has waited longer can't be answered from here.
+# Without this cap, Ratha's "Needs reply" showed 345 -- mostly months-old
+# DMs. Same cutoff as the Leads "Needs action" view.
+NEEDS_REPLY_MAX_AGE = timedelta(days=7)
 
 
 def _channel_value(ch) -> str:
@@ -98,6 +105,7 @@ def apply_view(db: Session, q: Query, tenant_id: str, view: str, user_id: str) -
             .filter(
                 Conversation.is_open.is_(True),
                 sq.c.last_in.isnot(None),
+                sq.c.last_in >= datetime.now(timezone.utc) - NEEDS_REPLY_MAX_AGE,
                 or_(sq.c.last_out.is_(None), sq.c.last_in > sq.c.last_out),
             )
         )

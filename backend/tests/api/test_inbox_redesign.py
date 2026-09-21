@@ -196,3 +196,17 @@ def test_detail_carries_channels_ai_flag_and_owner(client, db, tenant_and_user):
     assert body["guest_channels"] == ["instagram", "whatsapp"]
     assert body["ai_enabled"] is True
     assert body["assigned_to"] == me
+
+
+def test_needs_reply_ignores_guests_waiting_over_7_days(client, db, tenant_and_user):
+    """Meta's reply window is closed for these -- they can't be answered."""
+    tid = _tid(tenant_and_user)
+    fresh = _conv(db, tid, _guest(db, tid, "Fresh"))
+    _msg(db, fresh, "inbound", 60 * 24 * 6)        # 6 days
+    stale = _conv(db, tid, _guest(db, tid, "Stale"))
+    _msg(db, stale, "inbound", 60 * 24 * 8)        # 8 days
+    db.commit()
+    h = _auth(tenant_and_user)
+    ids = {r["id"] for r in client.get("/api/v1/conversations?view=needs_reply", headers=h).json()}
+    assert fresh.id in ids and stale.id not in ids
+    assert client.get("/api/v1/conversations/counts", headers=h).json()["needs_reply"] == 1
