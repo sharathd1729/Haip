@@ -146,11 +146,29 @@ def list_calls(
             db.query(User.id, User.name).filter(User.id.in_(agent_ids)).all()
         )
 
+    # "Was this missed call returned, and when?" -- one query for the page,
+    # not one per row.
+    recovery_ids = {c.recovered_by_call_id for c in calls if c.recovered_by_call_id}
+    recovery_at = {}
+    if recovery_ids:
+        recovery_at = {
+            rid: created.isoformat() if created else None
+            for rid, created in db.query(Call.id, Call.created_at)
+            .filter(Call.tenant_id == current_user.tenant_id, Call.id.in_(recovery_ids))
+            .all()
+        }
+
     return {
         "total": total,
         "page": page,
         "limit": limit,
-        "items": [_serialize_call(c, guest_names.get(c.guest_id), agent_names.get(c.agent_id)) for c in calls],
+        "items": [
+            _serialize_call(
+                c, guest_names.get(c.guest_id), agent_names.get(c.agent_id),
+                called_back_at=recovery_at.get(c.recovered_by_call_id),
+            )
+            for c in calls
+        ],
     }
 
 
@@ -652,10 +670,16 @@ def _guest_facing_number(call: Call) -> str:
     return call.to_number if direction == "outbound" else call.from_number
 
 
-def _serialize_call(call: Call, guest_name: Optional[str] = None, agent_name: Optional[str] = None) -> dict:
+def _serialize_call(
+    call: Call,
+    guest_name: Optional[str] = None,
+    agent_name: Optional[str] = None,
+    called_back_at: Optional[str] = None,
+) -> dict:
     """Lightweight serializer used in the list endpoint."""
     disp = call.human_disposition or call.ai_disposition
     direction = call.direction.value if hasattr(call.direction, "value") else call.direction
+    is_missed = call_status_service.is_missed_call(call)
     return {
         "id": call.id,
         "direction": direction,
@@ -665,7 +689,13 @@ def _serialize_call(call: Call, guest_name: Optional[str] = None, agent_name: Op
         # A missed call is specifically an inbound call nobody answered --
         # an outbound attempt that didn't connect is a failed dial, not a
         # "missed call" in the way agents mean it.
-        "is_missed": call_status_service.is_missed_call(call),
+        "is_missed": is_missed,
+        # Only meaningful on a missed call: did an outbound call reach this
+        # guest afterwards (call_ingest._link_recovered_call). None rather
+        # than False on answered calls, so the UI never shows "not called
+        # back" on a call that never needed one.
+        "called_back": bool(call.recovered_by_call_id) if is_missed else None,
+        "called_back_at": called_back_at if is_missed else None,
         "started_at": call.started_at,
         "ended_at": call.ended_at,
         "guest_id": call.guest_id,

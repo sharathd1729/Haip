@@ -25,6 +25,9 @@ interface CallItem {
   duration_seconds: number;
   direction: "inbound" | "outbound";
   is_missed?: boolean;
+  /** Missed calls only: was the guest called back afterwards. null otherwise. */
+  called_back?: boolean | null;
+  called_back_at?: string | null;
   guest_phone: string;
   guest_name?: string;
   agent_name?: string;
@@ -84,6 +87,44 @@ function fullTimestamp(iso: string) {
   return d.toLocaleString("en-IN", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
+// "2h later", "35m later", "1d later" -- the gap between a missed call and
+// its callback, which is the number that actually matters to a manager.
+function gapLabel(fromIso: string, toIso: string) {
+  const mins = Math.round((new Date(toIso).getTime() - new Date(fromIso).getTime()) / 60000);
+  if (!Number.isFinite(mins) || mins < 0) return "";
+  if (mins < 60) return `${mins}m later`;
+  const h = Math.round(mins / 60);
+  return h < 24 ? `${h}h later` : `${Math.round(h / 24)}d later`;
+}
+
+/** Whether a missed call was returned. Only rendered on missed calls --
+ *  "not called back" on a call that was answered would be noise. */
+function CallbackBadge({ call, dt }: { call: CallItem; dt: string }) {
+  if (!call.is_missed || call.called_back == null) return null;
+  if (call.called_back) {
+    const gap = call.called_back_at && dt ? gapLabel(dt, call.called_back_at) : "";
+    return (
+      <span
+        className="inline-flex items-center gap-1 text-[10px] font-semibold rounded-full px-1.5 py-0.5"
+        style={{ background: "color-mix(in srgb, #059669 12%, transparent)", color: "#059669" }}
+        title={call.called_back_at ? `Called back ${fullTimestamp(call.called_back_at)}` : "Called back"}
+      >
+        <PhoneOutgoing size={9} />
+        Called back{gap && ` · ${gap}`}
+      </span>
+    );
+  }
+  return (
+    <span
+      className="inline-flex items-center gap-1 text-[10px] font-semibold rounded-full px-1.5 py-0.5"
+      style={{ background: "color-mix(in srgb, #e11d48 12%, transparent)", color: "#e11d48" }}
+    >
+      <PhoneMissed size={9} />
+      Not called back
+    </span>
+  );
+}
+
 function SentimentIcon({ s }: { s?: string }) {
   if (s === "positive") return <TrendingUp size={12} className="text-emerald-500" />;
   if (s === "negative") return <TrendingDown size={12} className="text-rose-400" />;
@@ -138,6 +179,20 @@ function CallRow({ call, onClick }: { call: CallItem; onClick: () => void }) {
             <User size={10} />
             {call.agent_name || (call.is_missed ? "Unattended" : "—")}
           </p>
+          {/* On phones the right-hand timestamp column is hidden for width
+              (the name column is fixed at w-44), which left no way to tell
+              when a call happened at all -- reported from the PWA. Show it
+              here instead, under the name, where there is room. */}
+          {dt && (
+            <p className="sm:hidden text-[10px] tabular-nums mt-0.5" style={{ color: "var(--haip-fg-subtle)" }}>
+              {fullTimestamp(dt)} · {timeAgo(dt)}
+            </p>
+          )}
+          {call.is_missed && call.called_back != null && (
+            <div className="mt-1">
+              <CallbackBadge call={call} dt={dt} />
+            </div>
+          )}
         </div>
 
         {/* Center: transcript snippet */}

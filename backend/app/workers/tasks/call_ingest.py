@@ -68,19 +68,27 @@ def _link_recovered_call(db: Session, tenant_id: str, guest_id: str, outbound_ca
     (HAIP_Agent_Analytics_Dashboard_Plan_1.md #2.5.3): when an outbound call
     lands for a guest with an unrecovered missed inbound call in the last
     24h, link it so "did we call them back" is a query instead of
-    unanswerable. "Missed" = inbound + no duration, same definition
-    calls.py's serializers already use for is_missed. Matches on
+    unanswerable. "Missed" follows call_status_service -- the same rule
+    calls.py's serializers use for is_missed. Matches on
     Call.created_at (real DateTime) rather than started_at/ended_at, which
     are String columns and unreliable for range comparison.
     """
     window_start = outbound_call.created_at - timedelta(hours=_RECOVERY_WINDOW_HOURS)
+    # "Missed" uses the product's own rule (call_status_service), not
+    # "duration == 0". On Vobiz a missed call is usually recorded with a
+    # nonzero duration -- the greeting and voicemail prompt play into the
+    # session recording -- so the zero-duration shortcut could not see them.
+    # Measured on Ratha: 57 of 76 missed calls had a nonzero duration, and
+    # not one missed call had ever been linked to its callback, including
+    # the two that were genuinely returned within 24h.
+    from app.services.call_status_service import missed_call_sql_filter
+
     missed = (
         db.query(Call)
         .filter(
             Call.tenant_id == tenant_id,
             Call.guest_id == guest_id,
-            Call.direction == CallDirection.INBOUND,
-            (Call.duration_seconds.is_(None)) | (Call.duration_seconds == 0),
+            missed_call_sql_filter(),
             Call.recovered_by_call_id.is_(None),
             Call.created_at >= window_start,
             Call.created_at < outbound_call.created_at,

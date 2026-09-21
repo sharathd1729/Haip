@@ -29,8 +29,12 @@ export interface LeadsFilters {
 
 const ENQUIRY_PRESETS = [
   { value: "", label: "Any time" },
+  { value: "today", label: "Today" },
+  { value: "yesterday", label: "Yesterday" },
   { value: "last_7d", label: "Last 7 days" },
   { value: "last_14d", label: "Last 14 days" },
+  { value: "this_month", label: "This month" },
+  { value: "last_month", label: "Last month" },
   { value: "custom", label: "Custom range…" },
 ];
 
