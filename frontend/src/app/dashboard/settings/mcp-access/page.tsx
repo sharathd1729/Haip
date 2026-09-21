@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Bot, KeyRound, Copy, Trash2, Loader2, AlertCircle, X, CheckCircle2, Clock, Plus } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
+import { McpConnectPanel } from "@/components/mcp/McpConnectPanel";
 
 interface McpToken {
   id: string;
@@ -320,9 +321,9 @@ export default function McpAccessPage() {
               <Bot size={18} className="text-teal-600" />
             </div>
             <div>
-              <h1 className="haip-page-title">External Assistant Access</h1>
+              <h1 className="haip-page-title">AI Assistants</h1>
               <p className="text-sm text-gray-400 mt-0.5">
-                Connect Perisclaw or another AI assistant to your HAIP data via MCP.
+                Connect Claude, ChatGPT or another AI assistant to your HAIP data via MCP.
               </p>
             </div>
           </div>
@@ -336,7 +337,16 @@ export default function McpAccessPage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 py-6 max-w-2xl w-full mx-auto">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 max-w-2xl w-full mx-auto space-y-8">
+        <McpConnectPanel mcpUrl={endpointInfo?.mcp_url || ""} onToast={showToast} />
+
+        <div>
+        <div className="mb-3">
+          <h2 className="text-sm font-semibold text-gray-800">Access tokens</h2>
+          <p className="text-xs text-gray-400 mt-0.5">
+            For tools that take a pasted token instead of signing in (Perisclaw, scripts). Claude and ChatGPT don't need one.
+          </p>
+        </div>
         {isLoading ? (
           <p className="text-sm text-gray-400">Loading...</p>
         ) : tokens.length === 0 ? (
@@ -364,6 +374,7 @@ export default function McpAccessPage() {
             )}
           </div>
         )}
+        </div>
       </div>
 
       {showCreateModal && (

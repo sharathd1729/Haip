@@ -12,6 +12,7 @@ from app.core.request_id import request_id_middleware
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.api.v1.router import api_router
 from app.mcp.server import router as mcp_router
+from app.mcp.oauth import router as mcp_oauth_router
 import structlog
 
 configure_logging()
@@ -71,7 +72,10 @@ class McpCorsBypassMiddleware:
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] != "http" or not scope["path"].startswith("/mcp"):
+        # /oauth/* and /.well-known/* are the MCP connector's OAuth flow
+        # (app/mcp/oauth.py) -- called by the same external clients, and by
+        # browser-based ones (MCP Inspector) that need the preflight to pass.
+        if scope["type"] != "http" or not scope["path"].startswith(("/mcp", "/oauth/", "/.well-known/")):
             return await self.app(scope, receive, send)
 
         headers = dict(scope.get("headers") or [])
@@ -83,8 +87,8 @@ class McpCorsBypassMiddleware:
                 "status": 200,
                 "headers": [
                     (b"access-control-allow-origin", origin),
-                    (b"access-control-allow-methods", b"POST, OPTIONS"),
-                    (b"access-control-allow-headers", b"Authorization, Content-Type"),
+                    (b"access-control-allow-methods", b"GET, POST, OPTIONS"),
+                    (b"access-control-allow-headers", b"Authorization, Content-Type, Mcp-Protocol-Version, Mcp-Session-Id"),
                     (b"access-control-max-age", b"600"),
                     (b"vary", b"Origin"),
                 ],
@@ -96,6 +100,9 @@ class McpCorsBypassMiddleware:
             if message["type"] == "http.response.start":
                 message["headers"] = list(message.get("headers", [])) + [
                     (b"access-control-allow-origin", origin),
+                    # Browser clients must be able to read the 401's
+                    # WWW-Authenticate header to discover the OAuth flow.
+                    (b"access-control-expose-headers", b"WWW-Authenticate, Mcp-Session-Id"),
                 ]
             await send(message)
 
@@ -140,6 +147,7 @@ app.middleware("http")(tenant_context_middleware)     # sets tenant_id on reques
 
 app.include_router(api_router)
 app.include_router(mcp_router)
+app.include_router(mcp_oauth_router)
 
 
 @app.exception_handler(Exception)

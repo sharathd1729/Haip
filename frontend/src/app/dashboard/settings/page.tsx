@@ -82,8 +82,8 @@ export default function SettingsPage() {
         >
           <span className="text-gray-400"><KeyRound size={15} /></span>
           <div>
-            <div className="text-sm font-medium">External Assistant Access</div>
-            <div className="text-[10px] text-gray-400 leading-none mt-0.5">Perisclaw, MCP tokens</div>
+            <div className="text-sm font-medium">AI Assistants</div>
+            <div className="text-[10px] text-gray-400 leading-none mt-0.5">Connect Claude, ChatGPT, Gemini</div>
           </div>
           <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-40 transition-opacity" />
         </button>

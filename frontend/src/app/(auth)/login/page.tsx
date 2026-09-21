@@ -12,10 +12,21 @@ const SELLING_POINTS = [
   { icon: Shield, text: "DPDP-compliant guest data handling" },
 ];
 
+// Only same-origin paths: an absolute or protocol-relative callbackUrl
+// ("https://evil.example", "//evil.example") would make login an open
+// redirector.
+function safeCallback(raw: string | null): string {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\")) return "/dashboard";
+  return raw;
+}
+
 // Inner component — uses useSearchParams, must be inside <Suspense>
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
+  // Set by middleware when a protected page (e.g. the AI-assistant consent
+  // screen) bounced a logged-out user here.
+  const callbackUrl = safeCallback(params.get("callbackUrl"));
 
   // Email+password
   const [email, setEmail] = useState("");
@@ -61,7 +72,7 @@ function LoginForm() {
       if (res?.error) {
         setError("Sign-in failed. Please try again.");
       } else {
-        router.push("/dashboard");
+        router.push(callbackUrl);
       }
     } catch (err: unknown) {
       const e = err as { response?: { status?: number; data?: { detail?: string } } };
@@ -77,7 +88,7 @@ function LoginForm() {
       if (res?.error) {
         setError("Invalid email or password. Please try again.");
       } else {
-        router.push("/dashboard");
+        router.push(callbackUrl);
       }
     }
   };
@@ -100,7 +111,7 @@ function LoginForm() {
       if (res?.error) {
         setError("Sign-in failed. Please try again.");
       } else {
-        router.push("/dashboard");
+        router.push(callbackUrl);
       }
     } catch (err: unknown) {
       const e = err as { response?: { data?: { detail?: string } } };

@@ -41,6 +41,8 @@ _MCP_LIMIT      : Tuple[int, int] = (120, 60)   # 120/min per PAT
 
 # Routes with tighter per-IP limits (fail-CLOSED: Redis outage blocks these)
 _STRICT_PREFIXES = (
+    "/oauth/token",
+    "/oauth/register",
     "/api/v1/auth/login",
     "/api/v1/auth/register",
     "/api/v1/auth/otp/send",

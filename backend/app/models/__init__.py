@@ -30,6 +30,7 @@ from app.api.v1.endpoints.messaging import WATemplate, WACampaign, WASubscriber,
 from app.models.flow_execution import FlowPendingExecution, WAFlowRun
 from app.models.mcp_token import PersonalAccessToken
 from app.models.capability import Capability, RoleCapability
+from app.models.mcp_oauth import OAuthClient, OAuthGrant
 from app.models.ai_draft_outcome import AIDraftOutcome
 from app.models.task import Task
 from app.models.lead_attribution import LeadAttribution

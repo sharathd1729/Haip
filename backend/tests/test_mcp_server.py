@@ -53,17 +53,41 @@ def _rpc(client, method, params=None, request_id=1, token=None):
     )
 
 
-def test_initialize_requires_no_auth(client, db):
+def test_initialize_without_token_returns_401_with_discovery_header(client, db):
+    """MCP auth spec: the 401 must come on the first request, or OAuth
+    clients (Claude.ai, ChatGPT) treat the server as needing no login."""
     with patch("app.mcp.server.SessionLocal", return_value=_NoCloseSessionWrapper(db)):
         resp = _rpc(client, "initialize")
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["result"]["serverInfo"]["name"] == "haip-mcp"
+    assert resp.status_code == 401
+    assert "resource_metadata=" in resp.headers["www-authenticate"]
+    assert resp.headers["www-authenticate"].endswith('/.well-known/oauth-protected-resource/mcp"')
+
+
+def test_initialize_with_token_negotiates_protocol_version(client, db, tenant_and_user):
+    tenant = tenant_and_user["tenant"]
+    user = tenant_and_user["user"]
+    raw_token, _ = token_service.generate_token(db, tenant.id, user.id, "Perisclaw")
+    with patch("app.mcp.server.SessionLocal", return_value=_NoCloseSessionWrapper(db)):
+        old = _rpc(client, "initialize", {"protocolVersion": "2024-11-05"}, token=raw_token)
+        unknown = _rpc(client, "initialize", {"protocolVersion": "1999-01-01"}, token=raw_token)
+        ping = _rpc(client, "ping", token=raw_token)
+    assert old.status_code == 200
+    assert old.json()["result"]["protocolVersion"] == "2024-11-05"
+    assert old.json()["result"]["serverInfo"]["name"] == "haip-mcp"
+    assert unknown.json()["result"]["protocolVersion"] == "2025-06-18"
+    assert ping.json()["result"] == {}
+
+
+def test_get_and_notifications(client, db):
+    assert client.get("/mcp").status_code == 405
+    resp = client.post("/mcp", json={"jsonrpc": "2.0", "method": "notifications/initialized"})
+    assert resp.status_code == 202
 
 
 def test_tools_list_rejects_missing_token(client, db):
     with patch("app.mcp.server.SessionLocal", return_value=_NoCloseSessionWrapper(db)):
         resp = _rpc(client, "tools/list")
+    assert resp.status_code == 401
     body = resp.json()
     assert "error" in body
     assert body["error"]["code"] == -32001

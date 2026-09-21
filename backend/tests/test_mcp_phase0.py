@@ -4,11 +4,12 @@ hardening pass for the MCP server: D1 (deactivated user), D5 (rate limit,
 covered separately since it needs Redis), the owner/manager-only access
 restriction (issuance gate + runtime gate), and cross-tenant isolation.
 
-Note on status codes: /mcp is JSON-RPC over HTTP, not REST -- every response
-(including auth failures) is HTTP 200 with a JSON-RPC `error` object in the
-body (`error.code == -32001` for auth failures), not an HTTP 401. That's the
-existing protocol design in app/mcp/server.py, not something this phase
-changes.
+Note on status codes: auth failures carry a JSON-RPC `error` object
+(`error.code == -32001`) in the body, plus an HTTP status since Phase 5
+(HAIP_MCP_Connector_Plan.md section 8): 401 for a missing/invalid token (so
+OAuth clients know to log in), 403 when the token is valid but its user is
+deactivated or not an allowed role. A capability denial on tools/call is
+still HTTP 200 -- that's a tool-level refusal, not an auth failure.
 """
 import uuid
 from unittest.mock import patch
@@ -104,7 +105,9 @@ class TestDeactivatedUserDenied:
         db.commit()
 
         resp = _jsonrpc(client, db, raw_pat, "tools/list")
-        assert resp.status_code == 200
+        # 403 not 401: the token is valid, its user is not -- a 401 would
+        # make an OAuth client loop back into a login that can't succeed.
+        assert resp.status_code == 403
         data = resp.json()
         assert data["error"]["code"] == -32001
 

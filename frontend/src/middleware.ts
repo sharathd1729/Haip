@@ -59,8 +59,9 @@ export default auth((req: NextRequest & { auth: any }) => {
   }
 
   // ── Logged-out users ───────────────────────────────────────────────────────
-  // Protect all /dashboard/* routes
-  if (!isLoggedIn && pathname.startsWith("/dashboard")) {
+  // Protect all /dashboard/* routes, plus /connect/* -- the OAuth consent
+  // screen an AI app (Claude, ChatGPT) sends the user to.
+  if (!isLoggedIn && (pathname.startsWith("/dashboard") || pathname.startsWith("/connect"))) {
     // PWA-blank-data-fix plan, Section 3: distinguish "never logged in" from
     // "session died server-side" in the logs -- this is the one signal that
     // proves the middleware gate is actually catching real dead-refresh-token
@@ -69,7 +70,9 @@ export default auth((req: NextRequest & { auth: any }) => {
       console.warn("[auth] middleware redirect: session.error =", req.auth.error, "path =", pathname);
     }
     const loginUrl = new URL("/login", req.url);
-    loginUrl.searchParams.set("callbackUrl", pathname);
+    // Keep the query string: the consent screen's OAuth params live there,
+    // and dropping them strands the user after login.
+    loginUrl.searchParams.set("callbackUrl", pathname + req.nextUrl.search);
     return NextResponse.redirect(loginUrl);
   }
 
@@ -86,5 +89,6 @@ export const config = {
     "/reset-password",
     "/onboarding",
     "/dashboard/:path*",
+    "/connect/:path*",
   ],
 };

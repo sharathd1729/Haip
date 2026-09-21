@@ -70,6 +70,7 @@ def _list_recent_conversations(db: Session, user: User, tenant_id: str, args: di
         is_open=args.get("is_open"),
         sort=args.get("sort", "smart"),
         limit=args.get("limit", 20),
+        before=None,
         current_user=user,
         db=db,
     )
@@ -104,13 +105,32 @@ def _visibility_scope(user: User) -> Optional[str]:
 
 
 def _list_leads(db: Session, user: User, tenant_id: str, args: dict) -> Any:
+    from app.services.date_presets import VALID_PRESETS, resolve_range
     from app.services.leads_service import get_leads_pipeline
+    preset = args.get("enquiry_date_preset")
+    checkin_preset = args.get("checkin_date_preset")
+    for value in (preset, checkin_preset):
+        if value and value not in VALID_PRESETS:
+            raise ToolError(f"Unknown date preset {value!r}. Use one of: {', '.join(sorted(VALID_PRESETS))}")
+    try:
+        # Presets resolve in IST, same as the Leads360 page.
+        date_from, date_to = resolve_range(preset, args.get("date_from"), args.get("date_to"))
+        checkin_from, checkin_to = resolve_range(checkin_preset, args.get("checkin_date_from"), args.get("checkin_date_to"))
+    except ValueError as exc:
+        raise ToolError(str(exc)) from exc
     result = get_leads_pipeline(
         db,
         tenant_id=tenant_id,
         stage=args.get("stage"),
+        property_id=args.get("property_id"),
+        assigned_to=args.get("assigned_to"),
+        source=args.get("source"),
+        date_from=date_from,
+        date_to=date_to,
+        checkin_date_from=checkin_from,
+        checkin_date_to=checkin_to,
         page=args.get("page", 1),
-        page_size=args.get("page_size", 25),
+        page_size=min(int(args.get("page_size", 25)), 100),
         scope_user_id=_visibility_scope(user),
     )
     return _dump(result)
@@ -129,9 +149,14 @@ def _get_lead_detail(db: Session, user: User, tenant_id: str, args: dict) -> Any
 
 def _search_guests(db: Session, user: User, tenant_id: str, args: dict) -> Any:
     from app.api.v1.endpoints.guests import list_guests
+    # Every Query()-defaulted parameter must be passed explicitly: called
+    # outside FastAPI, an omitted one arrives as the Query(None) object
+    # itself, which is truthy -- `phone` did exactly that and broke this
+    # tool for every call once list_guests gained it.
     result = list_guests(
         search=args.get("query"),
-        limit=args.get("limit", 20),
+        phone=None,
+        limit=min(int(args.get("limit", 20)), 200),
         offset=0,
         current_user=user,
         db=db,
@@ -172,6 +197,8 @@ def _list_calls(db: Session, user: User, tenant_id: str, args: dict) -> Any:
     result = list_calls(
         page=args.get("page", 1), limit=args.get("limit", 20),
         direction=args.get("direction"), agent_id=args.get("agent_id"),
+        guest_id=args.get("guest_id"), missed=args.get("missed"),
+        date_preset=args.get("date_preset"), date_from=args.get("date_from"), date_to=args.get("date_to"),
         db=db, current_user=user,
     )
     return _dump(result)
@@ -215,6 +242,8 @@ def _list_bookings(db: Session, user: User, tenant_id: str, args: dict) -> Any:
     result = list_bookings(
         search=args.get("search"), status=args.get("status"), channel=args.get("channel"),
         sort=args.get("sort", "newest"), page=args.get("page", 1), per_page=args.get("per_page", 25),
+        guest_id=args.get("guest_id"), date_preset=args.get("date_preset"),
+        date_from=args.get("date_from"), date_to=args.get("date_to"),
         current_user=user, db=db,
     )
     return _dump(result)
@@ -483,13 +512,32 @@ TOOLS: list[dict] = [
     },
     {
         "name": "list_leads",
-        "description": "List Leads360 pipeline cards, optionally filtered by stage.",
+        "description": (
+            "List Leads360 pipeline cards (one per enquiry), with a total count. Filter by "
+            "stage, source, assignee, property, enquiry date or check-in date (IST). "
+            "For counts by source/stage over a period, page through with page_size=100."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "stage": {"type": "string", "description": "Pipeline stage key to filter by"},
+                "source": {"type": "string", "description": "e.g. wa_direct, meta_ig, click_to_wa, inbound_call"},
+                "assigned_to": {"type": "string", "description": "User id of the assigned agent"},
+                "property_id": {"type": "string"},
+                "enquiry_date_preset": {
+                    "type": "string",
+                    "enum": ["today", "yesterday", "this_month", "last_month", "last_7d", "last_14d", "custom"],
+                },
+                "date_from": {"type": "string", "description": "Enquiry date YYYY-MM-DD, with enquiry_date_preset=custom"},
+                "date_to": {"type": "string", "description": "Enquiry date YYYY-MM-DD, with enquiry_date_preset=custom"},
+                "checkin_date_preset": {
+                    "type": "string",
+                    "enum": ["next_7d", "next_14d", "last_7d", "last_14d", "this_month", "custom"],
+                },
+                "checkin_date_from": {"type": "string", "description": "YYYY-MM-DD, with checkin_date_preset=custom"},
+                "checkin_date_to": {"type": "string", "description": "YYYY-MM-DD, with checkin_date_preset=custom"},
                 "page": {"type": "integer", "default": 1},
-                "page_size": {"type": "integer", "default": 25},
+                "page_size": {"type": "integer", "default": 25, "maximum": 100},
             },
         },
         "annotations": {"readOnlyHint": True},
@@ -536,7 +584,11 @@ TOOLS: list[dict] = [
     },
     {
         "name": "list_calls",
-        "description": "List calls for this tenant, optionally filtered by direction or agent.",
+        "description": (
+            "List calls for this tenant, newest first. Filter by direction, agent, guest, "
+            "missed-only, or an IST date window. Each missed call carries called_back / "
+            "called_back_at -- use them for callback-rate reports."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -544,6 +596,14 @@ TOOLS: list[dict] = [
                 "limit": {"type": "integer", "default": 20},
                 "direction": {"type": "string", "description": "inbound | outbound"},
                 "agent_id": {"type": "string"},
+                "guest_id": {"type": "string"},
+                "missed": {"type": "boolean", "description": "true = missed calls only"},
+                "date_preset": {
+                    "type": "string",
+                    "enum": ["today", "yesterday", "this_month", "last_month", "last_7d", "last_14d", "custom"],
+                },
+                "date_from": {"type": "string", "description": "YYYY-MM-DD, with date_preset=custom"},
+                "date_to": {"type": "string", "description": "YYYY-MM-DD, with date_preset=custom"},
             },
         },
         "annotations": {"readOnlyHint": True},
@@ -576,13 +636,20 @@ TOOLS: list[dict] = [
     },
     {
         "name": "list_bookings",
-        "description": "List bookings/stays, optionally filtered by status or channel.",
+        "description": "List bookings/stays, optionally filtered by status, channel, guest or stay dates (stays overlapping the date window; dates are IST).",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "search": {"type": "string"},
                 "status": {"type": "string"},
                 "channel": {"type": "string"},
+                "guest_id": {"type": "string"},
+                "date_preset": {
+                    "type": "string",
+                    "enum": ["today", "yesterday", "this_month", "last_month", "last_7d", "last_14d", "next_7d", "next_14d", "custom"],
+                },
+                "date_from": {"type": "string", "description": "YYYY-MM-DD, with date_preset=custom"},
+                "date_to": {"type": "string", "description": "YYYY-MM-DD, with date_preset=custom"},
                 "sort": {"type": "string", "default": "newest"},
                 "page": {"type": "integer", "default": 1},
                 "per_page": {"type": "integer", "default": 25},
