@@ -2,14 +2,14 @@
 // Inbox conversation list (redesign). One search box, one row of filter
 // chips (Needs reply / Unassigned / Mine / All, counted server-side), a
 // channel + sort row, then rows with:
-//   avatar + every channel the guest has used (icons underneath),
+//   avatar with every channel the guest has used pinned to its bottom edge,
 //   name, time, last message, ONE status tag, owner initial or unread count.
 // Bulk select, load more and the hover Call / Archive actions are unchanged.
 import { useState, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { ArrowUpDown, CheckSquare, Square, CheckCheck, Archive, X, Star, Phone, Loader2, Search, Reply, ChevronDown } from "@/lib/icons";
 import type { ConversationSummary } from "@/store/inbox";
-import { ChannelBadges, toGuestChannel } from "./ChannelBadges";
+import { AvatarChannelBadges, toGuestChannel } from "./ChannelBadges";
 
 type SortMode = "smart" | "recent" | "unread";
 export type InboxView = "" | "needs_reply" | "unassigned" | "mine";
@@ -336,8 +336,8 @@ export function ConversationList({
               )}
 
               <div className="flex items-start gap-3">
-                {/* Avatar with every channel this guest has used underneath */}
-                <div className="flex-shrink-0 w-10 flex flex-col items-center gap-1">
+                {/* Avatar with every channel this guest has used pinned to its bottom edge */}
+                <div className="flex-shrink-0 w-10 relative mb-1.5">
                   {(isSelecting || isChecked) ? (
                     <span onClick={e => toggleSelect(conv.id, e)}>
                       {isChecked ? <CheckSquare size={32} className="text-teal-500" /> : <Square size={32} className="text-gray-300" />}
@@ -350,7 +350,7 @@ export function ConversationList({
                       {displayName[0]?.toUpperCase() ?? "?"}
                     </span>
                   )}
-                  <ChannelBadges channels={channels} size={14} />
+                  {!(isSelecting || isChecked) && <AvatarChannelBadges channels={channels} size={16} />}
                 </div>
 
                 <div className="flex-1 min-w-0">

@@ -21,14 +21,18 @@ export function toGuestChannel(channel?: string | null): GuestChannel | null {
   return null;
 }
 
-export function ChannelBadge({ channel, size = 16, className }: { channel: GuestChannel; size?: number; className?: string }) {
+export function ChannelBadge({
+  channel, size = 16, className, ringed = false,
+}: { channel: GuestChannel; size?: number; className?: string; ringed?: boolean }) {
   const { label, bg, Glyph } = META[channel];
   return (
     <span
       title={label}
       aria-label={label}
       className={cn("inline-flex items-center justify-center rounded-full text-white flex-shrink-0", className)}
-      style={{ width: size, height: size, background: bg }}
+      // ringed: a card-coloured outline so the badge reads as attached to
+      // whatever it overlaps (the avatar), in light and dark themes.
+      style={{ width: size, height: size, background: bg, boxShadow: ringed ? "0 0 0 2px var(--haip-card)" : undefined }}
     >
       <Glyph size={Math.round(size * 0.62)} />
     </span>
@@ -43,6 +47,20 @@ export function ChannelBadges({
   return (
     <span className={cn("inline-flex items-center gap-0.5", className)}>
       {channels.map(ch => <ChannelBadge key={ch} channel={ch} size={size} />)}
+    </span>
+  );
+}
+
+/** Badges pinned to the bottom edge of an avatar, overlapping it like a
+ * status dot. Wrap the avatar in a `relative` element and render this
+ * inside it. Multiple channels overlap slightly, centred. */
+export function AvatarChannelBadges({ channels, size = 16 }: { channels?: GuestChannel[] | null; size?: number }) {
+  if (!channels?.length) return null;
+  return (
+    <span className="absolute left-1/2 -translate-x-1/2 flex items-center" style={{ bottom: -size / 3 }}>
+      {channels.map((ch, i) => (
+        <ChannelBadge key={ch} channel={ch} size={size} ringed className={i > 0 ? "-ml-1" : undefined} />
+      ))}
     </span>
   );
 }
