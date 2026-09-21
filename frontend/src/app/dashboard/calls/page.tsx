@@ -9,7 +9,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { Phone, Upload, X, Search, Loader2, PhoneMissed, Delete, PhoneCall, AlertCircle, CheckCircle2 } from "@/lib/icons";
 import { cn } from "@/lib/utils";
-import { EmptyCalls } from "@/components/empty-states/EmptyCalls";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { useCallsStore } from "@/store/calls";
@@ -229,7 +228,7 @@ export default function CallsPage() {
             </div>
           </div>
 
-          <SummaryTiles s={summary} rangeLabel={rangeLabel} />
+          <SummaryTiles s={summary} rangeLabel={rangeLabel} onPick={setTab} />
 
           <div className="flex flex-wrap items-center gap-2">
             <div role="tablist" aria-label="Call type" className="flex gap-1.5 overflow-x-auto scrollbar-hide">
@@ -304,7 +303,15 @@ export default function CallsPage() {
                   <button onClick={() => { setTab("all"); setSearch(""); setAgentId(""); setOutcome(""); }} className="text-xs font-semibold text-teal-700">Clear filters</button>
                 </div>
               ) : (
-                <EmptyCalls />
+                // Nothing in this range -- say so, instead of the "connect
+                // your IVR" onboarding card, which only fits a new account.
+                <div className="flex flex-col items-center justify-center py-20 text-center gap-1.5">
+                  <Phone size={24} style={{ color: "var(--haip-fg-subtle)" }} />
+                  <p className="font-semibold" style={{ color: "var(--haip-fg)" }}>No calls {rangeLabel.toLowerCase()}</p>
+                  {range !== "this_month" && (
+                    <button onClick={() => setRange("this_month")} className="text-xs font-semibold text-teal-700">Show this month</button>
+                  )}
+                </div>
               )
             ) : (
               groups.map(g => (

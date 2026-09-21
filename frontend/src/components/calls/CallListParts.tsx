@@ -3,6 +3,7 @@
 // row (direction pinned to the avatar, guest's channels by the name, inline
 // Call back / play). Used by app/dashboard/calls/page.tsx.
 import { Phone, Loader2, PhoneIncoming, PhoneOutgoing, PhoneMissed, Play, CheckCircle2 } from "@/lib/icons";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { ChannelBadges } from "@/components/inbox/ChannelBadges";
 import { OUTCOMES } from "@/components/calls/CallDetailPanel";
@@ -88,29 +89,38 @@ function outcomeMeta(value?: string | null) {
 
 // ─── Summary tiles ────────────────────────────────────────────────────────────
 
-export function SummaryTiles({ s, rangeLabel }: { s?: CallsSummary; rangeLabel: string }) {
-  const tiles = [
-    { label: `Calls · ${rangeLabel.toLowerCase()}`, value: s ? String(s.total) : "–", note: s ? `${s.inbound} in · ${s.outbound} out` : "", tone: "text-gray-800 dark:text-gray-100", dot: "bg-gray-400" },
-    { label: "Missed · not called back", value: s ? String(s.missed_not_called_back) : "–", note: s?.oldest_missed_at ? `oldest ${ago(s.oldest_missed_at)}` : "all returned", tone: "text-red-700", dot: "bg-red-600" },
-    { label: "Answered", value: s?.answer_rate != null ? `${s.answer_rate}%` : "–", note: "of incoming", tone: "text-emerald-700", dot: "bg-emerald-600" },
-    { label: "Avg call length", value: s?.avg_answered_seconds != null ? fmt(s.avg_answered_seconds) : "–", note: "answered calls", tone: "text-teal-700", dot: "bg-teal-600" },
+// Each tile opens the list it summarises: a tab on this page, or the QA page.
+export function SummaryTiles({
+  s, rangeLabel, onPick,
+}: { s?: CallsSummary; rangeLabel: string; onPick: (tab: Tab) => void }) {
+  const tiles: { label: string; value: string; note: string; tone: string; dot: string; tab?: Tab; href?: string }[] = [
+    { label: `Calls · ${rangeLabel.toLowerCase()}`, value: s ? String(s.total) : "–", note: s ? `${s.inbound} in · ${s.outbound} out` : "", tone: "text-gray-800 dark:text-gray-100", dot: "bg-gray-400", tab: "all" },
+    { label: "Missed · not called back", value: s ? String(s.missed_not_called_back) : "–", note: s?.oldest_missed_at ? `oldest ${ago(s.oldest_missed_at)}` : "all returned", tone: "text-red-700", dot: "bg-red-600", tab: "callback" },
+    { label: "Answered", value: s?.answer_rate != null ? `${s.answer_rate}%` : "–", note: "of incoming", tone: "text-emerald-700", dot: "bg-emerald-600", tab: "incoming" },
+    { label: "Avg call length", value: s?.avg_answered_seconds != null ? fmt(s.avg_answered_seconds) : "–", note: "answered calls", tone: "text-teal-700", dot: "bg-teal-600", tab: "incoming" },
     {
       label: "Avg QA score", value: s?.avg_qa_score != null ? String(Math.round(s.avg_qa_score)) : "–",
       note: s?.avg_qa_change != null ? `${s.avg_qa_change >= 0 ? "▲" : "▼"} ${Math.abs(s.avg_qa_change)} vs previous` : "",
-      tone: "text-violet-700", dot: "bg-violet-600",
+      tone: "text-violet-700", dot: "bg-violet-600", href: "/dashboard/qa",
     },
   ];
   return (
     <div className="flex gap-2.5 overflow-x-auto haip-scrollbar-x pb-1 lg:grid lg:grid-cols-5 lg:overflow-visible">
-      {tiles.map(t => (
-        <div key={t.label} className="haip-card flex-shrink-0 min-w-[150px] px-4 py-3">
-          <p className="flex items-center gap-1.5 text-xs font-semibold truncate" style={{ color: "var(--haip-fg-subtle)" }}>
-            <span className={cn("w-2 h-2 rounded-full flex-shrink-0", t.dot)} />{t.label}
-          </p>
-          <p className={cn("text-2xl font-bold tabular-nums mt-1", t.tone)} style={{ fontFamily: "var(--font-display)" }}>{t.value}</p>
-          <p className="text-[11px]" style={{ color: "var(--haip-fg-muted)" }}>{t.note || " "}</p>
-        </div>
-      ))}
+      {tiles.map(t => {
+        const cls = "haip-card flex-shrink-0 min-w-[150px] px-4 py-3 text-left block cursor-pointer transition-shadow hover:shadow-md outline-none focus-visible:ring-2 focus-visible:ring-teal-600";
+        const body = (
+          <>
+            <span className="flex items-center gap-1.5 text-xs font-semibold truncate" style={{ color: "var(--haip-fg-subtle)" }}>
+              <span className={cn("w-2 h-2 rounded-full flex-shrink-0", t.dot)} />{t.label}
+            </span>
+            <span className={cn("block text-2xl font-bold tabular-nums mt-1", t.tone)} style={{ fontFamily: "var(--font-display)" }}>{t.value}</span>
+            <span className="block text-[11px]" style={{ color: "var(--haip-fg-muted)" }}>{t.note || " "}</span>
+          </>
+        );
+        return t.href
+          ? <Link key={t.label} href={t.href} className={cls}>{body}</Link>
+          : <button key={t.label} type="button" onClick={() => t.tab && onPick(t.tab)} className={cls}>{body}</button>;
+      })}
     </div>
   );
 }
