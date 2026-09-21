@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844"><title>Calls — mobile call detail</title>
+<rect width="390" height="844" fill="#F3F5F4"/>
+<rect x="0" y="0" width="390" height="844" rx="0" fill="#FFFFFF"/>
+<text x="24" y="30" font-family="Manrope, sans-serif" font-size="14" font-weight="700" fill="#101828" text-anchor="start">9:41</text>
+<text x="18" y="78" font-family="Manrope, sans-serif" font-size="30" font-weight="500" fill="#101828" text-anchor="start">‹</text>
+<circle cx="60" cy="70" r="18" fill="#E7F3F1"/>
+<text x="60" y="76.48" font-family="Outfit, sans-serif" font-size="14.4" font-weight="700" fill="#0B5B55" text-anchor="middle">MJ</text>
+<circle cx="72.96" cy="82.96" r="10.1" fill="#FFFFFF"/>
+<circle cx="72.96" cy="82.96" r="8.1" fill="#175CD3"/>
+<text x="72.96" y="86.60499999999999" font-family="Manrope, sans-serif" font-size="10.53" font-weight="700" fill="#FFFFFF" text-anchor="middle">↗</text>
+<text x="88" y="66" font-family="Outfit, sans-serif" font-size="16" font-weight="700" fill="#101828" text-anchor="start">Meera Joshi</text>
+<text x="88" y="84" font-family="Manrope, sans-serif" font-size="11.5" font-weight="500" fill="#667085" text-anchor="start">Outgoing · Krisha · 4m 12s</text>
+<rect x="310" y="54" width="64" height="32" rx="8" fill="#0F766E"/>
+<text x="342.0" y="74.32" font-family="Manrope, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">Call</text>
+<line x1="0" y1="108" x2="390" y2="108" stroke="#E4E7EC" stroke-width="1"/>
+<rect x="16" y="122" width="358" height="56" rx="12" fill="#F3F5F4"/>
+<circle cx="44" cy="150" r="16" fill="#0F766E"/>
+<path d="M39 141 L51 150 L39 159 Z" fill="#FFFFFF"/>
+<rect x="70.0" y="144.8823891019892" width="3" height="10.23522179602161" rx="1.5" fill="#0F766E"/>
+<rect x="75.2" y="141.51347852174453" width="3" height="16.97304295651094" rx="1.5" fill="#0F766E"/>
+<rect x="80.4" y="143.43049316797112" width="3" height="13.139013664057744" rx="1.5" fill="#0F766E"/>
+<rect x="85.6" y="140.85687957544187" width="3" height="18.28624084911628" rx="1.5" fill="#0F766E"/>
+<rect x="90.8" y="140.6170766548114" width="3" height="18.765846690377188" rx="1.5" fill="#0F766E"/>
+<rect x="96.0" y="146.77918254836206" width="3" height="6.441634903275888" rx="1.5" fill="#0F766E"/>
+<rect x="101.2" y="147.3551520928964" width="3" height="5.2896958142072315" rx="1.5" fill="#0F766E"/>
+<rect x="106.4" y="138.28784009693894" width="3" height="23.42431980612212" rx="1.5" fill="#0F766E"/>
+<rect x="111.6" y="144.6471058423919" width="3" height="10.705788315216168" rx="1.5" fill="#0F766E"/>
+<rect x="116.80000000000001" y="144.92235942848635" width="3" height="10.15528114302732" rx="1.5" fill="#0F766E"/>
+<rect x="122.0" y="136.5479068093849" width="3" height="26.904186381230183" rx="1.5" fill="#0F766E"/>
+<rect x="127.2" y="142.32710141725306" width="3" height="15.345797165493854" rx="1.5" fill="#0F766E"/>
+<rect x="132.4" y="138.2989240359817" width="3" height="23.402151928036552" rx="1.5" fill="#0F766E"/>
+<rect x="137.60000000000002" y="142.2601147043073" width="3" height="15.47977059138537" rx="1.5" fill="#0F766E"/>
+<rect x="142.8" y="140.4702504540142" width="3" height="19.059499091971563" rx="1.5" fill="#0F766E"/>
+<rect x="148.0" y="145.84321933574122" width="3" height="8.313561328517526" rx="1.5" fill="#0F766E"/>
+<rect x="153.2" y="140.51653275886292" width="3" height="18.966934482274148" rx="1.5" fill="#C9D2D0"/>
+<rect x="158.4" y="137.95150162142374" width="3" height="24.096996757152528" rx="1.5" fill="#C9D2D0"/>
+<rect x="163.60000000000002" y="141.7450066857837" width="3" height="16.509986628432628" rx="1.5" fill="#C9D2D0"/>
+<rect x="168.8" y="139.3462295817836" width="3" height="21.307540836432786" rx="1.5" fill="#C9D2D0"/>
+<rect x="174.0" y="140.11447377093447" width="3" height="19.771052458131038" rx="1.5" fill="#C9D2D0"/>
+<rect x="179.2" y="146.79565417950303" width="3" height="6.408691640993941" rx="1.5" fill="#C9D2D0"/>
+<rect x="184.4" y="139.15946729084501" width="3" height="21.68106541830998" rx="1.5" fill="#C9D2D0"/>
+<rect x="189.60000000000002" y="140.9979045877555" width="3" height="18.004190824488987" rx="1.5" fill="#C9D2D0"/>
+<rect x="194.8" y="144.18605574532717" width="3" height="11.62788850934567" rx="1.5" fill="#C9D2D0"/>
+<rect x="200.0" y="147.15887073383274" width="3" height="5.6822585323345" rx="1.5" fill="#C9D2D0"/>
+<rect x="205.20000000000002" y="137.9792003932316" width="3" height="24.041599213536802" rx="1.5" fill="#C9D2D0"/>
+<rect x="210.4" y="142.29976002467987" width="3" height="15.400479950640271" rx="1.5" fill="#C9D2D0"/>
+<rect x="215.6" y="139.59293683527616" width="3" height="20.814126329447667" rx="1.5" fill="#C9D2D0"/>
+<rect x="220.8" y="137.8330591971897" width="3" height="24.333881605620597" rx="1.5" fill="#C9D2D0"/>
+<rect x="226.0" y="139.64457568027677" width="3" height="20.710848639446453" rx="1.5" fill="#C9D2D0"/>
+<rect x="231.20000000000002" y="137.36791465657737" width="3" height="25.26417068684524" rx="1.5" fill="#C9D2D0"/>
+<rect x="236.4" y="143.15540255599183" width="3" height="13.689194888016367" rx="1.5" fill="#C9D2D0"/>
+<rect x="241.6" y="138.69000351916247" width="3" height="22.619992961675024" rx="1.5" fill="#C9D2D0"/>
+<rect x="246.8" y="142.60916838344164" width="3" height="14.781663233116735" rx="1.5" fill="#C9D2D0"/>
+<rect x="252.0" y="137.20854606125027" width="3" height="25.582907877499462" rx="1.5" fill="#C9D2D0"/>
+<rect x="257.20000000000005" y="137.83246673628153" width="3" height="24.335066527436915" rx="1.5" fill="#C9D2D0"/>
+<rect x="262.4" y="146.42800259296035" width="3" height="7.143994814079298" rx="1.5" fill="#C9D2D0"/>
+<rect x="267.6" y="146.00434253779264" width="3" height="7.9913149244147155" rx="1.5" fill="#C9D2D0"/>
+<rect x="272.8" y="145.1131436464355" width="3" height="9.773712707129022" rx="1.5" fill="#C9D2D0"/>
+<rect x="278.0" y="136.87971847211978" width="3" height="26.240563055760465" rx="1.5" fill="#C9D2D0"/>
+<rect x="283.20000000000005" y="142.70221946709827" width="3" height="14.595561065803444" rx="1.5" fill="#C9D2D0"/>
+<rect x="288.4" y="140.60686880046515" width="3" height="18.786262399069685" rx="1.5" fill="#C9D2D0"/>
+<rect x="293.6" y="144.18871181731944" width="3" height="11.622576365361118" rx="1.5" fill="#C9D2D0"/>
+<text x="364" y="170" font-family="Manrope, sans-serif" font-size="10.5" font-weight="600" fill="#667085" text-anchor="end">1:32 / 4:12</text>
+<rect x="16" y="194" width="358" height="120" rx="12" fill="#E7F3F1"/>
+<text x="28" y="216" font-family="Manrope, sans-serif" font-size="10.5" font-weight="700" fill="#0B5B55" text-anchor="start" letter-spacing="0.8">WHAT HAPPENED</text>
+<text x="28" y="240" font-family="Manrope, sans-serif" font-size="13" font-weight="500" fill="#101828" text-anchor="start">Confirmed Coorg, 3–5 Oct, 6 guests.</text>
+<text x="28" y="259" font-family="Manrope, sans-serif" font-size="13" font-weight="500" fill="#101828" text-anchor="start">Quoted ₹42,000 — accepted, advance today.</text>
+<text x="28" y="278" font-family="Manrope, sans-serif" font-size="13" font-weight="500" fill="#101828" text-anchor="start">Wants a vegetarian menu.</text>
+<text x="28" y="302" font-family="Manrope, sans-serif" font-size="12.5" font-weight="700" fill="#0B5B55" text-anchor="start">Next: send payment link by 6 pm</text>
+<text x="16" y="344" font-family="Manrope, sans-serif" font-size="10.5" font-weight="700" fill="#667085" text-anchor="start" letter-spacing="0.8">QA SCORE</text>
+<circle cx="42" cy="382" r="24" fill="#DCFAE6"/>
+<text x="42" y="389" font-family="Outfit, sans-serif" font-size="20" font-weight="800" fill="#067647" text-anchor="middle">92</text>
+<text x="78" y="376" font-family="Manrope, sans-serif" font-size="12.5" font-weight="600" fill="#101828" text-anchor="start">Strong call — next step agreed</text>
+<text x="78" y="395" font-family="Manrope, sans-serif" font-size="12" font-weight="700" fill="#0F766E" text-anchor="start">See all 8 criteria ›</text>
+<line x1="16" y1="422" x2="374" y2="422" stroke="#EEF1F0" stroke-width="1"/>
+<text x="16" y="446" font-family="Manrope, sans-serif" font-size="10.5" font-weight="700" fill="#667085" text-anchor="start" letter-spacing="0.8">TRANSCRIPT</text>
+<text x="16" y="470" font-family="Manrope, sans-serif" font-size="11" font-weight="700" fill="#0B5B55" text-anchor="start">Krisha · 0:04</text>
+<text x="16" y="488" font-family="Manrope, sans-serif" font-size="12.5" font-weight="500" fill="#101828" text-anchor="start">Hi Meera, this is Krisha from Ratha.</text>
+<text x="16" y="514" font-family="Manrope, sans-serif" font-size="11" font-weight="700" fill="#667085" text-anchor="start">Meera · 0:09</text>
+<text x="16" y="532" font-family="Manrope, sans-serif" font-size="12.5" font-weight="500" fill="#101828" text-anchor="start">We were planning Coorg on the 3rd for six.</text>
+<text x="16" y="558" font-family="Manrope, sans-serif" font-size="11" font-weight="700" fill="#0B5B55" text-anchor="start">Krisha · 0:21</text>
+<text x="16" y="576" font-family="Manrope, sans-serif" font-size="12.5" font-weight="500" fill="#101828" text-anchor="start">For six, one caravan works — ₹42,000.</text>
+<rect x="0" y="726" width="390" height="118" rx="0" fill="#FFFFFF"/>
+<line x1="0" y1="726" x2="390" y2="726" stroke="#E4E7EC" stroke-width="1"/>
+<text x="16" y="750" font-family="Manrope, sans-serif" font-size="10.5" font-weight="700" fill="#667085" text-anchor="start" letter-spacing="0.8">WRAP-UP</text>
+<rect x="16" y="762" width="63.76" height="28" rx="14" fill="#F4F3FF"/>
+<text x="27" y="781" font-family="Manrope, sans-serif" font-size="12" font-weight="700" fill="#6941C6" text-anchor="start">Booked</text>
+<rect x="85.75999999999999" y="762" width="84.63999999999999" height="28" rx="14" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="1"/>
+<text x="96.75999999999999" y="781" font-family="Manrope, sans-serif" font-size="12" font-weight="700" fill="#344054" text-anchor="start">Qualified</text>
+<rect x="176.39999999999998" y="762" width="77.67999999999999" height="28" rx="14" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="1"/>
+<text x="187.39999999999998" y="781" font-family="Manrope, sans-serif" font-size="12" font-weight="700" fill="#344054" text-anchor="start">Callback</text>
+<rect x="260.08" y="762" width="49.839999999999996" height="28" rx="14" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="1"/>
+<text x="271.08" y="781" font-family="Manrope, sans-serif" font-size="12" font-weight="700" fill="#344054" text-anchor="start">Lost</text>
+<rect x="16" y="798" width="282" height="34" rx="10" fill="#F3F5F4"/>
+<text x="28" y="820" font-family="Manrope, sans-serif" font-size="12" font-weight="500" fill="#98A2B3" text-anchor="start">Add a note</text>
+<rect x="306" y="798" width="68" height="34" rx="8" fill="#0F766E"/>
+<text x="340.0" y="819.5" font-family="Manrope, sans-serif" font-size="12.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">Save</text>
+</svg>

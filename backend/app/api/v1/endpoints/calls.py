@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from fastapi.responses import FileResponse, StreamingResponse
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 from typing import Optional
 from pathlib import Path
@@ -73,6 +74,9 @@ def list_calls(
     date_preset: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    disposition: Optional[str] = None,
+    view: Optional[str] = Query(None, pattern="^needs_callback$",
+                                description="needs_callback = missed calls nobody has returned yet"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -111,6 +115,27 @@ def list_calls(
             q = q.filter(call_status_service.missed_call_sql_filter())
         else:
             q = q.filter(~call_status_service.missed_call_sql_filter())
+
+    if view == "needs_callback":
+        # Missed and not yet returned (call_ingest._link_recovered_call
+        # sets recovered_by_call_id when an outbound call reaches the guest).
+        q = q.filter(
+            Call.direction == "inbound",
+            call_status_service.missed_call_sql_filter(),
+            Call.recovered_by_call_id.is_(None),
+        )
+    if disposition:
+        # The page has always sent this, but the parameter didn't exist, so
+        # the Outcome filter silently did nothing. Human disposition wins
+        # over the AI's, same as everywhere else it's displayed.
+        try:
+            wanted = CallDisposition(disposition)
+        except ValueError:
+            raise HTTPException(status_code=422, detail=f"Invalid disposition: {disposition}")
+        q = q.filter(or_(
+            Call.human_disposition == wanted,
+            and_(Call.human_disposition.is_(None), Call.ai_disposition == wanted),
+        ))
 
     if date_preset or date_from or date_to:
         from app.services.date_presets import VALID_PRESETS, resolve_range, ist_range_to_utc
@@ -158,6 +183,10 @@ def list_calls(
             .all()
         }
 
+    # Every channel the guest has talked to us on -- same icons as the Inbox.
+    from app.services import inbox_service
+    channels_by_guest = inbox_service.guest_channels(db, current_user.tenant_id, guest_ids)
+
     return {
         "total": total,
         "page": page,
@@ -166,10 +195,78 @@ def list_calls(
             _serialize_call(
                 c, guest_names.get(c.guest_id), agent_names.get(c.agent_id),
                 called_back_at=recovery_at.get(c.recovered_by_call_id),
+                guest_channels=channels_by_guest.get(c.guest_id, []),
             )
             for c in calls
         ],
     }
+
+
+@router.get("/summary")
+def calls_summary(
+    date_preset: str = Query("today"),
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Numbers for the Calls page summary tiles over an IST date range:
+    call counts, missed-and-not-called-back, answer rate, average answered
+    length and average QA score (with the change vs the previous period of
+    the same length). Declared before /{call_id} so "summary" is not read
+    as a call id."""
+    from app.models.tenant import Tenant
+    from app.services.date_presets import VALID_PRESETS, resolve_range, ist_range_to_utc
+
+    if date_preset not in VALID_PRESETS:
+        raise HTTPException(status_code=422, detail=f"Invalid date_preset: {date_preset}")
+    try:
+        d_from, d_to = resolve_range(date_preset, date_from, date_to)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid date: {exc}")
+    if not (d_from and d_to):
+        raise HTTPException(status_code=422, detail="date_from and date_to are required for a custom range")
+    _, _, start, end = ist_range_to_utc(d_from, d_to)
+    span = end - start
+    prev_start, prev_end = start - span, start
+
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    base = db.query(Call).filter(Call.tenant_id == current_user.tenant_id)
+    if tenant and tenant.ivr_provider:
+        base = base.filter(Call.ivr_provider == tenant.ivr_provider)
+
+    calls = base.filter(Call.created_at >= start, Call.created_at <= end).all()
+    inbound = [c for c in calls if _dir(c) == "inbound"]
+    outbound = [c for c in calls if _dir(c) == "outbound"]
+    missed = [c for c in inbound if call_status_service.is_missed_call(c)]
+    open_missed = [c for c in missed if not c.recovered_by_call_id]
+    answered = [c for c in calls if not call_status_service.is_missed_call(c) and (c.duration_seconds or 0) > 0]
+
+    def _avg_score(rows):
+        scores = [float(c.ai_score) for c in rows if c.ai_score]
+        return round(sum(scores) / len(scores), 1) if scores else None
+
+    avg_qa = _avg_score(calls)
+    prev_qa = _avg_score(base.filter(Call.created_at >= prev_start, Call.created_at < prev_end).all())
+    oldest = min((c.created_at for c in open_missed if c.created_at), default=None)
+
+    return {
+        "range": {"from": d_from, "to": d_to},
+        "total": len(calls),
+        "inbound": len(inbound),
+        "outbound": len(outbound),
+        "missed": len(missed),
+        "missed_not_called_back": len(open_missed),
+        "oldest_missed_at": oldest.isoformat() if oldest else None,
+        "answer_rate": round(100 * (len(inbound) - len(missed)) / len(inbound)) if inbound else None,
+        "avg_answered_seconds": round(sum(c.duration_seconds for c in answered) / len(answered)) if answered else None,
+        "avg_qa_score": avg_qa,
+        "avg_qa_change": round(avg_qa - prev_qa, 1) if avg_qa is not None and prev_qa is not None else None,
+    }
+
+
+def _dir(call: Call) -> str:
+    return call.direction.value if hasattr(call.direction, "value") else str(call.direction)
 
 
 @router.get("/{call_id}")
@@ -608,7 +705,10 @@ def save_wrap_up(
         call.disposition_set_by = current_user.id
 
     if req.notes is not None:
-        call.ai_summary = req.notes  # human notes stored in summary field (editable)
+        # The agent's own notes -- kept separate from the AI summary, which
+        # this used to overwrite (the notes box was pre-filled with the
+        # summary, so every save replaced the AI's record of the call).
+        call.disposition_note = req.notes
 
     if req.next_action is not None:
         call.ai_next_action = req.next_action
@@ -675,6 +775,7 @@ def _serialize_call(
     guest_name: Optional[str] = None,
     agent_name: Optional[str] = None,
     called_back_at: Optional[str] = None,
+    guest_channels: Optional[list] = None,
 ) -> dict:
     """Lightweight serializer used in the list endpoint."""
     disp = call.human_disposition or call.ai_disposition
@@ -713,6 +814,7 @@ def _serialize_call(
         "has_transcript": bool(call.transcript_json),
         "ivr_provider": call.ivr_provider,
         "created_at": call.created_at.isoformat() if call.created_at else None,
+        "guest_channels": guest_channels or [],
     }
 
 
@@ -817,6 +919,7 @@ def _serialize_call_detail(call: Call, db) -> dict:
         # which the lead detail page's CallCard already relies on.
         "ai_summary": call.ai_summary,
         "ai_next_action": call.ai_next_action,
+        "wrap_up_notes": call.disposition_note,
         # AI Autonomy Plan Phase 2 ticket 5: the one action contract, everywhere
         # (next_action_service.py) -- feeds AIRecommendationCard on the call
         # detail page. Replaces the old singular recommended_action field,

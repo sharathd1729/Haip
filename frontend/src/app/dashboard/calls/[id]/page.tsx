@@ -45,6 +45,7 @@ interface Layer2 {
 }
 
 interface CallDetail {
+  wrap_up_notes?: string | null;  // agent's own wrap-up notes (separate from ai_summary)
   id: string;
   started_at: string;
   duration_seconds: number;
@@ -75,13 +76,16 @@ interface CallDetail {
   recommended_actions?: RecommendedAction[];
 }
 
+// Real CallDisposition values (backend models/call.py). The previous list
+// offered pending / qualified / spam, which the wrap-up endpoint rejects.
 const DISPOSITION_OPTIONS = [
-  { value: "pending",   label: "Pending",   color: "bg-gray-100 text-gray-600" },
-  { value: "qualified", label: "Qualified",  color: "bg-blue-100 text-blue-700" },
-  { value: "booked",    label: "Booked",     color: "bg-teal-100 text-teal-700" },
-  { value: "lost",      label: "Lost",       color: "bg-red-100 text-red-600" },
-  { value: "spam",      label: "Spam",       color: "bg-gray-100 text-gray-400" },
+  { value: "booked",    label: "Booked",     color: "bg-violet-100 text-violet-700" },
+  { value: "hot",       label: "Hot lead",   color: "bg-rose-100 text-rose-700" },
+  { value: "quoted",    label: "Quoted",     color: "bg-teal-100 text-teal-700" },
   { value: "callback",  label: "Callback",   color: "bg-amber-100 text-amber-700" },
+  { value: "lost",      label: "Lost",       color: "bg-red-100 text-red-600" },
+  { value: "no_answer", label: "No answer",  color: "bg-gray-100 text-gray-600" },
+  { value: "voicemail", label: "Voicemail",  color: "bg-gray-100 text-gray-600" },
 ];
 
 function formatDate(iso: string) {
@@ -149,8 +153,10 @@ export default function CallDetailPage() {
   // Populate disposition + summary once data arrives (replaces deprecated onSuccess)
   useEffect(() => {
     if (!call) return;
-    if (!disposition) setDisposition(call.disposition ?? "pending");
-    if (!wrapUpNotes && call.score?.ai_summary) setWrapUpNotes(call.score.ai_summary);
+    if (!disposition && call.disposition && call.disposition !== "pending") setDisposition(call.disposition);
+    // The agent's own notes -- no longer pre-filled with the AI summary,
+    // since saving used to overwrite the summary with whatever was here.
+    if (!wrapUpNotes && call.wrap_up_notes) setWrapUpNotes(call.wrap_up_notes);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [call?.id, call?.score?.ai_summary, call?.disposition]);
 
@@ -173,7 +179,7 @@ export default function CallDetailPage() {
   const saveMutation = useMutation({
     mutationFn: () =>
       api.post(`/calls/${id}/wrap-up`, {
-        disposition,
+        disposition: disposition || undefined,
         notes: wrapUpNotes,
         next_action: call?.score?.next_action,
       }),
@@ -699,7 +705,7 @@ export default function CallDetailPage() {
                 value={wrapUpNotes}
                 onChange={e => setWrapUpNotes(e.target.value)}
                 rows={4}
-                placeholder="AI summary will appear here after analysis completes. You can also add manual notes."
+                placeholder="Your notes about this call (kept separate from the AI summary)"
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow resize-none text-gray-700 placeholder:text-gray-300"
               />
             </div>
