@@ -117,7 +117,9 @@ class Tenant(Base, TimestampMixin):
     # forward_number) so no tenant's calls change until they opt in.
     # round_robin/parallel route across users with ivr_call_routing_enabled
     # instead -- see ivr_routing_service.py.
-    ivr_routing_strategy = Column(String(20), nullable=False, server_default="single")
+    # String(40) since migration 102 -- "sticky_agent_parallel" (21 chars)
+    # overflowed the original 20.
+    ivr_routing_strategy = Column(String(40), nullable=False, server_default="single")
     # S3 key, not URL -- URLs are presigned fresh on read (media_storage.py
     # convention), never stored as a possibly-expired link.
     ivr_greeting_audio_key = Column(String(500), nullable=True)

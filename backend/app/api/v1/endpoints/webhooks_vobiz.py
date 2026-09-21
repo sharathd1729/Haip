@@ -138,6 +138,19 @@ def _resolve_tenant_and_creds(db: Session, tenant_slug: str, url_secret: str) ->
     return tenant, creds
 
 
+# How long an inbound call rings the agents' phones before giving up.
+# Kept under the ~20s after which Indian carriers forward an unanswered
+# call to the agent's network voicemail. Confirmed live on Ratha: when a
+# voicemail box picks up one leg of a parallel ring, Vobiz treats it as
+# "answered", connects the guest to the voicemail and cancels every other
+# agent's leg (transcript: "Your call has been forwarded to voicemail...").
+# Ringing for less than the carrier's forward timer means an ignored phone
+# stops ringing before its voicemail can take the call. Agents' "forward
+# when busy" (what happens when they reject) is switched off on the phone
+# side (##67#), which this timeout cannot cover.
+_AGENT_RING_TIMEOUT = 18
+
+
 @router.post("/vobiz/{tenant_slug}/{url_secret}/answer")
 async def vobiz_answer_webhook(
     tenant_slug: str,
@@ -325,7 +338,7 @@ async def vobiz_answer_webhook(
         dial_xml = ""
     elif ivr_routing_service.dial_mode(tenant) == "sequential" and len(e164_numbers) > 1:
         dial_xml = "".join(
-            f'<Dial callerId="{caller_id}" timeout="20" timeLimit="1800" redirect="false" '
+            f'<Dial callerId="{caller_id}" timeout="{_AGENT_RING_TIMEOUT}" timeLimit="1800" redirect="false" '
             f'callbackUrl="{dial_status_callback_url}" action="{dial_status_callback_url}">'
             f"<Number>{n}</Number></Dial>"
             for n in e164_numbers
@@ -333,7 +346,7 @@ async def vobiz_answer_webhook(
     else:
         number_tags = "".join(f"<Number>{n}</Number>" for n in e164_numbers)
         dial_xml = (
-            f'<Dial callerId="{caller_id}" timeout="30" timeLimit="1800" redirect="true" '
+            f'<Dial callerId="{caller_id}" timeout="{_AGENT_RING_TIMEOUT}" timeLimit="1800" redirect="true" '
             f'callbackUrl="{dial_status_callback_url}" action="{dial_action_url}">'
             f"{number_tags}</Dial>"
         )

@@ -871,3 +871,47 @@ def test_webhook_info_null_url_before_connect(client, tenant_and_user):
     )
     assert res.status_code == 200
     assert res.json()["webhook_url"] is None
+
+
+def test_routing_strategy_column_fits_every_strategy_name():
+    """Confirmed live: tenants.ivr_routing_strategy was VARCHAR(20) and
+    "sticky_agent_parallel" is 21 characters, so Postgres rejected every
+    save and the option in Settings -> IVR could never be selected.
+    SQLite doesn't enforce VARCHAR length, so no request-level test could
+    have caught it -- check the declared width directly instead."""
+    from app.models.tenant import Tenant
+    from app.services.ivr_routing_service import VALID_STRATEGIES
+
+    width = Tenant.__table__.c.ivr_routing_strategy.type.length
+    too_long = [s for s in VALID_STRATEGIES if len(s) > width]
+    assert not too_long, f"strategies longer than the {width}-char column: {too_long}"
+
+
+def test_answer_webhook_parallel_ring_stops_before_carrier_voicemail(client, tenant_and_user, db):
+    """Confirmed live on Ratha: when an agent's carrier voicemail picks up
+    one leg of a parallel ring, Vobiz counts it as answered, connects the
+    guest to the voicemail and cancels every other agent. Indian carriers
+    forward an unanswered call to voicemail after ~20s, so agents' phones
+    must stop ringing before that."""
+    from app.models.user import User, UserRole
+
+    tenant = tenant_and_user["tenant"]
+    tenant.ivr_routing_strategy = "parallel"
+    db.add(tenant)
+    for i, name in enumerate(("Agent One", "Agent Two")):
+        db.add(User(
+            id=str(uuid.uuid4()), tenant_id=tenant.id, name=name,
+            email=f"ring{i}-{uuid.uuid4().hex[:6]}@test.com",
+            role=UserRole.CONCIERGE, is_active=True,
+            phone=f"+91987650000{i + 2}", ivr_call_routing_enabled=True,
+        ))
+    db.commit()
+    _connect_vobiz(db, tenant.id, webhook_secret="correct-secret", forward_number="+919000000000")
+
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/answer",
+        data={"CallUUID": "call-ring-1", "From": "+919876543210", "To": "+912271264296", "Direction": "inbound"},
+    )
+    assert res.status_code == 200
+    assert res.text.count("<Number>") == 2
+    assert 'timeout="18"' in res.text
