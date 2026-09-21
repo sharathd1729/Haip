@@ -1,0 +1,182 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844"><title>Inbox — mobile list</title>
+<rect width="390" height="844" fill="#F3F5F4"/>
+<rect x="0" y="0" width="390" height="844" rx="0" fill="#FFFFFF"/>
+<text x="24" y="30" font-family="Manrope, sans-serif" font-size="14" font-weight="700" fill="#101828" text-anchor="start">9:41</text>
+<g id="Header">
+<text x="16" y="78" font-family="Outfit, sans-serif" font-size="26" font-weight="700" fill="#101828" text-anchor="start">Inbox</text>
+<rect x="334" y="52" width="40" height="40" rx="12" fill="#F3F5F4"/>
+<circle cx="353" cy="71" r="6" fill="none" stroke="#344054" stroke-width="1"/>
+<line x1="357" y1="75" x2="361" y2="79" stroke="#344054" stroke-width="1.5"/>
+</g>
+<g id="Filters">
+<rect x="16" y="104" width="116.25" height="32" rx="16.0" fill="#101828"/>
+<text x="27" y="124.5" font-family="Manrope, sans-serif" font-size="12.5" font-weight="700" fill="#FFFFFF" text-anchor="start">Needs reply</text>
+<text x="110.75" y="124.5" font-family="Manrope, sans-serif" font-size="12.5" font-weight="700" fill="#5EEAD4" text-anchor="start">3</text>
+<rect x="138.25" y="104" width="109.0" height="32" rx="16.0" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="1"/>
+<text x="149.25" y="124.5" font-family="Manrope, sans-serif" font-size="12.5" font-weight="700" fill="#344054" text-anchor="start">Unassigned</text>
+<text x="225.75" y="124.5" font-family="Manrope, sans-serif" font-size="12.5" font-weight="700" fill="#0F766E" text-anchor="start">5</text>
+<rect x="253.25" y="104" width="51.0" height="32" rx="16.0" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="1"/>
+<text x="264.25" y="124.5" font-family="Manrope, sans-serif" font-size="12.5" font-weight="700" fill="#344054" text-anchor="start">Mine</text>
+<rect x="310.25" y="104" width="43.75" height="32" rx="16.0" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="1"/>
+<text x="321.25" y="124.5" font-family="Manrope, sans-serif" font-size="12.5" font-weight="700" fill="#344054" text-anchor="start">All</text>
+</g>
+<g id="Conversation · Priya Srinivas">
+<rect x="0" y="148" width="390" height="82" rx="0" fill="#FFFFFF"/>
+<line x1="16" y1="230" x2="374" y2="230" stroke="#EEF1F0" stroke-width="1"/>
+<circle cx="34" cy="176" r="18" fill="#E7F3F1"/>
+<text x="34" y="182.48" font-family="Outfit, sans-serif" font-size="14.4" font-weight="700" fill="#0B5B55" text-anchor="middle">PS</text>
+<g id="Icon · Instagram">
+<rect x="18.5" y="199" width="14" height="14" rx="3.9200000000000004" fill="#D62976"/>
+<rect x="21.3" y="201.8" width="8.4" height="8.4" rx="2.3800000000000003" fill="none" stroke="#FFFFFF" stroke-width="1.12"/>
+<circle cx="25.5" cy="206.0" r="1.9600000000000002" fill="none" stroke="#FFFFFF" stroke-width="1"/>
+<circle cx="28.16" cy="203.34" r="0.63" fill="#FFFFFF"/>
+</g>
+<g id="Icon · Call">
+<circle cx="42.5" cy="206.0" r="7.0" fill="#2563EB"/>
+<path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z" fill="#FFFFFF" transform="translate(38.44 201.94) scale(0.3383)"/>
+</g>
+<text x="66" y="176" font-family="Manrope, sans-serif" font-size="14" font-weight="800" fill="#101828" text-anchor="start">Priya Srinivas</text>
+<text x="374" y="176" font-family="Manrope, sans-serif" font-size="11.5" font-weight="700" fill="#0F766E" text-anchor="end">2m</text>
+<text x="66" y="196" font-family="Manrope, sans-serif" font-size="13" font-weight="600" fill="#101828" text-anchor="start">Also, is food included?</text>
+<rect x="66" y="204" width="82.9" height="20" rx="10.0" fill="#FEF0C7"/>
+<circle cx="76" cy="214.0" r="3" fill="#B54708"/>
+<text x="83" y="217.78" font-family="Manrope, sans-serif" font-size="10.5" font-weight="600" fill="#B54708" text-anchor="start">Waiting 2m</text>
+<circle cx="366" cy="196" r="9" fill="#0F766E"/>
+<text x="366" y="200" font-family="Manrope, sans-serif" font-size="11" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+</g>
+<g id="Conversation · Nikhita Rao">
+<rect x="0" y="234" width="390" height="82" rx="0" fill="#FFFFFF"/>
+<line x1="16" y1="316" x2="374" y2="316" stroke="#EEF1F0" stroke-width="1"/>
+<circle cx="34" cy="262" r="18" fill="#E7F3F1"/>
+<text x="34" y="268.48" font-family="Outfit, sans-serif" font-size="14.4" font-weight="700" fill="#0B5B55" text-anchor="middle">NR</text>
+<g id="Icon · Instagram">
+<rect x="27.0" y="285" width="14" height="14" rx="3.9200000000000004" fill="#D62976"/>
+<rect x="29.8" y="287.8" width="8.4" height="8.4" rx="2.3800000000000003" fill="none" stroke="#FFFFFF" stroke-width="1.12"/>
+<circle cx="34.0" cy="292.0" r="1.9600000000000002" fill="none" stroke="#FFFFFF" stroke-width="1"/>
+<circle cx="36.66" cy="289.34" r="0.63" fill="#FFFFFF"/>
+</g>
+<text x="66" y="262" font-family="Manrope, sans-serif" font-size="14" font-weight="800" fill="#101828" text-anchor="start">Nikhita Rao</text>
+<text x="374" y="262" font-family="Manrope, sans-serif" font-size="11.5" font-weight="700" fill="#0F766E" text-anchor="end">12m</text>
+<text x="66" y="282" font-family="Manrope, sans-serif" font-size="13" font-weight="600" fill="#101828" text-anchor="start">Is the 27th still available?</text>
+<rect x="66" y="290" width="88.99" height="20" rx="10.0" fill="#FEF0C7"/>
+<circle cx="76" cy="300.0" r="3" fill="#B54708"/>
+<text x="83" y="303.78" font-family="Manrope, sans-serif" font-size="10.5" font-weight="600" fill="#B54708" text-anchor="start">Waiting 12m</text>
+<circle cx="366" cy="282" r="9" fill="#0F766E"/>
+<text x="366" y="286" font-family="Manrope, sans-serif" font-size="11" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+</g>
+<g id="Conversation · Arjun Menon">
+<rect x="0" y="320" width="390" height="82" rx="0" fill="#FFFFFF"/>
+<line x1="16" y1="402" x2="374" y2="402" stroke="#EEF1F0" stroke-width="1"/>
+<circle cx="34" cy="348" r="18" fill="#E7F3F1"/>
+<text x="34" y="354.48" font-family="Outfit, sans-serif" font-size="14.4" font-weight="700" fill="#0B5B55" text-anchor="middle">AM</text>
+<g id="Icon · WhatsApp">
+<circle cx="34.0" cy="378.0" r="7.0" fill="#25D366"/>
+<path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z" fill="#FFFFFF" transform="translate(29.94 373.94) scale(0.3383)"/>
+</g>
+<text x="66" y="348" font-family="Manrope, sans-serif" font-size="14" font-weight="800" fill="#101828" text-anchor="start">Arjun Menon</text>
+<text x="374" y="348" font-family="Manrope, sans-serif" font-size="11.5" font-weight="700" fill="#0F766E" text-anchor="end">48m</text>
+<text x="66" y="368" font-family="Manrope, sans-serif" font-size="13" font-weight="600" fill="#101828" text-anchor="start">Are pets allowed on board?</text>
+<rect x="66" y="376" width="88.99" height="20" rx="10.0" fill="#FEF0C7"/>
+<circle cx="76" cy="386.0" r="3" fill="#B54708"/>
+<text x="83" y="389.78" font-family="Manrope, sans-serif" font-size="10.5" font-weight="600" fill="#B54708" text-anchor="start">Waiting 48m</text>
+<circle cx="366" cy="368" r="9" fill="#0F766E"/>
+<text x="366" y="372" font-family="Manrope, sans-serif" font-size="11" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+</g>
+<g id="Conversation · Rahul Kumar">
+<rect x="0" y="406" width="390" height="82" rx="0" fill="#FFFFFF"/>
+<line x1="16" y1="488" x2="374" y2="488" stroke="#EEF1F0" stroke-width="1"/>
+<circle cx="34" cy="434" r="18" fill="#E7F3F1"/>
+<text x="34" y="440.48" font-family="Outfit, sans-serif" font-size="14.4" font-weight="700" fill="#0B5B55" text-anchor="middle">RK</text>
+<g id="Icon · Instagram">
+<rect x="27.0" y="457" width="14" height="14" rx="3.9200000000000004" fill="#D62976"/>
+<rect x="29.8" y="459.8" width="8.4" height="8.4" rx="2.3800000000000003" fill="none" stroke="#FFFFFF" stroke-width="1.12"/>
+<circle cx="34.0" cy="464.0" r="1.9600000000000002" fill="none" stroke="#FFFFFF" stroke-width="1"/>
+<circle cx="36.66" cy="461.34" r="0.63" fill="#FFFFFF"/>
+</g>
+<text x="66" y="434" font-family="Manrope, sans-serif" font-size="14" font-weight="600" fill="#101828" text-anchor="start">Rahul Kumar</text>
+<text x="374" y="434" font-family="Manrope, sans-serif" font-size="11.5" font-weight="500" fill="#98A2B3" text-anchor="end">1h</text>
+<text x="66" y="454" font-family="Manrope, sans-serif" font-size="13" font-weight="500" fill="#667085" text-anchor="start">My number is 98••• ••209, call me</text>
+<rect x="66" y="462" width="95.08" height="20" rx="10.0" fill="#DCFAE6"/>
+<circle cx="76" cy="472.0" r="3" fill="#067647"/>
+<text x="83" y="475.78" font-family="Manrope, sans-serif" font-size="10.5" font-weight="600" fill="#067647" text-anchor="start">Shared phone</text>
+<circle cx="364" cy="468" r="10" fill="#E4E7EC"/>
+<text x="364" y="471.6" font-family="Outfit, sans-serif" font-size="8.0" font-weight="700" fill="#344054" text-anchor="middle">K</text>
+</g>
+<g id="Conversation · Meera Joshi">
+<rect x="0" y="492" width="390" height="82" rx="0" fill="#FFFFFF"/>
+<line x1="16" y1="574" x2="374" y2="574" stroke="#EEF1F0" stroke-width="1"/>
+<circle cx="34" cy="520" r="18" fill="#E7F3F1"/>
+<text x="34" y="526.48" font-family="Outfit, sans-serif" font-size="14.4" font-weight="700" fill="#0B5B55" text-anchor="middle">MJ</text>
+<g id="Icon · WhatsApp">
+<circle cx="25.5" cy="550.0" r="7.0" fill="#25D366"/>
+<path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z" fill="#FFFFFF" transform="translate(21.44 545.94) scale(0.3383)"/>
+</g>
+<g id="Icon · Call">
+<circle cx="42.5" cy="550.0" r="7.0" fill="#2563EB"/>
+<path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z" fill="#FFFFFF" transform="translate(38.44 545.94) scale(0.3383)"/>
+</g>
+<text x="66" y="520" font-family="Manrope, sans-serif" font-size="14" font-weight="600" fill="#101828" text-anchor="start">Meera Joshi</text>
+<text x="374" y="520" font-family="Manrope, sans-serif" font-size="11.5" font-weight="500" fill="#98A2B3" text-anchor="end">3h</text>
+<text x="66" y="540" font-family="Manrope, sans-serif" font-size="13" font-weight="500" fill="#667085" text-anchor="start">Thanks! Will confirm by evening</text>
+<circle cx="364" cy="554" r="10" fill="#E4E7EC"/>
+<text x="364" y="557.6" font-family="Outfit, sans-serif" font-size="8.0" font-weight="700" fill="#344054" text-anchor="middle">J</text>
+</g>
+<g id="Conversation · Karthik Nair">
+<rect x="0" y="578" width="390" height="82" rx="0" fill="#FFFFFF"/>
+<line x1="16" y1="660" x2="374" y2="660" stroke="#EEF1F0" stroke-width="1"/>
+<circle cx="34" cy="606" r="18" fill="#E7F3F1"/>
+<text x="34" y="612.48" font-family="Outfit, sans-serif" font-size="14.4" font-weight="700" fill="#0B5B55" text-anchor="middle">KN</text>
+<g id="Icon · Call">
+<circle cx="34.0" cy="636.0" r="7.0" fill="#2563EB"/>
+<path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z" fill="#FFFFFF" transform="translate(29.94 631.94) scale(0.3383)"/>
+</g>
+<text x="66" y="606" font-family="Manrope, sans-serif" font-size="14" font-weight="600" fill="#101828" text-anchor="start">Karthik Nair</text>
+<text x="374" y="606" font-family="Manrope, sans-serif" font-size="11.5" font-weight="500" fill="#98A2B3" text-anchor="end">5h</text>
+<text x="66" y="626" font-family="Manrope, sans-serif" font-size="13" font-weight="500" fill="#667085" text-anchor="start">Missed call · rang 18s</text>
+<rect x="66" y="634" width="88.99" height="20" rx="10.0" fill="#FEE4E2"/>
+<circle cx="76" cy="644.0" r="3" fill="#B42318"/>
+<text x="83" y="647.78" font-family="Manrope, sans-serif" font-size="10.5" font-weight="600" fill="#B42318" text-anchor="start">Missed call</text>
+</g>
+<g id="Conversation · Ananya Das">
+<rect x="0" y="664" width="390" height="82" rx="0" fill="#FFFFFF"/>
+<line x1="16" y1="746" x2="374" y2="746" stroke="#EEF1F0" stroke-width="1"/>
+<circle cx="34" cy="692" r="18" fill="#E7F3F1"/>
+<text x="34" y="698.48" font-family="Outfit, sans-serif" font-size="14.4" font-weight="700" fill="#0B5B55" text-anchor="middle">AD</text>
+<g id="Icon · WhatsApp">
+<circle cx="17.0" cy="722.0" r="7.0" fill="#25D366"/>
+<path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z" fill="#FFFFFF" transform="translate(12.94 717.94) scale(0.3383)"/>
+</g>
+<g id="Icon · Instagram">
+<rect x="27.0" y="715" width="14" height="14" rx="3.9200000000000004" fill="#D62976"/>
+<rect x="29.8" y="717.8" width="8.4" height="8.4" rx="2.3800000000000003" fill="none" stroke="#FFFFFF" stroke-width="1.12"/>
+<circle cx="34.0" cy="722.0" r="1.9600000000000002" fill="none" stroke="#FFFFFF" stroke-width="1"/>
+<circle cx="36.66" cy="719.34" r="0.63" fill="#FFFFFF"/>
+</g>
+<g id="Icon · Call">
+<circle cx="51.0" cy="722.0" r="7.0" fill="#2563EB"/>
+<path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z" fill="#FFFFFF" transform="translate(46.94 717.94) scale(0.3383)"/>
+</g>
+<text x="66" y="692" font-family="Manrope, sans-serif" font-size="14" font-weight="600" fill="#101828" text-anchor="start">Ananya Das</text>
+<text x="374" y="692" font-family="Manrope, sans-serif" font-size="11.5" font-weight="500" fill="#98A2B3" text-anchor="end">Yday</text>
+<text x="66" y="712" font-family="Manrope, sans-serif" font-size="13" font-weight="500" fill="#667085" text-anchor="start">Payment done, see you Friday!</text>
+<rect x="66" y="720" width="58.54" height="20" rx="10.0" fill="#F4F3FF"/>
+<circle cx="76" cy="730.0" r="3" fill="#6941C6"/>
+<text x="83" y="733.78" font-family="Manrope, sans-serif" font-size="10.5" font-weight="600" fill="#6941C6" text-anchor="start">Booked</text>
+<circle cx="364" cy="726" r="10" fill="#E4E7EC"/>
+<text x="364" y="729.6" font-family="Outfit, sans-serif" font-size="8.0" font-weight="700" fill="#344054" text-anchor="middle">K</text>
+</g>
+<g id="Bottom navigation">
+<rect x="0" y="768" width="390" height="76" rx="0" fill="#FFFFFF"/>
+<line x1="0" y1="768" x2="390" y2="768" stroke="#E4E7EC" stroke-width="1"/>
+<rect x="29" y="782" width="20" height="16" rx="4" fill="#D0D5DD"/>
+<text x="39" y="814" font-family="Manrope, sans-serif" font-size="11" font-weight="600" fill="#667085" text-anchor="middle">Home</text>
+<rect x="107" y="782" width="20" height="16" rx="4" fill="#0F766E"/>
+<text x="117" y="814" font-family="Manrope, sans-serif" font-size="11" font-weight="700" fill="#0F766E" text-anchor="middle">Inbox</text>
+<rect x="185" y="782" width="20" height="16" rx="4" fill="#D0D5DD"/>
+<text x="195" y="814" font-family="Manrope, sans-serif" font-size="11" font-weight="600" fill="#667085" text-anchor="middle">Leads</text>
+<rect x="263" y="782" width="20" height="16" rx="4" fill="#D0D5DD"/>
+<text x="273" y="814" font-family="Manrope, sans-serif" font-size="11" font-weight="600" fill="#667085" text-anchor="middle">Calls</text>
+<rect x="341" y="782" width="20" height="16" rx="4" fill="#D0D5DD"/>
+<text x="351" y="814" font-family="Manrope, sans-serif" font-size="11" font-weight="600" fill="#667085" text-anchor="middle">More</text>
+</g>
+</svg>

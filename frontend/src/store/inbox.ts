@@ -28,7 +28,16 @@ export interface ConversationSummary {
   // Phone-decline alert plan: an open "Guest declined phone number" Task
   // exists for this conversation.
   has_phone_decline_alert?: boolean;
+  // Inbox redesign: every channel this guest has talked to us on, drawn as
+  // icons under the avatar (e.g. ["instagram", "call"]).
+  guest_channels?: GuestChannel[];
+  // When the guest's unanswered message arrived ("Waiting 12m").
+  waiting_since?: string | null;
+  // False when an agent paused the AI for this conversation.
+  ai_enabled?: boolean;
 }
+
+export type GuestChannel = "instagram" | "whatsapp" | "call";
 
 interface InboxState {
   conversations: ConversationSummary[];

@@ -1,5 +1,6 @@
 "use client";
 import { CheckCheck, Check, Clock, RotateCw, Sparkles, ThumbsUp, ThumbsDown, Edit2, Reply, StickyNote, Languages, Wand2 } from "@/lib/icons";
+import { ChannelBadge, toGuestChannel } from "./ChannelBadges";
 import { cn } from "@/lib/utils";
 import { memo, useState } from "react";
 import { AIRecommendationCard, type RecommendedAction } from "@/components/ai/AIRecommendationCard";
@@ -27,6 +28,9 @@ export interface MessageBubbleProps {
   isInternal?: boolean;                  // W24
   aiConfidence?: number;
   senderName?: string;
+  /** Channel the message travelled on -- guest messages show its icon, so a
+   * thread spanning Instagram + WhatsApp reads clearly. */
+  channel?: string;
   mediaUrl?: string | null;              // T0.5
   mediaType?: string | null;             // image/video/audio/document
   sharedPostUrl?: string | null;         // Instagram post/ad share — permalink, not fetchable media
@@ -107,6 +111,7 @@ export const MessageBubble = memo(function MessageBubble({
   isInternal,
   aiConfidence,
   senderName,
+  channel,
   mediaUrl,
   mediaType,
   sharedPostUrl,
@@ -221,6 +226,7 @@ export const MessageBubble = memo(function MessageBubble({
 
         {/* Meta row — W20: status always visible */}
         <div className={cn("flex items-center gap-1.5 px-1", isOut ? "flex-row-reverse" : "flex-row")}>
+          {!isOut && toGuestChannel(channel) && <ChannelBadge channel={toGuestChannel(channel)!} size={12} />}
           <span className="text-[10px] text-gray-400">{formatTime(timestamp)}</span>
           {isOut && <StatusIcon status={status} error={deliveryError} />}
           {/* W23: inline retry for failed messages */}

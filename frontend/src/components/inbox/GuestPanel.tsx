@@ -1,5 +1,7 @@
 "use client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { TalkedOn, toGuestChannel } from "./ChannelBadges";
+import type { GuestChannel } from "@/store/inbox";
 import { useSession } from "next-auth/react";
 import { Star, Sparkles, Calendar, Users, Wallet, Phone, Mail, Loader2, MapPin, Heart, MessageSquare, FileText } from "@/lib/icons";
 import { Bed, UserCheck } from "lucide-react";
@@ -18,6 +20,7 @@ interface ConversationDetail {
   guest_phone: string;
   channel: string;
   status: "open" | "resolved" | "snoozed";
+  guest_channels?: GuestChannel[];
 }
 
 // HAIP Inbox UI-fidelity/full-parity passes: same GET /leads/{inquiry_id}
@@ -223,6 +226,19 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
             </p>
           </div>
         </div>
+        {/* Every channel this guest has talked to us on */}
+        {(() => {
+          const own = toGuestChannel(detail.channel);
+          const channels = detail.guest_channels?.length ? detail.guest_channels : own ? [own] : [];
+          return channels.length > 0 ? (
+            <div className="mt-3">
+              <p className="text-[10px] font-medium uppercase tracking-widest mb-1.5" style={{ color: "var(--haip-fg-subtle)" }}>
+                Talked on
+              </p>
+              <TalkedOn channels={channels} size={16} />
+            </div>
+          ) : null;
+        })()}
       </div>
 
       {/* Body */}

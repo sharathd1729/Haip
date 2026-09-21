@@ -50,6 +50,8 @@ def list_conversations(
     channel: str = None,
     source: str = None,
     is_open: bool = None,
+    view: str | None = Query(None, pattern="^(needs_reply|unassigned|mine)$",
+                             description="Inbox filter chip: needs_reply | unassigned | mine"),
     sort: str = Query(default="smart", pattern="^(smart|recent|unread)$"),
     limit: int = Query(default=50, le=200),
     before: str | None = Query(None, description="ISO timestamp cursor (last_message_at) -- return conversations older than this, for 'load more'"),
@@ -72,6 +74,9 @@ def list_conversations(
         q = q.filter(or_(Conversation.source.is_(None), Conversation.source != "personal_bridge"))
     if is_open is not None:
         q = q.filter_by(is_open=is_open)
+    if view:
+        from app.services import inbox_service
+        q = inbox_service.apply_view(db, q, current_user.tenant_id, view, current_user.id)
     if before:
         # last_message_at is a String column (not DateTime) -- compare the
         # raw ISO string. Same-format ISO-8601 sorts lexicographically
@@ -114,6 +119,10 @@ def list_conversations(
         row.conversation_id: (row.direction.value if hasattr(row.direction, "value") else str(row.direction)) == "inbound"
         for row in latest_rows
     }
+    from app.services import inbox_service
+    channels_by_guest = inbox_service.guest_channels(
+        db, current_user.tenant_id, [c.guest_id for c in conversations],
+    )
 
     # HAIP Inbox full-parity pass, ticket 1: a call never created a Message
     # row, so a guest's most recent touchpoint being a call (rather than a
@@ -262,8 +271,23 @@ def list_conversations(
                 out.stage_key, out.stage_label = stage_by_id[c.inquiry.stage_id]
             out.sla_status = _sla_status(c.inquiry)
         out.has_phone_decline_alert = c.id in phone_decline_conv_ids
+        out.guest_channels = channels_by_guest.get(c.guest_id, [])
+        if out.is_waiting_reply:
+            out.waiting_since = _parse_dt(msg_time_by_conv.get(c.id))
+        out.ai_enabled = (c.ai_mode or "").lower() != "off"
         result.append(out)
     return result
+
+
+@router.get("/counts")
+def conversation_counts(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Counts for the Inbox filter chips, over the whole inbox -- the list
+    itself is paginated, so counting client-side undercounted."""
+    from app.services import inbox_service
+    return inbox_service.view_counts(db, current_user.tenant_id, current_user.id)
 
 
 def _iso(val) -> "str | None":
@@ -728,8 +752,20 @@ def update_conversation(
         conv.is_open = bool(body["is_open"])
     if "assigned_to" in body:
         conv.assigned_to = body["assigned_to"]
+    if "ai_enabled" in body:
+        # Pause/resume the AI for this one guest. "off" is the only
+        # per-conversation value ai_mode_service.resolve_mode honours; any
+        # other value defers to the tenant's channel default again.
+        if not isinstance(body["ai_enabled"], bool):
+            raise HTTPException(status_code=422, detail="ai_enabled must be true or false")
+        conv.ai_mode = "shadow" if body["ai_enabled"] else "off"
+        log.info("conversation_ai_toggled", conversation_id=conv.id, tenant_id=current_user.tenant_id,
+                 actor_user_id=current_user.id, ai_enabled=body["ai_enabled"])
     db.commit()
-    return {"status": "updated", "is_open": conv.is_open, "assigned_to": conv.assigned_to}
+    return {
+        "status": "updated", "is_open": conv.is_open, "assigned_to": conv.assigned_to,
+        "ai_enabled": (conv.ai_mode or "").lower() != "off",
+    }
 
 
 @router.post("/{conversation_id}/snooze")
@@ -889,6 +925,9 @@ def get_conversation_detail(
         if phone_decline_task_row else None
     )
 
+    from app.services import inbox_service
+    guest_channels = inbox_service.guest_channels(db, current_user.tenant_id, [conv.guest_id]).get(conv.guest_id, [])
+
     return {
         "id": conv.id,
         "guest_id": conv.guest_id,
@@ -903,6 +942,11 @@ def get_conversation_detail(
         "total_messages": total_messages,
         "messages_capped": total_messages > len(messages),
         "phone_decline_task": phone_decline_task,
+        # Inbox redesign: header shows every channel the guest used, the
+        # per-conversation AI switch and the owner.
+        "guest_channels": guest_channels,
+        "ai_enabled": (conv.ai_mode or "").lower() != "off",
+        "assigned_to": conv.assigned_to,
     }
 
 

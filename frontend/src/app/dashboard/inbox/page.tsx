@@ -4,14 +4,14 @@ import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { Send, Sparkles, Loader2, BellOff, Search, X, StickyNote, Reply, ChevronDown, ChevronLeft, ChevronRight, CalendarClock, Timer, AlertTriangle, LayoutTemplate, Phone, Languages, Wand2, User } from "@/lib/icons";
+import { Send, Sparkles, Loader2, BellOff, Search, X, StickyNote, Reply, ChevronDown, ChevronLeft, ChevronRight, CalendarClock, Timer, AlertTriangle, LayoutTemplate, Phone, Languages, Wand2, User, Check } from "@/lib/icons";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
-import { ConversationList } from "@/components/inbox/ConversationList";
+import { ConversationList, type InboxView } from "@/components/inbox/ConversationList";
+import { TalkedOn, ChannelBadge, toGuestChannel } from "@/components/inbox/ChannelBadges";
 import { MessageBubble } from "@/components/inbox/MessageBubble";
 import { SavedReplyMenu } from "@/components/inbox/SavedReplyMenu";
-import { AIDraftPanel } from "@/components/inbox/AIDraftPanel";
 import { PhoneDeclineCallout } from "@/components/inbox/PhoneDeclineCallout";
 import { TypingDots } from "@/components/inbox/TypingDots";
 import { ChannelIcon, channelLabel } from "@/components/inbox/ChannelIcon";
@@ -21,7 +21,7 @@ import { CallLogCard, type CallTimelineItem } from "@/components/inbox/CallLogCa
 import type { RecommendedAction } from "@/components/ai/AIRecommendationCard";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useInboxStore } from "@/store/inbox";
+import { useInboxStore, type GuestChannel } from "@/store/inbox";
 import { useAutoGrow } from "@/hooks/useAutoGrow";
 import { useToast } from "@/components/ui/toast";
 import { usePresence } from "@/hooks/usePresence";
@@ -35,6 +35,7 @@ const TemplatePickerModal = dynamic(
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Message {
+  channel?: string;  // whatsapp | instagram | ... -- shown as an icon on guest messages
   id: string;
   text: string;
   direction: "inbound" | "outbound";
@@ -74,6 +75,11 @@ interface ConversationDetail {
   // for this conversation, if any (see backend concierge_draft.py's
   // _maybe_alert_phone_decline).
   phone_decline_task?: { id: string; title: string } | null;
+  // Inbox redesign: every channel the guest has used, the per-conversation
+  // AI switch, and the owner.
+  guest_channels?: GuestChannel[];
+  ai_enabled?: boolean;
+  assigned_to?: string | null;
 }
 
 // HAIP Inbox prototype-wiring plan, ticket 2/5: the call side of the merged
@@ -127,105 +133,6 @@ const CHANNEL_FILTERS = [
   { value: "personal_whatsapp", label: "Personal WhatsApp" },
 ];
 
-// ─── M1: Channel filter row with scroll-fade ──────────────────────────────────
-
-function ChannelFilterRow({
-  filters,
-  value,
-  onChange,
-}: {
-  filters: { value: string; label: string }[];
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [canScrollRight, setCanScrollRight] = useState(false);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-
-  function updateFades() {
-    const el = scrollRef.current;
-    if (!el) return;
-    setCanScrollLeft(el.scrollLeft > 4);
-    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
-  }
-
-  useEffect(() => {
-    updateFades();
-    const el = scrollRef.current;
-    if (!el) return;
-    el.addEventListener("scroll", updateFades, { passive: true });
-    // Recompute on resize too -- filters.length can push this from
-    // non-overflowing to overflowing (or back) as the panel resizes.
-    window.addEventListener("resize", updateFades);
-    return () => {
-      el.removeEventListener("scroll", updateFades);
-      window.removeEventListener("resize", updateFades);
-    };
-  }, []);
-
-  // Real bug, reported live: the fade gradients were the only "there's
-  // more" signal, and the scroll container itself hides its native
-  // scrollbar (scrollbar-hide) -- on a plain mouse with no trackpad/touch,
-  // there was no discoverable, clickable way to actually scroll this row
-  // at all. These buttons are that control.
-  function scrollByAmount(direction: 1 | -1) {
-    scrollRef.current?.scrollBy({ left: direction * 140, behavior: "smooth" });
-  }
-
-  return (
-    <div className="relative">
-      {canScrollLeft && (
-        <>
-          <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-6 z-10"
-            style={{ background: "linear-gradient(to right, var(--haip-card), transparent)" }} />
-          <button
-            type="button"
-            aria-label="Scroll channel filters left"
-            onClick={() => scrollByAmount(-1)}
-            className="absolute left-0 top-1/2 -translate-y-1/2 z-20 flex items-center justify-center w-6 h-6 rounded-full"
-            style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", color: "var(--haip-fg-muted)" }}
-          >
-            <ChevronLeft className="w-3.5 h-3.5" />
-          </button>
-        </>
-      )}
-      {canScrollRight && (
-        <>
-          <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 z-10"
-            style={{ background: "linear-gradient(to left, var(--haip-card), transparent)" }} />
-          <button
-            type="button"
-            aria-label="Scroll channel filters right"
-            onClick={() => scrollByAmount(1)}
-            className="absolute right-0 top-1/2 -translate-y-1/2 z-20 flex items-center justify-center w-6 h-6 rounded-full"
-            style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", color: "var(--haip-fg-muted)" }}
-          >
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-        </>
-      )}
-      <div
-        ref={scrollRef}
-        className="flex gap-1 overflow-x-auto scrollbar-hide"
-        style={{ WebkitOverflowScrolling: "touch" }}
-      >
-        {filters.map(f => (
-          <button
-            key={f.value}
-            onClick={() => onChange(f.value)}
-            className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors duration-150 min-h-[36px] min-w-[40px]"
-            style={value === f.value
-              ? { background: "var(--primary)", color: "var(--primary-foreground)" }
-              : { color: "var(--haip-fg-muted)" }}
-          >
-            {f.value && <ChannelIcon channel={f.value} className="w-3.5 h-3.5" />}
-            {f.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -268,6 +175,9 @@ function InboxPageInner() {
   const [showGuestSheet, setShowGuestSheet] = useState(false);
 
   const [channelFilter, setChannelFilter] = useState("");
+  // Filter chip (Needs reply / Unassigned / Mine / All) -- applied
+  // server-side, so it covers the whole inbox, not just the loaded page.
+  const [inboxView, setInboxView] = useState<InboxView>("");
   const [replyText, setReplyText] = useState("");
   const [aiTyping, setAiTyping] = useState(false);
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
@@ -368,24 +278,37 @@ function InboxPageInner() {
     hasNextPage: hasMoreFilteredConversations,
     isFetchingNextPage: isLoadingMoreFilteredConversations,
   } = useInfiniteQuery({
-    queryKey: ["conversations", channelFilter],
+    queryKey: ["conversations", channelFilter, inboxView],
     queryFn: ({ pageParam }: { pageParam?: string }) =>
       api.get("/conversations", {
-        params: { limit: CONVERSATION_PAGE_SIZE, ...channelQueryParams(channelFilter), ...(pageParam ? { before: pageParam } : {}) },
+        params: {
+          limit: CONVERSATION_PAGE_SIZE,
+          ...(channelFilter ? channelQueryParams(channelFilter) : {}),
+          ...(inboxView ? { view: inboxView } : {}),
+          ...(pageParam ? { before: pageParam } : {}),
+        },
       }).then(r => r.data as any[]),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) =>
       lastPage.length === CONVERSATION_PAGE_SIZE
         ? lastPage[lastPage.length - 1]?.last_message_at
         : undefined,
-    enabled: !!channelFilter,
+    enabled: !!channelFilter || !!inboxView,
     staleTime: 30_000,
   });
 
-  const listLoading = channelFilter ? filteredListLoading : allListLoading;
-  const fetchNextConversationPage = channelFilter ? fetchNextFilteredPage : fetchNextAllPage;
-  const hasMoreConversations = channelFilter ? hasMoreFilteredConversations : hasMoreAllConversations;
-  const isLoadingMoreConversations = channelFilter ? isLoadingMoreFilteredConversations : isLoadingMoreAllConversations;
+  const scopedFeed = !!channelFilter || !!inboxView;
+  const { data: viewCounts } = useQuery<{ needs_reply: number; unassigned: number; mine: number }>({
+    queryKey: ["conversations", "counts"],
+    queryFn: () => api.get("/conversations/counts").then(r => r.data),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+
+  const listLoading = scopedFeed ? filteredListLoading : allListLoading;
+  const fetchNextConversationPage = scopedFeed ? fetchNextFilteredPage : fetchNextAllPage;
+  const hasMoreConversations = scopedFeed ? hasMoreFilteredConversations : hasMoreAllConversations;
+  const isLoadingMoreConversations = scopedFeed ? isLoadingMoreFilteredConversations : isLoadingMoreAllConversations;
 
   // HOTFIX (production incident): .flat() on every render produced a new
   // array reference each time even when the underlying pages hadn't
@@ -403,7 +326,7 @@ function InboxPageInner() {
     () => filteredConversationPages?.pages.flat(),
     [filteredConversationPages]
   );
-  const displayConversations = channelFilter ? filteredConversationData : allConversationData;
+  const displayConversations = scopedFeed ? filteredConversationData : allConversationData;
 
   // onSuccess was removed in TanStack Query v5 — use useEffect to sync store.
   // Always synced from the unfiltered feed, never the channel-scoped one, so
@@ -635,6 +558,37 @@ function InboxPageInner() {
     },
   });
 
+  // Header actions (Inbox redesign): pause/resume AI for this guest, change
+  // owner, resolve. All go through PATCH /conversations/{id}.
+  const patchConversation = (body: Record<string, unknown>) =>
+    api.patch(`/conversations/${activeConversationId}`, body).then(r => r.data);
+  const refreshConversation = () => {
+    queryClient.invalidateQueries({ queryKey: ["conversation", activeConversationId] });
+    queryClient.invalidateQueries({ queryKey: ["conversations"] });
+  };
+  const patchError = (title: string) => (e: unknown) => {
+    const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+    toast({ variant: "error", title, description: typeof msg === "string" ? msg : "Please try again." });
+  };
+  const aiToggleMutation = useMutation({
+    mutationFn: (ai_enabled: boolean) => patchConversation({ ai_enabled }),
+    onSuccess: (_, on) => {
+      refreshConversation();
+      toast({ variant: "success", title: on ? "AI replies resumed" : "AI paused for this guest" });
+    },
+    onError: patchError("Couldn't change AI replies"),
+  });
+  const assignMutation = useMutation({
+    mutationFn: (assigned_to: string | null) => patchConversation({ assigned_to }),
+    onSuccess: () => { refreshConversation(); toast({ variant: "success", title: "Owner updated" }); },
+    onError: patchError("Couldn't change owner"),
+  });
+  const resolveMutation = useMutation({
+    mutationFn: () => patchConversation({ is_open: false }),
+    onSuccess: () => { refreshConversation(); toast({ variant: "success", title: "Marked resolved" }); },
+    onError: patchError("Couldn't resolve"),
+  });
+
   // W14: snooze
   const snoozeMutation = useMutation({
     mutationFn: (snooze_until: string | null) =>
@@ -810,7 +764,7 @@ function InboxPageInner() {
         "flex-col bg-card",
         "border-r",
         mobileView === "list" ? "flex w-full" : "hidden",
-        "md:flex md:w-[280px] md:flex-shrink-0",
+        "md:flex md:w-[340px] md:flex-shrink-0",
       )}
         style={{ borderColor: "var(--haip-border)" }}
       >
@@ -858,32 +812,17 @@ function InboxPageInner() {
           </div>
         )}
 
-        {/* M1: channel filter with scroll-fade on overflow */}
-        <div className="px-3 py-2.5" style={{ borderBottom: "1px solid var(--haip-border)" }}>
-          <ChannelFilterRow
-            filters={CHANNEL_FILTERS}
-            value={channelFilter}
-            onChange={setChannelFilter}
-          />
-        </div>
-
-        {listLoading ? (
-          <div className="flex-1 divide-y" style={{ borderColor: "var(--haip-border)" }}>
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="px-4 py-3.5 flex gap-3">
-                <Skeleton className="w-9 h-9 rounded-full flex-shrink-0" />
-                <div className="flex-1 space-y-2">
-                  <Skeleton className="h-3 w-28" /><Skeleton className="h-2.5 w-40" />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <ConversationList
-            conversations={displayConversations ?? conversations}
+        <ConversationList
+            conversations={displayConversations ?? (scopedFeed ? [] : conversations)}
+            isLoading={listLoading}
             activeId={activeConversationId}
             onSelect={id => { setActiveConversation(id); setMobileView("thread"); }}
-            channelFilter={channelFilter || undefined}
+            view={inboxView}
+            onViewChange={setInboxView}
+            counts={viewCounts}
+            channelFilter={channelFilter}
+            channelOptions={CHANNEL_FILTERS}
+            onChannelChange={setChannelFilter}
             className="flex-1"
             onBulkResolve={ids => {
               // W13: resolve multiple conversations
@@ -902,11 +841,9 @@ function InboxPageInner() {
             }}
             onLoadMore={hasMoreConversations ? () => fetchNextConversationPage() : undefined}
             isLoadingMore={isLoadingMoreConversations}
-            currentUserId={currentUserId}
             onCall={guestNumber => clickToCallMutation.mutate(guestNumber)}
             callingNumber={clickToCallMutation.isPending ? (clickToCallMutation.variables ?? null) : null}
           />
-        )}
       </div>
 
       {/* Center: message thread — full-width on mobile when mobileView==="thread" */}
@@ -937,94 +874,124 @@ function InboxPageInner() {
               </button>
               {detail ? (
                 <>
-                  <div
-                    className="ibx-avatar"
-                    style={{ width: 32, height: 32, fontSize: 13 }}
-                  >
+                  <div className="ibx-avatar flex-shrink-0" style={{ width: 36, height: 36, fontSize: 14 }}>
                     {detail.guest_name?.[0]?.toUpperCase() ?? "?"}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold truncate" style={{ color: "var(--haip-fg)" }}>{detail.guest_name || detail.guest_phone}</div>
-                    <div className="flex items-center gap-1.5 md:flex-wrap">
-                      <ChannelIcon channel={detail.channel} className="w-4 h-4" />
-                      <span className="hidden md:inline text-xs" style={{ color: "var(--haip-fg-subtle)" }}>{channelLabel(detail.channel)}</span>
-                      <Badge variant={detail.status === "open" ? "success" : "ghost"} className="text-[10px] py-0 h-4">{detail.status}</Badge>
-                      {/* HAIP Inbox full-parity pass, ticket 5: completeness
-                          pill -- real data (not a fake "convert to lead"
-                          action like the prototype's pill), scrolls to the
-                          existing ProfileCompletenessWidget on click.
-                          Mobile: dropped from the header row (it wrapped the
-                          header to 4-5 lines) -- same % is already shown in
-                          the ProfileCompletenessWidget footer below. */}
-                      {threadLeadDetail?.profile_completeness_pct != null && (
-                        <button
-                          type="button"
-                          onClick={() => document.getElementById("profile-completeness-widget")?.scrollIntoView({ behavior: "smooth", block: "center" })}
-                          title="Jump to profile completeness"
-                          className="hidden md:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold transition-colors hover:opacity-80"
-                          style={{ background: "color-mix(in srgb, var(--primary) 10%, transparent)", color: "var(--primary)" }}
-                        >
-                          {threadLeadDetail.profile_completeness_pct}% complete
-                        </button>
-                      )}
-                      {/* D9: WhatsApp 24h service window indicator -- desktop only, same reasoning as above */}
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-[15px] font-bold truncate" style={{ color: "var(--haip-fg)" }}>{detail.guest_name || detail.guest_phone}</span>
+                      {/* Messaging-window countdown (official WhatsApp only -- the one channel that enforces it here) */}
                       {isOfficialWhatsApp && detail.last_inbound_at && (
                         windowOpen ? (
-                          <span
-                            className="hidden md:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium"
-                            style={{
-                              background: "color-mix(in srgb, var(--haip-green) 10%, transparent)",
-                              border: "1px solid color-mix(in srgb, var(--haip-green) 30%, transparent)",
-                              color: "var(--haip-green)",
-                            }}
-                          >
-                            <Timer size={9} />
-                            {/* suppress lint: windowTick used to trigger re-render on tick */}
-                            Service window: {formatWindowCountdown(getWindowSecondsLeft(detail.last_inbound_at))}
+                          <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 flex-shrink-0">
+                            <Timer size={10} />
+                            {formatWindowCountdown(getWindowSecondsLeft(detail.last_inbound_at))} to reply
                           </span>
                         ) : (
-                          <span
-                            className="hidden md:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium"
-                            style={{
-                              background: "color-mix(in srgb, var(--haip-amber) 10%, transparent)",
-                              border: "1px solid color-mix(in srgb, var(--haip-amber) 35%, transparent)",
-                              color: "var(--haip-amber)",
-                            }}
-                          >
-                            <AlertTriangle size={9} />
-                            Template required
+                          <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 flex-shrink-0">
+                            <AlertTriangle size={10} /> Template required
                           </span>
                         )
                       )}
                     </div>
+                    <div className="mt-0.5">
+                      {/* Every channel this guest has talked to us on */}
+                      <TalkedOn
+                        size={14}
+                        channels={detail.guest_channels?.length
+                          ? detail.guest_channels
+                          : (toGuestChannel(detail.channel) ? [toGuestChannel(detail.channel)!] : [])}
+                      />
+                    </div>
                   </div>
-                  {/* Guest 360 -- desktop shows it as a permanent right panel
-                      (GuestPanel is `hidden md:flex`); mobile opens it as a
-                      sheet since there's no room for a third panel. */}
+
+                  {/* Pause / resume the AI for this one guest */}
+                  <button
+                    type="button"
+                    onClick={() => aiToggleMutation.mutate(!(detail.ai_enabled ?? true))}
+                    disabled={aiToggleMutation.isPending}
+                    role="switch"
+                    aria-checked={detail.ai_enabled ?? true}
+                    title={(detail.ai_enabled ?? true) ? "AI is replying to this guest -- click to pause" : "AI is paused for this guest -- click to resume"}
+                    className={cn(
+                      "hidden sm:inline-flex items-center gap-2 text-xs font-bold px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-60",
+                      (detail.ai_enabled ?? true) ? "bg-teal-50 text-teal-800" : "bg-gray-100 text-gray-600",
+                    )}
+                  >
+                    <span className={cn("relative w-7 h-4 rounded-full transition-colors", (detail.ai_enabled ?? true) ? "bg-teal-600" : "bg-gray-300")}>
+                      <span className={cn("absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all", (detail.ai_enabled ?? true) ? "left-3.5" : "left-0.5")} />
+                    </span>
+                    AI replies
+                  </button>
+
+                  {/* Owner */}
+                  <select
+                    value={detail.assigned_to ?? ""}
+                    onChange={e => assignMutation.mutate(e.target.value || null)}
+                    aria-label="Owner"
+                    className="hidden md:block text-xs font-semibold px-2 py-1.5 rounded-lg border outline-none max-w-[140px]"
+                    style={{ borderColor: "var(--haip-border)", background: "var(--haip-card)", color: "var(--haip-fg)" }}
+                  >
+                    <option value="">Unassigned</option>
+                    {(teamMembers as any[]).map((u: any) => (
+                      <option key={u.id} value={u.id}>{u.id === currentUserId ? `${u.name} (me)` : u.name}</option>
+                    ))}
+                  </select>
+
+                  {/* Call -- IVR click-to-call: the agent's phone rings, then bridges to the guest */}
+                  {detail.guest_phone && (
+                    <button
+                      type="button"
+                      onClick={() => clickToCallMutation.mutate(detail.guest_phone)}
+                      disabled={clickToCallMutation.isPending}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-teal-700 text-white hover:bg-teal-800 disabled:opacity-60 flex-shrink-0"
+                    >
+                      {clickToCallMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Phone size={13} />}
+                      Call
+                    </button>
+                  )}
+
+                  {/* Resolve */}
+                  <button
+                    type="button"
+                    onClick={() => resolveMutation.mutate()}
+                    disabled={resolveMutation.isPending || detail.status === "resolved"}
+                    title={detail.status === "resolved" ? "Resolved" : "Mark resolved"}
+                    aria-label="Mark resolved"
+                    className="hidden sm:flex w-8 h-8 rounded-lg border items-center justify-center text-emerald-600 hover:bg-emerald-50 disabled:opacity-40"
+                    style={{ borderColor: "var(--haip-border)" }}
+                  >
+                    <Check size={15} />
+                  </button>
+
+                  {/* Guest 360 -- mobile opens it as a sheet */}
                   <button
                     onClick={() => setShowGuestSheet(true)}
                     className="md:hidden w-8 h-8 rounded-lg flex items-center justify-center transition-colors duration-150 hover:bg-muted"
                     style={{ color: "var(--haip-fg-subtle)" }}
-                    title="Guest 360"
+                    title="Guest details"
+                    aria-label="Guest details"
                   >
                     <User size={14} />
                   </button>
-                  {/* W17: search -- desktop only, mobile keeps the header to essentials */}
+                  {/* Search messages -- desktop */}
                   <button
                     onClick={() => setShowSearch(s => !s)}
                     className="hidden md:flex w-8 h-8 rounded-lg items-center justify-center transition-colors duration-150 hover:bg-muted"
                     style={{ color: "var(--haip-fg-subtle)" }}
                     title="Search messages"
+                    aria-label="Search messages"
                   >
                     <Search size={14} />
                   </button>
-                  {/* W14: snooze -- desktop only, same reasoning as search */}
+                  {/* Snooze -- desktop */}
                   <div className="relative hidden md:block">
                     <button
                       onClick={() => setShowSnooze(s => !s)}
                       className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors duration-150 hover:bg-muted"
                       style={{ color: "var(--haip-fg-subtle)" }}
                       title="Snooze conversation"
+                      aria-label="Snooze conversation"
                     >
                       <BellOff size={14} />
                     </button>
@@ -1032,7 +999,7 @@ function InboxPageInner() {
                       <div className="absolute top-full right-0 mt-1 z-20 rounded-xl shadow-md overflow-hidden w-44" style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)" }}>
                         {[
                           { label: "3 hours", hours: 3 },
-                          { label: "Tomorrow 9am", hours: 18 },
+                          { label: "Until tomorrow", hours: 18 },
                           { label: "Next week", hours: 168 },
                         ].map(opt => (
                           <button
@@ -1054,19 +1021,6 @@ function InboxPageInner() {
                       </div>
                     )}
                   </div>
-                  <button
-                    onClick={() => draftMutation.mutate()}
-                    disabled={draftMutation.isPending || aiTyping}
-                    className="ibx-pill flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 transition-colors duration-150 disabled:opacity-50"
-                    style={{
-                      background: "var(--ibx-iris-soft)",
-                      border: "1px solid color-mix(in srgb, var(--ibx-iris) 30%, transparent)",
-                      color: "var(--ibx-iris)",
-                    }}
-                  >
-                    {draftMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                    <span className="hidden md:inline">AI draft</span>
-                  </button>
                 </>
               ) : <Skeleton className="h-6 w-48" />}
             </div>
@@ -1075,24 +1029,6 @@ function InboxPageInner() {
                 position as the approved mockup. */}
             {detail?.phone_decline_task && (
               <PhoneDeclineCallout conversationId={detail.id} task={detail.phone_decline_task} />
-            )}
-
-            {/* W7: AI tone strip */}
-            {(conversations.find(c => c.id === activeConversationId)?.has_ai_draft || aiTyping) && (
-              <div className="px-4 py-2 flex-shrink-0" style={{ borderBottom: "1px solid var(--haip-border)", background: "color-mix(in srgb, var(--primary) 4%, transparent)" }}>
-                <AIDraftPanel
-                  tone={aiTone}
-                  onToneChange={setAiTone}
-                  onRegenerate={() => draftMutation.mutate()}
-                  isPending={draftMutation.isPending || aiTyping}
-                  hasDraft={true}
-                  rejectedCount={rejectedDrafts.length}
-                  onRecallRejected={() => {
-                    const last = rejectedDrafts[rejectedDrafts.length - 1];
-                    if (last) { setReplyText(last); setRejectedDrafts(p => p.slice(0, -1)); }
-                  }}
-                />
-              </div>
             )}
 
             {/* HAIP Inbox UI-fidelity pass, ticket 5: pinned-inquiry banner
@@ -1242,6 +1178,7 @@ function InboxPageInner() {
                         isInternal={row.msg.is_internal}
                         aiConfidence={row.msg.ai_confidence}
                         senderName={row.msg.direction === "outbound" ? row.msg.sender_name : (detail?.guest_name || detail?.guest_phone)}
+                        channel={row.msg.channel}
                         mediaUrl={row.msg.media_url}
                         mediaType={row.msg.media_type}
                         sharedPostUrl={row.msg.shared_post_url}
@@ -1590,7 +1527,15 @@ function InboxPageInner() {
                 </div>
               </div>
               {/* W2: helper text */}
-              <p className="text-[10px] mt-1 px-1" style={{ color: "var(--haip-fg-subtle)" }}>
+              <p className="text-[10px] mt-1 px-1 flex items-center gap-1.5" style={{ color: "var(--haip-fg-subtle)" }}>
+                {/* Which channel a reply goes out on -- matters once a guest
+                    has talked to us on more than one. */}
+                {!isInternalNote && detail && toGuestChannel(detail.channel) && (
+                  <span className="inline-flex items-center gap-1 font-semibold" style={{ color: "var(--haip-fg-muted)" }}>
+                    <ChannelBadge channel={toGuestChannel(detail.channel)!} size={12} />
+                    Replying on {channelLabel(detail.channel)} ·
+                  </span>
+                )}
                 {isInternalNote
                   ? "Esc to cancel · Enter to save note"
                   : scheduledFor

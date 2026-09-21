@@ -1,6 +1,5 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
-import { Calendar, Users, Wallet, Flame } from "@/lib/icons";
 import api from "@/lib/api";
 
 /**
@@ -36,43 +35,39 @@ export function PinnedInquiryBanner({ inquiryId }: { inquiryId: string | null })
 
   if (!inquiryId || !lead) return null;
 
+  // Inbox redesign "trip bar": one slim row with what the agent needs to
+  // quote -- missing details shown in amber so the next question is obvious.
+  // Profile completeness is no longer repeated here (it lives in the guest
+  // panel).
   const dateRange = lead.check_in
-    ? `${formatDate(lead.check_in)}${lead.check_out ? ` → ${formatDate(lead.check_out)}` : ""}`
+    ? `${formatDate(lead.check_in)}${lead.check_out ? ` – ${formatDate(lead.check_out)}` : ""}`
     : null;
   const guestCount = lead.adults != null
-    ? `${lead.adults} adult${lead.adults === 1 ? "" : "s"}${lead.children ? ` + ${lead.children} kids` : ""}`
+    ? `${lead.adults} adult${lead.adults === 1 ? "" : "s"}${lead.children ? ` · ${lead.children} kid${lead.children === 1 ? "" : "s"}` : ""}`
     : null;
   const budget = lead.budget_estimate != null
-    ? `${lead.budget_currency ?? "INR"} ${lead.budget_estimate.toLocaleString("en-IN")}`
+    ? `₹${lead.budget_estimate.toLocaleString("en-IN")}`
     : null;
 
-  if (!dateRange && !guestCount && !budget && lead.profile_completeness_pct == null) return null;
+  const facts: [string, string | null][] = [
+    ["Guests", guestCount],
+    ["Dates", dateRange],
+    ["Budget", budget],
+  ];
 
   return (
     <div
-      className="px-3 md:px-5 py-1.5 flex items-center gap-3 md:gap-4 flex-wrap text-[11px] flex-shrink-0"
-      style={{ borderBottom: "1px solid var(--haip-border)", background: "color-mix(in srgb, var(--primary) 5%, transparent)" }}
+      className="px-3 md:px-5 py-2 flex items-center gap-x-5 gap-y-1 flex-wrap text-xs flex-shrink-0"
+      style={{ borderBottom: "1px solid var(--haip-border)", background: "var(--haip-card)" }}
     >
-      {dateRange && (
-        <span className="flex items-center gap-1" style={{ color: "var(--haip-fg-muted)" }}>
-          <Calendar size={11} style={{ color: "var(--primary)" }} />{dateRange}
+      {facts.map(([label, value]) => (
+        <span key={label} className="inline-flex items-baseline gap-1.5">
+          <span style={{ color: "var(--haip-fg-subtle)" }}>{label}</span>
+          {value
+            ? <span className="font-semibold" style={{ color: "var(--haip-fg)" }}>{value}</span>
+            : <span className="font-semibold text-amber-700">Not shared</span>}
         </span>
-      )}
-      {guestCount && (
-        <span className="flex items-center gap-1" style={{ color: "var(--haip-fg-muted)" }}>
-          <Users size={11} style={{ color: "var(--primary)" }} />{guestCount}
-        </span>
-      )}
-      {budget && (
-        <span className="flex items-center gap-1" style={{ color: "var(--haip-fg-muted)" }}>
-          <Wallet size={11} style={{ color: "var(--primary)" }} />{budget}
-        </span>
-      )}
-      {lead.profile_completeness_pct != null && (
-        <span className="ml-auto flex items-center gap-1 font-semibold" style={{ color: "var(--primary)" }}>
-          <Flame size={11} />{lead.profile_completeness_pct}%
-        </span>
-      )}
+      ))}
     </div>
   );
 }

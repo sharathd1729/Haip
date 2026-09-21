@@ -59,6 +59,14 @@ class ConversationOut(BaseModel):
     # exists for this conversation (see concierge_draft.py's
     # _maybe_alert_phone_decline) -- drives the red list badge.
     has_phone_decline_alert: bool = False
+    # Inbox redesign: every channel this guest has talked to us on
+    # ("instagram" | "whatsapp" | "call"), drawn as icons under the avatar.
+    guest_channels: List[str] = []
+    # When the guest's unanswered message arrived -- drives "Waiting 12m".
+    waiting_since: Optional[datetime] = None
+    # False when an agent paused the AI for this one conversation
+    # (ai_mode == "off"; ai_mode_service.resolve_mode honours it first).
+    ai_enabled: bool = True
 
     class Config:
         from_attributes = True
