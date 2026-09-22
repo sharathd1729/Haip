@@ -21,9 +21,10 @@ const STATIC_CACHE_NAME = 'haip-static-__BUILD_ID__';
 const PRECACHE = [
   '/offline',
   '/manifest.json',
-  '/icon.svg',
-  '/icon-maskable.svg',
-  '/app-icon.png',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/icon-maskable-512.png',
+  '/badge-96.png',
 ];
 
 self.addEventListener('install', (event) => {
@@ -124,8 +125,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title || 'HAIP', {
       body: data.body || 'You have a new message',
-      icon: '/icon.svg',
-      badge: '/icon.svg',
+      icon: '/icon-192.png',
+      badge: '/badge-96.png',
       tag: data.tag || 'haip-notification',
       data: { url: data.url || '/dashboard/inbox' },
       actions: [

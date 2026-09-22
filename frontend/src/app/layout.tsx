@@ -62,9 +62,15 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: false,
   },
+  // Square HAIP app mark for tabs, bookmarks and home screens. (The wordmark,
+  // logo.png, is unreadable at 16px.) src/app/favicon.ico is the same mark --
+  // it replaced the stock Next.js/Vercel triangle.
   icons: {
-    icon: "/logo.png",
-    apple: "/logo.png",
+    icon: [
+      { url: "/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/icon-512.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: { url: "/apple-touch-icon.png", sizes: "180x180" },
   },
 };
 
