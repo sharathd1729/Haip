@@ -11,8 +11,6 @@ export interface WorkspaceContext {
   flags: Record<string, boolean>;
   plan: string;
   business_type: BusinessType | null;
-  available_metrics: { key: string; name: string; module: string; unit?: string }[];
-  available_widgets: { key: string; name: string; category: string; available: boolean }[];
 }
 
 const Ctx = createContext<WorkspaceContext | null>(null);

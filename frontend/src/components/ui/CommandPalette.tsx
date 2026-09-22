@@ -25,7 +25,7 @@ const PAGES = [
   // being rebuilt from scratch.
   { id: "inbox",        label: "Inbox",              href: "/dashboard/inbox",            icon: <Inbox size={14} />,            group: "Pages" },
   { id: "calls",        label: "Calls",              href: "/dashboard/calls",            icon: <Phone size={14} />,            group: "Pages" },
-  { id: "inquiries",    label: "Inquiries",          href: "/dashboard/inquiries",        icon: <FileText size={14} />,         group: "Pages" },
+  { id: "leads",        label: "Leads",              href: "/dashboard/leads",            icon: <FileText size={14} />,         group: "Pages" },
   { id: "guests",       label: "Guests",             href: "/dashboard/guests",           icon: <Users size={14} />,            group: "Pages" },
   { id: "properties",   label: "Properties",         href: "/dashboard/properties",       icon: <Building2 size={14} />,        group: "Pages" },
   { id: "qa",           label: "QA Scores",          href: "/dashboard/qa",               icon: <BarChart2 size={14} />,        group: "Pages" },
@@ -39,7 +39,7 @@ const PAGES = [
 ];
 
 const ACTIONS = [
-  { id: "new-inquiry",  label: "New inquiry",        href: "/dashboard/inquiries",        icon: <FileText size={14} />,         group: "Actions" },
+  { id: "new-inquiry",  label: "New lead",           href: "/dashboard/leads",            icon: <FileText size={14} />,         group: "Actions" },
   { id: "invite-team",  label: "Invite teammate",    href: "/dashboard/settings/team",    icon: <Users size={14} />,            group: "Actions" },
   { id: "new-template", label: "New saved reply",    href: "/dashboard/settings/saved-replies", icon: <MessageSquare size={14} />, group: "Actions" },
   { id: "connect-wa",   label: "Connect WhatsApp",   href: "/dashboard/settings/integrations", icon: <MessageSquare size={14} />, group: "Actions" },

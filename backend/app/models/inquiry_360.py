@@ -66,23 +66,3 @@ class PropertyLinkType(str, enum.Enum):
     BOOKED      = "booked"
 
 
-class InquiryPropertyLink(Base, TimestampMixin, TenantMixin):
-    """
-    Properties discussed, shared, or booked within an inquiry context.
-    tracking_token links to property_share_events for attribution.
-    """
-    __tablename__ = "inquiry_property_links"
-
-    id             = Column(String, primary_key=True, default=gen_uuid)
-    tenant_id      = Column(String, nullable=False, index=True)
-    inquiry_id     = Column(String, ForeignKey("inquiries.id"), nullable=False, index=True)
-    property_id    = Column(String, ForeignKey("properties.id"), nullable=False, index=True)
-
-    link_type      = Column(String(20), default=PropertyLinkType.PROPOSED, nullable=False)
-    tracking_token = Column(String(64), nullable=True, index=True)  # FK → property share events
-    linked_at      = Column(DateTime(timezone=True), nullable=True)
-
-    __table_args__ = (
-        Index("ix_inquiry_property_links_inquiry", "inquiry_id"),
-        Index("ix_inquiry_property_links_token", "tracking_token"),
-    )

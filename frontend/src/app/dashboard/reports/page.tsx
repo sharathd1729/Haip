@@ -230,12 +230,6 @@ export default function ReportsPage() {
               Build custom data exports — choose a report type, set the date range, pick columns, then download as CSV or JSON.
             </p>
           </div>
-          <a
-            href="/dashboard/reports/analytics"
-            className="text-xs font-medium text-teal-600 hover:underline whitespace-nowrap"
-          >
-            View chart analytics →
-          </a>
         </div>
 
         {/* Step tracker */}

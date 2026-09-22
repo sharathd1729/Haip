@@ -149,18 +149,3 @@ def test_occupancy_summary_empty_portfolio(db):
     assert resp["summary"]["avg_occupancy_pct"] == 0
     assert len(resp["daily"]) == 3
 
-
-def test_lead_vs_conversation_widget_counts_leads(db):
-    from app.services.widget_service import build_widget_data
-
-    tenant = _make_tenant(db)
-    guest = _make_guest(db, tenant.id)
-    today = datetime.now(timezone.utc)
-    _make_inquiry(db, tenant.id, guest.id, InquirySource.WA_DIRECT, created_at=today)
-    _make_inquiry(db, tenant.id, guest.id, InquirySource.WA_DIRECT, created_at=today)
-    db.commit()
-
-    data, summary = build_widget_data(db, tenant, "lead_vs_conversation", range_days=30)
-    assert data is not None
-    assert data["total_leads"] == 2
-    assert "leads" in summary

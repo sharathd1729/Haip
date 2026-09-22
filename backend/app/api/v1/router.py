@@ -1,8 +1,8 @@
 from fastapi import APIRouter
 from app.api.v1.endpoints import (
-    auth, calls, dashboard, workspace_context,
+    auth, calls, workspace_context,
     tenants, users, guests, inquiries, conversations, properties,
-    qa, integrations, analytics, analytics_executive, analytics_sections, analytics_intelligence, analytics_forecasting, instagram_insights, ask_haip, audit, sse, messaging, reports, saved_replies, saved_views,
+    qa, integrations, analytics, analytics_executive, instagram_insights, audit, sse, messaging, reports, saved_replies, saved_views,
     webhooks_callerdesk, webhooks_acefone, webhooks_mcube, webhooks_whatsapp, webhooks_instagram,
     webhooks_dograh, webhooks_vobiz, webhooks_whatsapp_personal,
     whatsapp_personal,
@@ -19,7 +19,6 @@ from app.api.v1.endpoints import (
     tasks,
     ivr,
     push,
-    dashboards, metrics, widgets_api, goals,
     dashboard_overview,
     knowledge,
     targets,
@@ -33,15 +32,10 @@ api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(auth.router)
 
 # Dashboard
-api_router.include_router(dashboard.router)
 api_router.include_router(dashboard_overview.router)
 api_router.include_router(workspace_context.router)
-api_router.include_router(dashboards.router)
-api_router.include_router(goals.router)
 
 # Metrics & Widgets catalogue
-api_router.include_router(metrics.router)
-api_router.include_router(widgets_api.router)
 
 # Core app
 api_router.include_router(tenants.router)
@@ -71,11 +65,7 @@ api_router.include_router(qa.router)
 api_router.include_router(analytics.router)
 api_router.include_router(reports.router)
 api_router.include_router(analytics_executive.router)
-api_router.include_router(analytics_sections.router)
-api_router.include_router(analytics_intelligence.router)
-api_router.include_router(analytics_forecasting.router)
 api_router.include_router(instagram_insights.router)
-api_router.include_router(ask_haip.router)
 
 # Integrations & compliance
 api_router.include_router(integrations.router)

@@ -55,7 +55,6 @@ _STRICT_PREFIXES = (
 _SEND_PREFIXES = (
     "/api/v1/conversations/",   # POST messages
     "/api/v1/messaging/",       # broadcasts
-    "/api/v1/analytics/ask/freeform",  # NL->SQL analyst -- LLM + DB query per request
 )
 
 # Routes to skip entirely (health checks, docs, and high-frequency polling)

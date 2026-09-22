@@ -76,7 +76,7 @@ const ACTION_COLORS: Record<string, string> = {
 const RESOURCE_LINKS: Record<string, string> = {
   guest:    "/dashboard/guests/",
   call:     "/dashboard/calls/",
-  inquiry:  "/dashboard/inquiries/",
+  inquiry:  "/dashboard/leads/",
   user:     "/dashboard/settings/team/",
 };
 

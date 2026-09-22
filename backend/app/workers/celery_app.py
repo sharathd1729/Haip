@@ -46,9 +46,7 @@ celery_app = Celery(
         # Phase 3: Intent classification
         "app.workers.tasks.classify_intent",
         # Phase 5: Report generation
-        "app.workers.tasks.generate_reports",
         # Phase 6: Alert monitoring
-        "app.workers.tasks.check_alerts",
         # Leads360: async AI summary generation
         "app.workers.tasks.generate_ai_summary",
         # AI concierge knowledge base: embedding pipeline
@@ -80,10 +78,7 @@ celery_app = Celery(
         # Dograh voice AI
         "app.workers.tasks.dograh_call_processor",
         # Adaptive dashboard widgets
-        "app.workers.tasks.generate_widgets",
         # Metric snapshots + goal evaluation (architecture diagram — Metrics Engine)
-        "app.workers.tasks.compute_snapshots",
-        "app.workers.tasks.evaluate_goals",
         # Cache invalidation (event-driven)
         "app.workers.tasks.invalidate_cache",
         # Module activation / deactivation
@@ -135,9 +130,6 @@ celery_app.conf.update(
         "app.workers.tasks.transcription.*":        {"queue": "transcription"},
         "app.workers.tasks.ai_scoring.*":           {"queue": "ai_scoring"},
         "app.workers.tasks.retention_purge.*":      {"queue": "call_ingest"},
-        "app.workers.tasks.generate_widgets.*":     {"queue": "ai_scoring"},
-        "app.workers.tasks.compute_snapshots.*":    {"queue": "ai_scoring"},
-        "app.workers.tasks.evaluate_goals.*":       {"queue": "ai_scoring"},
         "app.workers.tasks.invalidate_cache.*":     {"queue": "call_ingest"},
         "app.workers.tasks.module_activation.*":    {"queue": "call_ingest"},
         # Added 2026-08-16 -- both fell through every glob above with no
@@ -148,7 +140,6 @@ celery_app.conf.update(
         # never logged receiving either task. AI Insights stayed empty for
         # every tenant since the 2026-08-15 reactivation; alerts likewise.
         "app.workers.tasks.run_insights.*":         {"queue": "ai_scoring"},
-        "app.workers.tasks.check_alerts.*":         {"queue": "ai_scoring"},
         #
         # ── Exact-name routes for tasks registered with a short name ──────────
         # (no "app.workers.tasks." module-path prefix) — the glob patterns
@@ -178,7 +169,6 @@ celery_app.conf.update(
         "tasks.classify":                            {"queue": "ai_scoring"},
         "tasks.concierge_draft":                     {"queue": "whatsapp"},
         "tasks.dpdp_purge":                          {"queue": "call_ingest"},
-        "tasks.generate_widgets":                    {"queue": "ai_scoring"},
         "tasks.judge":                                {"queue": "ai_scoring"},
         "tasks.run_campaign":                        {"queue": "whatsapp"},
         "tasks.send_whatsapp":                       {"queue": "whatsapp"},
@@ -353,20 +343,8 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(hour=3, minute=0),
     },
     # Phase 5: Weekly digest — every Monday 08:00 IST
-    "weekly-digest-monday": {
-        "task": "app.workers.tasks.generate_reports.weekly_digest_all_tenants",
-        "schedule": crontab(hour=8, minute=0, day_of_week=1),
-    },
     # Phase 5: Monthly report — 1st of each month 07:00 IST
-    "monthly-report-first-of-month": {
-        "task": "app.workers.tasks.generate_reports.monthly_report_all_tenants",
-        "schedule": crontab(hour=7, minute=0, day_of_month=1),
-    },
     # Phase 6: Alert monitoring — every hour
-    "check-alerts-hourly": {
-        "task": "app.workers.tasks.check_alerts.check_all_tenants",
-        "schedule": crontab(minute=45),
-    },
     # Today (Worklist) AI Daily Briefing — every 30 min. Offset from
     # automation-timers-30min/sync-wa-templates-30min (same
     # spread-load-across-the-beat-cycle reasoning as sync-wa-templates-30min).
@@ -380,15 +358,12 @@ celery_app.conf.beat_schedule = {
     # rebuilt from scratch. Task code + underlying tables untouched;
     # uncomment to reactivate.
     # "compute-snapshots-nightly": {
-    #     "task": "app.workers.tasks.compute_snapshots.run_all_tenants",
     #     "schedule": crontab(hour=19, minute=30),
     # },
     # "evaluate-goals-daily": {
-    #     "task": "app.workers.tasks.evaluate_goals.run_all_tenants",
     #     "schedule": crontab(hour=2, minute=30),
     # },
     # "generate-all-widgets-daily": {
-    #     "task": "tasks.generate_widgets",
     #     "schedule": crontab(hour=0, minute=30),
     #     "kwargs": {"tenant_id": "__all__"},
     # },

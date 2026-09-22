@@ -80,17 +80,6 @@ class Tenant(Base, TimestampMixin):
     wa_ai_mode_default = Column(String(20), nullable=False, server_default="shadow")
     wa_ai_confidence_threshold = Column(Float, nullable=False, server_default="0.78")
 
-    # Handoff contact details (migration 100). A guest asking to be called, or
-    # to move to WhatsApp, needs a real number -- these used to exist only as
-    # free text inside one Instagram automation rule's canned message, so the
-    # AI path could not reach them and any phrasing the rule's keywords missed
-    # produced a reply with no way to contact anyone.
-    handoff_phone = Column(String(32), nullable=True)
-    handoff_whatsapp_url = Column(String(500), nullable=True)
-    # Separate from "are the fields populated" so the details can be staged
-    # before the bot is allowed to volunteer them.
-    handoff_enabled = Column(Boolean, nullable=False, server_default="true")
-
     # Emergency stop (migration 080). When true the AI stops sending to
     # guests on every channel immediately, regardless of the mode settings
     # above. Drafting continues so agents keep the assist -- this halts

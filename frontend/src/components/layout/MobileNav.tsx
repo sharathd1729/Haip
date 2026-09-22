@@ -48,7 +48,6 @@ const ALL_SECTIONS = [
     items: [
       { label: "Leads360",  href: "/dashboard/leads",      icon: Target,   resource: "guests"     as Resource },
       { label: "Guests",    href: "/dashboard/guests",     icon: Users,    resource: "guests"     as Resource },
-      { label: "Inquiries", href: "/dashboard/inquiries",  icon: FileText, resource: "inquiries"  as Resource },
     ],
   },
   {
@@ -74,7 +73,6 @@ const ALL_SECTIONS = [
     // /dashboard page, which now includes an AI Intelligence section --
     // the standalone "AI Insights" entry that lived here 2026-08-15 through
     // 08-16 is folded into that page instead of a separate nav item.
-    // /dashboard/insights still works for direct links, just unlinked.
     label: "Intelligence",
     items: [
       { label: "Reports",     href: "/dashboard/reports",       icon: FileDown,  resource: "reports"     as Resource },
