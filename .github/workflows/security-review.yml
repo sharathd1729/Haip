@@ -1,0 +1,36 @@
+name: Security Review
+
+# Claude Code security review (github.com/anthropics/claude-code-security-review).
+# Reviews the changed files on every pull request and comments on the lines
+# with findings. The action is not hardened against prompt injection, so it
+# only runs for PRs opened from branches in this repo, never from forks.
+
+on:
+  pull_request:
+
+permissions:
+  pull-requests: write
+  contents: read
+
+concurrency:
+  group: security-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  security:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2
+
+      - uses: anthropics/claude-code-security-review@main
+        with:
+          claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
+          claude-model: claude-opus-5
+          comment-pr: true
+          exclude-directories: node_modules,frontend/.next,backend/tests,frontend/src/__tests__,docs,screenshots
+          custom-security-scan-instructions: .github/security-review/haip-scan-instructions.md
