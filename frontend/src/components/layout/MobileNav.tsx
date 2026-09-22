@@ -38,7 +38,7 @@ const ALL_SECTIONS = [
     // the real role-aware dashboard page instead of a redirect.
     label: "Workspace",
     items: [
-      { label: "Today",         href: "/dashboard/worklist",    icon: ListChecks,     resource: "inbox"     as Resource },
+      { label: "Today",         href: "/dashboard/my-day",    icon: ListChecks,     resource: "inbox"     as Resource },
       { label: "Inbox",         href: "/dashboard/inbox",       icon: Inbox,          resource: "inbox"     as Resource, live: "inbox" as const },
       { label: "Calls",         href: "/dashboard/calls",       icon: Phone,          resource: "calls"     as Resource },
     ],

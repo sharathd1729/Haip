@@ -56,60 +56,19 @@ def _ist_day(dt: datetime) -> date:
 # ── Needs you now ─────────────────────────────────────────────────────────────
 
 def needs_you_now(db: Session, tenant, scope_user_id: Optional[str]) -> dict:
-    tid = tenant.id
-    now = datetime.now(timezone.utc)
+    """The four dashboard cards. Thin wrapper over work_queue_service so the
+    cards, My day and the Calls call-back tab can never disagree -- this used
+    to be its own set of queries, which is exactly how they drifted apart."""
+    from app.services import work_queue_service
 
-    # Guests waiting for a reply -- Inbox "Needs reply" (<= 7 days).
-    conv_q = inbox_service.inbox_base_query(db, tid)
-    if scope_user_id:
-        conv_q = conv_q.filter(Conversation.assigned_to == scope_user_id)
-    waiting_q = inbox_service.apply_view(db, conv_q, tid, "needs_reply", scope_user_id or "")
-    waiting = waiting_q.count()
-    oldest_waiting = None
-    if waiting:
-        sq = inbox_service._last_in_out_subquery(db, tid)
-        oldest_waiting = (
-            conv_q.join(sq, sq.c.conv_id == Conversation.id)
-            .filter(Conversation.id.in_(waiting_q.with_entities(Conversation.id)))
-            .with_entities(func.min(sq.c.last_in))
-            .scalar()
-        )
-
-    # Missed calls not called back -- Calls "Call back" (last 7 days). Not
-    # agent-scoped: a missed call has no agent yet; anyone can return it.
-    call_q = db.query(Call).filter(
-        Call.tenant_id == tid,
-        Call.direction == CallDirection.INBOUND,
-        call_status_service.missed_call_sql_filter(),
-        Call.recovered_by_call_id.is_(None),
-        Call.created_at >= now - _CALLBACK_WINDOW,
-    )
-    if tenant.ivr_provider:
-        call_q = call_q.filter(Call.ivr_provider == tenant.ivr_provider)
-    missed = call_q.count()
-    oldest_missed = call_q.with_entities(func.min(Call.created_at)).scalar() if missed else None
-
-    # Shared a phone, not called -- Leads "Needs action" call bucket.
-    from app.services.leads_service import get_needs_action
-    phone_not_called = get_needs_action(db, tid, scope_user_id=scope_user_id).kpis.phone_not_called
-
-    # Follow-ups actually overdue now (by due date, not by creation date).
-    task_q = db.query(Task).filter(
-        Task.tenant_id == tid, Task.is_done.is_(False), Task.due_date.isnot(None), Task.due_date < now,
-    )
-    if scope_user_id:
-        task_q = task_q.filter(Task.assigned_to == scope_user_id)
-    overdue = task_q.count()
-    oldest_due = task_q.with_entities(func.min(Task.due_date)).scalar() if overdue else None
-
-    def iso(dt):
-        return _aware(dt).isoformat() if dt else None
-
+    res = work_queue_service.counts(db, tenant, scope_user_id)
+    c, oldest = res["counts"], res["oldest"]
     return {
-        "waiting_reply": waiting, "waiting_oldest_at": iso(oldest_waiting),
-        "missed_not_called_back": missed, "missed_oldest_at": iso(oldest_missed),
-        "phone_not_called": phone_not_called,
-        "followups_overdue": overdue, "followups_oldest_due": iso(oldest_due),
+        "waiting_reply": c["reply"], "waiting_oldest_at": oldest["reply"],
+        "missed_not_called_back": c["callback"], "missed_oldest_at": oldest["callback"],
+        "phone_not_called": c["call_new"],
+        "followups_overdue": c["followup"], "followups_oldest_due": oldest["followup"],
+        "unassigned": c["unassigned"],
     }
 
 

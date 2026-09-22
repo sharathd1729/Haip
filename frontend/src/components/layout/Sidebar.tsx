@@ -61,7 +61,7 @@ const NAV_GROUPS: NavGroup[] = [
       // First entry deliberately: the dashboard answers "how are we doing",
       // this answers "who is waiting on me right now" -- which is what an
       // agent opens the app to find out.
-      { label: "Today", href: "/dashboard/worklist", icon: ListChecks, resource: "inbox" },
+      { label: "My day", href: "/dashboard/my-day", icon: ListChecks, resource: "inbox" },
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, resource: "dashboard" },
       {
         label: "Inbox",

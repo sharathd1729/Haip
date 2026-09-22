@@ -16,24 +16,24 @@ function cards(n: NeedsYouNow): Card[] {
     {
       label: "Guests waiting for a reply", count: n.waiting_reply,
       note: n.waiting_oldest_at ? `oldest ${ago(n.waiting_oldest_at)}` : "all answered",
-      cta: "Open Inbox", href: "/dashboard/inbox",
+      cta: "Reply now", href: "/dashboard/my-day?kind=reply",
       bar: "bg-orange-700", num: "text-orange-700", btn: "bg-amber-100 text-orange-800 hover:bg-amber-200",
     },
     {
       label: "Missed calls not called back", count: n.missed_not_called_back,
       note: n.missed_oldest_at ? `oldest ${ago(n.missed_oldest_at)}` : "all returned",
-      cta: "Call back", href: "/dashboard/calls",
+      cta: "Call back", href: "/dashboard/my-day?kind=callback",
       bar: "bg-red-700", num: "text-red-700", btn: "bg-red-100 text-red-800 hover:bg-red-200",
     },
     {
       label: "Shared a phone, not called", count: n.phone_not_called,
-      note: "warm leads", cta: "Open Leads", href: "/dashboard/leads",
+      note: "warm leads", cta: "Call them", href: "/dashboard/my-day?kind=call_new",
       bar: "bg-emerald-700", num: "text-emerald-700", btn: "bg-emerald-100 text-emerald-800 hover:bg-emerald-200",
     },
     {
       label: "Follow-ups overdue", count: n.followups_overdue,
       note: n.followups_oldest_due ? `due ${ago(n.followups_oldest_due)} ago` : "none overdue",
-      cta: "See tasks", href: "/dashboard/worklist",
+      cta: "See tasks", href: "/dashboard/my-day?kind=followup",
       bar: "bg-violet-700", num: "text-violet-700", btn: "bg-violet-100 text-violet-800 hover:bg-violet-200",
     },
   ];
