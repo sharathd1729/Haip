@@ -88,3 +88,50 @@ def test_rentalwise_base_url_must_be_public():
             RentalwiseAdapter(api_token="t", base_url="https://internal.example")
     with pytest.raises(UnsafeURLError):
         RentalwiseAdapter(api_token="t", base_url="http://app.rentalwise.io")  # https only
+
+
+# ── 4. Ask HAIP free-form: nested queries and unknown functions ──────────────
+
+@pytest.mark.parametrize("sql", [
+    "SELECT (SELECT count(*) FROM guests) AS n FROM guests LIMIT 1",
+    "SELECT name FROM guests WHERE id IN (SELECT id FROM guests)",
+    "SELECT name FROM guests WHERE EXISTS (SELECT 1 FROM guests)",
+    "SELECT set_config('app.tenant_id', 'other', false), name FROM guests",
+    "SELECT current_setting('app.tenant_id') FROM guests",
+    "SELECT pg_read_file('/etc/passwd') FROM guests",
+])
+def test_freeform_rejects_unscoped_subqueries_and_unknown_functions(sql):
+    from app.services.ask_haip_freeform_service import FreeformRejected, _validate_and_scope
+    with pytest.raises(FreeformRejected):
+        _validate_and_scope(sql, "tenant-abc")
+
+
+def test_freeform_still_allows_normal_analytics():
+    from app.services.ask_haip_freeform_service import _validate_and_scope
+    sql = _validate_and_scope(
+        "SELECT date_trunc('month', created_at) m, count(*) c, coalesce(sum(total_amount), 0) s "
+        "FROM stays WHERE created_at > now() - interval '30 days' GROUP BY 1 LIMIT 50",
+        "tenant-abc",
+    )
+    assert "tenant_id = :tenant_id" in sql
+
+
+# ── 5. Grievance status update is tenant-scoped ──────────────────────────────
+
+def test_grievance_status_update_cannot_touch_another_tenant(client, db, tenant_and_user):
+    import uuid
+    from app.api.v1.endpoints.grievance import Grievance
+    other = Grievance(id=str(uuid.uuid4()), tenant_id=str(uuid.uuid4()), name="X", email="x@x.com",
+                      nature="other", description="d", status="open")
+    mine = Grievance(id=str(uuid.uuid4()), tenant_id=tenant_and_user["tenant"].id, name="Y", email="y@y.com",
+                     nature="other", description="d", status="open")
+    db.add_all([other, mine]); db.commit()
+    h = {"Authorization": f"Bearer {tenant_and_user['access_token']}"}
+
+    r = client.patch(f"/api/v1/grievance/{other.id}", params={"status": "closed"}, headers=h)
+    assert r.status_code == 404
+    db.refresh(other)
+    assert other.status == "open"
+
+    r = client.patch(f"/api/v1/grievance/{mine.id}", params={"status": "resolved"}, headers=h)
+    assert r.status_code == 200 and r.json()["status"] == "resolved"

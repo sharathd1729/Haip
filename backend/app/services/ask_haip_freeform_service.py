@@ -118,6 +118,21 @@ def _validate_and_scope(sql: str, tenant_id: str) -> str:
         if isinstance(node, (exp.Insert, exp.Update, exp.Delete, exp.Drop, exp.Alter, exp.Create)):
             raise FreeformRejected("Only SELECT statements are allowed")
 
+    # The tenant predicate below is injected into the OUTER query only, so a
+    # nested SELECT (scalar subquery, IN (SELECT ...), EXISTS, lateral) would
+    # run unscoped -- reject every one rather than trying to scope each.
+    for node in tree.walk():
+        if node is not tree and isinstance(node, (exp.Select, exp.Subquery, exp.Union, exp.Intersect, exp.Except)):
+            raise FreeformRejected("Subqueries aren't supported. Try asking a simpler question.")
+
+    # Functions sqlglot doesn't recognise parse as exp.Anonymous -- that's
+    # where the dangerous ones land (set_config / current_setting, which RLS
+    # scoping reads; pg_read_file, dblink, query_to_xml, lo_*). Standard
+    # analytics functions (count, sum, date_trunc, extract, coalesce,
+    # to_char, now) are typed nodes and still allowed.
+    for node in tree.find_all(exp.Anonymous):
+        raise FreeformRejected(f"The function '{node.name}' isn't allowed in questions.")
+
     tables = list(tree.find_all(exp.Table))
     table_names = {t.name for t in tables}
     if len(table_names) != 1:

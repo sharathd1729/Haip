@@ -137,7 +137,7 @@ def update_grievance_status(
     current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.COMPLIANCE)),
     db: Session = Depends(get_db),
 ):
-    g = db.query(Grievance).filter_by(id=grievance_id).first()
+    g = db.query(Grievance).filter_by(id=grievance_id, tenant_id=current_user.tenant_id).first()
     if not g:
         raise HTTPException(status_code=404, detail="Grievance not found")
     valid_statuses = {"open", "under_review", "resolved", "closed"}
