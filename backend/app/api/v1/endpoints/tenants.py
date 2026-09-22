@@ -841,3 +841,80 @@ def generate_ivr_voicemail_tts(
         has_voicemail_audio=True,
         eligible_agents=get_eligible_agents_summary(db, tenant.id),
     )
+
+
+# ── Lead assignment rules ────────────────────────────────────────────────────
+# How new leads get an owner (round robin / balanced / first to act, plus
+# returning-guest, call-answerer, reassign-if-not-contacted and working-hours
+# rules). See app/services/lead_assignment_service.py.
+from app.schemas.lead_assignment import LeadAssignmentUpdate  # noqa: E402
+
+def _lead_assignment_out(db: Session, tenant: Tenant):
+    from app.schemas.lead_assignment import AssignableAgent, LeadAssignmentSettings
+    from app.services import lead_assignment_service as svc
+
+    cfg = svc.get_config(tenant)
+    team = svc.assignable_team(db, tenant.id)
+    counts = svc.open_uncontacted_counts(db, tenant.id, [u.id for u in team])
+    return LeadAssignmentSettings(
+        **cfg.model_dump(),
+        agents=[
+            AssignableAgent(
+                id=u.id, name=u.name, role=u.role.value,
+                takes_leads=bool(u.is_available_for_assignment),
+                open_uncontacted=counts.get(u.id, 0),
+            )
+            for u in team
+        ],
+        unassigned_open=svc.unassigned_open_count(db, tenant.id),
+    )
+
+
+@router.get("/tenants/me/lead-assignment")
+def get_lead_assignment(
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    return _lead_assignment_out(db, tenant)
+
+
+@router.patch("/tenants/me/lead-assignment")
+def update_lead_assignment(
+    body: LeadAssignmentUpdate,
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """Save the method + rules and which team members take new leads."""
+    from app.core.audit import append_audit
+    from app.services import lead_assignment_service as svc
+
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    changes: dict = {}
+    if body.config is not None:
+        tenant.lead_assignment_config = body.config.model_dump()
+        changes["config"] = tenant.lead_assignment_config
+    if body.agents:
+        team = {u.id: u for u in svc.assignable_team(db, tenant.id)}
+        unknown = [uid for uid in body.agents if uid not in team]
+        if unknown:
+            raise HTTPException(status_code=422, detail="Some of those people aren't on this team.")
+        for uid, takes in body.agents.items():
+            team[uid].is_available_for_assignment = bool(takes)
+        changes["agents"] = body.agents
+
+    if changes:
+        append_audit(
+            db, tenant_id=tenant.id, action="lead_assignment.updated",
+            actor_user_id=current_user.id, target_type="tenant", target_id=tenant.id, payload=changes,
+        )
+        db.commit()
+        db.refresh(tenant)
+        log.info("lead_assignment_updated", tenant_id=tenant.id, actor_user_id=current_user.id)
+    return _lead_assignment_out(db, tenant)
+

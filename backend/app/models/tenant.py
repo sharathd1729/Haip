@@ -38,6 +38,10 @@ class Tenant(Base, TimestampMixin):
 
     # K14: round-robin assignment state
     last_assigned_user_id = Column(String, nullable=True)
+    # Lead assignment rules (migration 103) -- see schemas/lead_assignment.py
+    # and services/lead_assignment_service.py. Null means the defaults
+    # (manual: first agent to act claims the lead).
+    lead_assignment_config = Column(JSON, nullable=True)
 
     # B10: per-tenant timezone + business hours
     timezone = Column(String(60), default="Asia/Kolkata", nullable=False)

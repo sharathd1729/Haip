@@ -60,6 +60,13 @@ class Inquiry(Base, TimestampMixin, TenantMixin):
     guest_id = Column(String, ForeignKey("guests.id"), nullable=False, index=True)
     property_id = Column(String, ForeignKey("properties.id"), nullable=True, index=True)
     assigned_to = Column(String, ForeignKey("users.id"), nullable=True, index=True)
+    # Lead assignment (migration 103): when the current owner got the lead,
+    # by which rule (round_robin / balanced / returning_guest / call_answered /
+    # first_touch / reassigned / manual), and how many times an uncontacted
+    # lead has been passed on -- drives "reassign if not contacted".
+    assigned_at = Column(DateTime(timezone=True), nullable=True)
+    assignment_method = Column(String(20), nullable=True)
+    assignment_attempts = Column(Integer, nullable=False, default=0, server_default="0")
 
     stage = Column(
         SAEnum(InquiryStage, values_callable=lambda x: [e.value for e in x]),

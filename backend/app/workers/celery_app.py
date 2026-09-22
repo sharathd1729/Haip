@@ -68,6 +68,8 @@ celery_app = Celery(
         "app.workers.tasks.check_meta_credentials",
         # Keeps the Instagram long-lived token from ever reaching expiry
         "app.workers.tasks.refresh_instagram_token",
+        # Lead assignment: waiting leads + pass on uncontacted ones
+        "app.workers.tasks.lead_assignment",
         # Organic Instagram account insights -- daily snapshot
         "app.workers.tasks.instagram_insights_poll",
         # Automations engine + timer triggers
@@ -284,6 +286,10 @@ celery_app.conf.beat_schedule = {
     "owner-digest-hourly": {
         "task": "app.workers.tasks.owner_digest.orchestrate",
         "schedule": crontab(minute=0),
+    },
+    "lead-assignment-5min": {
+        "task": "lead_assignment.tick",
+        "schedule": crontab(minute="*/5"),
     },
     # Safety net for the process_instagram_dm.py gate fix (commit b72565e) --
     # see backfill_missing_inquiries.py's own docstring for why this exists.

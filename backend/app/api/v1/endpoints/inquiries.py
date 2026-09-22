@@ -10,7 +10,6 @@ from app.models.inquiry import Inquiry, InquiryStage
 from app.models.conversation import Conversation, Message
 from app.schemas.inquiry import InquiryOut, InquiryCreateRequest, InquiryUpdateRequest
 from app.services.inquiry_service import get_or_create, update_stage, update_stage_by_id, InvalidStageTransition
-from app.services.assignment import get_next_assignee
 from pydantic import BaseModel
 
 class NoteRequest(BaseModel):
@@ -45,10 +44,9 @@ def create_inquiry(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    # K14: auto-assign via round-robin if no explicit assignee
+    # An explicit assignee wins; otherwise the tenant's lead-assignment rules
+    # decide (lead_assignment_service) once the row exists.
     assigned_to = body.assigned_to if hasattr(body, "assigned_to") and body.assigned_to else None
-    if not assigned_to:
-        assigned_to = get_next_assignee(db, current_user.tenant_id)
 
     inquiry = Inquiry(
         id=str(uuid.uuid4()),
@@ -64,8 +62,14 @@ def create_inquiry(
         occasion=body.occasion,
         budget=body.budget,
         assigned_to=assigned_to,
+        assigned_at=datetime.now(timezone.utc) if assigned_to else None,
+        assignment_method="manual" if assigned_to else None,
     )
     db.add(inquiry)
+    db.flush()
+    if not assigned_to:
+        from app.services.lead_assignment_service import assign_new_lead
+        assign_new_lead(db, inquiry)
     db.commit()
     db.refresh(inquiry)
 
@@ -174,6 +178,11 @@ def update_inquiry(
     # GET /leads?assigned_to= query. Keep every conversation on this inquiry
     # in step with it.
     if "assigned_to" in updates:
+        # A person chose this owner: record it, and reset the "passed on"
+        # counter so the not-contacted timer starts fresh for them.
+        inq.assigned_at = datetime.now(timezone.utc)
+        inq.assignment_method = "manual"
+        inq.assignment_attempts = 0
         db.query(Conversation).filter_by(inquiry_id=inq.id, tenant_id=current_user.tenant_id).update(
             {"assigned_to": updates["assigned_to"]}, synchronize_session=False,
         )

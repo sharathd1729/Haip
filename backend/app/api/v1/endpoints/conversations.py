@@ -455,6 +455,10 @@ def send_message(
     # A human sending one message is not a request to permanently take the
     # AI off this conversation -- do not resurrect this without an explicit
     # decision to do so.
+    # First agent to reach out owns an unowned lead (lead_assignment_service).
+    if not body.is_internal:
+        from app.services.lead_assignment_service import claim_on_first_touch
+        claim_on_first_touch(db, current_user.tenant_id, conv.guest_id, current_user.id)
     db.commit()
     db.refresh(msg)
 
@@ -550,6 +554,9 @@ def send_template_message(
     conv.last_message_at = datetime.now(timezone.utc).isoformat()
     # See the send_message() comment above -- a manual send (a template
     # reopening the WA window included) no longer forces shadow mode.
+    # First agent to reach out owns an unowned lead (lead_assignment_service).
+    from app.services.lead_assignment_service import claim_on_first_touch
+    claim_on_first_touch(db, current_user.tenant_id, conv.guest_id, current_user.id)
     db.commit()
     db.refresh(msg)
 
@@ -1007,6 +1014,10 @@ def approve_ai_draft(
         # on -- it needs the human-reviewed outcomes most of all.
         intent=msg.ai_intent,
     )
+    from app.services.lead_assignment_service import claim_on_first_touch
+    _conv = db.query(Conversation).filter_by(id=conversation_id, tenant_id=current_user.tenant_id).first()
+    if _conv:
+        claim_on_first_touch(db, current_user.tenant_id, _conv.guest_id, current_user.id)
     db.commit()
 
     if channel == "instagram":

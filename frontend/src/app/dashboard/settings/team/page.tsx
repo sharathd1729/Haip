@@ -508,12 +508,18 @@ export default function TeamPage() {
               {pendingInvitations.length > 0 && ` · ${pendingInvitations.length} pending invite${pendingInvitations.length !== 1 ? "s" : ""}`}
             </p>
           </div>
+          <div className="flex items-center gap-2">
+          <Link href="/dashboard/settings/lead-assignment"
+            className="flex items-center gap-2 border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-50 transition-colors">
+            Lead assignment
+          </Link>
           <button
             onClick={() => setShowInviteModal(true)}
             className="flex items-center gap-2 bg-teal-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors shadow-sm shadow-teal-200"
           >
             <UserPlus size={15} /> Invite member
           </button>
+          </div>
         </div>
 
         {/* Tabs */}

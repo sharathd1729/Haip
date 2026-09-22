@@ -109,7 +109,8 @@ def _link_recovered_call(db: Session, tenant_id: str, guest_id: str, outbound_ca
             if missed.inquiry_id:
                 inquiry = db.query(Inquiry).filter_by(id=missed.inquiry_id, tenant_id=tenant_id).first()
                 if inquiry and not inquiry.assigned_to:
-                    inquiry.assigned_to = outbound_call.agent_id
+                    from app.services.lead_assignment_service import claim_on_first_touch
+                    claim_on_first_touch(db, tenant_id, inquiry.guest_id, outbound_call.agent_id)
 
         db.commit()
         log.info("missed_call_recovered", missed_call_id=missed.id, recovery_call_id=outbound_call.id, agent_id=missed.agent_id)
@@ -204,6 +205,14 @@ def ingest_call(self, payload: dict, tenant_id: str, ivr_provider: str):
             db.add(call)
             db.commit()
             db.refresh(call)
+
+            # Lead owner from the call: the agent who answered/placed it
+            # claims an unowned lead (and, with "call answerer owns" on,
+            # takes over a rule-assigned one nobody had contacted yet); an
+            # unowned lead with no known agent gets the normal rules.
+            from app.services.lead_assignment_service import on_call_logged
+            on_call_logged(db, inquiry, call)
+            db.commit()
 
             log.info("call_created", call_id=call.id, guest_token=_phone_token(guest_number))
 

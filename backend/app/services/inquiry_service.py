@@ -131,6 +131,8 @@ def get_or_create(db: Session, tenant_id: str, guest_id: str, source: str = "pho
         db.add(inquiry)
         db.flush()
         log.info("inquiry_created", inquiry_id=inquiry.id, guest_id=guest_id)
+        from app.services.lead_assignment_service import assign_new_lead
+        assign_new_lead(db, inquiry)
     return inquiry
 
 
@@ -191,6 +193,8 @@ def get_or_create_from_chat(
         tenant_id=tenant_id, source=source, is_collab=is_collab, has_phone=has_phone,
         stage_id=inquiry.stage_id,
     )
+    from app.services.lead_assignment_service import assign_new_lead
+    assign_new_lead(db, inquiry)
     return inquiry
 
 
@@ -264,7 +268,6 @@ def create_manual_lead(
     """
     from app.services import identity_service
     from app.services.lead_auto_create import resolve_entry_stage_id
-    from app.services.assignment import get_next_assignee
 
     if not phone and not email:
         raise ValueError("Provide at least a phone number or email to add a lead.")
@@ -300,7 +303,6 @@ def create_manual_lead(
         src = InquirySource.WALK_IN
 
     stage_id = resolve_entry_stage_id(db, tenant_id, is_collab=False, has_phone=bool(phone))
-    resolved_assignee = assigned_to or get_next_assignee(db, tenant_id)
 
     inquiry = Inquiry(
         id=str(uuid.uuid4()),
@@ -316,9 +318,15 @@ def create_manual_lead(
         children=children,
         occasion=occasion,
         budget=budget,
-        assigned_to=resolved_assignee,
+        assigned_to=assigned_to,
+        assigned_at=datetime.now(timezone.utc) if assigned_to else None,
+        assignment_method="manual" if assigned_to else None,
     )
     db.add(inquiry)
+    db.flush()
+    if not assigned_to:
+        from app.services.lead_assignment_service import assign_new_lead
+        assign_new_lead(db, inquiry)
     db.commit()
     db.refresh(inquiry)
     log.info(
