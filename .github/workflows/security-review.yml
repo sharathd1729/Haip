@@ -5,8 +5,10 @@ name: Security Review
 # with findings. The action is not hardened against prompt injection, so it
 # only runs for PRs opened from branches in this repo, never from forks.
 
+# DISABLED until a CLAUDE_API_KEY repository secret exists. To turn it on,
+# replace `workflow_dispatch:` below with `pull_request:`.
 on:
-  pull_request:
+  workflow_dispatch:
 
 permissions:
   pull-requests: write
