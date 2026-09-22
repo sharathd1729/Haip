@@ -58,7 +58,11 @@ export default auth((req: NextRequest & { auth: any }) => {
     // Send away from auth/marketing entry pages straight into the app.
     // (The multi-step /onboarding wizard was removed — signup collects
     // business type inline and lands directly on the dashboard.)
-    if (pathname === "/" || pathname === "/login" || pathname === "/register" || pathname === "/onboarding") {
+    // Only a clean session is bounced off the entry pages: one that is
+    // riding out a refresh error must be able to stay on /login and sign in
+    // again, otherwise any disagreement with a server-side check becomes a
+    // redirect loop (ERR_TOO_MANY_REDIRECTS).
+    if (!req.auth?.error && (pathname === "/" || pathname === "/login" || pathname === "/register" || pathname === "/onboarding")) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
   }

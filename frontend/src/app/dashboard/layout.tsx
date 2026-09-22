@@ -4,6 +4,7 @@ import { MobileHeader } from "@/components/layout/MobileHeader";
 import { TopBar } from "@/components/shell/TopBar";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { isWithinRefreshErrorGrace } from "@/lib/authGrace";
 import { DashboardSSEBridge } from "./DashboardSSEBridge";
 import { DashboardClientShell, StatusBarSlot } from "@/components/dashboard/DashboardClientShell";
 import { SampleDataBanner } from "@/components/dashboard/SampleDataBanner";
@@ -18,7 +19,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // it. Missing this let the full shell (sidebar, topbar, user name -- all
   // readable off the still-valid JWT payload) render before every data
   // query 401'd, which is what produced the reported blank/zero PWA state.
-  if (!session || (session as { error?: string }).error) {
+  //
+  // Must use the SAME grace rule as middleware.ts. Middleware treats a
+  // RefreshAccessTokenError inside its grace window as still logged in and
+  // bounces /login -> /dashboard; if this layout then bounced /dashboard ->
+  // /login on any error, the two looped until the browser gave up with
+  // ERR_TOO_MANY_REDIRECTS (seen right after deploys, when a refresh fails).
+  const s = session as { error?: string; errorSince?: number } | null;
+  if (!session || !s || (s.error && !isWithinRefreshErrorGrace(s.error, s.errorSince))) {
     console.warn("[auth] dashboard layout redirect: session.error =", (session as { error?: string } | null)?.error ?? "no session");
     redirect("/login");
   }
