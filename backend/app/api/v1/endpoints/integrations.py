@@ -1,3 +1,4 @@
+import html
 import uuid
 import os
 import httpx
@@ -450,7 +451,7 @@ def instagram_oauth_callback(
 ):
     """Public callback — Meta redirects here after the user authorizes."""
     if error:
-        return HTMLResponse(f"<h3>Instagram authorization failed: {error}</h3>", status_code=400)
+        return HTMLResponse(f"<h3>Instagram authorization failed: {html.escape(error)}</h3>", status_code=400)
 
     decoded = decode_token(state)
     if not decoded or decoded.get("purpose") != "ig_oauth":
@@ -485,9 +486,9 @@ def instagram_oauth_callback(
         short_data = short_resp.json()
         if "access_token" not in short_data:
             return HTMLResponse(
-                f"<h3>Token exchange failed: {short_data}</h3>"
-                f"<p>redirect_uri sent: {redirect_uri}</p>"
-                f"<p>client_id sent: {settings.INSTAGRAM_APP_ID}</p>"
+                f"<h3>Token exchange failed: {html.escape(str(short_data))}</h3>"
+                f"<p>redirect_uri sent: {html.escape(redirect_uri)}</p>"
+                f"<p>client_id sent: {html.escape(str(settings.INSTAGRAM_APP_ID))}</p>"
                 f"<p>code length: {len(code)}</p>",
                 status_code=400,
             )
@@ -520,7 +521,7 @@ def instagram_oauth_callback(
         ig_account_id = str(me_data.get("user_id", ""))
         username = me_data.get("username", "")
     except Exception as exc:
-        return HTMLResponse(f"<h3>Instagram OAuth exchange error: {exc}</h3>", status_code=500)
+        return HTMLResponse(f"<h3>Instagram OAuth exchange error: {html.escape(str(exc))}</h3>", status_code=500)
 
     # _now() already returns an ISO string, so it must not be treated as a
     # datetime. Calling .isoformat() on it (AttributeError) or adding a
@@ -555,14 +556,14 @@ def instagram_oauth_callback(
         db.rollback()
         log.error("instagram_oauth_persist_failed", error=str(exc), exc_info=True)
         return HTMLResponse(
-            f"<h3>Instagram authorized, but saving the connection failed: {exc}</h3>"
+            f"<h3>Instagram authorized, but saving the connection failed: {html.escape(str(exc))}</h3>"
             "<p>The authorization itself succeeded — retry the connect, and if this "
             "repeats, the error above is the cause.</p>",
             status_code=500,
         )
 
     return HTMLResponse(
-        f"<h3>Instagram connected: @{username or ig_account_id}</h3>"
+        f"<h3>Instagram connected: @{html.escape(username or ig_account_id)}</h3>"
         "<p>You can close this tab and return to HAIP.</p>"
     )
 
@@ -771,6 +772,14 @@ def connect_retalwise(
                 "If you have an API token, paste it into the 'API Token' field instead."
             ),
         )
+
+    if base_url:
+        from app.adapters.pms.retalwise import _check_base_url
+        from app.core.url_safety import UnsafeURLError
+        try:
+            _check_base_url(base_url)
+        except UnsafeURLError as exc:
+            raise HTTPException(status_code=400, detail=f"API Base URL isn't allowed: {exc}")
 
     if not api_token and not username:
         raise HTTPException(status_code=400, detail="Either an API token or a username is required")

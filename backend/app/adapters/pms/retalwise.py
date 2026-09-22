@@ -26,6 +26,18 @@ logger = logging.getLogger(__name__)
 
 # Default production base — https://app.rentalwise.io (REST API prefix: /rest/)
 DEFAULT_BASE = "https://app.rentalwise.io"
+# RentalWise's own domains. Any other base URL is tenant-supplied and must
+# pass the SSRF check before the server calls it.
+_TRUSTED_HOST_SUFFIXES = (".rentalwise.io", ".rentalwise.com")
+
+
+def _check_base_url(base_url: str) -> None:
+    from urllib.parse import urlsplit
+    from app.core.url_safety import assert_public_url
+    host = (urlsplit(base_url).hostname or "").lower()
+    if urlsplit(base_url).scheme == "https" and any(("." + host).endswith(s) for s in _TRUSTED_HOST_SUFFIXES):
+        return
+    assert_public_url(base_url, allow_http=False)
 
 
 class RentalwiseAdapter:
@@ -36,6 +48,7 @@ class RentalwiseAdapter:
           - Basic auth:   pass username + password
         """
         self._base = base_url.rstrip("/")
+        _check_base_url(self._base)
         if api_token:
             self._headers = {"Authorization": f"Bearer {api_token}", "Accept": "application/json"}
             self._auth = None

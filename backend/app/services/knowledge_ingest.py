@@ -23,6 +23,7 @@ import structlog
 from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
 
+from app.core.url_safety import UnsafeURLError, safe_get
 from app.models.knowledge import KnowledgeEntry
 from app.services import knowledge_service
 
@@ -116,8 +117,11 @@ def fetch_url_text(url: str) -> str:
     if not url.startswith(("http://", "https://")):
         raise IngestError(f"'{url}' isn't a valid URL.")
     try:
-        with httpx.Client(timeout=FETCH_TIMEOUT_SECONDS, follow_redirects=True) as client:
-            resp = client.get(url, headers={"User-Agent": "HAIP-KnowledgeBot/1.0"})
+        # safe_get refuses private/internal addresses on every redirect hop --
+        # this URL is typed in by a tenant (SSRF).
+        resp = safe_get(url, timeout=FETCH_TIMEOUT_SECONDS, headers={"User-Agent": "HAIP-KnowledgeBot/1.0"})
+    except UnsafeURLError as exc:
+        raise IngestError(f"Can't import {url}: {exc}") from exc
     except httpx.HTTPError as exc:
         raise IngestError(f"Couldn't reach {url}: {exc}") from exc
     if resp.status_code != 200:

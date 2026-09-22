@@ -37,7 +37,14 @@ GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
 
 def _build_url(model: str) -> str:
-    return f"{GEMINI_API_BASE}/{model}:generateContent?key={settings.GEMINI_API_KEY}"
+    # The key travels in a header, never the URL: httpx puts the full URL in
+    # every HTTPStatusError message, and those get logged -- a ?key= URL
+    # leaked the API key into log files that way.
+    return f"{GEMINI_API_BASE}/{model}:generateContent"
+
+
+def _auth_headers() -> dict:
+    return {"x-goog-api-key": settings.GEMINI_API_KEY}
 
 
 def _tool_to_json_instruction(tool: dict) -> str:
@@ -204,7 +211,7 @@ class GeminiAdapter(LLMAdapter):
             }
 
         async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(url, json=payload)
+            resp = await client.post(url, json=payload, headers=_auth_headers())
             if resp.status_code != 200:
                 log.error("gemini_api_error",
                           status=resp.status_code, body=resp.text[:500], model=gemini_model)
@@ -232,7 +239,7 @@ class GeminiAdapter(LLMAdapter):
             payload_copy = dict(payload)
             payload_copy["generationConfig"] = {**payload["generationConfig"], "temperature": 0.0}
             async with httpx.AsyncClient(timeout=120) as client2:
-                resp2 = await client2.post(retry_url, json=payload_copy)
+                resp2 = await client2.post(retry_url, json=payload_copy, headers=_auth_headers())
             if resp2.status_code != 200:
                 # Previously silent -- a non-200 here fell straight through to
                 # the text fallback with zero indication why the retry itself
@@ -349,7 +356,7 @@ class GeminiAdapter(LLMAdapter):
             "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0.1},
         }
         async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(url, json=payload)
+            resp = await client.post(url, json=payload, headers=_auth_headers())
             if resp.status_code != 200:
                 log.error("gemini_json_fallback_error", status=resp.status_code, body=resp.text[:300])
                 resp.raise_for_status()

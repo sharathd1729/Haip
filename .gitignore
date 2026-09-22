@@ -50,3 +50,6 @@ Thumbs.db
 .vscode/
 *.swp
 .gstack/
+
+# Local server output -- can contain secrets from error messages
+uvicorn_*.txt

@@ -16,6 +16,13 @@ from app.models.capability import Capability, RoleCapability
 from app.models.knowledge import KnowledgeEntry
 
 
+@pytest.fixture(autouse=True)
+def _public_dns(monkeypatch):
+    """Test hostnames don't resolve offline; the SSRF check itself is
+    covered in tests/test_security_review_fixes.py."""
+    monkeypatch.setattr("app.core.url_safety.assert_public_url", lambda *a, **k: None)
+
+
 def _tenant_id(tenant_and_user):
     t = tenant_and_user["tenant"]
     return t["id"] if isinstance(t, dict) else t.id

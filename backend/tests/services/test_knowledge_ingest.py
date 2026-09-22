@@ -17,6 +17,13 @@ from app.models.tenant import Tenant
 from app.models.knowledge import KnowledgeEntry
 
 
+@pytest.fixture(autouse=True)
+def _public_dns(monkeypatch):
+    """Test hostnames don't resolve offline; the SSRF check itself is
+    covered in tests/test_security_review_fixes.py."""
+    monkeypatch.setattr("app.core.url_safety.assert_public_url", lambda *a, **k: None)
+
+
 # ─── extract_text_from_pdf ──────────────────────────────────────────────────
 
 def _make_pdf_bytes(text: str) -> bytes:
