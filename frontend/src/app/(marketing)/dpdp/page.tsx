@@ -19,7 +19,7 @@ const rights = [
 
 export default function DpdpPage() {
   return (
-    <div className="bg-[var(--mkt-bg)] text-white min-h-screen">
+    <div className="mkt-legacy bg-[var(--mkt-bg)] text-white min-h-screen">
       <section className="relative pt-32 pb-16 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full bg-green-500/8 blur-[120px]" />
@@ -52,7 +52,7 @@ export default function DpdpPage() {
         </div>
       </section>
 
-      <section className="px-5 sm:px-8 pb-16 bg-[#0E1210] py-16">
+      <section className="px-5 sm:px-8 pb-16 bg-[var(--mkt-surface)] py-16">
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-8">
             <p className="text-xs font-bold text-green-400 uppercase tracking-widest mb-3">Data principal rights</p>

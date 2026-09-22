@@ -1,6 +1,6 @@
 export default function TermsPage() {
   return (
-    <div className="bg-[var(--mkt-bg)] text-white min-h-screen pt-24">
+    <div className="mkt-legacy bg-[var(--mkt-bg)] text-white min-h-screen pt-24">
       <div className="max-w-3xl mx-auto px-5 sm:px-8 py-16">
         <p className="text-xs font-bold text-[#3D9E7E] uppercase tracking-widest mb-4">Legal</p>
         <h1 className="text-4xl font-black tracking-tight mb-3">Terms of Service</h1>

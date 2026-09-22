@@ -41,6 +41,7 @@ const links = {
 export function MarketingFooter() {
   return (
     <footer
+      className="mkt-surface"
       style={{
         backgroundColor: "#003d41",
         borderTop: "1px solid rgba(255,255,255,0.08)",
@@ -118,14 +119,14 @@ export function MarketingFooter() {
       {/* ── Bottom bar ───────────────────────────────────────────────── */}
       <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
         <div className="max-w-7xl mx-auto px-5 sm:px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-xs" style={{ color: "#475569" }}>
+          <p className="text-xs" style={{ color: "rgba(255,255,255,0.55)" }}>
             © {new Date().getFullYear()} HAIP Technologies Pvt. Ltd. All rights reserved.
           </p>
           <div className="flex items-center gap-5">
-            <span className="text-xs" style={{ color: "#475569" }}>Made in India 🇮🇳</span>
+            <span className="text-xs" style={{ color: "rgba(255,255,255,0.55)" }}>Made in India 🇮🇳</span>
             <div className="flex items-center gap-1.5">
               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
-              <span className="text-xs" style={{ color: "#475569" }}>All systems operational</span>
+              <span className="text-xs" style={{ color: "rgba(255,255,255,0.55)" }}>All systems operational</span>
             </div>
           </div>
         </div>

@@ -29,7 +29,7 @@ export function ComingSoon({
 }: ComingSoonProps) {
   const a = accentMap[accent];
   return (
-    <div className="bg-[var(--mkt-bg)] text-white min-h-screen">
+    <div className="mkt-legacy bg-[var(--mkt-bg)] text-white min-h-screen">
       <section className="relative pt-32 pb-20 overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className={`absolute top-1/3 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full ${a.glow.replace("from-", "bg-").replace("/20", "/8")} blur-[120px]`} />

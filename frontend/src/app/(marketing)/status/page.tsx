@@ -31,7 +31,7 @@ const colors: Record<string, { dot: string; label: string; cell: string }> = {
 
 export default function StatusPage() {
   return (
-    <div className="bg-[var(--mkt-bg)] text-white min-h-screen">
+    <div className="mkt-legacy bg-[var(--mkt-bg)] text-white min-h-screen">
       <section className="pt-32 pb-10 px-5 sm:px-8">
         <div className="max-w-4xl mx-auto">
           <div className="inline-flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-full px-4 py-1.5 mb-5">

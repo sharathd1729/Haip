@@ -238,14 +238,19 @@
 
   /* ── Light mode: fix invisible text ───────────────────────────────────── */
   /* text-white on a light bg = invisible; remap to foreground in main area  */
-  /* Exceptions: buttons/badges with colored bg keep white text              */
-  :root:not(.dark) main .text-white:not(
-    [class*="bg-teal"]:not([class*="bg-teal-50"]),
-    [class*="bg-blue"]:not([class*="bg-blue-50"]),
-    [class*="bg-green"]:not([class*="bg-green-50"]),
-    [class*="bg-purple"]:not([class*="bg-purple-50"]),
-    [class*="bg-amber"]:not([class*="bg-amber-50"]),
-    [class*="bg-red"]:not([class*="bg-red-50"]),
+  /* Exceptions: buttons/badges with colored bg keep white text. The -50 shade */
+  /* is matched as a whole class (~=): a substring match on "bg-teal-50" also  */
+  /* hit "bg-teal-500", darkening white text on every -500 button.            */
+  /* Not on the marketing site (.mkt-surface): its dark sections set their    */
+  /* background inline on a parent, which this can't see, so the remap made   */
+  /* white headings and buttons dark-on-dark.                                 */
+  :root:not(.dark) main:not(.mkt-surface) .text-white:not(
+    [class*="bg-teal"]:not([class~="bg-teal-50"]),
+    [class*="bg-blue"]:not([class~="bg-blue-50"]),
+    [class*="bg-green"]:not([class~="bg-green-50"]),
+    [class*="bg-purple"]:not([class~="bg-purple-50"]),
+    [class*="bg-amber"]:not([class~="bg-amber-50"]),
+    [class*="bg-red"]:not([class~="bg-red-50"]),
     [class*="bg-indigo"],
     [class*="bg-violet"],
     [class*="bg-rose"],
@@ -253,32 +258,48 @@
   ) { color: var(--foreground) !important; }
 
   /* text-white opacity variants — remap in light (main + footer) */
-  :root:not(.dark) footer .text-white    { color: var(--mkt-text) !important; }
-  :root:not(.dark) footer .text-white\/50 { color: color-mix(in srgb, var(--mkt-text) 50%, transparent) !important; }
-  :root:not(.dark) footer .text-white\/40 { color: color-mix(in srgb, var(--mkt-text) 40%, transparent) !important; }
-  :root:not(.dark) footer .text-white\/30 { color: color-mix(in srgb, var(--mkt-text) 30%, transparent) !important; }
-  :root:not(.dark) footer .text-white\/25 { color: color-mix(in srgb, var(--mkt-text) 25%, transparent) !important; }
-  :root:not(.dark) footer .text-white\/20 { color: color-mix(in srgb, var(--mkt-text) 20%, transparent) !important; }
-  :root:not(.dark) footer .hover\:text-white:hover { color: var(--mkt-text) !important; }
-  :root:not(.dark) footer .bg-white\/5  { background-color: rgba(0,0,0,0.04) !important; }
-  :root:not(.dark) footer .bg-white\/10 { background-color: rgba(0,0,0,0.06) !important; }
-  :root:not(.dark) footer .hover\:bg-white\/10:hover { background-color: rgba(0,0,0,0.06) !important; }
-  :root:not(.dark) footer .border-white\/5  { border-color: rgba(0,0,0,0.06) !important; }
-  :root:not(.dark) footer .border-white\/10 { border-color: rgba(0,0,0,0.08) !important; }
+  :root:not(.dark) footer:not(.mkt-surface) .text-white    { color: var(--mkt-text) !important; }
+  :root:not(.dark) footer:not(.mkt-surface) .text-white\/50 { color: color-mix(in srgb, var(--mkt-text) 50%, transparent) !important; }
+  :root:not(.dark) footer:not(.mkt-surface) .text-white\/40 { color: color-mix(in srgb, var(--mkt-text) 40%, transparent) !important; }
+  :root:not(.dark) footer:not(.mkt-surface) .text-white\/30 { color: color-mix(in srgb, var(--mkt-text) 30%, transparent) !important; }
+  :root:not(.dark) footer:not(.mkt-surface) .text-white\/25 { color: color-mix(in srgb, var(--mkt-text) 25%, transparent) !important; }
+  :root:not(.dark) footer:not(.mkt-surface) .text-white\/20 { color: color-mix(in srgb, var(--mkt-text) 20%, transparent) !important; }
+  :root:not(.dark) footer:not(.mkt-surface) .hover\:text-white:hover { color: var(--mkt-text) !important; }
+  :root:not(.dark) footer:not(.mkt-surface) .bg-white\/5  { background-color: rgba(0,0,0,0.04) !important; }
+  :root:not(.dark) footer:not(.mkt-surface) .bg-white\/10 { background-color: rgba(0,0,0,0.06) !important; }
+  :root:not(.dark) footer:not(.mkt-surface) .hover\:bg-white\/10:hover { background-color: rgba(0,0,0,0.06) !important; }
+  :root:not(.dark) footer:not(.mkt-surface) .border-white\/5  { border-color: rgba(0,0,0,0.06) !important; }
+  :root:not(.dark) footer:not(.mkt-surface) .border-white\/10 { border-color: rgba(0,0,0,0.08) !important; }
 
-  :root:not(.dark) main .text-white\/80 { color: color-mix(in srgb, var(--foreground) 80%, transparent) !important; }
-  :root:not(.dark) main .text-white\/70 { color: color-mix(in srgb, var(--foreground) 70%, transparent) !important; }
-  :root:not(.dark) main .text-white\/60 { color: color-mix(in srgb, var(--foreground) 60%, transparent) !important; }
-  :root:not(.dark) main .text-white\/55 { color: color-mix(in srgb, var(--foreground) 55%, transparent) !important; }
-  :root:not(.dark) main .text-white\/50 { color: color-mix(in srgb, var(--foreground) 50%, transparent) !important; }
-  :root:not(.dark) main .text-white\/45 { color: color-mix(in srgb, var(--foreground) 45%, transparent) !important; }
-  :root:not(.dark) main .text-white\/40 { color: color-mix(in srgb, var(--foreground) 40%, transparent) !important; }
-  :root:not(.dark) main .text-white\/35 { color: color-mix(in srgb, var(--foreground) 35%, transparent) !important; }
-  :root:not(.dark) main .text-white\/30 { color: color-mix(in srgb, var(--foreground) 30%, transparent) !important; }
-  :root:not(.dark) main .text-white\/25 { color: color-mix(in srgb, var(--foreground) 25%, transparent) !important; }
-  :root:not(.dark) main .text-white\/20 { color: color-mix(in srgb, var(--foreground) 20%, transparent) !important; }
-  :root:not(.dark) main .text-white\/15 { color: color-mix(in srgb, var(--foreground) 15%, transparent) !important; }
-  :root:not(.dark) main .text-white\/10 { color: color-mix(in srgb, var(--foreground) 10%, transparent) !important; }
+  :root:not(.dark) main:not(.mkt-surface) .text-white\/80 { color: color-mix(in srgb, var(--foreground) 80%, transparent) !important; }
+  :root:not(.dark) main:not(.mkt-surface) .text-white\/70 { color: color-mix(in srgb, var(--foreground) 70%, transparent) !important; }
+  :root:not(.dark) main:not(.mkt-surface) .text-white\/60 { color: color-mix(in srgb, var(--foreground) 60%, transparent) !important; }
+  :root:not(.dark) main:not(.mkt-surface) .text-white\/55 { color: color-mix(in srgb, var(--foreground) 55%, transparent) !important; }
+  :root:not(.dark) main:not(.mkt-surface) .text-white\/50 { color: color-mix(in srgb, var(--foreground) 50%, transparent) !important; }
+  :root:not(.dark) main:not(.mkt-surface) .text-white\/45 { color: color-mix(in srgb, var(--foreground) 45%, transparent) !important; }
+  :root:not(.dark) main:not(.mkt-surface) .text-white\/40 { color: color-mix(in srgb, var(--foreground) 40%, transparent) !important; }
+  :root:not(.dark) main:not(.mkt-surface) .text-white\/35 { color: color-mix(in srgb, var(--foreground) 35%, transparent) !important; }
+  :root:not(.dark) main:not(.mkt-surface) .text-white\/30 { color: color-mix(in srgb, var(--foreground) 30%, transparent) !important; }
+  :root:not(.dark) main:not(.mkt-surface) .text-white\/25 { color: color-mix(in srgb, var(--foreground) 25%, transparent) !important; }
+  :root:not(.dark) main:not(.mkt-surface) .text-white\/20 { color: color-mix(in srgb, var(--foreground) 20%, transparent) !important; }
+  :root:not(.dark) main:not(.mkt-surface) .text-white\/15 { color: color-mix(in srgb, var(--foreground) 15%, transparent) !important; }
+  :root:not(.dark) main:not(.mkt-surface) .text-white\/10 { color: color-mix(in srgb, var(--foreground) 10%, transparent) !important; }
+
+  /* Older marketing pages written dark-first on the theme-aware --mkt-bg
+     (DPDP, Privacy, Terms, Status, ComingSoon) opt back in with .mkt-legacy:
+     their white text follows the marketing text colour in light mode. */
+  :root:not(.dark) .mkt-legacy .text-white:not(
+    [class*="bg-teal"]:not([class~="bg-teal-50"]), [class*="bg-blue"]:not([class~="bg-blue-50"]),
+    [class*="bg-green"]:not([class~="bg-green-50"]), [class*="bg-purple"], [class*="bg-amber"]:not([class~="bg-amber-50"]),
+    [class*="bg-red"]:not([class~="bg-red-50"]), [class*="bg-indigo"], [class*="bg-violet"], [class*="bg-rose"], [class*="bg-pink"]
+  ),
+  :root:not(.dark) .mkt-legacy.text-white { color: var(--mkt-text) !important; }
+  :root:not(.dark) .mkt-legacy .text-white\/60 { color: color-mix(in srgb, var(--mkt-text) 70%, transparent) !important; }
+  :root:not(.dark) .mkt-legacy .text-white\/55 { color: color-mix(in srgb, var(--mkt-text) 65%, transparent) !important; }
+  :root:not(.dark) .mkt-legacy .text-white\/50 { color: color-mix(in srgb, var(--mkt-text) 60%, transparent) !important; }
+  :root:not(.dark) .mkt-legacy .text-white\/40 { color: color-mix(in srgb, var(--mkt-text) 55%, transparent) !important; }
+  :root:not(.dark) .mkt-legacy .text-white\/35 { color: color-mix(in srgb, var(--mkt-text) 50%, transparent) !important; }
+  :root:not(.dark) .mkt-legacy .text-white\/30 { color: color-mix(in srgb, var(--mkt-text) 45%, transparent) !important; }
 
   /* Light mode: hardcoded dark backgrounds in main content → mkt-panel token */
   :root:not(.dark) main [class*="bg-\\[\\#0f"],
