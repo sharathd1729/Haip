@@ -52,17 +52,12 @@ export function MarketingFooter() {
 
           {/* Brand column */}
           <div className="col-span-2 space-y-4">
-            <div className="flex items-center gap-2.5">
-              <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm"
-                style={{ background: "linear-gradient(135deg, #00555a, #00888f)", color: "#ffffff" }}
-              >
-                G
-              </div>
-              <span className="font-bold text-lg tracking-tight text-white">
-                Gen<span style={{ color: "#ffc94b" }}>Haip</span>
-              </span>
-            </div>
+            <a href="/" className="inline-flex items-center" aria-label="HAIP home">
+              {/* The real HAIP wordmark (not a hand-made text mark), shown in
+                  white: the teal original disappears on this dark teal. */}
+              <img src="/logo-wordmark.png" alt="HAIP" className="h-8 w-auto object-contain"
+                style={{ filter: "brightness(0) invert(1)" }} />
+            </a>
             <p className="text-sm leading-relaxed max-w-xs" style={{ color: "rgba(255,255,255,0.40)" }}>
               AI-powered guest intelligence for luxury hospitality. Unified inbox, call analytics,
               and CRM built for India&apos;s premium hospitality sector.

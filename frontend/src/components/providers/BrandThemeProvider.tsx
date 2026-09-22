@@ -18,6 +18,7 @@ import {
   applyTheme,
   loadSavedTheme,
   saveThemeLocally,
+  withCurrentDefaultLogo,
 } from "@/lib/brandTheme";
 import api from "@/lib/api";
 
@@ -58,7 +59,7 @@ export function BrandThemeProvider({ children }: { children: React.ReactNode }) 
         const clean = Object.fromEntries(
           Object.entries(raw).filter(([, v]) => v !== null && v !== undefined && v !== "")
         );
-        const server: BrandTheme = { ...DEFAULT_THEME, ...local, ...clean };
+        const server: BrandTheme = withCurrentDefaultLogo({ ...DEFAULT_THEME, ...local, ...clean });
         setThemeState(server);
         applyTheme(server);
         saveThemeLocally(server);

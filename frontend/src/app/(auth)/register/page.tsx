@@ -168,7 +168,7 @@ export default function RegisterPage() {
         <div className="relative">
           <Link href="/" className="inline-flex items-center">
             <div className="bg-white rounded-xl px-2.5 py-1 inline-flex items-center">
-              <img src="/logo.png" alt="HAIP" className="h-7 w-auto object-contain" />
+              <img src="/logo-wordmark.png" alt="HAIP" className="h-6 w-auto object-contain" />
             </div>
           </Link>
         </div>
@@ -218,7 +218,7 @@ export default function RegisterPage() {
       <div className="flex-1 flex flex-col items-center justify-center bg-background px-6 py-12 overflow-y-auto">
         <div className="lg:hidden mb-8">
           <Link href="/" className="inline-flex items-center">
-            <img src="/logo.png" alt="HAIP" className="h-10 w-auto object-contain" />
+            <img src="/logo-wordmark.png" alt="HAIP" className="h-8 w-auto object-contain" />
           </Link>
         </div>
 

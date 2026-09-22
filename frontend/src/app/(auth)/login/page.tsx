@@ -282,7 +282,7 @@ export default function LoginPage() {
         <div className="relative">
           <Link href="/" className="inline-flex items-center">
             <div className="bg-white rounded-xl px-2.5 py-1 inline-flex items-center">
-              <img src="/logo.png" alt="HAIP" className="h-7 w-auto object-contain" />
+              <img src="/logo-wordmark.png" alt="HAIP" className="h-6 w-auto object-contain" />
             </div>
           </Link>
         </div>
@@ -340,7 +340,7 @@ export default function LoginPage() {
         {/* Mobile logo */}
         <div className="lg:hidden mb-8">
           <Link href="/" className="inline-flex items-center">
-            <img src="/logo.png" alt="HAIP" className="h-10 w-auto object-contain" />
+            <img src="/logo-wordmark.png" alt="HAIP" className="h-8 w-auto object-contain" />
           </Link>
         </div>
 

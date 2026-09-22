@@ -62,7 +62,7 @@ function ResetPasswordForm() {
         {/* Logo */}
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center">
-            <img src="/logo.png" alt="HAIP" className="h-11 w-auto object-contain" />
+            <img src="/logo-wordmark.png" alt="HAIP" className="h-9 w-auto object-contain" />
           </Link>
         </div>
 

@@ -202,7 +202,7 @@ export default function FeaturesPage() {
               Ready to see it in action?
             </motion.h2>
             <motion.p variants={fadeUp} className="text-lg mb-8" style={{ color: "rgba(255,201,75,0.65)" }}>
-              Book a personalised demo and see how GenHaip works for your property.
+              Book a personalised demo and see how HAIP works for your property.
             </motion.p>
             <motion.div variants={fadeUp} className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link

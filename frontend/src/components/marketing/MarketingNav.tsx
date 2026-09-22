@@ -84,8 +84,8 @@ export function MarketingNav() {
       <div className="max-w-7xl mx-auto px-5 sm:px-8 flex items-center h-20 gap-8">
 
         {/* Logo */}
-        <Link href="/" className="flex items-center flex-shrink-0 h-full py-1 hover:opacity-80 transition-opacity duration-150">
-          <img src="/logo.png" alt="HAIP" className="h-full w-auto object-contain" />
+        <Link href="/" className="flex items-center flex-shrink-0 hover:opacity-80 transition-opacity duration-150">
+          <img src="/logo-wordmark.png" alt="HAIP" className="h-8 w-auto object-contain" />
         </Link>
 
         {/* Desktop Nav — stagger on mount */}

@@ -32,8 +32,8 @@ export interface BrandTheme {
 export const DEFAULT_THEME: BrandTheme = {
   primaryColor: "#14b8a6",
   sidebarColor: "#0B1F3A",
-  logoUrl: "/logo.png",
-  logoDarkUrl: "/logo.png",
+  logoUrl: "/logo-wordmark.png",
+  logoDarkUrl: "/logo-wordmark.png",
   fontFamily: "Inter",
   radiusScale: "rounded",
   companyName: "HAIP",
@@ -195,12 +195,21 @@ export function applyTheme(theme: BrandTheme): void {
   }
 }
 
+/** Themes saved before the wordmark was cropped still point at /logo.png,
+ * whose letters fill only ~20% of the image height -- swap in the tight
+ * crop so the logo is readable wherever it's shown. Uploaded logos are
+ * left alone. */
+export function withCurrentDefaultLogo(t: BrandTheme): BrandTheme {
+  const fix = (u?: string) => (u === "/logo.png" ? "/logo-wordmark.png" : u);
+  return { ...t, logoUrl: fix(t.logoUrl), logoDarkUrl: fix(t.logoDarkUrl) };
+}
+
 /** Load saved theme from localStorage (instant, no flash) */
 export function loadSavedTheme(): BrandTheme {
   if (typeof window === "undefined") return DEFAULT_THEME;
   try {
     const raw = localStorage.getItem("haip_brand_theme");
-    if (raw) return { ...DEFAULT_THEME, ...JSON.parse(raw) };
+    if (raw) return withCurrentDefaultLogo({ ...DEFAULT_THEME, ...JSON.parse(raw) });
   } catch { /* ignore */ }
   return DEFAULT_THEME;
 }
