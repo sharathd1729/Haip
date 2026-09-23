@@ -55,7 +55,8 @@ COLUMNS = [
     ("Instagram", 18),
     ("Phone", 16),
     ("Email", 24),
-    ("Came in via", 14),
+    ("Source", 20),
+    ("Channel", 12),
     ("Stage", 18),
     ("Owner", 14),
     ("Check-in", 12),
@@ -74,6 +75,37 @@ COLUMNS = [
     ("Remarks (AI summary)", 60),
     ("Suggested next step", 34),
 ]
+
+
+# Every channel a lead can arrive on, in words the team uses. Phone calls
+# (the IVR) count the same as chat -- a caller who left a number is a lead.
+SOURCE_LABELS = {
+    "meta_ig": ("Instagram DM", "Instagram"),
+    "meta_fb": ("Facebook", "Facebook"),
+    "click_to_wa": ("WhatsApp (ad click)", "WhatsApp"),
+    "wa_direct": ("WhatsApp", "WhatsApp"),
+    "web_chat": ("Website chat", "Website"),
+    "website": ("Website form", "Website"),
+    "google": ("Google", "Website"),
+    "email": ("Email", "Email"),
+    "phone": ("Phone call", "Call"),
+    "inbound_call": ("Phone call (IVR)", "Call"),
+    "outbound_call": ("Outbound call", "Call"),
+    "walk_in": ("Walk-in", "Walk-in"),
+    "referral": ("Referral", "Referral"),
+    "travel_agent": ("Travel agent", "Agent"),
+    "channel_manager": ("Channel manager", "OTA"),
+    "ota_airbnb": ("Airbnb", "OTA"),
+    "ota_booking": ("Booking.com", "OTA"),
+    "ota_vrbo": ("Vrbo", "OTA"),
+    "ota_mmt": ("MakeMyTrip", "OTA"),
+    "ota_goibibo": ("Goibibo", "OTA"),
+}
+
+
+def _source(value) -> tuple[str, str]:
+    raw = value.value if hasattr(value, "value") else (value or "")
+    return SOURCE_LABELS.get(raw, (raw.replace("_", " ").title() if raw else "Unknown", ""))
 
 
 def _ist(dt) -> str:
@@ -147,7 +179,8 @@ def _rows(db, tenant_ids: list[str], start, end, include_unqualified: bool) -> l
             _clean(handles.get(inq.guest_id, "")),
             _clean(phone),
             _clean(guest.email if guest else ""),
-            _clean(inq.source.value if inq.source else ""),
+            _clean(_source(inq.source)[0]),
+            _clean(_source(inq.source)[1]),
             _clean(stages.get(inq.stage_id) or (inq.stage.value if inq.stage else "")),
             _clean(owners.get(inq.assigned_to, "")),
             _clean(inq.check_in),
