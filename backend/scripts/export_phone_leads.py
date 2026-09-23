@@ -10,7 +10,11 @@ no number can't be called, and that is what these lists are for.
 Read-only: it opens the database, reads, and writes two files. Nothing is
 updated, nothing is sent.
 
-    # on the VPS
+    # On the VPS, from /opt/haip. Copy the script into the running container
+    # rather than rebuilding: a container only carries the files its image was
+    # built with, so a git pull alone does not put it there.
+    docker compose -f docker-compose.prod.yml cp \
+        backend/scripts/export_phone_leads.py api:/app/scripts/export_phone_leads.py
     docker compose -f docker-compose.prod.yml exec api \
         python scripts/export_phone_leads.py --month 2026-09 --out /tmp
 
