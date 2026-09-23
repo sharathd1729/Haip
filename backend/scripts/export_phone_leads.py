@@ -31,7 +31,11 @@ import sys
 from calendar import monthrange
 from datetime import date, datetime, time, timedelta, timezone
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Run from the repo (backend/scripts/...) or from anywhere inside the
+# container -- /app is where the code lives in the image.
+for _root in (os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "/app", os.getcwd()):
+    if os.path.isdir(os.path.join(_root, "app")) and _root not in sys.path:
+        sys.path.insert(0, _root)
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
