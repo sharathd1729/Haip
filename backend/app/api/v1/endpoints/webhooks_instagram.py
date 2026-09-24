@@ -65,13 +65,17 @@ async def receive_instagram_webhook(request: Request):
     if ig_account_id:
         try:
             from app.core.database import SessionLocal
-            from app.models.integration import Integration
+            from app.models.integration import INSTAGRAM_INBOUND_STATUSES, Integration
             from app.core.encryption import decrypt_credentials
             _db = SessionLocal()
             try:
+                # Same statuses the worker accepts: a workspace whose Meta app
+                # has its own secret must still verify while its token is
+                # marked bad, or the signature check 401s the DM before the
+                # worker ever sees it.
                 _candidates = (
                     _db.query(Integration)
-                    .filter(Integration.kind == "instagram", Integration.status == "active")
+                    .filter(Integration.kind == "instagram", Integration.status.in_(INSTAGRAM_INBOUND_STATUSES))
                     .all()
                 )
                 _ig = next(

@@ -23,6 +23,15 @@ class IntegrationStatus(str, enum.Enum):
     DISCONNECTED = "disconnected"
 
 
+# Instagram DMs, echoes and comments are accepted for an integration whose
+# token is failing as well as one whose token is healthy: receiving never uses
+# the access token, only sending does. "error" means a check failed, not that
+# the owner turned the channel off -- only "disconnected" does that. Gating
+# inbound on "active" once made a false "error" silently discard every DM
+# Ratha received (Meta got a 200, so it never retried).
+INSTAGRAM_INBOUND_STATUSES = (IntegrationStatus.ACTIVE.value, IntegrationStatus.ERROR.value)
+
+
 class Integration(Base, TimestampMixin, TenantMixin):
     __tablename__ = "integrations"
 

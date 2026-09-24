@@ -1077,6 +1077,24 @@ def get_meta_quality(
     }
 
 
+# Meta reports a dead token as HTTP 400 with one of these OAuthException codes
+# (invalid / expired / session invalidated), not as a 401.
+_META_AUTH_ERROR_CODES = {102, 190, 463, 467}
+
+
+def _is_meta_auth_failure(resp) -> bool:
+    """True only when Meta says the token itself is no good."""
+    if resp.status_code in (401, 403):
+        return True
+    if resp.status_code == 400:
+        try:
+            code = (resp.json().get("error") or {}).get("code")
+        except Exception:
+            return False
+        return code in _META_AUTH_ERROR_CODES
+    return False
+
+
 @router.post("/{kind}/test", response_model=IntegrationHealthResponse)
 def test_integration(
     kind: str,
@@ -1130,20 +1148,27 @@ def test_integration(
                 status = "error"
                 message = "Missing instagram_business_account_id or access_token."
             else:
+                # Instagram Login tokens only work on graph.instagram.com. The
+                # same token on graph.facebook.com is "Cannot parse access
+                # token" (HTTP 400), which this check used to read as a dead
+                # connection and write status="error" -- switching off inbound
+                # DMs for a healthy integration.
                 resp = httpx.get(
-                    f"https://graph.facebook.com/v19.0/{ig_account_id}",
-                    params={"fields": "id,name", "access_token": access_token},
+                    f"https://graph.instagram.com/v20.0/{ig_account_id}",
+                    params={"fields": "id", "access_token": access_token},
                     timeout=8,
                 )
                 if resp.status_code == 200:
-                    data = resp.json()
-                    message = f"Connected: {data.get('name', ig_account_id)}"
-                elif resp.status_code == 401:
+                    message = f"Connected: Instagram account {ig_account_id}"
+                elif _is_meta_auth_failure(resp):
                     status = "error"
                     message = "Token expired or revoked. Please reconnect Instagram."
                 else:
-                    status = "error"
-                    message = f"Instagram API error ({resp.status_code})"
+                    status = "unverified"
+                    message = (
+                        f"Instagram didn't give a clear answer (HTTP {resp.status_code}). "
+                        "Nothing was changed — try again in a minute."
+                    )
 
         elif kind in ("callerdesk", "acefone"):
             # For IVR: call the provider's health/account endpoint
@@ -1191,22 +1216,28 @@ def test_integration(
             # Generic: just mark health timestamp and return ok
             message = f"{kind} connection appears configured. No active test available."
 
-    except httpx.TimeoutException:
-        status = "error"
-        message = "Connection timed out. Check your credentials or try again."
+    except (httpx.TimeoutException, httpx.TransportError):
+        # Not being able to reach the provider says nothing about the
+        # credentials. Report it, but don't write "error" onto a connection
+        # that may be fine -- for Instagram and WhatsApp that status is what
+        # lets inbound messages in.
+        status = "unverified"
+        message = "Couldn't reach the provider to check. Nothing was changed — try again in a minute."
     except Exception as exc:
-        status = "error"
-        message = f"Unexpected error: {str(exc)[:120]}"
+        status = "unverified"
+        message = f"Couldn't complete the check ({str(exc)[:120]}). Nothing was changed."
 
-    # Persist test result — error_message is stored in config dict (no dedicated column)
+    # Persist test result — error_message is stored in config dict (no dedicated column).
+    # "unverified" means the check itself failed, so it records nothing.
     row.last_health_at = _now()
-    row.status = status  # type: ignore[assignment]
     cfg = dict(row.config or {})
-    if status == "error":
-        cfg["last_error"] = message
-    else:
-        cfg.pop("last_error", None)
-    row.config = cfg
+    if status in ("active", "error"):
+        row.status = status  # type: ignore[assignment]
+        if status == "error":
+            cfg["last_error"] = message
+        else:
+            cfg.pop("last_error", None)
+        row.config = cfg
     db.commit()
 
     return IntegrationHealthResponse(kind=kind, status=status, message=message)

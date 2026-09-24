@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
 from app.core.database import SessionLocal
-from app.models.integration import Integration
+from app.models.integration import INSTAGRAM_INBOUND_STATUSES, Integration
 from app.models.guest import Guest
 from app.models.conversation import Conversation, Message, ChannelType, MessageDirection
 from app.core.encryption import decrypt_credentials
@@ -58,13 +58,19 @@ def process_instagram_dm(self, payload: dict) -> dict:
         # Multiple tenants may each have an active Instagram integration, so
         # matching must be scoped to the account this webhook was for, not
         # just "the first active one" (which picks an arbitrary tenant).
-        candidates = db.query(Integration).filter_by(kind="instagram", status="active").all()
+        candidates = (
+            db.query(Integration)
+            .filter(Integration.kind == "instagram", Integration.status.in_(INSTAGRAM_INBOUND_STATUSES))
+            .all()
+        )
         integration = next(
             (c for c in candidates if (c.config or {}).get("instagram_business_account_id") == ig_account_id),
             None,
         )
         if not integration:
-            logger.warning("Instagram DM received but no matching active integration for account %s", ig_account_id)
+            # error, not warning: this drops a customer's message for good --
+            # Meta already got its 200 and will not send it again.
+            logger.error("Instagram DM received but no matching integration for account %s", ig_account_id)
             return {"status": "skipped", "reason": "no integration"}
 
         tenant_id = integration.tenant_id
@@ -521,13 +527,17 @@ def process_instagram_echo(self, payload: dict) -> dict:
         if not recipient_id:
             return {"status": "skipped", "reason": "no recipient_id"}
 
-        candidates = db.query(Integration).filter_by(kind="instagram", status="active").all()
+        candidates = (
+            db.query(Integration)
+            .filter(Integration.kind == "instagram", Integration.status.in_(INSTAGRAM_INBOUND_STATUSES))
+            .all()
+        )
         integration = next(
             (c for c in candidates if (c.config or {}).get("instagram_business_account_id") == ig_account_id),
             None,
         )
         if not integration:
-            logger.warning("Instagram echo received but no matching active integration for account %s", ig_account_id)
+            logger.error("Instagram echo received but no matching integration for account %s", ig_account_id)
             return {"status": "skipped", "reason": "no integration"}
 
         tenant_id = integration.tenant_id

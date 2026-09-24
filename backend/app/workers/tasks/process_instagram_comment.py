@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
-from app.models.integration import Integration
+from app.models.integration import INSTAGRAM_INBOUND_STATUSES, Integration
 from app.models.guest import Guest
 from app.models.conversation import Conversation, Message, ChannelType, MessageDirection
 from app.workers.celery_app import celery_app
@@ -63,13 +63,18 @@ def process_instagram_comment(self, payload: dict) -> dict:
             return {"status": "skipped", "reason": "no sender_id or comment_id"}
 
         # ── Find the tenant's Instagram integration by ig_account_id ───────
-        candidates = db.query(Integration).filter_by(kind="instagram", status="active").all()
+        candidates = (
+            db.query(Integration)
+            .filter(Integration.kind == "instagram", Integration.status.in_(INSTAGRAM_INBOUND_STATUSES))
+            .all()
+        )
         integration = next(
             (c for c in candidates if (c.config or {}).get("instagram_business_account_id") == ig_account_id),
             None,
         )
         if not integration:
-            logger.warning("Instagram comment received but no matching active integration for account %s", ig_account_id)
+            # error, not warning: this drops a customer's message for good.
+            logger.error("Instagram comment received but no matching integration for account %s", ig_account_id)
             return {"status": "skipped", "reason": "no integration"}
 
         tenant_id = integration.tenant_id
