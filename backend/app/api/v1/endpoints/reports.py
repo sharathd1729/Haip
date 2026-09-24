@@ -4,9 +4,11 @@ Owners/managers can select any combination of report type, date range,
 metrics/columns, and filters — then preview or download as CSV.
 """
 
+import copy
 import csv
 import io
 import json
+import re
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -25,6 +27,8 @@ from app.models.guest import Guest
 from app.models.score import CallScore
 from app.models.conversation import Message, MessageDirection, MessageDeliveryState, ChannelType
 from app.models.property import Stay
+from app.core.audit import append_audit
+from app.services import lead_report_service
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -61,33 +65,7 @@ REPORT_CATALOG = [
             {"key": "has_transcript", "label": "Has Transcript", "type": "boolean"},
         ],
     },
-    {
-        "id": "inquiries",
-        "name": "Inquiry Pipeline",
-        "description": "Lead funnel with source, stage, value, and conversion metrics.",
-        "icon": "zap",
-        "category": "CRM",
-        "fields": [
-            {"key": "created_at", "label": "Created Date", "default": True},
-            {"key": "guest_name", "label": "Guest Name", "default": True},
-            {"key": "guest_phone", "label": "Phone", "default": True},
-            {"key": "source", "label": "Source", "default": True},
-            {"key": "stage", "label": "Stage", "default": True},
-            {"key": "check_in", "label": "Check-in Date", "default": True},
-            {"key": "check_out", "label": "Check-out Date", "default": True},
-            {"key": "nights", "label": "Nights", "default": False},
-            {"key": "pax", "label": "Pax (Guests)", "default": False},
-            {"key": "budget", "label": "Budget", "default": False},
-            {"key": "quoted_amount", "label": "Quoted Amount", "default": True},
-            {"key": "lost_reason", "label": "Lost Reason", "default": False},
-            {"key": "property_name", "label": "Property", "default": False},
-            {"key": "tags", "label": "Tags", "default": False},
-        ],
-        "filters": [
-            {"key": "stage", "label": "Stage", "type": "select", "options": ["new", "responding", "quoted", "site_visit", "booked", "lost", "ghosted"]},
-            {"key": "source", "label": "Source", "type": "select", "options": ["website", "google", "meta_ig", "meta_fb", "click_to_wa", "wa_direct", "email", "phone", "walk_in", "referral", "travel_agent", "ota_airbnb", "ota_booking"]},
-        ],
-    },
+    lead_report_service.CATALOG_ENTRY,
     {
         "id": "guests",
         "name": "Guest Directory",
@@ -245,7 +223,9 @@ def _fmt_date(value) -> str:
     return value.strftime("%Y-%m-%d")
 
 
-def fetch_calls(db: Session, tenant_id: str, req: ReportRequest) -> List[Dict]:
+def fetch_calls(
+    db: Session, tenant_id: str, req: ReportRequest, scope_user_id: Optional[str] = None,
+) -> List[Dict]:
     date_from, date_to = _date_range(req.date_from, req.date_to)
     q = db.query(Call).filter(
         Call.tenant_id == tenant_id,
@@ -262,7 +242,14 @@ def fetch_calls(db: Session, tenant_id: str, req: ReportRequest) -> List[Dict]:
         )
     if filters.get("min_score"):
         q = q.filter(Call.ai_score >= float(filters["min_score"]))
-    calls = q.order_by(Call.started_at.desc()).limit(req.limit).all()
+    if scope_user_id:
+        q = q.filter(Call.agent_id == scope_user_id)
+    has_transcript = str(filters.get("has_transcript", "")).lower()
+    if has_transcript in ("true", "1", "yes"):
+        q = q.filter(Call.transcription_status == "done")
+    elif has_transcript in ("false", "0", "no"):
+        q = q.filter(or_(Call.transcription_status.is_(None), Call.transcription_status != "done"))
+    calls = q.order_by(Call.started_at.desc(), Call.id).limit(req.limit).all()
 
     rows = []
     for c in calls:
@@ -291,46 +278,22 @@ def fetch_calls(db: Session, tenant_id: str, req: ReportRequest) -> List[Dict]:
     return rows
 
 
-def fetch_inquiries(db: Session, tenant_id: str, req: ReportRequest) -> List[Dict]:
-    date_from, date_to = _date_range(req.date_from, req.date_to)
-    q = db.query(Inquiry).filter(
-        Inquiry.tenant_id == tenant_id,
-        Inquiry.created_at >= date_from,
-        Inquiry.created_at <= date_to,
+def _lead_report(db: Session, tenant_id: str, req: ReportRequest, scope_user_id: Optional[str] = None):
+    """The leads report lives in lead_report_service; this only turns a bad
+    filter into a 422 instead of a wrong list."""
+    try:
+        filters = lead_report_service.parse_filters(req.filters, req.date_from, req.date_to)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return lead_report_service.build_lead_report(
+        db, tenant_id, filters, req.fields, scope_user_id=scope_user_id, limit=req.limit,
     )
-    filters = req.filters or {}
-    if filters.get("stage"):
-        q = q.filter(Inquiry.stage == filters["stage"])
-    if filters.get("source"):
-        q = q.filter(Inquiry.source == filters["source"])
-    inquiries = q.order_by(Inquiry.created_at.desc()).limit(req.limit).all()
 
-    rows = []
-    for inq in inquiries:
-        nights = 0
-        if inq.check_in and inq.check_out:
-            try:
-                nights = (datetime.fromisoformat(inq.check_out) - datetime.fromisoformat(inq.check_in)).days
-            except Exception:
-                pass
-        row: Dict[str, Any] = {
-            "created_at": _fmt_date(inq.created_at),
-            "guest_name": inq.guest.name if inq.guest else "",
-            "guest_phone": inq.guest.phone if inq.guest else "",
-            "source": inq.source.value if hasattr(inq.source, "value") else str(inq.source or ""),
-            "stage": inq.stage.value if hasattr(inq.stage, "value") else str(inq.stage or ""),
-            "check_in": inq.check_in or "",
-            "check_out": inq.check_out or "",
-            "nights": nights,
-            "pax": (inq.adults or 0) + (inq.children or 0) or "",
-            "budget": inq.budget or "",
-            "quoted_amount": inq.quoted_amount or "",
-            "lost_reason": inq.lost_reason.value if hasattr(inq.lost_reason, "value") else str(inq.lost_reason or ""),
-            "property_name": "",
-            "tags": ", ".join(inq.tags or []),
-        }
-        rows.append({k: row[k] for k in req.fields if k in row})
-    return rows
+
+def fetch_inquiries(
+    db: Session, tenant_id: str, req: ReportRequest, scope_user_id: Optional[str] = None,
+) -> List[Dict]:
+    return _lead_report(db, tenant_id, req, scope_user_id).rows
 
 
 def fetch_guests(db: Session, tenant_id: str, req: ReportRequest) -> List[Dict]:
@@ -552,11 +515,13 @@ def fetch_revenue(db: Session, tenant_id: str, req: ReportRequest) -> List[Dict]
     return rows
 
 
-def fetch_report_data(db: Session, tenant_id: str, req: ReportRequest) -> List[Dict]:
+def fetch_report_data(
+    db: Session, tenant_id: str, req: ReportRequest, scope_user_id: Optional[str] = None,
+) -> List[Dict]:
     if req.report_id == "calls":
-        return fetch_calls(db, tenant_id, req)
+        return fetch_calls(db, tenant_id, req, scope_user_id)
     elif req.report_id == "inquiries":
-        return fetch_inquiries(db, tenant_id, req)
+        return fetch_inquiries(db, tenant_id, req, scope_user_id)
     elif req.report_id == "guests":
         return fetch_guests(db, tenant_id, req)
     elif req.report_id == "qa_scores":
@@ -571,6 +536,102 @@ def fetch_report_data(db: Session, tenant_id: str, req: ReportRequest) -> List[D
         return []
 
 
+def run_report(
+    db: Session, tenant_id: str, req: ReportRequest, scope_user_id: Optional[str] = None,
+):
+    """(rows, total, truncated). `total` is the exact match count where the
+    report can give one cheaply (leads), otherwise None."""
+    if req.report_id == "inquiries":
+        rep = _lead_report(db, tenant_id, req, scope_user_id)
+        return rep.rows, rep.total, rep.truncated
+    rows = fetch_report_data(db, tenant_id, req, scope_user_id)
+    return rows, None, len(rows) >= req.limit >= MAX_DOWNLOAD_ROWS
+
+
+# ─── Who can run what ─────────────────────────────────────────────────────────
+
+MAX_DOWNLOAD_ROWS = lead_report_service.MAX_ROWS
+PREVIEW_ROWS = 50
+
+FULL_ACCESS_ROLES = (UserRole.OWNER, UserRole.MANAGER, UserRole.COMPLIANCE)
+# Sales agents can download the lead and call reports -- their own only.
+AGENT_ROLES = (UserRole.CONCIERGE, UserRole.RESERVATIONS)
+AGENT_REPORTS = ("inquiries", "calls")
+
+
+def _allowed_reports(user: User) -> Optional[tuple]:
+    """None = every report. Otherwise the report ids this role may run."""
+    if user.role in FULL_ACCESS_ROLES:
+        return None
+    if user.role in AGENT_ROLES:
+        return AGENT_REPORTS
+    return ()
+
+
+def _catalog_entry(report_id: str) -> Dict[str, Any]:
+    entry = next((r for r in REPORT_CATALOG if r["id"] == report_id), None)
+    if not entry:
+        raise HTTPException(status_code=404, detail=f"Report '{report_id}' not found")
+    return entry
+
+
+def _report_scope(user: User, report_id: str) -> Optional[str]:
+    """Whose data the report is limited to: None = the whole workspace, a user
+    id = only that person's leads and calls. 403 if the role can't run it."""
+    allowed = _allowed_reports(user)
+    if allowed is None:
+        return None
+    if report_id in allowed:
+        return user.id
+    raise HTTPException(status_code=403, detail="Your role can't run this report")
+
+
+def _catalog_for(db: Session, user: User) -> List[Dict[str, Any]]:
+    """The catalog this person sees: only their reports, with the workspace's
+    own stages and owners filled into the filter choices."""
+    allowed = _allowed_reports(user)
+    options = lead_report_service.resolve_options(db, user.tenant_id)
+    out = []
+    for entry in REPORT_CATALOG:
+        if allowed is not None and entry["id"] not in allowed:
+            continue
+        item = copy.deepcopy(entry)
+        filters = []
+        for flt in item.get("filters", []):
+            if allowed is not None and flt["key"] == "owner":
+                continue          # an agent's report is already just theirs
+            opts = flt.get("options")
+            if isinstance(opts, str) and opts.startswith("@"):
+                flt["options"] = options.get(opts, [])
+            filters.append(flt)
+        item["filters"] = filters
+        out.append(item)
+    return out
+
+
+def _clean_fields(entry: Dict[str, Any], fields: List[str]) -> List[str]:
+    known = {f["key"] for f in entry["fields"]}
+    kept = [f for f in fields if f in known]
+    if not kept:
+        raise HTTPException(status_code=422, detail="Pick at least one column")
+    return kept
+
+
+# ─── Building the file ────────────────────────────────────────────────────────
+
+# A guest types their own name, and an agent opens the file in Excel: a name
+# like =HYPERLINK(...) would run as a formula. Text starting with a formula
+# character gets a leading apostrophe -- except the shapes we *expect* to start
+# with one: a +91 phone number and an @instagram handle.
+_EXPECTED_LEADING = re.compile(r"^(\+\d[\d ()-]{5,}|@[\w.]{1,64}|-?\d+(\.\d+)?)$")
+
+
+def _safe_cell(value: Any) -> Any:
+    if isinstance(value, str) and value and value[0] in "=+-@\t\r" and not _EXPECTED_LEADING.match(value):
+        return "'" + value
+    return value
+
+
 def _build_xlsx(fields: List[str], field_labels: Dict[str, str], rows: List[Dict], sheet_name: str) -> io.BytesIO:
     wb = Workbook()
     ws = wb.active
@@ -578,8 +639,9 @@ def _build_xlsx(fields: List[str], field_labels: Dict[str, str], rows: List[Dict
     ws.append([field_labels.get(f, f) for f in fields])
     for cell in ws[1]:
         cell.font = Font(bold=True)
+    ws.freeze_panes = "A2"
     for row in rows:
-        ws.append([row.get(f, "") for f in fields])
+        ws.append([_safe_cell(row.get(f, "")) for f in fields])
     for col in ws.columns:
         width = max((len(str(c.value)) for c in col if c.value is not None), default=10)
         ws.column_dimensions[col[0].column_letter].width = min(width + 2, 40)
@@ -589,29 +651,101 @@ def _build_xlsx(fields: List[str], field_labels: Dict[str, str], rows: List[Dict
     return buf
 
 
+def _render(
+    fmt: str, fields: List[str], entry: Dict[str, Any], rows: List[Dict],
+    total: Optional[int], truncated: bool,
+) -> StreamingResponse:
+    labels = {f["key"]: f["label"] for f in entry["fields"]}
+    name = entry["name"].replace(" ", "_").lower()
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
+    filename = f"haip_{name}_{stamp}"
+    disposition = {"Content-Disposition": f'attachment; filename="{filename}.{fmt}"'}
+
+    if fmt == "json":
+        content = json.dumps({
+            "report": name,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "row_count": len(rows),
+            "total": total,
+            "truncated": truncated,
+            "data": rows,
+        }, default=str, indent=2)
+        return StreamingResponse(io.StringIO(content), media_type="application/json", headers=disposition)
+
+    if fmt == "xlsx":
+        return StreamingResponse(
+            _build_xlsx(fields, labels, rows, entry["name"]),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers=disposition,
+        )
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([labels.get(f, f) for f in fields])
+    for row in rows:
+        writer.writerow([_safe_cell(row.get(f, "")) for f in fields])
+    output.seek(0)
+    return StreamingResponse(output, media_type="text/csv", headers=disposition)
+
+
+def _audit_download(
+    db: Session, user: User, body: ReportRequest, fmt: str,
+    rows: List[Dict], total: Optional[int], truncated: bool, scope: Optional[str],
+) -> None:
+    """A report can carry guests' phone numbers, so every download is on the
+    audit trail: who, which report, what they asked for, how many rows."""
+    append_audit(
+        db,
+        tenant_id=user.tenant_id,
+        action="reports.download",
+        actor_user_id=user.id,
+        target_type="report",
+        target_id=body.report_id,
+        payload={
+            "format": fmt,
+            "fields": body.fields,
+            "filters": body.filters or {},
+            "date_from": body.date_from,
+            "date_to": body.date_to,
+            "row_count": len(rows),
+            "total": total,
+            "truncated": truncated,
+            "scope": "own" if scope else "workspace",
+        },
+    )
+    db.commit()
+
+
 # ─── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.get("/catalog")
-def get_report_catalog(current_user: User = Depends(get_current_user)):
-    return REPORT_CATALOG
+def get_report_catalog(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return _catalog_for(db, current_user)
 
 
 @router.post("/preview")
 def preview_report(
     body: ReportRequest,
-    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER, UserRole.COMPLIANCE)),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Return up to 50 rows for preview in the UI."""
-    preview_req = ReportRequest(**body.model_dump())
-    preview_req.limit = 50
-    rows = fetch_report_data(db, current_user.tenant_id, preview_req)
-    catalog_item = next((r for r in REPORT_CATALOG if r["id"] == body.report_id), None)
+    """The first few rows, plus how many rows the full report would hold."""
+    entry = _catalog_entry(body.report_id)
+    scope = _report_scope(current_user, body.report_id)
+    fields = _clean_fields(entry, body.fields)
+    req = body.model_copy(update={"fields": fields, "limit": max(1, min(body.limit, PREVIEW_ROWS))})
+    rows, total, truncated = run_report(db, current_user.tenant_id, req, scope)
     return {
         "report_id": body.report_id,
-        "report_name": catalog_item["name"] if catalog_item else body.report_id,
+        "report_name": entry["name"],
         "row_count": len(rows),
-        "columns": body.fields,
+        "total": total,
+        "truncated": truncated,
+        "scope": "own" if scope else "workspace",
+        "columns": fields,
         "rows": rows,
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -620,54 +754,19 @@ def preview_report(
 @router.post("/download")
 def download_report(
     body: ReportRequest,
-    format: str = Query(default="csv", regex="^(csv|json|xlsx)$"),
-    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER, UserRole.COMPLIANCE)),
+    format: str = Query(default="csv", pattern="^(csv|json|xlsx)$"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Stream the full report as CSV, JSON, or XLSX download."""
-    rows = fetch_report_data(db, current_user.tenant_id, body)
-    catalog_item = next((r for r in REPORT_CATALOG if r["id"] == body.report_id), None)
-    report_name = (catalog_item["name"] if catalog_item else body.report_id).replace(" ", "_").lower()
-    date_suffix = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
-    filename = f"haip_{report_name}_{date_suffix}"
-
-    if format == "json":
-        content = json.dumps({
-            "report": report_name,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-            "row_count": len(rows),
-            "data": rows,
-        }, default=str, indent=2)
-        return StreamingResponse(
-            io.StringIO(content),
-            media_type="application/json",
-            headers={"Content-Disposition": f'attachment; filename="{filename}.json"'},
-        )
-
-    if format == "xlsx":
-        field_labels = {f["key"]: f["label"] for f in (catalog_item["fields"] if catalog_item else [])}
-        buf = _build_xlsx(body.fields, field_labels, rows, report_name)
-        return StreamingResponse(
-            buf,
-            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition": f'attachment; filename="{filename}.xlsx"'},
-        )
-
-    # CSV
-    output = io.StringIO()
-    if rows:
-        writer = csv.DictWriter(output, fieldnames=body.fields, extrasaction="ignore")
-        writer.writeheader()
-        writer.writerows(rows)
-    else:
-        output.write(",".join(body.fields) + "\n")
-    output.seek(0)
-
-    return StreamingResponse(
-        output,
-        media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{filename}.csv"'},
-    )
+    """The full report as CSV, JSON or Excel -- every matching row, up to
+    MAX_DOWNLOAD_ROWS, and the audit trail says how many."""
+    entry = _catalog_entry(body.report_id)
+    scope = _report_scope(current_user, body.report_id)
+    fields = _clean_fields(entry, body.fields)
+    req = body.model_copy(update={"fields": fields, "limit": MAX_DOWNLOAD_ROWS})
+    rows, total, truncated = run_report(db, current_user.tenant_id, req, scope)
+    _audit_download(db, current_user, req, format, rows, total, truncated, scope)
+    return _render(format, fields, entry, rows, total, truncated)
 
 
 @router.get("/export")
@@ -675,47 +774,25 @@ def export_report(
     report_id: str = Query(...),
     date_from: Optional[str] = Query(default=None),
     date_to: Optional[str] = Query(default=None),
-    format: str = Query(default="csv", regex="^(csv|json)$"),
-    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER, UserRole.COMPLIANCE)),
+    format: str = Query(default="csv", pattern="^(csv|json|xlsx)$"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """
-    GET-based export — allows direct browser download via URL params.
-    Delegates to the same fetch_report_data used by POST /download.
-    """
-    catalog_item = next((r for r in REPORT_CATALOG if r["id"] == report_id), None)
-    if not catalog_item:
-        raise HTTPException(status_code=404, detail=f"Report '{report_id}' not in catalog")
-
-    from datetime import timezone as _tz
-    now = datetime.now(timezone.utc)
-    dt_from = datetime.fromisoformat(date_from).replace(tzinfo=_tz.utc) if date_from else now - timedelta(days=30)
-    dt_to = datetime.fromisoformat(date_to).replace(tzinfo=_tz.utc) if date_to else now
-
+    """GET form of /download with the report's default columns and no
+    filters -- for a plain link. Same access rules and audit as /download."""
+    entry = _catalog_entry(report_id)
+    scope = _report_scope(current_user, report_id)
+    fields = [f["key"] for f in entry["fields"] if f.get("default")]
     body = ReportRequest(
         report_id=report_id,
-        date_from=dt_from.isoformat(),
-        date_to=dt_to.isoformat(),
-        fields=catalog_item.get("default_fields", []),
+        fields=fields,
+        date_from=(date_from or "")[:10] or None,
+        date_to=(date_to or "")[:10] or None,
+        limit=MAX_DOWNLOAD_ROWS,
     )
-    rows = fetch_report_data(db, current_user.tenant_id, body)
-    report_name = catalog_item["name"].replace(" ", "_").lower()
-    date_suffix = now.strftime("%Y%m%d_%H%M")
-    filename = f"haip_{report_name}_{date_suffix}"
-
-    if format == "json":
-        content = json.dumps({"report": report_name, "generated_at": now.isoformat(), "row_count": len(rows), "data": rows}, default=str, indent=2)
-        return StreamingResponse(io.StringIO(content), media_type="application/json", headers={"Content-Disposition": f'attachment; filename="{filename}.json"'})
-
-    output = io.StringIO()
-    if rows:
-        writer = csv.DictWriter(output, fieldnames=body.fields, extrasaction="ignore")
-        writer.writeheader()
-        writer.writerows(rows)
-    else:
-        output.write(",".join(body.fields) + "\n")
-    output.seek(0)
-    return StreamingResponse(output, media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="{filename}.csv"'})
+    rows, total, truncated = run_report(db, current_user.tenant_id, body, scope)
+    _audit_download(db, current_user, body, format, rows, total, truncated, scope)
+    return _render(format, fields, entry, rows, total, truncated)
 
 
 # ─── Aggregate/chart reports ────────────────────────────────────────────────

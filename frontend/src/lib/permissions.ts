@@ -77,15 +77,15 @@ export const navByRole: Record<UserRole, Resource[]> = {
     "whatsapp_personal",
   ],
   concierge: [
-    "dashboard", "calls", "inbox", "guests", "properties", "profile", "help",
+    "dashboard", "calls", "inbox", "guests", "properties", "reports", "profile", "help",
     "whatsapp_personal",
   ],
   reservations: [
-    "dashboard", "calls", "inquiries", "guests", "properties", "inbox", "profile", "help",
+    "dashboard", "calls", "inquiries", "guests", "properties", "inbox", "reports", "profile", "help",
     "whatsapp_personal",
   ],
   compliance: [
-    "compliance", "analytics", "profile", "help", "whatsapp_personal",
+    "compliance", "analytics", "reports", "profile", "help", "whatsapp_personal",
   ],
   marketing: [
     "dashboard", "guests", "messaging", "templates", "campaigns",
@@ -171,7 +171,7 @@ const permissions: Record<UserRole, Record<Resource, Action[]>> = {
     campaigns:    [],
     subscribers:  [],
     flows:        [],
-    reports:      [],
+    reports:      ["read"],
     billing:      [],
     help:         ["read"],
     profile:      ["read", "write"],
@@ -196,7 +196,7 @@ const permissions: Record<UserRole, Record<Resource, Action[]>> = {
     campaigns:    [],
     subscribers:  [],
     flows:        [],
-    reports:      [],
+    reports:      ["read"],
     billing:      [],
     help:         ["read"],
     profile:      ["read", "write"],

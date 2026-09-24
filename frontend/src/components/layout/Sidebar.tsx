@@ -140,7 +140,7 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Reports",
         href: "/dashboard/reports",
         icon: BarChart2,
-        resource: "analytics",
+        resource: "reports",
       },
       {
         label: "Instagram Insights",
