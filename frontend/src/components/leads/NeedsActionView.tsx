@@ -5,12 +5,13 @@
 // the selected lead; on mobile a row opens the full lead page.
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Sparkles, Clock, PhoneCall, Flag, Users, ArrowRight, Loader2, Send, CheckCircle2,
 } from "@/lib/icons";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/components/ui/toast";
 import { ChannelIcon } from "@/components/inbox/ChannelIcon";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { formatDuration, useApproveAndSendDraft, type LeadCard } from "@/components/leads/LeadCard";
@@ -139,6 +140,32 @@ function Kpis({
   );
 }
 
+// ─── Calling a lead ───────────────────────────────────────────────────────────
+
+// The "Call" button places the call: the IVR rings the agent's own phone, then
+// bridges to the guest -- the same POST /calls/click-to-call the Calls page
+// uses, naming the lead so the number never has to reach this list. It used to
+// just open the lead page, so tapping "Call" dialled nobody. Any failure
+// (no agent phone on file, IVR not set up, guest has no number) is shown as
+// the server's own reason.
+function useCallLead(lead: LeadCard) {
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: () => api.post("/calls/click-to-call", { inquiry_id: lead.inquiry_id }),
+    onSuccess: () => toast({
+      variant: "success", title: "Calling…",
+      description: `Your phone will ring first, then we'll connect you to ${lead.display_name}.`,
+    }),
+    onError: (err: any) => {
+      const raw = err?.response?.data?.detail;
+      const description = typeof raw === "string"
+        ? raw
+        : Array.isArray(raw) ? raw.map((e: any) => e?.msg ?? JSON.stringify(e)).join("; ") : "Could not start the call.";
+      toast({ variant: "error", title: "Call failed", description });
+    },
+  });
+}
+
 // ─── One lead row ─────────────────────────────────────────────────────────────
 
 function ActionRow({
@@ -149,13 +176,17 @@ function ActionRow({
   const router = useRouter();
   const meta = BUCKETS[bucket];
   const send = useApproveAndSendDraft(lead.inquiry_id);
+  const callLead = useCallLead(lead);
   const hasPhone = lead.identity_signals?.includes("phone");
   const chips = [guestsLabel(lead), datesLabel(lead), hasPhone && bucket !== "call" ? "Phone shared" : null].filter(Boolean) as string[];
+  const busy = send.isPending || callLead.isPending;
 
   const act = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (bucket === "draft_ready" && lead.pending_draft) {
       send.mutate({ conversationId: lead.pending_draft.conversation_id, messageId: lead.pending_draft.message_id });
+    } else if (bucket === "call" && hasPhone) {
+      callLead.mutate();
     } else {
       router.push(`/dashboard/leads/${lead.inquiry_id}`);
     }
@@ -197,11 +228,11 @@ function ActionRow({
         <button
           type="button"
           onClick={act}
-          disabled={send.isPending}
+          disabled={busy}
           className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg bg-teal-700 text-white hover:bg-teal-800 disabled:opacity-60 whitespace-nowrap"
         >
-          {send.isPending ? <Loader2 size={12} className="animate-spin" /> : null}
-          {meta.action}
+          {busy ? <Loader2 size={12} className="animate-spin" /> : null}
+          {callLead.isPending ? "Calling…" : meta.action}
         </button>
       </div>
     </div>
@@ -213,6 +244,7 @@ function ActionRow({
 function DetailPanel({ lead, bucket, stageLabel }: { lead: LeadCard; bucket: BucketKey; stageLabel: string | null }) {
   const router = useRouter();
   const send = useApproveAndSendDraft(lead.inquiry_id);
+  const callLead = useCallLead(lead);
   const facts: [string, string][] = [
     ["Guests", guestsLabel(lead) ?? "Not shared yet"],
     ["Dates", datesLabel(lead) ?? "Not shared yet"],
@@ -271,6 +303,18 @@ function DetailPanel({ lead, bucket, stageLabel }: { lead: LeadCard; bucket: Buc
             Send reply
           </button>
         </div>
+      )}
+
+      {bucket === "call" && lead.identity_signals?.includes("phone") && (
+        <button
+          type="button"
+          onClick={() => callLead.mutate()}
+          disabled={callLead.isPending}
+          className="inline-flex items-center justify-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-lg bg-teal-700 text-white hover:bg-teal-800 disabled:opacity-60"
+        >
+          {callLead.isPending ? <Loader2 size={14} className="animate-spin" /> : <PhoneCall size={14} />}
+          {callLead.isPending ? "Calling…" : "Call now"}
+        </button>
       )}
 
       <button

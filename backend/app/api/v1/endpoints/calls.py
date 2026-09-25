@@ -43,7 +43,10 @@ def _phone_token(phone: str) -> str:
 
 
 class ClickToCallRequest(BaseModel):
-    guest_number: str
+    # Who to ring: either the number itself, or a lead (inquiry_id) whose
+    # number the server looks up. Lead lists don't carry phone numbers, so
+    # their Call buttons name the lead. A number, when given, wins.
+    guest_number: Optional[str] = None
     # Optional override -- almost never sent by the frontend (no call site
     # passes it). Server-side default is the clicking agent's own
     # User.phone (Profile page), falling back to the tenant's shared
@@ -560,6 +563,27 @@ async def click_to_call(
 
     provider = tenant.ivr_provider.lower()
 
+    guest_number = (req.guest_number or "").strip()
+    if not guest_number:
+        if not req.inquiry_id:
+            raise HTTPException(status_code=422, detail="Say who to call: a guest_number or an inquiry_id.")
+        from app.models.inquiry import Inquiry
+        guest = (
+            db.query(Guest)
+            .join(Inquiry, Inquiry.guest_id == Guest.id)
+            .filter(
+                Inquiry.id == req.inquiry_id,
+                Inquiry.tenant_id == current_user.tenant_id,
+                Guest.tenant_id == current_user.tenant_id,
+            )
+            .first()
+        )
+        if not guest:
+            raise HTTPException(status_code=404, detail="Lead not found")
+        guest_number = (guest.phone or "").strip()
+        if not guest_number:
+            raise HTTPException(status_code=400, detail="This lead hasn't shared a phone number yet.")
+
     if provider == "vobiz":
         integration = db.query(Integration).filter_by(tenant_id=tenant.id, kind="vobiz").first()
         if not integration or not integration.credentials_kms_blob:
@@ -603,12 +627,12 @@ async def click_to_call(
             raise HTTPException(status_code=500, detail="API_BASE_URL not configured")
         answer_url = (
             f"{base}/api/v1/webhooks/vobiz/{tenant.slug}/{webhook_secret}"
-            f"/outbound-answer?guest_number={quote(req.guest_number)}"
+            f"/outbound-answer?guest_number={quote(guest_number)}"
         )
         adapter = VobizAdapter(auth_id=auth_id, auth_token=auth_token)
         try:
             call_id = await adapter.initiate_click_to_call(
-                agent_number, req.guest_number, did_number=did_number, answer_url=answer_url,
+                agent_number, guest_number, did_number=did_number, answer_url=answer_url,
             )
         except httpx.HTTPStatusError as exc:
             # Confirmed live: Vobiz's Call API returns plain HTTP status
@@ -636,7 +660,7 @@ async def click_to_call(
                 detail="No phone number on file to call from -- add one in Profile settings.",
             )
         adapter = get_ivr_adapter(provider)
-        call_id = await adapter.initiate_click_to_call(agent_number, req.guest_number)
+        call_id = await adapter.initiate_click_to_call(agent_number, guest_number)
 
     from app.workers.tasks.call_ingest import cache_click_to_call_agent
     cache_click_to_call_agent(current_user.tenant_id, call_id, current_user.id)

@@ -6,10 +6,11 @@
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChannelBadges } from "@/components/inbox/ChannelBadges";
 import { toGuestChannel } from "@/components/inbox/ChannelBadges";
@@ -50,11 +51,37 @@ function ago(iso: string | null): string {
 }
 
 function Row({ item }: { item: Item }) {
+  const { toast } = useToast();
   const channels = item.channels.map(toGuestChannel).filter(Boolean) as ReturnType<typeof toGuestChannel>[];
-  return (
-    <Link href={item.href}
-      className="flex items-center gap-3 px-4 py-3 hover:bg-[color:var(--muted)] outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-600"
-      style={{ borderTop: "1px solid var(--haip-border)" }}>
+
+  // "Call" and "Call back" place the call -- the IVR rings your phone, then
+  // connects the guest (POST /calls/click-to-call) -- instead of opening a
+  // page and leaving you to dial by hand. A shared-a-number lead is named by
+  // its inquiry (the server holds the number); a missed call carries its own.
+  const dialPayload: { inquiry_id: string } | { guest_number: string } | null =
+    item.kind === "call_new" && item.inquiry_id ? { inquiry_id: item.inquiry_id }
+      : item.kind === "callback" && item.guest_phone ? { guest_number: item.guest_phone }
+        : null;
+  const dial = useMutation({
+    mutationFn: () => api.post("/calls/click-to-call", dialPayload!),
+    onSuccess: () => toast({
+      variant: "success", title: "Calling…",
+      description: `Your phone will ring first, then we'll connect you to ${item.title}.`,
+    }),
+    onError: (err: any) => {
+      const raw = err?.response?.data?.detail;
+      const description = typeof raw === "string"
+        ? raw
+        : Array.isArray(raw) ? raw.map((e: any) => e?.msg ?? JSON.stringify(e)).join("; ") : "Could not start the call.";
+      toast({ variant: "error", title: "Call failed", description });
+    },
+  });
+
+  const rowCls = "flex items-center gap-3 px-4 py-3 hover:bg-[color:var(--muted)] outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-600";
+  const actionCls = "text-xs font-bold px-3 py-1.5 rounded-lg bg-teal-700 text-white whitespace-nowrap";
+
+  const body = (
+    <>
       <div className="flex-1 min-w-0">
         <span className="flex items-center gap-1.5 min-w-0">
           <span className="text-sm font-bold truncate" style={{ color: "var(--haip-fg)" }}>{item.title}</span>
@@ -69,10 +96,28 @@ function Row({ item }: { item: Item }) {
         item.overdue ? "text-red-700" : "")} style={item.overdue ? undefined : { color: "var(--haip-fg-muted)" }}>
         {ago(item.since)}
       </span>
-      <span className="text-xs font-bold px-3 py-1.5 rounded-lg bg-teal-700 text-white whitespace-nowrap">
-        {item.action}
-      </span>
-    </Link>
+    </>
+  );
+
+  // Everything else still opens where it says: the whole row is one link.
+  if (!dialPayload) {
+    return (
+      <Link href={item.href} className={rowCls} style={{ borderTop: "1px solid var(--haip-border)" }}>
+        {body}
+        <span className={actionCls}>{item.action}</span>
+      </Link>
+    );
+  }
+  // A call row: the details are a link, the action is a real button beside it
+  // (a button can't sit inside a link).
+  return (
+    <div className="flex items-center gap-3 pr-4" style={{ borderTop: "1px solid var(--haip-border)" }}>
+      <Link href={item.href} className={cn(rowCls, "flex-1 min-w-0")}>{body}</Link>
+      <button type="button" onClick={() => dial.mutate()} disabled={dial.isPending}
+        className={cn(actionCls, "disabled:opacity-60 outline-none focus-visible:ring-2 focus-visible:ring-teal-600")}>
+        {dial.isPending ? "Calling…" : item.action}
+      </button>
+    </div>
   );
 }
 
