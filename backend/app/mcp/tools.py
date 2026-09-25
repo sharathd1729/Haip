@@ -216,7 +216,7 @@ def _get_call_analysis(db: Session, user: User, tenant_id: str, args: dict) -> A
         "disposition": detail["disposition"],
         "ai_summary": detail["ai_summary"],
         "ai_next_action": detail["ai_next_action"],
-        "recommended_action": detail["recommended_action"],
+        "recommended_actions": detail.get("recommended_actions"),
         "score": detail["score"],
         "layer2": detail["layer2"],
     }
