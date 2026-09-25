@@ -96,6 +96,9 @@ class Settings(BaseSettings):
     META_WHATSAPP_ACCESS_TOKEN: str = ""
     META_WHATSAPP_WEBHOOK_VERIFY_TOKEN: str = ""
     META_APP_SECRET: str = ""
+    # Optional: the Meta app id, used to upload template header media. When
+    # empty it is looked up from the WhatsApp access token (debug_token).
+    META_APP_ID: str = ""
     META_INSTAGRAM_ACCESS_TOKEN: str = ""
     META_INSTAGRAM_PAGE_ID: str = ""
     INSTAGRAM_APP_ID: str = ""

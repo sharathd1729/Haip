@@ -5,6 +5,8 @@ import { Megaphone, Plus, Play, Pause, Clock, CheckCircle2, Users, TrendingUp, X
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
+import { VariableMapping, defaultMap, templateSections, unmappedVariables, type VariableMap } from "@/components/messaging/VariableMapping";
+import type { Template as FullTemplate } from "@/components/messaging/templateModel";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -22,12 +24,7 @@ interface Campaign {
   created_at: string | null;
 }
 
-interface Template {
-  id: string;
-  name: string;
-  status: string;
-  category: string;
-}
+type Template = FullTemplate;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -172,6 +169,7 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
   onCreated: () => void;
 }) {
   const [form, setForm] = useState({ name: "", template_id: "", scheduled_at: "" });
+  const [variableMap, setVariableMap] = useState<VariableMap>({});
   const [audienceFilter, setAudienceFilter] = useState<{ tags: string[]; source: string[] }>({ tags: [], source: [] });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -206,6 +204,8 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
   const handleCreate = async () => {
     if (!form.name.trim()) { setError("Campaign name is required."); return; }
     if (!form.template_id) { setError("Please select a message template."); return; }
+    const missing = unmappedVariables(selectedTemplate, variableMap);
+    if (missing.length > 0) { setError(`Say what to fill in for: ${missing.join(", ")}.`); return; }
     setError("");
     setSubmitting(true);
     try {
@@ -218,6 +218,7 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
         template_id: form.template_id,
         scheduled_at: form.scheduled_at || null,
         audience_filter: af,
+        variable_map: variableMap,
       });
       onCreated();
       onClose();
@@ -229,10 +230,16 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
   };
 
   const approvedTemplates = templates.filter(t => t.status === "approved");
+  const selectedTemplate = approvedTemplates.find(t => t.id === form.template_id);
+  const chooseTemplate = (id: string) => {
+    setForm(f => ({ ...f, template_id: id }));
+    setVariableMap(defaultMap(approvedTemplates.find(t => t.id === id)));
+    setError("");
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden max-h-[90vh] flex flex-col">
+      <div className={cn("bg-white rounded-2xl shadow-2xl w-full overflow-hidden max-h-[90vh] flex flex-col", selectedTemplate && templateSections(selectedTemplate).length > 0 ? "max-w-2xl" : "max-w-lg")}>
         <div className="px-6 pt-6 pb-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
           <div>
             <h2 className="text-base font-bold text-gray-900">New campaign</h2>
@@ -258,7 +265,7 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
                 No approved templates yet. <a href="/dashboard/messaging/templates" className="underline font-medium">Create and submit a template</a> first.
               </div>
             ) : (
-              <select value={form.template_id} onChange={e => setForm(f => ({ ...f, template_id: e.target.value }))}
+              <select value={form.template_id} onChange={e => chooseTemplate(e.target.value)}
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
                 <option value="">Select a template…</option>
                 {approvedTemplates.map(t => (
@@ -267,6 +274,14 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
               </select>
             )}
           </div>
+
+          {/* What each {{n}} becomes for every recipient */}
+          {selectedTemplate && templateSections(selectedTemplate).length > 0 && (
+            <div>
+              <label className="text-xs font-semibold text-gray-700 block mb-2">What to fill in for each guest</label>
+              <VariableMapping template={selectedTemplate} value={variableMap} onChange={setVariableMap} />
+            </div>
+          )}
 
           {/* Audience filter */}
           <div>

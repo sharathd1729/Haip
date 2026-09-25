@@ -128,6 +128,25 @@ def run_campaign(self, campaign_id: str, tenant_id: str):
             _set_status(db, campaign, CampaignStatus.COMPLETED)
             return
 
+        # ── Header media + variable mapping ────────────────────────────────
+        # One link for the whole run (good for 24h, so a long campaign can't
+        # outlive it): the header file is the same for every recipient.
+        from app.services import wa_template_service as wts
+        header_link = None
+        if template.header_media_key:
+            from app.services.media_storage import get_presigned_media_url
+            header_link = get_presigned_media_url(template.header_media_key, expires_in=86400)
+            if not header_link:
+                log.error("run_campaign_header_media_unavailable", campaign_id=campaign_id)
+                _set_status(db, campaign, CampaignStatus.PAUSED)
+                return
+        variable_map = campaign.variable_map or {}
+        still_unmapped = wts.unmapped_variables(template.components, variable_map)
+        if still_unmapped:
+            log.error("run_campaign_unmapped_variables", campaign_id=campaign_id, missing=still_unmapped)
+            _set_status(db, campaign, CampaignStatus.PAUSED)
+            return
+
         # ── Send in batches ────────────────────────────────────────────────
         sent = 0
         failed = 0
@@ -143,11 +162,15 @@ def run_campaign(self, campaign_id: str, tenant_id: str):
             batch = recipients[i : i + BATCH_SIZE]
             for sub in batch:
                 try:
+                    components = wts.build_send_components(
+                        template.components, variable_map, sub, header_media_link=header_link,
+                    )
                     _run_async(
                         adapter.send_template(
                             to=sub.phone,
                             template_name=template.name,
                             language_code=template.language or "en",
+                            components=components,
                         )
                     )
                     sent += 1

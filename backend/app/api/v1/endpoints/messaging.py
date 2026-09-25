@@ -10,7 +10,7 @@ import os
 import httpx
 import structlog
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy import Column, String, Boolean, JSON, Enum as SAEnum
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -60,6 +60,10 @@ class WATemplate(Base, TimestampMixin, TenantMixin):
     components = Column(JSON, default=list)   # Meta template components array
     meta_template_id = Column(String(255), nullable=True)
     rejection_reason = Column(String(500), nullable=True)
+    # migration 105 -- storage key of the image/video/PDF used as the header.
+    # Meta only ever sees a sample of it (the handle inside `components`);
+    # this is what gets sent to real recipients and shown in the preview.
+    header_media_key = Column(String(500), nullable=True)
 
 
 class WACampaign(Base, TimestampMixin, TenantMixin):
@@ -76,6 +80,9 @@ class WACampaign(Base, TimestampMixin, TenantMixin):
     delivered_count = Column(String(20), default="0")
     read_count = Column(String(20), default="0")
     failed_count = Column(String(20), default="0")
+    # migration 105 -- how each template {{n}} is filled per recipient:
+    # {"body": {"1": {"source": "first_name", "fallback": "Guest"}}, "header": {...}}
+    variable_map = Column(JSON, default=dict)
 
 
 class WASubscriber(Base, TimestampMixin, TenantMixin):
@@ -124,6 +131,16 @@ class TemplateCreateRequest(BaseModel):
     language: str = "en"
     category: str = "MARKETING"
     components: List[dict] = []
+    # Storage key returned by POST /templates/media, for image/video/PDF headers.
+    header_media_key: Optional[str] = None
+
+
+class TemplateUpdateRequest(BaseModel):
+    """Everything about a template except its name, which Meta ties to it."""
+    language: str = "en"
+    category: str = "MARKETING"
+    components: List[dict] = []
+    header_media_key: Optional[str] = None
 
 
 class TemplateOut(BaseModel):
@@ -135,6 +152,8 @@ class TemplateOut(BaseModel):
     components: list
     meta_template_id: Optional[str] = None
     rejection_reason: Optional[str] = None
+    header_media_key: Optional[str] = None
+    header_media_url: Optional[str] = None   # short-lived link for the preview
     # datetime, NOT str: created_at comes from TimestampMixin and is a
     # DateTime column. Pydantic v2 will not coerce datetime -> str, so
     # declaring str here made response validation raise on every template
@@ -151,6 +170,7 @@ class CampaignCreateRequest(BaseModel):
     template_id: Optional[str] = None
     audience_filter: Optional[dict] = {}
     scheduled_at: Optional[str] = None
+    variable_map: Optional[dict] = {}
 
 
 class CampaignOut(BaseModel):
@@ -164,6 +184,7 @@ class CampaignOut(BaseModel):
     delivered_count: str
     read_count: str
     failed_count: str
+    variable_map: Optional[dict] = None
     # See TemplateOut.created_at — DateTime column, not a string.
     created_at: Optional[datetime] = None
 
@@ -219,6 +240,45 @@ class FlowSaveRequest(BaseModel):
 
 # ─── Templates ────────────────────────────────────────────────────────────────
 
+def _template_out(tmpl: "WATemplate") -> TemplateOut:
+    """TemplateOut plus a fresh short-lived link to the header media, so the
+    editor and list can preview it. The link is generated on read, never
+    stored -- same rule as inbound WhatsApp media."""
+    out = TemplateOut.model_validate(tmpl)
+    if tmpl.header_media_key:
+        from app.services.media_storage import get_presigned_media_url
+        out.header_media_url = get_presigned_media_url(tmpl.header_media_key, expires_in=3600)
+    return out
+
+
+def _check_template_input(tenant_id: str, components: list, header_media_key: Optional[str]) -> None:
+    """400 with plain-language reasons if the template can't be saved."""
+    from app.services import wa_template_service as wts
+    problems = wts.validate_components(components)
+    if header_media_key and not header_media_key.startswith(f"{tenant_id}/wa_templates/"):
+        problems.append("The attached file doesn't belong to this workspace.")
+    header = next((c for c in components if (c.get("type") or "").upper() == "HEADER"), None)
+    if header and (header.get("format") or "TEXT").upper() in wts.MEDIA_FORMATS and not header_media_key:
+        problems.append("Attach the header file.")
+    if problems:
+        raise HTTPException(status_code=400, detail=" ".join(problems))
+
+
+def _wa_integration_and_token(db: Session, tenant_id: str):
+    """The tenant's active WhatsApp integration and its access token, or
+    (None, "") when WhatsApp isn't connected. kind="whatsapp_meta" is
+    primary; every other WhatsApp code path also falls back to "whatsapp"."""
+    from app.models.integration import Integration
+    from app.workers.tasks.whatsapp import _get_wa_access_token
+    wa_int = db.query(Integration).filter_by(tenant_id=tenant_id, kind="whatsapp_meta", status="active").first()
+    if not wa_int:
+        wa_int = db.query(Integration).filter_by(tenant_id=tenant_id, kind="whatsapp", status="active").first()
+    # access_token is a secret and only ever lives in the encrypted
+    # credentials_kms_blob, never in integration.config.
+    access_token = _get_wa_access_token(db, tenant_id) if wa_int else ""
+    return wa_int, access_token
+
+
 @router.get("/templates", response_model=List[TemplateOut])
 def list_templates(
     limit: int = Query(default=100, ge=1, le=500),
@@ -226,12 +286,13 @@ def list_templates(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return (
+    rows = (
         db.query(WATemplate)
         .filter_by(tenant_id=current_user.tenant_id)
         .order_by(WATemplate.created_at.desc())
         .offset(offset).limit(limit).all()
     )
+    return [_template_out(t) for t in rows]
 
 
 @router.post("/templates", response_model=TemplateOut, status_code=status.HTTP_201_CREATED)
@@ -245,19 +306,110 @@ def create_template(
     except ValueError:
         category = TemplateCategory.MARKETING
 
+    name = body.name.lower().replace(" ", "_")
+    _check_template_input(current_user.tenant_id, body.components, body.header_media_key)
+    if db.query(WATemplate).filter_by(tenant_id=current_user.tenant_id, name=name, language=body.language).first():
+        raise HTTPException(
+            status_code=409,
+            detail=f"You already have a template named '{name}' in this language. Pick another name or edit that one.",
+        )
+
     tmpl = WATemplate(
         id=str(uuid.uuid4()),
         tenant_id=current_user.tenant_id,
-        name=body.name.lower().replace(" ", "_"),
+        name=name,
         language=body.language,
         category=category,
         components=body.components,
+        header_media_key=body.header_media_key,
         status=TemplateStatus.DRAFT,
     )
     db.add(tmpl)
     db.commit()
     db.refresh(tmpl)
-    return tmpl
+    return _template_out(tmpl)
+
+
+_EDITABLE_STATUSES = (TemplateStatus.DRAFT, TemplateStatus.REJECTED, TemplateStatus.SUBMISSION_FAILED)
+
+
+@router.put("/templates/{template_id}", response_model=TemplateOut)
+def update_template(
+    template_id: str,
+    body: TemplateUpdateRequest,
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER, UserRole.MARKETING)),
+    db: Session = Depends(get_db),
+):
+    """Edit a template that isn't with Meta right now. Approved and pending
+    templates are locked: Meta limits how often an approved one may change,
+    and a pending one is being reviewed."""
+    tmpl = db.query(WATemplate).filter_by(id=template_id, tenant_id=current_user.tenant_id).first()
+    if not tmpl:
+        raise HTTPException(status_code=404, detail="Template not found")
+    if tmpl.status not in _EDITABLE_STATUSES:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "An approved template can't be edited. Duplicate it and edit the copy instead."
+                if tmpl.status == TemplateStatus.APPROVED
+                else "A template that is with Meta for review can't be edited until it is decided."
+            ),
+        )
+    try:
+        category = TemplateCategory(body.category.upper())
+    except ValueError:
+        category = tmpl.category
+    _check_template_input(current_user.tenant_id, body.components, body.header_media_key)
+
+    tmpl.language = body.language
+    tmpl.category = category
+    tmpl.components = body.components
+    tmpl.header_media_key = body.header_media_key
+    tmpl.status = TemplateStatus.DRAFT       # back to "ready to (re)submit"
+    tmpl.rejection_reason = None
+    db.commit()
+    db.refresh(tmpl)
+    return _template_out(tmpl)
+
+
+@router.post("/templates/media")
+def upload_template_media(
+    format: str = Form(...),
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER, UserRole.MARKETING)),
+    db: Session = Depends(get_db),
+):
+    """Upload the image / video / PDF a template header uses.
+
+    Sends a sample to Meta (its review requires one) and keeps the file in our
+    storage (that's what real recipients get). Returns the storage key to put
+    on the template, and the handle Meta wants inside the HEADER example."""
+    from app.services import wa_template_service as wts
+    from app.services.media_storage import upload_wa_template_media, get_presigned_media_url
+
+    fmt = (format or "").upper()
+    content = file.file.read()
+    content_type = (file.content_type or "").split(";")[0].strip().lower()
+    try:
+        ext = wts.check_media(fmt, content_type, content)
+        wa_int, access_token = _wa_integration_and_token(db, current_user.tenant_id)
+        if not wa_int or not access_token:
+            raise wts.TemplateError(
+                "WhatsApp Business API is not connected for this workspace. "
+                "Connect it under Settings -> Integrations first."
+            )
+        handle = wts.upload_sample_to_meta(access_token, content, content_type, file.filename or f"header.{ext}")
+    except wts.TemplateError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    key = upload_wa_template_media(current_user.tenant_id, content, content_type, ext)
+    log.info("wa_template_media_uploaded", tenant_id=current_user.tenant_id, format=fmt, bytes=len(content))
+    return {
+        "format": fmt,
+        "media_key": key,
+        "header_handle": handle,
+        "preview_url": get_presigned_media_url(key, expires_in=3600),
+    }
 
 
 @router.post("/templates/lint")
@@ -272,10 +424,15 @@ def lint_template(
     # Extract body text and header text from components
     body_text   = ""
     header_text = None
+    sample_values: dict = {}
     for comp in (body.components or []):
         ctype = (comp.get("type") or "").upper()
         if ctype == "BODY":
-            body_text   = comp.get("text", "")
+            body_text = comp.get("text", "")
+            # The example values the author typed, keyed by variable number --
+            # without them the linter warns that every variable has no sample.
+            examples = ((comp.get("example") or {}).get("body_text") or [[]])[0]
+            sample_values = {str(i + 1): v for i, v in enumerate(examples) if str(v).strip()}
         elif ctype == "HEADER":
             header_text = comp.get("text")
 
@@ -283,6 +440,7 @@ def lint_template(
         body=body_text,
         header=header_text,
         category=body.category or "UTILITY",
+        sample_values=sample_values,
     )
     errors = [f for f in findings if f.level == "error"]
     return {
@@ -331,6 +489,12 @@ def submit_template(
     if not tmpl:
         raise HTTPException(status_code=404, detail="Template not found")
 
+    if tmpl.status not in _EDITABLE_STATUSES:
+        raise HTTPException(
+            status_code=409,
+            detail=f"This template is already {tmpl.status.value}; it can't be submitted again.",
+        )
+
     missing = _missing_variable_examples(tmpl.components)
     if missing:
         raise HTTPException(
@@ -338,33 +502,16 @@ def submit_template(
             detail=f"Missing example value for: {', '.join(missing)}. "
                     "Meta requires an example for every {{n}} variable — edit the template and add one before submitting.",
         )
+    from app.services import wa_template_service as wts
+    problems = wts.validate_components(tmpl.components)
+    if problems:
+        raise HTTPException(status_code=400, detail=" ".join(problems))
 
-    # Look up the tenant's WhatsApp integration -- kind="whatsapp_meta" is
-    # primary, but every other WhatsApp code path (send_whatsapp.py,
-    # sync_wa_templates.py, run_campaign.py, automation_engine.py) also
-    # falls back to kind="whatsapp". This endpoint didn't, which silently
-    # skipped Meta submission entirely for any tenant whose integration row
-    # uses the "whatsapp" kind -- the template just sat at "Pending" in our
-    # DB forever, never actually created on Meta's side.
-    from app.models.integration import Integration
-    wa_int = db.query(Integration).filter_by(
-        tenant_id=current_user.tenant_id, kind="whatsapp_meta", status="active",
-    ).first()
-    if not wa_int:
-        wa_int = db.query(Integration).filter_by(
-            tenant_id=current_user.tenant_id, kind="whatsapp", status="active",
-        ).first()
-
-    # access_token is a secret and never lives in integration.config (spread
-    # wholesale into GET /integrations responses) -- it's only ever in the
-    # encrypted credentials_kms_blob. This endpoint was the one WhatsApp
-    # call site still reading wa_int.config.get("access_token") after the
-    # rest (send_whatsapp.py, automation_engine.py, run_campaign.py) were
-    # already fixed to use _get_wa_access_token (see that function's
-    # docstring) -- it always read "", so submission always 400'd here with
-    # "not connected" even for a tenant that was sending real messages.
-    from app.workers.tasks.whatsapp import _get_wa_access_token
-    access_token = _get_wa_access_token(db, current_user.tenant_id) if wa_int else ""
+    # Fail loudly if WhatsApp isn't connected. The integration lookup falls
+    # back from kind="whatsapp_meta" to "whatsapp" like every other WhatsApp
+    # code path -- without that, submission silently skipped Meta for tenants
+    # on the "whatsapp" kind and the template sat at "Pending" forever.
+    wa_int, access_token = _wa_integration_and_token(db, current_user.tenant_id)
 
     if not wa_int or not access_token or not wa_int.config.get("waba_id"):
         # Fail loudly instead of silently marking the template "Pending" --
@@ -377,20 +524,32 @@ def submit_template(
         )
 
     try:
-        resp = httpx.post(
-            f"https://graph.facebook.com/v18.0/{wa_int.config['waba_id']}/message_templates",
-            headers={"Authorization": f"Bearer {access_token}"},
-            json={
-                "name": tmpl.name,
-                "language": tmpl.language,
-                "category": tmpl.category.value,
-                "components": tmpl.components,
-            },
-            timeout=15,
-        )
+        if tmpl.meta_template_id:
+            # Meta already has this template (it was rejected): changing it
+            # is an edit of that record, not a second create, which Meta
+            # would refuse because the name is taken.
+            resp = httpx.post(
+                f"https://graph.facebook.com/v18.0/{tmpl.meta_template_id}",
+                headers={"Authorization": f"Bearer {access_token}"},
+                json={"category": tmpl.category.value, "components": tmpl.components},
+                timeout=15,
+            )
+        else:
+            resp = httpx.post(
+                f"https://graph.facebook.com/v18.0/{wa_int.config['waba_id']}/message_templates",
+                headers={"Authorization": f"Bearer {access_token}"},
+                json={
+                    "name": tmpl.name,
+                    "language": tmpl.language,
+                    "category": tmpl.category.value,
+                    "components": tmpl.components,
+                },
+                timeout=15,
+            )
         data = resp.json()
-        if "id" in data:
-            tmpl.meta_template_id = data["id"]
+        if "id" in data or data.get("success") is True:
+            tmpl.meta_template_id = data.get("id") or tmpl.meta_template_id
+            tmpl.rejection_reason = None
             tmpl.status = TemplateStatus.PENDING
         else:
             tmpl.rejection_reason = data.get("error", {}).get("message", "Unknown error")
@@ -434,18 +593,37 @@ def list_campaigns(
     )
 
 
+def _check_campaign_variables(db: Session, tenant_id: str, template_id: Optional[str], variable_map: Optional[dict]) -> None:
+    """A campaign can't go out with template variables nobody has said how to
+    fill -- Meta rejects the message and every recipient would just fail."""
+    if not template_id:
+        return
+    from app.services import wa_template_service as wts
+    tmpl = db.query(WATemplate).filter_by(id=template_id, tenant_id=tenant_id).first()
+    if not tmpl:
+        raise HTTPException(status_code=404, detail="Template not found")
+    missing = wts.unmapped_variables(tmpl.components, variable_map)
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Say what to fill in for: {', '.join(missing)}.",
+        )
+
+
 @router.post("/campaigns", response_model=CampaignOut, status_code=status.HTTP_201_CREATED)
 def create_campaign(
     body: CampaignCreateRequest,
     current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER, UserRole.MARKETING)),
     db: Session = Depends(get_db),
 ):
+    _check_campaign_variables(db, current_user.tenant_id, body.template_id, body.variable_map)
     campaign = WACampaign(
         id=str(uuid.uuid4()),
         tenant_id=current_user.tenant_id,
         name=body.name,
         template_id=body.template_id,
         audience_filter=body.audience_filter or {},
+        variable_map=body.variable_map or {},
         scheduled_at=body.scheduled_at,
         status=CampaignStatus.DRAFT,
     )
@@ -453,6 +631,11 @@ def create_campaign(
     db.commit()
     db.refresh(campaign)
     return campaign
+
+
+# Fields a client may change. The old handler copied any attribute name in the
+# request body onto the row -- including tenant_id, id and status.
+_CAMPAIGN_EDITABLE = ("name", "template_id", "audience_filter", "scheduled_at", "variable_map")
 
 
 @router.patch("/campaigns/{campaign_id}")
@@ -465,9 +648,14 @@ def update_campaign(
     campaign = db.query(WACampaign).filter_by(id=campaign_id, tenant_id=current_user.tenant_id).first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
-    for field, value in body.items():
-        if hasattr(campaign, field):
-            setattr(campaign, field, value)
+    changes = {k: v for k, v in body.items() if k in _CAMPAIGN_EDITABLE}
+    _check_campaign_variables(
+        db, current_user.tenant_id,
+        changes.get("template_id", campaign.template_id),
+        changes.get("variable_map", campaign.variable_map),
+    )
+    for field, value in changes.items():
+        setattr(campaign, field, value)
     db.commit()
     db.refresh(campaign)
     return campaign
@@ -484,6 +672,7 @@ def launch_campaign(
         raise HTTPException(status_code=404, detail="Campaign not found")
     if campaign.status not in (CampaignStatus.DRAFT, CampaignStatus.PAUSED):
         raise HTTPException(status_code=400, detail=f"Cannot launch campaign in {campaign.status} status")
+    _check_campaign_variables(db, current_user.tenant_id, campaign.template_id, campaign.variable_map)
     campaign.status = CampaignStatus.RUNNING
     db.commit()
 

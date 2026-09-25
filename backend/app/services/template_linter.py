@@ -80,7 +80,7 @@ def lint_template(
         if var_idx not in sample_values:
             findings.append(LintFinding(
                 level="warn",
-                message=f"Variable {{{{{{var_idx}}}}}}} has no sample value. Meta requires samples for all variables.",
+                message=f"Variable {{{{{var_idx}}}}} has no sample value. Meta requires samples for all variables.",
                 field_path=f"body.variable_{var_idx}",
             ))
 
