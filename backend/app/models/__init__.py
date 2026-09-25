@@ -20,6 +20,7 @@ from app.models.push_subscription import PushSubscription
 from app.models.module import Module, WorkspaceModule
 from app.models.feature_flag import FeatureFlag
 from app.api.v1.endpoints.messaging import WATemplate, WACampaign, WASubscriber, WAFlow
+from app.models.wa_campaign_recipient import WACampaignRecipient
 from app.models.flow_execution import FlowPendingExecution, WAFlowRun
 from app.models.mcp_token import PersonalAccessToken
 from app.models.capability import Capability, RoleCapability

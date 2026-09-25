@@ -65,6 +65,17 @@ def _upsert_marketing_consent(
     return consent
 
 
+def _sync_subscriber_list(db: Session, tenant_id: str, phone: str, granted: bool) -> None:
+    from app.api.v1.endpoints.messaging import WASubscriber
+    now = datetime.now(timezone.utc).isoformat()
+    for sub in db.query(WASubscriber).filter_by(tenant_id=tenant_id, phone=phone).all():
+        sub.opted_in = granted
+        if granted:
+            sub.opt_in_at, sub.opt_out_at = now, None
+        else:
+            sub.opt_out_at = now
+
+
 def process_opt_out_event(
     db: Session,
     tenant_id: str,
@@ -88,6 +99,11 @@ def process_opt_out_event(
         granted=granted,
         reason="user_keyword",
     )
+
+    # The WhatsApp subscriber list is a second record of who may be messaged;
+    # a STOP reply used to update only the guest's consent, so the same person
+    # stayed in every subscriber campaign. Keep the two in step.
+    _sync_subscriber_list(db, tenant_id, guest_phone, granted)
 
     # Write audit event
     append_audit(

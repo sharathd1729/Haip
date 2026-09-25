@@ -61,6 +61,7 @@ celery_app = Celery(
         "app.workers.tasks.call_recovery",
         # WhatsApp: campaign runner + template status sync
         "app.workers.tasks.run_campaign",
+        "app.workers.tasks.campaign_scheduler",
         "app.workers.tasks.sync_wa_templates",
         # WhatsApp/Instagram access-token health check + expiry alerting
         "app.workers.tasks.check_meta_credentials",
@@ -171,6 +172,7 @@ celery_app.conf.update(
         "tasks.dpdp_purge":                          {"queue": "call_ingest"},
         "tasks.judge":                                {"queue": "ai_scoring"},
         "tasks.run_campaign":                        {"queue": "whatsapp"},
+        "tasks.launch_due_campaigns":                {"queue": "whatsapp"},
         "tasks.send_whatsapp":                       {"queue": "whatsapp"},
         "tasks.send_whatsapp_template":              {"queue": "whatsapp"},
         "tasks.sync_wa_templates.sync_all_tenants":  {"queue": "whatsapp"},
@@ -223,6 +225,11 @@ celery_app.conf.update(
 
 # Scheduled tasks (Celery Beat)
 celery_app.conf.beat_schedule = {
+    # Starts WhatsApp campaigns whose scheduled time has come.
+    "launch-due-campaigns": {
+        "task": "tasks.launch_due_campaigns",
+        "schedule": 60.0,
+    },
     "lost-reason-cluster-weekly": {
         "task": "app.workers.tasks.lost_reason_cluster.run",
         "schedule": crontab(hour=23, minute=0, day_of_week=0),

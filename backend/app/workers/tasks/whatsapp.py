@@ -481,6 +481,12 @@ def _handle_status_update(db, tenant: Tenant, status_obj: dict):
     ).first()
 
     if not message:
+        # Not an inbox message. A message sent by a campaign has no Message
+        # row: its status goes to the campaign's per-recipient record (and the
+        # campaign's delivered/read counters).
+        from app.services import wa_campaign_delivery
+        if wa_campaign_delivery.apply_status_callback(db, str(tenant.id), status_obj):
+            return
         log.warning(
             "wa_status_update_no_message",
             wamid=wamid,

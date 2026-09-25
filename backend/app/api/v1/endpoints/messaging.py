@@ -610,6 +610,30 @@ def _check_campaign_variables(db: Session, tenant_id: str, template_id: Optional
         )
 
 
+def _prepared_audience(raw: Optional[dict]) -> dict:
+    from app.services import wa_lead_audience
+    try:
+        return wa_lead_audience.prepare_audience_filter(raw)
+    except wa_lead_audience.AudienceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+def _validated_schedule(value: Optional[str], template_id: Optional[str], db: Session, tenant_id: str) -> Optional[str]:
+    """A schedule as a UTC ISO string, or None. Refuses times in the past and
+    scheduling a campaign whose template isn't approved -- it would only fail
+    at the moment it was supposed to go out."""
+    from app.services import wa_campaign_schedule as sched
+    try:
+        normalized = sched.normalize_schedule(value)
+    except sched.ScheduleError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if normalized:
+        tmpl = db.query(WATemplate).filter_by(id=template_id, tenant_id=tenant_id).first() if template_id else None
+        if not tmpl or tmpl.status != TemplateStatus.APPROVED:
+            raise HTTPException(status_code=400, detail="Only a campaign with an approved template can be scheduled.")
+    return normalized
+
+
 @router.post("/campaigns", response_model=CampaignOut, status_code=status.HTTP_201_CREATED)
 def create_campaign(
     body: CampaignCreateRequest,
@@ -617,17 +641,26 @@ def create_campaign(
     db: Session = Depends(get_db),
 ):
     _check_campaign_variables(db, current_user.tenant_id, body.template_id, body.variable_map)
+    scheduled_at = _validated_schedule(body.scheduled_at, body.template_id, db, current_user.tenant_id)
+    audience_filter = _prepared_audience(body.audience_filter)
     campaign = WACampaign(
         id=str(uuid.uuid4()),
         tenant_id=current_user.tenant_id,
         name=body.name,
         template_id=body.template_id,
-        audience_filter=body.audience_filter or {},
+        audience_filter=audience_filter,
         variable_map=body.variable_map or {},
-        scheduled_at=body.scheduled_at,
-        status=CampaignStatus.DRAFT,
+        scheduled_at=scheduled_at,
+        status=CampaignStatus.SCHEDULED if scheduled_at else CampaignStatus.DRAFT,
     )
     db.add(campaign)
+    if audience_filter.get("type") == "leads":
+        from app.core.audit import append_audit
+        append_audit(
+            db, tenant_id=current_user.tenant_id, action="campaigns.leads_audience_confirmed",
+            actor_user_id=current_user.id, target_type="wa_campaign", target_id=campaign.id,
+            payload={"filter": {k: v for k, v in audience_filter.items() if k != "consent_confirmed"}},
+        )
     db.commit()
     db.refresh(campaign)
     return campaign
@@ -649,13 +682,24 @@ def update_campaign(
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
     changes = {k: v for k, v in body.items() if k in _CAMPAIGN_EDITABLE}
+    if changes and campaign.status in (CampaignStatus.RUNNING, CampaignStatus.COMPLETED):
+        raise HTTPException(status_code=409, detail=f"A {campaign.status.value} campaign can't be changed.")
     _check_campaign_variables(
         db, current_user.tenant_id,
         changes.get("template_id", campaign.template_id),
         changes.get("variable_map", campaign.variable_map),
     )
+    if "audience_filter" in changes:
+        changes["audience_filter"] = _prepared_audience(changes["audience_filter"])
+    if "scheduled_at" in changes:
+        changes["scheduled_at"] = _validated_schedule(
+            changes["scheduled_at"], changes.get("template_id", campaign.template_id), db, current_user.tenant_id,
+        )
     for field, value in changes.items():
         setattr(campaign, field, value)
+    if "scheduled_at" in changes and campaign.status in (CampaignStatus.DRAFT, CampaignStatus.SCHEDULED, CampaignStatus.PAUSED):
+        # Setting a time schedules it; clearing the time takes it off the schedule.
+        campaign.status = CampaignStatus.SCHEDULED if changes["scheduled_at"] else CampaignStatus.DRAFT
     db.commit()
     db.refresh(campaign)
     return campaign
@@ -670,7 +714,7 @@ def launch_campaign(
     campaign = db.query(WACampaign).filter_by(id=campaign_id, tenant_id=current_user.tenant_id).first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
-    if campaign.status not in (CampaignStatus.DRAFT, CampaignStatus.PAUSED):
+    if campaign.status not in (CampaignStatus.DRAFT, CampaignStatus.PAUSED, CampaignStatus.SCHEDULED):
         raise HTTPException(status_code=400, detail=f"Cannot launch campaign in {campaign.status} status")
     _check_campaign_variables(db, current_user.tenant_id, campaign.template_id, campaign.variable_map)
     campaign.status = CampaignStatus.RUNNING

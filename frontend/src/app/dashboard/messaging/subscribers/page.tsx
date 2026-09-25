@@ -1,11 +1,12 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { UserX, Plus, Search, Download, Upload, CheckCircle2, XCircle, X, Loader2, AlertCircle, Tag, Phone, Clock, Filter } from "@/lib/icons";
 import { UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ImportSubscribersDialog } from "@/components/messaging/ImportSubscribersDialog";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -30,28 +31,6 @@ function timeAgo(iso: string | null): string {
   if (d === 1) return "yesterday";
   if (d < 30) return `${d}d ago`;
   return new Date(iso).toLocaleDateString();
-}
-
-// One field per line, comma-split with basic double-quote support -- no
-// dependency needed for a 3-column phone/name/tags import.
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  for (const rawLine of text.split(/\r\n|\n|\r/)) {
-    const line = rawLine.trim();
-    if (!line) continue;
-    const cells: string[] = [];
-    let cur = "";
-    let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') { inQuotes = !inQuotes; continue; }
-      if (ch === "," && !inQuotes) { cells.push(cur.trim()); cur = ""; continue; }
-      cur += ch;
-    }
-    cells.push(cur.trim());
-    rows.push(cells);
-  }
-  return rows;
 }
 
 function downloadCsv(filename: string, rows: string[][]) {
@@ -163,8 +142,14 @@ export default function SubscribersPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "opted_in" | "opted_out">("all");
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-  const [importing, setImporting] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showImport, setShowImport] = useState(false);
+  // Names and numbers are searched on the server so a search reaches everyone,
+  // not just the newest rows that happen to be loaded.
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const showToast = (msg: string, type: "success" | "error") => {
     setToast({ msg, type });
@@ -172,9 +157,10 @@ export default function SubscribersPage() {
   };
 
   const { data: subscribers = [], isLoading, isError, refetch, isFetching } = useQuery<Subscriber[]>({
-    queryKey: ["wa-subscribers", filter],
+    queryKey: ["wa-subscribers", filter, debouncedSearch],
     queryFn: () => {
-      const params: Record<string, string> = {};
+      const params: Record<string, string | number> = { limit: 500 };
+      if (debouncedSearch) params.search = debouncedSearch;
       if (filter === "opted_in") params.opted_in = "true";
       if (filter === "opted_out") params.opted_in = "false";
       return api.get("/messaging/subscribers", { params }).then(r => r.data);
@@ -182,15 +168,27 @@ export default function SubscribersPage() {
     staleTime: 30_000,
   });
 
+  // The list is paged; the totals must not be "how many rows happen to be loaded".
+  const { data: stats } = useQuery<{ total: number; opted_in: number; opted_out: number }>({
+    queryKey: ["wa-subscriber-stats"],
+    queryFn: () => api.get("/messaging/subscribers/stats").then(r => r.data),
+    staleTime: 30_000,
+  });
+
+  const refreshAll = () => {
+    queryClient.invalidateQueries({ queryKey: ["wa-subscribers"] });
+    queryClient.invalidateQueries({ queryKey: ["wa-subscriber-stats"] });
+  };
+
   const optOutMutation = useMutation({
     mutationFn: (id: string) => api.patch(`/messaging/subscribers/${id}/opt-out`),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["wa-subscribers"] }); showToast("Subscriber opted out.", "success"); },
+    onSuccess: () => { refreshAll(); showToast("Subscriber opted out.", "success"); },
     onError: () => showToast("Failed to opt out.", "error"),
   });
 
   const optInMutation = useMutation({
     mutationFn: (id: string) => api.patch(`/messaging/subscribers/${id}/opt-in`),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["wa-subscribers"] }); showToast("Subscriber opted back in.", "success"); },
+    onSuccess: () => { refreshAll(); showToast("Subscriber opted back in.", "success"); },
     onError: () => showToast("Failed to opt in.", "error"),
   });
 
@@ -202,40 +200,6 @@ export default function SubscribersPage() {
     ]);
   };
 
-  const handleImportFile = async (file: File) => {
-    const text = await file.text();
-    const rows = parseCsv(text);
-    if (rows.length === 0) { showToast("CSV file is empty.", "error"); return; }
-    // Skip a header row if the first cell of the first row isn't a phone number.
-    const dataRows = /^\+?\d/.test(rows[0][0] ?? "") ? rows : rows.slice(1);
-    if (dataRows.length === 0) { showToast("No contact rows found in the CSV.", "error"); return; }
-
-    setImporting(true);
-    let ok = 0, failed = 0;
-    for (const row of dataRows) {
-      const [phone, name, tagsCell] = row;
-      if (!phone?.trim()) { failed++; continue; }
-      try {
-        await api.post("/messaging/subscribers", {
-          phone: phone.trim(),
-          name: name?.trim() || null,
-          opted_in: true,
-          source: "import",
-          tags: tagsCell ? tagsCell.split("|").map(t => t.trim()).filter(Boolean) : [],
-        });
-        ok++;
-      } catch {
-        failed++;
-      }
-    }
-    setImporting(false);
-    queryClient.invalidateQueries({ queryKey: ["wa-subscribers"] });
-    showToast(
-      failed === 0 ? `Imported ${ok} contact${ok === 1 ? "" : "s"}.` : `Imported ${ok}, ${failed} failed — check the phone numbers and try again.`,
-      failed === 0 ? "success" : "error",
-    );
-  };
-
   const filtered = subscribers.filter(s =>
     !search.trim() ||
     s.phone.includes(search) ||
@@ -243,8 +207,9 @@ export default function SubscribersPage() {
     s.tags.some(t => t.toLowerCase().includes(search.toLowerCase()))
   );
 
-  const optedInCount = subscribers.filter(s => s.opted_in).length;
-  const optedOutCount = subscribers.filter(s => !s.opted_in).length;
+  const totalCount = stats?.total ?? subscribers.length;
+  const optedInCount = stats?.opted_in ?? subscribers.filter(s => s.opted_in).length;
+  const optedOutCount = stats?.opted_out ?? subscribers.filter(s => !s.opted_in).length;
 
   return (
     <div className="h-full flex flex-col">
@@ -256,23 +221,11 @@ export default function SubscribersPage() {
             <p className="text-sm text-gray-400 mt-0.5">Manage opt-in/opt-out status for your WhatsApp marketing list.</p>
           </div>
           <div className="flex items-center gap-2">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv,text/csv"
-              className="hidden"
-              onChange={e => {
-                const file = e.target.files?.[0];
-                if (file) handleImportFile(file);
-                e.target.value = "";
-              }}
-            />
             <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={importing}
-              className="flex items-center gap-1.5 text-xs border border-gray-200 text-gray-600 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors font-medium disabled:opacity-50"
+              onClick={() => setShowImport(true)}
+              className="flex items-center gap-1.5 text-xs border border-gray-200 text-gray-600 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors font-medium"
             >
-              {importing ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} Import CSV
+              <Upload size={13} /> Import CSV
             </button>
             <button onClick={handleExport} className="flex items-center gap-1.5 text-xs border border-gray-200 text-gray-600 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors font-medium">
               <Download size={13} /> Export
@@ -287,7 +240,7 @@ export default function SubscribersPage() {
         {/* Stats */}
         <div className="grid grid-cols-3 gap-3 mb-4">
           {[
-            { label: "Total contacts", value: subscribers.length, cls: "text-gray-900" },
+            { label: "Total contacts", value: totalCount, cls: "text-gray-900" },
             { label: "Opted in", value: optedInCount, cls: "text-teal-600" },
             { label: "Opted out", value: optedOutCount, cls: "text-red-500" },
           ].map(s => (
@@ -297,6 +250,12 @@ export default function SubscribersPage() {
             </div>
           ))}
         </div>
+
+        {!debouncedSearch && filter === "all" && totalCount > subscribers.length && (
+          <p className="text-[11px] text-gray-400 mb-3">
+            Showing the newest {subscribers.length.toLocaleString()} of {totalCount.toLocaleString()} contacts. Search by name or number to find anyone else.
+          </p>
+        )}
 
         {/* Search + filter */}
         <div className="flex gap-2">
@@ -392,10 +351,16 @@ export default function SubscribersPage() {
         )}
       </div>
 
+      {showImport && (
+        <ImportSubscribersDialog
+          onClose={() => setShowImport(false)}
+          onImported={() => { refreshAll(); queryClient.invalidateQueries({ queryKey: ["wa-audience-count"] }); }}
+        />
+      )}
       {showAdd && (
         <AddSubscriberModal
           onClose={() => setShowAdd(false)}
-          onAdded={() => { queryClient.invalidateQueries({ queryKey: ["wa-subscribers"] }); showToast("Subscriber added!", "success"); }}
+          onAdded={() => { refreshAll(); showToast("Subscriber added!", "success"); }}
         />
       )}
       {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}

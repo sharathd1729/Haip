@@ -7,6 +7,8 @@ import api from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VariableMapping, defaultMap, templateSections, unmappedVariables, type VariableMap } from "@/components/messaging/VariableMapping";
 import type { Template as FullTemplate } from "@/components/messaging/templateModel";
+import { CampaignReport } from "@/components/messaging/CampaignReport";
+import { LeadAudiencePicker, type LeadFilter, type Preview } from "@/components/messaging/LeadAudiencePicker";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -170,53 +172,60 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
 }) {
   const [form, setForm] = useState({ name: "", template_id: "", scheduled_at: "" });
   const [variableMap, setVariableMap] = useState<VariableMap>({});
+  // The default audience is the CRM's own leads; the imported list is the alternative.
+  const [audienceKind, setAudienceKind] = useState<"leads" | "list">("leads");
+  const [leadFilter, setLeadFilter] = useState<LeadFilter>({ not_messaged_days: 14 });
+  const [leadConsent, setLeadConsent] = useState(false);
+  const [leadPreview, setLeadPreview] = useState<Preview | undefined>(undefined);
   const [audienceFilter, setAudienceFilter] = useState<{ tags: string[]; source: string[] }>({ tags: [], source: [] });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  // Fetch all subscriber tags for the tag picker
-  const { data: subscribers = [] } = useQuery<{ tags: string[] }[]>({
-    queryKey: ["wa-subscribers-all"],
-    queryFn: () => api.get("/messaging/subscribers", { params: { limit: 500 } }).then(r => r.data).catch(() => []),
+  // Tags in use and the audience size come from the server: the subscriber
+  // list is paged, so counting it in the browser stops at 500.
+  const { data: tagList = [] } = useQuery<{ tag: string; count: number }[]>({
+    queryKey: ["wa-subscriber-tags"],
+    queryFn: () => api.get("/messaging/subscribers/tags").then(r => r.data).catch(() => []),
     staleTime: 60_000,
   });
+  const allTags = tagList.map(t => t.tag);
 
-  // Derive unique tags across all subscribers
-  const allTags = [...new Set((subscribers as any[]).flatMap((s: any) => s.tags || []))].sort();
-
-  // Live audience count — recomputed when filter changes
   const { data: audienceCount } = useQuery<number>({
     queryKey: ["wa-audience-count", audienceFilter],
-    queryFn: async () => {
-      const all: any[] = await api.get("/messaging/subscribers", { params: { opted_in: true, limit: 500 } }).then(r => r.data);
-      let list = all;
-      if (audienceFilter.tags.length > 0) {
-        list = list.filter((s: any) => audienceFilter.tags.some(t => (s.tags || []).includes(t)));
-      }
-      if (audienceFilter.source.length > 0) {
-        list = list.filter((s: any) => audienceFilter.source.includes(s.source));
-      }
-      return list.length;
-    },
+    queryFn: () => api.post("/messaging/campaigns/audience-count", {
+      audience_filter: {
+        ...(audienceFilter.tags.length ? { tags: audienceFilter.tags } : {}),
+        ...(audienceFilter.source.length ? { source: audienceFilter.source } : {}),
+      },
+    }).then(r => r.data.count),
     staleTime: 0,
   });
 
   const handleCreate = async () => {
     if (!form.name.trim()) { setError("Campaign name is required."); return; }
     if (!form.template_id) { setError("Please select a message template."); return; }
+    if (audienceKind === "leads") {
+      if (!leadConsent) { setError("Confirm these leads have contacted you and haven't asked you to stop."); return; }
+      if (leadPreview && leadPreview.will_receive === 0) { setError("Nobody would receive this. Widen the audience first."); return; }
+    }
     const missing = unmappedVariables(selectedTemplate, variableMap);
     if (missing.length > 0) { setError(`Say what to fill in for: ${missing.join(", ")}.`); return; }
     setError("");
     setSubmitting(true);
     try {
-      const af: Record<string, any> = {};
-      if (audienceFilter.tags.length > 0) af.tags = audienceFilter.tags;
-      if (audienceFilter.source.length > 0) af.source = audienceFilter.source;
+      const af: Record<string, any> = audienceKind === "leads"
+        ? { type: "leads", ...leadFilter, consent_confirmed: leadConsent }
+        : {};
+      if (audienceKind === "list") {
+        if (audienceFilter.tags.length > 0) af.tags = audienceFilter.tags;
+        if (audienceFilter.source.length > 0) af.source = audienceFilter.source;
+      }
 
       await api.post("/messaging/campaigns", {
         name: form.name,
         template_id: form.template_id,
-        scheduled_at: form.scheduled_at || null,
+        // datetime-local has no timezone: turn it into the exact moment the person meant.
+        scheduled_at: form.scheduled_at ? new Date(form.scheduled_at).toISOString() : null,
         audience_filter: af,
         variable_map: variableMap,
       });
@@ -239,7 +248,7 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className={cn("bg-white rounded-2xl shadow-2xl w-full overflow-hidden max-h-[90vh] flex flex-col", selectedTemplate && templateSections(selectedTemplate).length > 0 ? "max-w-2xl" : "max-w-lg")}>
+      <div className={cn("bg-white rounded-2xl shadow-2xl w-full overflow-hidden max-h-[90vh] flex flex-col", audienceKind === "leads" ? "max-w-3xl" : (selectedTemplate && templateSections(selectedTemplate).length > 0 ? "max-w-2xl" : "max-w-lg"))}>
         <div className="px-6 pt-6 pb-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
           <div>
             <h2 className="text-base font-bold text-gray-900">New campaign</h2>
@@ -283,19 +292,31 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
             </div>
           )}
 
-          {/* Audience filter */}
+          {/* Audience */}
           <div>
-            <label className="text-xs font-semibold text-gray-700 block mb-2">
-              Audience <span className="text-gray-400 font-normal">(optional — leave all blank for all subscribers)</span>
-            </label>
-            <div className="border border-gray-200 rounded-xl p-4">
-              <AudienceFilterBuilder
-                filter={audienceFilter}
-                onChange={setAudienceFilter}
-                allTags={allTags}
-                subscriberCount={audienceCount ?? null}
-              />
+            <label className="text-xs font-semibold text-gray-700 block mb-2">Who should get it?</label>
+            <div className="inline-flex rounded-xl bg-gray-100 p-0.5 mb-3" role="tablist" aria-label="Audience type">
+              {([["leads", "CRM leads"], ["list", "Imported list"]] as const).map(([k, label]) => (
+                <button key={k} type="button" role="tab" aria-selected={audienceKind === k} onClick={() => { setAudienceKind(k); setError(""); }}
+                  className={cn("px-3.5 py-1.5 rounded-[10px] text-xs font-medium transition-colors",
+                    audienceKind === k ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700")}>
+                  {label}
+                </button>
+              ))}
             </div>
+            {audienceKind === "leads" ? (
+              <LeadAudiencePicker filter={leadFilter} onChange={setLeadFilter} consent={leadConsent} onConsent={setLeadConsent} onPreview={setLeadPreview} />
+            ) : (
+              <div className="border border-gray-200 rounded-xl p-4">
+                <p className="text-[11px] text-gray-400 mb-3">People you imported from a file or added under Subscribers. Leave everything blank to send to all of them.</p>
+                <AudienceFilterBuilder
+                  filter={audienceFilter}
+                  onChange={setAudienceFilter}
+                  allTags={allTags}
+                  subscriberCount={audienceCount ?? null}
+                />
+              </div>
+            )}
           </div>
 
           {/* Schedule */}
@@ -303,7 +324,7 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
             <label className="text-xs font-semibold text-gray-700 block mb-1.5">Schedule for later <span className="text-gray-400 font-normal">(optional)</span></label>
             <input type="datetime-local" value={form.scheduled_at} onChange={e => setForm(f => ({ ...f, scheduled_at: e.target.value }))}
               className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
-            <p className="text-[10px] text-gray-400 mt-1">Leave blank to save as draft and launch manually.</p>
+            <p className="text-[10px] text-gray-400 mt-1">Leave blank to save as a draft and launch it yourself. Times are in your local time.</p>
           </div>
 
           {error && (
@@ -328,10 +349,12 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
 
 // ─── Campaign Card ────────────────────────────────────────────────────────────
 
-function CampaignCard({ campaign, onLaunch, onDelete }: {
+function CampaignCard({ campaign, onLaunch, onDelete, onReport, onUnschedule }: {
   campaign: Campaign;
   onLaunch: (id: string) => void;
   onDelete: (id: string) => void;
+  onReport: (c: Campaign) => void;
+  onUnschedule: (id: string) => void;
 }) {
   const sc = STATUS_CFG[campaign.status] ?? STATUS_CFG.draft;
   const sent = parseInt(campaign.sent_count) || 0;
@@ -351,15 +374,27 @@ function CampaignCard({ campaign, onLaunch, onDelete }: {
           {campaign.scheduled_at && (
             <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
               <Calendar size={10} />
-              <span>Scheduled: {new Date(campaign.scheduled_at).toLocaleString()}</span>
+              <span>{campaign.status === "scheduled" ? "Goes out" : "Scheduled for"} {new Date(campaign.scheduled_at).toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</span>
             </div>
           )}
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          {(campaign.status === "draft" || campaign.status === "paused") && (
+          {(sent > 0 || campaign.status === "running" || campaign.status === "completed" || campaign.status === "paused") && (
+            <button onClick={() => onReport(campaign)}
+              className="flex items-center gap-1.5 text-xs border border-gray-200 text-gray-700 px-3 py-1.5 rounded-lg font-medium hover:bg-gray-50 transition-colors">
+              <Eye size={11} /> Report
+            </button>
+          )}
+          {campaign.status === "scheduled" && (
+            <button onClick={() => onUnschedule(campaign.id)}
+              className="text-xs border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg font-medium hover:bg-gray-50 transition-colors">
+              Unschedule
+            </button>
+          )}
+          {(campaign.status === "draft" || campaign.status === "paused" || campaign.status === "scheduled") && (
             <button onClick={() => onLaunch(campaign.id)}
               className="flex items-center gap-1.5 text-xs bg-teal-500 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-teal-600 transition-colors">
-              <Play size={11} /> Launch
+              <Play size={11} /> {campaign.status === "paused" ? "Resume" : campaign.status === "scheduled" ? "Send now" : "Launch"}
             </button>
           )}
           <button onClick={() => { if (confirm("Delete this campaign?")) onDelete(campaign.id); }}
@@ -387,6 +422,11 @@ function CampaignCard({ campaign, onLaunch, onDelete }: {
           ))}
         </div>
       )}
+      {campaign.status === "paused" && (
+        <p className="text-[11px] text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mt-3">
+          Paused after repeated failures — usually the WhatsApp connection or the template. Open the report to see why, fix it, then Resume; guests already messaged won't be messaged again.
+        </p>
+      )}
       {sent === 0 && campaign.status === "draft" && (
         <p className="text-[11px] text-gray-400 pt-2 border-t border-gray-100">
           Launch this campaign to start sending messages to your opted-in subscribers.
@@ -401,6 +441,7 @@ function CampaignCard({ campaign, onLaunch, onDelete }: {
 export default function CampaignsPage() {
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
+  const [reportFor, setReportFor] = useState<Campaign | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const showToast = (msg: string, type: "success" | "error") => {
@@ -412,6 +453,9 @@ export default function CampaignsPage() {
     queryKey: ["wa-campaigns"],
     queryFn: () => api.get("/messaging/campaigns").then(r => r.data),
     staleTime: 30_000,
+    // Counters and status move while a campaign is going out (and a scheduled
+    // one starts on its own): keep the list fresh without a manual reload.
+    refetchInterval: (q) => ((q.state.data ?? []).some(c => c.status === "running" || c.status === "scheduled") ? 10_000 : false),
   });
 
   const { data: templates = [] } = useQuery<Template[]>({
@@ -422,8 +466,14 @@ export default function CampaignsPage() {
 
   const launchMutation = useMutation({
     mutationFn: (id: string) => api.post(`/messaging/campaigns/${id}/launch`),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["wa-campaigns"] }); showToast("Campaign launched!", "success"); },
-    onError: () => showToast("Launch failed.", "error"),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["wa-campaigns"] }); showToast("Campaign is going out.", "success"); },
+    onError: (err) => showToast((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Launch failed.", "error"),
+  });
+
+  const unscheduleMutation = useMutation({
+    mutationFn: (id: string) => api.patch(`/messaging/campaigns/${id}`, { scheduled_at: null }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["wa-campaigns"] }); showToast("Taken off the schedule. It's a draft again.", "success"); },
+    onError: () => showToast("Couldn't unschedule.", "error"),
   });
 
   const deleteMutation = useMutation({
@@ -503,6 +553,8 @@ export default function CampaignsPage() {
                 campaign={c}
                 onLaunch={(id) => launchMutation.mutate(id)}
                 onDelete={(id) => deleteMutation.mutate(id)}
+                onReport={setReportFor}
+                onUnschedule={(id) => unscheduleMutation.mutate(id)}
               />
             ))}
           </div>
@@ -516,6 +568,7 @@ export default function CampaignsPage() {
           onCreated={() => { queryClient.invalidateQueries({ queryKey: ["wa-campaigns"] }); showToast("Campaign created!", "success"); }}
         />
       )}
+      {reportFor && <CampaignReport campaignId={reportFor.id} campaignName={reportFor.name} onClose={() => setReportFor(null)} />}
       {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );

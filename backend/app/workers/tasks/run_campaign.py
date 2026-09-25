@@ -96,25 +96,8 @@ def run_campaign(self, campaign_id: str, tenant_id: str):
         adapter = get_wa_adapter(phone_number_id, access_token)
 
         # ── Build recipient list ───────────────────────────────────────────
-        q = db.query(WASubscriber).filter_by(
-            tenant_id=tenant_id, opted_in=True,
-        )
-        af = campaign.audience_filter or {}
-
-        if af.get("tags"):
-            wanted_tags = [t.lower() for t in af["tags"]]
-            # Filter Python-side (JSON array column; works for small lists)
-            all_subs = q.all()
-            recipients = [
-                s for s in all_subs
-                if any(t.lower() in wanted_tags for t in (s.tags or []))
-            ]
-        else:
-            recipients = q.all()
-
-        if af.get("source"):
-            wanted_src = [s.lower() for s in af["source"]]
-            recipients = [r for r in recipients if (r.source or "").lower() in wanted_src]
+        from app.services import wa_campaign_delivery as _audience
+        recipients = _audience.audience_members(db, tenant_id, campaign.audience_filter)
 
         total = len(recipients)
         log.info(
@@ -148,8 +131,21 @@ def run_campaign(self, campaign_id: str, tenant_id: str):
             return
 
         # ── Send in batches ────────────────────────────────────────────────
-        sent = 0
-        failed = 0
+        from app.services import wa_campaign_delivery as delivery
+        from app.models.wa_campaign_recipient import WACampaignRecipient
+
+        # Rows from an earlier attempt at this campaign (a retried task, or a
+        # paused campaign launched again): anyone Meta already accepted is
+        # skipped, so a retry can never message the same guest twice.
+        existing = {
+            r.phone: r for r in db.query(WACampaignRecipient).filter_by(campaign_id=campaign_id)
+        }
+        # Several failures in a row that point at the account or the template
+        # (expired token, locked account, paused template) will fail for
+        # everyone. Stop and let a person fix it instead of failing the whole list.
+        MAX_CONSECUTIVE_FATAL = 5
+        consecutive_fatal = 0
+        skipped = 0
 
         def _run_async(coro):
             loop = asyncio.new_event_loop()
@@ -161,11 +157,18 @@ def run_campaign(self, campaign_id: str, tenant_id: str):
         for i in range(0, total, BATCH_SIZE):
             batch = recipients[i : i + BATCH_SIZE]
             for sub in batch:
+                row = existing.get(sub.phone)
+                if row is None:
+                    row = delivery.get_or_create_recipient(db, tenant_id, campaign_id, sub)
+                    existing[sub.phone] = row
+                if delivery.should_skip(row):
+                    skipped += 1
+                    continue
                 try:
                     components = wts.build_send_components(
                         template.components, variable_map, sub, header_media_link=header_link,
                     )
-                    _run_async(
+                    response = _run_async(
                         adapter.send_template(
                             to=sub.phone,
                             template_name=template.name,
@@ -173,18 +176,36 @@ def run_campaign(self, campaign_id: str, tenant_id: str):
                             components=components,
                         )
                     )
-                    sent += 1
+                    delivery.mark_sent(row, response)
+                    consecutive_fatal = 0
                 except Exception as exc:
+                    if isinstance(exc, wts.TemplateError):
+                        info = delivery.mark_failed(row, delivery.HAIP_VARIABLE, str(exc))
+                    else:
+                        code, message = delivery.error_from_exception(exc)
+                        info = delivery.mark_failed(row, code, message or delivery.HAIP_SEND)
                     log.warning(
                         "run_campaign_send_failed",
                         phone_token=sub.phone[:4] + "****",
-                        error=str(exc),
+                        code=info.code, group=info.group, error=info.reason,
                     )
-                    failed += 1
+                    if info.group in ("account", "template"):
+                        consecutive_fatal += 1
+                    else:
+                        consecutive_fatal = 0
 
-            # Persist running counters after each batch
-            campaign.sent_count = str(sent)
-            campaign.failed_count = str(failed)
+                if consecutive_fatal >= MAX_CONSECUTIVE_FATAL:
+                    delivery.refresh_campaign_counters(db, tenant_id, campaign_id)
+                    campaign.status = CampaignStatus.PAUSED
+                    db.commit()
+                    log.error(
+                        "run_campaign_paused_on_repeated_failure",
+                        campaign_id=campaign_id, code=info.code, reason=info.reason,
+                    )
+                    return
+
+            # Persist after each batch, counters included
+            delivery.refresh_campaign_counters(db, tenant_id, campaign_id)
             db.commit()
 
             if i + BATCH_SIZE < total:
@@ -192,16 +213,16 @@ def run_campaign(self, campaign_id: str, tenant_id: str):
                 time.sleep(INTER_BATCH_DELAY)
 
         # ── Finalise ───────────────────────────────────────────────────────
-        campaign.sent_count = str(sent)
-        campaign.failed_count = str(failed)
+        delivery.refresh_campaign_counters(db, tenant_id, campaign_id)
         campaign.status = CampaignStatus.COMPLETED
         db.commit()
 
         log.info(
             "run_campaign_completed",
             campaign_id=campaign_id,
-            sent=sent,
-            failed=failed,
+            sent=campaign.sent_count,
+            failed=campaign.failed_count,
+            skipped_already_sent=skipped,
         )
 
     except Exception as exc:
