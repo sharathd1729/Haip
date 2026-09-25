@@ -7,6 +7,8 @@ Usage:
 
 To activate real sending: set RESEND_API_KEY in .env
 """
+from html import escape as _escape
+
 import httpx
 import structlog
 from app.core.config import settings
@@ -187,6 +189,71 @@ async def send_integration_expired_alert_email(
 
       <p style="color: #9ca3af; font-size: 12px; text-align: center; margin-top: 24px;">
         You'll get this alert at most once every 24 hours per channel while the issue persists.
+      </p>
+
+      <hr style="border: none; border-top: 1px solid #f3f4f6; margin: 32px 0;" />
+      <p style="color: #d1d5db; font-size: 11px; text-align: center;">
+        HAIP · Hospitality AI Intelligence Platform
+      </p>
+    </div>
+    """
+    return await _send(to=to_email, subject=subject, html=html)
+
+
+async def send_instagram_dm_access_alert_email(*, to_email: str, tenant_name: str) -> bool:
+    """Instagram is refusing HAIP access to the account's messages because the
+    account owner switched "Allow access to messages" off. Not an expired
+    token, so it gets its own wording and its own fix -- the generic
+    "messages are failing to send / token expired" email would point the team
+    at the wrong problem while incoming DMs pile up unseen."""
+    tenant = _escape(tenant_name)
+    subject = f"Action needed: Instagram messages aren't reaching HAIP for {tenant_name}"
+    html = f"""
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 520px; margin: 0 auto; padding: 40px 24px; color: #1a1a2e;">
+      <div style="text-align: center; margin-bottom: 32px;">
+        <div style="display: inline-block; background: #0B1F3A; color: white; font-size: 18px; font-weight: 800; padding: 8px 20px; border-radius: 10px; letter-spacing: 1px;">
+          HAIP
+        </div>
+      </div>
+
+      <h1 style="font-size: 22px; font-weight: 700; margin-bottom: 8px; color: #b91c1c;">
+        New Instagram messages aren't arriving
+      </h1>
+      <p style="color: #6b7280; font-size: 15px; line-height: 1.6; margin-bottom: 16px;">
+        HAIP's hourly check found that Instagram is blocking access to messages on
+        <strong>{tenant}</strong>'s account. Instagram's own words:
+        <em>"the account owner has disabled access to Instagram Direct Messaging."</em>
+      </p>
+      <p style="color: #6b7280; font-size: 15px; line-height: 1.6; margin-bottom: 16px;">
+        While this is off, new DMs are <strong>not delivered to your HAIP inbox</strong> and HAIP cannot
+        reply to them. Guests who write in are getting no answer.
+      </p>
+
+      <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 14px 16px; margin-bottom: 24px; font-size: 14px; line-height: 1.6; color: #7f1d1d;">
+        <strong>To fix it (about a minute):</strong><br/>
+        Reconnect Instagram in HAIP with the button below &mdash; approving it switches message access
+        back on.<br/>
+        Or, in the Instagram app: Settings and privacy &rarr; Messages and story replies &rarr;
+        Connected tools &rarr; turn on <em>Allow access to messages</em> (menu names can differ a little
+        between app versions).
+      </div>
+
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="https://www.genhaip.com/dashboard/settings/integrations"
+           style="display: inline-block; background: #14b8a6; color: white; text-decoration: none;
+                  font-weight: 700; font-size: 15px; padding: 14px 32px; border-radius: 12px;">
+          Reconnect Instagram &rarr;
+        </a>
+      </div>
+
+      <p style="color: #6b7280; font-size: 13px; line-height: 1.6;">
+        Messages sent while this was off can be brought into HAIP afterwards &mdash; tell us roughly
+        when it stopped. Instagram only lets you reply within 24 hours of a guest's last message, so
+        it's worth doing today.
+      </p>
+
+      <p style="color: #9ca3af; font-size: 12px; text-align: center; margin-top: 24px;">
+        You'll get this alert at most once every 24 hours while it stays off.
       </p>
 
       <hr style="border: none; border-top: 1px solid #f3f4f6; margin: 32px 0;" />

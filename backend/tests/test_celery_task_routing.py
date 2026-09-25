@@ -49,3 +49,18 @@ def test_every_registered_task_routes_to_a_consumed_queue(celery_app_instance):
         f"{len(unrouted)} task(s) route to a queue no worker consumes -- "
         f"they will silently never run: {unrouted}"
     )
+
+
+def test_lead_assignment_tick_lands_on_a_consumed_queue(celery_app_instance):
+    """The 5-minute automatic-assignment tick shipped with no queue route, so it
+    fell through to the unconsumed "celery" queue and never ran in production.
+    Unlike the sweep above, this imports the task itself first, so it gives the
+    same answer whatever other tests have already loaded."""
+    import app.workers.tasks.lead_assignment  # noqa: F401  (registers the task)
+
+    app = celery_app_instance
+    assert app.conf.beat_schedule["lead-assignment-5min"]["task"] == "lead_assignment.tick"
+    assert "lead_assignment.tick" in app.tasks
+    queue = app.amqp.router.route({}, "lead_assignment.tick").get("queue")
+    queue_name = queue.name if hasattr(queue, "name") else queue
+    assert queue_name in _CONSUMED_QUEUES, f"lead_assignment.tick routes to {queue_name!r}"

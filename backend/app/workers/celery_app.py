@@ -187,6 +187,11 @@ celery_app.conf.update(
         "meta_quality.poll_all_tenants":             {"queue": "whatsapp"},
         "meta_credentials.check_all_tenants":        {"queue": "whatsapp"},
         "meta_credentials.check_tenant":             {"queue": "whatsapp"},
+        # The 5-minute lead-assignment tick had no route, so it sat on
+        # Celery's implicit "celery" queue that no worker consumes and never ran.
+        "lead_assignment.tick":                      {"queue": "default"},
+        "meta_credentials.check_instagram_dm_access":        {"queue": "whatsapp"},
+        "meta_credentials.check_instagram_dm_access_tenant": {"queue": "whatsapp"},
         "instagram_token.refresh_all_tenants":       {"queue": "whatsapp"},
         "instagram_token.refresh_tenant":            {"queue": "whatsapp"},
         "instagram_insights.poll_all_tenants":       {"queue": "whatsapp"},
@@ -251,6 +256,14 @@ celery_app.conf.beat_schedule = {
     "meta-credentials-health-daily": {
         "task": "meta_credentials.check_all_tenants",
         "schedule": crontab(hour=6, minute=0),
+    },
+    # A valid token is not enough: if the account owner switches "Allow access
+    # to messages" off in Instagram, Meta stops delivering DMs (Ratha,
+    # 24-Sep-2026: ~15 hours of lost messages). Hourly, so it is caught the
+    # same day it happens rather than at the next daily check.
+    "instagram-dm-access-hourly": {
+        "task": "meta_credentials.check_instagram_dm_access",
+        "schedule": crontab(minute=20),
     },
     # Refresh well before the 60-day cliff. Meta makes an expired token
     # permanently non-refreshable, and check_meta_credentials above only
