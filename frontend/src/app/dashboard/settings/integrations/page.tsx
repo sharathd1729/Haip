@@ -321,12 +321,13 @@ function ConnectModal({
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-700 block mb-1.5">
-                  App Secret <span className="text-gray-400 font-normal">(recommended)</span>
+                  App Secret <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input type="password" value={fields.app_secret ?? ""} onChange={e => set("app_secret", e.target.value)} placeholder="Meta App Secret (for webhook signature validation)" className={inputCls} />
+                  <input type="password" value={fields.app_secret ?? ""} onChange={e => set("app_secret", e.target.value)} placeholder="Meta App Secret (Settings → Basic)" className={inputCls} />
                 </div>
+                <p className="text-[10px] text-gray-400 mt-1">Needed to receive replies and delivery updates. Without it messages send, but they stay at “sent” and guests' replies never appear. Leave blank to keep the one already saved.</p>
               </div>
             </>
           ) : isInstagram ? (

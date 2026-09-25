@@ -11,7 +11,7 @@ import io
 from typing import Optional
 
 import structlog
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -51,6 +51,21 @@ def messaging_analytics(
     messages failed, and how each campaign and template is performing."""
     from app.services import wa_analytics_service
     return wa_analytics_service.dashboard(db, current_user.tenant_id, days)
+
+
+@router.get("/whatsapp/health")
+def whatsapp_health(
+    request: Request,
+    current_user: User = Depends(require_roles(*_MARKETERS)),
+    db: Session = Depends(get_db),
+):
+    """Can Meta tell us about replies and delivery? Checks the App Secret, the
+    token, the app subscription and what has actually reached us, in words."""
+    from app.core.config import settings
+    from app.services import wa_health_service
+    base = (settings.API_BASE_URL or str(request.base_url).rstrip("/")).rstrip("/")
+    base = base.replace("http://", "https://", 1) if base.startswith("http://") else base
+    return wa_health_service.check(db, current_user.tenant_id, f"{base}/api/v1/webhooks/whatsapp")
 
 
 @router.get("/campaigns/{campaign_id}/report")

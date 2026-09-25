@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CampaignReport } from "@/components/messaging/CampaignReport";
+import { WhatsAppHealthCard } from "@/components/messaging/WhatsAppHealthCard";
 import { FailureBars, Funnel, HourChart, RateChart, VolumeChart } from "@/components/messaging/analytics/AnalyticsCharts";
 import { CampaignTable, TemplateTable } from "@/components/messaging/analytics/AnalyticsTables";
 import { change, fmt, pct, type Analytics } from "@/components/messaging/analytics/analyticsTypes";
@@ -126,6 +127,7 @@ export default function MessagingOverviewPage() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <WhatsAppHealthCard />
         {isError && !data ? (
           <div className="py-20 text-center">
             <AlertCircle size={32} className="text-red-300 mx-auto mb-3" />

@@ -269,6 +269,15 @@ def connect_whatsapp_manual(
         validation_warning = "Could not reach Meta API to validate — credentials saved. Use 'Test Connection' once network is available."
 
     row = _upsert_integration(db, current_user.tenant_id, "whatsapp_meta")
+    if not app_secret and row.credentials_kms_blob:
+        # Reconnecting (say, to paste a new token) with the App Secret box left
+        # blank used to overwrite the saved secret with an empty one. Sending
+        # kept working, but Meta's webhook is refused without the secret, so
+        # replies and delivery updates silently stopped.
+        try:
+            app_secret = decrypt_credentials(row.credentials_kms_blob).get("app_secret", "") or ""
+        except Exception:
+            app_secret = ""
     row.credentials_kms_blob = encrypt_credentials({
         "access_token": access_token,
         "app_secret": app_secret,
@@ -284,6 +293,11 @@ def connect_whatsapp_manual(
     row.status = "active"
     row.installed_at = _now()
     db.commit()
+    if not app_secret:
+        validation_warning = (
+            "No App Secret is saved, so WhatsApp will send messages but Meta's replies and delivery updates will be "
+            "refused. Add the App Secret (Meta App Dashboard → Settings → Basic) and save again."
+        )
     return {
         "status": "connected",
         "phone_number_id": phone_number_id,

@@ -84,16 +84,24 @@ async def whatsapp_webhook(request: Request):
             except Exception as exc:
                 log.warning("whatsapp_webhook_secret_decrypt_failed", tenant_id=tenant.id, error=str(exc))
 
+        from app.services import wa_health_service
         if not app_secret:
             log.warning("whatsapp_webhook_secret_missing", tenant_id=tenant.id)
+            if integration:
+                wa_health_service.note_webhook(db, integration, ok=False, reason="no_app_secret")
             raise HTTPException(status_code=401, detail="WhatsApp webhook secret not configured for this tenant")
 
-        verify_meta_signature(
-            body=body,
-            signature_header=sig,
-            env=settings.ENVIRONMENT,
-            secret=app_secret,
-        )
+        try:
+            verify_meta_signature(
+                body=body,
+                signature_header=sig,
+                env=settings.ENVIRONMENT,
+                secret=app_secret,
+            )
+        except HTTPException:
+            wa_health_service.note_webhook(db, integration, ok=False, reason="bad_signature")
+            raise
+        wa_health_service.note_webhook(db, integration, ok=True)
     finally:
         db.close()
 
