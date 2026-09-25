@@ -315,7 +315,7 @@ wholesale by migration `049` — do not write new code against it.
 ## SECURITY — NON-NEGOTIABLE
 
 - No bypass tokens (demo/owner-bypass removed)
-  ⚠️ **Not currently true in practice** — `frontend/src/lib/auth.ts` still has hardcoded demo/owner-bypass credentials, now gated behind `process.env.NODE_ENV !== "production"` (July 2026) rather than fully removed. Revisit: either strip it entirely to match this rule, or update this rule to explicitly say "dev/staging only."
+  Fully removed from `frontend/src/lib/auth.ts` (Sept 2026): no hardcoded credentials, in any environment. Sign-in only succeeds if the backend accepts it. `backend/scripts/seed_ratha.py` still seeds users with a fixed demo password -- change those passwords on any environment it has run against.
 - No dev fallback encryption keys
 - Per-tenant webhook secrets (not global shared secret)
 - SSRF protection on all external URL fetches

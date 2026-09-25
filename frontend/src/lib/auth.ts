@@ -233,27 +233,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           console.error("[AUTH] fetch error:", e);
         }
 
-        // Demo bypass fallback (when backend is unavailable) — dev/staging only.
-        // Never active in production, regardless of whether the backend is reachable.
-        if (process.env.NODE_ENV !== "production") {
-          const DEMO_USERS: Record<string, { name: string; role: string }> = {
-            "owner@haip.dev":       { name: "Sharath D.",     role: "owner" },
-            "manager@haip.dev":     { name: "Priya Menon",    role: "manager" },
-            "concierge@haip.dev":   { name: "Ravi Kumar",     role: "concierge" },
-            "reservations@haip.dev":{ name: "Ananya Singh",   role: "reservations" },
-            "compliance@haip.dev":  { name: "Deepa Nair",     role: "compliance" },
-            "sharath@ratha.in":             { name: "Sharath D.", role: "owner" },
-            "dasupatrunisharatchandra@gmail.com": { name: "Sharath D.", role: "owner" },
-          };
-          if (password === "haip2026" && DEMO_USERS[email]) {
-            const u = DEMO_USERS[email];
-            return { id: `demo-${email}`, name: u.name, email, role: u.role, tenantId: "haip-villa", accessToken: "demo", refreshToken: "", remember };
-          }
-          // Owner fallback — real password, survives DB wipes
-          if (email === "dasupatrunisharatchandra@gmail.com" && password === "Raina@1729") {
-            return { id: "sharath-owner", name: "Sharath D.", email, role: "owner", tenantId: "haip-villa", accessToken: "owner-bypass", refreshToken: "", remember };
-          }
-        }
+        // No fallback login: a sign-in only succeeds if the backend accepted it.
+        // (A dev-only "demo"/"owner-bypass" path with hardcoded passwords used to
+        // live here; it was removed so no credential sits in the source.)
         return null;
       },
     }),
