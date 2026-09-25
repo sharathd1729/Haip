@@ -71,7 +71,7 @@ def _connect(db, tid):
 def test_apply_waba_saves_an_id_meta_confirms(db, tenant_and_user):
     tid = _tid(tenant_and_user)
     row = _connect(db, tid)
-    with patch.object(svc, "token_access", return_value=([], ["999"], None)):
+    with patch.object(svc, "candidate_wabas", return_value=([], ["999"], None)):
         assert svc.apply_waba(db, tid, "999") == "999"
     db.refresh(row)
     assert row.config["waba_id"] == "999"
@@ -82,7 +82,7 @@ def test_apply_waba_saves_an_id_meta_confirms(db, tenant_and_user):
 def test_apply_waba_refuses_an_id_meta_does_not_confirm(db, tenant_and_user):
     tid = _tid(tenant_and_user)
     row = _connect(db, tid)
-    with patch.object(svc, "token_access", return_value=([], ["999"], None)):
+    with patch.object(svc, "candidate_wabas", return_value=([], ["999"], None)):
         with pytest.raises(ValueError):
             svc.apply_waba(db, tid, "555")
     db.refresh(row)
@@ -91,6 +91,6 @@ def test_apply_waba_refuses_an_id_meta_does_not_confirm(db, tenant_and_user):
 
 def test_apply_waba_is_tenant_scoped(db, tenant_and_user):
     _connect(db, "some-other-tenant")
-    with patch.object(svc, "token_access", return_value=([], ["999"], None)):
+    with patch.object(svc, "candidate_wabas", return_value=([], ["999"], None)):
         with pytest.raises(ValueError):
             svc.apply_waba(db, _tid(tenant_and_user), "999")

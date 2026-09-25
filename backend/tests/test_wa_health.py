@@ -292,3 +292,22 @@ def test_the_health_endpoint_is_role_checked(client, db, tenant_and_user):
     db.add(u); db.commit()
     token = create_access_token({"sub": u.id, "tenant_id": u.tenant_id, "role": "concierge"})
     assert client.get("/api/v1/messaging/whatsapp/health", headers={"Authorization": f"Bearer {token}"}).status_code == 403
+
+
+def test_an_id_that_is_not_a_whatsapp_account_is_named_and_a_fix_offered(db, tenant_and_user):
+    """Real screen (Ratha, Sep 2026): '(#100) Tried accessing nonexisting field
+    (subscribed_apps)' meant the saved ID wasn't a WhatsApp Business Account."""
+    _connect(db, _tid(tenant_and_user))
+    bad = {"error": {"code": 100, "message": "(#100) Tried accessing nonexisting field (subscribed_apps)"}}
+    with patch.object(svc, "candidate_wabas", return_value=(["whatsapp_business_management"], ["777"], None)):
+        r = _check(db, _tid(tenant_and_user), subscribed=bad)
+    c = _by_key(r)["subscription"]
+    assert c["status"] == "fail" and "isn't a WhatsApp account" in c["title"]
+    assert r["suggested_waba_id"] == "777" and "777" in c["fix"]
+
+
+def test_a_token_check_that_cannot_run_is_reported_not_hidden(db, tenant_and_user):
+    _connect(db, _tid(tenant_and_user))
+    with patch.object(svc, "candidate_wabas", return_value=([], [], "debug_token refused (code 100)")):
+        r = _check(db, _tid(tenant_and_user))
+    assert _by_key(r)["templates_access"]["status"] == "warn"

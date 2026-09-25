@@ -102,6 +102,21 @@ def token_access(token: str) -> tuple[list, list, Optional[str]]:
     return list(d.get("scopes") or []), targets, None
 
 
+def candidate_wabas(token: str) -> tuple[list[str], list[str], Optional[str]]:
+    """(scopes, WhatsApp Business Account ids this token can reach, error).
+    First what the token itself says it manages; failing that, the accounts
+    owned by the businesses it can see."""
+    scopes, targets, err = token_access(token)
+    if targets:
+        return scopes, targets, None
+    found: list[str] = []
+    biz, berr = _meta_get("me/businesses", token, {"fields": "id", "limit": 20})
+    for b in ((biz or {}).get("data") or [])[:10]:
+        owned, _ = _meta_get(f"{b['id']}/owned_whatsapp_business_accounts", token, {"fields": "id", "limit": 50})
+        found += [str(w["id"]) for w in ((owned or {}).get("data") or []) if w.get("id")]
+    return scopes, found, (err if not found else None)
+
+
 def apply_waba(db: Session, tenant_id: str, waba_id: str) -> str:
     """Save a WhatsApp Business Account ID -- but only one Meta says the token
     can manage, never whatever a client asks for. Returns the saved id."""
@@ -116,7 +131,7 @@ def apply_waba(db: Session, tenant_id: str, waba_id: str) -> str:
     if not integ or not integ.credentials_kms_blob:
         raise ValueError("WhatsApp isn't connected.")
     creds = decrypt_credentials(integ.credentials_kms_blob)
-    _, targets, err = token_access(creds.get("access_token", ""))
+    _, targets, err = candidate_wabas(creds.get("access_token", ""))
     if err:
         raise ValueError(f"Couldn't check with Meta: {err}")
     if waba_id not in targets:
@@ -175,8 +190,12 @@ def check(db: Session, tenant_id: str, webhook_url: str) -> dict:
     if token:
         scopes, targets, err = token_access(token)
         need = "whatsapp_business_management"
+        if err or not targets:
+            # Couldn't ask Meta which accounts this token manages; say so
+            # rather than hiding it (that silence hid the real problem once).
+            scopes, targets, err = candidate_wabas(token)
         if err:
-            pass                                                     # already reported by the token check above
+            checks.append(_check("templates_access", "warn", "Couldn't verify template access", err))
         elif scopes and need not in scopes:
             checks.append(_check("templates_access", "fail", "The token can't manage templates",
                                  f"It doesn't have the {need} permission, so templates can't be created or submitted.",
@@ -202,7 +221,18 @@ def check(db: Session, tenant_id: str, webhook_url: str) -> dict:
     # ── 3. Is the Meta app subscribed to this WhatsApp account? ──
     if token and waba_id:
         data, err = _meta_get(f"{waba_id}/subscribed_apps", token)
-        if err:
+        if err and "nonexisting field" in err:
+            # Meta answers this way when the ID isn't a WhatsApp Business Account at all.
+            if not suggested_waba:
+                _, found, _ = candidate_wabas(token)
+                found = [w for w in found if w != waba_id]
+                suggested_waba = found[0] if len(found) == 1 else None
+            fix = (f"Meta lists WhatsApp Business Account {suggested_waba} for this token. Use that ID." if suggested_waba
+                   else "Copy the WhatsApp Business Account ID from WhatsApp Manager → Account tools, and save it in Settings → Integrations → WhatsApp.")
+            checks.append(_check("subscription", "fail", "The saved WhatsApp Business Account ID isn't a WhatsApp account",
+                                 f"Meta doesn't recognise {waba_id} as one (it may be a business, phone number or app ID). That also stops templates from being created or synced.",
+                                 fix))
+        elif err:
             checks.append(_check("subscription", "warn", "Couldn't check the app subscription", err))
         elif not (data or {}).get("data"):
             checks.append(_check("subscription", "fail", "Your Meta app isn't subscribed to this WhatsApp account",
