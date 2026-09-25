@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from jose import JWTError, jwt
@@ -31,7 +32,13 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 def create_refresh_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode.update({"exp": expire, "type": "refresh"})
+    # jti makes every token unique. Refresh tokens are looked up by the hash of
+    # the token itself, and the only other varying claim is an expiry with
+    # one-second resolution: two tokens for the same user minted in the same
+    # second (every refresh burst mints several) used to be byte-identical and
+    # share one database hash, so which row a presentation matched was
+    # arbitrary and a stale but innocent token could land on a revoked twin.
+    to_encode.update({"exp": expire, "type": "refresh", "jti": uuid.uuid4().hex})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
 
 

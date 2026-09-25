@@ -188,13 +188,25 @@ def _as_aware(dt):
     return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
 
 
-# Reuse of an already-rotated refresh token within this window is treated as a
-# race between concurrent requests (dashboard pages fire several in parallel;
-# two can each decide to proactively refresh the same stale token at once) and
-# is answered with the successor token that rotation already produced, rather
-# than as theft. Reuse after this window has elapsed is treated as genuine
-# token theft: the user's entire refresh-token family is revoked.
-_REFRESH_GRACE_WINDOW_SECONDS = 60
+# Re-presenting an already-rotated refresh token is answered with a fresh pair,
+# not treated as theft, as long as its successor was never used. Two ways that
+# happens innocently:
+#   * a race (dashboard pages fire several requests in parallel; two can each
+#     decide to refresh the same stale token at once), seconds apart; and
+#   * a LOST RESPONSE: the server rotated the token but the reply never reached
+#     the browser (a phone backgrounded mid-request, a dropped connection), so
+#     the browser still holds the old token and asks again minutes or hours
+#     later. This used to be treated as theft after 60 seconds, revoking every
+#     session the user had on every device -- the "Rathaa" login was logged out
+#     over and over from a token replaced ~7 minutes earlier (Sep 2026).
+# What distinguishes theft is the successor: once it HAS been used the client
+# demonstrably received it and moved on, so the old token turning up again is
+# reuse and the user's entire refresh-token family is revoked (below). The
+# window only caps how long an unused successor keeps an old token redeemable.
+_REFRESH_GRACE_WINDOW_SECONDS = 24 * 60 * 60
+# Inside this many seconds the reissue is logged as a race; beyond it, as a
+# stale token -- so the log shows how often lost responses actually happen.
+_REFRESH_RACE_SECONDS = 60
 
 
 @router.post("/refresh")
@@ -273,7 +285,9 @@ def refresh_token(body: dict, db: Session = Depends(get_db)):
             ))
             db.commit()
             log.info(
-                "refresh_outcome", outcome="race_reissued", user=user_tok,
+                "refresh_outcome",
+                outcome="race_reissued" if age_since_revoked <= _REFRESH_RACE_SECONDS else "stale_reissued",
+                user=user_tok,
                 seconds_since_issued=seconds_since_issued, age_since_revoked=age_since_revoked,
             )
             return {"access_token": new_access, "refresh_token": new_refresh, "token_type": "bearer"}

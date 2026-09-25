@@ -135,31 +135,58 @@ def test_refresh_race_within_grace_window_reissues(client, tenant_and_user):
     assert data["refresh_token"]
 
 
-def test_refresh_reuse_outside_grace_window_revokes_family(client, tenant_and_user, db):
-    """Reuse of an already-rotated token AFTER the grace window has elapsed
-    is treated as genuine theft: every active refresh token for that user
-    is revoked, and an audit event is written."""
+def test_refresh_tokens_minted_together_are_all_different():
+    """Refresh tokens are looked up by the hash of the token itself, so two must
+    never be identical. Their only varying claim used to be an expiry with
+    one-second resolution, so any two minted for the same user in the same
+    second (every refresh burst mints three) were byte-for-byte the same token
+    and shared one database hash -- which row a presentation matched was then
+    arbitrary, and a stale but innocent token could land on a revoked twin."""
+    from app.core.security import create_refresh_token
+
+    payload = {"sub": "user-1", "tenant_id": "tenant-1", "role": "owner"}
+    tokens = [create_refresh_token(payload) for _ in range(20)]
+
+    assert len(set(tokens)) == 20
+    assert len({hashlib.sha256(t.encode()).hexdigest() for t in tokens}) == 20
+    for t in tokens:                       # still an ordinary, decodable refresh token
+        decoded = decode_token(t)
+        assert decoded["sub"] == "user-1" and decoded["type"] == "refresh"
+
+
+def _rotate_twice_then_backdate(client, db, refresh, seconds_ago):
+    """The old token A is rotated into B, then B is actually USED (rotated into
+    C) -- proof the client received B and moved on. A's revoked_at is then
+    back-dated so no test has to sleep."""
+    from app.models.user import RefreshToken
+
+    r1 = client.post("/api/v1/auth/refresh", json={"refresh_token": refresh})
+    assert r1.status_code == 200
+    r2 = client.post("/api/v1/auth/refresh", json={"refresh_token": r1.json()["refresh_token"]})
+    assert r2.status_code == 200
+    stored = db.query(RefreshToken).filter_by(token_hash=hashlib.sha256(refresh.encode()).hexdigest()).first()
+    stored.revoked_at = datetime.now(timezone.utc) - timedelta(seconds=seconds_ago)
+    db.commit()
+
+
+def test_refresh_reuse_after_the_successor_was_used_revokes_family(client, tenant_and_user, db):
+    """The old token turns up AFTER its successor has been used. That is not a
+    lost response -- the client demonstrably received the new token and moved
+    on -- so it is genuine theft: every active refresh token for that user is
+    revoked, and an audit event is written."""
     from app.models.user import RefreshToken
     from app.models.audit_event import AuditEvent
 
     original_refresh = tenant_and_user["refresh_token"]
     user_id = tenant_and_user["user"].id
 
-    r1 = client.post("/api/v1/auth/refresh", json={"refresh_token": original_refresh})
-    assert r1.status_code == 200
-
-    # Back-date revoked_at on the original row to simulate the grace window
-    # having elapsed, without needing to actually sleep 60+ seconds.
-    original_hash = hashlib.sha256(original_refresh.encode()).hexdigest()
-    stored = db.query(RefreshToken).filter_by(token_hash=original_hash).first()
-    stored.revoked_at = datetime.now(timezone.utc) - timedelta(seconds=120)
-    db.commit()
+    _rotate_twice_then_backdate(client, db, original_refresh, seconds_ago=120)
 
     r2 = client.post("/api/v1/auth/refresh", json={"refresh_token": original_refresh})
     assert r2.status_code == 401
 
     active_count = db.query(RefreshToken).filter_by(user_id=user_id, is_revoked=False).count()
-    assert active_count == 0, "reuse outside the grace window must revoke the whole token family"
+    assert active_count == 0, "reuse after the successor was used must revoke the whole token family"
 
     audit_row = (
         db.query(AuditEvent)
@@ -167,6 +194,54 @@ def test_refresh_reuse_outside_grace_window_revokes_family(client, tenant_and_us
         .first()
     )
     assert audit_row is not None, "genuine reuse must write an audit event"
+
+
+# Real incident (Ratha, Sep 2026): the "Rathaa" login was logged out over and
+# over. The backend log showed one token, issued ~20 min earlier and replaced
+# ~7 min earlier, presented again and again. A rotated token's response can be
+# lost (a phone backgrounded mid-request, a dropped connection), leaving the
+# browser holding the old token while the new one was never used. That is not
+# theft, and after 60 seconds it used to revoke every session the user had.
+
+def test_stale_token_whose_successor_was_never_used_is_not_theft(client, tenant_and_user, db):
+    """Rotated 10 minutes ago, successor never used: the client missed the
+    response. It gets a fresh pair and nobody is logged out."""
+    from app.models.user import RefreshToken
+
+    original_refresh = tenant_and_user["refresh_token"]
+    user_id = tenant_and_user["user"].id
+
+    r1 = client.post("/api/v1/auth/refresh", json={"refresh_token": original_refresh})
+    assert r1.status_code == 200                       # rotated; r1's new token is never used
+    stored = db.query(RefreshToken).filter_by(token_hash=hashlib.sha256(original_refresh.encode()).hexdigest()).first()
+    stored.revoked_at = datetime.now(timezone.utc) - timedelta(minutes=10)
+    db.commit()
+
+    r2 = client.post("/api/v1/auth/refresh", json={"refresh_token": original_refresh})
+    assert r2.status_code == 200, r2.text
+    assert r2.json()["access_token"] and r2.json()["refresh_token"]
+    assert db.query(RefreshToken).filter_by(user_id=user_id, is_revoked=False).count() >= 1
+
+    # ...and the new pair really works: the session carries on.
+    r3 = client.post("/api/v1/auth/refresh", json={"refresh_token": r2.json()["refresh_token"]})
+    assert r3.status_code == 200
+
+
+def test_the_lost_response_tolerance_is_not_unlimited(client, tenant_and_user, db):
+    """A token replaced more than a day ago is refused and treated as reuse,
+    even with an unused successor."""
+    from app.models.user import RefreshToken
+
+    original_refresh = tenant_and_user["refresh_token"]
+    user_id = tenant_and_user["user"].id
+
+    assert client.post("/api/v1/auth/refresh", json={"refresh_token": original_refresh}).status_code == 200
+    stored = db.query(RefreshToken).filter_by(token_hash=hashlib.sha256(original_refresh.encode()).hexdigest()).first()
+    stored.revoked_at = datetime.now(timezone.utc) - timedelta(hours=25)
+    db.commit()
+
+    assert client.post("/api/v1/auth/refresh", json={"refresh_token": original_refresh}).status_code == 401
+    assert db.query(RefreshToken).filter_by(user_id=user_id, is_revoked=False).count() == 0
 
 
 def test_refresh_reuse_detection_does_not_affect_other_tenant(client, db):
@@ -199,14 +274,9 @@ def test_refresh_reuse_detection_does_not_affect_other_tenant(client, db):
     tenant_a, user_a, refresh_a = make_tenant_user()
     tenant_b, user_b, refresh_b = make_tenant_user()
 
-    # Rotate A's token, then reuse the old one outside the grace window --
+    # Rotate A's token, use the successor too, then reuse the old one --
     # triggers reuse-detection and revokes A's family.
-    r1 = client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_a})
-    assert r1.status_code == 200
-    hash_a = hashlib.sha256(refresh_a.encode()).hexdigest()
-    stored_a = db.query(RefreshToken).filter_by(token_hash=hash_a).first()
-    stored_a.revoked_at = datetime.now(timezone.utc) - timedelta(seconds=120)
-    db.commit()
+    _rotate_twice_then_backdate(client, db, refresh_a, seconds_ago=120)
     r2 = client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_a})
     assert r2.status_code == 401
 
