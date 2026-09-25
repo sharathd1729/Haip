@@ -139,6 +139,24 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
 }
 
 
+# Internal-analysis tasks that retry on Gemini when NVIDIA errors or exceeds the
+# given seconds (NIM has had multi-hour 504/hang stretches -- calls sat at
+# "pending", Leads360 summaries went missing). Value = how long the NVIDIA
+# attempt may run before Gemini is tried. Needs GEMINI_API_KEY; without it the
+# task simply runs on NVIDIA as before. Guest-facing tasks are not listed:
+# concierge_draft is already on Gemini and has its own retry/timeout handling.
+_GEMINI_FALLBACK_TASKS: dict[str, float] = {
+    "call_analysis":               60,
+    "call_scoring":                60,
+    "lead_summary":                60,
+    "daily_briefing":              60,
+    "quick_classify":              30,
+    "agent_performance_narrative": 60,
+    "agent_leads_feedback":        60,
+    "deep_reason":                 120,   # judge's low-confidence re-score
+}
+
+
 def get_llm(task: str, tenant_id: Optional[str] = None) -> LLMAdapter:
     """
     Return the correct LLMAdapter for a given task.
@@ -168,7 +186,18 @@ def get_llm(task: str, tenant_id: Optional[str] = None) -> LLMAdapter:
         # kwargs here would raise TypeError instead of logging (the failure
         # mode CLAUDE.md documents for leads_service/identity_service).
         log.warning("llm_unknown_task_key: task=%s routed_to=%s", task, model)
-    return _build_adapter(provider, model)
+    adapter = _build_adapter(provider, model)
+
+    primary_timeout = _GEMINI_FALLBACK_TASKS.get(task)
+    if primary_timeout is not None and provider == "nvidia" and settings.GEMINI_API_KEY:
+        from app.adapters.llm.fallback import FallbackAdapter
+        adapter = FallbackAdapter(
+            primary=adapter,
+            secondary=_build_adapter("gemini", None),
+            task=task,
+            primary_timeout=primary_timeout,
+        )
+    return adapter
 
 
 def get_llm_adapter(provider: Optional[str] = None) -> LLMAdapter:
