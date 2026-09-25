@@ -84,7 +84,7 @@ class TestSyncTenantTemplates:
 
         with patch("app.workers.tasks.sync_wa_templates.SessionLocal", return_value=db), \
              patch("httpx.get", return_value=_FakeMetaResponse(
-                 [{"name": "booking_confirmation", "status": "APPROVED"}]
+                 [{"id": "meta-123", "name": "booking_confirmation", "status": "APPROVED"}]
              )) as mock_get:
             sync_tenant_templates.run(tenant_id=tenant_id)
 
@@ -100,7 +100,7 @@ class TestSyncTenantTemplates:
 
         with patch("app.workers.tasks.sync_wa_templates.SessionLocal", return_value=db), \
              patch("httpx.get", return_value=_FakeMetaResponse(
-                 [{"name": "promo_blast", "status": "REJECTED", "rejected_reason": "Tag content policy"}]
+                 [{"id": "meta-123", "name": "promo_blast", "status": "REJECTED", "rejected_reason": "Tag content policy"}]
              )):
             sync_tenant_templates.run(tenant_id=tenant_id)
 
@@ -108,15 +108,16 @@ class TestSyncTenantTemplates:
         assert status == TemplateStatus.REJECTED.name
         assert reason == "Tag content policy"
 
-    def test_no_pending_templates_never_calls_meta(self, db, tenant_and_user):
+    def test_no_local_templates_still_reads_meta(self, db, tenant_and_user):
+        """Templates created in WhatsApp Manager must be imported even when
+        nothing is pending locally."""
         tenant_id = _tenant_id(tenant_and_user)
         _make_integration(db, tenant_id)
 
-        with patch("app.workers.tasks.sync_wa_templates.SessionLocal", return_value=db), \
-             patch("httpx.get") as mock_get:
+        with patch("app.workers.tasks.sync_wa_templates.SessionLocal", return_value=db),              patch("httpx.get", return_value=_FakeMetaResponse([])) as mock_get:
             sync_tenant_templates.run(tenant_id=tenant_id)
 
-        assert not mock_get.called
+        assert mock_get.called
 
     def test_missing_credentials_blob_never_calls_meta(self, db, tenant_and_user):
         """No credentials_kms_blob at all (never connected properly) --
@@ -139,6 +140,8 @@ class TestSyncTenantTemplates:
         tenant_id = _tenant_id(tenant_and_user)
         _make_integration(db, tenant_id)
         tmpl = _make_pending_template(db, tenant_id, name="not_submitted_yet")
+        tmpl.meta_template_id = None            # never reached Meta: not "deleted there"
+        db.commit()
         tmpl_id = tmpl.id
 
         with patch("app.workers.tasks.sync_wa_templates.SessionLocal", return_value=db), \

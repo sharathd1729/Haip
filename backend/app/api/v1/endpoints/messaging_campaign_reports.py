@@ -68,6 +68,28 @@ def whatsapp_health(
     return wa_health_service.check(db, current_user.tenant_id, f"{base}/api/v1/webhooks/whatsapp")
 
 
+@router.post("/whatsapp/use-waba")
+def whatsapp_use_waba(
+    body: dict,
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER)),
+    db: Session = Depends(get_db),
+):
+    """Fix a wrong WhatsApp Business Account ID with one Meta itself says the
+    token manages. Anything else is refused."""
+    from app.services import wa_health_service
+    waba_id = str(body.get("waba_id") or "").strip()
+    if not waba_id.isdigit():
+        raise HTTPException(status_code=400, detail="waba_id must be a number.")
+    try:
+        saved = wa_health_service.apply_waba(db, current_user.tenant_id, waba_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    append_audit(db, tenant_id=current_user.tenant_id, action="whatsapp.waba_changed", actor_user_id=current_user.id,
+                 target_type="integration", target_id=None, payload={"waba_id": saved})
+    db.commit()
+    return {"waba_id": saved}
+
+
 @router.get("/campaigns/{campaign_id}/report")
 def campaign_report(
     campaign_id: str,

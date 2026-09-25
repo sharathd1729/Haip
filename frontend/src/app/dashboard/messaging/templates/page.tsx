@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   MessageSquare, Plus, Send, Trash2, CheckCircle2, Clock, XCircle, FileText, Loader2, X, AlertCircle, Eye,
-  Tag, Pencil, Copy, RotateCcw, Image as ImageIcon,
+  Tag, Pencil, Copy, RotateCcw, Image as ImageIcon, RefreshCw,
 } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
@@ -98,6 +98,17 @@ export default function TemplatesPage() {
     staleTime: 30_000,
   });
 
+  const [syncNote, setSyncNote] = useState<{ ok: boolean; text: string } | null>(null);
+  const syncMutation = useMutation({
+    mutationFn: () => api.post("/messaging/templates/sync").then(r => r.data),
+    onSuccess: (d: { added: number; updated: number; removed: number }) => {
+      refresh();
+      setSyncNote({ ok: true, text: d.added + d.updated + d.removed === 0 ? "Already matches WhatsApp Manager."
+        : `Synced: ${d.added} added, ${d.updated} updated, ${d.removed} removed.` });
+    },
+    onError: (e: unknown) => setSyncNote({ ok: false, text: (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Couldn't sync with Meta." }),
+  });
+
   const submitMutation = useMutation({
     mutationFn: (id: string) => api.post(`/messaging/templates/${id}/submit`),
     onSuccess: (res) => {
@@ -134,11 +145,18 @@ export default function TemplatesPage() {
             <h1 className="haip-page-title">Message Templates</h1>
             <p className="text-sm text-gray-400 mt-0.5">Create and manage WhatsApp Business templates for campaigns and automated messages.</p>
           </div>
+          <div className="flex items-center gap-2">
+          <button onClick={() => { setSyncNote(null); syncMutation.mutate(); }} disabled={syncMutation.isPending}
+            className="flex items-center gap-2 border border-gray-200 bg-white text-gray-700 px-3.5 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 disabled:opacity-60">
+            {syncMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} Sync from Meta
+          </button>
           <button onClick={() => setEditor({})}
             className="flex items-center gap-2 bg-teal-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors shadow-sm shadow-teal-200">
             <Plus size={15} /> New template
           </button>
+          </div>
         </div>
+        {syncNote && <p className={cn("text-xs mb-3", syncNote.ok ? "text-green-700" : "text-red-600")} role="status">{syncNote.text}</p>}
 
         <div className="flex gap-1 flex-wrap">
           {FILTERS.map(f => (

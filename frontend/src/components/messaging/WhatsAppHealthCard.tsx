@@ -1,5 +1,5 @@
 "use client";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { AlertCircle, CheckCircle2, Loader2, RefreshCw } from "@/lib/icons";
 import { cn } from "@/lib/utils";
@@ -7,7 +7,7 @@ import api from "@/lib/api";
 
 interface Check { key: string; status: "ok" | "warn" | "fail"; title: string; detail: string; fix: string | null }
 interface Health {
-  status: "ok" | "warn" | "fail"; checks: Check[]; webhook_url: string;
+  status: "ok" | "warn" | "fail"; checks: Check[]; webhook_url: string; suggested_waba_id?: string | null;
   facts: { last_inbound_at?: string | null; stuck_sent?: number };
 }
 
@@ -19,6 +19,10 @@ const TONE = {
 
 /** Can Meta tell us about replies and delivery? Silent when everything is fine. */
 export function WhatsAppHealthCard() {
+  const useWaba = useMutation({
+    mutationFn: (wabaId: string) => api.post("/messaging/whatsapp/use-waba", { waba_id: wabaId }),
+    onSuccess: () => refetch(),
+  });
   const { data, isLoading, isFetching, refetch, isError } = useQuery<Health>({
     queryKey: ["wa-health"],
     queryFn: () => api.get("/messaging/whatsapp/health").then(r => r.data),
@@ -64,6 +68,13 @@ export function WhatsAppHealthCard() {
             ))}
           </ul>
           <div className="mt-3 flex flex-wrap items-center gap-2">
+            {data.suggested_waba_id && (
+              <button onClick={() => useWaba.mutate(data.suggested_waba_id as string)} disabled={useWaba.isPending}
+                className="text-xs font-semibold bg-teal-500 text-white px-3 py-1.5 rounded-lg hover:bg-teal-600 disabled:opacity-60">
+                {useWaba.isPending ? "Saving…" : `Use account ${data.suggested_waba_id}`}
+              </button>
+            )}
+            {useWaba.isError && <span className="text-xs text-red-700">Couldn&apos;t save that ID. Try Settings instead.</span>}
             <Link href="/dashboard/settings/integrations" className="text-xs font-semibold bg-teal-500 text-white px-3 py-1.5 rounded-lg hover:bg-teal-600">Open WhatsApp settings</Link>
             <button onClick={() => refetch()} disabled={isFetching}
               className="flex items-center gap-1.5 text-xs font-medium border border-[var(--haip-border)] bg-[var(--haip-card)] px-3 py-1.5 rounded-lg hover:bg-[var(--haip-surface)] disabled:opacity-60">

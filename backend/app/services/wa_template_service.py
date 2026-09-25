@@ -252,6 +252,40 @@ def _text_params(comp: dict, section: str, variable_map: dict, recipient: Any) -
     return params
 
 
+# ─── Meta's errors, in words ─────────────────────────────────────────────────
+
+# Errors that say something is wrong with the WhatsApp connection, not with
+# the template: retrying or editing the template cannot fix them.
+_CONNECTION_CODES = {3, 10, 102, 190, 200}
+
+
+def explain_meta_error(err: dict, waba_id: Optional[str] = None) -> tuple[str, bool]:
+    """(plain-language reason, is_connection_problem) for an error Meta
+    returned when creating or editing a template.
+
+    Real case (Ratha, Sep 2026): every submission came back "Rejected" with
+    Meta's raw "Unsupported post request. Object with ID '1006816261945573'
+    does not exist, cannot be loaded due to missing permissions..." The ID was
+    the saved WhatsApp Business Account ID; Meta never reviewed the template."""
+    code, sub = err.get("code"), err.get("error_subcode")
+    if code == 100 and sub == 33:
+        which = f" ({waba_id})" if waba_id else ""
+        return (
+            f"Meta doesn't recognise the WhatsApp Business Account ID saved here{which}, or the access token isn't allowed to manage it. "
+            "Open Messaging → Overview and use the connection check, or correct the ID in Settings → Integrations → WhatsApp "
+            "(WhatsApp Manager → Account tools shows it). The token also needs the whatsapp_business_management permission.",
+            True,
+        )
+    if code in (102, 190):
+        return ("The WhatsApp access token has expired or is invalid. Create a permanent System User token and reconnect WhatsApp.", True)
+    if code in (10, 200):
+        return ("The access token isn't allowed to manage message templates. It needs the whatsapp_business_management permission.", True)
+    if sub == 2388023:
+        return ("Meta remembers this template name from one that was deleted and won't let it be reused for a while. Use a different name.", False)
+    text = err.get("error_user_msg") or err.get("error_user_title") or err.get("message") or "Meta refused the template."
+    return (str(text)[:500], code in _CONNECTION_CODES)
+
+
 # ─── Media upload ────────────────────────────────────────────────────────────
 
 _MAGIC = {

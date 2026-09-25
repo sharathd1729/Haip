@@ -86,6 +86,47 @@ def _meta_get(path: str, token: str, params: Optional[dict] = None) -> tuple[Opt
     return data, None
 
 
+def token_access(token: str) -> tuple[list, list, Optional[str]]:
+    """(scopes, WhatsApp Business Account ids the token can manage, error).
+    Asked of Meta itself: the token's own description names the accounts it may
+    manage, which is the one reliable way to tell a wrong account ID from a
+    missing permission."""
+    data, err = _meta_get("debug_token", token, {"input_token": token})
+    if err:
+        return [], [], err
+    d = (data or {}).get("data") or {}
+    targets: list[str] = []
+    for g in d.get("granular_scopes") or []:
+        if g.get("scope") == "whatsapp_business_management":
+            targets = [str(t) for t in (g.get("target_ids") or [])]
+    return list(d.get("scopes") or []), targets, None
+
+
+def apply_waba(db: Session, tenant_id: str, waba_id: str) -> str:
+    """Save a WhatsApp Business Account ID -- but only one Meta says the token
+    can manage, never whatever a client asks for. Returns the saved id."""
+    from app.core.encryption import decrypt_credentials, encrypt_credentials
+    from app.models.integration import Integration
+
+    integ = None
+    for kind in ("whatsapp_meta", "whatsapp"):
+        integ = db.query(Integration).filter_by(tenant_id=tenant_id, kind=kind, status="active").first()
+        if integ:
+            break
+    if not integ or not integ.credentials_kms_blob:
+        raise ValueError("WhatsApp isn't connected.")
+    creds = decrypt_credentials(integ.credentials_kms_blob)
+    _, targets, err = token_access(creds.get("access_token", ""))
+    if err:
+        raise ValueError(f"Couldn't check with Meta: {err}")
+    if waba_id not in targets:
+        raise ValueError("Meta doesn't say this token can manage that WhatsApp Business Account.")
+    integ.credentials_kms_blob = encrypt_credentials({**creds, "waba_id": waba_id})
+    integ.config = {**(integ.config or {}), "waba_id": waba_id}
+    db.commit()
+    return waba_id
+
+
 def check(db: Session, tenant_id: str, webhook_url: str) -> dict:
     from app.core.encryption import decrypt_credentials
     from app.models.conversation import ChannelType, Message, MessageDeliveryState, MessageDirection
@@ -128,6 +169,27 @@ def check(db: Session, tenant_id: str, webhook_url: str) -> dict:
                 checks.append(_check("override", "fail", "This number sends its events somewhere else",
                                      f"A webhook set on the phone number itself points to {override}, which takes priority over the app's webhook.",
                                      "In Meta App Dashboard → WhatsApp → Configuration, remove the phone-number-level webhook override."))
+
+    # ── 1b. Can this token manage templates on the saved WhatsApp Business Account? ──
+    suggested_waba = None
+    if token:
+        scopes, targets, err = token_access(token)
+        need = "whatsapp_business_management"
+        if err:
+            pass                                                     # already reported by the token check above
+        elif scopes and need not in scopes:
+            checks.append(_check("templates_access", "fail", "The token can't manage templates",
+                                 f"It doesn't have the {need} permission, so templates can't be created or submitted.",
+                                 "Create a System User token with whatsapp_business_management and whatsapp_business_messaging, and reconnect WhatsApp."))
+        elif targets and waba_id and waba_id not in targets:
+            suggested_waba = targets[0] if len(targets) == 1 else None
+            fix = (f"The token manages WhatsApp Business Account {targets[0]}. Use that ID."
+                   if suggested_waba else f"This token manages: {', '.join(targets)}. Save the right one in Settings → Integrations → WhatsApp.")
+            checks.append(_check("templates_access", "fail", "The saved WhatsApp Business Account ID is wrong",
+                                 f"Meta says this token can't manage {waba_id} — that's why template submissions fail with “Object with ID … does not exist”.",
+                                 fix))
+        elif targets:
+            checks.append(_check("templates_access", "ok", "Templates can be managed", f"The token can manage WhatsApp Business Account {waba_id}."))
 
     # ── 2. App Secret (without it every call from Meta is refused) ──
     if not creds.get("app_secret"):
@@ -175,7 +237,7 @@ def check(db: Session, tenant_id: str, webhook_url: str) -> dict:
     rank = {"ok": 0, "warn": 1, "fail": 2}
     status = max((c["status"] for c in checks), key=lambda s: rank[s])
     return {
-        "status": status, "checks": checks, "webhook_url": webhook_url,
+        "status": status, "checks": checks, "webhook_url": webhook_url, "suggested_waba_id": suggested_waba,
         "facts": {
             "last_inbound_at": last_inbound.isoformat() if last_inbound else None,
             "stuck_sent": stuck,

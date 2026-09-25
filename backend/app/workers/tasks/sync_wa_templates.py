@@ -2,8 +2,8 @@
 Sync WhatsApp template approval status from Meta Graph API.
 
 Runs every 30 minutes via Celery Beat.
-Queries Meta for every PENDING template and updates status
-to APPROVED or REJECTED (with reason) in our DB.
+Mirrors the WhatsApp Business Account's templates into our DB: imports ones
+created in WhatsApp Manager, drops ones deleted there, refreshes statuses.
 """
 import httpx
 from celery.exceptions import MaxRetriesExceededError
@@ -40,7 +40,6 @@ def sync_all_tenants():
 def sync_tenant_templates(self, tenant_id: str):
     """Poll Meta for pending templates belonging to one tenant and sync status."""
     from app.core.database import set_tenant_context
-    from app.api.v1.endpoints.messaging import WATemplate, TemplateStatus
     from app.models.integration import Integration
 
     db = SessionLocal()
@@ -71,52 +70,14 @@ def sync_tenant_templates(self, tenant_id: str):
         if not access_token or not waba_id:
             return
 
-        # Fetch templates from our DB that are still pending
-        pending = db.query(WATemplate).filter_by(
-            tenant_id=tenant_id,
-            status=TemplateStatus.PENDING,
-        ).all()
-
-        if not pending:
-            return
-
-        # Fetch all templates from Meta in one request
+        # Full sync, not just PENDING: templates created or deleted in
+        # WhatsApp Manager must show up here too.
+        from app.services import wa_template_sync
         try:
-            resp = httpx.get(
-                f"{META_GRAPH}/{waba_id}/message_templates",
-                headers={"Authorization": f"Bearer {access_token}"},
-                params={"fields": "id,name,status,rejected_reason", "limit": 200},
-                timeout=20,
-            )
-            resp.raise_for_status()
-            meta_templates = {t["name"]: t for t in resp.json().get("data", [])}
-        except Exception as exc:
+            wa_template_sync.sync_tenant(db, tenant_id, waba_id, access_token)
+        except wa_template_sync.SyncError as exc:
             log.warning("sync_wa_templates_meta_fetch_failed", tenant_id=tenant_id, error=str(exc))
             raise self.retry(exc=exc)
-
-        updated = 0
-        for tmpl in pending:
-            meta = meta_templates.get(tmpl.name)
-            if not meta:
-                continue  # Meta doesn't know about it yet — skip
-
-            meta_status = meta.get("status", "").upper()
-            if meta_status == "APPROVED":
-                tmpl.status = TemplateStatus.APPROVED
-                tmpl.rejection_reason = None
-                updated += 1
-            elif meta_status in ("REJECTED", "DISABLED", "PAUSED"):
-                tmpl.status = TemplateStatus.REJECTED
-                tmpl.rejection_reason = meta.get("rejected_reason") or meta_status
-                updated += 1
-
-        if updated:
-            db.commit()
-            log.info(
-                "sync_wa_templates_updated",
-                tenant_id=tenant_id,
-                updated=updated,
-            )
 
     except Exception as exc:
         log.error("sync_wa_templates_error", tenant_id=tenant_id, error=str(exc))

@@ -279,6 +279,24 @@ def _wa_integration_and_token(db: Session, tenant_id: str):
     return wa_int, access_token
 
 
+@router.post("/templates/sync")
+def sync_templates_from_meta(
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER, UserRole.MARKETING)),
+    db: Session = Depends(get_db),
+):
+    """Make this list match the WhatsApp Business Account: templates created
+    in WhatsApp Manager appear, ones deleted there go, statuses refresh."""
+    from app.services import wa_template_sync
+    wa_int, token = _wa_integration_and_token(db, current_user.tenant_id)
+    waba_id = (wa_int.config or {}).get("waba_id") if wa_int else None
+    if not wa_int or not token or not waba_id:
+        raise HTTPException(status_code=400, detail="WhatsApp isn't connected. Add the access token and WhatsApp Business Account ID in Settings → Integrations.")
+    try:
+        return wa_template_sync.sync_tenant(db, current_user.tenant_id, waba_id, token)
+    except wa_template_sync.SyncError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
 @router.get("/templates", response_model=List[TemplateOut])
 def list_templates(
     limit: int = Query(default=100, ge=1, le=500),
@@ -552,8 +570,11 @@ def submit_template(
             tmpl.rejection_reason = None
             tmpl.status = TemplateStatus.PENDING
         else:
-            tmpl.rejection_reason = data.get("error", {}).get("message", "Unknown error")
-            tmpl.status = TemplateStatus.REJECTED
+            reason, connection_problem = wts.explain_meta_error(data.get("error") or {}, wa_int.config.get("waba_id"))
+            tmpl.rejection_reason = reason[:500]
+            # A connection problem means Meta never reviewed the template: it is
+            # "couldn't submit", not "rejected", and editing the text won't help.
+            tmpl.status = TemplateStatus.SUBMISSION_FAILED if connection_problem else TemplateStatus.REJECTED
     except Exception as e:
         log.error("wa_template_submission_failed", template_id=template_id, error=str(e))
         tmpl.status = TemplateStatus.SUBMISSION_FAILED
