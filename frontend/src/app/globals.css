@@ -1240,3 +1240,37 @@
   flex-shrink: 0;
   color: var(--lx-iris);
 }
+
+/* WhatsApp overview charts. Series colors are slots 1-3 of the validated
+   categorical palette (blue, orange, aqua); the funnel is one blue ramp.
+   The dark values are the same hues stepped for the dark surface. */
+.wa-viz {
+  --viz-ink: #0b0b0b;
+  --viz-ink-2: #52514e;
+  --viz-ink-3: #77766f;
+  --viz-grid: rgba(0, 0, 0, 0.07);
+  --viz-surface: #ffffff;
+  --viz-1: #2a78d6;
+  --viz-2: #eb6834;
+  --viz-3: #1baf7a;
+  --viz-muted: #cfcec8;
+  --viz-seq-1: #86b6ef;
+  --viz-seq-2: #2a78d6;
+  --viz-seq-3: #184f95;
+  --viz-fail: #d13b3a;
+}
+.dark .wa-viz {
+  --viz-ink: #ffffff;
+  --viz-ink-2: #c3c2b7;
+  --viz-ink-3: #9a998f;
+  --viz-grid: rgba(255, 255, 255, 0.09);
+  --viz-surface: #1a1a19;
+  --viz-1: #3987e5;
+  --viz-2: #d95926;
+  --viz-3: #199e70;
+  --viz-muted: #45443f;
+  --viz-seq-1: #1c5cab;
+  --viz-seq-2: #3987e5;
+  --viz-seq-3: #86b6ef;
+  --viz-fail: #e66767;
+}

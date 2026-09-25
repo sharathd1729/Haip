@@ -44,7 +44,10 @@ _META_ERRORS: dict[str, tuple[str, str, Optional[str]]] = {
                "Meta caps how many marketing messages one person receives. Try this guest again in a few days."),
     "131050": ("opted_out", "The guest has opted out of marketing messages from you.",
                "Don't message them again with marketing templates."),
-    "131047": ("not_reachable", "The guest hasn't messaged in the last 24 hours, so only an approved template could reach them.", None),
+    "131047": ("not_reachable", "The 24-hour reply window is closed: this guest hasn't messaged in the last 24 hours.",
+               "Send an approved template instead of a normal message."),
+    "131030": ("account", "This WhatsApp number can only message people on its allowed list (test mode).",
+               "Add the recipient in Meta's WhatsApp API Setup, or move to a live number."),
     "131048": ("rate_limit", "WhatsApp is limiting this number for spam-like activity.",
                "Slow down, and check your quality rating in Meta Business Manager."),
     "131056": ("rate_limit", "Too many messages to the same guest in a short time.", "Try again later."),
@@ -114,6 +117,31 @@ def error_from_exception(exc: Exception) -> tuple[Optional[str], str]:
             return (str(err["code"]) if err.get("code") is not None else None,
                     str(details or err.get("message") or exc)[:500])
     return None, str(exc)[:500]
+
+
+def is_retryable(exc: Exception) -> bool:
+    """Whether trying the same send again could work. A 4xx from Meta (bad
+    number, closed window, wrong template values) is a verdict on this very
+    message and will come back the same every time; only Meta being busy or
+    down (5xx, 429) or a network error is worth another go."""
+    resp = getattr(exc, "response", None)
+    if resp is not None:
+        status = getattr(resp, "status_code", 0) or 0
+        return status >= 500 or status == 429
+    return True
+
+
+def failure_text(exc: Exception) -> str:
+    """What to show a person when a send failed: Meta's reason in plain words,
+    the code for support, and what to do next."""
+    code, message = error_from_exception(exc)
+    info = describe_error(code, message)
+    text = info.reason
+    if info.code and not info.code.startswith("HAIP_"):
+        text += f" (Meta error {info.code})"
+    if info.hint:
+        text += f" {info.hint}"
+    return text[:500]
 
 
 # ─── Recording a send ────────────────────────────────────────────────────────

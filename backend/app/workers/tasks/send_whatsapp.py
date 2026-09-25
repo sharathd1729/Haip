@@ -21,6 +21,7 @@ log = structlog.get_logger()
 def send_whatsapp(self, message_id: str, tenant_id: str):
     from app.core.database import set_tenant_context
     db = SessionLocal()
+    message = None
     try:
         set_tenant_context(db, tenant_id)
         message = db.query(Message).filter_by(id=message_id, tenant_id=tenant_id).first()
@@ -60,6 +61,11 @@ def send_whatsapp(self, message_id: str, tenant_id: str):
         guest = db.query(Guest).filter_by(id=conversation.guest_id).first()
         if not guest:
             _mark_failed(db, message, "Guest not found for conversation")
+            return
+
+        bad = _bad_number_reason(guest.phone)
+        if bad:
+            _mark_failed(db, message, bad)
             return
 
         adapter = get_wa_adapter(phone_number_id, access_token)
@@ -108,14 +114,7 @@ def send_whatsapp(self, message_id: str, tenant_id: str):
         )
 
     except Exception as exc:
-        error_str = str(exc)
-        log.error("send_whatsapp_failed", message_id=message_id, error=error_str)
-
-        # On final retry exhaustion → mark permanently FAILED
-        if self.request.retries >= self.max_retries:
-            _mark_failed(db, message, f"Max retries exceeded: {error_str}")
-
-        raise self.retry(exc=exc)
+        _fail_or_retry(self, db, message, exc, "send_whatsapp_failed", message_id)
     finally:
         db.close()
 
@@ -131,6 +130,7 @@ def send_whatsapp_template(self, message_id: str, tenant_id: str, template_name:
     """
     from app.core.database import set_tenant_context
     db = SessionLocal()
+    message = None
     try:
         set_tenant_context(db, tenant_id)
         message = db.query(Message).filter_by(id=message_id, tenant_id=tenant_id).first()
@@ -163,11 +163,13 @@ def send_whatsapp_template(self, message_id: str, tenant_id: str, template_name:
             _mark_failed(db, message, "Guest not found or has no phone for conversation")
             return
 
+        bad = _bad_number_reason(guest.phone)
+        if bad:
+            _mark_failed(db, message, bad)
+            return
+
         adapter = get_wa_adapter(phone_number_id, access_token)
-        components = [{
-            "type": "body",
-            "parameters": [{"type": "text", "text": str(v)} for v in (variables or [])],
-        }] if variables else []
+        components = _template_components(db, tenant_id, message, variables)
 
         def _run_async(coro):
             loop = asyncio.new_event_loop()
@@ -191,13 +193,56 @@ def send_whatsapp_template(self, message_id: str, tenant_id: str, template_name:
         log.info("whatsapp_template_sent", message_id=message_id, wamid=wamid, template=template_name)
 
     except Exception as exc:
-        error_str = str(exc)
-        log.error("send_whatsapp_template_failed", message_id=message_id, error=error_str)
-        if self.request.retries >= self.max_retries:
-            _mark_failed(db, message, f"Max retries exceeded: {error_str}")
-        raise self.retry(exc=exc)
+        _fail_or_retry(self, db, message, exc, "send_whatsapp_template_failed", message_id)
     finally:
         db.close()
+
+
+def _bad_number_reason(phone: str):
+    """Why a guest's number can't be messaged, or None if it looks fine. A
+    number that isn't a real one (a wrong country prefix, too many digits) is
+    accepted by Meta's API and then simply never delivers -- the message sits
+    at one grey tick forever."""
+    from app.services.wa_subscriber_import import validate_phone
+    if not (phone or "").strip():
+        return "This guest has no phone number."
+    _, problem = validate_phone(phone)
+    if problem:
+        return f"The phone number on this guest ({phone}) isn't a valid WhatsApp number. Correct it on the guest's profile, then retry."
+    return None
+
+
+def _template_components(db, tenant_id: str, message: Message, variables: list) -> list:
+    """The full components array for a template send: the body's values in
+    order, plus the header image/video/PDF when the template has one. Meta
+    rejects a template message whose components don't match the template."""
+    from app.api.v1.endpoints.messaging import WATemplate
+    from app.services import wa_template_service as wts
+    from app.services.media_storage import get_presigned_media_url
+
+    template_id = (message.channel_metadata or {}).get("template_id")
+    tmpl = db.query(WATemplate).filter_by(id=template_id, tenant_id=tenant_id).first() if template_id else None
+    if tmpl is None:
+        # Older messages without a stored template id: body values only, as before.
+        return [{"type": "body", "parameters": [{"type": "text", "text": str(v)} for v in (variables or [])]}] if variables else []
+
+    vmap = {"body": {str(i): {"source": "static", "value": str(v)} for i, v in enumerate(variables or [], start=1)}}
+    link = get_presigned_media_url(tmpl.header_media_key, expires_in=3600) if tmpl.header_media_key else None
+    return wts.build_send_components(tmpl.components, vmap, None, header_media_link=link)
+
+
+def _fail_or_retry(task, db, message, exc: Exception, event: str, message_id: str) -> None:
+    """A failed send: record Meta's real reason on the message. Retry only when
+    another attempt could plausibly work; a 4xx verdict is final."""
+    from app.services import wa_campaign_delivery as delivery
+    reason = delivery.failure_text(exc)
+    log.error(event, message_id=message_id, error=str(exc), meta_reason=reason)
+    if message is None:
+        raise exc
+    if not delivery.is_retryable(exc) or task.request.retries >= task.max_retries:
+        _mark_failed(db, message, reason)
+        return
+    raise task.retry(exc=exc)
 
 
 def _mark_failed(db, message: Message, reason: str) -> None:

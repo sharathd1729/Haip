@@ -41,6 +41,18 @@ def _rate(part: int, whole: int) -> Optional[float]:
     return round(part / whole * 100, 1) if whole else None
 
 
+@router.get("/analytics")
+def messaging_analytics(
+    days: int = Query(default=30, ge=1, le=365),
+    current_user: User = Depends(require_roles(*_MARKETERS)),
+    db: Session = Depends(get_db),
+):
+    """The WhatsApp overview: sent / delivered / read / failed, trends, why
+    messages failed, and how each campaign and template is performing."""
+    from app.services import wa_analytics_service
+    return wa_analytics_service.dashboard(db, current_user.tenant_id, days)
+
+
 @router.get("/campaigns/{campaign_id}/report")
 def campaign_report(
     campaign_id: str,

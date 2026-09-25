@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { signOut } from "next-auth/react";
-import { Inbox, Phone, Users, Building2, Home, BarChart2, Zap, Link2, Settings, HelpCircle, LogOut, ChevronDown, ChevronRight, ChevronLeft, MessageSquare, AtSign, Bot, Target, Megaphone, Send, FileText, LayoutDashboard, ListChecks, BookmarkIcon, TrendingUp, MessageCircle, User, Shuffle } from "@/lib/icons";
+import { Inbox, Phone, Users, Building2, Home, BarChart2, Zap, Link2, Settings, HelpCircle, LogOut, ChevronDown, ChevronRight, ChevronLeft, MessageSquare, AtSign, Bot, Target, Megaphone, Send, FileText, LayoutDashboard, ListChecks, BookmarkIcon, TrendingUp, MessageCircle, User, Shuffle, BarChart3 } from "@/lib/icons";
 import { UserCheck, GitBranch } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canSeeNav, type Resource } from "@/lib/permissions";
@@ -117,10 +117,11 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       {
         label: "Messaging",
-        href: "/dashboard/messaging/templates",
+        href: "/dashboard/messaging",
         icon: Send,
         resource: "settings",
         children: [
+          { label: "Overview",     href: "/dashboard/messaging",             icon: BarChart3 },
           { label: "Templates",    href: "/dashboard/messaging/templates",   icon: FileText },
           { label: "Campaigns",    href: "/dashboard/messaging/campaigns",   icon: Megaphone },
           { label: "Subscribers",  href: "/dashboard/messaging/subscribers", icon: UserCheck },

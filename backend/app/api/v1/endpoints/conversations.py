@@ -529,6 +529,28 @@ def send_template_message(
     if tmpl.status != TemplateStatus.APPROVED:
         raise HTTPException(status_code=422, detail="Only approved templates can be sent")
 
+    # Refuse now, in words, what Meta would refuse later: a number that isn't a
+    # real WhatsApp number (Meta accepts the request and then never delivers)
+    # and a template whose values don't match. Before this the person saw a red
+    # bubble and "Max retries exceeded", with no way to tell why.
+    from app.models.guest import Guest
+    from app.services import wa_template_service as wts
+    from app.workers.tasks.send_whatsapp import _bad_number_reason
+    guest = db.query(Guest).filter_by(id=conv.guest_id, tenant_id=current_user.tenant_id).first()
+    bad_number = _bad_number_reason(guest.phone if guest else "")
+    if bad_number:
+        raise HTTPException(status_code=422, detail=bad_number)
+    needed = wts.template_variables(tmpl.components)
+    if needed.get("header"):
+        raise HTTPException(status_code=422, detail="This template has a variable in its header, which can't be filled in from the inbox yet.")
+    expected = len(needed.get("body", []))
+    given = len(body.variables or [])
+    if given != expected:
+        raise HTTPException(
+            status_code=422,
+            detail=f"This template needs {expected} value{'s' if expected != 1 else ''} to fill in; {given} given.",
+        )
+
     # Render the template body text (for display in the thread) by
     # substituting {{1}}, {{2}}, ... with the supplied variables.
     body_component = next((c for c in (tmpl.components or []) if c.get("type") == "BODY"), None)
