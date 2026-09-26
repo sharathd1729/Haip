@@ -169,6 +169,42 @@ def _fetch_and_store_media(tenant_id: str, message_id: str, access_token: str, m
         return None, None
 
 
+# Things a guest does that aren't a question for the concierge to answer.
+_NO_AI_TYPES = {"reaction", "sticker", "system", "unsupported", "unknown", "request_welcome"}
+
+
+def _describe_other_message(msg_type: str, msg: dict) -> str:
+    """Readable text for every inbound type that isn't plain text or media.
+
+    Real case (Ratha, Sep 2026): guests answering a broadcast showed up as
+    blank bubbles and got no AI reply. Only "text" and "interactive" were
+    read; a tap on a template's quick-reply button arrives as type "button",
+    and reactions, stickers, locations and shared contacts all arrived with
+    no text at all."""
+    if msg_type == "button":                                   # quick-reply on a template
+        b = msg.get("button") or {}
+        return str(b.get("text") or b.get("payload") or "")
+    if msg_type == "interactive":                              # reply to an interactive message
+        i = msg.get("interactive") or {}
+        r = i.get("button_reply") or i.get("list_reply") or {}
+        return str(r.get("title") or "")
+    if msg_type == "reaction":
+        emoji = (msg.get("reaction") or {}).get("emoji")
+        return f"{emoji} Reacted to a message" if emoji else "Removed a reaction"
+    if msg_type == "sticker":
+        return "[Sticker]"
+    if msg_type == "location":
+        loc = msg.get("location") or {}
+        label = " · ".join(str(x) for x in (loc.get("name"), loc.get("address")) if x)
+        return f"📍 Shared a location{': ' + label if label else ''} ({loc.get('latitude')}, {loc.get('longitude')})"
+    if msg_type == "contacts":
+        names = [str(((c.get("name") or {}).get("formatted_name")) or "") for c in msg.get("contacts") or []]
+        return "👤 Shared a contact" + (f": {', '.join(n for n in names if n)}" if any(names) else "")
+    if msg_type == "order":
+        return "🛒 Sent an order"
+    return f"[{msg_type or 'unknown'} message — this type can't be shown here]"
+
+
 def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
     from_number = "+" + msg.get("from", "").lstrip("+")
     wa_msg_id = msg.get("id", "")
@@ -255,8 +291,8 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
         media_type = msg_type
         media_id = msg.get(msg_type, {}).get("id", "")
         body = msg.get(msg_type, {}).get("caption", "")
-    elif msg_type == "interactive":
-        body = str(msg.get("interactive", {}).get("button_reply", {}).get("title", ""))
+    else:
+        body = _describe_other_message(msg_type, msg)
 
     # Inbox sort key -- Instagram's inbound handlers
     # (process_instagram_dm.py/process_instagram_comment.py) already set this
@@ -421,7 +457,7 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
     # every inbound message here is effectively "no_match" -- outcome is
     # just AI-drafted vs no response, same vocabulary as the IG side so
     # downstream queries don't need a per-channel case split.
-    if body and body.strip():
+    if body and body.strip() and msg_type not in _NO_AI_TYPES:
         try:
             from app.workers.tasks.concierge_draft import concierge_draft
             from app.services.concierge_service import mark_pending_draft, DEBOUNCE_SECONDS
