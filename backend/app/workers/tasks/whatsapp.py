@@ -494,6 +494,13 @@ def _handle_status_update(db, tenant: Tenant, status_obj: dict):
         )
         return
 
+    # A campaign message shown in the inbox is also a row in the campaign's
+    # report: keep both in step.
+    meta = message.channel_metadata
+    if isinstance(meta, dict) and meta.get("campaign_id"):
+        from app.services import wa_campaign_delivery
+        wa_campaign_delivery.apply_status_callback(db, str(tenant.id), status_obj)
+
     # Only advance state — never go backwards (read > delivered > sent)
     _STATE_RANK = {
         MessageDeliveryState.PENDING:   0,

@@ -177,6 +177,8 @@ def run_campaign(self, campaign_id: str, tenant_id: str):
                         )
                     )
                     delivery.mark_sent(row, response)
+                    from app.services import wa_campaign_inbox
+                    wa_campaign_inbox.record_send(db, tenant_id, campaign, template, sub, components, response)
                     consecutive_fatal = 0
                 except Exception as exc:
                     if isinstance(exc, wts.TemplateError):

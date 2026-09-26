@@ -241,6 +241,11 @@ export const MessageBubble = memo(function MessageBubble({
           )}
         </div>
 
+        {/* Why a send failed, in words -- a red bubble alone tells nobody what to fix */}
+        {isOut && isFailed && deliveryError && (
+          <p className="max-w-[80%] px-1 text-[11px] leading-snug text-red-600 text-right" role="status">{deliveryError}</p>
+        )}
+
         {/* AI draft action buttons */}
         {isAiDraft && (
           <div className="flex items-center gap-1.5 mt-0.5">
