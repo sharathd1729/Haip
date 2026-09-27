@@ -16,6 +16,7 @@ import uuid
 from datetime import date
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
+from celery.exceptions import MaxRetriesExceededError
 from app.workers.celery_app import celery_app
 from app.core.database import SessionLocal
 from app.models.conversation import Conversation, Message
@@ -729,6 +730,7 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             getattr(adapter, "provider", None), MAX_REPLY_SECONDS_DEFAULT
         )
         result = None
+        last_error: str | None = None   # set only for a real exception, never for a plain timeout
         for attempt in range(1, MAX_REPLY_ATTEMPTS + 1):
             completion_start = time.monotonic()
             try:
@@ -750,11 +752,30 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
                     message_id=message_id, attempt=attempt, provider=getattr(adapter, "provider", None),
                     timeout_sec=reply_timeout, elapsed_sec=round(time.monotonic() - completion_start, 2),
                 )
+            except Exception as exc:
+                # Real incident (Ratha, Sep 2026): a provider error here (auth,
+                # quota, an outage) is not an asyncio.TimeoutError, so it fell
+                # through this loop uncaught, past the "result is None" holding
+                # reply below, straight to the task's outer except -- which
+                # retries the identical failing call up to 3 times and then
+                # raises MaxRetriesExceededError with nothing caught around it.
+                # The task simply crashed: no draft, no holding reply, no
+                # notification, guest and agent both got silence. Every
+                # completion failure must produce the same safe fallback the
+                # timeout path already gets, never an unhandled crash.
+                last_error = f"{type(exc).__name__}: {exc}"
+                log.warning(
+                    "concierge_completion_failed", conversation_id=conversation_id,
+                    message_id=message_id, attempt=attempt, provider=getattr(adapter, "provider", None),
+                    error=last_error, elapsed_sec=round(time.monotonic() - completion_start, 2),
+                )
         if result is None:
+            reason = f"AI reply generation failed after {MAX_REPLY_ATTEMPTS} attempts ({last_error})" if last_error \
+                else f"AI reply generation timed out after {MAX_REPLY_ATTEMPTS} attempts"
             result = {"tool_use": {
                 "reply": "Thanks for your message! Let me check and get right back to you.",
                 "confidence": 0.0, "citations": [], "needs_human": True,
-                "reason_needs_human": f"AI reply generation timed out after {MAX_REPLY_ATTEMPTS} attempts",
+                "reason_needs_human": reason,
             }}
         draft = result.get("tool_use") or {}
         confidence = draft.get("confidence", 0.0)
@@ -1087,7 +1108,17 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
 
     except Exception as exc:
         log.error("concierge_draft_failed", message_id=message_id, error=str(exc))
-        raise self.retry(exc=exc)
+        # self.retry() itself raises MaxRetriesExceededError once max_retries
+        # is exhausted -- uncaught, that crashed the task silently (no draft,
+        # no notification, guest and agent both got nothing). Same class of
+        # bug already fixed once in sync_wa_templates.py; it was never
+        # propagated here. A sibling except on the same try can't catch an
+        # exception raised from inside another except block, so it has to be
+        # caught around this retry() call specifically.
+        try:
+            raise self.retry(exc=exc)
+        except MaxRetriesExceededError:
+            log.error("concierge_draft_retries_exhausted", message_id=message_id, conversation_id=conversation_id, error=str(exc))
     finally:
         db.close()
 
