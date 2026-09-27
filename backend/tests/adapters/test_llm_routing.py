@@ -45,22 +45,20 @@ async def test_complete_without_explicit_model_uses_the_routed_default():
         assert call_kwargs["model"] == "nvidia/nemotron-3-ultra-550b-a55b"
 
 
-def test_concierge_draft_routes_to_gemini():
-    """Gemini migration (2026-08-25): concierge_draft moved off NVIDIA after
-    nemotron-49b was confirmed to hang indefinitely (no timeout, no
-    exception) on certain guest replies. Scoped to this task only -- every
-    other task stays on NVIDIA (checked by the parametrized test above).
-    gemini-3.6-flash, not flash-lite or 2.5-flash: a real test against the
-    actual concierge prompt showed flash-lite truncating replies
-    mid-sentence at confidence=0.9 (would auto-send over the 0.78
-    threshold); 2.5-flash then turned out blocked outright for new-project
-    API keys (Google's own 404, "no longer available to new users").
-    3.6-flash is what Google's error pointed to, confirmed live."""
-    from app.adapters.llm.gemini import GeminiAdapter
+def test_concierge_draft_routes_to_nvidia_emergency_reroute():
+    """EMERGENCY, TEMPORARY (2026-09-27): concierge_draft was on Gemini
+    (migrated 2026-08-25, after nemotron-49b was confirmed to hang
+    indefinitely on certain guest replies) but Google billing went negative
+    and started refusing every call, so guests got no real reply for hours.
+    Rerouted to NVIDIA's openai/gpt-oss-20b -- not nemotron-49b, the model
+    that made this task leave NVIDIA in the first place. Revert this test
+    (and _TASK_ROUTES) back to gemini-3.6-flash once the GCP billing account
+    shows a positive credit balance again."""
+    from app.adapters.llm.nvidia_nim import NvidiaNIMAdapter
 
     adapter = get_llm("concierge_draft")
-    assert isinstance(adapter, GeminiAdapter)
-    assert adapter._default_model == "gemini-3.6-flash"
+    assert isinstance(adapter, NvidiaNIMAdapter)
+    assert adapter._default_model == "openai/gpt-oss-20b"
 
 
 @pytest.mark.asyncio
