@@ -145,7 +145,26 @@ MAX_TOOL_CALLS = 4
 # nothing (Gemini has no known hang bug to guard against) and gives a real
 # transient spike room to clear.
 MAX_REPLY_SECONDS_BY_PROVIDER = {
-    "nvidia": 20,   # keep tight -- the known-hang provider above
+    # EMERGENCY, TEMPORARY (2026-09-27): concierge_draft was rerouted to
+    # NVIDIA openai/gpt-oss-20b (adapters/llm/__init__.py) while Gemini
+    # billing was blocked. The 20s bound above was tuned against a
+    # *different* model, nvidia/llama-3.3-nemotron-super-49b-v1.5, whose
+    # failure mode was a true infinite hang (confirmed live: still no
+    # response at a 90s uncapped ceiling). What's actually being hit on
+    # gpt-oss-20b is different -- real production logs show every attempt
+    # landing at almost exactly 20.02-20.03s wall clock, across many
+    # different conversations, back to back (13:47, 13:59, 14:00...): a
+    # bounded, consistent latency on this heavier prompt (full
+    # conversation context + grounding + a 5-field tool schema, unlike the
+    # short quick_classify-style prompts gpt-oss-20b was verified fast on),
+    # not the same open-ended hang. Giving it real headroom, the same way
+    # Gemini's bound was raised after its own tight-timeout-tuned-for-a-
+    # different-provider false positive (comment above). MAX_REPLY_ATTEMPTS
+    # below still caps the worst case at 2x this. If gpt-oss-20b instead
+    # starts landing consistently AT this new ceiling too, that is the same
+    # hang signature and this task should move to a different NVIDIA model
+    # or back to Gemini (once billing clears), not get a further bump.
+    "nvidia": 45,
     "gemini": 40,   # no known hang bug; paid tier; give real latency room
 }
 MAX_REPLY_SECONDS_DEFAULT = 20
