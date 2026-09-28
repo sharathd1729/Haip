@@ -157,6 +157,59 @@ class TestExtractionNeverOverwritesExistingData:
         assert updated.occasion == "anniversary"
 
 
+class TestDatesCanBeCorrectedByLaterChat:
+    """Real case (Ratha, Sep 2026): a lead's Trip Details stayed stuck on an
+    earlier (wrong) guess through several later messages that clearly
+    restated the dates -- check_in/check_out only ever got written once.
+    Unlike a formal quote or the guest's occasion, travel dates are the
+    field most likely to change mid-conversation."""
+
+    def test_a_later_chat_message_updates_its_own_earlier_guess(self, db):
+        tenant_id, inquiry_id = _setup(db, check_in="2026-07-18", check_out="2026-07-18", dates_from_chat=True)
+        adapter = _fake_adapter({
+            "check_in": "2026-10-03", "check_out": "2026-10-04",
+            "adults": None, "children": None, "occasion": None, "budget": None, "special_requests": None,
+        })
+        updated = _run(db, tenant_id, inquiry_id, adapter)
+
+        assert (updated.check_in, updated.check_out) == ("2026-10-03", "2026-10-04")
+        assert updated.dates_from_chat is True
+
+    def test_a_voice_call_date_is_never_overwritten_by_a_chat_guess(self, db):
+        # dograh_call_processor.py sets dates_from_chat=False when it writes
+        # a voice-call-extracted date -- more authoritative than chat text.
+        tenant_id, inquiry_id = _setup(db, check_in="2026-07-18", check_out="2026-07-19", dates_from_chat=False)
+        adapter = _fake_adapter({
+            "check_in": "2026-10-03", "check_out": "2026-10-04",
+            "adults": None, "children": None, "occasion": None, "budget": None, "special_requests": None,
+        })
+        updated = _run(db, tenant_id, inquiry_id, adapter)
+
+        assert (updated.check_in, updated.check_out) == ("2026-07-18", "2026-07-19")
+        assert updated.dates_from_chat is False
+
+    def test_first_ever_extraction_still_fills_empty_dates(self, db):
+        tenant_id, inquiry_id = _setup(db)   # dates_from_chat is None/unset
+        adapter = _fake_adapter({
+            "check_in": "2026-10-03", "check_out": "2026-10-04",
+            "adults": None, "children": None, "occasion": None, "budget": None, "special_requests": None,
+        })
+        updated = _run(db, tenant_id, inquiry_id, adapter)
+
+        assert (updated.check_in, updated.check_out) == ("2026-10-03", "2026-10-04")
+        assert updated.dates_from_chat is True
+
+    def test_repeating_the_same_date_is_a_noop(self, db):
+        tenant_id, inquiry_id = _setup(db, check_in="2026-10-03", check_out="2026-10-04", dates_from_chat=True)
+        adapter = _fake_adapter({
+            "check_in": "2026-10-03", "check_out": "2026-10-04",
+            "adults": None, "children": None, "occasion": None, "budget": None, "special_requests": None,
+        })
+        with patch("app.workers.tasks.generate_ai_summary.get_llm", return_value=adapter), \
+             patch("app.workers.tasks.generate_ai_summary.SessionLocal", return_value=db):
+            generate_ai_summary.run(inquiry_id=inquiry_id, tenant_id=tenant_id)
+
+
 class TestExtractionRejectsMalformedValues:
     def test_non_iso_date_is_not_written(self, db):
         tenant_id, inquiry_id = _setup(db)

@@ -83,6 +83,12 @@ class Inquiry(Base, TimestampMixin, TenantMixin):
     # Booking intent
     check_in = Column(String, nullable=True)   # ISO date
     check_out = Column(String, nullable=True)  # ISO date
+    # True when the current check_in/check_out came from chat extraction
+    # (generate_ai_summary.py) rather than a Dograh voice-call event
+    # (dograh_call_processor.py) -- lets a later chat message correct its
+    # own earlier guess without a chat-text guess ever overwriting the more
+    # authoritative voice-call-extracted date (migration 107).
+    dates_from_chat = Column(Boolean, nullable=True)
     adults = Column(Integer, nullable=True)
     children = Column(Integer, nullable=True)
     occasion  = Column(String(100), nullable=True)

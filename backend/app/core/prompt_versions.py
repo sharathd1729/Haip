@@ -72,7 +72,11 @@ PROMPT_VERSIONS: dict[str, str] = {
     # real capacity is 8), a pure hallucination since the prompt never
     # rendered a capacity figure at all before this. See
     # concierge_draft.py's _check_grounding()/_CAPACITY_RE.
-    "concierge_reply": "concierge-reply-v10",   # concierge_reply.jinja
+    # v11: never claim to share a photo/video/file -- confirmed live, a
+    # guest asked for pictures and the draft said "Here are some photos of
+    # our luxury caravan" with nothing attached (this pipeline can only
+    # send plain text). See concierge_draft.py's _check_no_media_claim().
+    "concierge_reply": "concierge-reply-v11",   # concierge_reply.jinja
     "lost_reason":     "lost-reason-v1",        # lost_reason.jinja
     "agent_performance_narrative": "agent-performance-narrative-v1",  # agent_performance_narrative.jinja
     "agent_leads_feedback": "agent-leads-feedback-v1",  # agent_leads_feedback.jinja

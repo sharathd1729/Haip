@@ -176,14 +176,26 @@ def _apply_extracted_fields(inquiry, extracted: dict) -> list[str]:
     Returns the list of field names actually written, for logging."""
     written = []
 
+    # Unlike a formal quote or the guest's stated occasion, travel dates are
+    # exactly the field most likely to change mid-conversation -- a guest
+    # proposing new dates because the first didn't work is routine, not
+    # exceptional. Confirmed live: a lead's Trip Details stayed stuck on an
+    # earlier (wrong) guess through several later messages that clearly
+    # restated the dates, because this only ever wrote check_in/check_out
+    # once. Now allowed to update again as long as the value on file is
+    # itself chat-derived (dates_from_chat) -- a Dograh voice-call date
+    # (dograh_call_processor.py, dates_from_chat left False/null) still
+    # never gets overwritten by a chat-text guess.
     check_in = _valid_iso_date(extracted.get("check_in"))
-    if check_in and not inquiry.check_in:
+    if check_in and (not inquiry.check_in or inquiry.dates_from_chat) and check_in != inquiry.check_in:
         inquiry.check_in = check_in
+        inquiry.dates_from_chat = True
         written.append("check_in")
 
     check_out = _valid_iso_date(extracted.get("check_out"))
-    if check_out and not inquiry.check_out:
+    if check_out and (not inquiry.check_out or inquiry.dates_from_chat) and check_out != inquiry.check_out:
         inquiry.check_out = check_out
+        inquiry.dates_from_chat = True
         written.append("check_out")
 
     adults = _coerce_number(extracted.get("adults"))

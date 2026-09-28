@@ -211,11 +211,16 @@ def _process(task_self, db: Session, tenant_id: str, payload: dict) -> None:
         inquiry.stage = InquiryStage.RESPONDING
         inquiry.current_stage_entered_at = _now()
 
-    # Populate extracted booking fields
+    # Populate extracted booking fields. A voice-call date is more
+    # authoritative than a chat-text guess, so mark it as such
+    # (dates_from_chat=False) -- generate_ai_summary.py's chat extraction
+    # never overwrites a date recorded here (migration 107).
     if ev.get("check_in_date"):
         inquiry.check_in = ev["check_in_date"]
+        inquiry.dates_from_chat = False
     if ev.get("check_out_date"):
         inquiry.check_out = ev["check_out_date"]
+        inquiry.dates_from_chat = False
     if ev.get("guest_count"):
         inquiry.adults = int(ev["guest_count"])
 

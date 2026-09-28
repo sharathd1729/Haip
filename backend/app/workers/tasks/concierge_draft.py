@@ -237,6 +237,49 @@ _CAPACITY_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Confirmed live: a guest asked for photos, the draft said "Here are some
+# photos of our luxury caravan," and no image was ever attached -- this
+# pipeline only ever sends plain text (see the Message() built for the
+# draft below, which never sets media_url/media_type). Catches "here are/
+# here's [the] photos", "sharing/sent/attaching the pictures", "please find
+# attached", "take a look at/check out the photos" etc. -- any claim that
+# an image, video or brochure was included.
+_MEDIA_CLAIM_RE = re.compile(
+    r"\b(?:here(?:'s| is| are)|sharing|shared|attach(?:ing|ed)?|send(?:ing)?|sent|re-?sent|"
+    r"re-?send(?:ing)?|e-?mail(?:ed|ing)?|mail(?:ed|ing)?|"
+    r"forward(?:ing|ed)?|please find|find attached|take a look at|check out|see (?:the|some))\b"
+    r"[^.!?\n]{0,40}\b(?:photos?|pics?|pictures?|images?|videos?|brochures?)\b",
+    re.IGNORECASE,
+)
+
+# Second real case, same conversation, escalated: pressed on "still no
+# photos," the model didn't just repeat the claim -- it invented an
+# entirely new fictitious channel ("I've also resent the photos to your
+# email"), to a guest who has no email on file at all. The verb list above
+# already catches "resent ... photos" via re-?sent, but this catches the
+# same lie in any phrasing built around a delivery channel this pipeline
+# doesn't have (email, inbox, WhatsApp) rather than a specific verb.
+_MEDIA_VIA_CHANNEL_RE = re.compile(
+    r"\b(?:to|via|through|check|in)\s+your\s+(?:e-?mail|inbox)\b",
+    re.IGNORECASE,
+)
+
+
+def _check_no_media_claim(reply_text: str) -> tuple[bool, "str | None"]:
+    """The concierge can never actually attach a photo/video/brochure, or
+    send one anywhere else (email, WhatsApp, an inbox) -- unlike the price/
+    capacity checks above, there is no grounded fact that could make any
+    version of "I've sent you the photos" true, so any match blocks the
+    draft outright."""
+    m = _MEDIA_CLAIM_RE.search(reply_text)
+    if m:
+        return False, f"claims to share media it never attaches: {m.group(0)!r}"
+    if _MEDIA_VIA_CHANNEL_RE.search(reply_text) and re.search(
+        r"\b(?:photos?|pics?|pictures?|images?|videos?|brochures?)\b", reply_text, re.IGNORECASE
+    ):
+        return False, "claims to have sent media through a channel this pipeline can't use"
+    return True, None
+
 
 async def _classify_and_extract(latest_message: str) -> dict:
     adapter = get_llm("quick_classify")
@@ -853,6 +896,18 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             hard_block = True
             confidence = 0.0
             needs_human_reasons.append(f"ungrounded claim: {violation}")
+
+        # ── Media-claim guard ───────────────────────────────────────────────
+        no_media_claim, media_violation = _check_no_media_claim(reply_text)
+        if not no_media_claim:
+            log.warning(
+                "draft_media_claim_blocked", conversation_id=conversation_id,
+                message_id=message_id, reason=media_violation,
+            )
+            needs_human = True
+            hard_block = True
+            confidence = 0.0
+            needs_human_reasons.append(media_violation)
 
         # ── Escalation guard ───────────────────────────────────────────────
         # Refunds, legal threats, cancellations, safety incidents and
