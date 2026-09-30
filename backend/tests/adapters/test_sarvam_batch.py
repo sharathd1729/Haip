@@ -64,6 +64,54 @@ def test_parse_prefers_diarized_entries():
     assert result.provider == "sarvam"
 
 
+def test_parse_defaults_to_inbound_first_speaker_is_agent():
+    """direction defaults to "inbound" when not passed -- the same
+    first-speaker-is-agent behavior every existing test above already
+    relies on must not change for callers that don't pass direction."""
+    payload = {
+        "transcript": "hello there general kenobi",
+        "diarized_transcript": {"entries": [
+            {"speaker": "SPEAKER_00", "transcript": "hello there", "start": 0.0, "end": 1.2},
+            {"speaker": "SPEAKER_01", "transcript": "general kenobi", "start": 1.2, "end": 2.5},
+        ]},
+    }
+    result = _adapter()._parse(payload, "hi-IN")
+    assert result.turns[0].speaker == "agent"
+    assert result.turns[1].speaker == "guest"
+
+
+def test_parse_flips_roles_on_outbound_calls():
+    """Real bug (Ratha, Sep 2026): on an outbound call the callee (guest)
+    answers and speaks first ("Hello?"), which the old "first speaker
+    always agent" heuristic silently reversed. direction="outbound" must
+    flip which cluster is labelled agent vs. guest."""
+    payload = {
+        "transcript": "hello is this ratha caravans yes how can i help",
+        "diarized_transcript": {"entries": [
+            {"speaker": "SPEAKER_00", "transcript": "hello is this ratha caravans", "start": 0.0, "end": 2.0},
+            {"speaker": "SPEAKER_01", "transcript": "yes how can i help", "start": 2.0, "end": 3.5},
+        ]},
+    }
+    result = _adapter()._parse(payload, "hi-IN", direction="outbound")
+    assert result.turns[0].speaker == "guest"
+    assert result.turns[1].speaker == "agent"
+
+
+def test_parse_outbound_still_labels_unknown_when_diarization_collapses():
+    """The direction flip must not undo the "unknown" collapse guard --
+    only ever changes which of the two roles is which, never whether the
+    call gets a confident guess at all."""
+    payload = {
+        "transcript": "hello there general kenobi",
+        "diarized_transcript": {"entries": [
+            {"speaker": "SPEAKER_00", "transcript": "hello there", "start": 0.0, "end": 1.2},
+            {"speaker": "SPEAKER_00", "transcript": "general kenobi", "start": 1.2, "end": 2.5},
+        ]},
+    }
+    result = _adapter()._parse(payload, "hi-IN", direction="outbound")
+    assert all(t.speaker == "unknown" for t in result.turns)
+
+
 def test_parse_labels_unknown_when_diarization_collapses_to_one_speaker():
     """Confirmed live: a call clearly alternating between two people came
     back with every entry tagged the same raw speaker id -- diarization

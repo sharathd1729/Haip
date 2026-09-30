@@ -42,6 +42,23 @@ async def test_transcribe_labels_agent_guest_when_diarization_finds_two_speakers
 
 
 @pytest.mark.asyncio
+async def test_transcribe_flips_roles_on_outbound_calls():
+    """Real bug (Ratha, Sep 2026): the callee (guest) answers and speaks
+    first on an outbound call, reversing "speaker 0 == agent"."""
+    utterances = [
+        {"speaker": 0, "transcript": "hello is this ratha caravans", "start": 0.0, "end": 2.0},
+        {"speaker": 1, "transcript": "yes how can i help", "start": 2.0, "end": 3.5},
+    ]
+    with patch("httpx.AsyncClient") as MockClient:
+        instance = MockClient.return_value.__aenter__.return_value
+        instance.post = AsyncMock(return_value=_mock_response(utterances))
+        result = await DeepgramAdapter().transcribe(b"fake-audio", direction="outbound")
+
+    assert result.turns[0].speaker == "guest"
+    assert result.turns[1].speaker == "agent"
+
+
+@pytest.mark.asyncio
 async def test_transcribe_labels_unknown_when_diarization_collapses_to_one_speaker():
     """Confirmed live: a call clearly alternating between two people came
     back with every utterance tagged speaker=0 -- diarization ran but

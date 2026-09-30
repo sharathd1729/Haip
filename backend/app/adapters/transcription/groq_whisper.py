@@ -20,17 +20,21 @@ GROQ_TRANSCRIPTION_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
 SILENCE_GAP_S = 1.5   # seconds gap that marks a new "turn"
 
 
-def _split_into_turns(segments: list) -> list[TranscriptTurn]:
+def _split_into_turns(segments: list, direction: str = "inbound") -> list[TranscriptTurn]:
     """
     Convert Whisper word/segment timestamps into speaker turns.
     Without real diarisation we alternate speakers on long silence gaps.
-    First speaker is always labelled 'agent'.
+
+    First speaker is labelled by call direction, not always 'agent': on an
+    outbound call the callee (guest) answers and speaks first, which
+    silently reversed every attribution when this always assumed 'agent'
+    spoke first (same bug confirmed on the real diarizing adapters).
     """
     if not segments:
         return []
 
     turns: list[TranscriptTurn] = []
-    current_speaker = "agent"
+    current_speaker = "guest" if direction == "outbound" else "agent"
     current_text = []
     t0 = segments[0].get("start", 0.0)
     prev_end = t0
@@ -73,7 +77,7 @@ class GroqWhisperAdapter(TranscriptionAdapter):
     Uses verbose_json format to get word-level timestamps for turn splitting.
     """
 
-    async def transcribe(self, audio_bytes: bytes, language_hint: str = "en-IN") -> TranscriptResult:
+    async def transcribe(self, audio_bytes: bytes, language_hint: str = "en-IN", direction: str = "inbound") -> TranscriptResult:
         lang_code = language_hint.split("-")[0]   # "en-IN" → "en"
 
         headers = {
@@ -107,7 +111,7 @@ class GroqWhisperAdapter(TranscriptionAdapter):
         raw_text  = result.get("text", "").strip()
         language  = result.get("language", lang_code)
 
-        turns = _split_into_turns(segments)
+        turns = _split_into_turns(segments, direction=direction)
 
         # Cost = $0 on free tier; $0.000 111 / sec at paid tier
         duration_sec = segments[-1].get("end", 0) if segments else 0

@@ -84,7 +84,11 @@ def transcribe(self, call_id: str, tenant_id: str, provider: str = "sarvam"):
         adapter = get_transcription_adapter(provider if provider != "sarvam" else None)
         # Use hi-IN as default hint — saarika:v2 handles code-switching (Hinglish) gracefully.
         lang_hint = getattr(call, "detected_language", None) or "hi-IN"
-        result = _run_async(adapter.transcribe(audio_bytes, language_hint=lang_hint))
+        # Diarization role-assignment (which speaker cluster is "agent") is
+        # direction-dependent -- see each adapter's comment. call.direction
+        # is always set (non-nullable), "inbound" is only a defensive fallback.
+        call_direction = str(getattr(getattr(call, "direction", None), "value", getattr(call, "direction", "")) or "inbound").lower()
+        result = _run_async(adapter.transcribe(audio_bytes, language_hint=lang_hint, direction=call_direction))
 
         # Store in transcript table
         turns_dicts = [{"speaker": t.speaker, "t0": t.t0, "t1": t.t1, "text": t.text} for t in result.turns]

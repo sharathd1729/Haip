@@ -66,7 +66,8 @@ def _do_transcribe(task_self, call_id: str, tenant_id: str):
         audio_bytes = obj["Body"].read()
 
         # Deepgram transcription
-        transcript_data = _transcribe_with_deepgram(audio_bytes, call_id)
+        call_direction = str(getattr(getattr(call, "direction", None), "value", getattr(call, "direction", "")) or "inbound").lower()
+        transcript_data = _transcribe_with_deepgram(audio_bytes, call_id, direction=call_direction)
 
         # Store transcript (use transcript_json — "transcript" is now the ORM relationship)
         call.transcript_json = transcript_data["turns"]
@@ -96,8 +97,14 @@ def _do_transcribe(task_self, call_id: str, tenant_id: str):
         db.close()
 
 
-def _transcribe_with_deepgram(audio_bytes: bytes, call_id: str) -> dict:
-    """Call Deepgram Nova-2 API with diarization."""
+def _transcribe_with_deepgram(audio_bytes: bytes, call_id: str, direction: str = "inbound") -> dict:
+    """Call Deepgram Nova-2 API with diarization.
+
+    Real bug, confirmed live (Ratha, Sep 2026): "speaker 0 = agent" is not
+    direction-invariant -- on an outbound call the callee (guest) answers
+    and speaks first, reversing the label. This is a second, independent
+    implementation of the same role-assignment logic in
+    adapters/transcription/deepgram.py -- fixed the same way there."""
     from deepgram import DeepgramClient, PrerecordedOptions
 
     dg = DeepgramClient(api_key=settings.DEEPGRAM_API_KEY)
@@ -119,9 +126,10 @@ def _transcribe_with_deepgram(audio_bytes: bytes, call_id: str) -> dict:
     result = response.results
     utterances = result.utterances or []
 
+    zero_role, other_role = ("guest", "agent") if direction == "outbound" else ("agent", "guest")
     turns = []
     for u in utterances:
-        speaker = "agent" if u.speaker == 0 else "guest"
+        speaker = zero_role if u.speaker == 0 else other_role
         turns.append({
             "speaker": speaker,
             "speaker_id": u.speaker,

@@ -22,6 +22,10 @@ class TranscriptResult:
 
 class TranscriptionAdapter(ABC):
     @abstractmethod
-    async def transcribe(self, audio_bytes: bytes, language_hint: str = "en-IN") -> TranscriptResult:
-        """Transcribe audio bytes and return structured turns."""
+    async def transcribe(self, audio_bytes: bytes, language_hint: str = "en-IN", direction: str = "inbound") -> TranscriptResult:
+        """Transcribe audio bytes and return structured turns.
+
+        direction ("inbound"/"outbound") decides which diarized speaker
+        cluster is labelled "agent" -- see each adapter's role-assignment
+        code for why order alone isn't a reliable signal on its own."""
         ...

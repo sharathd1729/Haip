@@ -141,9 +141,12 @@ class TestExtractionAcceptsStringTypedNumbers:
 
 
 class TestExtractionNeverOverwritesExistingData:
-    def test_manually_entered_adults_survives_a_conflicting_extraction(self, db):
-        # Staff already corrected the guest count to 6 (e.g. after a phone
-        # call) -- a chat-text extraction guessing 4 must not clobber it.
+    def test_a_conflicting_extraction_now_updates_the_field(self, db):
+        # Real product decision (Ratha, Sep 2026, "autopilot" request): a
+        # human edit no longer permanently locks a field -- if a later
+        # message clearly gives a different value, the AI updates it, and
+        # staff can always edit it back. Previously an extraction that
+        # disagreed with a manually-entered value was silently dropped.
         tenant_id, inquiry_id = _setup(db, adults=6, occasion="anniversary")
         adapter = _fake_adapter({
             "check_in": None, "check_out": None,
@@ -153,8 +156,57 @@ class TestExtractionNeverOverwritesExistingData:
         })
         updated = _run(db, tenant_id, inquiry_id, adapter)
 
-        assert updated.adults == 6
+        assert updated.adults == 4
+        assert updated.occasion == "family trip"
+
+    def test_repeating_the_same_value_is_a_noop(self, db):
+        tenant_id, inquiry_id = _setup(db, adults=4, occasion="family trip", budget=25000)
+        adapter = _fake_adapter({
+            "check_in": None, "check_out": None,
+            "adults": 4, "children": None,
+            "occasion": "family trip", "budget": 25000,
+            "special_requests": None,
+        })
+        with patch("app.workers.tasks.generate_ai_summary.get_llm", return_value=adapter), \
+             patch("app.workers.tasks.generate_ai_summary.SessionLocal", return_value=db):
+            generate_ai_summary.run(inquiry_id=inquiry_id, tenant_id=tenant_id)
+
+    def test_a_later_message_can_update_every_generalized_field(self, db):
+        tenant_id, inquiry_id = _setup(
+            db, adults=2, children=0, occasion="birthday", budget=10000,
+            special_requests="vegetarian only", route_mentioned="Bengaluru to Coorg",
+            upsell_offered="extra night",
+        )
+        adapter = _fake_adapter({
+            "check_in": None, "check_out": None,
+            "adults": 4, "children": 1,
+            "occasion": "anniversary", "budget": 20000,
+            "special_requests": "no pork", "route_mentioned": "Bengaluru to Gokarna",
+            "upsell_offered": "private chef",
+        })
+        updated = _run(db, tenant_id, inquiry_id, adapter)
+
+        assert updated.adults == 4
+        assert updated.children == 1
         assert updated.occasion == "anniversary"
+        assert float(updated.budget) == 20000
+        assert updated.special_requests == "no pork"
+        assert updated.route_mentioned == "Bengaluru to Gokarna"
+        assert updated.upsell_offered == "private chef"
+
+    def test_quoted_amount_is_still_write_once(self, db):
+        # A formal quote is a fact once made -- unlike the trip-detail
+        # fields above, a misread later number must never silently change
+        # a price already implied to a guest.
+        tenant_id, inquiry_id = _setup(db, quoted_amount=50000)
+        adapter = _fake_adapter({
+            "check_in": None, "check_out": None,
+            "adults": None, "children": None, "occasion": None,
+            "budget": None, "special_requests": None, "quoted_amount": 75000,
+        })
+        updated = _run(db, tenant_id, inquiry_id, adapter)
+
+        assert float(updated.quoted_amount) == 50000
 
 
 class TestDatesCanBeCorrectedByLaterChat:

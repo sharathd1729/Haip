@@ -4,6 +4,7 @@ Uses Gemini Flash (free) or Claude Haiku depending on env config.
 """
 import asyncio
 import json
+from datetime import datetime, timedelta, timezone
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
 from app.workers.celery_app import celery_app
@@ -27,6 +28,66 @@ def _run_async(coro):
         loop.close()
 
 log = structlog.get_logger()
+
+# How long before a "guest asked for a callback" reminder is "due" on My
+# Day -- shorter than the outbound-no-answer reminder (call_ingest.py's
+# _CALLBACK_REMINDER_WINDOW): the guest explicitly asked, this is higher
+# intent than an unanswered dial-out.
+_CALLBACK_REQUESTED_WINDOW = timedelta(hours=1)
+
+
+def _maybe_create_callback_requested_task(db, tenant_id: str, call: Call) -> None:
+    """The AI wrap-up already detects when a guest asked to be called back
+    (CallDisposition.CALLBACK) -- confirmed live gap (Ratha, Sep 2026,
+    "autopilot" pass): call_status_service.py correctly classifies this as
+    ANSWERED (a real conversation happened), so it's excluded from the
+    missed-call queue by definition, and nothing else ever read it. Turns
+    that already-captured signal into an actual reminder. Same shape as
+    concierge_draft.py's _maybe_create_price_handoff/_maybe_alert_phone_decline
+    and call_ingest.py's _maybe_create_callback_task: dedup on an open task
+    with a matching title, real due_date, a push alert."""
+    from app.models.guest import Guest
+    from app.models.task import Task
+
+    if not call.guest_id:
+        return
+
+    existing = (
+        db.query(Task)
+        .filter_by(tenant_id=tenant_id, guest_id=call.guest_id, is_done=False)
+        .filter(Task.title.ilike("Callback requested — %"))
+        .first()
+    )
+    if existing:
+        return
+
+    guest = db.query(Guest).filter_by(id=call.guest_id, tenant_id=tenant_id).first()
+    guest_label = (getattr(guest, "name", None) or "").strip() or "this lead"
+    task = Task(
+        tenant_id=tenant_id,
+        title=f"Callback requested — {guest_label}",
+        priority="high",
+        guest_id=call.guest_id,
+        inquiry_id=call.inquiry_id,
+        assigned_to=call.agent_id,
+        due_date=datetime.now(timezone.utc) + _CALLBACK_REQUESTED_WINDOW,
+    )
+    db.add(task)
+    db.commit()
+    log.info("callback_requested_task_created", tenant_id=tenant_id, call_id=call.id, task_id=task.id)
+
+    try:
+        from app.services.push_service import send_to_tenant
+        send_to_tenant(
+            db, tenant_id,
+            title="Guest asked for a callback",
+            body=f"{guest_label} asked to be called back. A reminder has been added.",
+            url=f"/dashboard/calls?call={call.id}",
+            user_id=call.agent_id or None,
+        )
+    except Exception as exc:
+        log.warning("callback_requested_task_push_failed", tenant_id=tenant_id, error=str(exc))
+
 
 PROMPTS_DIR = Path(__file__).parent.parent.parent / "prompts"
 _jinja_env = Environment(loader=FileSystemLoader(str(PROMPTS_DIR)))
@@ -131,6 +192,9 @@ def wrap_up(self, call_id: str, tenant_id: str, classification: dict = None, jud
         disposition_str = (wu.get("suggested_disposition") or "").strip().lower()
         call.ai_disposition = DISPOSITION_MAP.get(disposition_str)
         db.commit()
+
+        if call.ai_disposition == CallDisposition.CALLBACK:
+            _maybe_create_callback_requested_task(db, tenant_id, call)
 
         log.info("wrap_up_done", call_id=call_id, disposition=disposition_str,
                  **stamp("call_wrap_up", model=result.get("model")))

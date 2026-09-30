@@ -10,7 +10,7 @@ DEEPGRAM_URL = "https://api.deepgram.com/v1/listen"
 
 
 class DeepgramAdapter(TranscriptionAdapter):
-    async def transcribe(self, audio_bytes: bytes, language_hint: str = "en-IN") -> TranscriptResult:
+    async def transcribe(self, audio_bytes: bytes, language_hint: str = "en-IN", direction: str = "inbound") -> TranscriptResult:
         params = {
             "model": "nova-2-general",
             "language": language_hint,
@@ -48,10 +48,19 @@ class DeepgramAdapter(TranscriptionAdapter):
             unique_speakers = {utt.get("speaker", 0) for utt in utterances}
             diarization_worked = len(unique_speakers) > 1
 
+            # Real bug, confirmed live (Ratha, Sep 2026): "speaker 0 = agent"
+            # is not direction-invariant. On an outbound call the callee
+            # (guest) answers and speaks first ("Hello?"), which silently
+            # reversed the label on agent-initiated calls -- every
+            # downstream reader (classify/judge/wrap-up, the QA rubric, the
+            # transcript UI) trusts this as ground truth with no correction
+            # step. Flip which index is "agent" based on call direction.
+            zero_role, other_role = ("guest", "agent") if direction == "outbound" else ("agent", "guest")
+
             for utt in utterances:
                 if diarization_worked:
-                    # Map speaker 0 → agent, others → guest (heuristic; refined by agent_id matching later)
-                    speaker = "agent" if utt.get("speaker", 0) == 0 else "guest"
+                    # Map speaker 0 → zero_role, others → other_role (heuristic; refined by agent_id matching later)
+                    speaker = zero_role if utt.get("speaker", 0) == 0 else other_role
                 else:
                     speaker = "unknown"
                 turn = TranscriptTurn(

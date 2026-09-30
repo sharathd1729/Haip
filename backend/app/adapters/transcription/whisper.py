@@ -14,7 +14,10 @@ log = structlog.get_logger()
 
 
 class WhisperAdapter(TranscriptionAdapter):
-    async def transcribe(self, audio_bytes: bytes, language_hint: str = "en-IN") -> TranscriptResult:
+    async def transcribe(self, audio_bytes: bytes, language_hint: str = "en-IN", direction: str = "inbound") -> TranscriptResult:
+        # direction is accepted for interface parity with the other adapters
+        # but unused: this adapter does no diarization at all (every segment
+        # is unconditionally "agent"), so there is no speaker order to flip.
         with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
             tmp.write(audio_bytes)
             tmp_path = tmp.name

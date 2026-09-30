@@ -13,7 +13,7 @@ import json
 import re
 import time
 import uuid
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
 from celery.exceptions import MaxRetriesExceededError
@@ -538,6 +538,12 @@ def _maybe_create_price_handoff(
         guest_id=getattr(guest, "id", None),
         inquiry_id=getattr(inquiry, "id", None),
         conversation_id=conversation.id,
+        # Real bug, confirmed live (Ratha, Sep 2026, "autopilot" pass): both
+        # worklist_service.overdue_followups() and work_queue_service's
+        # "Due now" bucket hard-require a non-null due_date -- with none
+        # set, this Task (already shipped) never once appeared on My Day.
+        # Actionable the moment it's created, so due now.
+        due_date=datetime.now(timezone.utc),
     )
     db.add(task)
     db.commit()
@@ -599,6 +605,9 @@ def _maybe_alert_phone_decline(
         guest_id=getattr(guest, "id", None),
         inquiry_id=getattr(inquiry, "id", None),
         conversation_id=conversation.id,
+        # Same due_date fix as the price-handoff Task above -- gives the
+        # guest a little room before it's "overdue".
+        due_date=datetime.now(timezone.utc) + timedelta(hours=4),
     )
     db.add(task)
     db.commit()

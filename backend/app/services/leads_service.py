@@ -1030,6 +1030,15 @@ def get_lead_detail(
         log.warning("lead_field_values_failed", inquiry_id=inquiry_id, error=str(exc))
         custom_field_values = []
 
+    from app.services.lead_recommendation_service import get_lead_recommendation
+    try:
+        recommendation = get_lead_recommendation(db, tenant_id, inquiry)
+    except Exception as exc:
+        # Advisory only -- never break lead detail over a suggestion.
+        log.warning("lead_recommendation_failed", inquiry_id=inquiry_id, error=str(exc))
+        recommendation = None
+    recommended_actions = [recommendation] if recommendation else []
+
     return LeadDetailSchema(
         **card.model_dump(),
         timeline=timeline,
@@ -1037,6 +1046,7 @@ def get_lead_detail(
         timeline_total_available=len(timeline),
         quote_history=quote_history,
         custom_field_values=custom_field_values,
+        recommended_actions=recommended_actions,
     )
 
 

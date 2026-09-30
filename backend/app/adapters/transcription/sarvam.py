@@ -79,6 +79,7 @@ class SarvamAdapter(TranscriptionAdapter):
         self,
         audio_bytes: bytes,
         language_hint: str = "hi-IN",
+        direction: str = "inbound",
     ) -> TranscriptResult:
         """
         Submits a Sarvam batch translate job for this recording, blocks
@@ -145,9 +146,9 @@ class SarvamAdapter(TranscriptionAdapter):
             with open(os.path.join(output_dir, output_files[0])) as f:
                 payload = json.load(f)
 
-        return self._parse(payload, "en-IN")
+        return self._parse(payload, "en-IN", direction=direction)
 
-    def _parse(self, payload: dict, language: str) -> TranscriptResult:
+    def _parse(self, payload: dict, language: str, direction: str = "inbound") -> TranscriptResult:
         """
         Parse Sarvam STT response into TranscriptResult.
 
@@ -181,7 +182,7 @@ class SarvamAdapter(TranscriptionAdapter):
         entries = diarized.get("entries", []) if isinstance(diarized, dict) else []
 
         if entries:
-            turns = self._turns_from_diarized(entries)
+            turns = self._turns_from_diarized(entries, direction=direction)
         else:
             # No diarization — treat as single speaker, build from timestamps
             turns = self._turns_from_timestamps(
@@ -203,7 +204,7 @@ class SarvamAdapter(TranscriptionAdapter):
         )
 
     @staticmethod
-    def _turns_from_diarized(entries: list[dict]) -> list[TranscriptTurn]:
+    def _turns_from_diarized(entries: list[dict], direction: str = "inbound") -> list[TranscriptTurn]:
         """Build turns from diarized_transcript entries.
 
         saaras:v3 renamed the per-entry fields from v2.5's "speaker"/
@@ -213,9 +214,20 @@ class SarvamAdapter(TranscriptionAdapter):
         which is what made diarization look broken even after num_speakers
         pinning and the audio-format fix; it was actually a field-name
         mismatch on top of the deprecated model). Checks the new key first,
-        falls back to the old one so this survives either response shape."""
+        falls back to the old one so this survives either response shape.
+
+        Real bug, confirmed live (Ratha, Sep 2026): "first speaker heard =
+        agent" is not direction-invariant. On an inbound call the agent/IVR
+        greeting usually comes first, so that heuristic tends to hold; on an
+        outbound call the callee (guest) is the one who answers and speaks
+        first ("Hello?"), which silently reversed every attribution on
+        agent-initiated calls -- every downstream reader (classify/judge/
+        wrap-up prompts, the QA rubric, the transcript UI) trusts this label
+        as ground truth with no correction step. Flip which cluster is
+        "agent" based on call direction instead of always trusting order."""
+        first_role, second_role = ("guest", "agent") if direction == "outbound" else ("agent", "guest")
         turns = []
-        # First speaker encountered → agent (heuristic)
+        # First speaker encountered → first_role (direction-based heuristic)
         # Refine by matching phone number / agent IDs later in the pipeline
         seen_speakers: dict[str, str] = {}
 
@@ -237,8 +249,8 @@ class SarvamAdapter(TranscriptionAdapter):
             if diarization_worked:
                 raw_speaker = _speaker_id(entry)
                 if raw_speaker not in seen_speakers:
-                    # First speaker encountered → agent, rest → guest
-                    role = "agent" if len(seen_speakers) == 0 else "guest"
+                    # First speaker encountered → first_role, rest → second_role
+                    role = first_role if len(seen_speakers) == 0 else second_role
                     seen_speakers[raw_speaker] = role
                 speaker = seen_speakers[raw_speaker]
             else:

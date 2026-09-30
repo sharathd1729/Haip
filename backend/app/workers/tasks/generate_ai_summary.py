@@ -169,10 +169,23 @@ def _coerce_number(value):
 
 
 def _apply_extracted_fields(inquiry, extracted: dict) -> list[str]:
-    """Fill in Inquiry trip fields the guest explicitly stated in chat, but
-    ONLY where the column is currently empty -- never overwrites a value
-    that came from manual staff entry, a Dograh voice-call event, or PMS
-    sync (all of which are more authoritative than a chat-text guess).
+    """Fill in Inquiry trip fields the guest explicitly stated in chat.
+
+    Most fields below now behave like check_in/check_out already did: a
+    later message that clearly restates a value updates it, the same way a
+    human editing the field again would. Real product decision (Ratha, Sep
+    2026, "autopilot" request): a human correction does not need to be
+    permanently protected from a later AI update -- if a new message gives
+    different info, the field should move again, and staff can always edit
+    it back. This trades a small risk (a misheard later value overwriting a
+    deliberate correction) for the alternative that was actually reported as
+    broken (a lead's real, later-stated details never landing at all).
+
+    quoted_amount/quoted_at stay write-once -- a formal quote is a fact once
+    made, categorically different from a re-statable trip detail: a
+    misread number here must never silently change a price already implied
+    to a guest.
+
     Returns the list of field names actually written, for logging."""
     written = []
 
@@ -199,35 +212,43 @@ def _apply_extracted_fields(inquiry, extracted: dict) -> list[str]:
         written.append("check_out")
 
     adults = _coerce_number(extracted.get("adults"))
-    if adults is not None and adults > 0 and inquiry.adults is None:
+    if adults is not None and adults > 0 and int(adults) != inquiry.adults:
         inquiry.adults = int(adults)
         written.append("adults")
 
     children = _coerce_number(extracted.get("children"))
-    if children is not None and children >= 0 and inquiry.children is None:
+    if children is not None and children >= 0 and int(children) != inquiry.children:
         inquiry.children = int(children)
         written.append("children")
 
     occasion = extracted.get("occasion")
-    if isinstance(occasion, str) and occasion.strip() and not inquiry.occasion:
-        inquiry.occasion = occasion.strip()[:100]
-        written.append("occasion")
+    if isinstance(occasion, str) and occasion.strip():
+        occasion = occasion.strip()[:100]
+        if occasion != inquiry.occasion:
+            inquiry.occasion = occasion
+            written.append("occasion")
 
     budget = _coerce_number(extracted.get("budget"))
-    if budget is not None and budget > 0 and inquiry.budget is None:
+    if budget is not None and budget > 0:
         from decimal import Decimal
-        inquiry.budget = Decimal(str(budget))
-        written.append("budget")
+        new_budget = Decimal(str(budget))
+        if new_budget != inquiry.budget:
+            inquiry.budget = new_budget
+            written.append("budget")
 
     special_requests = extracted.get("special_requests")
-    if isinstance(special_requests, str) and special_requests.strip() and not inquiry.special_requests:
-        inquiry.special_requests = special_requests.strip()
-        written.append("special_requests")
+    if isinstance(special_requests, str) and special_requests.strip():
+        special_requests = special_requests.strip()
+        if special_requests != inquiry.special_requests:
+            inquiry.special_requests = special_requests
+            written.append("special_requests")
 
     route_mentioned = extracted.get("route_mentioned")
-    if isinstance(route_mentioned, str) and route_mentioned.strip() and not inquiry.route_mentioned:
-        inquiry.route_mentioned = route_mentioned.strip()[:255]
-        written.append("route_mentioned")
+    if isinstance(route_mentioned, str) and route_mentioned.strip():
+        route_mentioned = route_mentioned.strip()[:255]
+        if route_mentioned != inquiry.route_mentioned:
+            inquiry.route_mentioned = route_mentioned
+            written.append("route_mentioned")
 
     # quoted_amount/quoted_at already exist on Inquiry but had no write path
     # anywhere in the codebase before this (confirmed via grep) -- a formal
@@ -240,9 +261,11 @@ def _apply_extracted_fields(inquiry, extracted: dict) -> list[str]:
         written.append("quoted_amount")
 
     upsell_offered = extracted.get("upsell_offered")
-    if isinstance(upsell_offered, str) and upsell_offered.strip() and not inquiry.upsell_offered:
-        inquiry.upsell_offered = upsell_offered.strip()[:255]
-        written.append("upsell_offered")
+    if isinstance(upsell_offered, str) and upsell_offered.strip():
+        upsell_offered = upsell_offered.strip()[:255]
+        if upsell_offered != inquiry.upsell_offered:
+            inquiry.upsell_offered = upsell_offered
+            written.append("upsell_offered")
 
     # Unlike the fields above, upsell_accepted's empty sentinel is None
     # (not offered / not yet answered) -- False is a real, meaningful

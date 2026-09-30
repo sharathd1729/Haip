@@ -239,6 +239,44 @@ def _followups(db: Session, tenant_id: str, scope_user_id: Optional[str]) -> tup
     return items, total
 
 
+def _latest_inbound_previews(db: Session, tenant_id: str, guest_ids: list[str]) -> dict[str, str]:
+    """guest_id -> the guest's most recent inbound message text, truncated.
+
+    Real gap (Ratha, Sep 2026, "autopilot" pass): worklist_service.new_dms()
+    already has this exact preview logic, but it's wired only into the daily
+    email digest -- the live My Day page's "unassigned" bucket showed only a
+    static "No owner yet", so a brand-new WhatsApp/Instagram lead was
+    invisible there beyond a bare name. One window-function query, not one
+    per guest."""
+    if not guest_ids:
+        return {}
+    from app.models.conversation import Conversation, Message, MessageDirection
+
+    ranked = (
+        db.query(
+            Conversation.guest_id.label("guest_id"),
+            Message.body.label("body"),
+            func.row_number().over(
+                partition_by=Conversation.guest_id,
+                order_by=Message.created_at.desc(),
+            ).label("rn"),
+        )
+        .join(Message, Message.conversation_id == Conversation.id)
+        .filter(
+            Conversation.tenant_id == tenant_id,
+            Conversation.guest_id.in_(guest_ids),
+            Message.direction == MessageDirection.INBOUND,
+        )
+        .subquery()
+    )
+    rows = db.query(ranked.c.guest_id, ranked.c.body).filter(ranked.c.rn == 1).all()
+    out = {}
+    for guest_id, body in rows:
+        text = (body or "").strip()
+        out[guest_id] = (text[:80] + "…") if len(text) > 80 else text
+    return out
+
+
 def _unassigned(db: Session, tenant_id: str) -> tuple[list[QueueItem], int]:
     """Open leads nobody owns -- anyone can take them."""
     from app.services.lead_assignment_service import _open_leads_query
@@ -250,13 +288,15 @@ def _unassigned(db: Session, tenant_id: str) -> tuple[list[QueueItem], int]:
     )
     total = q.with_entities(func.count(Inquiry.id)).scalar() or 0
     rows = q.order_by(Inquiry.created_at.asc()).limit(MAX_PER_KIND).all()
+    previews = _latest_inbound_previews(db, tenant_id, [inq.guest_id for inq in rows if inq.guest_id])
     items = []
     for inq in rows:
         guest = inq.guest
+        preview = previews.get(inq.guest_id)
         items.append(QueueItem(
             kind="unassigned",
             title=(guest.name if guest and guest.name else None) or (guest.phone if guest else None) or "New lead",
-            detail="No owner yet",
+            detail=f"“{preview}”" if preview else "No owner yet",
             action="Take",
             href=f"/dashboard/leads/{inq.id}",
             inquiry_id=inq.id,

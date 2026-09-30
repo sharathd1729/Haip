@@ -80,6 +80,62 @@ def test_queue_collects_every_kind(db):
     assert all(i["action"] and i["href"] for i in res["items"])
 
 
+def test_unassigned_shows_what_the_guest_actually_said(db):
+    """Real gap (Ratha, Sep 2026, "autopilot" pass): a brand-new WhatsApp/
+    Instagram lead with nobody assigned yet showed only a static "No owner
+    yet" on My Day -- an agent had to open the Inbox to know a lead had come
+    in on WhatsApp at all. worklist_service.new_dms() already had this
+    preview logic; it was wired only into the daily email, never here."""
+    t = _tenant(db)
+    g = _guest(db, t.id, "New Lead")
+    c = Conversation(id=str(uuid.uuid4()), tenant_id=t.id, guest_id=g.id, channel=ChannelType.WHATSAPP, is_open=True)
+    db.add(c); db.flush()
+    db.add(Message(id=str(uuid.uuid4()), tenant_id=t.id, conversation_id=c.id, direction="inbound",
+                   channel=ChannelType.WHATSAPP, body="Hi, are you free this weekend for 4 people?",
+                   created_at=NOW - timedelta(minutes=5)))
+    db.add(Inquiry(id=str(uuid.uuid4()), tenant_id=t.id, guest_id=g.id, stage=InquiryStage.NEW,
+                   source=InquirySource.WA_DIRECT, created_at=NOW - timedelta(minutes=5)))
+    db.commit()
+
+    res = wq.build(db, t, scope_user_id=None)
+    item = next(i for i in res["items"] if i["kind"] == "unassigned")
+    assert "free this weekend for 4 people" in item["detail"]
+
+
+def test_unassigned_falls_back_when_the_guest_never_actually_messaged(db):
+    """A manually-created lead with no chat history at all must not crash
+    the preview lookup -- keeps the old generic detail text."""
+    t = _tenant(db)
+    g = _guest(db, t.id, "No Chat Yet")
+    db.add(Inquiry(id=str(uuid.uuid4()), tenant_id=t.id, guest_id=g.id, stage=InquiryStage.NEW,
+                   source=InquirySource.WA_DIRECT, created_at=NOW))
+    db.commit()
+
+    res = wq.build(db, t, scope_user_id=None)
+    item = next(i for i in res["items"] if i["kind"] == "unassigned")
+    assert item["detail"] == "No owner yet"
+
+
+def test_unassigned_uses_each_guests_own_latest_message_not_a_stray_join(db):
+    """Two unowned leads on the same page must each get their own preview,
+    not one guest's message leaking onto another's card."""
+    t = _tenant(db)
+    for name, text in [("Lead A", "Question about pricing for a family trip"), ("Lead B", "Do you allow pets?")]:
+        g = _guest(db, t.id, name)
+        c = Conversation(id=str(uuid.uuid4()), tenant_id=t.id, guest_id=g.id, channel=ChannelType.INSTAGRAM, is_open=True)
+        db.add(c); db.flush()
+        db.add(Message(id=str(uuid.uuid4()), tenant_id=t.id, conversation_id=c.id, direction="inbound",
+                       channel=ChannelType.INSTAGRAM, body=text, created_at=NOW - timedelta(minutes=5)))
+        db.add(Inquiry(id=str(uuid.uuid4()), tenant_id=t.id, guest_id=g.id, stage=InquiryStage.NEW,
+                       source=InquirySource.META_IG, created_at=NOW - timedelta(minutes=5)))
+    db.commit()
+
+    res = wq.build(db, t, scope_user_id=None)
+    items = {i["title"]: i["detail"] for i in res["items"] if i["kind"] == "unassigned"}
+    assert "pricing for a family trip" in items["Lead A"]
+    assert "allow pets" in items["Lead B"]
+
+
 def test_dashboard_cards_read_the_same_numbers(db):
     t = _tenant(db)
     _waiting(db, t.id)

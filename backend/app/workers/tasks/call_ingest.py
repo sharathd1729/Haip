@@ -116,6 +116,61 @@ def _link_recovered_call(db: Session, tenant_id: str, guest_id: str, outbound_ca
         log.info("missed_call_recovered", missed_call_id=missed.id, recovery_call_id=outbound_call.id, agent_id=missed.agent_id)
 
 
+# How long before an unanswered outbound call's reminder is "due" on My Day.
+_CALLBACK_REMINDER_WINDOW = timedelta(hours=2)
+
+
+def _maybe_create_callback_task(db: Session, tenant_id: str, call: Call, guest: Guest, inquiry: "Inquiry | None") -> None:
+    """An agent's own outbound call that nobody picked up gets a follow-up
+    Task -- confirmed live gap (Ratha, Sep 2026, "autopilot" pass):
+    call_status_service.is_missed_call() is deliberately inbound-only ("we
+    called, they didn't pick up" is not the same thing as "they called, we
+    missed it"), so this case had no reminder anywhere; staff had to notice
+    it by browsing the Calls page. Mirrors concierge_draft.py's
+    _maybe_create_price_handoff/_maybe_alert_phone_decline shape: dedup on
+    an open task with a matching title, real due_date, a push alert."""
+    from app.models.task import Task
+    from app.services.call_status_service import is_unanswered_outbound_at_ingest
+
+    if not is_unanswered_outbound_at_ingest(call):
+        return
+
+    existing = (
+        db.query(Task)
+        .filter_by(tenant_id=tenant_id, guest_id=guest.id, is_done=False)
+        .filter(Task.title.ilike("Call back — no answer from%"))
+        .first()
+    )
+    if existing:
+        return
+
+    guest_label = (getattr(guest, "name", None) or "").strip() or "this lead"
+    task = Task(
+        tenant_id=tenant_id,
+        title=f"Call back — no answer from {guest_label}",
+        priority="medium",
+        guest_id=guest.id,
+        inquiry_id=getattr(inquiry, "id", None),
+        assigned_to=call.agent_id,   # the agent who placed the call, if known
+        due_date=datetime.now(timezone.utc) + _CALLBACK_REMINDER_WINDOW,
+    )
+    db.add(task)
+    db.commit()
+    log.info("callback_task_created", tenant_id=tenant_id, call_id=call.id, task_id=task.id)
+
+    try:
+        from app.services.push_service import send_to_tenant
+        send_to_tenant(
+            db, tenant_id,
+            title="No answer on that call",
+            body=f"{guest_label} didn't pick up. A callback reminder has been added.",
+            url=f"/dashboard/calls?call={call.id}",
+            user_id=call.agent_id or None,
+        )
+    except Exception as exc:
+        log.warning("callback_task_push_failed", tenant_id=tenant_id, error=str(exc))
+
+
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=30, name="call_ingest.process")
 def ingest_call(self, payload: dict, tenant_id: str, ivr_provider: str):
     """
@@ -218,6 +273,7 @@ def ingest_call(self, payload: dict, tenant_id: str, ivr_provider: str):
 
             if normalized.direction == "outbound":
                 _link_recovered_call(db, tenant_id, guest.id, call)
+                _maybe_create_callback_task(db, tenant_id, call, guest, inquiry)
 
             # Queue recording fetch + transcription
             fetch_and_store_recording.delay(

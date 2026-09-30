@@ -10,6 +10,7 @@ import { SignalDrawer } from "@/components/leads/SignalDrawer";
 import { ResponseTimeBadge, formatDuration } from "@/components/leads/LeadCard";
 import { useToast } from "@/components/ui/toast";
 import { useSession } from "next-auth/react";
+import { AIRecommendationCard, type RecommendedAction } from "@/components/ai/AIRecommendationCard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -690,6 +691,23 @@ export default function LeadDetailPage() {
                   </div>
                 )}
               </div>
+
+              {/* Suggested next step -- "autopilot" pass (Ratha, Sep 2026):
+                  same shared AIRecommendationCard the call detail page uses,
+                  extended to a lead's own stage/Lost suggestion
+                  (lead_recommendation_service.py). Nothing here moves the
+                  pipeline until the agent clicks Apply. */}
+              {(data.recommended_actions ?? []).length > 0 && (
+                <AIRecommendationCard
+                  title="Suggested next step"
+                  summary={(data.recommended_actions[0] as RecommendedAction & { reason?: string }).reason
+                    ?? "AI found something worth acting on for this lead."}
+                  entityRefs={{ inquiry_id: inquiryId }}
+                  actions={data.recommended_actions}
+                  source="lead_detail"
+                  invalidateKeys={[["lead", inquiryId]]}
+                />
+              )}
 
               {/* Property interest */}
               {(data.property_interest ?? []).length > 0 && (

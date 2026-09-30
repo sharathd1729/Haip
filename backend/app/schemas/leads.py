@@ -157,6 +157,11 @@ class LeadDetailSchema(LeadCardSchema):
     # Leads360 restructure Phase 3: tenant-configurable field catalog,
     # rendered in display_order alongside/instead of the fixed columns above.
     custom_field_values: List[dict] = []
+    # "Autopilot" pass (Ratha, Sep 2026): a suggested stage move/Mark Lost,
+    # in the same RecommendedAction[] shape next_action_service.get_call_actions
+    # already uses on the call detail page -- see lead_recommendation_service.py.
+    # Human clicks "Apply"; nothing here moves the pipeline on its own.
+    recommended_actions: List[dict] = []
 
 
 # ─── List Response ────────────────────────────────────────────────────────────

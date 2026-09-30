@@ -46,15 +46,12 @@ def _disp(value) -> Optional[str]:
     return str(getattr(value, "value", value)).strip().lower() or None
 
 
-def is_missed_call(call) -> bool:
-    """True when an inbound call was not answered by a person.
-
-    Outbound calls are never "missed" from our side.
-    """
-    direction = str(getattr(getattr(call, "direction", None), "value", getattr(call, "direction", ""))).lower()
-    if direction != "inbound":
-        return False
-
+def _unanswered_by_disposition(call) -> Optional[bool]:
+    """True/False if a disposition or dial-status signal conclusively
+    decides "was this answered by a person" -- None if nothing conclusive
+    is available yet (caller falls back to duration). Shared by
+    is_missed_call (inbound) and is_unanswered_outbound (outbound) so the
+    two precedence chains cannot drift apart."""
     # A human's own classification always wins.
     human = _disp(getattr(call, "human_disposition", None))
     if human in NOT_ANSWERED:
@@ -74,12 +71,61 @@ def is_missed_call(call) -> bool:
     if ai in ANSWERED:
         return False
 
+    return None
+
+
+def is_missed_call(call) -> bool:
+    """True when an inbound call was not answered by a person.
+
+    Outbound calls are never "missed" from our side.
+    """
+    direction = str(getattr(getattr(call, "direction", None), "value", getattr(call, "direction", ""))).lower()
+    if direction != "inbound":
+        return False
+
+    decided = _unanswered_by_disposition(call)
+    if decided is not None:
+        return decided
+
     # No disposition -- true for 311 of 585 production calls, because the
     # classify/judge chain has not run on them. Fall back to duration, which
     # is right for the common zero-length case and wrong only for
     # un-analysed voicemails, which cannot be distinguished without either a
     # disposition or a DialStatus from the provider.
     return (getattr(call, "duration_seconds", 0) or 0) == 0
+
+
+def is_unanswered_outbound(call) -> bool:
+    """True when an agent's own outbound call wasn't picked up -- same
+    precedence chain as is_missed_call, but for the distinct "we called,
+    they didn't pick up" case (is_missed_call is deliberately inbound-only:
+    "outbound calls are never missed from our side"). Unlike
+    is_unanswered_outbound_at_ingest below, this also considers disposition
+    fields that are only populated after transcription/classification has
+    run -- used later (e.g. lead_recommendation_service's "N consecutive
+    unanswered attempts" check), not at ingest time."""
+    direction = str(getattr(getattr(call, "direction", None), "value", getattr(call, "direction", ""))).lower()
+    if direction != "outbound":
+        return False
+
+    decided = _unanswered_by_disposition(call)
+    if decided is not None:
+        return decided
+
+    return (getattr(call, "duration_seconds", 0) or 0) == 0
+
+
+def is_unanswered_outbound_at_ingest(call) -> bool:
+    """True when an agent's own outbound call wasn't picked up -- checked
+    right at call-ingest time, before transcription/classification has run
+    (human_disposition/ai_disposition are always empty this early, so this
+    name documents that intent even though it now just delegates to the
+    same check is_unanswered_outbound uses later, once those fields exist
+    too). Used to remind the agent to call back; a distinct case from
+    is_missed_call, which is deliberately inbound-only ("outbound calls are
+    never missed from our side" -- this isn't a call we missed, it's one we
+    placed and nobody answered)."""
+    return is_unanswered_outbound(call)
 
 
 def is_answered_call(call) -> bool:

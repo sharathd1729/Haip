@@ -91,6 +91,13 @@ export function DashboardSSEBridge() {
           queryClient.invalidateQueries({
             queryKey: ["conversation", payload.conversation_id],
           });
+          // Real gap (Ratha, Sep 2026, "autopilot" pass): a brand-new lead's
+          // message updated the Inbox badge and sidebar live, but My Day
+          // ("work-queue") only ever refreshed on its own 60s poll -- a new
+          // unowned WhatsApp/Instagram lead could sit invisible there for
+          // up to a minute. Query key is ["work-queue", qs] (my-day/page.tsx);
+          // no exact-key match needed, only the leading key.
+          queryClient.invalidateQueries({ queryKey: ["work-queue"] });
         }
         break;
       }

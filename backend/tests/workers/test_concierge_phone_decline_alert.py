@@ -97,6 +97,9 @@ class TestPhoneDeclineAlert:
         assert task.title == "Guest declined phone number — Neil Moses"
         assert task.priority == "high"
         assert task.is_done is False
+        # Real bug (Ratha, Sep 2026): with no due_date this Task never
+        # appeared in My Day's "Due now" bucket, which hard-requires one.
+        assert task.due_date is not None
 
     def test_no_task_for_an_ordinary_message(self, db):
         tenant, guest, conv, inbound = _setup(db, inbound_body="Is the caravan available this weekend?")
