@@ -225,6 +225,14 @@ celery_app.conf.update(
 
 # Scheduled tasks (Celery Beat)
 celery_app.conf.beat_schedule = {
+    # Re-dispatches AI call scoring that stalled or failed. The task and its
+    # docstring ("Beat fires this every 30 minutes") existed since Aug 2026
+    # but this entry never did, so a provider incident left calls "failed"/
+    # "pending" until someone noticed (Ratha, Oct 2026).
+    "call-scoring-recovery-30min": {
+        "task": "calls.recover_stalled_scoring_all_tenants",
+        "schedule": crontab(minute="10,40"),
+    },
     # Starts WhatsApp campaigns whose scheduled time has come.
     "launch-due-campaigns": {
         "task": "tasks.launch_due_campaigns",

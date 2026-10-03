@@ -24,6 +24,11 @@ This task finds that state and re-dispatches. It is a symptom fix for a
 dispatch reliability gap, not a fix for the gap itself -- the chain-dispatch
 pattern should eventually become durable (e.g. a Celery chain/chord, or an
 explicit outbox), but that is a larger change than today's investigation.
+
+Oct 2026 (Ratha): this task was never actually in the beat schedule, and only
+looked at "pending". Calls that failed during a provider incident stayed
+"failed" forever. It is now scheduled, also retries recent "failed" calls (up
+to MAX_SCORE_ATTEMPTS starts per call), and goes newest-first.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -42,29 +47,60 @@ log = structlog.get_logger()
 # single LLM call, not a slow pipeline.
 STALL_THRESHOLD_MINUTES = 30
 
-_STUCK_STATES = ("pending",)
+# "pending": judge() was never invoked. "failed": it ran and gave up after
+# its own 3 quick retries (~90s) -- a provider incident lasting longer than
+# that left calls "failed" forever, because nothing here used to look at them
+# (Ratha, Oct 2026: calls from 28 Sep stuck "failed").
+_RECOVERABLE_STATES = ("pending", "failed")
+
+# Stop retrying a call after this many judge() starts. A call that cannot be
+# scored (unusable audio, a transcript the model keeps rejecting) must not be
+# re-sent to the LLM every 30 minutes forever.
+MAX_SCORE_ATTEMPTS = 5
+
+# Don't go back further than this for "failed" calls: old failures are more
+# likely a bad recording than an outage, and the scoring is of little use.
+FAILED_LOOKBACK_DAYS = 14
 
 
 @shared_task(name="calls.recover_stalled_scoring", bind=True, max_retries=1)
 def recover_stalled_call_scoring(self, tenant_id: str, limit: int = 100):
-    """Re-dispatch judge() for one tenant's stalled calls."""
+    """Re-dispatch judge() for one tenant's stalled or failed calls."""
+    from sqlalchemy import and_, or_
+
     from app.workers.tasks.judge import judge
 
     db = SessionLocal()
     try:
         set_tenant_context(db, tenant_id)
-        cutoff = (datetime.now(timezone.utc) - timedelta(minutes=STALL_THRESHOLD_MINUTES)).isoformat()
+        now = datetime.now(timezone.utc)
+        cutoff = (now - timedelta(minutes=STALL_THRESHOLD_MINUTES)).isoformat()
+        failed_since = (now - timedelta(days=FAILED_LOOKBACK_DAYS)).isoformat()
+        # A "failed" call is only retried once it has been quiet for a while:
+        # judge()'s own Celery retries (30s apart) may still be in flight.
+        quiet_before = now - timedelta(minutes=STALL_THRESHOLD_MINUTES)
 
         stuck = (
             db.query(Call)
             .filter(
                 Call.tenant_id == tenant_id,
                 Call.transcription_status == "done",
-                Call.ai_score_status.in_(_STUCK_STATES),
+                Call.ai_score_attempts < MAX_SCORE_ATTEMPTS,
                 # started_at is a String column -- ISO string comparison.
                 Call.started_at < cutoff,
+                or_(
+                    Call.ai_score_status == "pending",
+                    and_(
+                        Call.ai_score_status == "failed",
+                        Call.started_at >= failed_since,
+                        Call.updated_at < quiet_before,
+                    ),
+                ),
             )
-            .order_by(Call.started_at.asc())
+            # Newest first: recent calls are the ones an owner is looking at,
+            # and a block of old calls that can never be scored must not
+            # starve newer ones out of the limit window (oldest-first did).
+            .order_by(Call.started_at.desc())
             .limit(limit)
             .all()
         )
@@ -76,7 +112,8 @@ def recover_stalled_call_scoring(self, tenant_id: str, limit: int = 100):
             log.info(
                 "call_scoring_recovery_dispatched",
                 tenant_id=tenant_id, count=len(stuck),
-                oldest=stuck[0].started_at, newest=stuck[-1].started_at,
+                failed=sum(1 for c in stuck if c.ai_score_status == "failed"),
+                oldest=stuck[-1].started_at, newest=stuck[0].started_at,
             )
         return {"tenant_id": tenant_id, "recovered": len(stuck)}
     finally:
@@ -85,7 +122,8 @@ def recover_stalled_call_scoring(self, tenant_id: str, limit: int = 100):
 
 @shared_task(name="calls.recover_stalled_scoring_all_tenants")
 def recover_stalled_call_scoring_all_tenants():
-    """Fan out to every active tenant. Beat fires this every 30 minutes."""
+    """Fan out to every active tenant. Beat fires this every 30 minutes
+    (celery_app.py's "call-scoring-recovery-30min")."""
     db = SessionLocal()
     try:
         tenant_ids = [t.id for t in db.query(Tenant).filter(Tenant.is_active.is_(True)).all()]

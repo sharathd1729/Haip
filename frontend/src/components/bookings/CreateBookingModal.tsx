@@ -156,9 +156,14 @@ export function CreateBookingModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      {/* maxHeight uses dvh (the height actually visible, URL bar and on-screen
+          keyboard excluded) -- 90vh on a phone is taller than the visible
+          screen, which pushed the Create Booking button below the fold with
+          nothing left to scroll. Browsers without dvh drop the inline value
+          and fall back to the 90vh class. */}
       <div
         className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden max-h-[90vh] flex flex-col"
-        style={{ border: "1px solid var(--haip-border)" }}
+        style={{ border: "1px solid var(--haip-border)", maxHeight: "calc(100dvh - 2rem)" }}
       >
         <div
           className="flex items-center justify-between px-6 py-4 flex-shrink-0"
@@ -174,8 +179,9 @@ export function CreateBookingModal({
 
         <form
           onSubmit={e => { e.preventDefault(); mutation.mutate(); }}
-          className="p-6 space-y-4 overflow-y-auto"
+          className="flex flex-col flex-1 min-h-0"
         >
+          <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
           {/* Guest */}
           <div>
             <label className="block text-[12.5px] font-semibold mb-1.5" style={{ color: "var(--haip-fg)" }}>Guest *</label>
@@ -343,13 +349,18 @@ export function CreateBookingModal({
             </div>
           )}
 
+          </div>
+
+          {/* Pinned footer: Cancel / Create stay on screen however long the
+              form gets, instead of living at the bottom of the scroll area.
+              The error sits here too, so a failed save is never off-screen. */}
+          <div className="px-6 py-4 flex-shrink-0 space-y-2" style={{ borderTop: "1px solid #E5E7EB", background: "#fff" }}>
           {mutation.isError && (
             <p className="text-xs text-red-600">
               {(mutation.error as any)?.response?.data?.detail || "Failed to save booking. Please check the fields and try again."}
             </p>
           )}
-
-          <div className="flex gap-2.5 pt-1">
+          <div className="flex gap-2.5">
             <button
               type="button"
               onClick={onClose}
@@ -367,6 +378,7 @@ export function CreateBookingModal({
               {mutation.isPending && <Loader2 size={14} className="animate-spin" />}
               {isEditing ? "Save Changes" : "Create Booking"}
             </button>
+          </div>
           </div>
         </form>
       </div>

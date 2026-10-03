@@ -91,6 +91,10 @@ class Call(Base, TimestampMixin, TenantMixin):
     # Processing status
     transcription_status = Column(String(20), default="pending")  # pending/processing/done/failed
     ai_score_status = Column(String(20), default="pending")
+    # How many times judge() has started on this call -- lets
+    # call_recovery.py retry a "failed" call after a provider incident
+    # without ever looping forever on one that can't be scored (migration 108).
+    ai_score_attempts = Column(Integer, nullable=False, default=0, server_default="0")
 
     # AI output
     # NOTE: legacy inline transcript JSON — the canonical store is the Transcript table.

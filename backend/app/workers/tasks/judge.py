@@ -18,6 +18,7 @@ def _run_async(coro):
         loop.close()
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
+from celery.exceptions import MaxRetriesExceededError
 from app.workers.celery_app import celery_app
 from app.core.database import SessionLocal
 from app.models.call import Call, CallDisposition
@@ -97,9 +98,26 @@ def judge(self, call_id: str, tenant_id: str, classification: dict = None):
         transcript = db.query(Transcript).filter_by(call_id=call_id, tenant_id=tenant_id).first()
         if not call or not transcript:
             log.error("judge_missing_data", call_id=call_id)
+            if call is not None:
+                # A call with no Transcript row can never be scored. Leaving it
+                # "pending" made call_recovery re-dispatch it every 30 minutes
+                # forever, and (oldest-first, limit 100) crowd newer stalled
+                # calls out of the window (Ratha, Oct 2026).
+                call.ai_score_status = "skipped_no_transcript"
+                db.commit()
+            return
+
+        turns_for_check = json.loads(transcript.turns or "[]")
+        if not any((t.get("text") or "").strip() for t in turns_for_check):
+            # Nothing was said (or transcription returned nothing usable):
+            # an LLM "score" of an empty transcript is noise, not a result.
+            call.ai_score_status = "skipped_no_transcript"
+            db.commit()
+            log.info("judge_skipped_empty_transcript", call_id=call_id)
             return
 
         call.ai_score_status = "processing"
+        call.ai_score_attempts = (call.ai_score_attempts or 0) + 1
         db.commit()
 
         # Get or create default rubric
@@ -199,6 +217,13 @@ def judge(self, call_id: str, tenant_id: str, classification: dict = None):
         except Exception:
             pass
         log.error("judge_failed", call_id=call_id, error=str(exc))
-        raise self.retry(exc=exc)
+        # self.retry() raises MaxRetriesExceededError itself once retries run
+        # out -- uncaught, that crashed the task as an unhandled failure. The
+        # call is already marked "failed" above; call_recovery.py picks it up
+        # again later (up to MAX_SCORE_ATTEMPTS) once the provider recovers.
+        try:
+            raise self.retry(exc=exc)
+        except MaxRetriesExceededError:
+            log.error("judge_retries_exhausted", call_id=call_id, error=str(exc))
     finally:
         db.close()

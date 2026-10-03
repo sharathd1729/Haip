@@ -94,3 +94,34 @@ def test_get_llm_leaves_other_tasks_alone(monkeypatch):
     monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
     assert not isinstance(get_llm("concierge_draft"), FallbackAdapter)   # already Gemini
     assert not isinstance(get_llm("ask_haip_freeform_sql"), FallbackAdapter)
+
+
+class _SlowThenFast(LLMAdapter):
+    """First call hangs past the short bound, later calls answer quickly."""
+    provider = "nvidia"
+
+    def __init__(self):
+        self.n = 0
+
+    async def complete(self, system_prompt, user_message, model=None, max_tokens=4096, tools=None, **kw):
+        self.n += 1
+        await asyncio.sleep(5 if self.n == 1 else 0)
+        return {"content": "late but fine", "tool_use": None}
+
+
+def test_a_slow_primary_gets_one_longer_attempt_when_the_fallback_is_down_too():
+    """Ratha, Oct 2026: NVIDIA merely slower than the short bound while
+    Gemini (no billing credit) failed outright -- the call must not die."""
+    primary = _SlowThenFast()
+    secondary = _Fake("gemini", exc=RuntimeError("402 prepayment credits are depleted"))
+    result = _run(_adapter(primary, secondary, timeout=0.05).complete("sys", "user"))
+    assert result["content"] == "late but fine"
+    assert primary.n == 2
+
+
+def test_a_primary_error_that_is_not_a_timeout_is_not_retried_longer():
+    primary = _Fake("nvidia", exc=RuntimeError("Error code: 500"))
+    secondary = _Fake("gemini", exc=RuntimeError("down"))
+    with pytest.raises(RuntimeError, match="500"):
+        _run(_adapter(primary, secondary).complete("sys", "user"))
+    assert len(primary.calls) == 1

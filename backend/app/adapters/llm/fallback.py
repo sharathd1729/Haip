@@ -20,6 +20,9 @@ from app.adapters.llm.base import LLMAdapter
 
 log = structlog.get_logger()
 
+# Ceiling for the one longer primary retry after both providers failed.
+_MAX_RETRY_TIMEOUT_SECONDS = 180
+
 
 class FallbackAdapter(LLMAdapter):
     def __init__(
@@ -89,6 +92,30 @@ class FallbackAdapter(LLMAdapter):
                     primary_error=repr(primary_exc)[:200],
                     fallback_error=repr(secondary_exc)[:200],
                 )
+                # The primary only ran out of time and the fallback is down
+                # too: give the primary one more, longer attempt before
+                # giving up. Real incident (Ratha, Oct 2026): NVIDIA was
+                # regularly just slower than the short bound, and Gemini
+                # (out of billing credit) could no longer paper over that, so
+                # every slow call scoring failed outright.
+                if isinstance(primary_exc, asyncio.TimeoutError):
+                    longer = min(self._primary_timeout * 3, _MAX_RETRY_TIMEOUT_SECONDS)
+                    try:
+                        result = await asyncio.wait_for(
+                            self._primary.complete(
+                                system_prompt=system_prompt,
+                                user_message=user_message,
+                                model=model,
+                                max_tokens=max_tokens,
+                                tools=tools,
+                                **kwargs,
+                            ),
+                            timeout=longer,
+                        )
+                        log.info("llm_primary_succeeded_on_longer_retry", task=self._task, timeout_sec=longer)
+                        return result
+                    except Exception as retry_exc:  # noqa: BLE001
+                        log.error("llm_primary_longer_retry_failed", task=self._task, error=repr(retry_exc)[:200])
                 # The primary's failure is the root cause the retry machinery
                 # (Celery retries, DLQ) should see.
                 raise primary_exc from secondary_exc
