@@ -92,7 +92,7 @@ export function CampaignReport({ campaignId, campaignName, onClose }: { campaign
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-3 sm:p-6" role="dialog" aria-modal="true" aria-label="Campaign report">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[94vh] flex flex-col overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[94vh] flex flex-col overflow-hidden" style={{ maxHeight: "calc(100dvh - 3rem)" }}>
         <div className="px-6 pt-5 pb-4 border-b border-gray-100 flex items-start justify-between gap-4 flex-shrink-0">
           <div className="min-w-0">
             <h2 className="text-base font-bold text-gray-900 truncate">{campaignName}</h2>

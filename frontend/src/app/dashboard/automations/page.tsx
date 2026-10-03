@@ -240,7 +240,7 @@ function RuleModal({ initial, onClose, onSaved }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden" style={{ maxHeight: "calc(100dvh - 2rem)" }}>
         <div className="px-6 pt-6 pb-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
           <div>
             <h2 className="text-base font-bold text-gray-900">{isEdit ? "Edit automation" : "New automation"}</h2>

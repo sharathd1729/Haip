@@ -248,7 +248,7 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className={cn("bg-white rounded-2xl shadow-2xl w-full overflow-hidden max-h-[90vh] flex flex-col", audienceKind === "leads" ? "max-w-3xl" : (selectedTemplate && templateSections(selectedTemplate).length > 0 ? "max-w-2xl" : "max-w-lg"))}>
+      <div className={cn("bg-white rounded-2xl shadow-2xl w-full overflow-hidden max-h-[90vh] flex flex-col", audienceKind === "leads" ? "max-w-3xl" : (selectedTemplate && templateSections(selectedTemplate).length > 0 ? "max-w-2xl" : "max-w-lg"))} style={{ maxHeight: "calc(100dvh - 2rem)" }}>
         <div className="px-6 pt-6 pb-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
           <div>
             <h2 className="text-base font-bold text-gray-900">New campaign</h2>
