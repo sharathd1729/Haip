@@ -144,7 +144,7 @@ function StageColumn({
       {/* Cards scroll area */}
       <div
         className="flex-1 overflow-y-auto px-0.5 pb-1 space-y-2 haip-scrollbar"
-        style={{ maxHeight: "calc(100vh - 180px)" }}
+        style={{ maxHeight: "calc(100dvh - 180px)" }}
       >
         {isLoading ? (
           <SkeletonCard />
