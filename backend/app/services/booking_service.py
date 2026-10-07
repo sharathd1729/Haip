@@ -14,7 +14,7 @@ from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.models.property import BlockedDate, PropertyAddOn, Stay
-from app.models.stay_finance import StayAddOn, StayPayment
+from app.models.stay_finance import StayAddOn, StayInstalment, StayPayment
 
 ACTIVE_STATUSES = ("confirmed", "checked_in")
 PAYMENT_METHODS = ("cash", "upi", "card", "bank_transfer", "other")
@@ -107,3 +107,43 @@ def find_conflicts(db: Session, tenant_id: str, property_id: str, check_in: date
     ).all():
         out.append({"type": "block", "id": b.id, "from": b.blocked_from, "to": b.blocked_to, "reason": b.reason})
     return out
+
+
+# ── Payment schedule ─────────────────────────────────────────────────────────
+
+def allocate_schedule(instalments: list, paid: float, today: Optional[date] = None) -> list[dict]:
+    """Apply what has been received to the instalments in due-date order."""
+    today = today or date.today()
+    remaining = _f(paid)
+    out = []
+    for i in sorted(instalments, key=lambda x: (x.due_date, x.created_at or x.due_date)):
+        amount = _f(i.amount)
+        applied = max(0.0, min(remaining, amount))
+        remaining -= applied
+        if applied + 0.005 >= amount:
+            status = "paid"
+        elif i.due_date < today:
+            status = "overdue"
+        else:
+            status = "partial" if applied > 0 else "due"
+        out.append({"id": i.id, "label": i.label, "amount": round(amount, 2), "due_date": i.due_date.isoformat(),
+                    "paid": round(applied, 2), "status": status})
+    return out
+
+
+def next_due(schedule: list[dict]) -> Optional[dict]:
+    for row in schedule:
+        if row["status"] != "paid":
+            return {"amount": round(row["amount"] - row["paid"], 2), "due_date": row["due_date"],
+                    "overdue": row["status"] == "overdue", "label": row["label"]}
+    return None
+
+
+def schedules_for(db: Session, tenant_id: str, fins: dict[str, dict]) -> dict[str, list[dict]]:
+    """Allocated payment schedule per stay id, one query for the lot."""
+    if not fins:
+        return {}
+    by_stay: dict[str, list] = {}
+    for i in db.query(StayInstalment).filter(StayInstalment.tenant_id == tenant_id, StayInstalment.stay_id.in_(list(fins))).all():
+        by_stay.setdefault(i.stay_id, []).append(i)
+    return {sid: allocate_schedule(rows, fins[sid]["paid"]) for sid, rows in by_stay.items()}

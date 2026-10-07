@@ -61,3 +61,54 @@ class StayPaymentLink(Base, TimestampMixin, TenantMixin):
     status = Column(String(20), nullable=False, default="created")     # created | paid | expired | cancelled
     expires_at = Column(DateTime(timezone=True), nullable=True)
     created_by = Column(String, nullable=True)
+
+
+class StayInstalment(Base, TimestampMixin, TenantMixin):
+    """One step of a booking's payment plan (e.g. 30% advance, balance 7 days
+    before check-in). Whether it is paid is derived by applying the booking's
+    recorded payments to the instalments in due-date order, so there is no status
+    to keep in sync."""
+    __tablename__ = "stay_instalments"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, nullable=False, index=True)
+    stay_id = Column(String, ForeignKey("stays.id", ondelete="CASCADE"), nullable=False, index=True)
+    label = Column(String(80), nullable=False)
+    amount = Column(Numeric(12, 2), nullable=False)
+    due_date = Column(Date, nullable=False)
+
+
+class StayDeposit(Base, TimestampMixin, TenantMixin):
+    """Refundable security / damage deposit, one per booking. Deliberately not part
+    of the stay total or the payment ledger: it is held, then released (less any
+    damage deducted) or forfeited, and never counts as revenue."""
+    __tablename__ = "stay_deposits"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, nullable=False, index=True)
+    stay_id = Column(String, ForeignKey("stays.id", ondelete="CASCADE"), nullable=False, unique=True)
+    amount = Column(Numeric(12, 2), nullable=False)
+    status = Column(String(12), nullable=False, default="pending")   # pending | held | released | forfeited
+    deducted = Column(Numeric(12, 2), nullable=False, default=0)     # damage kept when released
+    method = Column(String(20), nullable=True)
+    collected_on = Column(Date, nullable=True)
+    resolved_on = Column(Date, nullable=True)
+    notes = Column(Text, nullable=True)
+
+
+class StayServiceRequest(Base, TimestampMixin, TenantMixin):
+    """A thing the team must do for this booking (extra bed, late checkout, cab).
+    Mirrored as a Task so it shows on the assignee's My Day; task_id links them."""
+    __tablename__ = "stay_service_requests"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, nullable=False, index=True)
+    stay_id = Column(String, ForeignKey("stays.id", ondelete="CASCADE"), nullable=False, index=True)
+    title = Column(String(200), nullable=False)
+    notes = Column(Text, nullable=True)
+    status = Column(String(10), nullable=False, default="open")      # open | done
+    assigned_to = Column(String, nullable=True)
+    due_date = Column(Date, nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    task_id = Column(String, nullable=True)
+    created_by = Column(String, nullable=True)

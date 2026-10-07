@@ -27,7 +27,7 @@ from app.core.encryption import decrypt_credentials
 from app.models.audit_event import AuditEvent
 from app.models.integration import Integration
 from app.models.property import PropertyAddOn, Stay
-from app.models.stay_finance import StayAddOn, StayPayment, StayPaymentLink
+from app.models.stay_finance import StayAddOn, StayDeposit, StayPayment, StayPaymentLink, StayServiceRequest
 from app.models.user import User, UserRole
 from app.services import booking_service as bsvc
 
@@ -63,6 +63,21 @@ def _link_out(link: StayPaymentLink) -> dict:
             "created_at": link.created_at.isoformat() if link.created_at else None}
 
 
+def _deposit_out(d: Optional[StayDeposit]) -> Optional[dict]:
+    if not d:
+        return None
+    return {"id": d.id, "amount": float(d.amount), "status": d.status, "deducted": float(d.deducted or 0),
+            "refundable": round(float(d.amount) - float(d.deducted or 0), 2) if d.status == "released" else 0.0,
+            "method": d.method, "collected_on": d.collected_on.isoformat() if d.collected_on else None,
+            "resolved_on": d.resolved_on.isoformat() if d.resolved_on else None, "notes": d.notes}
+
+
+def _request_out(r: StayServiceRequest, names: dict) -> dict:
+    return {"id": r.id, "title": r.title, "notes": r.notes, "status": r.status, "assigned_to": r.assigned_to,
+            "assignee_name": names.get(r.assigned_to), "due_date": r.due_date.isoformat() if r.due_date else None,
+            "completed_at": r.completed_at.isoformat() if r.completed_at else None}
+
+
 def _detail(db: Session, tenant_id: str, stay: Stay) -> dict:
     guest, prop = stay.guest, stay.property
     addons = db.query(StayAddOn).filter_by(tenant_id=tenant_id, stay_id=stay.id).order_by(StayAddOn.created_at).all()
@@ -76,6 +91,11 @@ def _detail(db: Session, tenant_id: str, stay: Stay) -> dict:
     actor_ids = {e.actor_user_id for e in events if e.actor_user_id}
     names = {u.id: u.name for u in db.query(User).filter(User.id.in_(actor_ids)).all()} if actor_ids else {}
     requests = stay.special_requests if isinstance(stay.special_requests, list) else []
+    schedule = bsvc.schedules_for(db, tenant_id, {stay.id: fin}).get(stay.id, [])
+    deposit = db.query(StayDeposit).filter_by(tenant_id=tenant_id, stay_id=stay.id).first()
+    reqs = db.query(StayServiceRequest).filter_by(tenant_id=tenant_id, stay_id=stay.id).order_by(StayServiceRequest.created_at).all()
+    team = db.query(User).filter_by(tenant_id=tenant_id, is_active=True).order_by(User.name).all()
+    team_names = {u.id: u.name for u in team}
     return {
         "id": stay.id, "status": stay.status, "channel": stay.channel_source,
         "pms_managed": bool(stay.hostaway_booking_id),
@@ -84,7 +104,12 @@ def _detail(db: Session, tenant_id: str, stay: Stay) -> dict:
         "check_in_time": stay.check_in_time, "check_out_time": stay.check_out_time,
         "adults": stay.adults or 0, "children": stay.children or 0,
         "occasion": stay.occasion, "special_requests": requests[0] if requests else "",
-        "internal_notes": stay.internal_notes or "", "inquiry_id": stay.inquiry_id,
+        "internal_notes": stay.internal_notes or "", "concierge_notes": stay.concierge_notes or "",
+        "inquiry_id": stay.inquiry_id,
+        "schedule": schedule, "next_due": bsvc.next_due(schedule),
+        "deposit": _deposit_out(deposit),
+        "service_requests": [_request_out(r, team_names) for r in reqs],
+        "assignees": [{"id": u.id, "name": u.name} for u in team],
         "created_at": stay.created_at.isoformat() if stay.created_at else None,
         "property": {"id": prop.id, "name": prop.name, "type": prop.type} if prop else None,
         "guest": {"id": guest.id, "name": guest.name, "phone": guest.phone, "email": guest.email} if guest else None,

@@ -4,12 +4,12 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, X, ChevronRight } from "@/lib/icons";
+import { Download, Plus, Search, X, ChevronRight } from "@/lib/icons";
 import api from "@/lib/api";
 import { cn, formatINR, formatPhone } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  PAYMENT_STYLE, STATUS_OPTIONS, STATUS_STYLE, fmtDate,
+  CHANNEL_OPTIONS, CHANNEL_STYLE, PAYMENT_STYLE, STATUS_OPTIONS, STATUS_STYLE, fmtDate,
   type BookingList, type BookingRow,
 } from "@/lib/bookings";
 
@@ -22,6 +22,33 @@ const selectCls = "text-[12.5px] rounded-lg border border-gray-200 bg-white px-2
 
 function Pill({ style }: { style: { label: string; cls: string } }) {
   return <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap", style.cls)}>{style.label}</span>;
+}
+
+function DueLine({ b }: { b: BookingRow }) {
+  if (b.payment_status === "paid" || b.total <= 0) return null;
+  return (
+    <p className={cn("text-[11px] mt-0.5 tabular-nums", b.payment_overdue ? "text-red-600 font-medium" : "text-gray-400")}>
+      {formatINR(b.total_outstanding)} due{b.next_payment_due_date ? ` ${b.payment_overdue ? "since" : "on"} ${fmtDate(b.next_payment_due_date, false)}` : ""}
+    </p>
+  );
+}
+
+function Thumb({ b }: { b: BookingRow }) {
+  const img = b.property?.image;
+  return img
+    // eslint-disable-next-line @next/next/no-img-element
+    ? <img src={img} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" loading="lazy" />
+    : <div className="w-10 h-10 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center text-sm font-bold flex-shrink-0" aria-hidden>{(b.property?.name ?? "?").slice(0, 1).toUpperCase()}</div>;
+}
+
+function ChannelPill({ channel }: { channel: string | null }) {
+  const c = CHANNEL_STYLE[(channel ?? "direct").toLowerCase()] ?? { label: channel ?? "Direct", cls: "bg-gray-100 text-gray-600 border-gray-200" };
+  return <Pill style={c} />;
+}
+
+function csvCell(v: unknown): string {
+  const t = String(v ?? "");
+  return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
 }
 
 function guestName(b: BookingRow): string {
@@ -42,6 +69,9 @@ function BookingsList() {
   const [status, setStatus] = useState("");
   const [payment, setPayment] = useState("");
   const [range, setRange] = useState("");
+  const [propertyId, setPropertyId] = useState("");
+  const [channel, setChannel] = useState("");
+  const [exporting, setExporting] = useState(false);
   const [sort, setSort] = useState("check_in");
   const [page, setPage] = useState(1);
   const [creating, setCreating] = useState(false);
@@ -50,28 +80,59 @@ function BookingsList() {
     const t = setTimeout(() => { setDebounced(search.trim()); setPage(1); }, 350);
     return () => clearTimeout(t);
   }, [search]);
-  useEffect(() => { setPage(1); }, [status, payment, range, sort, guestId]);
+  useEffect(() => { setPage(1); }, [status, payment, range, propertyId, channel, sort, guestId]);
+
+  const { data: properties = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ["bookable-properties"],
+    queryFn: () => api.get("/bookings/properties").then(r => r.data),
+    staleTime: 5 * 60_000,
+  });
+
+  const filterParams = {
+    search: debounced || undefined, status: status || undefined, payment_status: payment || undefined,
+    date_preset: range || undefined, guest_id: guestId || undefined, property_id: propertyId || undefined,
+    channel: channel || undefined, sort,
+  };
 
   const { data, isLoading, isError, refetch } = useQuery<BookingList>({
-    queryKey: ["bookings", { debounced, status, payment, range, sort, page, guestId }],
-    queryFn: () =>
-      api.get("/bookings", {
-        params: {
-          search: debounced || undefined, status: status || undefined, payment_status: payment || undefined,
-          date_preset: range || undefined, guest_id: guestId || undefined, sort, page, per_page: 25,
-        },
-      }).then(r => r.data),
+    queryKey: ["bookings", { ...filterParams, page }],
+    queryFn: () => api.get("/bookings", { params: { ...filterParams, page, per_page: 25 } }).then(r => r.data),
     placeholderData: keepPreviousData,
     staleTime: 20_000,
   });
 
   const rows = data?.data ?? [];
   const meta = data?.meta;
-  const filtered = !!(debounced || status || payment || range || guestId);
+  const filtered = !!(debounced || status || payment || range || guestId || propertyId || channel);
 
   function clearAll() {
-    setSearch(""); setDebounced(""); setStatus(""); setPayment(""); setRange("");
+    setSearch(""); setDebounced(""); setStatus(""); setPayment(""); setRange(""); setPropertyId(""); setChannel("");
     if (guestId) router.replace("/dashboard/bookings");
+  }
+
+  async function exportCsv() {
+    setExporting(true);
+    try {
+      const all: BookingRow[] = [];
+      for (let pg = 1; pg <= 20; pg++) {   // 2,000 bookings is plenty for one export
+        const res = await api.get<BookingList>("/bookings", { params: { ...filterParams, page: pg, per_page: 100 } });
+        all.push(...res.data.data);
+        if (pg >= res.data.meta.last_page) break;
+      }
+      const head = ["Booking", "Guest", "Phone", "Property", "Check-in", "Check-out", "Guests", "Status", "Channel", "Total", "Paid", "Due", "Payment status"];
+      const lines = all.map(b => [
+        b.external_id, guestName(b), b.main_guest?.phone ?? "", b.property?.name ?? "", b.checkin, b.checkout, b.adults + b.children,
+        STATUS_STYLE[b.status]?.label ?? b.status, b.channel ?? "direct", b.total, b.total_paid, b.total_outstanding, PAYMENT_STYLE[b.payment_status].label,
+      ].map(csvCell).join(","));
+      const blob = new Blob(["\uFEFF" + [head.join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `bookings-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } finally {
+      setExporting(false);
+    }
   }
 
   return (
@@ -82,9 +143,13 @@ function BookingsList() {
             <h1 className="haip-page-title">Bookings</h1>
             <p className="text-xs text-gray-400">{meta ? `${meta.total} booking${meta.total === 1 ? "" : "s"}` : " "}</p>
           </div>
+          <button onClick={exportCsv} disabled={exporting || !rows.length}
+            className="ml-auto flex items-center gap-1.5 text-xs border border-gray-200 bg-white text-gray-700 px-3 py-2 rounded-lg font-semibold hover:bg-gray-50 disabled:opacity-40">
+            <Download size={13} /> {exporting ? "Exporting..." : "Export"}
+          </button>
           <button
             onClick={() => setCreating(true)}
-            className="ml-auto flex items-center gap-1.5 text-xs bg-teal-500 text-white px-3.5 py-2 rounded-lg font-semibold hover:bg-teal-600 transition-colors"
+            className="flex items-center gap-1.5 text-xs bg-teal-500 text-white px-3.5 py-2 rounded-lg font-semibold hover:bg-teal-600 transition-colors"
           >
             <Plus size={14} /> New booking
           </button>
@@ -109,6 +174,14 @@ function BookingsList() {
             <option value="unpaid">Unpaid</option>
             <option value="partial">Part paid</option>
             <option value="paid">Paid</option>
+          </select>
+          <select value={propertyId} onChange={e => setPropertyId(e.target.value)} className={selectCls} aria-label="Property">
+            <option value="">All properties</option>
+            {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          <select value={channel} onChange={e => setChannel(e.target.value)} className={selectCls} aria-label="Channel">
+            <option value="">All channels</option>
+            {CHANNEL_OPTIONS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
           </select>
           <select value={range} onChange={e => setRange(e.target.value)} className={selectCls} aria-label="Dates">
             <option value="">Any dates</option>
@@ -151,6 +224,7 @@ function BookingsList() {
                   <tr className="text-left text-[11px] uppercase tracking-wide text-gray-400 border-b border-gray-100">
                     <th className="px-4 py-2.5 font-semibold">Guest</th>
                     <th className="px-4 py-2.5 font-semibold">Stay</th>
+                    <th className="px-4 py-2.5 font-semibold">Channel</th>
                     <th className="px-4 py-2.5 font-semibold">Status</th>
                     <th className="px-4 py-2.5 font-semibold text-right">Total</th>
                     <th className="px-4 py-2.5 font-semibold">Payment</th>
@@ -171,16 +245,20 @@ function BookingsList() {
                         <p className="text-xs text-gray-400">#{b.external_id}{b.main_guest?.phone ? ` · ${formatPhone(b.main_guest.phone)}` : ""}</p>
                       </td>
                       <td className="px-4 py-3">
-                        <p className="text-gray-800">{b.property?.name ?? "No property"}</p>
-                        <p className="text-xs text-gray-400">{fmtDate(b.checkin, false)} to {fmtDate(b.checkout)} · {b.adults + b.children} guest{b.adults + b.children === 1 ? "" : "s"}</p>
+                        <div className="flex items-center gap-3">
+                          <Thumb b={b} />
+                          <div className="min-w-0">
+                            <p className="text-gray-800 truncate">{b.property?.name ?? "No property"}</p>
+                            <p className="text-xs text-gray-400">{fmtDate(b.checkin, false)} to {fmtDate(b.checkout)} · {b.adults + b.children} guest{b.adults + b.children === 1 ? "" : "s"}</p>
+                          </div>
+                        </div>
                       </td>
+                      <td className="px-4 py-3"><ChannelPill channel={b.channel} /></td>
                       <td className="px-4 py-3"><Pill style={STATUS_STYLE[b.status] ?? STATUS_STYLE.confirmed} /></td>
                       <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">{formatINR(b.total)}</td>
                       <td className="px-4 py-3">
                         <Pill style={PAYMENT_STYLE[b.payment_status]} />
-                        {b.payment_status !== "paid" && b.total > 0 && (
-                          <p className="text-[11px] text-gray-400 mt-0.5 tabular-nums">{formatINR(b.total_outstanding)} due</p>
-                        )}
+                        <DueLine b={b} />
                       </td>
                       <td className="pr-3 text-gray-300"><ChevronRight size={14} /></td>
                     </tr>
@@ -201,9 +279,10 @@ function BookingsList() {
                     <Pill style={STATUS_STYLE[b.status] ?? STATUS_STYLE.confirmed} />
                   </div>
                   <p className="text-xs text-gray-400 mt-1">{fmtDate(b.checkin, false)} to {fmtDate(b.checkout)}</p>
-                  <div className="flex items-center justify-between mt-3">
+                  <div className="flex items-center justify-between mt-3 gap-2">
                     <span className="text-sm font-semibold tabular-nums">{formatINR(b.total)}</span>
-                    <Pill style={PAYMENT_STYLE[b.payment_status]} />
+                    <ChannelPill channel={b.channel} />
+                    <div className="text-right"><Pill style={PAYMENT_STYLE[b.payment_status]} /><DueLine b={b} /></div>
                   </div>
                 </Link>
               ))}

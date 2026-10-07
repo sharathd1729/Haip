@@ -149,6 +149,7 @@ class Stay(Base, TimestampMixin, TenantMixin):
     check_in_time = Column(String(5), nullable=True)
     check_out_time = Column(String(5), nullable=True)
     internal_notes = Column(Text, nullable=True)         # staff-only, never shown to the guest
+    concierge_notes = Column(Text, nullable=True)        # migration 111: handover notes for the on-site team
 
     guest = relationship("Guest", back_populates="stays")
     property = relationship("Property", back_populates="stays")

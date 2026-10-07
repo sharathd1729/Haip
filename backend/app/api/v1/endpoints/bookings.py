@@ -55,7 +55,15 @@ _SORT_MAP = {
 }
 
 
-def _serialize_stay(s: Stay, seq: int, fin: Optional[dict] = None) -> dict:
+def _thumb(prop: Property) -> Optional[str]:
+    photos = prop.photos if isinstance(prop.photos, list) else []
+    first = photos[0] if photos else None
+    if isinstance(first, dict):
+        first = first.get("url")
+    return first if isinstance(first, str) and first.startswith("http") else None
+
+
+def _serialize_stay(s: Stay, seq: int, fin: Optional[dict] = None, due: Optional[dict] = None) -> dict:
     # fin comes from booking_service.financials_for(); computed from the add-on
     # lines and the payment ledger, never inferred from the booking status.
     fin = fin or bsvc.summarize(s.total_amount, 0, 0)
@@ -82,10 +90,11 @@ def _serialize_stay(s: Stay, seq: int, fin: Optional[dict] = None) -> dict:
         "total_refunded": 0,
         "check_in_time": s.check_in_time,
         "check_out_time": s.check_out_time,
-        "next_payment_due_date": None,
-        "next_payment_amount": 0,
+        "next_payment_due_date": due["due_date"] if due else None,
+        "next_payment_amount": due["amount"] if due else 0,
+        "payment_overdue": bool(due and due["overdue"]),
         "handles_payment": False,
-        "property": {"id": prop.id, "name": prop.name, "type": prop.type, "image": None} if prop else None,
+        "property": {"id": prop.id, "name": prop.name, "type": prop.type, "image": _thumb(prop)} if prop else None,
         "currency": {"code": s.currency or "INR", "symbol": "₹"},
         "main_guest": {
             "id": guest.id if guest else None,
@@ -124,6 +133,7 @@ def list_bookings(
     guest_id: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     channel: Optional[str] = Query(None),
+    property_id: Optional[str] = Query(None),
     payment_status: Optional[str] = Query(None, description="unpaid|partial|paid"),
     sort: str = Query("newest"),
     date_from: Optional[str] = Query(None, description="ISO date -- stays overlapping [date_from, date_to]"),
@@ -168,6 +178,8 @@ def list_bookings(
         q = q.filter(Stay.status == status)
     if channel:
         q = q.filter(Stay.channel_source == channel)
+    if property_id:
+        q = q.filter(Stay.property_id == property_id)
     if payment_status:
         if payment_status not in ("unpaid", "partial", "paid"):
             raise HTTPException(status_code=422, detail="payment_status must be unpaid, partial or paid")
@@ -217,7 +229,8 @@ def list_bookings(
     rows = q.offset((page - 1) * per_page).limit(per_page).all()
 
     fins = bsvc.financials_for(db, tenant_id, [s for s, _ in rows])
-    data = [_serialize_stay(s, seq, fins.get(s.id)) for s, seq in rows]
+    schedules = bsvc.schedules_for(db, tenant_id, fins)
+    data = [_serialize_stay(s, seq, fins.get(s.id), bsvc.next_due(schedules.get(s.id, []))) for s, seq in rows]
 
     return {
         "data": data,
@@ -403,6 +416,7 @@ class BookingUpdateRequest(BaseModel):
     check_in_time: Optional[str] = Field(None, pattern=r"^(([01]\d|2[0-3]):[0-5]\d)?$")
     check_out_time: Optional[str] = Field(None, pattern=r"^(([01]\d|2[0-3]):[0-5]\d)?$")
     internal_notes: Optional[str] = Field(None, max_length=4000)
+    concierge_notes: Optional[str] = Field(None, max_length=4000)
     # Save even though the new dates/property overlap another booking or block.
     force: bool = False
 
@@ -489,6 +503,8 @@ def update_booking(
         stay.check_out_time = payload.check_out_time or None
     if payload.internal_notes is not None:
         stay.internal_notes = payload.internal_notes or None
+    if payload.concierge_notes is not None:
+        stay.concierge_notes = payload.concierge_notes or None
 
     after = {
         "property_id": stay.property_id, "check_in": stay.check_in.isoformat(), "check_out": stay.check_out.isoformat(),
@@ -497,7 +513,7 @@ def update_booking(
         "status": stay.status, "check_in_time": stay.check_in_time, "check_out_time": stay.check_out_time,
     }
     changes = {k: {"from": before[k], "to": after[k]} for k in after if before[k] != after[k]}
-    if changes or payload.internal_notes is not None:
+    if changes or payload.internal_notes is not None or payload.concierge_notes is not None:
         append_audit(db, tenant_id=tenant_id, actor_user_id=current_user.id,
                      action="booking.cancelled" if changes.get("status", {}).get("to") == "cancelled" else "booking.updated",
                      target_type="booking", target_id=stay.id,

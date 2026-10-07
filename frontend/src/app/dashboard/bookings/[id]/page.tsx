@@ -6,11 +6,15 @@ import { useSession } from "next-auth/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Phone } from "@/lib/icons";
 import api from "@/lib/api";
-import { cn, formatPhone } from "@/lib/utils";
+import { cn, formatINR, formatPhone } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { AddOnsPanel } from "@/components/bookings/AddOnsPanel";
 import { PaymentsPanel } from "@/components/bookings/PaymentsPanel";
+import { SchedulePanel } from "@/components/bookings/SchedulePanel";
+import { DepositPanel } from "@/components/bookings/DepositPanel";
+import { ServiceRequestsPanel } from "@/components/bookings/ServiceRequestsPanel";
+import { ChangeGuestDialog } from "@/components/bookings/ChangeGuestDialog";
 import {
   STATUS_OPTIONS, STATUS_STYLE, describeActivity, errorMessage, fmtDate,
   type BookingDetail,
@@ -21,7 +25,7 @@ const label = "block text-xs font-medium text-gray-500";
 
 interface Draft {
   property_id: string; check_in: string; check_out: string; check_in_time: string; check_out_time: string;
-  adults: string; children: string; total_amount: string; occasion: string; special_requests: string; internal_notes: string;
+  adults: string; children: string; total_amount: string; occasion: string; special_requests: string; internal_notes: string; concierge_notes: string;
 }
 
 function toDraft(b: BookingDetail): Draft {
@@ -29,7 +33,7 @@ function toDraft(b: BookingDetail): Draft {
     property_id: b.property?.id ?? "", check_in: b.check_in, check_out: b.check_out,
     check_in_time: b.check_in_time ?? "", check_out_time: b.check_out_time ?? "",
     adults: String(b.adults), children: String(b.children), total_amount: String(b.financials.stay_charge),
-    occasion: b.occasion ?? "", special_requests: b.special_requests, internal_notes: b.internal_notes,
+    occasion: b.occasion ?? "", special_requests: b.special_requests, internal_notes: b.internal_notes, concierge_notes: b.concierge_notes,
   };
 }
 
@@ -53,6 +57,7 @@ export default function BookingPage() {
   });
 
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [changingGuest, setChangingGuest] = useState(false);
   useEffect(() => { if (booking) setDraft(toDraft(booking)); }, [booking]);
 
   function setBooking(b: BookingDetail) {
@@ -106,7 +111,7 @@ export default function BookingPage() {
       check_in_time: draft.check_in_time, check_out_time: draft.check_out_time,
       adults: Math.max(1, Number(draft.adults) || 1), children: Math.max(0, Number(draft.children) || 0),
       total_amount: Number(draft.total_amount) || 0, occasion: draft.occasion,
-      special_requests: draft.special_requests, internal_notes: draft.internal_notes,
+      special_requests: draft.special_requests, internal_notes: draft.internal_notes, concierge_notes: draft.concierge_notes,
     });
   }
 
@@ -136,6 +141,14 @@ export default function BookingPage() {
           </div>
           <div className="ml-auto flex items-center gap-2">
             <span className={cn("inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold", st.cls)}>{st.label}</span>
+            {digits && (
+              <a href={`https://wa.me/${digits}`} target="_blank" rel="noopener noreferrer"
+                className="text-xs font-semibold border border-gray-200 bg-white px-3 py-1.5 rounded-lg hover:bg-gray-50">Messaging</a>
+            )}
+            {booking.status !== "cancelled" && (
+              <button onClick={() => setStatus("cancelled")} disabled={save.isPending}
+                className="text-xs font-semibold bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 disabled:opacity-50">Cancel booking</button>
+            )}
             <select
               aria-label="Change status"
               value={booking.status}
@@ -151,6 +164,13 @@ export default function BookingPage() {
         {booking.pms_managed && (
           <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
             This booking is synced from your PMS. Changes made here can be overwritten by the next sync.
+          </p>
+        )}
+
+        {booking.next_due && booking.status !== "cancelled" && (
+          <p className={cn("text-xs rounded-lg px-3 py-2 border", booking.next_due.overdue ? "text-red-800 bg-red-50 border-red-100" : "text-gray-700 bg-white border-gray-200")}>
+            {booking.next_due.overdue ? "Overdue: " : "Next payment: "}
+            <b>{formatINR(booking.next_due.amount)}</b> ({booking.next_due.label}) {booking.next_due.overdue ? "was due" : "due"} {fmtDate(booking.next_due.due_date)}
           </p>
         )}
 
@@ -187,14 +207,17 @@ export default function BookingPage() {
                   <input inputMode="decimal" className={cn(field, "mt-1")} value={draft.total_amount}
                     onChange={e => setDraft(d => d && { ...d, total_amount: e.target.value.replace(/[^0-9.]/g, "") })} />
                 </label>
-                <label className={label}>Occasion
-                  <input className={cn(field, "mt-1")} placeholder="Birthday, anniversary..." value={draft.occasion} onChange={set("occasion")} />
+                <label className={label}>Reason for travel
+                  <input className={cn(field, "mt-1")} placeholder="Birthday, anniversary, workation..." value={draft.occasion} onChange={set("occasion")} />
                 </label>
-                <label className={cn(label, "col-span-2")}>Guest requests
+                <label className={cn(label, "col-span-2")}>Guest message
                   <textarea rows={2} className={cn(field, "mt-1 resize-none")} value={draft.special_requests} onChange={set("special_requests")} />
                 </label>
-                <label className={cn(label, "col-span-2")}>Internal notes <span className="text-gray-400 font-normal">(staff only)</span>
-                  <textarea rows={3} className={cn(field, "mt-1 resize-none")} value={draft.internal_notes} onChange={set("internal_notes")} />
+                <label className={cn(label, "col-span-2")}>Notes <span className="text-gray-400 font-normal">(staff only)</span>
+                  <textarea rows={2} className={cn(field, "mt-1 resize-none")} value={draft.internal_notes} onChange={set("internal_notes")} />
+                </label>
+                <label className={cn(label, "col-span-2")}>Concierge notes <span className="text-gray-400 font-normal">(for the on-site team)</span>
+                  <textarea rows={2} className={cn(field, "mt-1 resize-none")} placeholder="Gate code, arrival time, preferences..." value={draft.concierge_notes} onChange={set("concierge_notes")} />
                 </label>
               </div>
               <div className="px-4 pb-4 flex items-center gap-2">
@@ -210,6 +233,7 @@ export default function BookingPage() {
             </section>
 
             <AddOnsPanel booking={booking} onChange={setBooking} />
+            <ServiceRequestsPanel booking={booking} onChange={setBooking} />
 
             <section className="haip-card">
               <div className="haip-card-head"><h2 className="haip-card-title">Activity</h2></div>
@@ -230,7 +254,10 @@ export default function BookingPage() {
 
           <div className="space-y-5 min-w-0">
             <section className="haip-card">
-              <div className="haip-card-head"><h2 className="haip-card-title">Guest</h2></div>
+              <div className="haip-card-head">
+                <h2 className="haip-card-title">Guest</h2>
+                {guest && <button onClick={() => setChangingGuest(true)} className="ml-auto text-xs font-semibold text-teal-700 hover:underline">Change</button>}
+              </div>
               <div className="p-4 space-y-3 text-sm">
                 {guest ? (
                   <>
@@ -268,6 +295,8 @@ export default function BookingPage() {
             </section>
 
             <PaymentsPanel booking={booking} onChange={setBooking} />
+            <SchedulePanel booking={booking} onChange={setBooking} />
+            <DepositPanel booking={booking} onChange={setBooking} />
 
             {canErase && guest && (
               <section className="rounded-xl border border-red-100 bg-white p-4">
@@ -294,6 +323,7 @@ export default function BookingPage() {
           </div>
         </div>
       </div>
+      {changingGuest && <ChangeGuestDialog booking={booking} onClose={() => setChangingGuest(false)} onChange={setBooking} />}
     </div>
   );
 }
