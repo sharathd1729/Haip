@@ -20,9 +20,10 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import or_, func
+from sqlalchemy import case, or_, func
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.audit import append_audit
 from app.core.database import get_db
 from app.api.v1.deps import get_current_user, require_roles
 from app.models.property import Property, RatePlan, Stay
@@ -31,6 +32,8 @@ from app.models.user import User, UserRole
 from app.services.date_presets import VALID_PRESETS, resolve_range
 from app.models.base import gen_uuid
 from app.services.identity_service import resolve_gid
+from app.services import booking_service as bsvc
+from app.models.stay_finance import StayAddOn, StayPayment
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 
@@ -52,7 +55,10 @@ _SORT_MAP = {
 }
 
 
-def _serialize_stay(s: Stay, seq: int) -> dict:
+def _serialize_stay(s: Stay, seq: int, fin: Optional[dict] = None) -> dict:
+    # fin comes from booking_service.financials_for(); computed from the add-on
+    # lines and the payment ledger, never inferred from the booking status.
+    fin = fin or bsvc.summarize(s.total_amount, 0, 0)
     guest = s.guest
     prop = s.property
     first_name, _, last_name = (guest.name or "Unknown").partition(" ") if guest else ("Unknown", "", "")
@@ -65,15 +71,17 @@ def _serialize_stay(s: Stay, seq: int) -> dict:
         "created_at": s.created_at.isoformat() if s.created_at else None,
         "external_id": str(seq),
         "status": _STATUS_MAP.get(s.status, "confirmed"),
-        "payment_status": "paid" if s.status in ("checked_in", "checked_out") else "unpaid",
-        "total": float(s.total_amount) if s.total_amount is not None else 0,
-        "total_accommodation": float(s.total_amount) if s.total_amount is not None else 0,
-        "total_fees": 0,
-        "total_pretax": float(s.total_amount) if s.total_amount is not None else 0,
+        "payment_status": fin["payment_status"],
+        "total": fin["total"],
+        "total_accommodation": fin["stay_charge"],
+        "total_fees": fin["addons_total"],
+        "total_pretax": fin["total"],
         "total_taxes": 0,
-        "total_outstanding": 0,
-        "total_paid": float(s.total_amount) if s.total_amount is not None else 0,
+        "total_outstanding": fin["outstanding"],
+        "total_paid": fin["paid"],
         "total_refunded": 0,
+        "check_in_time": s.check_in_time,
+        "check_out_time": s.check_out_time,
         "next_payment_due_date": None,
         "next_payment_amount": 0,
         "handles_payment": False,
@@ -116,6 +124,7 @@ def list_bookings(
     guest_id: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     channel: Optional[str] = Query(None),
+    payment_status: Optional[str] = Query(None, description="unpaid|partial|paid"),
     sort: str = Query("newest"),
     date_from: Optional[str] = Query(None, description="ISO date -- stays overlapping [date_from, date_to]"),
     date_to: Optional[str] = Query(None, description="ISO date -- stays overlapping [date_from, date_to]"),
@@ -159,6 +168,25 @@ def list_bookings(
         q = q.filter(Stay.status == status)
     if channel:
         q = q.filter(Stay.channel_source == channel)
+    if payment_status:
+        if payment_status not in ("unpaid", "partial", "paid"):
+            raise HTTPException(status_code=422, detail="payment_status must be unpaid, partial or paid")
+        addons_sub = (
+            db.query(func.coalesce(func.sum(StayAddOn.quantity * StayAddOn.unit_price), 0))
+            .filter(StayAddOn.stay_id == Stay.id).correlate(Stay).scalar_subquery()
+        )
+        paid_sub = (
+            db.query(func.coalesce(func.sum(case((StayPayment.kind == "refund", -StayPayment.amount), else_=StayPayment.amount)), 0))
+            .filter(StayPayment.stay_id == Stay.id).correlate(Stay).scalar_subquery()
+        )
+        owed = func.coalesce(Stay.total_amount, 0) + addons_sub
+        fully_paid = (paid_sub > 0) & (owed > 0) & (paid_sub + 0.005 >= owed)
+        if payment_status == "unpaid":
+            q = q.filter(paid_sub <= 0)
+        elif payment_status == "paid":
+            q = q.filter(fully_paid)
+        else:
+            q = q.filter((paid_sub > 0) & ~fully_paid)
     # Range overlap, not "check_in falls inside the range" -- a booking that
     # spans across the filtered window (e.g. checked in before date_from,
     # still staying through it) should still show up. check_in/check_out
@@ -188,7 +216,8 @@ def list_bookings(
     total = q.count()
     rows = q.offset((page - 1) * per_page).limit(per_page).all()
 
-    data = [_serialize_stay(s, seq) for s, seq in rows]
+    fins = bsvc.financials_for(db, tenant_id, [s for s, _ in rows])
+    data = [_serialize_stay(s, seq, fins.get(s.id)) for s, seq in rows]
 
     return {
         "data": data,
@@ -272,6 +301,9 @@ class BookingCreateRequest(BaseModel):
     special_requests: Optional[str] = None
     occasion: Optional[str] = None
     status: str = "confirmed"
+    check_in_time: Optional[str] = Field(None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    check_out_time: Optional[str] = Field(None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    internal_notes: Optional[str] = Field(None, max_length=4000)
 
 
 @router.post("", status_code=201)
@@ -338,13 +370,20 @@ def create_booking(
         special_requests=[payload.special_requests] if payload.special_requests else [],
         occasion=payload.occasion,
         channel_source="direct",
+        check_in_time=payload.check_in_time,
+        check_out_time=payload.check_out_time,
+        internal_notes=payload.internal_notes,
     )
     db.add(stay)
+    db.flush()
+    append_audit(db, tenant_id=tenant_id, actor_user_id=current_user.id, action="booking.created",
+                 target_type="booking", target_id=stay.id,
+                 payload={"property_id": prop.id, "check_in": payload.check_in, "check_out": payload.check_out})
     db.commit()
     db.refresh(stay)
 
     seq = _seq_for_stay(db, tenant_id, stay.id)
-    return _serialize_stay(stay, seq)
+    return _serialize_stay(stay, seq, bsvc.financials_for(db, tenant_id, [stay]).get(stay.id))
 
 
 # ── Manual booking edit ──────────────────────────────────────────────────────
@@ -361,6 +400,14 @@ class BookingUpdateRequest(BaseModel):
     status: Optional[str] = None
     occasion: Optional[str] = None
     special_requests: Optional[str] = None
+    check_in_time: Optional[str] = Field(None, pattern=r"^(([01]\d|2[0-3]):[0-5]\d)?$")
+    check_out_time: Optional[str] = Field(None, pattern=r"^(([01]\d|2[0-3]):[0-5]\d)?$")
+    internal_notes: Optional[str] = Field(None, max_length=4000)
+    # Save even though the new dates/property overlap another booking or block.
+    force: bool = False
+
+
+VALID_STATUSES = ("confirmed", "checked_in", "checked_out", "cancelled")
 
 
 @router.patch("/{booking_id}")
@@ -376,11 +423,19 @@ def update_booking(
     if not stay:
         raise HTTPException(status_code=404, detail="Booking not found")
 
+    before = {
+        "property_id": stay.property_id, "check_in": stay.check_in.isoformat(), "check_out": stay.check_out.isoformat(),
+        "adults": stay.adults, "children": stay.children,
+        "total_amount": float(stay.total_amount) if stay.total_amount is not None else None,
+        "status": stay.status, "check_in_time": stay.check_in_time, "check_out_time": stay.check_out_time,
+    }
+
+    new_property_id = stay.property_id
     if payload.property_id is not None:
         prop = db.query(Property).filter_by(id=payload.property_id, tenant_id=tenant_id).first()
         if not prop:
             raise HTTPException(status_code=404, detail="Property not found")
-        stay.property_id = prop.id
+        new_property_id = prop.id
 
     # migration 071: stay.check_in/check_out are real date objects now;
     # payload.check_in/check_out (if provided) are still plain YYYY-MM-DD
@@ -393,6 +448,24 @@ def update_booking(
         raise HTTPException(status_code=422, detail="check_in/check_out must be YYYY-MM-DD")
     if new_check_out < new_check_in:
         raise HTTPException(status_code=422, detail="check_out cannot be before check_in")
+    if payload.status is not None and payload.status not in VALID_STATUSES:
+        raise HTTPException(status_code=422, detail=f"status must be one of {', '.join(VALID_STATUSES)}")
+
+    # Double-booking guard: only when the dates/property moved (or a cancelled
+    # booking is being revived) and the booking will hold the dates.
+    new_status = payload.status if payload.status is not None else stay.status
+    moved = (new_property_id, new_check_in, new_check_out) != (stay.property_id, stay.check_in, stay.check_out)
+    revived = stay.status not in bsvc.ACTIVE_STATUSES and new_status in bsvc.ACTIVE_STATUSES
+    if (moved or revived) and new_status in bsvc.ACTIVE_STATUSES and not payload.force:
+        conflicts = bsvc.find_conflicts(db, tenant_id, new_property_id, new_check_in, new_check_out, exclude_stay_id=stay.id)
+        if conflicts:
+            raise HTTPException(status_code=409, detail={
+                "code": "date_conflict",
+                "message": "Those dates overlap another booking or a blocked period on this property.",
+                "conflicts": conflicts,
+            })
+
+    stay.property_id = new_property_id
     stay.check_in = new_check_in
     stay.check_out = new_check_out
 
@@ -401,6 +474,8 @@ def update_booking(
     if payload.children is not None:
         stay.children = payload.children
     if payload.total_amount is not None:
+        if payload.total_amount < 0:
+            raise HTTPException(status_code=422, detail="total_amount cannot be negative")
         stay.total_amount = payload.total_amount
     if payload.status is not None:
         stay.status = payload.status
@@ -408,9 +483,27 @@ def update_booking(
         stay.occasion = payload.occasion
     if payload.special_requests is not None:
         stay.special_requests = [payload.special_requests] if payload.special_requests else []
+    if payload.check_in_time is not None:
+        stay.check_in_time = payload.check_in_time or None
+    if payload.check_out_time is not None:
+        stay.check_out_time = payload.check_out_time or None
+    if payload.internal_notes is not None:
+        stay.internal_notes = payload.internal_notes or None
 
+    after = {
+        "property_id": stay.property_id, "check_in": stay.check_in.isoformat(), "check_out": stay.check_out.isoformat(),
+        "adults": stay.adults, "children": stay.children,
+        "total_amount": float(stay.total_amount) if stay.total_amount is not None else None,
+        "status": stay.status, "check_in_time": stay.check_in_time, "check_out_time": stay.check_out_time,
+    }
+    changes = {k: {"from": before[k], "to": after[k]} for k in after if before[k] != after[k]}
+    if changes or payload.internal_notes is not None:
+        append_audit(db, tenant_id=tenant_id, actor_user_id=current_user.id,
+                     action="booking.cancelled" if changes.get("status", {}).get("to") == "cancelled" else "booking.updated",
+                     target_type="booking", target_id=stay.id,
+                     payload={"changes": changes, "forced": bool(payload.force and (moved or revived))})
     db.commit()
     db.refresh(stay)
 
     seq = _seq_for_stay(db, tenant_id, stay.id)
-    return _serialize_stay(stay, seq)
+    return _serialize_stay(stay, seq, bsvc.financials_for(db, tenant_id, [stay]).get(stay.id))

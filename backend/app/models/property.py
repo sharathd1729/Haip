@@ -145,6 +145,11 @@ class Stay(Base, TimestampMixin, TenantMixin):
     hostaway_booking_id = Column(String(100), nullable=True)
     channel_source = Column(String(50), nullable=True)  # direct/airbnb/booking/vrbo
 
+    # Front-desk detail (migration 110). Times are "HH:MM" local; NULL = property default.
+    check_in_time = Column(String(5), nullable=True)
+    check_out_time = Column(String(5), nullable=True)
+    internal_notes = Column(Text, nullable=True)         # staff-only, never shown to the guest
+
     guest = relationship("Guest", back_populates="stays")
     property = relationship("Property", back_populates="stays")
 

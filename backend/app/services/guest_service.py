@@ -171,6 +171,13 @@ def dpdp_delete(db: Session, tenant_id: str, guest_id: str) -> dict:
     db.query(Call).filter_by(tenant_id=tenant_id, guest_id=guest_id).delete()
 
     db.query(Inquiry).filter_by(tenant_id=tenant_id, guest_id=guest_id).delete()
+    # Money and add-on lines hang off the stay; they carry payer references and
+    # notes, so they go with it (the DB cascade is a backstop, not the plan).
+    from app.models.stay_finance import StayAddOn, StayPayment, StayPaymentLink
+    stay_ids = [x.id for x in db.query(Stay.id).filter_by(tenant_id=tenant_id, guest_id=guest_id)]
+    if stay_ids:
+        for model in (StayAddOn, StayPayment, StayPaymentLink):
+            db.query(model).filter(model.tenant_id == tenant_id, model.stay_id.in_(stay_ids)).delete(synchronize_session=False)
     db.query(Stay).filter_by(tenant_id=tenant_id, guest_id=guest_id).delete()
     db.query(Consent).filter_by(tenant_id=tenant_id, guest_id=guest_id).delete()
 

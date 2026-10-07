@@ -47,7 +47,7 @@ const ALL_SECTIONS = [
     label: "Sales",
     items: [
       { label: "Leads360",  href: "/dashboard/leads",      icon: Target,   resource: "guests"     as Resource },
-      { label: "Guests",    href: "/dashboard/guests",     icon: Users,    resource: "guests"     as Resource },
+      { label: "Bookings",  href: "/dashboard/bookings",   icon: Users,    resource: "guests"     as Resource },
     ],
   },
   {
@@ -94,6 +94,7 @@ const ALL_SECTIONS = [
       { label: "Team",           href: "/dashboard/settings/team",     icon: Users,      resource: "users"    as Resource },
       { label: "Lead assignment", href: "/dashboard/settings/lead-assignment", icon: Shuffle, resource: "settings" as Resource },
       { label: "Calendar sync",  href: "/dashboard/settings/calendar-sync", icon: Calendar, resource: "settings" as Resource },
+      { label: "Payments",       href: "/dashboard/settings/payments",      icon: CreditCard, resource: "settings" as Resource },
       { label: "Branding",       href: "/dashboard/settings/branding", icon: Palette,    resource: "branding" as Resource },
       { label: "Billing",        href: "/dashboard/billing",           icon: CreditCard, resource: "billing"  as Resource },
       { label: "Profile",        href: "/dashboard/profile",           icon: UserCircle, resource: "profile"  as Resource },

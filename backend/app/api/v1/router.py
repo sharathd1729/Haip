@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     auth, calls, workspace_context,
     tenants, users, guests, inquiries, conversations, properties,
-    qa, integrations, ical_feeds, analytics, analytics_executive, instagram_insights, audit, sse, messaging, messaging_campaign_reports, reports, saved_replies, saved_views,
+    qa, integrations, ical_feeds, booking_detail, payments_razorpay, analytics, analytics_executive, instagram_insights, audit, sse, messaging, messaging_campaign_reports, reports, saved_replies, saved_views,
     webhooks_callerdesk, webhooks_acefone, webhooks_mcube, webhooks_whatsapp, webhooks_instagram,
     webhooks_dograh, webhooks_vobiz, webhooks_whatsapp_personal,
     whatsapp_personal,
@@ -55,6 +55,7 @@ api_router.include_router(properties.router)
 api_router.include_router(calculator.router)
 api_router.include_router(calendar.router)
 api_router.include_router(bookings.router)
+api_router.include_router(booking_detail.router)
 api_router.include_router(calls.router)
 
 # Leads360 — unified sales pipeline
@@ -68,6 +69,8 @@ api_router.include_router(analytics_executive.router)
 api_router.include_router(instagram_insights.router)
 
 # Integrations & compliance
+api_router.include_router(payments_razorpay.router)
+api_router.include_router(payments_razorpay.webhook_router)
 api_router.include_router(integrations.router)
 api_router.include_router(ical_feeds.router)
 api_router.include_router(ical_feeds.public_router)

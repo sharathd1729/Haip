@@ -384,10 +384,10 @@ export default function CallDetailPage() {
               <h2 className="haip-card-title">Transcript</h2>
               {call.guest_phone && (
                 <Link
-                  href={`/dashboard/guests?phone=${encodeURIComponent(call.guest_phone)}`}
+                  href={`/dashboard/bookings?q=${encodeURIComponent(call.guest_phone)}`}
                   className="text-xs text-teal-600 hover:text-teal-700 flex items-center gap-1 font-medium"
                 >
-                  View guest profile <ExternalLink size={11} />
+                  View guest bookings <ExternalLink size={11} />
                 </Link>
               )}
             </div>

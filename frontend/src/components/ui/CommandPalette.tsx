@@ -26,7 +26,7 @@ const PAGES = [
   { id: "inbox",        label: "Inbox",              href: "/dashboard/inbox",            icon: <Inbox size={14} />,            group: "Pages" },
   { id: "calls",        label: "Calls",              href: "/dashboard/calls",            icon: <Phone size={14} />,            group: "Pages" },
   { id: "leads",        label: "Leads",              href: "/dashboard/leads",            icon: <FileText size={14} />,         group: "Pages" },
-  { id: "guests",       label: "Guests",             href: "/dashboard/guests",           icon: <Users size={14} />,            group: "Pages" },
+  { id: "guests",       label: "Bookings",           href: "/dashboard/bookings",           icon: <Users size={14} />,            group: "Pages" },
   { id: "properties",   label: "Properties",         href: "/dashboard/properties",       icon: <Building2 size={14} />,        group: "Pages" },
   { id: "qa",           label: "QA Scores",          href: "/dashboard/qa",               icon: <BarChart2 size={14} />,        group: "Pages" },
   { id: "compliance",   label: "Compliance",         href: "/dashboard/compliance",       icon: <Shield size={14} />,           group: "Pages" },
@@ -90,7 +90,7 @@ export function CommandPalette() {
             id: `guest-${g.id}`,
             label: g.name || g.phone,
             subtitle: g.phone,
-            href: `/dashboard/guests/${g.id}`,
+            href: `/dashboard/bookings?guest=${g.id}`,
             icon: <User size={14} />,
             group: "Guests",
           });

@@ -66,7 +66,7 @@ function GlobalSearch() {
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter" && query.trim()) {
-      router.push(`/dashboard/guests?q=${encodeURIComponent(query.trim())}`);
+      router.push(`/dashboard/bookings?q=${encodeURIComponent(query.trim())}`);
       setQuery("");
     }
     if (e.key === "Escape") {
