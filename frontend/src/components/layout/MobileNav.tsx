@@ -93,6 +93,7 @@ const ALL_SECTIONS = [
     items: [
       { label: "Team",           href: "/dashboard/settings/team",     icon: Users,      resource: "users"    as Resource },
       { label: "Lead assignment", href: "/dashboard/settings/lead-assignment", icon: Shuffle, resource: "settings" as Resource },
+      { label: "Calendar sync",  href: "/dashboard/settings/calendar-sync", icon: Calendar, resource: "settings" as Resource },
       { label: "Branding",       href: "/dashboard/settings/branding", icon: Palette,    resource: "branding" as Resource },
       { label: "Billing",        href: "/dashboard/billing",           icon: CreditCard, resource: "billing"  as Resource },
       { label: "Profile",        href: "/dashboard/profile",           icon: UserCircle, resource: "profile"  as Resource },

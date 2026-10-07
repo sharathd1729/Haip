@@ -59,6 +59,8 @@ celery_app = Celery(
         "app.workers.tasks.agent_worklist_email",
         # Recovers calls whose classify->judge chain-dispatch silently stalled
         "app.workers.tasks.call_recovery",
+        # iCal calendar links (Airbnb / Booking.com / Google): read outside calendars
+        "app.workers.tasks.ical_sync",
         # WhatsApp: campaign runner + template status sync
         "app.workers.tasks.run_campaign",
         "app.workers.tasks.campaign_scheduler",
@@ -177,6 +179,8 @@ celery_app.conf.update(
         "tasks.send_whatsapp_template":              {"queue": "whatsapp"},
         "tasks.sync_wa_templates.sync_all_tenants":  {"queue": "whatsapp"},
         "tasks.sync_wa_templates.sync_tenant":       {"queue": "whatsapp"},
+        "ical.sync_all_feeds":                       {"queue": "call_ingest"},
+        "ical.sync_feed":                            {"queue": "call_ingest"},
         "tasks.transcribe":                          {"queue": "transcription"},
         "tasks.wrap_up":                             {"queue": "ai_scoring"},
         "ai_scoring.score_call":                     {"queue": "ai_scoring"},
@@ -232,6 +236,12 @@ celery_app.conf.beat_schedule = {
     "call-scoring-recovery-30min": {
         "task": "calls.recover_stalled_scoring_all_tenants",
         "schedule": crontab(minute="10,40"),
+    },
+    # Reads the Airbnb / Booking.com / Google calendars linked to properties.
+    # Minutes 12/42: clear of the :00/:05/:10/:15/:20/:30 jobs above.
+    "ical-sync-30min": {
+        "task": "ical.sync_all_feeds",
+        "schedule": crontab(minute="12,42"),
     },
     # Starts WhatsApp campaigns whose scheduled time has come.
     "launch-due-campaigns": {
