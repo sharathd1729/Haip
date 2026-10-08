@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { signOut } from "next-auth/react";
-import { Inbox, Phone, Users, Menu, X, Home, Target, Calendar, Calculator, MessageSquare, Megaphone, FileDown, Star, Shield, Zap, Settings, CreditCard, UserCircle, HelpCircle, Palette, FileText, LogOut, ListChecks, BookmarkIcon, Shuffle } from "@/lib/icons";
+import { Inbox, Phone, Users, Menu, X, Home, Target, Calendar, Calculator, MessageSquare, Megaphone, FileDown, Star, Shield, Zap, Settings, CreditCard, UserCircle, HelpCircle, Palette, FileText, LogOut, ListChecks, BookmarkIcon, Shuffle, Key } from "@/lib/icons";
 import { UserCheck, GitBranch, Plug2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canSeeNav, type Resource } from "@/lib/permissions";
@@ -95,6 +95,7 @@ const ALL_SECTIONS = [
       { label: "Lead assignment", href: "/dashboard/settings/lead-assignment", icon: Shuffle, resource: "settings" as Resource },
       { label: "Calendar sync",  href: "/dashboard/settings/calendar-sync", icon: Calendar, resource: "settings" as Resource },
       { label: "Payments",       href: "/dashboard/settings/payments",      icon: CreditCard, resource: "settings" as Resource },
+      { label: "Developers",     href: "/dashboard/settings/developers",    icon: Key,        resource: "settings" as Resource },
       { label: "Branding",       href: "/dashboard/settings/branding", icon: Palette,    resource: "branding" as Resource },
       { label: "Billing",        href: "/dashboard/billing",           icon: CreditCard, resource: "billing"  as Resource },
       { label: "Profile",        href: "/dashboard/profile",           icon: UserCircle, resource: "profile"  as Resource },

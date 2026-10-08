@@ -61,6 +61,8 @@ celery_app = Celery(
         "app.workers.tasks.call_recovery",
         # iCal calendar links (Airbnb / Booking.com / Google): read outside calendars
         "app.workers.tasks.ical_sync",
+        # Public API: signed webhook deliveries + retries
+        "app.workers.tasks.webhook_delivery",
         # WhatsApp: campaign runner + template status sync
         "app.workers.tasks.run_campaign",
         "app.workers.tasks.campaign_scheduler",
@@ -181,6 +183,9 @@ celery_app.conf.update(
         "tasks.sync_wa_templates.sync_tenant":       {"queue": "whatsapp"},
         "ical.sync_all_feeds":                       {"queue": "call_ingest"},
         "ical.sync_feed":                            {"queue": "call_ingest"},
+        "webhooks.deliver":                          {"queue": "call_ingest"},
+        "webhooks.retry_due":                        {"queue": "call_ingest"},
+        "webhooks.purge_old":                        {"queue": "call_ingest"},
         "tasks.transcribe":                          {"queue": "transcription"},
         "tasks.wrap_up":                             {"queue": "ai_scoring"},
         "ai_scoring.score_call":                     {"queue": "ai_scoring"},
@@ -242,6 +247,15 @@ celery_app.conf.beat_schedule = {
     "ical-sync-30min": {
         "task": "ical.sync_all_feeds",
         "schedule": crontab(minute="12,42"),
+    },
+    # Sends webhook deliveries that are due (retries, or a first dispatch lost to a broker blip).
+    "webhooks-retry-due-1min": {
+        "task": "webhooks.retry_due",
+        "schedule": crontab(minute="*"),
+    },
+    "webhooks-purge-old-daily": {
+        "task": "webhooks.purge_old",
+        "schedule": crontab(hour=3, minute=25),
     },
     # Starts WhatsApp campaigns whose scheduled time has come.
     "launch-due-campaigns": {
@@ -406,3 +420,7 @@ celery_app.conf.beat_schedule = {
     #     "kwargs": {"tenant_id": "__all__"},
     # },
 }
+
+# Registers the model listeners that turn booking/payment/message changes into webhook events,
+# so a change made inside a Celery worker (e.g. a message delivery state) is caught too.
+import app.services.webhook_events  # noqa: E402,F401

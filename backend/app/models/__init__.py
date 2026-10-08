@@ -22,6 +22,8 @@ from app.models.feature_flag import FeatureFlag
 from app.api.v1.endpoints.messaging import WATemplate, WACampaign, WASubscriber, WAFlow
 from app.models.wa_campaign_recipient import WACampaignRecipient
 from app.models.ical_feed import ICalFeed
+from app.models.api_key import ApiKey
+from app.models.webhook import WebhookDelivery, WebhookEndpoint
 from app.models.stay_finance import StayAddOn, StayPayment, StayPaymentLink, StayInstalment, StayDeposit, StayServiceRequest
 from app.models.flow_execution import FlowPendingExecution, WAFlowRun
 from app.models.mcp_token import PersonalAccessToken

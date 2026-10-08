@@ -57,6 +57,12 @@ _SEND_PREFIXES = (
     "/api/v1/messaging/",       # broadcasts
 )
 
+# Public API (API-key authenticated): per key, reads and sends counted separately.
+_PUBLIC_API_PREFIX = "/api/public/v1"
+_PUBLIC_READ_LIMIT: Tuple[int, int] = (300, 60)   # 300/min per API key
+_PUBLIC_SEND_LIMIT: Tuple[int, int] = (60, 60)    # 60/min per API key for POST sends
+_PUBLIC_DOC_PATHS = (_PUBLIC_API_PREFIX + "/docs", _PUBLIC_API_PREFIX + "/redoc", _PUBLIC_API_PREFIX + "/openapi.json")
+
 # Routes to skip entirely (health checks, docs, and high-frequency polling)
 _SKIP_PREFIXES = (
     "/api/v1/health",
@@ -141,6 +147,23 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 if not allowed:
                     log.warning("rate_limit_exceeded", path=path, ip=ip, key=key)
                     return _rate_limit_response(retry_after)
+            return await call_next(request)
+
+        # ── Public API: per-API-key limit (reads and sends counted separately) ─
+        if path.startswith(_PUBLIC_API_PREFIX):
+            if path.startswith(_PUBLIC_DOC_PATHS):
+                return await call_next(request)
+            if r is not None:
+                auth_header = request.headers.get("authorization", "")
+                raw_token = auth_header[7:] if auth_header.lower().startswith("bearer ") else ""
+                who = hashlib.sha256(raw_token.encode()).hexdigest()[:16] if raw_token else f"ip:{ip}"
+                is_send = request.method == "POST"
+                limit, window = _PUBLIC_SEND_LIMIT if is_send else _PUBLIC_READ_LIMIT
+                key = f"rl:pubapi:{who}:{'send' if is_send else 'read'}"
+                allowed, retry_after = _check_limit(r, key, limit, window, strict=False)
+                if not allowed:
+                    log.warning("rate_limit_exceeded", path=path, key=key)
+                    return _public_rate_limit_response(retry_after)
             return await call_next(request)
 
         # ── MCP endpoint: per-PAT limit, not per-IP/tenant (D5) ───────────────
@@ -231,4 +254,14 @@ def _rate_limit_response(retry_after: int) -> Response:
             "Retry-After": str(retry_after),
             "X-RateLimit-Reset": str(int(time.time()) + retry_after),
         },
+    )
+
+
+def _public_rate_limit_response(retry_after: int) -> Response:
+    """Same {"error": {...}} shape as every other public API error."""
+    body = json.dumps({"error": {"code": "rate_limited", "message": f"Too many requests. Retry in {retry_after} seconds."}})
+    return Response(
+        content=body, status_code=429,
+        headers={"Content-Type": "application/json", "Retry-After": str(retry_after),
+                 "X-RateLimit-Reset": str(int(time.time()) + retry_after)},
     )

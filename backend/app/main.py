@@ -11,6 +11,8 @@ from app.core.tenancy import tenant_context_middleware
 from app.core.request_id import request_id_middleware
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.api.v1.router import api_router
+from app.public_api.app import app as public_api_app
+import app.services.webhook_events  # noqa: F401  (registers webhook event listeners)
 from app.mcp.server import router as mcp_router
 from app.mcp.oauth import router as mcp_oauth_router
 import structlog
@@ -148,6 +150,8 @@ app.middleware("http")(tenant_context_middleware)     # sets tenant_id on reques
 app.include_router(api_router)
 app.include_router(mcp_router)
 app.include_router(mcp_oauth_router)
+# Public, API-key authenticated API with its own OpenAPI file and docs (/api/public/v1/docs)
+app.mount("/api/public/v1", public_api_app)
 
 
 @app.exception_handler(Exception)
