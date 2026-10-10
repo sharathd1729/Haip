@@ -132,6 +132,10 @@ export default function CallsPage() {
   const { toast } = useToast();
   const { wrapUpQueue, dismissWrapUp } = useCallsStore();
   const [tab, setTab] = useState<Tab>("callback");
+  // Until someone picks a tab themselves, an empty call-back list falls back to the full call
+  // log, so the page opens on calls instead of an empty "all returned" card.
+  const [tabPicked, setTabPicked] = useState(false);
+  const pickTab = (t: Tab) => { setTabPicked(true); setTab(t); };
   const [range, setRange] = useState("last_7d");
   const [agentId, setAgentId] = useState("");
   const [outcome, setOutcome] = useState("");
@@ -171,6 +175,9 @@ export default function CallsPage() {
     staleTime: 30_000,
   });
   useEffect(() => { setPage(1); }, [tab, range, agentId, outcome]);
+  useEffect(() => {
+    if (tab === "callback" && !tabPicked && !isLoading && !isError && data && data.total === 0) setTab("all");
+  }, [tab, tabPicked, isLoading, isError, data]);
 
   const calls = data?.items ?? [];
   const total = data?.total ?? 0;
@@ -228,7 +235,7 @@ export default function CallsPage() {
             </div>
           </div>
 
-          <SummaryTiles s={summary} rangeLabel={rangeLabel} onPick={setTab} />
+          <SummaryTiles s={summary} rangeLabel={rangeLabel} onPick={pickTab} />
 
           <div className="flex flex-wrap items-center gap-2">
             <div role="tablist" aria-label="Call type" className="flex gap-1.5 overflow-x-auto scrollbar-hide">
@@ -236,7 +243,7 @@ export default function CallsPage() {
                 const on = tab === key;
                 const n = key === "callback" ? summary?.missed_not_called_back : undefined;
                 return (
-                  <button key={key} role="tab" aria-selected={on} onClick={() => setTab(key)}
+                  <button key={key} role="tab" aria-selected={on} onClick={() => pickTab(key)}
                     className={cn("flex-shrink-0 inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border",
                       "border-[color:var(--haip-border)]")}
                     style={on ? { background: "color-mix(in srgb, var(--primary) 12%, var(--haip-card))", color: "var(--primary)", borderColor: "color-mix(in srgb, var(--primary) 50%, transparent)" } : { color: "var(--haip-fg-2, var(--haip-fg))", background: "var(--haip-card)" }}>
@@ -294,13 +301,13 @@ export default function CallsPage() {
                 <div className="flex flex-col items-center justify-center py-20 text-center gap-1.5">
                   <CheckCircle2 size={26} className="text-emerald-600" />
                   <p className="font-semibold" style={{ color: "var(--haip-fg)" }}>Every missed call has been returned</p>
-                  <button onClick={() => setTab("all")} className="text-xs font-semibold text-teal-700">See all calls</button>
+                  <button onClick={() => pickTab("all")} className="text-xs font-semibold text-teal-700">See all calls</button>
                 </div>
               ) : tab !== "all" || q || agentId || outcome ? (
                 <div className="flex flex-col items-center justify-center py-20 text-center gap-1.5">
                   <PhoneMissed size={24} style={{ color: "var(--haip-fg-subtle)" }} />
                   <p className="font-semibold" style={{ color: "var(--haip-fg)" }}>No calls match</p>
-                  <button onClick={() => { setTab("all"); setSearch(""); setAgentId(""); setOutcome(""); }} className="text-xs font-semibold text-teal-700">Clear filters</button>
+                  <button onClick={() => { pickTab("all"); setSearch(""); setAgentId(""); setOutcome(""); }} className="text-xs font-semibold text-teal-700">Clear filters</button>
                 </div>
               ) : (
                 // Nothing in this range -- say so, instead of the "connect
