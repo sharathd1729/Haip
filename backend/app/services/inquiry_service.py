@@ -617,6 +617,48 @@ def update_stage_by_id(
     )
 
 
+def reopen_lost_inquiry(
+    db: Session,
+    *,
+    tenant_id: str,
+    inquiry_id: str,
+    new_stage_id: str,
+    actor_user_id: Optional[str],
+    actor_role: str,
+    reason: str,
+) -> Inquiry:
+    """Bring a lead back from Lost into an open stage.
+
+    update_stage_by_id() deliberately treats Lost as terminal, so it can't do this. Reopening is a
+    separate, narrower action: owner/manager (or a trusted script, role "system") only, a reason is
+    mandatory, only a LOST lead can be reopened (a Sold lead is a booking and stays sold), and the
+    target must be an open stage. It writes the same stage log, ledger event and audit entry as any
+    other move, and clears the lost reason/note so reports don't count it as lost.
+    """
+    if actor_role not in BACKWARD_ROLES and actor_role != "system":
+        raise InvalidStageTransition("lost", "open", "Only an owner or manager can reopen a lost lead.")
+    if not reason or not reason.strip():
+        raise InvalidStageTransition("lost", "open", "A reason is required to reopen a lost lead.")
+
+    inquiry = db.query(Inquiry).filter_by(id=inquiry_id, tenant_id=tenant_id).first()
+    if not inquiry:
+        raise ValueError(f"Inquiry {inquiry_id} not found")
+    current = db.query(PipelineStage).filter_by(id=inquiry.stage_id, tenant_id=tenant_id).first() if inquiry.stage_id else None
+    target = db.query(PipelineStage).filter_by(id=new_stage_id, tenant_id=tenant_id).first()
+    if not target:
+        raise ValueError(f"Pipeline stage {new_stage_id} not found")
+    if current is None or not current.is_closed_lost:
+        raise InvalidStageTransition(
+            current.key if current else "none", target.key, "Only a lead in a Lost stage can be reopened.")
+    if target.is_closed_lost or target.is_closed_won:
+        raise InvalidStageTransition(current.key, target.key, "Choose an open stage to reopen the lead into.")
+
+    _apply_stage_by_id(db, inquiry, current, target, actor_user_id, reason)
+    inquiry.lost_reason = None
+    inquiry.lost_note = None
+    return inquiry
+
+
 def _apply_stage_by_id(
     db: Session,
     inquiry: Inquiry,
