@@ -380,6 +380,7 @@ def missed_calls(db: Session, tenant_id: str, since: Optional[datetime], *, unti
             Call.tenant_id == tenant_id,
             call_status_service.missed_call_sql_filter(),
             Call.recovered_by_call_id.is_(None),
+            Call.callback_dismissed_at.is_(None),
         )
         .order_by(Call.started_at.desc())
     )
@@ -497,6 +498,7 @@ def _totals(
             Call.tenant_id == tenant_id,
             call_status_service.missed_call_sql_filter(),
             Call.recovered_by_call_id.is_(None),
+            Call.callback_dismissed_at.is_(None),
         )
     )
     # Confirmed live: 384 of 394 "missed calls" tenant-wide were ivr_provider

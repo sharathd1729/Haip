@@ -291,6 +291,7 @@ def build_daily_report(
             Call.tenant_id == tenant_id,
             call_status_service.missed_call_sql_filter(),
             Call.recovered_by_call_id.is_(None),
+            Call.callback_dismissed_at.is_(None),
             Call.started_at >= start_iso,
         )
         .scalar()

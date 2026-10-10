@@ -183,6 +183,7 @@ def _callbacks(db: Session, tenant: Tenant) -> tuple[list[QueueItem], int]:
             Call.direction == CallDirection.INBOUND,
             call_status_service.missed_call_sql_filter(),
             Call.recovered_by_call_id.is_(None),
+            Call.callback_dismissed_at.is_(None),
             Call.created_at >= _now() - CALLBACK_WINDOW,
         )
     )

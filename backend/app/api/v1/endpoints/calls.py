@@ -126,6 +126,7 @@ def list_calls(
             Call.direction == "inbound",
             call_status_service.missed_call_sql_filter(),
             Call.recovered_by_call_id.is_(None),
+            Call.callback_dismissed_at.is_(None),
         )
     if disposition:
         # The page has always sent this, but the parameter didn't exist, so
@@ -242,7 +243,7 @@ def calls_summary(
     inbound = [c for c in calls if _dir(c) == "inbound"]
     outbound = [c for c in calls if _dir(c) == "outbound"]
     missed = [c for c in inbound if call_status_service.is_missed_call(c)]
-    open_missed = [c for c in missed if not c.recovered_by_call_id]
+    open_missed = [c for c in missed if not c.recovered_by_call_id and not c.callback_dismissed_at]
     answered = [c for c in calls if not call_status_service.is_missed_call(c) and (c.duration_seconds or 0) > 0]
 
     def _avg_score(rows):

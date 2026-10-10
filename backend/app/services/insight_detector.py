@@ -202,6 +202,7 @@ def detect_A4(db: Session, tenant_id: str) -> None:
         Call.tenant_id == tenant_id,
         call_status_service.missed_call_sql_filter(),
         Call.recovered_by_call_id.is_(None),
+        Call.callback_dismissed_at.is_(None),
         Call.created_at >= lookback_start,
         Call.created_at < window_end,
     ).scalar() or 0

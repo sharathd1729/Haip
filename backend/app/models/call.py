@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, JSON, ForeignKey, Text, Integer, Numeric, Enum as SAEnum
+from sqlalchemy import Column, String, Boolean, DateTime, JSON, ForeignKey, Text, Integer, Numeric, Enum as SAEnum
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 from app.models.base import TimestampMixin, TenantMixin, gen_uuid
@@ -76,6 +76,10 @@ class Call(Base, TimestampMixin, TenantMixin):
     # forever for calls that were never missed or never recovered. Answers
     # "did we call them back" without which the schema has no way to.
     recovered_by_call_id = Column(String, ForeignKey("calls.id"), nullable=True)
+    # Set when someone dismisses a missed call from the call-back queue without having rung back
+    # (migration 114). It is NOT a call-back: analytics that measure recovery keep using
+    # recovered_by_call_id; only the "still needs a call-back" lists exclude dismissed calls.
+    callback_dismissed_at = Column(DateTime(timezone=True), nullable=True)
 
     # Recording
     recording_url_ivr = Column(Text, nullable=True)  # IVR provider URL
