@@ -65,7 +65,7 @@ def test_dry_run_changes_nothing_then_apply_creates_and_updates(db, tmp_path, ca
 
     assert _run(db, "--tenant-slug", t.slug, "--csv", path) == 0
     out = capsys.readouterr().out
-    assert "Would create 1, update 1, skip 0" in out and "Dry run only" in out and "******0001" in out and "9800000001" not in out
+    assert "Would create 1 booking(s) (0 with a new guest), update 1, skip 0" in out and "Dry run only" in out and "******0001" in out and "9800000001" not in out
     assert db.query(Stay).filter_by(tenant_id=t.id).count() == 1
 
     assert _run(db, "--tenant-slug", t.slug, "--csv", path, "--apply") == 0
@@ -98,7 +98,7 @@ def test_ambiguous_and_missing_guests_are_skipped_and_reported(db, tmp_path, cap
     path = _csv(tmp_path, "Neha,2026-10-02,2026-10-20,2026-10-22,,", "Nobody,2026-10-02,2026-10-21,2026-10-22,,")
     assert _run(db, "--tenant-slug", t.slug, "--csv", path, "--apply") == 2
     out = capsys.readouterr().out
-    assert "2 guests match" in out and "no guest with that name" in out and "Created 0, updated 0, skipped 2" in out
+    assert "2 guests match" in out and "no guest with that name" in out and "Created 0 booking(s) (0 with a new guest), updated 0, skipped 2" in out
     assert db.query(Stay).filter_by(tenant_id=t.id).count() == 0
     # pinning the guest id resolves the ambiguity
     neha = db.query(Guest).filter_by(tenant_id=t.id, name="Neha Rao").one()
@@ -152,3 +152,47 @@ def test_monthly_target_is_set_for_each_booking_month_and_feeds_the_report(db, t
     rep = sales_performance_service.pickup_report(db, t.id, date(2026, 7, 1), as_of=date(2026, 7, 31))
     assert rep["has_target"] and round(rep["target_per_day"]) == round(600000 / 31)
     assert rep["rows"][-1]["variance"] == 100000.0 - 600000.0
+
+
+def test_existing_booking_on_the_travel_date_settles_an_ambiguous_name(db, tmp_path, capsys):
+    """'Neha' matches many guests, but only one has a booking starting 20 Oct: that booking is the one."""
+    t, (prop,) = _world(db)
+    nehas = [_guest(db, t, f"Neha {surname}", f"+91980000{i:04d}") for i, surname in enumerate(["Jain", "Singh", "Mathur"], start=20)]
+    stay = Stay(id=gen_uuid(), tenant_id=t.id, guest_id=nehas[1].id, property_id=prop.id, check_in=date(2026, 10, 20),
+                check_out=date(2026, 10, 22), status="confirmed", total_amount=48000)
+    db.add(stay)
+    db.commit()
+    path = _csv(tmp_path, "Neha,2026-10-02,2026-10-20,2026-10-22,,")
+    assert _run(db, "--tenant-slug", t.slug, "--csv", path, "--apply") == 0
+    out = capsys.readouterr().out
+    assert "UPDATE" in out and "Neha Singh" in out and "keeps amount 48,000" in out
+    db.refresh(stay)
+    assert stay.created_at.date() == date(2026, 10, 2) and float(stay.total_amount) == 48000.0     # real amount untouched
+
+
+def test_two_bookings_the_same_day_for_one_name_are_reported(db, tmp_path, capsys):
+    t, (prop,) = _world(db)
+    for i, surname in enumerate(["Jain", "Rao"], start=30):
+        g = _guest(db, t, f"Neha {surname}", f"+91980000{i:04d}")
+        db.add(Stay(id=gen_uuid(), tenant_id=t.id, guest_id=g.id, property_id=prop.id, check_in=date(2026, 10, 20), check_out=date(2026, 10, 21)))
+    db.commit()
+    assert _run(db, "--tenant-slug", t.slug, "--csv", _csv(tmp_path, "Neha,2026-10-02,2026-10-20,2026-10-21,,"), "--apply") == 2
+    assert "2 bookings start that day" in capsys.readouterr().out
+
+
+def test_create_missing_makes_one_name_only_guest_and_is_safe_to_rerun(db, tmp_path, capsys):
+    t, (prop,) = _world(db)
+    db.commit()
+    path = _csv(tmp_path, "Vanessa,2026-10-02,2026-10-03,2026-10-04,25000,")
+
+    assert _run(db, "--tenant-slug", t.slug, "--csv", path, "--apply") == 2                    # no flag: reported, nothing made
+    assert "use --create-missing" in capsys.readouterr().out and db.query(Guest).filter_by(tenant_id=t.id).count() == 0
+
+    assert _run(db, "--tenant-slug", t.slug, "--csv", path, "--create-missing", "--apply") == 0
+    guest = db.query(Guest).filter_by(tenant_id=t.id, name="Vanessa").one()
+    assert guest.phone == ""                                                                    # name only: valid, phone can be added later
+    stay = db.query(Stay).filter_by(tenant_id=t.id, guest_id=guest.id).one()
+    assert stay.created_at.date() == date(2026, 10, 2) and float(stay.total_amount) == 25000.0
+
+    assert _run(db, "--tenant-slug", t.slug, "--csv", path, "--create-missing", "--apply") == 0   # rerun: updates, no duplicates
+    assert db.query(Guest).filter_by(tenant_id=t.id).count() == 1 and db.query(Stay).filter_by(tenant_id=t.id).count() == 1
