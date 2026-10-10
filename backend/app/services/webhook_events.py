@@ -27,8 +27,13 @@ _STATE = {"pending": "queued", "queued": "queued", "sent": "sent", "delivered": 
 _CHILDREN = (StayAddOn, StayPayment, StayInstalment, StayServiceRequest, StayDeposit)
 
 
+# Set session.info[SUPPRESS_KEY] = True for bulk historical imports: they must not tell customers'
+# systems about bookings that already happened.
+SUPPRESS_KEY = "suppress_webhooks"
+
+
 def _note(session: Session | None, tenant_id: str | None, kind: str, obj_id: str, extra: str = "") -> None:
-    if session is None or not tenant_id:
+    if session is None or not tenant_id or session.info.get(SUPPRESS_KEY):
         return
     session.info.setdefault(_PENDING, []).append((tenant_id, kind, obj_id, extra))
 

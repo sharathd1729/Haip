@@ -244,6 +244,9 @@ def _list_bookings(db: Session, user: User, tenant_id: str, args: dict) -> Any:
         sort=args.get("sort", "newest"), page=args.get("page", 1), per_page=args.get("per_page", 25),
         guest_id=args.get("guest_id"), date_preset=args.get("date_preset"),
         date_from=args.get("date_from"), date_to=args.get("date_to"),
+        # Called as a plain function, not through FastAPI, so every parameter the endpoint has must
+        # be passed: an omitted one arrives as a truthy Query(...) placeholder and breaks the filter.
+        property_id=args.get("property_id"), payment_status=args.get("payment_status"),
         current_user=user, db=db,
     )
     return _dump(result)
@@ -644,6 +647,8 @@ TOOLS: list[dict] = [
                 "status": {"type": "string"},
                 "channel": {"type": "string"},
                 "guest_id": {"type": "string"},
+                "property_id": {"type": "string"},
+                "payment_status": {"type": "string", "enum": ["unpaid", "partial", "paid"]},
                 "date_preset": {
                     "type": "string",
                     "enum": ["today", "yesterday", "this_month", "last_month", "last_7d", "last_14d", "next_7d", "next_14d", "custom"],
