@@ -26,7 +26,7 @@ export function MobileFilterSheet({
 }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[80vh] overflow-y-auto rounded-t-2xl">
+      <SheetContent side="bottom" className="max-h-[80dvh] overflow-y-auto rounded-t-2xl">
         <SheetHeader className="pb-3 border-b" style={{ borderColor: "var(--haip-border)" }}>
           <SheetTitle className="flex items-center gap-1.5">
             <Filter size={14} />

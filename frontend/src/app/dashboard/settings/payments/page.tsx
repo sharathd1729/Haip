@@ -1,10 +1,11 @@
 "use client";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Copy, CreditCard } from "@/lib/icons";
+import { CheckCircle2, Copy } from "@/lib/icons";
 import api from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
+import { PageHeader } from "@/components/ui/page";
 import { errorMessage } from "@/lib/bookings";
 
 interface Status { connected: boolean; mode?: string; key_id_hint?: string; webhook_url?: string; events?: string[] }
@@ -62,13 +63,7 @@ export default function PaymentsSettingsPage() {
 
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-teal-100 flex items-center justify-center"><CreditCard size={18} className="text-teal-600" /></div>
-        <div>
-          <h1 className="haip-page-title">Payments</h1>
-          <p className="text-xs text-gray-400">Collect booking payments online with your own Razorpay account</p>
-        </div>
-      </div>
+      <PageHeader title="Payments" subtitle="Collect booking payments online with your own Razorpay account" />
 
       {isLoading ? <Skeleton className="h-40 rounded-xl" /> : (
         <>

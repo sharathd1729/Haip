@@ -5,6 +5,7 @@ import { Calendar, Plus, RefreshCw, Trash2, Copy, X, CheckCircle2, AlertCircle }
 import api from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
+import { PageHeader } from "@/components/ui/page";
 
 interface Feed {
   id: string;
@@ -113,22 +114,19 @@ export default function CalendarSyncPage() {
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-teal-100 flex items-center justify-center">
-          <Calendar size={18} className="text-teal-600" />
-        </div>
-        <div>
-          <h1 className="haip-page-title">Calendar sync</h1>
-          <p className="text-xs text-gray-400">Keep Airbnb, Booking.com and Google Calendar in step with your bookings</p>
-        </div>
+      <PageHeader
+        title="Calendar sync"
+        subtitle="Keep Airbnb, Booking.com and Google Calendar in step with your bookings"
+        actions={
         <button
           onClick={() => setForm({ property_id: properties[0]?.id ?? "", name: "Airbnb", import_url: "" })}
           disabled={properties.length === 0}
-          className="ml-auto flex items-center gap-1.5 text-xs bg-teal-500 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-teal-600 disabled:opacity-40 transition-colors"
+          className="flex items-center gap-1.5 text-xs bg-teal-500 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-teal-600 disabled:opacity-40 transition-colors"
         >
           <Plus size={13} /> Add calendar link
         </button>
-      </div>
+        }
+      />
 
       <div className="bg-teal-50 border border-teal-100 rounded-xl p-4 text-xs text-teal-900 space-y-1.5">
         <p className="font-semibold">How it works</p>

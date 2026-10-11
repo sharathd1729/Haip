@@ -2,11 +2,12 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, ExternalLink, Key, Trash2 } from "@/lib/icons";
+import { Copy, ExternalLink, Trash2 } from "@/lib/icons";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
+import { PageHeader } from "@/components/ui/page";
 import { errorMessage, fmtDate } from "@/lib/bookings";
 import { WebhooksSection } from "@/components/developers/WebhooksSection";
 
@@ -69,13 +70,7 @@ export default function DevelopersPage() {
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-teal-100 flex items-center justify-center"><Key size={18} className="text-teal-600" /></div>
-        <div>
-          <h1 className="haip-page-title">Developers</h1>
-          <p className="text-xs text-gray-400">API keys and documentation to connect your own systems to HAIP</p>
-        </div>
-      </div>
+      <PageHeader title="Developers" subtitle="API keys and documentation to connect your own systems to HAIP" />
 
       <div className="haip-card p-4 space-y-3">
         <p className="text-sm font-semibold text-gray-900">API documentation</p>

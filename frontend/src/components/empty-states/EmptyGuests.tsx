@@ -3,7 +3,7 @@ import { Users, Upload, ArrowRight } from "@/lib/icons";
 
 export function EmptyGuests() {
   return (
-    <div className="flex flex-col items-center justify-center h-full min-h-[60vh] px-6 py-16 text-center">
+    <div className="flex flex-col items-center justify-center h-full min-h-[60dvh] px-6 py-16 text-center">
       <div className="w-20 h-20 rounded-3xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mb-6">
         <Users size={32} className="text-purple-400/60" />
       </div>

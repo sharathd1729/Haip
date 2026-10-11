@@ -49,6 +49,24 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* ── Motion + depth tokens ───────────────────────────────────────────────────
+   One easing curve and one shadow ramp for the whole app. Tailwind's `transition`
+   and `shadow-*` utilities read these, so changing them here re-tunes every page.
+   - Easing is a strong ease-out: UI that responds to a tap should start fast and
+     settle, not accelerate away (ease-in feels laggy on enter).
+   - Shadows are layered, soft and tinted with the brand navy (not pure black), so
+     cards lift off the canvas instead of looking boxed in. */
+@theme {
+  --default-transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+  --default-transition-duration: 160ms;
+  --shadow-xs: 0 1px 2px 0 rgb(15 23 42 / 0.05);
+  --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06);
+  --shadow-md: 0 2px 4px -1px rgb(15 23 42 / 0.05), 0 6px 14px -2px rgb(15 23 42 / 0.08);
+  --shadow-lg: 0 4px 6px -2px rgb(15 23 42 / 0.05), 0 12px 28px -4px rgb(15 23 42 / 0.10);
+  --shadow-xl: 0 8px 16px -4px rgb(15 23 42 / 0.06), 0 24px 48px -8px rgb(15 23 42 / 0.14);
+  --shadow-2xl: 0 24px 64px -12px rgb(15 23 42 / 0.28);
+}
+
 /* ── Canonical token layer ───────────────────────────────────────────────────
    These are the single source of truth for colour. The --haip-* layer below
    aliases onto these, and brandTheme.ts overrides them at runtime for
@@ -1273,4 +1291,58 @@
   --viz-seq-2: #3987e5;
   --viz-seq-3: #86b6ef;
   --viz-fail: #e66767;
+}
+
+/* ── Interaction + readability baseline ──────────────────────────────────────
+   Global defaults, written in the base layer with :where() so they have the lowest
+   possible priority: any component that sets its own focus ring, cursor or size
+   still wins. They exist so a control that forgot to style these is still usable.
+────────────────────────────────────────────────────────────────────────────── */
+@layer base {
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+  /* Clickable things look clickable (Tailwind v4 resets buttons to the arrow). */
+  :where(button, [role="button"], [role="tab"], summary, select, label[for],
+         input[type="checkbox"], input[type="radio"], input[type="range"], a[href]):not(:disabled):not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  /* Visible keyboard focus. Only for keyboard users (:focus-visible), never on mouse clicks. */
+  :where(a, button, input, select, textarea, summary, [role="button"], [role="tab"], [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  /* No double-tap-zoom delay on controls. */
+  :where(button, a, [role="button"], [role="tab"], input, select, summary, label) { touch-action: manipulation; }
+
+  /* Headings break evenly instead of leaving one word on its own line; paragraphs avoid orphans. */
+  :where(h1, h2, h3) { text-wrap: balance; }
+  :where(p, li) { text-wrap: pretty; }
+}
+
+@media (pointer: coarse) {
+  /* A finger needs ~40px. Small icon buttons keep their size and look but get a larger
+     invisible hit area. (An element that already sets `position` keeps it: utilities
+     outrank this rule.) */
+  @layer base {
+    button:where([class~="w-5"], [class~="w-6"], [class~="w-7"], [class~="w-8"],
+                 [class~="size-5"], [class~="size-6"], [class~="size-7"], [class~="size-8"]) { position: relative; }
+    button:where([class~="w-5"], [class~="w-6"], [class~="w-7"], [class~="w-8"],
+                 [class~="size-5"], [class~="size-6"], [class~="size-7"], [class~="size-8"])::after {
+      content: "";
+      position: absolute;
+      inset: -8px;
+    }
+  }
+}
+
+/* iOS Safari zooms the whole page when a field under 16px is focused, and does not zoom back.
+   Unlayered + !important on purpose: it has to beat Tailwind's `text-sm` on the field itself. */
+@media (pointer: coarse) and (max-width: 1023px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
 }
