@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 /** One row for search + filters. Wraps cleanly; put the search first so it keeps the widest slot. */
 export function FilterBar({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn("flex flex-wrap items-center gap-2", className)}>{children}</div>;
+  return <div className={cn("flex flex-wrap items-center gap-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", className)}>{children}</div>;
 }
 
 export function FilterSearch({ value, onChange, placeholder, label = "Search", className }: {
@@ -34,7 +34,7 @@ export function FilterChip({ active, onClick, count, children }: {
   return (
     <button type="button" aria-pressed={!!active} onClick={onClick}
       className={cn(
-        "flex h-8 items-center gap-1.5 rounded-full border px-3 text-[12.5px] font-medium transition-colors",
+        "flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-[12.5px] font-medium transition-colors active:scale-[0.97]",
         active ? "border-primary bg-primary/10 text-primary" : "border-[var(--haip-border)] bg-[var(--haip-card)] text-[var(--haip-fg-2)] hover:border-[var(--haip-border-strong)]",
       )}>
       {children}

@@ -92,7 +92,11 @@ function statusFor(c: ConversationSummaryExt): { label: string; tone: Tone } | n
   // still needs a human -- otherwise that guest is never answered.
   if (c.has_ai_draft) return { label: "AI reply held", tone: "violet" };
   if (c.is_waiting_reply) {
-    return { label: c.waiting_since ? `Waiting ${timeAgo(c.waiting_since)}` : "Waiting", tone: "amber" };
+    // Colour escalates with the wait so only the guests who have waited longest stand out:
+    // under an hour is plain, an hour or more is amber, four hours or more is red.
+    const mins = c.waiting_since ? (Date.now() - new Date(c.waiting_since).getTime()) / 60000 : 0;
+    const tone: Tone = mins >= 240 ? "red" : mins >= 60 ? "amber" : "gray";
+    return { label: c.waiting_since ? `Waiting ${timeAgo(c.waiting_since)}` : "Waiting", tone };
   }
   if (c.has_phone_decline_alert) return { label: "No phone shared", tone: "red" };
   if (c.sla_status === "breached") return { label: "SLA breached", tone: "red" };

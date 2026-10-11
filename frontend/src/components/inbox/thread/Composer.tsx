@@ -236,7 +236,7 @@ export function Composer({
                   onKeyDown={handleKeyDown}
                   rows={1}
                   placeholder={isInternalNote ? "Write an internal note…" : "Type a message or / for saved replies…"}
-                  className={cn("flex-1 text-sm rounded-full px-4 py-2.5 focus:outline-none resize-none transition-all", emptyPulse && "animate-pulse")}
+                  className={cn("flex-1 text-sm rounded-2xl px-4 py-2.5 focus:outline-none resize-none transition-[border-color,background-color]", emptyPulse && "animate-pulse")}
                   style={{
                     minHeight: "42px",
                     background: isInternalNote ? "color-mix(in srgb, var(--haip-amber) 6%, transparent)" : "var(--input-bg)",
@@ -287,14 +287,17 @@ export function Composer({
                 {!isInternalNote && detail && toGuestChannel(detail.channel) && (
                   <span className="inline-flex items-center gap-1 font-semibold" style={{ color: "var(--haip-fg-muted)" }}>
                     <ChannelBadge channel={toGuestChannel(detail.channel)!} size={12} />
-                    Replying on {channelLabel(detail.channel)} ·
+                    Replying on {channelLabel(detail.channel)}
                   </span>
                 )}
-                {isInternalNote
-                  ? "Esc to cancel · Enter to save note"
-                  : scheduledFor
-                  ? "Click send to schedule · click ✕ above to cancel"
-                  : "Enter to send · Shift+Enter newline · /note for internal notes · / for saved replies"}
+                {/* Shortcuts help a keyboard user; on a phone they are noise. */}
+                <span className="hidden sm:inline">
+                  {isInternalNote
+                    ? "· Esc to cancel · Enter to save note"
+                    : scheduledFor
+                    ? "· Click send to schedule · click ✕ above to cancel"
+                    : "· Enter to send · Shift+Enter newline · /note for internal notes · / for saved replies"}
+                </span>
               </p>
             </div>
   );
