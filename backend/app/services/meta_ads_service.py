@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.adapters.marketing import meta_ads
 from app.core.encryption import decrypt_credentials
 from app.models.ad_metrics import AdMetric
+from app.models.conversation import Conversation
 from app.models.integration import Integration
 from app.models.lead_attribution import LeadAttribution
 from app.models.property import Stay
@@ -178,12 +179,18 @@ def summary(db: Session, tenant_id: str, days: int = 30) -> dict:
     since_dt = datetime.combine(since, datetime.min.time(), tzinfo=timezone.utc)
     atts = db.query(LeadAttribution).filter(
         LeadAttribution.tenant_id == tenant_id, LeadAttribution.created_at >= since_dt).all()
+    # The link from an ad record to its lead is written only when the lead is created in the same request. When
+    # the lead already existed it stays empty, so fall back to the lead the conversation itself points at.
+    missing = [a.conversation_id for a in atts if not a.inquiry_id]
+    conv_inquiry = dict(db.query(Conversation.id, Conversation.inquiry_id).filter(
+        Conversation.tenant_id == tenant_id, Conversation.id.in_(missing))) if missing else {}
     conv_by, inq_by = defaultdict(set), defaultdict(set)
     for a in atts:
         cid = a.campaign_id or ad_to_campaign.get(a.ad_id or "", "") or UNMATCHED
         conv_by[cid].add(a.conversation_id)
-        if a.inquiry_id:
-            inq_by[cid].add(a.inquiry_id)
+        inquiry_id = a.inquiry_id or conv_inquiry.get(a.conversation_id)
+        if inquiry_id:
+            inq_by[cid].add(inquiry_id)
 
     all_inq = {i for s in inq_by.values() for i in s}
     stays_by_inq = defaultdict(lambda: {"bookings": 0, "revenue": Decimal(0)})

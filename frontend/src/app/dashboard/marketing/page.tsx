@@ -97,7 +97,11 @@ function AccountPicker({ canChoose, hasToken }: { canChoose: boolean; hasToken: 
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["ads-status"] });
       toast({ variant: "success", title: "Ad account chosen", description: "Pulling the last 30 days now." });
-      api.post("/marketing/ads/sync").finally(() => qc.invalidateQueries({ queryKey: ["ads-summary"] }));
+      // The first pull runs right after choosing; refresh both the totals and the "updated" time when it ends.
+      api.post("/marketing/ads/sync").finally(() => {
+        qc.invalidateQueries({ queryKey: ["ads-summary"] });
+        qc.invalidateQueries({ queryKey: ["ads-status"] });
+      });
     },
     onError: e => toast({ variant: "error", title: "Could not choose that account", description: errorText(e, "Try again.") }),
   });

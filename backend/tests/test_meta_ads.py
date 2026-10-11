@@ -179,6 +179,20 @@ def test_summary_joins_spend_to_leads_bookings_and_revenue(db, tenant_and_user):
     assert t["meta_conversations"] == 25 and t["haip_conversations"] == 5 and t["attribution_gap"] == 20
 
 
+def test_a_lead_is_found_through_the_conversation_when_the_attribution_row_was_never_linked(db, tenant_and_user):
+    """The ad record is linked to its lead only when the lead is created in the same request. When the lead
+    already existed the link stays empty; the summary must still count it."""
+    tid = tenant_and_user["tenant"].id
+    _metric(db, tid, ad="a1", camp="c1", spend="1000", conv=3)
+    _lead(db, tid, ad_id="a1", booked_amount=Decimal("30000"))
+    row = db.query(LeadAttribution).filter_by(tenant_id=tid).one()
+    row.inquiry_id = None                       # the broken link
+    db.commit()
+
+    c1 = next(c for c in svc.summary(db, tid, 30)["campaigns"] if c["campaign_id"] == "c1")
+    assert c1["haip_leads"] == 1 and c1["bookings"] == 1 and c1["revenue"] == 30000
+
+
 def test_summary_is_empty_without_data_and_never_divides_by_zero(db, tenant_and_user):
     s = svc.summary(db, tenant_and_user["tenant"].id, 30)
     assert s["campaigns"] == [] and s["totals"]["roas"] is None and s["totals"]["cost_per_lead"] is None
