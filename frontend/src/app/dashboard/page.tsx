@@ -1,10 +1,10 @@
 "use client";
 // Home ("Owner Daily"). Top to bottom: greeting + range/agent/channel
-// filters, the four "Needs you now" queues, six KPI tiles, revenue chart
+// filters, the four "Needs you now" queues, four KPI tiles (two more behind a toggle), revenue chart
 // next to the lead funnel, team next to lead sources, then what the AI
 // noticed. One page for every role -- /dashboard/overview scopes the data
 // (agents see only their own numbers; the team table is owner/manager only).
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import api from "@/lib/api";
@@ -49,6 +49,19 @@ export default function DashboardPage() {
 
   const [range, setRange] = useState<RangeValue>("last_7d");
   const [channel, setChannel] = useState("");
+
+  // Remember the last range and channel on this device. Read after mount (not in the initial state)
+  // so the first render matches the server.
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem("haip_dashboard_filters") || "{}");
+      if (RANGES.some(r => r.value === saved.range)) setRange(saved.range);
+      if (CHANNELS.some(c => c.value === saved.channel)) setChannel(saved.channel);
+    } catch { /* storage unavailable: keep defaults */ }
+  }, []);
+  useEffect(() => {
+    try { window.localStorage.setItem("haip_dashboard_filters", JSON.stringify({ range, channel })); } catch { /* ignore */ }
+  }, [range, channel]);
   const [agentId, setAgentId] = useState("");
   const rangeLabel = RANGES.find(r => r.value === range)?.label ?? "";
 
@@ -127,7 +140,7 @@ export default function DashboardPage() {
         ) : isLoading || !data ? (
           <div className="space-y-4">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-32" />)}</div>
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">{[0, 1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-24" />)}</div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-24" />)}</div>
             <Skeleton className="h-72 w-full" />
           </div>
         ) : (

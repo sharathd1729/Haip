@@ -79,7 +79,11 @@ const FUNNEL_COLORS = ["bg-blue-600", "bg-teal-700", "bg-emerald-600", "bg-viole
 export function LeadFunnel({ data, rangeLabel }: { data: OverviewResponse; rangeLabel: string }) {
   const total = data.kpi.total_leads;
   const rows = [{ stage: "Enquiries", count: total, color: "bg-slate-700" },
-    ...data.funnel.map((f, i) => ({ stage: f.stage, count: f.count, color: FUNNEL_COLORS[i % FUNNEL_COLORS.length] }))];
+    ...data.funnel.map((f, i) => ({
+      stage: f.stage, count: f.count,
+      // Lost / unsuitable are outcomes, not progress: quiet grey so the biggest bar is not an alarm.
+      color: /lost|unsuitable/i.test(f.stage) ? "bg-slate-300 dark:bg-slate-600" : FUNNEL_COLORS[i % FUNNEL_COLORS.length],
+    }))];
   return (
     <Panel title="Lead funnel" meta={rangeLabel} className="lg:col-span-2">
       {!total ? <Empty text="No leads in this period." /> : (

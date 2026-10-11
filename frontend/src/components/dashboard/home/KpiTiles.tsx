@@ -1,6 +1,7 @@
 "use client";
-// Six KPI tiles, each with a per-day sparkline (when the backend has a
+// Four headline KPI tiles (six in all; the other two sit behind "More numbers"), each with a per-day sparkline (when the backend has a
 // series for it) and a change-vs-previous-period pill.
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { formatRupees, formatSeconds, type KPIDelta, type OverviewResponse } from "./types";
 
@@ -52,20 +53,25 @@ export function KpiTiles({ data, rangeLabel }: { data: OverviewResponse; rangeLa
   const inbound = calls.answered + calls.missed;
   const answeredPct = inbound ? Math.round((100 * calls.answered) / inbound) : null;
 
-  const tiles: Tile[] = [
+  const headline: Tile[] = [
     { label: "New leads", value: String(kpi.total_leads), spark: series.leads, pill: pctPill(d.total_leads), compares: true },
-    { label: "Avg first reply", value: formatSeconds(kpi.avg_response_seconds), pill: pctPill(d.avg_response_seconds, true), compares: true },
     {
       label: "Calls answered", value: answeredPct != null ? `${answeredPct}%` : "—", spark: series.calls_answered_pct,
       pill: calls.missed ? <Pill text={`${calls.missed} missed`} good={null} /> : null,
     },
     { label: "Bookings", value: String(kpi.bookings), spark: series.bookings, pill: pctPill(d.bookings), compares: true },
     { label: "Revenue", value: formatRupees(kpi.revenue), spark: series.revenue, pill: pctPill(d.revenue), compares: true },
+  ];
+  const more: Tile[] = [
+    { label: "Avg first reply", value: formatSeconds(kpi.avg_response_seconds), pill: pctPill(d.avg_response_seconds, true), compares: true },
     { label: "Lead → booking", value: `${kpi.conversion_rate}%`, pill: pctPill(d.conversion_rate), compares: true },
   ];
+  const [showMore, setShowMore] = useState(false);
+  const tiles = showMore ? [...headline, ...more] : headline;
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+    <div className="space-y-2">
+    <div className={cn("grid grid-cols-2 gap-3", showMore ? "md:grid-cols-3 xl:grid-cols-6" : "lg:grid-cols-4")}>
       {tiles.map(t => (
         <div key={t.label} className="haip-card px-4 py-3 flex flex-col gap-1.5 min-w-0">
           <span className="text-xs font-semibold" style={{ color: "var(--haip-fg-subtle)" }}>{t.label}</span>
@@ -84,6 +90,11 @@ export function KpiTiles({ data, rangeLabel }: { data: OverviewResponse; rangeLa
           </span>
         </div>
       ))}
+    </div>
+    <button type="button" onClick={() => setShowMore(v => !v)} aria-expanded={showMore}
+      className="text-xs font-semibold text-primary hover:underline">
+      {showMore ? "Fewer numbers" : "More numbers"}
+    </button>
     </div>
   );
 }

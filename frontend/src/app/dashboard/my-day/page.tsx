@@ -2,8 +2,11 @@
 // My day -- the one queue. Everything waiting on this person, in the order
 // it should be dealt with: overdue first, then whoever has waited longest.
 // Backed by GET /work-queue (work_queue_service), the same source the
-// dashboard cards use, so the numbers always agree.
-import { useState } from "react";
+// dashboard cards and the sidebar badge use, so the numbers always agree.
+//
+// Keyboard triage: J / K move down / up the list, Enter does the row's action
+// (opens it, or places the call). Built on the shared kit (components/ui/kit).
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -12,9 +15,8 @@ import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChannelBadges } from "@/components/inbox/ChannelBadges";
-import { toGuestChannel } from "@/components/inbox/ChannelBadges";
-import { Clock, MessageSquare, Sparkles, PhoneMissed, PhoneCall, UserPlus, CheckCircle2 } from "@/lib/icons";
+import { ChannelBadges, toGuestChannel } from "@/components/inbox/ChannelBadges";
+import { Card, EmptyState, FilterBar, FilterChip, PageHeader, StatusPill, Tabs, type Tone } from "@/components/ui/kit";
 
 type Kind = "followup" | "reply" | "draft" | "callback" | "call_new" | "unassigned";
 
@@ -32,14 +34,16 @@ interface Queue {
   scope: "mine" | "team";
 }
 
-const KINDS: { id: Kind; label: string; icon: typeof Clock; tone: string; dot: string }[] = [
-  { id: "followup",   label: "Due now",        icon: Clock,        tone: "text-red-700",     dot: "bg-red-600" },
-  { id: "reply",      label: "Waiting on us",  icon: MessageSquare, tone: "text-orange-700", dot: "bg-orange-600" },
-  { id: "draft",      label: "Drafts to send", icon: Sparkles,     tone: "text-teal-700",    dot: "bg-teal-600" },
-  { id: "callback",   label: "Call back",      icon: PhoneMissed,  tone: "text-red-700",     dot: "bg-red-600" },
-  { id: "call_new",   label: "New, not called", icon: PhoneCall,   tone: "text-emerald-700", dot: "bg-emerald-600" },
-  { id: "unassigned", label: "No owner",       icon: UserPlus,     tone: "text-violet-700",  dot: "bg-violet-600" },
+// Order here is the order of the filter chips.
+const KINDS: { id: Kind; label: string; tone: Tone }[] = [
+  { id: "followup",   label: "Due now",         tone: "danger" },
+  { id: "reply",      label: "Waiting on us",   tone: "warning" },
+  { id: "draft",      label: "Drafts to send",  tone: "info" },
+  { id: "callback",   label: "Call back",       tone: "danger" },
+  { id: "call_new",   label: "New, not called", tone: "success" },
+  { id: "unassigned", label: "No owner",        tone: "neutral" },
 ];
+const KIND = Object.fromEntries(KINDS.map(k => [k.id, k])) as Record<Kind, (typeof KINDS)[number]>;
 
 function ago(iso: string | null): string {
   if (!iso) return "";
@@ -50,7 +54,7 @@ function ago(iso: string | null): string {
   return h < 24 ? `${h}h` : `${Math.floor(h / 24)}d`;
 }
 
-function Row({ item }: { item: Item }) {
+function Row({ item, active, index }: { item: Item; active: boolean; index: number }) {
   const { toast } = useToast();
   const channels = item.channels.map(toGuestChannel).filter(Boolean) as ReturnType<typeof toGuestChannel>[];
 
@@ -77,48 +81,61 @@ function Row({ item }: { item: Item }) {
     },
   });
 
-  const rowCls = "flex items-center gap-3 px-4 py-3 hover:bg-[color:var(--muted)] outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-600";
-  const actionCls = "text-xs font-bold px-3 py-1.5 rounded-lg bg-teal-700 text-white whitespace-nowrap";
+  const kind = KIND[item.kind];
+  const rowCls = cn(
+    "flex min-h-14 flex-1 min-w-0 items-center gap-3 px-4 py-3 outline-none transition-colors hover:bg-[var(--haip-surface)]",
+    "focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary",
+  );
+  const actionCls = "inline-flex min-h-9 items-center whitespace-nowrap rounded-lg bg-primary px-3.5 text-xs font-bold text-primary-foreground disabled:opacity-60 outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2";
 
   const body = (
     <>
-      <div className="flex-1 min-w-0">
-        <span className="flex items-center gap-1.5 min-w-0">
-          <span className="text-sm font-bold truncate" style={{ color: "var(--haip-fg)" }}>{item.title}</span>
+      <div className="min-w-0 flex-1">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate text-sm font-bold text-[var(--haip-fg)]">{item.title}</span>
           {channels.length > 0 && <ChannelBadges channels={channels as never} size={13} />}
         </span>
-        <p className="text-xs mt-0.5 truncate" style={{ color: "var(--haip-fg-subtle)" }}>
+        <p className="mt-0.5 truncate text-xs text-[var(--haip-fg-subtle)]">
           {item.detail}
           {item.owner_name ? ` · ${item.owner_name}` : ""}
         </p>
       </div>
-      <span className={cn("text-xs font-semibold tabular-nums whitespace-nowrap",
-        item.overdue ? "text-red-700" : "")} style={item.overdue ? undefined : { color: "var(--haip-fg-muted)" }}>
+      <StatusPill tone={kind.tone} className="hidden sm:inline-flex">{kind.label}</StatusPill>
+      <span className={cn("min-w-10 text-right text-xs font-semibold tabular-nums", item.overdue ? "text-[var(--haip-status-danger-fg)]" : "text-[var(--haip-fg-subtle)]")}
+        title={item.since ? `Waiting since ${new Date(item.since).toLocaleString("en-IN")}` : undefined}>
         {ago(item.since)}
       </span>
     </>
   );
 
-  // Everything else still opens where it says: the whole row is one link.
+  const wrap = cn("flex items-center border-t border-[var(--haip-border)] first:border-t-0", active && "bg-primary/5 shadow-[inset_3px_0_0_var(--primary)]");
+
+  // Everything else opens where it says: the whole row is one link.
   if (!dialPayload) {
     return (
-      <Link href={item.href} className={rowCls} style={{ borderTop: "1px solid var(--haip-border)" }}>
-        {body}
-        <span className={actionCls}>{item.action}</span>
-      </Link>
+      <div className={wrap} data-row={index}>
+        <Link href={item.href} data-primary className={rowCls}>
+          {body}
+          <span className={actionCls} aria-hidden>{item.action}</span>
+        </Link>
+      </div>
     );
   }
   // A call row: the details are a link, the action is a real button beside it
   // (a button can't sit inside a link).
   return (
-    <div className="flex items-center gap-3 pr-4" style={{ borderTop: "1px solid var(--haip-border)" }}>
-      <Link href={item.href} className={cn(rowCls, "flex-1 min-w-0")}>{body}</Link>
-      <button type="button" onClick={() => dial.mutate()} disabled={dial.isPending}
-        className={cn(actionCls, "disabled:opacity-60 outline-none focus-visible:ring-2 focus-visible:ring-teal-600")}>
+    <div className={cn(wrap, "gap-3 pr-4")} data-row={index}>
+      <Link href={item.href} className={rowCls}>{body}</Link>
+      <button type="button" data-primary onClick={() => dial.mutate()} disabled={dial.isPending} className={actionCls}>
         {dial.isPending ? "Calling…" : item.action}
       </button>
     </div>
   );
+}
+
+function isTyping(el: EventTarget | null): boolean {
+  const n = el as HTMLElement | null;
+  return !!n && (n.tagName === "INPUT" || n.tagName === "TEXTAREA" || n.tagName === "SELECT" || n.isContentEditable);
 }
 
 export default function MyDayPage() {
@@ -133,12 +150,14 @@ export default function MyDayPage() {
   const [kind, setKind] = useState<Kind | "all">(
     initial && KINDS.some(k => k.id === initial) ? initial : "all",
   );
+  const [cursor, setCursor] = useState(0);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const params = new URLSearchParams();
   if (isOwnerView && mineOnly) params.set("mine_only", "true");
   const qs = params.toString();
 
-  const { data, isLoading, isError } = useQuery<Queue>({
+  const { data, isLoading, isError, refetch } = useQuery<Queue>({
     queryKey: ["work-queue", qs],
     queryFn: () => api.get(`/work-queue${qs ? `?${qs}` : ""}`).then(r => r.data),
     staleTime: 20_000,
@@ -147,78 +166,83 @@ export default function MyDayPage() {
 
   const shown = (data?.items ?? []).filter(i => kind === "all" || i.kind === kind);
   const firstName = (session?.user?.name || "").split(" ")[0];
+  const at = Math.min(cursor, Math.max(0, shown.length - 1));
+
+  // J / K / Enter. Ignored while typing, with modifier keys, or when nothing is listed.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target) || shown.length === 0) return;
+      const k = e.key.toLowerCase();
+      if (k === "j" || k === "k") {
+        e.preventDefault();
+        setCursor(c => {
+          const next = Math.min(shown.length - 1, Math.max(0, Math.min(c, shown.length - 1) + (k === "j" ? 1 : -1)));
+          listRef.current?.querySelector(`[data-row="${next}"]`)?.scrollIntoView({ block: "nearest" });
+          return next;
+        });
+      } else if (e.key === "Enter" && !(e.target as HTMLElement).closest("a,button")) {
+        (listRef.current?.querySelector(`[data-row="${at}"] [data-primary]`) as HTMLElement | null)?.click();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [shown.length, at]);
+
+  const subtitle = !data ? "Loading…"
+    : data.total === 0 ? "Nothing waiting. Enjoy it."
+      : `${data.total} thing${data.total === 1 ? "" : "s"} waiting, most urgent first`;
 
   return (
-    <div className="h-full overflow-y-auto" style={{ background: "var(--haip-bg, var(--background))" }}>
-      <div className="max-w-[1000px] mx-auto px-4 sm:px-6 py-5 space-y-4">
-        <header className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="haip-page-title">My day{firstName ? `, ${firstName}` : ""}</h1>
-            <p className="text-sm mt-0.5" style={{ color: "var(--haip-fg-subtle)" }}>
-              {data ? (data.total === 0 ? "Nothing waiting. Enjoy it." : `${data.total} thing${data.total === 1 ? "" : "s"} waiting, most urgent first`) : "Loading…"}
-            </p>
-          </div>
-          {isOwnerView && (
-            <div className="flex gap-1 p-1 rounded-xl" style={{ background: "var(--muted)" }} role="tablist" aria-label="Scope">
-              {[["team", "Whole team"], ["mine", "Mine"]].map(([id, label]) => {
-                const on = (id === "mine") === mineOnly;
-                return (
-                  <button key={id} type="button" role="tab" aria-selected={on} onClick={() => setMineOnly(id === "mine")}
-                    className="text-xs font-bold px-3 py-1.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
-                    style={on ? { background: "var(--haip-card)", color: "var(--primary)" } : { color: "var(--haip-fg-muted)" }}>
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
+    <div className="h-full overflow-y-auto bg-[var(--haip-bg,var(--background))]">
+      <div className="mx-auto max-w-[1000px] space-y-4 px-4 py-5 sm:px-6">
+        <PageHeader
+          title={`My day${firstName ? `, ${firstName}` : ""}`}
+          subtitle={subtitle}
+          actions={isOwnerView && (
+            <Tabs label="Scope" value={mineOnly ? "mine" : "team"} onChange={v => setMineOnly(v === "mine")}
+              items={[{ value: "team", label: "Whole team" }, { value: "mine", label: "Mine" }]} />
           )}
-        </header>
+        />
 
         {/* Counts double as filters, so the summary and the list can't disagree. */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-          {KINDS.map(k => {
-            const n = data?.counts[k.id] ?? 0;
-            const on = kind === k.id;
-            const Icon = k.icon;
-            return (
-              <button key={k.id} type="button" aria-pressed={on} onClick={() => setKind(on ? "all" : k.id)}
-                className={cn("haip-card px-3 py-2.5 text-left transition-shadow hover:shadow-md outline-none focus-visible:ring-2 focus-visible:ring-teal-600",
-                  on && "ring-2 ring-teal-600")}>
-                <span className="flex items-center gap-1.5 text-[11px] font-semibold truncate" style={{ color: "var(--haip-fg-subtle)" }}>
-                  <Icon size={12} className={k.tone} />{k.label}
-                </span>
-                <span className={cn("block text-xl font-bold tabular-nums mt-0.5", n ? k.tone : "")}
-                  style={n ? undefined : { color: "var(--haip-fg-muted)" }}>
-                  {n}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        <FilterBar className="flex-nowrap overflow-x-auto pb-1 sm:flex-wrap">
+          <FilterChip active={kind === "all"} onClick={() => { setKind("all"); setCursor(0); }} count={data?.total}>All</FilterChip>
+          {KINDS.map(k => (
+            <FilterChip key={k.id} active={kind === k.id} count={data?.counts[k.id] ?? 0}
+              onClick={() => { setKind(kind === k.id ? "all" : k.id); setCursor(0); }}>
+              {k.label}
+            </FilterChip>
+          ))}
+        </FilterBar>
 
-        <section className="haip-card overflow-hidden">
+        <Card className="overflow-hidden">
           {isError ? (
-            <p className="p-8 text-center text-sm" style={{ color: "var(--haip-fg-muted)" }}>
-              Couldn&apos;t load your queue. Refresh to try again.
-            </p>
+            <EmptyState title="Couldn't load your queue" hint="Check your connection and try again."
+              action={<button type="button" onClick={() => refetch()} className="h-9 rounded-lg border border-[var(--haip-border)] px-4 text-[13px] font-semibold hover:bg-[var(--haip-surface)]">Try again</button>} />
           ) : isLoading ? (
-            <div className="p-4 space-y-2">{[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-12" />)}</div>
+            <div className="space-y-2 p-4">{[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-12" />)}</div>
           ) : shown.length === 0 ? (
-            <div className="py-14 flex flex-col items-center gap-2 text-center px-6">
-              <CheckCircle2 size={26} className="text-emerald-600" />
-              <p className="font-semibold" style={{ color: "var(--haip-fg)" }}>
-                {kind === "all" ? "All caught up" : "Nothing here right now"}
-              </p>
-              <p className="text-sm" style={{ color: "var(--haip-fg-subtle)" }}>
-                {kind === "all"
-                  ? "No one is waiting, every missed call has been returned and no follow-up is due."
-                  : "Clear this filter to see the rest of your day."}
-              </p>
-            </div>
+            <EmptyState
+              title={kind === "all" ? "All caught up" : "Nothing here right now"}
+              hint={kind === "all"
+                ? "No one is waiting, every missed call has been returned and no follow-up is due."
+                : "Clear this filter to see the rest of your day."} />
           ) : (
-            shown.map((item, i) => <Row key={`${item.kind}-${item.inquiry_id ?? item.guest_id ?? i}`} item={item} />)
+            <div ref={listRef}>
+              {shown.map((item, i) => (
+                <Row key={`${item.kind}-${item.inquiry_id ?? item.guest_id ?? i}`} item={item} active={i === at} index={i} />
+              ))}
+            </div>
           )}
-        </section>
+        </Card>
+
+        {shown.length > 0 && (
+          <p className="hidden text-xs text-[var(--haip-fg-subtle)] md:block">
+            <kbd className="rounded border border-[var(--haip-border)] px-1.5 font-sans">J</kbd> next ·{" "}
+            <kbd className="rounded border border-[var(--haip-border)] px-1.5 font-sans">K</kbd> previous ·{" "}
+            <kbd className="rounded border border-[var(--haip-border)] px-1.5 font-sans">Enter</kbd> do the action
+          </p>
+        )}
       </div>
     </div>
   );
