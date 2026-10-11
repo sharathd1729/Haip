@@ -219,7 +219,9 @@ export default function MyDayPage() {
           {isError ? (
             <EmptyState title="Couldn't load your queue" hint="Check your connection and try again."
               action={<button type="button" onClick={() => refetch()} className="h-9 rounded-lg border border-[var(--haip-border)] px-4 text-[13px] font-semibold hover:bg-[var(--haip-surface)]">Try again</button>} />
-          ) : isLoading ? (
+          ) : !data ? (
+            // No data yet. On the server a query is never "loading", so keying off `data` keeps the server
+            // and browser renders identical (no hydration mismatch).
             <div className="space-y-2 p-4">{[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-12" />)}</div>
           ) : shown.length === 0 ? (
             <EmptyState

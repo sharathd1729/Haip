@@ -89,6 +89,8 @@ function BookingsList() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [moveTo, setMoveTo] = useState("");
   const [moving, setMoving] = useState(false);
+  // On a phone the dropdowns sit behind a "Filters" button so the bookings are visible first.
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => { setDebounced(search.trim()); setPage(1); }, 350);
@@ -119,6 +121,7 @@ function BookingsList() {
     staleTime: 20_000,
   });
 
+  const activeDropdowns = [status, payment, propertyId, channel, range].filter(Boolean).length;
   const rows = data?.data ?? [];
   const meta = data?.meta;
   const filtered = !!(debounced || quick || status || payment || range || guestId || propertyId || channel);
@@ -245,6 +248,11 @@ function BookingsList() {
 
         <FilterBar>
           <FilterSearch value={search} onChange={setSearch} placeholder="Guest, phone, property or booking ID" label="Search bookings" />
+          <button type="button" aria-expanded={showFilters} onClick={() => setShowFilters(v => !v)}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--haip-border)] bg-[var(--haip-card)] px-3 text-[12.5px] font-semibold text-[var(--haip-fg-2)] sm:hidden">
+            Filters{activeDropdowns > 0 && <span className="rounded-full bg-primary px-1.5 text-[11px] text-primary-foreground">{activeDropdowns}</span>}
+          </button>
+          <div className={cn("w-full flex-wrap items-center gap-2 sm:flex sm:w-auto", showFilters ? "flex" : "hidden")}>
           <select value={status} onChange={e => setStatus(e.target.value)} className={selectCls} aria-label="Status">
             <option value="">All statuses</option>
             {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
@@ -275,6 +283,7 @@ function BookingsList() {
             <option value="newest">Newest created</option>
             <option value="total_desc">Highest amount</option>
           </select>
+          </div>
           {filtered && (
             <button onClick={clearAll} className="inline-flex h-9 items-center gap-1 text-xs text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg)]">
               <X size={12} /> Clear
@@ -301,7 +310,7 @@ function BookingsList() {
       )}
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-        {isLoading && !data ? (
+        {!data && !isError ? (
           <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
         ) : (
           <>
