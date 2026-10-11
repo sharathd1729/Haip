@@ -96,12 +96,23 @@ async def receive_instagram_webhook(request: Request):
 
     # Raises 401 when no held secret matches; in dev with none configured it
     # logs a warning and continues.
-    matched = verify_meta_signature_any(
-        body=body,
-        signature_header=sig,
-        env=settings.ENVIRONMENT,
-        secrets=[("tenant_app_secret", app_secret), ("META_APP_SECRET", settings.META_APP_SECRET)],
-    )
+    try:
+        matched = verify_meta_signature_any(
+            body=body,
+            signature_header=sig,
+            env=settings.ENVIRONMENT,
+            secrets=[("tenant_app_secret", app_secret), ("META_APP_SECRET", settings.META_APP_SECRET)],
+        )
+    except HTTPException:
+        # Say which Instagram account the rejected webhook was for and whether we found a saved secret
+        # for it. "tried META_APP_SECRET only" alone cannot tell a wrong secret from an account ID that
+        # matches no connected integration.
+        log.warning(
+            "instagram_webhook_rejected",
+            ig_account_id=ig_account_id,
+            tenant_secret_found=bool(app_secret),
+        )
+        raise
     if app_secret and matched == "META_APP_SECRET":
         # Accepted, but the secret saved on the integration is wrong. Loud so
         # it gets corrected rather than silently depending on the fallback.
