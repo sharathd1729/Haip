@@ -94,34 +94,34 @@ export function SummaryTiles({
   s, rangeLabel, onPick,
 }: { s?: CallsSummary; rangeLabel: string; onPick: (tab: Tab) => void }) {
   const tiles: { label: string; value: string; note: string; tone: string; dot: string; tab?: Tab; href?: string }[] = [
-    { label: `Calls · ${rangeLabel.toLowerCase()}`, value: s ? String(s.total) : "–", note: s ? `${s.inbound} in · ${s.outbound} out` : "", tone: "text-gray-800 dark:text-gray-100", dot: "bg-gray-400", tab: "all" },
-    { label: "Missed · not called back", value: s ? String(s.missed_not_called_back) : "–", note: s?.oldest_missed_at ? `oldest ${ago(s.oldest_missed_at)}` : "all returned", tone: "text-red-700", dot: "bg-red-600", tab: "callback" },
-    { label: "Answered", value: s?.answer_rate != null ? `${s.answer_rate}%` : "–", note: "of incoming", tone: "text-emerald-700", dot: "bg-emerald-600", tab: "incoming" },
-    { label: "Avg call length", value: s?.avg_answered_seconds != null ? fmt(s.avg_answered_seconds) : "–", note: "answered calls", tone: "text-teal-700", dot: "bg-teal-600", tab: "incoming" },
-    {
-      label: "Avg QA score", value: s?.avg_qa_score != null ? String(Math.round(s.avg_qa_score)) : "–",
-      note: s?.avg_qa_change != null ? `${s.avg_qa_change >= 0 ? "▲" : "▼"} ${Math.abs(s.avg_qa_change)} vs previous` : "",
-      tone: "text-violet-700", dot: "bg-violet-600", href: "/dashboard/qa",
-    },
+  { label: `Calls · ${rangeLabel.toLowerCase()}`, value: s ? String(s.total) : "–", note: s ? `${s.inbound} in · ${s.outbound} out` : "", tone: "text-[var(--haip-fg)] ", dot: "bg-gray-400", tab: "all" },
+  { label: "Missed · not called back", value: s ? String(s.missed_not_called_back) : "–", note: s?.oldest_missed_at ? `oldest ${ago(s.oldest_missed_at)}` : "all returned", tone: "text-[var(--haip-status-danger-fg)]", dot: "bg-red-600", tab: "callback" },
+  { label: "Answered", value: s?.answer_rate != null ? `${s.answer_rate}%` : "–", note: "of incoming", tone: "text-[var(--haip-status-success-fg)]", dot: "bg-[var(--haip-status-success-fg)]", tab: "incoming" },
+  { label: "Avg call length", value: s?.avg_answered_seconds != null ? fmt(s.avg_answered_seconds) : "–", note: "answered calls", tone: "text-primary", dot: "bg-primary", tab: "incoming" },
+  {
+  label: "Avg QA score", value: s?.avg_qa_score != null ? String(Math.round(s.avg_qa_score)) : "–",
+  note: s?.avg_qa_change != null ? `${s.avg_qa_change >= 0 ? "▲" : "▼"} ${Math.abs(s.avg_qa_change)} vs previous` : "",
+  tone: "text-violet-700", dot: "bg-violet-600", href: "/dashboard/qa",
+  },
   ];
   return (
-    <div className="flex gap-2.5 overflow-x-auto haip-scrollbar-x pb-1 lg:grid lg:grid-cols-5 lg:overflow-visible">
-      {tiles.map(t => {
-        const cls = "haip-card flex-shrink-0 min-w-[150px] px-4 py-3 text-left block cursor-pointer transition-shadow hover:shadow-md outline-none focus-visible:ring-2 focus-visible:ring-teal-600";
-        const body = (
-          <>
-            <span className="flex items-center gap-1.5 text-xs font-semibold truncate" style={{ color: "var(--haip-fg-subtle)" }}>
-              <span className={cn("w-2 h-2 rounded-full flex-shrink-0", t.dot)} />{t.label}
-            </span>
-            <span className={cn("block text-2xl font-bold tabular-nums mt-1", t.tone)} style={{ fontFamily: "var(--font-display)" }}>{t.value}</span>
-            <span className="block text-[11px]" style={{ color: "var(--haip-fg-muted)" }}>{t.note || " "}</span>
-          </>
-        );
-        return t.href
-          ? <Link key={t.label} href={t.href} className={cls}>{body}</Link>
-          : <button key={t.label} type="button" onClick={() => t.tab && onPick(t.tab)} className={cls}>{body}</button>;
-      })}
-    </div>
+  <div className="flex gap-2.5 overflow-x-auto haip-scrollbar-x pb-1 lg:grid lg:grid-cols-5 lg:overflow-visible">
+  {tiles.map(t => {
+  const cls = "haip-card flex-shrink-0 min-w-[150px] px-4 py-3 text-left block cursor-pointer transition-shadow hover:shadow-md outline-none focus-visible:ring-2 focus-visible:ring-primary";
+  const body = (
+  <>
+  <span className="flex items-center gap-1.5 text-xs font-semibold truncate" style={{ color: "var(--haip-fg-subtle)" }}>
+  <span className={cn("w-2 h-2 rounded-full flex-shrink-0", t.dot)} />{t.label}
+  </span>
+  <span className={cn("block text-2xl font-bold tabular-nums mt-1", t.tone)} style={{ fontFamily: "var(--font-display)" }}>{t.value}</span>
+  <span className="block text-[11px]" style={{ color: "var(--haip-fg-muted)" }}>{t.note || " "}</span>
+  </>
+  );
+  return t.href
+  ? <Link key={t.label} href={t.href} className={cls}>{body}</Link>
+  : <button key={t.label} type="button" onClick={() => t.tab && onPick(t.tab)} className={cls}>{body}</button>;
+  })}
+  </div>
   );
 }
 
@@ -131,18 +131,18 @@ function DirectionAvatar({ call }: { call: CallItem }) {
   const name = call.guest_name || call.guest_phone || "?";
   const missed = !!call.is_missed;
   const Icon = missed ? PhoneMissed : call.direction === "outbound" ? PhoneOutgoing : PhoneIncoming;
-  const color = missed ? "#DC2626" : call.direction === "outbound" ? "#2563EB" : "#059669";
+  const color = missed ? "var(--haip-status-danger-fg)" : call.direction === "outbound" ? "var(--haip-status-info-fg)" : "var(--haip-status-success-fg)";
   return (
-    <span className="relative flex-shrink-0">
-      <span className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold bg-teal-50 text-teal-800 dark:bg-teal-950 dark:text-teal-200">
-        {name[0]?.toUpperCase()}
-      </span>
-      <span title={missed ? "Missed" : call.direction === "outbound" ? "Outgoing" : "Incoming"}
-        className="absolute -bottom-0.5 -right-0.5 w-[18px] h-[18px] rounded-full flex items-center justify-center text-white"
-        style={{ background: color, boxShadow: "0 0 0 2px var(--haip-card)" }}>
-        <Icon size={10} />
-      </span>
-    </span>
+  <span className="relative flex-shrink-0">
+  <span className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold bg-primary/10 text-primary ">
+  {name[0]?.toUpperCase()}
+  </span>
+  <span title={missed ? "Missed" : call.direction === "outbound" ? "Outgoing" : "Incoming"}
+  className="absolute -bottom-0.5 -right-0.5 w-[18px] h-[18px] rounded-full flex items-center justify-center text-[var(--haip-card)]"
+  style={{ background: color, boxShadow: "0 0 0 2px var(--haip-card)" }}>
+  <Icon size={10} />
+  </span>
+  </span>
   );
 }
 
@@ -156,72 +156,72 @@ export function CallRow({
   const outcome = outcomeMeta(call.disposition);
   const score = call.qa_score != null && call.qa_score > 0 ? Math.round(call.qa_score) : null;
   return (
-    <div
-      role="button" tabIndex={0} onClick={onSelect} onKeyDown={e => { if (e.key === "Enter") onSelect(); }}
-      className={cn("flex items-center gap-3 px-4 py-3 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-600",
-        selected ? "bg-teal-50 dark:bg-teal-950/40" : "hover:bg-[color:var(--muted)]")}
-      style={{ borderBottom: "1px solid var(--haip-border)" }}
-    >
-      <DirectionAvatar call={call} />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-sm font-bold truncate" style={{ color: "var(--haip-fg)" }}>{call.guest_name || call.guest_phone || "Unknown caller"}</span>
-          <ChannelBadges channels={call.guest_channels} size={13} />
-        </div>
-        <p className="text-xs mt-0.5 truncate" style={{ color: "var(--haip-fg-subtle)" }}>
-          {call.is_missed ? "Unanswered" : call.agent_name || "—"}{when ? ` · ${timeOf(when)}` : ""}
-        </p>
-        {/* Phone: status under the meta line */}
-        <div className="sm:hidden mt-1">
-          {call.is_missed ? (
-            call.called_back
-              ? <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Called back{call.called_back_at && when ? ` · ${gap(when, call.called_back_at)}` : ""}</span>
-              : <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-700">Not called back</span>
-          ) : outcome ? (
-            <span className={cn("text-[11px] font-semibold px-2 py-0.5 rounded-full border", outcome.tone)}>{outcome.label}</span>
-          ) : null}
-        </div>
-      </div>
+  <div
+  role="button" tabIndex={0} onClick={onSelect} onKeyDown={e => { if (e.key === "Enter") onSelect(); }}
+  className={cn("flex items-center gap-3 px-4 py-3 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary",
+  selected ? "bg-primary/10 " : "hover:bg-[color:var(--muted)]")}
+  style={{ borderBottom: "1px solid var(--haip-border)" }}
+  >
+  <DirectionAvatar call={call} />
+  <div className="flex-1 min-w-0">
+  <div className="flex items-center gap-1.5 min-w-0">
+  <span className="text-sm font-bold truncate" style={{ color: "var(--haip-fg)" }}>{call.guest_name || call.guest_phone || "Unknown caller"}</span>
+  <ChannelBadges channels={call.guest_channels} size={13} />
+  </div>
+  <p className="text-xs mt-0.5 truncate" style={{ color: "var(--haip-fg-subtle)" }}>
+  {call.is_missed ? "Unanswered" : call.agent_name || "—"}{when ? ` · ${timeOf(when)}` : ""}
+  </p>
+  {/* Phone: status under the meta line */}
+  <div className="sm:hidden mt-1">
+  {call.is_missed ? (
+  call.called_back
+  ? <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)]">Called back{call.called_back_at && when ? ` · ${gap(when, call.called_back_at)}` : ""}</span>
+  : <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)]">Not called back</span>
+  ) : outcome ? (
+  <span className={cn("text-[11px] font-semibold px-2 py-0.5 rounded-full border", outcome.tone)}>{outcome.label}</span>
+  ) : null}
+  </div>
+  </div>
 
-      <div className="flex items-center gap-2.5 flex-shrink-0">
-        {call.is_missed ? (
-          <>
-            {call.called_back ? (
-              <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
-                <CheckCircle2 size={11} /> Called back{call.called_back_at && when ? ` · ${gap(when, call.called_back_at)}` : ""}
-              </span>
-            ) : (
-              <>
-                <span className="hidden sm:inline text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-700">Not called back</span>
-                <button type="button" onClick={e => { e.stopPropagation(); onCallBack(); }} disabled={calling || !call.guest_phone}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-teal-700 text-white hover:bg-teal-800 disabled:opacity-60">
-                  {calling ? <Loader2 size={12} className="animate-spin" /> : <Phone size={12} />} Call back
-                </button>
-              </>
-            )}
-          </>
-        ) : (
-          <>
-            {call.duration_seconds > 0 && (
-              <button type="button" onClick={e => { e.stopPropagation(); onPlay(); }} title="Play recording"
-                className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold tabular-nums px-2 py-1 rounded-lg hover:bg-[color:var(--muted)]"
-                style={{ color: "var(--haip-fg-2, var(--haip-fg))" }}>
-                <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: "var(--muted)" }}>
-                  <Play size={11} className="text-teal-700" />
-                </span>
-                {fmt(call.duration_seconds)}
-              </button>
-            )}
-            {outcome && <span className={cn("hidden sm:inline text-[11px] font-semibold px-2 py-0.5 rounded-full border", outcome.tone)}>{outcome.label}</span>}
-            {score != null && (
-              <span className={cn("text-xs font-extrabold tabular-nums px-2 py-0.5 rounded-full",
-                score >= 85 ? "bg-emerald-50 text-emerald-700" : score >= 70 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700")}>
-                {score}
-              </span>
-            )}
-          </>
-        )}
-      </div>
-    </div>
+  <div className="flex items-center gap-2.5 flex-shrink-0">
+  {call.is_missed ? (
+  <>
+  {call.called_back ? (
+  <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)]">
+  <CheckCircle2 size={11} /> Called back{call.called_back_at && when ? ` · ${gap(when, call.called_back_at)}` : ""}
+  </span>
+  ) : (
+  <>
+  <span className="hidden sm:inline text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)]">Not called back</span>
+  <button type="button" onClick={e => { e.stopPropagation(); onCallBack(); }} disabled={calling || !call.guest_phone}
+  className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-60">
+  {calling ? <Loader2 size={12} className="animate-spin" /> : <Phone size={12} />} Call back
+  </button>
+  </>
+  )}
+  </>
+  ) : (
+  <>
+  {call.duration_seconds > 0 && (
+  <button type="button" onClick={e => { e.stopPropagation(); onPlay(); }} title="Play recording"
+  className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold tabular-nums px-2 py-1 rounded-lg hover:bg-[color:var(--muted)]"
+  style={{ color: "var(--haip-fg-2, var(--haip-fg))" }}>
+  <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: "var(--muted)" }}>
+  <Play size={11} className="text-primary" />
+  </span>
+  {fmt(call.duration_seconds)}
+  </button>
+  )}
+  {outcome && <span className={cn("hidden sm:inline text-[11px] font-semibold px-2 py-0.5 rounded-full border", outcome.tone)}>{outcome.label}</span>}
+  {score != null && (
+  <span className={cn("text-xs font-extrabold tabular-nums px-2 py-0.5 rounded-full",
+  score >= 85 ? "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)]" : score >= 70 ? "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)]" : "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)]")}>
+  {score}
+  </span>
+  )}
+  </>
+  )}
+  </div>
+  </div>
   );
 }

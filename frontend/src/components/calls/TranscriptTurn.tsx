@@ -28,23 +28,23 @@ function formatTime(s: number) {
 
 const SPEAKER_STYLES = {
   agent: {
-    avatar: "bg-[#0F766E] text-white",
-    label: "Agent",
-    bubble: "bg-white border border-gray-100",
+  avatar: "bg-primary text-primary-foreground",
+  label: "Agent",
+  bubble: "bg-[var(--haip-card)] border border-[var(--haip-border)]",
   },
   guest: {
-    avatar: "bg-teal-500 text-white",
-    label: "Guest",
-    bubble: "bg-teal-50 border border-teal-100",
+  avatar: "bg-primary text-primary-foreground",
+  label: "Guest",
+  bubble: "bg-primary/10 border border-primary/20",
   },
   // Diarization sometimes can't tell speakers apart at all (crossed/noisy
   // audio, very short calls) -- the backend labels those turns "unknown"
   // rather than guessing. Must render distinctly, not silently fall into
   // "Guest" (a confident-but-wrong label is worse than an honest one).
   unknown: {
-    avatar: "bg-gray-300 text-gray-600",
-    label: "Unknown speaker",
-    bubble: "bg-gray-50 border border-gray-200",
+  avatar: "bg-[var(--haip-border-strong)] text-[var(--haip-fg-2)]",
+  label: "Unknown speaker",
+  bubble: "bg-[var(--haip-surface)] border border-[var(--haip-border)]",
   },
 } as const;
 
@@ -58,47 +58,47 @@ export const TranscriptTurn = memo(function TranscriptTurn({
   onClick,
 }: TranscriptTurnProps) {
   const key =
-    speaker === "agent" || speaker === "0" ? "agent" :
-    speaker === "unknown" ? "unknown" : "guest";
+  speaker === "agent" || speaker === "0" ? "agent" :
+  speaker === "unknown" ? "unknown" : "guest";
   const styles = SPEAKER_STYLES[key];
   const initial = key === "agent" ? "A" : key === "unknown" ? "?" : "G";
 
   return (
-    <div
-      className={cn(
-        "flex gap-3 px-1 py-1 rounded-xl transition-colors",
-        isActive && "bg-teal-50/60",
-        onClick && "cursor-pointer"
-      )}
-      onClick={() => onClick?.(t0)}
-    >
-      {/* Avatar */}
-      <div className={cn(
-        "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5",
-        styles.avatar
-      )}>
-        {initial}
-      </div>
+  <div
+  className={cn(
+ "flex gap-3 px-1 py-1 rounded-xl transition-colors",
+  isActive && "bg-teal-50/60",
+  onClick && "cursor-pointer"
+  )}
+  onClick={() => onClick?.(t0)}
+  >
+  {/* Avatar */}
+  <div className={cn(
+ "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5",
+  styles.avatar
+  )}>
+  {initial}
+  </div>
 
-      {/* Content */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-baseline gap-2 mb-1">
-          <span className="text-xs font-semibold text-gray-600">{styles.label}</span>
-          <button
-            className="text-[10px] text-gray-300 hover:text-teal-500 transition-colors tabular-nums"
-            onClick={(e) => { e.stopPropagation(); onClick?.(t0); }}
-            title="Seek to this turn"
-          >
-            {formatTime(t0)}–{formatTime(t1)}
-          </button>
-        </div>
-        <div className={cn(
-          "text-sm text-gray-700 leading-relaxed rounded-xl px-3.5 py-2.5 border",
-          styles.bubble
-        )}>
-          <EvidenceHighlight text={text} spans={evidenceSpans} />
-        </div>
-      </div>
-    </div>
+  {/* Content */}
+  <div className="flex-1 min-w-0">
+  <div className="flex items-baseline gap-2 mb-1">
+  <span className="text-xs font-semibold text-[var(--haip-fg-2)]">{styles.label}</span>
+  <button
+  className="text-[10px] text-[var(--haip-fg-subtle)] hover:text-primary transition-colors tabular-nums"
+  onClick={(e) => { e.stopPropagation(); onClick?.(t0); }}
+  title="Seek to this turn"
+  >
+  {formatTime(t0)}–{formatTime(t1)}
+  </button>
+  </div>
+  <div className={cn(
+ "text-sm text-[var(--haip-fg-2)] leading-relaxed rounded-xl px-3.5 py-2.5 border",
+  styles.bubble
+  )}>
+  <EvidenceHighlight text={text} spans={evidenceSpans} />
+  </div>
+  </div>
+  </div>
   );
 });

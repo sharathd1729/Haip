@@ -16,9 +16,9 @@ interface EvidenceHighlightProps {
 }
 
 const SENTIMENT_STYLES: Record<string, string> = {
-  positive: "bg-teal-100 text-teal-800 border-teal-200",
-  negative: "bg-red-100 text-red-800 border-red-200",
-  neutral:  "bg-blue-50 text-blue-800 border-blue-200",
+  positive: "bg-primary/15 text-primary border-primary/30",
+  negative: "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]",
+  neutral: "bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)] border-[var(--haip-status-info-border)]",
 };
 
 export function EvidenceHighlight({
@@ -28,7 +28,7 @@ export function EvidenceHighlight({
   className,
 }: EvidenceHighlightProps) {
   if (!spans || spans.length === 0) {
-    return <span className={className}>{text}</span>;
+  return <span className={className}>{text}</span>;
   }
 
   // Sort spans by start, then render segments
@@ -37,31 +37,31 @@ export function EvidenceHighlight({
   let cursor = 0;
 
   for (const span of sorted) {
-    if (span.start > cursor) {
-      parts.push(
-        <span key={`plain-${cursor}`}>{text.slice(cursor, span.start)}</span>
-      );
-    }
-    const style = SENTIMENT_STYLES[span.sentiment ?? "neutral"];
-    parts.push(
-      <mark
-        key={`span-${span.start}`}
-        title={span.label}
-        onClick={() => onSpanClick?.(span)}
-        className={cn(
-          "rounded px-0.5 border cursor-pointer hover:opacity-80 transition-opacity",
-          style,
-          onSpanClick && "cursor-pointer"
-        )}
-      >
-        {text.slice(span.start, span.end)}
-      </mark>
-    );
-    cursor = span.end;
+  if (span.start > cursor) {
+  parts.push(
+  <span key={`plain-${cursor}`}>{text.slice(cursor, span.start)}</span>
+  );
+  }
+  const style = SENTIMENT_STYLES[span.sentiment ?? "neutral"];
+  parts.push(
+  <mark
+  key={`span-${span.start}`}
+  title={span.label}
+  onClick={() => onSpanClick?.(span)}
+  className={cn(
+ "rounded px-0.5 border cursor-pointer hover:opacity-80 transition-opacity",
+  style,
+  onSpanClick && "cursor-pointer"
+  )}
+  >
+  {text.slice(span.start, span.end)}
+  </mark>
+  );
+  cursor = span.end;
   }
 
   if (cursor < text.length) {
-    parts.push(<span key={`plain-end`}>{text.slice(cursor)}</span>);
+  parts.push(<span key={`plain-end`}>{text.slice(cursor)}</span>);
   }
 
   return <span className={className}>{parts}</span>;
