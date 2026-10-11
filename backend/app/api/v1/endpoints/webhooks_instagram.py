@@ -151,10 +151,29 @@ def _handle_messaging_event(ig_account_id: str, event: dict):
 
     if "message" in event:
         _handle_inbound_dm(ig_account_id, sender_id, event)
+    elif "referral" in event:
+        # Meta can send "this person came from that ad" as its own event, with no message. It matched nothing
+        # here and was dropped, so most ad chats never had an ad recorded.
+        _handle_referral_event(ig_account_id, sender_id, event)
     elif "postback" in event:
         _handle_postback(ig_account_id, sender_id, event)
     elif "story_mention" in event:
         _handle_story_mention(ig_account_id, sender_id, event)
+
+
+def _handle_referral_event(ig_account_id: str, sender_id: str, event: dict):
+    """Queue recording of an ad referral that arrived without a message."""
+    if not sender_id or not event.get("referral"):
+        return
+    try:
+        from app.workers.tasks.process_instagram_referral import process_instagram_referral
+        process_instagram_referral.delay({
+            "ig_account_id": ig_account_id, "sender_id": sender_id,
+            "referral": event.get("referral"), "timestamp": event.get("timestamp"),
+        })
+        log.info("instagram_referral_queued", sender=sender_id)
+    except Exception as exc:
+        log.error("instagram_referral_queue_failed", error=str(exc))
 
 
 def _handle_inbound_dm(ig_account_id: str, sender_id: str, event: dict):

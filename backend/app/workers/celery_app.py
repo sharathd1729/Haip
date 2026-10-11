@@ -30,6 +30,7 @@ celery_app = Celery(
         "app.workers.tasks.dpdp_purge",
         # Instagram
         "app.workers.tasks.process_instagram_dm",
+        "app.workers.tasks.process_instagram_referral",
         "app.workers.tasks.process_instagram_comment",
         "app.workers.tasks.send_instagram_dm",
         # PMS syncs
@@ -163,6 +164,7 @@ celery_app.conf.update(
         # see tests/test_celery_task_routing.py for a regression test that
         # would have caught this, added at the same time.
         "process_instagram_dm":                     {"queue": "whatsapp"},
+        "process_instagram_referral":               {"queue": "whatsapp"},
         "process_instagram_comment":                 {"queue": "whatsapp"},
         "process_instagram_echo":                    {"queue": "whatsapp"},
         "send_instagram_dm":                        {"queue": "whatsapp"},

@@ -66,6 +66,41 @@ def record_referral_attribution(
     return row
 
 
+_STASH_TTL = 6 * 60 * 60   # a referral can only usefully wait for its first message for a few hours
+
+
+def _stash_key(tenant_id: str, sender_id: str) -> str:
+    return f"haip:ig_referral:{tenant_id}:{sender_id}"
+
+
+def stash_referral(tenant_id: str, sender_id: str, referral: dict) -> None:
+    """Hold an Instagram ad referral that arrived before its chat exists. No-op when Redis is down."""
+    from app.core.cache import set_cached
+    set_cached(_stash_key(tenant_id, sender_id), referral, ttl=_STASH_TTL)
+
+
+def take_stashed_referral(tenant_id: str, sender_id: str) -> Optional[dict]:
+    """The held referral for this sender, removed so it is used once."""
+    from app.core.cache import get_cached, set_cached
+    key = _stash_key(tenant_id, sender_id)
+    found = get_cached(key)
+    if found:
+        set_cached(key, "", ttl=1)
+    return found or None
+
+
+def referral_fields(referral: dict) -> dict:
+    """What we keep from an Instagram referral. Meta nests the ad's title under ads_context_data."""
+    ctx = referral.get("ads_context_data") or {}
+    return {
+        "ad_id": referral.get("ad_id") or referral.get("source_id"),
+        "source_type": "ad" if (referral.get("ad_id") or referral.get("source") == "ADS") else "post",
+        "headline": referral.get("headline") or ctx.get("ad_title"),
+        "media_type": referral.get("media_type"),
+        "source_url": referral.get("source_url") or ctx.get("post_url"),
+    }
+
+
 def link_attribution_to_inquiry(db: Session, tenant_id: str, conversation_id: str, inquiry_id: str) -> None:
     """Backfill inquiry_id once a lead is auto-created in the same request
     the referral was captured in (the common case) -- referral rows written

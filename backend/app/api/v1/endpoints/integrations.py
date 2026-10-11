@@ -635,7 +635,7 @@ def get_instagram_webhook_info(
         "Go to Meta Business Suite → Your App → Webhooks → instagram",
         "Paste the Webhook URL above",
         "Paste the Verify Token (an owner can show it above)",
-        "Subscribe to: messages",
+        "Subscribe to: messages, messaging_referral (so HAIP can tell which ad a chat came from)",
         "Click Verify and Save",
     ], request)
 

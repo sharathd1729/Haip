@@ -168,6 +168,11 @@ def process_instagram_dm(self, payload: dict) -> dict:
                 if conversation is None:
                     raise
 
+        # An ad referral that arrived before this chat existed was held; it belongs to this first message.
+        if not referral and is_new_conversation:
+            from app.services.attribution_service import take_stashed_referral
+            referral = take_stashed_referral(tenant_id, sender_id)
+
         # ── Store message ──────────────────────────────────────────────────
         body = text or ""
         media_url = None
@@ -346,7 +351,7 @@ def process_instagram_dm(self, payload: dict) -> dict:
                     destination_channel="instagram",
                     ad_id=referral.get("ad_id"),
                     source_type="ad" if referral.get("ad_id") else "post",
-                    headline=referral.get("headline"),
+                    headline=referral.get("headline") or (referral.get("ads_context_data") or {}).get("ad_title"),
                     media_type=referral.get("media_type"),
                     raw_referral=referral,
                     first_message_at=message.created_at,
