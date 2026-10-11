@@ -97,8 +97,9 @@ export function StatusBar() {
 
   if (isLoading || !data) return null;
 
-  // Don't render bar if everything is green — keep UI quiet
-  const hasIssues = data.services.some(s => s.status !== "green");
+  // Quiet unless something is actually wrong. "unknown" (the AI queue could not be asked) is not a
+  // fault, and a connected channel is healthy -- the same rule the Integrations page uses.
+  const hasIssues = data.services.some(s => s.status === "red" || s.status === "yellow");
   if (!hasIssues) return null;
 
   return (

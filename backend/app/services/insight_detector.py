@@ -114,7 +114,7 @@ def detect_A1(db: Session, tenant_id: str) -> None:
             "category":      InsightCategory.URGENCY,
             "severity":      InsightSeverity.CRITICAL,
             "title":         f"{count} lead{'s' if count > 1 else ''} not followed up in 24h{rev_str}",
-            "body":          f"{count} inquiry{'s' if count > 1 else ''} in NEW stage with no response for over 24 hours.",
+            "body":          f"{count} {'inquiries' if count > 1 else 'inquiry'} in NEW stage with no response for over 24 hours.",
             "cta_label":     "Assign Now",
             "cta_href":      "/dashboard/inquiries?filter=unresponded",
             "data_snapshot": {"count": count, "revenue_at_risk": float(rev)},
@@ -143,7 +143,7 @@ def detect_A2(db: Session, tenant_id: str) -> None:
             "category_code": "A2",
             "category":      InsightCategory.URGENCY,
             "severity":      InsightSeverity.HIGH,
-            "title":         f"{count} inquiry{'s are' if count > 1 else ' is'} approaching SLA deadline",
+            "title":         f"{count} {'inquiries are' if count > 1 else 'inquiry is'} approaching SLA deadline",
             "body":          f"Respond in the next {int(sla_minutes * 0.2)} minutes to avoid SLA breach.",
             "cta_label":     "Respond Now",
             "cta_href":      "/dashboard/inquiries?filter=sla_due",
@@ -404,19 +404,19 @@ def detect_C3(db: Session, tenant_id: str) -> None:
 # ─── CATEGORY D — Quality & Compliance ───────────────────────────────────────
 
 def detect_D3(db: Session, tenant_id: str) -> None:
-    """D3: Integration health degraded — any integration with stale health or error status."""
-    cutoff = (_NOW() - timedelta(minutes=30)).isoformat()
+    """D3: Integration health degraded -- an errored integration, or a stale polled PMS sync.
 
-    bad = db.query(Integration).filter(
-        Integration.tenant_id == tenant_id,
-        or_(
-            Integration.status == "error",
-            and_(
-                Integration.status == "active",
-                Integration.last_health_at <= cutoff,
-            ),
-        ),
-    ).all()
+    Uses the same rule as the Integrations page and the Dashboard bar (integration_health), so the
+    three can no longer disagree. A connected webhook channel with an old last_health_at is healthy.
+    """
+    from app.services import integration_health
+
+    rows = db.query(Integration).filter(Integration.tenant_id == tenant_id).all()
+    bad = [
+        i for i in rows
+        if integration_health.classify(i.kind, i.status, i.last_health_at)
+        in (integration_health.RED, integration_health.YELLOW)
+    ]
 
     if bad:
         names = ", ".join(i.kind for i in bad[:3])

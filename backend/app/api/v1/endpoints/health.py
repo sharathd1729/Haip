@@ -2,14 +2,11 @@
 X8 — Dashboard health endpoint.
 
 Returns per-integration health for the status bar.
-Health computed as:
-  green  — last_sync < 5 min ago (or never-configured / not applicable)
-  yellow — last_sync 5-15 min ago, OR integration connected but queue backing up
-  red    — last_sync > 15 min ago, OR integration in error state
-  unknown — integration not configured / no data yet
+Health per integration comes from services/integration_health.py (one rule shared with the
+Integrations page and the D3 insight). The AI row reports Celery queue depth:
+  green < 20 active tasks, yellow < 100, red beyond, unknown if the broker cannot be asked.
 """
 
-from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.core.database import get_db
@@ -19,25 +16,6 @@ import structlog
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/health", tags=["health"])
-
-_GREEN_THRESHOLD  = timedelta(minutes=5)
-_YELLOW_THRESHOLD = timedelta(minutes=15)
-
-
-def _sync_status(last_sync_iso: str | None) -> str:
-    if not last_sync_iso:
-        return "unknown"
-    try:
-        last = datetime.fromisoformat(last_sync_iso.replace("Z", "+00:00"))
-        age = datetime.now(timezone.utc) - last
-        if age <= _GREEN_THRESHOLD:
-            return "green"
-        if age <= _YELLOW_THRESHOLD:
-            return "yellow"
-        return "red"
-    except Exception:
-        return "unknown"
-
 
 def _worst(statuses: list[str]) -> str:
     if "red"     in statuses: return "red"
@@ -56,47 +34,27 @@ def dashboard_health(
     Only checks services relevant to the tenant.
     """
     from app.models.integration import Integration
+    from app.services import integration_health
 
     services = []
 
-    # ── WhatsApp ──────────────────────────────────────────────────────────────
-    wa = db.query(Integration).filter_by(
-        tenant_id=current_user.tenant_id, kind="whatsapp_meta"
-    ).first()
-    if wa:
-        status = "red" if wa.status == "error" else (
-            _sync_status(wa.last_health_at if wa.last_health_at else None)
-            if wa.status == "connected"
-            else "unknown"
-        )
+    # ── Integrations ──────────────────────────────────────────────────────────
+    # Same rule the Integrations page and the D3 insight use (services/integration_health.py):
+    # a connected channel is healthy; only an errored one, or a stale polled PMS sync, is not.
+    # Channels the owner has not connected or has turned off are not faults and are not listed.
+    rows = db.query(Integration).filter(Integration.tenant_id == current_user.tenant_id).all()
+    for row in sorted(rows, key=lambda r: r.kind):
+        health = integration_health.classify(row.kind, row.status, row.last_health_at)
+        if health == integration_health.OFF:
+            continue
         services.append({
-            "name": "whatsapp",
-            "label": "WhatsApp",
-            "status": status,
-            "last_sync": wa.last_health_at if wa.last_health_at else None,
-            "message": (wa.config or {}).get("last_error") if wa.status == "error" else None,
+            "name": row.kind,
+            "label": integration_health.label(row.kind),
+            "status": health,
+            "last_sync": row.last_health_at if row.last_health_at else None,
+            "message": (row.config or {}).get("last_error") if health == integration_health.RED else None,
             "reconnect_href": "/dashboard/settings/integrations",
         })
-
-    # ── IVR (CallerDesk / Acefone) ────────────────────────────────────────────
-    for kind in ("callerdesk", "acefone"):
-        ivr = db.query(Integration).filter_by(
-            tenant_id=current_user.tenant_id, kind=kind
-        ).first()
-        if ivr:
-            status = "red" if ivr.status == "error" else (
-                _sync_status(ivr.last_health_at if ivr.last_health_at else None)
-                if ivr.status == "connected"
-                else "unknown"
-            )
-            services.append({
-                "name": kind,
-                "label": "IVR" if kind == "callerdesk" else "IVR (Acefone)",
-                "status": status,
-                "last_sync": ivr.last_health_at if ivr.last_health_at else None,
-                "message": (ivr.config or {}).get("last_error") if ivr.status == "error" else None,
-                "reconnect_href": "/dashboard/settings/integrations",
-            })
 
     # ── AI / transcription queue ──────────────────────────────────────────────
     # Use Celery inspect — lightweight ping
@@ -120,25 +78,6 @@ def dashboard_health(
         ),
         "reconnect_href": None,
     })
-
-    # ── Instagram ─────────────────────────────────────────────────────────────
-    ig = db.query(Integration).filter_by(
-        tenant_id=current_user.tenant_id, kind="instagram"
-    ).first()
-    if ig:
-        status = "red" if ig.status == "error" else (
-            _sync_status(ig.last_health_at if ig.last_health_at else None)
-            if ig.status == "connected"
-            else "unknown"
-        )
-        services.append({
-            "name": "instagram",
-            "label": "Instagram",
-            "status": status,
-            "last_sync": ig.last_health_at if ig.last_health_at else None,
-            "message": (ig.config or {}).get("last_error") if ig.status == "error" else None,
-            "reconnect_href": "/dashboard/settings/integrations",
-        })
 
     overall = _worst([s["status"] for s in services]) if services else "unknown"
 
