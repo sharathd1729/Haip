@@ -110,6 +110,38 @@ def _check_instagram(db, tenant_id: str):
         return None
 
 
+_EXPIRY_ALERT_TTL = 45 * 24 * 60 * 60  # longer than the gap between two thresholds; each bucket alerts once
+
+
+def _check_whatsapp_token_expiry(db, tenant_id: str):
+    """Ask Meta when the WhatsApp token ends and remember it on the integration so the Dashboard bar and
+    the Integrations page can show it. Returns {"days_left", "expires_at"} when it has an end date, or None
+    when it never expires, is not a Graph token, or Meta could not be reached."""
+    from app.services import meta_token_expiry
+    from app.workers.tasks.whatsapp import _get_wa_access_token
+
+    integ = db.query(Integration).filter_by(tenant_id=tenant_id, kind="whatsapp_meta", status="active").first()
+    if not integ:
+        integ = db.query(Integration).filter_by(tenant_id=tenant_id, kind="whatsapp", status="active").first()
+    token = _get_wa_access_token(db, tenant_id) if integ else ""
+    if not integ or not token:
+        return None
+
+    info = meta_token_expiry.fetch_expiry(token)
+    if info is None or not info["valid"]:
+        return None  # a dead token is reported by the check above; no end date to record
+
+    cfg = dict(integ.config or {})
+    if info["expires_at"] == 0:                     # never expires: clear any old end date
+        if "token_expires_at" in cfg:
+            cfg.pop("token_expires_at"); integ.config = cfg; db.commit()
+        return None
+    stamp = meta_token_expiry.iso(info["expires_at"])
+    if cfg.get("token_expires_at") != stamp:
+        cfg["token_expires_at"] = stamp; integ.config = cfg; db.commit()
+    return {"days_left": meta_token_expiry.days_left(info["expires_at"]), "expires_at": info["expires_at"]}
+
+
 @shared_task(name="meta_credentials.check_tenant")
 def check_tenant_credentials(tenant_id: str):
     from app.services.email_service import send_integration_expired_alert_email
@@ -145,6 +177,30 @@ def check_tenant_credentials(tenant_id: str):
                 ))
                 alerts_sent += 1
             set_cached(dedupe_key, True, ttl=_ALERT_DEDUPE_TTL)
+
+        # Expiring soon: warn at 30, 14, 7, 3 and 1 days (and once it has ended), each only once.
+        from app.services import meta_token_expiry
+        from app.services.email_service import send_token_expiring_alert_email
+        expiry = _check_whatsapp_token_expiry(db, tenant_id)
+        if expiry is not None:
+            b = meta_token_expiry.bucket(expiry["days_left"])
+            key = f"haip:meta_token_expiry_alert:{tenant_id}:whatsapp:{b}"
+            if b is not None and not get_cached(key):
+                log.warning("meta_token_expiring", tenant_id=tenant_id, channel="whatsapp", days_left=expiry["days_left"])
+                sent = 0
+                for addr in _recipients(db, tenant_id):
+                    try:
+                        if asyncio.run(send_token_expiring_alert_email(
+                            to_email=addr, tenant_name=tenant.name, channel="whatsapp",
+                            days_left=expiry["days_left"],
+                            expires_on=meta_token_expiry.parse_iso(meta_token_expiry.iso(expiry["expires_at"])).strftime("%d %b %Y"),
+                        )):
+                            sent += 1
+                    except Exception as exc:
+                        log.error("meta_token_expiry_alert_send_failed", tenant_id=tenant_id, error=str(exc))
+                alerts_sent += sent
+                if sent:                                  # a failed send is retried on tomorrow's run
+                    set_cached(key, True, ttl=_EXPIRY_ALERT_TTL)
 
         return {"tenant_id": tenant_id, "alerts_sent": alerts_sent}
     finally:

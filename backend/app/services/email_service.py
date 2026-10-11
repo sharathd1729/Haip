@@ -152,6 +152,51 @@ async def send_welcome_email(*, to_email: str, name: str, tenant_name: str) -> b
     return await _send(to=to_email, subject=subject, html=html)
 
 
+async def send_token_expiring_alert_email(
+    *, to_email: str, tenant_name: str, channel: str, days_left: int, expires_on: str,
+) -> bool:
+    """Heads-up that a Meta access token is about to expire. Sent before sending breaks, unlike
+    send_integration_expired_alert_email, which fires after."""
+    channel_label = {"whatsapp": "WhatsApp", "instagram": "Instagram"}.get(channel, channel.title())
+    if days_left <= 0:
+        when, subject = "has expired", f"Action needed: {channel_label} access token has expired for {tenant_name}"
+    elif days_left == 1:
+        when, subject = "expires tomorrow", f"Action needed: {channel_label} access token expires tomorrow for {tenant_name}"
+    else:
+        when, subject = f"expires in {days_left} days", f"{channel_label} access token expires in {days_left} days for {tenant_name}"
+    html = f"""
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 520px; margin: 0 auto; padding: 40px 24px; color: #1a1a2e;">
+      <div style="text-align: center; margin-bottom: 32px;">
+        <div style="display: inline-block; background: #0B1F3A; color: white; font-size: 18px; font-weight: 800; padding: 8px 20px; border-radius: 10px; letter-spacing: 1px;">HAIP</div>
+      </div>
+      <h1 style="font-size: 22px; font-weight: 700; margin-bottom: 8px; color: #b45309;">
+        The {channel_label} access token {when}
+      </h1>
+      <p style="color: #6b7280; font-size: 15px; line-height: 1.6; margin-bottom: 16px;">
+        <strong>{tenant_name}</strong>'s {channel_label} connection uses a Meta access token that ends on
+        <strong>{expires_on}</strong>. After that, every {channel_label} message HAIP sends (AI drafts and messages
+        your team sends by hand) will fail until a new token is saved.
+      </p>
+      <p style="color: #6b7280; font-size: 15px; line-height: 1.6; margin-bottom: 24px;">
+        To fix it: in Meta Business Settings open Users, System users, choose your system user, generate a new token
+        with expiry set to <strong>Never</strong>, then paste it into HAIP under Settings, Integrations.
+      </p>
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="https://www.genhaip.com/dashboard/settings/integrations"
+           style="display: inline-block; background: #14b8a6; color: white; text-decoration: none; font-weight: 700; font-size: 15px; padding: 14px 32px; border-radius: 12px;">
+          Open Integrations →
+        </a>
+      </div>
+      <p style="color: #9ca3af; font-size: 12px; text-align: center; margin-top: 24px;">
+        You get this reminder at 30, 14, 7, 3 and 1 days before the token ends.
+      </p>
+      <hr style="border: none; border-top: 1px solid #f3f4f6; margin: 32px 0;" />
+      <p style="color: #d1d5db; font-size: 11px; text-align: center;">HAIP · Hospitality AI Intelligence Platform</p>
+    </div>
+    """
+    return await _send(to=to_email, subject=subject, html=html)
+
+
 async def send_integration_expired_alert_email(
     *, to_email: str, tenant_name: str, channel: str, detail: str,
 ) -> bool:

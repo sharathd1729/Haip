@@ -24,6 +24,16 @@ def _worst(statuses: list[str]) -> str:
     return "unknown"
 
 
+def _token_message(row) -> str | None:
+    from app.services import integration_health
+    left = integration_health.token_days_left(row.config)
+    if left is None:
+        return None
+    if left <= 0:
+        return "The access token has expired. Save a new one under Settings, Integrations."
+    return f"The access token expires in {left} day{'s' if left != 1 else ''}. Save a new one before then."
+
+
 @router.get("/dashboard")
 def dashboard_health(
     current_user: User = Depends(get_current_user),
@@ -44,7 +54,7 @@ def dashboard_health(
     # Channels the owner has not connected or has turned off are not faults and are not listed.
     rows = db.query(Integration).filter(Integration.tenant_id == current_user.tenant_id).all()
     for row in sorted(rows, key=lambda r: r.kind):
-        health = integration_health.classify(row.kind, row.status, row.last_health_at)
+        health = integration_health.classify(row.kind, row.status, row.last_health_at, config=row.config)
         if health == integration_health.OFF:
             continue
         services.append({
@@ -52,7 +62,11 @@ def dashboard_health(
             "label": integration_health.label(row.kind),
             "status": health,
             "last_sync": row.last_health_at if row.last_health_at else None,
-            "message": (row.config or {}).get("last_error") if health == integration_health.RED else None,
+            "message": (
+                (row.config or {}).get("last_error") if (row.config or {}).get("last_error") and row.status == "error"
+                else _token_message(row) if health in (integration_health.YELLOW, integration_health.RED)
+                else None
+            ),
             "reconnect_href": "/dashboard/settings/integrations",
         })
 

@@ -29,7 +29,7 @@ POLLED_RED_AFTER = timedelta(hours=12)
 LABELS = {
     "whatsapp_meta": "WhatsApp", "whatsapp": "WhatsApp", "instagram": "Instagram",
     "callerdesk": "IVR", "acefone": "IVR (Acefone)", "mcube": "IVR (Mcube)", "vobiz": "IVR (Vobiz)",
-    "hostaway": "Hostaway", "retalwise": "RentalWise",
+    "hostaway": "Hostaway", "retalwise": "RentalWise", "meta_ads": "Meta Ads",
 }
 
 
@@ -43,11 +43,29 @@ def _parse(iso: Optional[str]) -> Optional[datetime]:
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
-def classify(kind: str, status: str, last_health_at: Optional[str], now: Optional[datetime] = None) -> str:
+def token_days_left(config: Optional[dict], now: Optional[datetime] = None) -> Optional[int]:
+    """Days until the saved Meta token ends (set by the daily expiry check), or None when it never
+    expires or has not been checked."""
+    from app.services.meta_token_expiry import days_until_iso
+    return days_until_iso((config or {}).get("token_expires_at"), now)
+
+
+def classify(
+    kind: str, status: str, last_health_at: Optional[str], now: Optional[datetime] = None,
+    config: Optional[dict] = None,
+) -> str:
     if status == "error":
         return RED
     if status != "active":
         return OFF
+    # A token that is about to end is a fault in waiting: amber inside two weeks, red once it has ended.
+    left = token_days_left(config, now)
+    if left is not None:
+        from app.services.meta_token_expiry import WARN_WITHIN_DAYS
+        if left <= 0:
+            return RED
+        if left <= WARN_WITHIN_DAYS:
+            return YELLOW
     if kind in POLLED_KINDS:
         last = _parse(last_health_at)
         if last is None:

@@ -414,7 +414,7 @@ def detect_D3(db: Session, tenant_id: str) -> None:
     rows = db.query(Integration).filter(Integration.tenant_id == tenant_id).all()
     bad = [
         i for i in rows
-        if integration_health.classify(i.kind, i.status, i.last_health_at)
+        if integration_health.classify(i.kind, i.status, i.last_health_at, config=i.config)
         in (integration_health.RED, integration_health.YELLOW)
     ]
 

@@ -113,20 +113,26 @@ function StatusBadge({ status }: { status: Integration["status"] }) {
 // ---------------------------------------------------------------------------
 
 function TokenExpiryBadge({ expiry }: { expiry?: string | null }) {
+  // `token_expires_at` is saved by the daily Meta token check; absent means the token never expires or has not
+  // been checked yet.
   if (!expiry) return null;
   const exp = new Date(expiry);
-  const now = new Date();
-  const daysLeft = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  if (Number.isNaN(exp.getTime())) return null;
+  const daysLeft = Math.ceil((exp.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
   if (daysLeft > 14) return null;
+  const expired = daysLeft <= 0;
   return (
-    <span className={cn(
-      "inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border",
-      daysLeft <= 3
-        ? "bg-red-50 text-red-700 border-red-200"
-        : "bg-amber-50 text-amber-700 border-amber-200"
-    )}>
+    <span
+      title={`Access token ends ${exp.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`}
+      className={cn(
+        "inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border",
+        expired || daysLeft <= 3
+          ? "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]"
+          : "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)] border-[var(--haip-status-warning-border)]",
+      )}
+    >
       <Clock size={10} />
-      Token expires in {daysLeft}d
+      {expired ? "Token expired" : `Token expires in ${daysLeft}d`}
     </span>
   );
 }
@@ -834,7 +840,7 @@ function IntegrationCard({
           <div className="flex items-center gap-2 flex-wrap">
             <StatusBadge status={status} />
             <span className="text-[10px] text-gray-400 capitalize">{item.category}</span>
-            <TokenExpiryBadge expiry={integration?.config?.token_expiry} />
+            <TokenExpiryBadge expiry={integration?.config?.token_expires_at ?? integration?.config?.token_expiry} />
           </div>
         </div>
       </div>
@@ -867,6 +873,12 @@ function IntegrationCard({
             <div className="flex items-center gap-2">
               <Zap size={11} className="text-gray-400" />
               <span>{integration.config.account_name}</span>
+            </div>
+          )}
+          {integration.config.token_expires_at && (
+            <div className="flex items-center gap-2">
+              <Clock size={11} className="text-gray-400" />
+              <span>Access token ends {new Date(integration.config.token_expires_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
             </div>
           )}
           {integration.config.waba_id && (
