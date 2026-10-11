@@ -35,6 +35,35 @@ def sync_tenant(tenant_id: str, days: int = 7):
         db.close()
 
 
+@shared_task(name="meta_ads.backfill_tenant")
+def backfill_tenant(tenant_id: str, months: int = 12):
+    """Load up to `months` of ad history for one workspace, a month at a time. Progress lives on the integration."""
+    from app.adapters.marketing.meta_ads import MetaAdsError
+    from app.services import meta_ads_service
+
+    db = SessionLocal()
+    try:
+        set_tenant_context(db, tenant_id)
+        try:
+            state = meta_ads_service.backfill(db, tenant_id, months=months)
+        except meta_ads_service.NotConfigured as exc:
+            return {"tenant_id": tenant_id, "status": "skipped", "reason": str(exc)}
+        except MetaAdsError as exc:
+            return {"tenant_id": tenant_id, "status": "failed", "error": str(exc)[:200]}
+        except Exception as exc:
+            # Leave a visible trace on the integration instead of a "running" state that never ends.
+            db.rollback()
+            row = meta_ads_service.get_row(db, tenant_id)
+            if row:
+                meta_ads_service._mark(db, row, backfill={**((row.config or {}).get("backfill") or {}),
+                                                         "state": "stopped", "stopped_because": "error"})
+            log.error("meta_ads_backfill_crashed", tenant_id=tenant_id, error=str(exc)[:200])
+            raise
+        return {"tenant_id": tenant_id, "status": state["state"], "rows": state["rows"], "failed": len(state["failed"])}
+    finally:
+        db.close()
+
+
 @shared_task(name="meta_ads.sync_all_tenants")
 def sync_all_tenants():
     """Fan out: one sync per workspace that has a meta_ads integration."""

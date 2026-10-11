@@ -22,6 +22,7 @@ from app.models.feature_flag import FeatureFlag
 from app.api.v1.endpoints.messaging import WATemplate, WACampaign, WASubscriber, WAFlow
 from app.models.wa_campaign_recipient import WACampaignRecipient
 from app.models.ad_metrics import AdMetric
+from app.models.ad_entity import AdEntity
 from app.models.ical_feed import ICalFeed
 from app.models.api_key import ApiKey
 from app.models.webhook import WebhookDelivery, WebhookEndpoint

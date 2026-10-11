@@ -204,6 +204,7 @@ celery_app.conf.update(
         "meta_credentials.check_tenant":             {"queue": "whatsapp"},
         "meta_ads.sync_all_tenants":                 {"queue": "whatsapp"},
         "meta_ads.sync_tenant":                      {"queue": "whatsapp"},
+        "meta_ads.backfill_tenant":                  {"queue": "whatsapp"},
         # The 5-minute lead-assignment tick had no route, so it sat on
         # Celery's implicit "celery" queue that no worker consumes and never ran.
         "lead_assignment.tick":                      {"queue": "default"},

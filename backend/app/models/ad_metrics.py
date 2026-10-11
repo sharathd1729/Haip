@@ -3,7 +3,7 @@
 Unique on (tenant_id, date, ad_id) so a re-sync of the recent days (Meta restates the last few days'
 figures) updates rows instead of duplicating them.
 """
-from sqlalchemy import BigInteger, Column, Date, Index, Integer, Numeric, String, UniqueConstraint
+from sqlalchemy import JSON, BigInteger, Column, Date, Index, Integer, Numeric, String, UniqueConstraint
 
 from app.core.database import Base
 from app.models.base import TenantMixin, TimestampMixin, gen_uuid
@@ -34,6 +34,14 @@ class AdMetric(Base, TimestampMixin, TenantMixin):
     conversations_started = Column(Integer, nullable=False, default=0)   # click-to-message ads
     leads = Column(Integer, nullable=False, default=0)                  # lead-form ads
     currency = Column(String(3), nullable=False, default="INR")
+
+    link_clicks = Column(Integer, nullable=False, default=0)
+    unique_clicks = Column(Integer, nullable=False, default=0)
+    post_engagement = Column(Integer, nullable=False, default=0)        # reactions, comments, shares, saves
+    video_views = Column(Integer, nullable=False, default=0)
+    first_replies = Column(Integer, nullable=False, default=0)          # chats where the business replied
+    cpc = Column(Numeric(12, 4), nullable=False, default=0)
+    actions = Column(JSON, nullable=True)                                 # Meta's full action list, so no number is lost
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "date", "ad_id", name="uq_ad_metrics_tenant_date_ad"),
