@@ -178,7 +178,7 @@ export const MessageBubble = memo(function MessageBubble({
               <div className="flex items-center gap-1.5 mb-1.5 pb-1.5" style={{ borderBottom: "1px solid color-mix(in srgb, var(--ibx-iris) 25%, transparent)" }}>
                 <Sparkles size={12} style={{ color: "var(--ibx-iris)" }} />
                 <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "var(--ibx-iris)" }}>AI Draft</span>
-                {aiConfidence != null && (
+                {aiConfidence != null && Number(aiConfidence) > 0 && (
                   <span className="ml-auto text-[10px] font-mono" style={{ color: "var(--ibx-iris)" }}>
                     {Math.round(aiConfidence * 100)}%
                   </span>
