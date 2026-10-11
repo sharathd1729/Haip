@@ -12,17 +12,24 @@ export const STATUS_OPTIONS: { value: BookingStatus; label: string }[] = [
   { value: "cancelled", label: "Cancelled" },
 ];
 
+// Tone per state. Words carry the meaning; colour only reinforces it (StatusPill in components/ui/page.tsx).
+export type PillTone = "neutral" | "info" | "success" | "warning" | "danger" | "brand";
+export const STATUS_TONE: Record<string, PillTone> = {
+  confirmed: "info", checked_in: "success", checked_out: "neutral", cancelled: "danger",
+};
+export const PAYMENT_TONE: Record<string, PillTone> = { unpaid: "danger", partial: "warning", paid: "success" };
+
 export const STATUS_STYLE: Record<string, { label: string; cls: string }> = {
-  confirmed:   { label: "Confirmed",   cls: "bg-blue-50 text-blue-700 border-blue-100" },
-  checked_in:  { label: "Checked in",  cls: "bg-emerald-50 text-emerald-700 border-emerald-100" },
-  checked_out: { label: "Checked out", cls: "bg-gray-100 text-gray-600 border-gray-200" },
-  cancelled:   { label: "Cancelled",   cls: "bg-red-50 text-red-700 border-red-100" },
+  confirmed:   { label: "Confirmed",   cls: "bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)] border-[var(--haip-status-info-border)]" },
+  checked_in:  { label: "Checked in",  cls: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]" },
+  checked_out: { label: "Checked out", cls: "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-status-neutral-fg)] border-[var(--haip-status-neutral-border)]" },
+  cancelled:   { label: "Cancelled",   cls: "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]" },
 };
 
 export const PAYMENT_STYLE: Record<string, { label: string; cls: string }> = {
-  unpaid:  { label: "Unpaid",       cls: "bg-red-50 text-red-700 border-red-100" },
-  partial: { label: "Part paid",    cls: "bg-amber-50 text-amber-800 border-amber-100" },
-  paid:    { label: "Paid",         cls: "bg-emerald-50 text-emerald-700 border-emerald-100" },
+  unpaid:  { label: "Unpaid",       cls: "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]" },
+  partial: { label: "Part paid",    cls: "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)] border-[var(--haip-status-warning-border)]" },
+  paid:    { label: "Paid",         cls: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]" },
 };
 
 export const METHOD_LABEL: Record<string, string> = {
@@ -115,10 +122,10 @@ export interface BookingDetail {
 }
 
 export const CHANNEL_STYLE: Record<string, { label: string; cls: string }> = {
-  direct:   { label: "Direct",       cls: "bg-teal-50 text-teal-700 border-teal-100" },
-  airbnb:   { label: "Airbnb",       cls: "bg-rose-50 text-rose-700 border-rose-100" },
-  booking:  { label: "Booking.com",  cls: "bg-blue-50 text-blue-700 border-blue-100" },
-  vrbo:     { label: "Vrbo",         cls: "bg-indigo-50 text-indigo-700 border-indigo-100" },
+  direct:   { label: "Direct",       cls: "bg-primary/10 text-primary border-primary/20" },
+  airbnb:   { label: "Airbnb",       cls: "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-status-neutral-fg)] border-[var(--haip-status-neutral-border)]" },
+  booking:  { label: "Booking.com",  cls: "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-status-neutral-fg)] border-[var(--haip-status-neutral-border)]" },
+  vrbo:     { label: "Vrbo",         cls: "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-status-neutral-fg)] border-[var(--haip-status-neutral-border)]" },
 };
 
 export const CHANNEL_OPTIONS = [

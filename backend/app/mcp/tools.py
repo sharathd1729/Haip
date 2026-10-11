@@ -247,6 +247,7 @@ def _list_bookings(db: Session, user: User, tenant_id: str, args: dict) -> Any:
         # Called as a plain function, not through FastAPI, so every parameter the endpoint has must
         # be passed: an omitted one arrives as a truthy Query(...) placeholder and breaks the filter.
         property_id=args.get("property_id"), payment_status=args.get("payment_status"),
+        when=args.get("when"), needs_property=bool(args.get("needs_property", False)),
         current_user=user, db=db,
     )
     return _dump(result)

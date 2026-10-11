@@ -73,11 +73,11 @@ function formatFieldValue(f: FieldValue): string {
 function ChannelIcon({ channel }: { channel: string }) {
   const c = channel.toLowerCase();
   if (c === "instagram") return <Instagram size={12} className="text-pink-500" />;
-  if (c === "whatsapp") return <MessageSquare size={12} className="text-green-500" />;
-  if (c === "call" || c === "voice") return <Phone size={12} className="text-blue-500" />;
-  if (c === "system") return <Shield size={12} className="text-gray-400" />;
-  if (c === "web") return <Globe size={12} className="text-gray-400" />;
-  return <MessageSquare size={12} className="text-gray-400" />;
+  if (c === "whatsapp") return <MessageSquare size={12} className="text-[var(--haip-status-success-fg)]" />;
+  if (c === "call" || c === "voice") return <Phone size={12} className="text-[var(--haip-status-info-fg)]" />;
+  if (c === "system") return <Shield size={12} className="text-[var(--haip-fg-subtle)]" />;
+  if (c === "web") return <Globe size={12} className="text-[var(--haip-fg-subtle)]" />;
+  return <MessageSquare size={12} className="text-[var(--haip-fg-subtle)]" />;
 }
 
 // ─── Completeness bar ─────────────────────────────────────────────────────────
@@ -87,10 +87,10 @@ function CompletenessBar({ pct }: { pct: number }) {
   return (
     <div className="space-y-1">
       <div className="flex justify-between text-[10px]">
-        <span className="text-gray-500">Profile completeness</span>
+        <span className="text-[var(--haip-fg-subtle)]">Profile completeness</span>
         <span className="font-medium" style={{ color }}>{pct}%</span>
       </div>
-      <div className="h-1.5 rounded-full bg-gray-100">
+      <div className="h-1.5 rounded-full bg-[var(--haip-surface)]">
         <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
       </div>
     </div>
@@ -110,8 +110,8 @@ const CHANNEL_FILTERS = [
 ] as const;
 
 const BUBBLE_TONES: Record<string, { in: string; out: string }> = {
-  whatsapp: { in: "bg-green-50 border-green-100 text-gray-800", out: "bg-teal-600 text-white" },
-  instagram: { in: "bg-pink-50 border-pink-100 text-gray-800", out: "bg-teal-600 text-white" },
+  whatsapp: { in: "bg-[var(--haip-status-success-bg)] border-[var(--haip-status-success-border)] text-[var(--haip-fg)]", out: "bg-primary text-primary-foreground" },
+  instagram: { in: "bg-[var(--haip-surface)] border-[var(--haip-border)] text-[var(--haip-fg)]", out: "bg-primary text-primary-foreground" },
 };
 
 interface CallTranscriptTurn {
@@ -123,7 +123,7 @@ interface CallTranscriptTurn {
 
 function CallBreakdownPill({ label }: { label: string }) {
   return (
-    <span className="text-[9.5px] bg-white border border-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full capitalize">
+    <span className="text-[9.5px] bg-[var(--haip-card)] border border-[var(--haip-status-info-border)] text-[var(--haip-status-info-fg)] px-1.5 py-0.5 rounded-full capitalize">
       {label.replace(/_/g, " ")}
     </span>
   );
@@ -147,15 +147,15 @@ function CallCard({ entry }: { entry: TimelineEntry }) {
   ].filter(Boolean) as string[];
 
   return (
-    <div className="mx-auto w-full max-w-[420px] rounded-xl border border-blue-100 bg-blue-50/60 p-3 space-y-1.5">
+    <div className="mx-auto w-full max-w-[420px] rounded-xl border border-[var(--haip-status-info-border)] bg-[var(--haip-status-info-bg)] p-3 space-y-1.5">
       <div className="flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-[11px] font-semibold text-blue-700">
+        <span className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--haip-status-info-fg)]">
           <Phone size={11} />
           {entry.direction === "inbound" ? "Inbound call" : "Outbound call"}
         </span>
-        <span className="text-[9px] text-gray-400">{timeAgo(entry.occurred_at)}</span>
+        <span className="text-[9px] text-[var(--haip-fg-subtle)]">{timeAgo(entry.occurred_at)}</span>
       </div>
-      <div className="flex items-center gap-3 text-[10px] text-blue-800">
+      <div className="flex items-center gap-3 text-[10px] text-[var(--haip-status-info-fg)]">
         {entry.call_duration_seconds != null && (
           <span className="flex items-center gap-1">
             <Timer size={10} /> {formatDuration(entry.call_duration_seconds)}
@@ -174,10 +174,10 @@ function CallCard({ entry }: { entry: TimelineEntry }) {
         )}
       </div>
       {entry.call_summary && (
-        <p className="text-[11px] text-gray-700 leading-relaxed line-clamp-3">{entry.call_summary}</p>
+        <p className="text-[11px] text-[var(--haip-fg-2)] leading-relaxed line-clamp-3">{entry.call_summary}</p>
       )}
       {entry.call_next_action && (
-        <p className="text-[11px] font-medium text-blue-700 border-t border-blue-100 pt-1.5">
+        <p className="text-[11px] font-medium text-[var(--haip-status-info-fg)] border-t border-[var(--haip-status-info-border)] pt-1.5">
           → {entry.call_next_action}
         </p>
       )}
@@ -190,23 +190,23 @@ function CallCard({ entry }: { entry: TimelineEntry }) {
         <div>
           <button
             onClick={() => setShowTranscript(v => !v)}
-            className="text-[10px] font-medium text-blue-600 hover:underline"
+            className="text-[10px] font-medium text-[var(--haip-status-info-fg)] hover:underline"
           >
             {showTranscript ? "Hide transcript" : "View full transcript"}
           </button>
           {showTranscript && (
-            <div className="mt-1.5 max-h-56 overflow-y-auto space-y-1.5 bg-white rounded-lg border border-blue-100 p-2">
+            <div className="mt-1.5 max-h-56 overflow-y-auto space-y-1.5 bg-[var(--haip-card)] rounded-lg border border-[var(--haip-status-info-border)] p-2">
               {loadingTranscript ? (
-                <p className="text-[10px] text-gray-400">Loading…</p>
+                <p className="text-[10px] text-[var(--haip-fg-subtle)]">Loading…</p>
               ) : (detail?.transcript?.turns ?? []).length === 0 ? (
-                <p className="text-[10px] text-gray-400">No transcript available.</p>
+                <p className="text-[10px] text-[var(--haip-fg-subtle)]">No transcript available.</p>
               ) : (
                 (detail.transcript.turns as CallTranscriptTurn[]).map((t, i) => (
                   <p key={i} className="text-[10.5px] leading-relaxed">
-                    <span className={cn("font-semibold capitalize", t.speaker === "agent" ? "text-blue-700" : "text-gray-700")}>
+                    <span className={cn("font-semibold capitalize", t.speaker === "agent" ? "text-[var(--haip-status-info-fg)]" : "text-[var(--haip-fg-2)]")}>
                       {t.speaker}:
                     </span>{" "}
-                    <span className="text-gray-600">{t.text}</span>
+                    <span className="text-[var(--haip-fg-2)]">{t.text}</span>
                   </p>
                 ))
               )}
@@ -239,8 +239,8 @@ function ChatHistoryTab({ items }: { items: TimelineEntry[] }) {
             className={cn(
               "text-[11px] px-2.5 py-1 rounded-full border transition-colors",
               filter === f.key
-                ? "bg-teal-600 border-teal-600 text-white font-medium"
-                : "bg-white border-gray-200 text-gray-500 hover:border-teal-300"
+                ? "bg-primary border-primary text-primary-foreground font-medium"
+                : "bg-[var(--haip-card)] border-[var(--haip-border)] text-[var(--haip-fg-subtle)] hover:border-primary/40"
             )}
           >
             {f.label}
@@ -249,7 +249,7 @@ function ChatHistoryTab({ items }: { items: TimelineEntry[] }) {
       </div>
 
       {visible.length === 0 ? (
-        <p className="text-[11px] text-gray-400 text-center py-8">No messages on this channel yet</p>
+        <p className="text-[11px] text-[var(--haip-fg-subtle)] text-center py-8">No messages on this channel yet</p>
       ) : (
         <div className="space-y-2.5">
           {visible.map(entry => {
@@ -257,7 +257,7 @@ function ChatHistoryTab({ items }: { items: TimelineEntry[] }) {
             if (c === "call" || c === "voice") return <CallCard key={entry.id} entry={entry} />;
             if (c === "system") {
               return (
-                <p key={entry.id} className="text-center text-[10px] text-gray-400 py-1">
+                <p key={entry.id} className="text-center text-[10px] text-[var(--haip-fg-subtle)] py-1">
                   {entry.content_preview} · {timeAgo(entry.occurred_at)}
                 </p>
               );
@@ -270,7 +270,7 @@ function ChatHistoryTab({ items }: { items: TimelineEntry[] }) {
                   <p className="text-[12px] leading-relaxed whitespace-pre-wrap break-words">
                     {entry.full_content || entry.content_preview || "—"}
                   </p>
-                  <div className={cn("flex items-center gap-1.5 mt-1", inbound ? "text-gray-400" : "text-teal-100")}>
+                  <div className={cn("flex items-center gap-1.5 mt-1", inbound ? "text-[var(--haip-fg-subtle)]" : "text-primary-foreground/80")}>
                     <ChannelIcon channel={entry.channel} />
                     <span className="text-[9px]">{timeAgo(entry.occurred_at)}</span>
                     {entry.is_ai_generated && <span className="text-[9px] font-medium">AI</span>}
@@ -288,22 +288,22 @@ function ChatHistoryTab({ items }: { items: TimelineEntry[] }) {
 // ─── AI analysis tab ──────────────────────────────────────────────────────────
 
 const SENTIMENT_TONE: Record<string, string> = {
-  positive: "bg-green-50 text-green-700 border-green-100",
-  neutral: "bg-gray-50 text-gray-600 border-gray-100",
-  hesitant: "bg-amber-50 text-amber-700 border-amber-100",
+  positive: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]",
+  neutral: "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-status-neutral-fg)] border-[var(--haip-status-neutral-border)]",
+  hesitant: "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)] border-[var(--haip-status-warning-border)]",
   negative: "bg-rose-50 text-rose-700 border-rose-100",
 };
 
 const URGENCY_TONE: Record<string, string> = {
   high: "bg-rose-50 text-rose-700 border-rose-100",
-  medium: "bg-amber-50 text-amber-700 border-amber-100",
-  low: "bg-gray-50 text-gray-600 border-gray-100",
+  medium: "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)] border-[var(--haip-status-warning-border)]",
+  low: "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-status-neutral-fg)] border-[var(--haip-status-neutral-border)]",
 };
 
 function AnalysisRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-4 py-2.5 border-b border-gray-50 last:border-0">
-      <span className="text-[10px] uppercase tracking-wide text-gray-400 pt-0.5 flex-shrink-0">{label}</span>
+    <div className="flex items-start justify-between gap-4 py-2.5 border-b border-[var(--haip-border)] last:border-0">
+      <span className="text-[10px] uppercase tracking-wide text-[var(--haip-fg-subtle)] pt-0.5 flex-shrink-0">{label}</span>
       <div className="text-right">{children}</div>
     </div>
   );
@@ -320,22 +320,22 @@ function AiAnalysisTab({
   return (
     <div className="space-y-3">
       {/* Prose summary always shown */}
-      <div className="bg-teal-50 rounded-xl border border-teal-100 p-3.5">
+      <div className="bg-primary/10 rounded-xl border border-primary/20 p-3.5">
         <div className="flex items-center gap-1.5 mb-1.5">
-          <Sparkles size={13} className="text-teal-600" />
-          <span className="text-[11px] font-semibold text-teal-700">AI Summary</span>
+          <Sparkles size={13} className="text-primary" />
+          <span className="text-[11px] font-semibold text-primary">AI Summary</span>
         </div>
         {summary ? (
-          <p className="text-[12px] text-teal-800 leading-relaxed">{summary}</p>
+          <p className="text-[12px] text-primary leading-relaxed">{summary}</p>
         ) : (
-          <p className="text-[11px] text-teal-500 italic">Generating summary… refresh in a moment.</p>
+          <p className="text-[11px] text-primary/70 italic">Generating summary… refresh in a moment.</p>
         )}
       </div>
 
       {analysis ? (
-        <div className="bg-white rounded-xl border border-gray-100 px-3.5 py-1">
+        <div className="bg-[var(--haip-card)] rounded-xl border border-[var(--haip-border)] px-3.5 py-1">
           <AnalysisRow label="Intent">
-            <span className="text-[12px] text-gray-800">{analysis.intent || "—"}</span>
+            <span className="text-[12px] text-[var(--haip-fg)]">{analysis.intent || "—"}</span>
           </AnalysisRow>
           <AnalysisRow label="Sentiment">
             <span className={cn("text-[11px] px-2 py-0.5 rounded-full border capitalize", SENTIMENT_TONE[analysis.sentiment ?? ""] ?? SENTIMENT_TONE.neutral)}>
@@ -343,7 +343,7 @@ function AiAnalysisTab({
             </span>
           </AnalysisRow>
           <AnalysisRow label="Objection">
-            <span className="text-[12px] text-gray-800">{analysis.objection || "None detected"}</span>
+            <span className="text-[12px] text-[var(--haip-fg)]">{analysis.objection || "None detected"}</span>
           </AnalysisRow>
           <AnalysisRow label="Reply urgency">
             <span className={cn("text-[11px] px-2 py-0.5 rounded-full border capitalize", URGENCY_TONE[analysis.reply_urgency ?? ""] ?? URGENCY_TONE.low)}>
@@ -351,19 +351,19 @@ function AiAnalysisTab({
             </span>
           </AnalysisRow>
           <AnalysisRow label="Next action">
-            <span className="text-[12px] font-medium text-teal-700">{analysis.next_action || "—"}</span>
+            <span className="text-[12px] font-medium text-primary">{analysis.next_action || "—"}</span>
           </AnalysisRow>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-dashed border-gray-200 p-5 text-center space-y-2">
-          <p className="text-[11px] text-gray-500">
+        <div className="bg-[var(--haip-card)] rounded-xl border border-dashed border-[var(--haip-border)] p-5 text-center space-y-2">
+          <p className="text-[11px] text-[var(--haip-fg-subtle)]">
             Structured analysis (intent, sentiment, objections, urgency) appears
             after the summary next regenerates.
           </p>
           <button
             onClick={onRefresh}
             disabled={refreshing}
-            className="inline-flex items-center gap-1.5 text-[11px] font-medium text-teal-600 border border-teal-200 bg-teal-50 hover:bg-teal-100 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 text-[11px] font-medium text-primary border border-primary/30 bg-primary/10 hover:bg-primary/15 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
           >
             <RefreshCw size={11} className={refreshing ? "animate-spin" : ""} />
             Generate now
@@ -442,9 +442,9 @@ export default function LeadDetailPage() {
 
   if (!data) {
     return (
-      <div className="p-8 text-center text-gray-500">
+      <div className="p-8 text-center text-[var(--haip-fg-subtle)]">
         <p>Lead not found.</p>
-        <button onClick={() => router.back()} className="mt-3 text-teal-600 text-sm">← Back</button>
+        <button onClick={() => router.back()} className="mt-3 text-primary text-sm">← Back</button>
       </div>
     );
   }

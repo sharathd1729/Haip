@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useInfiniteQuery, useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { Target, RefreshCw, Settings2, ChevronDown, Plus } from "@/lib/icons";
@@ -8,7 +9,8 @@ import { UserCheck } from "lucide-react";
 import api from "@/lib/api";
 import { LeadCard, type LeadCard as LeadCardType } from "@/components/leads/LeadCard";
 import { SkeletonCard } from "@/components/ui/SkeletonCard";
-import { cn } from "@/lib/utils";
+import { cn, formatINR } from "@/lib/utils";
+import { DataTable, StatusPill, type Column } from "@/components/ui/kit";
 import { usePipelineStages, type PipelineStageRow } from "@/hooks/usePipelineStages";
 import { LeadsFilterBar, type LeadsFilters } from "@/components/leads/LeadsFilterBar";
 import { NeedsActionView } from "@/components/leads/NeedsActionView";
@@ -291,6 +293,89 @@ function TriageStrip({
   );
 }
 
+// ─── Table layout ─────────────────────────────────────────────────────────────
+// Same per-stage queries as the board, shown as one table per stage. Rows open the lead.
+
+function agoShort(iso?: string): string {
+  if (!iso) return "—";
+  const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (m < 60) return `${Math.max(1, m)}m ago`;
+  const h = Math.floor(m / 60);
+  return h < 24 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
+}
+
+function fmtShortDate(iso?: string): string {
+  if (!iso) return "—";
+  return new Date(iso.length <= 10 ? `${iso}T00:00:00` : iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+}
+
+const LEAD_COLUMNS: Column<LeadCardType>[] = [
+  {
+    key: "lead", header: "Lead",
+    cell: l => (
+      <div className="min-w-0">
+        <p className="truncate font-semibold text-[var(--haip-fg)]">{l.display_name}</p>
+        <p className="truncate text-xs text-[var(--haip-fg-subtle)]">
+          {[l.primary_channel, l.occasion].filter(Boolean).join(" · ") || "No details yet"}
+        </p>
+      </div>
+    ),
+  },
+  { key: "checkin", header: "Check-in", hideBelow: "sm", cell: l => fmtShortDate(l.check_in) },
+  {
+    key: "budget", header: "Budget", align: "right", hideBelow: "md",
+    cell: l => {
+      const v = l.quoted_amount || l.budget_estimate;
+      return v ? formatINR(v) : <span className="text-[var(--haip-fg-subtle)]">—</span>;
+    },
+  },
+  { key: "owner", header: "Owner", hideBelow: "lg", cell: l => l.assigned_agent_name ?? <span className="text-[var(--haip-fg-subtle)]">Unassigned</span> },
+  {
+    key: "wait", header: "Reply", hideBelow: "sm",
+    cell: l => l.sla_breached
+      ? <StatusPill tone="danger">SLA breached</StatusPill>
+      : l.response_time_status === "waiting"
+        ? <StatusPill tone="warning">Waiting</StatusPill>
+        : <span className="text-[var(--haip-fg-subtle)]">—</span>,
+  },
+  { key: "touch", header: "Last touch", align: "right", cell: l => <span className="text-[var(--haip-fg-subtle)]">{agoShort(l.last_touch_at)}</span> },
+];
+
+function StageTable({
+  stage, filters, onStagesMeta,
+}: {
+  stage: PipelineStageRow; filters: LeadsFilters;
+  onStagesMeta: (meta: Record<string, StageMetaEntry>) => void;
+}) {
+  const router = useRouter();
+  const { leads, isLoading, isError, refetch, isFetchingNextPage, hasNextPage, fetchNextPage, data } =
+    useStageLeads(stage.key, filters, onStagesMeta);
+  const count = data?.pages[0]?.stages[stage.key]?.count ?? leads.length;
+
+  return (
+    <section className="space-y-2">
+      <h2 className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.06em] text-[var(--haip-fg)]">
+        <span className="size-2.5 rounded-full" style={{ background: stage.color }} aria-hidden />
+        {stage.label}
+        <span className="text-[11px] font-semibold tabular-nums text-[var(--haip-fg-subtle)]">{count}</span>
+      </h2>
+      <DataTable<LeadCardType>
+        columns={LEAD_COLUMNS} rows={leads} rowKey={l => l.inquiry_id}
+        loading={isLoading} error={isError ? "Could not load this stage." : null} onRetry={() => refetch()}
+        empty={{ title: `Nothing in ${stage.label}`, hint: "Leads that reach this stage appear here." }}
+        onRowClick={l => router.push(`/dashboard/leads/${l.inquiry_id}`)}
+        maxHeightClass="max-h-[60vh]"
+      />
+      {hasNextPage && (
+        <button onClick={() => fetchNextPage()} disabled={isFetchingNextPage}
+          className="h-9 rounded-lg border border-[var(--haip-border)] bg-[var(--haip-card)] px-4 text-xs font-semibold text-[var(--haip-fg-2)] hover:bg-[var(--haip-surface)] disabled:opacity-50">
+          {isFetchingNextPage ? "Loading…" : "Load more"}
+        </button>
+      )}
+    </section>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 type LeadsView = "action" | "pipeline";
@@ -299,6 +384,15 @@ export default function Leads360Page() {
   // "Needs action" is the default for every role -- the board is one tab away.
   const [view, setView] = useState<LeadsView>("action");
   const [stageFilter, setStageFilter] = useState(ALL_STAGES_ID);
+  // Board (columns) or Table (rows grouped by stage). Remembered on this device.
+  const [layout, setLayout] = useState<"board" | "table">("board");
+  useEffect(() => {
+    try { if (localStorage.getItem("haip_leads_layout") === "table") setLayout("table"); } catch { /* storage unavailable */ }
+  }, []);
+  const chooseLayout = (l: "board" | "table") => {
+    setLayout(l);
+    try { localStorage.setItem("haip_leads_layout", l); } catch { /* ignore */ }
+  };
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [addLeadOpen, setAddLeadOpen] = useState(false);
   const [filters, setFilters] = useState<LeadsFilters>({});
@@ -397,6 +491,15 @@ export default function Leads360Page() {
           </div>
 
           {view === "pipeline" && (<>
+          <div role="group" aria-label="Layout" className="flex flex-shrink-0 rounded-lg p-0.5" style={{ background: "var(--muted)" }}>
+            {(["board", "table"] as const).map(l => (
+              <button key={l} type="button" aria-pressed={layout === l} onClick={() => chooseLayout(l)}
+                className={cn("rounded-md px-3 py-1.5 text-xs font-semibold capitalize transition-colors",
+                  layout === l ? "bg-[var(--haip-card)] text-[var(--haip-fg)] shadow-sm" : "text-[var(--haip-fg-subtle)]")}>
+                {l}
+              </button>
+            ))}
+          </div>
           {/* Stage filter pills — scrollable on mobile */}
           <div className="flex items-center gap-1 overflow-x-auto haip-scrollbar-x pb-0.5 max-w-xs sm:max-w-md">
             <button
@@ -503,8 +606,17 @@ export default function Leads360Page() {
         />
       )}
 
+      {/* ── Table layout ────────────────────────────────────────────────── */}
+      {layout === "table" && (
+        <div className="flex-1 space-y-6 overflow-y-auto p-4 sm:p-6">
+          {columnsToRender.map(stage => (
+            <StageTable key={stage.key} stage={stage} filters={filters} onStagesMeta={handleStagesMeta} />
+          ))}
+        </div>
+      )}
+
       {/* ── Kanban board (desktop) ──────────────────────────────────────── */}
-      <div className="hidden md:block flex-1 overflow-x-auto overflow-y-hidden">
+      <div className={cn("hidden flex-1 overflow-x-auto overflow-y-hidden", layout === "board" && "md:block")}>
         <div className="flex gap-3 p-4 h-full" style={{ minWidth: "max-content" }}>
           {columnsToRender.map(stage => (
             <StageColumn
@@ -525,7 +637,7 @@ export default function Leads360Page() {
           scrolling horizontally between them. The stage-filter pills
           above still work exactly as before (narrow columnsToRender to
           one stage, which just makes this a single-slide view). ─────── */}
-      <div className="md:hidden flex-1 flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory haip-scrollbar-x">
+      <div className={cn("flex-1 flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory haip-scrollbar-x md:hidden", layout === "table" && "!hidden")}>
         {columnsToRender.map(stage => (
           <div
             key={stage.key}

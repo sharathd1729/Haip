@@ -4,12 +4,14 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, Plus, Search, X, ChevronRight } from "@/lib/icons";
+import { Download, Plus, X } from "@/lib/icons";
 import api from "@/lib/api";
 import { cn, formatINR, formatPhone } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/toast";
+import { DataTable, FilterBar, FilterChip, FilterSearch, PageHeader, StatusPill, type Column } from "@/components/ui/kit";
 import {
-  CHANNEL_OPTIONS, CHANNEL_STYLE, PAYMENT_STYLE, STATUS_OPTIONS, STATUS_STYLE, fmtDate,
+  CHANNEL_OPTIONS, CHANNEL_STYLE, PAYMENT_STYLE, PAYMENT_TONE, STATUS_OPTIONS, STATUS_STYLE, STATUS_TONE, errorMessage, fmtDate,
   type BookingList, type BookingRow,
 } from "@/lib/bookings";
 
@@ -18,16 +20,23 @@ const CreateBookingModal = dynamic(
   { ssr: false },
 );
 
-const selectCls = "text-[12.5px] rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500";
+const selectCls = "h-9 rounded-lg border border-[var(--haip-border)] bg-[var(--haip-card)] px-2.5 text-[12.5px] text-[var(--haip-fg)] focus:outline-none focus:ring-2 focus:ring-primary/30";
 
-function Pill({ style }: { style: { label: string; cls: string } }) {
-  return <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap", style.cls)}>{style.label}</span>;
-}
+// Quick views. Each one sets filters on the server, so the count and the rows always agree.
+const QUICK = [
+  { id: "upcoming", label: "Upcoming" },
+  { id: "current", label: "In house" },
+  { id: "past", label: "Past" },
+  { id: "due", label: "Needs payment" },
+  { id: "needs_property", label: "Needs property" },
+] as const;
+type Quick = (typeof QUICK)[number]["id"];
 
 function DueLine({ b }: { b: BookingRow }) {
-  if (b.payment_status === "paid" || b.total <= 0) return null;
+  // A cancelled booking owes nothing, whatever its ledger says.
+  if (b.status === "cancelled" || b.payment_status === "paid" || b.total <= 0) return null;
   return (
-    <p className={cn("text-[11px] mt-0.5 tabular-nums", b.payment_overdue ? "text-red-600 font-medium" : "text-gray-400")}>
+    <p className={cn("mt-0.5 text-[11px] tabular-nums", b.payment_overdue ? "font-medium text-[var(--haip-status-danger-fg)]" : "text-[var(--haip-fg-subtle)]")}>
       {formatINR(b.total_outstanding)} due{b.next_payment_due_date ? ` ${b.payment_overdue ? "since" : "on"} ${fmtDate(b.next_payment_due_date, false)}` : ""}
     </p>
   );
@@ -37,13 +46,13 @@ function Thumb({ b }: { b: BookingRow }) {
   const img = b.property?.image;
   return img
     // eslint-disable-next-line @next/next/no-img-element
-    ? <img src={img} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" loading="lazy" />
-    : <div className="w-10 h-10 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center text-sm font-bold flex-shrink-0" aria-hidden>{(b.property?.name ?? "?").slice(0, 1).toUpperCase()}</div>;
+    ? <img src={img} alt="" className="size-10 flex-shrink-0 rounded-lg object-cover" loading="lazy" />
+    : <div className="flex size-10 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-sm font-bold text-primary" aria-hidden>{(b.property?.name ?? "?").slice(0, 1).toUpperCase()}</div>;
 }
 
 function ChannelPill({ channel }: { channel: string | null }) {
-  const c = CHANNEL_STYLE[(channel ?? "direct").toLowerCase()] ?? { label: channel ?? "Direct", cls: "bg-gray-100 text-gray-600 border-gray-200" };
-  return <Pill style={c} />;
+  const c = CHANNEL_STYLE[(channel ?? "direct").toLowerCase()];
+  return <span className={cn("inline-flex items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold leading-4", c?.cls ?? "")}>{c?.label ?? channel ?? "Direct"}</span>;
 }
 
 function csvCell(v: unknown): string {
@@ -61,11 +70,13 @@ function BookingsList() {
   const router = useRouter();
   const params = useSearchParams();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const guestId = params.get("guest") ?? "";
   const initialQ = params.get("q") ?? params.get("phone") ?? "";
 
   const [search, setSearch] = useState(initialQ);
   const [debounced, setDebounced] = useState(initialQ);
+  const [quick, setQuick] = useState<Quick | "">("");
   const [status, setStatus] = useState("");
   const [payment, setPayment] = useState("");
   const [range, setRange] = useState("");
@@ -75,12 +86,15 @@ function BookingsList() {
   const [sort, setSort] = useState("check_in");
   const [page, setPage] = useState(1);
   const [creating, setCreating] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [moveTo, setMoveTo] = useState("");
+  const [moving, setMoving] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => { setDebounced(search.trim()); setPage(1); }, 350);
     return () => clearTimeout(t);
   }, [search]);
-  useEffect(() => { setPage(1); }, [status, payment, range, propertyId, channel, sort, guestId]);
+  useEffect(() => { setPage(1); setSelected(new Set()); }, [quick, status, payment, range, propertyId, channel, sort, guestId]);
 
   const { data: properties = [] } = useQuery<{ id: string; name: string }[]>({
     queryKey: ["bookable-properties"],
@@ -88,8 +102,12 @@ function BookingsList() {
     staleTime: 5 * 60_000,
   });
 
+  // A quick view and the matching dropdown can both be set; the quick view's payment rule wins.
   const filterParams = {
-    search: debounced || undefined, status: status || undefined, payment_status: payment || undefined,
+    search: debounced || undefined, status: status || undefined,
+    payment_status: (quick === "due" ? "due" : payment) || undefined,
+    when: quick === "upcoming" || quick === "current" || quick === "past" ? quick : undefined,
+    needs_property: quick === "needs_property" ? true : undefined,
     date_preset: range || undefined, guest_id: guestId || undefined, property_id: propertyId || undefined,
     channel: channel || undefined, sort,
   };
@@ -103,10 +121,10 @@ function BookingsList() {
 
   const rows = data?.data ?? [];
   const meta = data?.meta;
-  const filtered = !!(debounced || status || payment || range || guestId || propertyId || channel);
+  const filtered = !!(debounced || quick || status || payment || range || guestId || propertyId || channel);
 
   function clearAll() {
-    setSearch(""); setDebounced(""); setStatus(""); setPayment(""); setRange(""); setPropertyId(""); setChannel("");
+    setSearch(""); setDebounced(""); setQuick(""); setStatus(""); setPayment(""); setRange(""); setPropertyId(""); setChannel("");
     if (guestId) router.replace("/dashboard/bookings");
   }
 
@@ -124,7 +142,7 @@ function BookingsList() {
         b.external_id, guestName(b), b.main_guest?.phone ?? "", b.property?.name ?? "", b.checkin, b.checkout, b.adults + b.children,
         STATUS_STYLE[b.status]?.label ?? b.status, b.channel ?? "direct", b.total, b.total_paid, b.total_outstanding, PAYMENT_STYLE[b.payment_status].label,
       ].map(csvCell).join(","));
-      const blob = new Blob(["\uFEFF" + [head.join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
+      const blob = new Blob(["﻿" + [head.join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = `bookings-${new Date().toISOString().slice(0, 10)}.csv`;
@@ -135,41 +153,103 @@ function BookingsList() {
     }
   }
 
-  return (
-    <div className="flex flex-col h-full bg-[#F8FAFC]">
-      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-4 sm:px-6 py-3 space-y-3">
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="haip-page-title">Bookings</h1>
-            <p className="text-xs text-gray-400">{meta ? `${meta.total} booking${meta.total === 1 ? "" : "s"}` : " "}</p>
-          </div>
-          <button onClick={exportCsv} disabled={exporting || !rows.length}
-            className="ml-auto flex items-center gap-1.5 text-xs border border-gray-200 bg-white text-gray-700 px-3 py-2 rounded-lg font-semibold hover:bg-gray-50 disabled:opacity-40">
-            <Download size={13} /> {exporting ? "Exporting..." : "Export"}
-          </button>
-          <button
-            onClick={() => setCreating(true)}
-            className="flex items-center gap-1.5 text-xs bg-teal-500 text-white px-3.5 py-2 rounded-lg font-semibold hover:bg-teal-600 transition-colors"
-          >
-            <Plus size={14} /> New booking
-          </button>
-        </div>
+  // Move the selected bookings to one property. Each is saved on its own so an overlap with another booking
+  // stops only that one; nothing is forced.
+  async function moveSelected() {
+    if (!moveTo || selected.size === 0) return;
+    setMoving(true);
+    const ids = Array.from(selected);
+    const results = await Promise.allSettled(ids.map(id => api.patch(`/bookings/${id}`, { property_id: moveTo })));
+    const failed = results.map((r, i) => ({ r, id: ids[i] })).filter(x => x.r.status === "rejected");
+    const ok = ids.length - failed.length;
+    setMoving(false);
+    queryClient.invalidateQueries({ queryKey: ["bookings"] });
+    setSelected(new Set(failed.map(f => f.id)));
+    if (failed.length === 0) {
+      setMoveTo("");
+      toast({ variant: "success", title: `Moved ${ok} booking${ok === 1 ? "" : "s"}` });
+    } else {
+      const why = errorMessage((failed[0].r as PromiseRejectedResult).reason, "Could not save");
+      toast({ variant: "error", title: `${ok} moved, ${failed.length} not moved`, description: `${why} The unmoved ones stay selected.` });
+    }
+  }
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[200px] max-w-sm">
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Guest, phone, property or booking ID"
-              className="w-full pl-8 pr-3 py-1.5 text-[12.5px] rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-            />
+  const columns: Column<BookingRow>[] = [
+    {
+      key: "guest", header: "Guest",
+      cell: b => (
+        <div className="min-w-0">
+          <Link href={`/dashboard/bookings/${b.id}`} className="font-semibold text-[var(--haip-fg)] hover:text-primary" onClick={e => e.stopPropagation()}>
+            {guestName(b)}
+          </Link>
+          <p className="text-xs text-[var(--haip-fg-subtle)]">#{b.external_id}{b.main_guest?.phone ? ` · ${formatPhone(b.main_guest.phone)}` : ""}</p>
+          {/* On a phone the Stay column is hidden, so the essentials sit under the name. */}
+          <p className="mt-0.5 text-xs text-[var(--haip-fg-2)] md:hidden">
+            {b.property?.name ?? "No property"} · {fmtDate(b.checkin, false)} to {fmtDate(b.checkout)}
+          </p>
+        </div>
+      ),
+    },
+    {
+      key: "stay", header: "Stay", hideBelow: "md",
+      cell: b => (
+        <div className="flex items-center gap-3">
+          <Thumb b={b} />
+          <div className="min-w-0">
+            <p className="truncate text-[var(--haip-fg)]">{b.property?.name ?? "No property"}</p>
+            <p className="text-xs text-[var(--haip-fg-subtle)]">{fmtDate(b.checkin, false)} to {fmtDate(b.checkout)} · {b.adults + b.children} guest{b.adults + b.children === 1 ? "" : "s"}</p>
           </div>
+        </div>
+      ),
+    },
+    { key: "channel", header: "Channel", hideBelow: "lg", cell: b => <ChannelPill channel={b.channel} /> },
+    { key: "status", header: "Status", cell: b => <StatusPill tone={STATUS_TONE[b.status] ?? "info"}>{(STATUS_STYLE[b.status] ?? STATUS_STYLE.confirmed).label}</StatusPill> },
+    { key: "total", header: "Total", align: "right", cell: b => <span className={cn("font-medium", b.status === "cancelled" && "text-[var(--haip-fg-subtle)] line-through")}>{formatINR(b.total)}</span> },
+    {
+      key: "payment", header: "Payment", hideBelow: "sm",
+      cell: b => b.status === "cancelled"
+        ? <span className="text-xs text-[var(--haip-fg-subtle)]">Cancelled</span>
+        : <><StatusPill tone={PAYMENT_TONE[b.payment_status]}>{PAYMENT_STYLE[b.payment_status].label}</StatusPill><DueLine b={b} /></>,
+    },
+  ];
+
+  const unassignedHint = quick === "needs_property"
+    ? "These sit on a placeholder property. Select them and move them to the real one."
+    : null;
+
+  return (
+    <div className="flex h-full flex-col bg-[var(--haip-bg,var(--background))]">
+      <div className="flex-shrink-0 space-y-3 border-b border-[var(--haip-border)] bg-[var(--haip-card)] px-4 py-3 sm:px-6">
+        <PageHeader
+          title="Bookings"
+          subtitle={meta ? `${meta.total} booking${meta.total === 1 ? "" : "s"}${filtered ? " match" : ""}` : " "}
+          actions={
+            <>
+              <button onClick={exportCsv} disabled={exporting || !rows.length}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--haip-border)] bg-[var(--haip-card)] px-3 text-xs font-semibold text-[var(--haip-fg-2)] hover:bg-[var(--haip-surface)] disabled:opacity-40">
+                <Download size={13} /> {exporting ? "Exporting..." : "Export"}
+              </button>
+              <button onClick={() => setCreating(true)}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3.5 text-xs font-semibold text-primary-foreground hover:opacity-90">
+                <Plus size={14} /> New booking
+              </button>
+            </>
+          }
+        />
+
+        <FilterBar className="flex-nowrap overflow-x-auto pb-1 sm:flex-wrap">
+          {QUICK.map(q => (
+            <FilterChip key={q.id} active={quick === q.id} onClick={() => setQuick(quick === q.id ? "" : q.id)}>{q.label}</FilterChip>
+          ))}
+        </FilterBar>
+
+        <FilterBar>
+          <FilterSearch value={search} onChange={setSearch} placeholder="Guest, phone, property or booking ID" label="Search bookings" />
           <select value={status} onChange={e => setStatus(e.target.value)} className={selectCls} aria-label="Status">
             <option value="">All statuses</option>
             {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
           </select>
-          <select value={payment} onChange={e => setPayment(e.target.value)} className={selectCls} aria-label="Payment">
+          <select value={payment} onChange={e => setPayment(e.target.value)} className={selectCls} aria-label="Payment" disabled={quick === "due"}>
             <option value="">All payments</option>
             <option value="unpaid">Unpaid</option>
             <option value="partial">Part paid</option>
@@ -196,104 +276,54 @@ function BookingsList() {
             <option value="total_desc">Highest amount</option>
           </select>
           {filtered && (
-            <button onClick={clearAll} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800">
+            <button onClick={clearAll} className="inline-flex h-9 items-center gap-1 text-xs text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg)]">
               <X size={12} /> Clear
             </button>
           )}
-        </div>
-        {guestId && <p className="text-xs text-teal-700 bg-teal-50 border border-teal-100 rounded-lg px-3 py-1.5 w-fit">Showing one guest&apos;s bookings</p>}
+        </FilterBar>
+        {guestId && <p className="w-fit rounded-lg border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs text-primary">Showing one guest&apos;s bookings</p>}
+        {unassignedHint && <p className="text-xs text-[var(--haip-fg-subtle)]">{unassignedHint}</p>}
       </div>
 
+      {selected.size > 0 && (
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-primary/20 bg-primary/10 px-4 py-2 sm:px-6">
+          <span className="text-xs font-semibold text-primary">{selected.size} selected</span>
+          <select value={moveTo} onChange={e => setMoveTo(e.target.value)} className={selectCls} aria-label="Move to property">
+            <option value="">Move to property…</option>
+            {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          <button onClick={moveSelected} disabled={!moveTo || moving}
+            className="h-9 rounded-lg bg-primary px-3.5 text-xs font-semibold text-primary-foreground disabled:opacity-50">
+            {moving ? "Moving…" : "Move"}
+          </button>
+          <button onClick={() => setSelected(new Set())} className="ml-auto text-xs text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg)]">Clear selection</button>
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-        {isLoading ? (
+        {isLoading && !data ? (
           <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
-        ) : isError ? (
-          <div className="text-center py-16 text-sm text-gray-500">
-            Could not load bookings. <button onClick={() => refetch()} className="text-teal-600 font-medium hover:underline">Try again</button>
-          </div>
-        ) : rows.length === 0 ? (
-          <div className="text-center py-20 text-sm text-gray-400">
-            {filtered ? "No bookings match these filters." : "No bookings yet. Create one, or move a lead to Sold."}
-          </div>
         ) : (
           <>
-            {/* Desktop table */}
-            <div className="hidden md:block haip-card overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-[11px] uppercase tracking-wide text-gray-400 border-b border-gray-100">
-                    <th className="px-4 py-2.5 font-semibold">Guest</th>
-                    <th className="px-4 py-2.5 font-semibold">Stay</th>
-                    <th className="px-4 py-2.5 font-semibold">Channel</th>
-                    <th className="px-4 py-2.5 font-semibold">Status</th>
-                    <th className="px-4 py-2.5 font-semibold text-right">Total</th>
-                    <th className="px-4 py-2.5 font-semibold">Payment</th>
-                    <th className="w-8" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map(b => (
-                    <tr
-                      key={b.id}
-                      onClick={() => router.push(`/dashboard/bookings/${b.id}`)}
-                      className="border-b border-gray-50 last:border-0 hover:bg-gray-50 cursor-pointer"
-                    >
-                      <td className="px-4 py-3">
-                        <Link href={`/dashboard/bookings/${b.id}`} className="font-semibold text-gray-900 hover:text-teal-700" onClick={e => e.stopPropagation()}>
-                          {guestName(b)}
-                        </Link>
-                        <p className="text-xs text-gray-400">#{b.external_id}{b.main_guest?.phone ? ` · ${formatPhone(b.main_guest.phone)}` : ""}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <Thumb b={b} />
-                          <div className="min-w-0">
-                            <p className="text-gray-800 truncate">{b.property?.name ?? "No property"}</p>
-                            <p className="text-xs text-gray-400">{fmtDate(b.checkin, false)} to {fmtDate(b.checkout)} · {b.adults + b.children} guest{b.adults + b.children === 1 ? "" : "s"}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3"><ChannelPill channel={b.channel} /></td>
-                      <td className="px-4 py-3"><Pill style={STATUS_STYLE[b.status] ?? STATUS_STYLE.confirmed} /></td>
-                      <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">{formatINR(b.total)}</td>
-                      <td className="px-4 py-3">
-                        <Pill style={PAYMENT_STYLE[b.payment_status]} />
-                        <DueLine b={b} />
-                      </td>
-                      <td className="pr-3 text-gray-300"><ChevronRight size={14} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile cards */}
-            <div className="md:hidden space-y-2">
-              {rows.map(b => (
-                <Link key={b.id} href={`/dashboard/bookings/${b.id}`} className="block haip-card p-4">
-                  <div className="flex items-start gap-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-gray-900 truncate">{guestName(b)}</p>
-                      <p className="text-xs text-gray-500 truncate">{b.property?.name ?? "No property"}</p>
-                    </div>
-                    <Pill style={STATUS_STYLE[b.status] ?? STATUS_STYLE.confirmed} />
-                  </div>
-                  <p className="text-xs text-gray-400 mt-1">{fmtDate(b.checkin, false)} to {fmtDate(b.checkout)}</p>
-                  <div className="flex items-center justify-between mt-3 gap-2">
-                    <span className="text-sm font-semibold tabular-nums">{formatINR(b.total)}</span>
-                    <ChannelPill channel={b.channel} />
-                    <div className="text-right"><Pill style={PAYMENT_STYLE[b.payment_status]} /><DueLine b={b} /></div>
-                  </div>
-                </Link>
-              ))}
-            </div>
+            <DataTable<BookingRow>
+              columns={columns} rows={rows} rowKey={b => b.id}
+              error={isError ? "Could not load bookings." : null} onRetry={() => refetch()}
+              empty={{
+                title: filtered ? "No bookings match these filters" : "No bookings yet",
+                hint: filtered ? "Clear a filter to see more." : "Create one, or move a lead to Sold.",
+                action: filtered ? <button onClick={clearAll} className="h-9 rounded-lg border border-[var(--haip-border)] px-4 text-[13px] font-semibold hover:bg-[var(--haip-surface)]">Clear filters</button> : undefined,
+              }}
+              onRowClick={b => router.push(`/dashboard/bookings/${b.id}`)}
+              selectedKeys={selected} onSelectionChange={setSelected}
+              maxHeightClass="max-h-none"
+            />
 
             {meta && meta.last_page > 1 && (
-              <div className="flex items-center justify-between mt-4 text-xs text-gray-500">
+              <div className="mt-4 flex items-center justify-between text-xs text-[var(--haip-fg-subtle)]">
                 <span>{meta.from} to {meta.to} of {meta.total}</span>
                 <div className="flex gap-2">
-                  <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white disabled:opacity-40">Previous</button>
-                  <button disabled={page >= meta.last_page} onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white disabled:opacity-40">Next</button>
+                  <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="h-9 rounded-lg border border-[var(--haip-border)] bg-[var(--haip-card)] px-3 disabled:opacity-40">Previous</button>
+                  <button disabled={page >= meta.last_page} onClick={() => setPage(p => p + 1)} className="h-9 rounded-lg border border-[var(--haip-border)] bg-[var(--haip-card)] px-3 disabled:opacity-40">Next</button>
                 </div>
               </div>
             )}

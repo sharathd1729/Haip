@@ -134,7 +134,9 @@ def list_bookings(
     status: Optional[str] = Query(None),
     channel: Optional[str] = Query(None),
     property_id: Optional[str] = Query(None),
-    payment_status: Optional[str] = Query(None, description="unpaid|partial|paid"),
+    payment_status: Optional[str] = Query(None, description="unpaid|partial|paid|due (money still owed: unpaid or part paid)"),
+    when: Optional[str] = Query(None, description="upcoming|current|past, judged against today in the workspace timezone"),
+    needs_property: bool = Query(False, description="Only bookings still on a placeholder 'Unassigned...' property"),
     sort: str = Query("newest"),
     date_from: Optional[str] = Query(None, description="ISO date -- stays overlapping [date_from, date_to]"),
     date_to: Optional[str] = Query(None, description="ISO date -- stays overlapping [date_from, date_to]"),
@@ -180,9 +182,27 @@ def list_bookings(
         q = q.filter(Stay.channel_source == channel)
     if property_id:
         q = q.filter(Stay.property_id == property_id)
+    if when:
+        if when not in ("upcoming", "current", "past"):
+            raise HTTPException(status_code=422, detail="when must be upcoming, current or past")
+        from app.models.tenant import Tenant
+        from app.core.tenant_tz import get_tenant_now
+        tenant = db.get(Tenant, tenant_id)
+        today = get_tenant_now(tenant).date().isoformat() if tenant else date.today().isoformat()
+        if when == "upcoming":
+            q = q.filter(Stay.check_in >= today, Stay.status == "confirmed")
+        elif when == "current":
+            q = q.filter(Stay.check_in <= today, Stay.check_out >= today, Stay.status != "cancelled")
+        else:
+            q = q.filter(Stay.check_out < today)
+    if needs_property:
+        placeholder_ids = db.query(Property.id).filter(
+            Property.tenant_id == tenant_id, Property.name.ilike("Unassigned%"),
+        )
+        q = q.filter(Stay.property_id.in_(placeholder_ids))
     if payment_status:
-        if payment_status not in ("unpaid", "partial", "paid"):
-            raise HTTPException(status_code=422, detail="payment_status must be unpaid, partial or paid")
+        if payment_status not in ("unpaid", "partial", "paid", "due"):
+            raise HTTPException(status_code=422, detail="payment_status must be unpaid, partial, paid or due")
         addons_sub = (
             db.query(func.coalesce(func.sum(StayAddOn.quantity * StayAddOn.unit_price), 0))
             .filter(StayAddOn.stay_id == Stay.id).correlate(Stay).scalar_subquery()
@@ -197,6 +217,9 @@ def list_bookings(
             q = q.filter(paid_sub <= 0)
         elif payment_status == "paid":
             q = q.filter(fully_paid)
+        elif payment_status == "due":
+            # Something is still owed: a priced booking that is not fully paid. Cancelled stays owe nothing.
+            q = q.filter(owed > 0, ~fully_paid, Stay.status != "cancelled")
         else:
             q = q.filter((paid_sub > 0) & ~fully_paid)
     # Range overlap, not "check_in falls inside the range" -- a booking that
