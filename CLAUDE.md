@@ -410,6 +410,17 @@ use an AST scan for `log.*()` calls carrying non-stdlib kwargs in modules that u
 
 ---
 
+## UI REDESIGN RULES (Oct 2026)
+
+Direction lives in `PRODUCT.md` and `docs/DESIGN.md` §5 ("Calm operations room"). Decisions log: `docs/design/decisions.md`.
+
+- Build pages from `frontend/src/components/ui/kit/` (`Card`, `Stat`, `Tabs`, `FilterBar`, `DataTable`, `Drawer`, `SectionNav`, `Timeline`) plus `PageHeader` / `EmptyState` / `StatusPill`. Check new components in `/dashboard/dev-kit` (dev only).
+- Colours come from tokens (`--haip-*`, status triplets `--haip-status-*`). No new hex literals, no raw Tailwind grays/reds/greens for state, no new inline `style={{}}`.
+- Every list needs loading, empty and error states. Every number says what period it covers; no `-100%` against an empty baseline.
+- Money in lakh/crore (`₹1,25,000`), times in the workspace timezone (IST).
+- Phone first: nothing scrolls sideways at 375px, tap targets ≥ 44px on touch, inputs ≥ 16px.
+- Touching a page for any reason: move it onto the kit only if the task asks for it. No drive-by redesigns.
+
 ## AVOID ALWAYS
 
 - Phone as primary key or dedup key

@@ -1,0 +1,148 @@
+<title>My Day Options</title>
+<style>
+/* Layout: one switcher on top, one variant visible at a time, each shown inside a 390px phone frame beside a desktop view. */
+:root{
+  --bg:#f3f5f4; --card:#ffffff; --surface:#e9eeec; --fg:#14201d; --fg2:#3b4a46; --sub:#66756f; --line:#dbe2df;
+  --brand:#0f766e; --brand-fg:#ffffff; --brand-soft:#d9efeb;
+  --danger-bg:#fde8e6; --danger-fg:#9b1c12; --warn-bg:#fdf0d8; --warn-fg:#8a5200; --ok-bg:#dff3e6; --ok-fg:#14633a; --info-bg:#e1ecfb; --info-fg:#1b4f9c;
+  --display:"Fraunces",Georgia,serif; --body:"Public Sans",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e1514; --card:#162120; --surface:#1d2b29; --fg:#e8f0ee; --fg2:#b8c8c3; --sub:#8aa09a; --line:#26373a;
+  --brand:#2dd4bf; --brand-fg:#06201c; --brand-soft:#12332f;
+  --danger-bg:#3a1714; --danger-fg:#ffb4aa; --warn-bg:#3a2a0e; --warn-fg:#f6c36b; --ok-bg:#123325; --ok-fg:#7ee0a6; --info-bg:#12253f; --info-fg:#9cc2f5; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1514; --card:#162120; --surface:#1d2b29; --fg:#e8f0ee; --fg2:#b8c8c3; --sub:#8aa09a; --line:#26373a;
+  --brand:#2dd4bf; --brand-fg:#06201c; --brand-soft:#12332f;
+  --danger-bg:#3a1714; --danger-fg:#ffb4aa; --warn-bg:#3a2a0e; --warn-fg:#f6c36b; --ok-bg:#123325; --ok-fg:#7ee0a6; --info-bg:#12253f; --info-fg:#9cc2f5; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:14px/1.45 var(--body);padding-inline:16px;padding-block:20px 48px;margin:0}
+.wrap{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+h1{font:600 26px/1.1 var(--display);margin:0;text-wrap:balance}
+.lede{color:var(--sub);margin:6px 0 0;max-width:62ch}
+.switch{display:flex;gap:6px;flex-wrap:wrap}
+.switch button{font:600 13px var(--body);padding:9px 14px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--fg2);cursor:pointer;min-height:40px}
+.switch button[aria-pressed="true"]{background:var(--brand);color:var(--brand-fg);border-color:var(--brand)}
+.switch button:focus-visible,.btn:focus-visible,.chip:focus-visible,.row:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.note{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.note div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;min-width:0}
+.note b{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--sub);margin-bottom:4px}
+.variant[hidden]{display:none}
+.stage{display:grid;gap:20px;grid-template-columns:minmax(0,1fr);align-items:start}
+@media(min-width:900px){.stage{grid-template-columns:390px minmax(0,1fr)}}
+.label{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--sub);margin:0 0 8px}
+.phone{width:100%;max-width:390px;background:var(--bg);border:1px solid var(--line);border-radius:26px;padding:14px;display:flex;flex-direction:column;gap:12px;box-shadow:0 8px 28px rgba(0,0,0,.08)}
+.desk{background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.ph{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.ph h2{font:600 20px/1.1 var(--display);margin:0}
+.ph p{margin:2px 0 0;color:var(--sub);font-size:12.5px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;min-width:0}
+.pill{display:inline-flex;align-items:center;font-size:11px;font-weight:700;line-height:16px;padding:1px 8px;border-radius:99px;white-space:nowrap}
+.p-danger{background:var(--danger-bg);color:var(--danger-fg)}.p-warn{background:var(--warn-bg);color:var(--warn-fg)}.p-ok{background:var(--ok-bg);color:var(--ok-fg)}.p-info{background:var(--info-bg);color:var(--info-fg)}.p-neutral{background:var(--surface);color:var(--fg2)}
+.btn{font:700 13px var(--body);min-height:44px;padding:0 16px;border-radius:10px;border:0;background:var(--brand);color:var(--brand-fg);cursor:pointer;white-space:nowrap}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--fg2)}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.chip{flex:none;min-height:36px;padding:0 12px;border-radius:99px;border:1px solid var(--line);background:var(--card);color:var(--fg2);font:600 12.5px var(--body);cursor:pointer;display:flex;align-items:center;gap:6px}
+.chip[aria-pressed="true"]{border-color:var(--brand);background:var(--brand-soft);color:var(--brand)}
+.chip i{font-style:normal;font-size:11px;opacity:.75;font-variant-numeric:tabular-nums}
+.row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid var(--line);min-width:0}
+.row:first-child{border-top:0}
+.who{flex:1;min-width:0}
+.who b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who span{display:block;color:var(--sub);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wait{font-variant-numeric:tabular-nums;font-weight:700;font-size:13px;min-width:44px;text-align:right}
+.wait.late{color:var(--danger-fg)}.wait.ok{color:var(--sub)}
+/* B */
+.focus{padding:18px;display:flex;flex-direction:column;gap:12px}
+.focus .big{font:600 24px/1.1 var(--display);margin:0;overflow-wrap:anywhere}
+.focus .why{color:var(--fg2);margin:0}
+.focus .acts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.progress{height:6px;border-radius:9px;background:var(--surface);overflow:hidden}
+.progress i{display:block;height:100%;width:12%;background:var(--brand)}
+/* C */
+.grp h3{display:flex;align-items:center;gap:8px;margin:0;padding:10px 14px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--sub);border-bottom:1px solid var(--line)}
+.grp h3 .pill{margin-left:auto}
+.split{display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
+@media(min-width:900px){.split{grid-template-columns:minmax(0,1fr) 240px}}
+.side{display:flex;flex-direction:column;gap:10px}
+.side .card{padding:12px 14px}
+.side b{font:600 26px/1 var(--display);display:block;margin-top:4px;font-variant-numeric:tabular-nums}
+.side small{color:var(--sub)}
+.theme{margin-left:auto}
+.top{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;justify-content:space-between}
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=Public+Sans:wght@400;600;700&display=swap">
+
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>My Day, three ways</h1>
+      <p class="lede">Same data, same actions, three layouts. Each is shown as a phone and as a desktop view. Pick one and Phase 1 builds it on the real screen.</p>
+    </div>
+    <div class="switch" role="group" aria-label="Variant">
+      <button type="button" data-v="a" aria-pressed="true">A · Ledger</button>
+      <button type="button" data-v="b" aria-pressed="false">B · One at a time</button>
+      <button type="button" data-v="c" aria-pressed="false">C · By urgency</button>
+    </div>
+  </div>
+
+  <div class="note" id="notes"></div>
+
+  <!-- A -->
+  <section class="variant" id="va"></section>
+  <section class="variant" id="vb" hidden></section>
+  <section class="variant" id="vc" hidden></section>
+</div>
+
+<script>
+// Example queue (marked as sample): Ratha Caravan enquiries.
+const Q=[
+ {k:"followup",t:"Meera Krishnan",d:"Follow-up due · asked for 14–17 Dec, 4 adults",a:"Open",m:"3h",late:1,tone:"danger",lab:"Due now",why:"You promised a quote by 4 pm. Three hours late."},
+ {k:"callback",t:"+91 98450 22xxx",d:"Missed call · 2 attempts",a:"Call back",m:"41m",late:1,tone:"danger",lab:"Call back",why:"Rang twice, no answer from us."},
+ {k:"reply",t:"Arjun Nair",d:"WhatsApp: “Is the deck pet friendly?”",a:"Reply",m:"26m",late:0,tone:"warn",lab:"Waiting on us",why:"Asked about pets at 11:12."},
+ {k:"draft",t:"Sana Qureshi",d:"AI draft ready · quote for 2 nights",a:"Review",m:"18m",late:0,tone:"info",lab:"Draft to send",why:"Draft is ready, one tap to send."},
+ {k:"call_new",t:"Vikram Rao",d:"New enquiry from Instagram · not called",a:"Call",m:"9m",late:0,tone:"ok",lab:"New, not called",why:"Fresh enquiry. Best chance is the first hour."},
+ {k:"unassigned",t:"Divya Menon",d:"Website form · no owner",a:"Take it",m:"2m",late:0,tone:"neutral",lab:"No owner",why:"Nobody has picked this up."}
+];
+const KIND_LABEL={followup:"Due now",reply:"Waiting on us",draft:"Drafts",callback:"Call back",call_new:"New, not called",unassigned:"No owner"};
+const esc=s=>s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const row=i=>`<div class="row" tabindex="0"><div class="who"><b>${esc(i.t)}</b><span>${esc(i.d)}</span></div><span class="wait ${i.late?"late":"ok"}">${i.m}</span><button class="btn" type="button">${i.a}</button></div>`;
+const counts=Q.reduce((o,i)=>(o[i.k]=(o[i.k]||0)+1,o),{});
+const chips=(on)=>`<div class="chips" role="group" aria-label="Filter">${[["all","All",Q.length],...Object.keys(KIND_LABEL).map(k=>[k,KIND_LABEL[k],counts[k]||0])].map(([k,l,n])=>`<button class="chip" type="button" aria-pressed="${k===on}">${l}<i>${n}</i></button>`).join("")}</div>`;
+const head=`<div class="ph"><div><h2>My day, Anita</h2><p>6 waiting, longest first</p></div><span class="pill p-danger">2 late</span></div>`;
+
+// A: ledger — one ordered list, filters on top. Closest to today, calmer.
+const A=`<div class="stage"><div><p class="label">Phone</p><div class="phone">${head}${chips("all")}<div class="card">${Q.map(row).join("")}</div></div></div>
+<div><p class="label">Desktop</p><div class="desk">${head}${chips("all")}<div class="card">${Q.map(row).join("")}</div></div></div></div>`;
+
+// B: one at a time — the top item is the whole screen, rest is a short queue.
+const f=Q[0];
+const focus=`<div class="card focus"><span class="pill p-${f.tone}" style="align-self:flex-start">${f.lab} · ${f.m} late</span><p class="big">${f.t}</p><p class="why">${f.why}</p><p style="margin:0;color:var(--sub);font-size:12.5px">${f.d}</p><div class="acts"><button class="btn" type="button">Call Meera</button><button class="btn ghost" type="button">Send WhatsApp</button></div><button class="btn ghost" type="button">Snooze 1 hour</button></div>`;
+const B=m=>`<div class="ph"><div><h2>Next up</h2><p>1 of 6 · ${m}</p></div></div><div class="progress" aria-hidden="true"><i></i></div>${focus}<p class="label" style="margin:4px 0 0">Then</p><div class="card">${Q.slice(1,4).map(row).join("")}</div>`;
+const BV=`<div class="stage"><div><p class="label">Phone</p><div class="phone">${B("most overdue first")}</div></div><div><p class="label">Desktop</p><div class="desk">${B("most overdue first")}</div></div></div>`;
+
+// C: by urgency — grouped sections; desktop adds a side summary.
+const G=[["Late",Q.filter(i=>i.late),"danger"],["Waiting now",Q.filter(i=>!i.late&&["reply","draft"].includes(i.k)),"warn"],["New and unowned",Q.filter(i=>["call_new","unassigned"].includes(i.k)),"info"]];
+const groups=G.map(([n,l,t])=>`<section class="card grp"><h3>${n}<span class="pill p-${t}">${l.length}</span></h3>${l.map(row).join("")}</section>`).join("");
+const side=`<aside class="side"><div class="card"><small>Oldest wait</small><b>3 h</b></div><div class="card"><small>Replied today</small><b>14</b></div><div class="card"><small>Calls returned</small><b>9 of 11</b></div></aside>`;
+const CV=`<div class="stage"><div><p class="label">Phone</p><div class="phone">${head}<div style="display:flex;flex-direction:column;gap:10px">${groups}</div></div></div>
+<div><p class="label">Desktop</p><div class="desk">${head}<div class="split"><div style="display:flex;flex-direction:column;gap:10px;min-width:0">${groups}</div>${side}</div></div></div></div>`;
+
+document.getElementById("va").innerHTML=A;
+document.getElementById("vb").innerHTML=BV;
+document.getElementById("vc").innerHTML=CV;
+
+const NOTES={
+ a:[["Good for","Teams that scan a lot. Closest to today, so nothing to relearn."],["Costs","Everything has equal weight; the most urgent item is only first, not special."],["Phone","Filter chips scroll sideways, one tap action per row."]],
+ b:[["Good for","A concierge working the queue top to bottom. It answers “what do I do next?”"],["Costs","You can’t see the whole day at once, and a manager wants the overview."],["Phone","Best of the three: one big card, two big buttons, thumbs reach everything."]],
+ c:[["Good for","Owners and managers. Late, waiting and new are different jobs, so they are different blocks."],["Costs","Most vertical space; more to scroll on a phone."],["Phone","Sections stack. Desktop gains a side column of team numbers."]]
+};
+const notes=document.getElementById("notes");
+function show(v){
+  for(const k of ["a","b","c"]) document.getElementById("v"+k).hidden=k!==v;
+  document.querySelectorAll(".switch button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===v)));
+  notes.innerHTML=NOTES[v].map(([a,b])=>`<div><b>${a}</b>${b}</div>`).join("");
+}
+document.querySelectorAll(".switch button").forEach(b=>b.addEventListener("click",()=>show(b.dataset.v)));
+show("a");
+</script>

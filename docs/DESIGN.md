@@ -108,3 +108,33 @@ Retire it incrementally: as each module is redesigned in V2 Phase 4, convert tha
 - [x] Re-target `brandTheme.ts::buildCSSVars()` to override canonical tokens so white-label propagates (§3), without clobbering `next/font`'s `--font-sans`.
 - [x] Verify token resolution in both themes (computed-value check: every alias resolves to its canonical token; dark-mode values byte-identical to pre-change; white-label propagation confirmed).
 - [ ] **Remaining gate** — visual pass over the five highest-density surfaces in both themes once dashboard credentials are available: `inbox/page.tsx` (51 uses), `calls/page.tsx` (41), `dashboard/overview.tsx` (39), `shell/TopBar.tsx` (32), `properties/page.tsx` (32). Computed values are verified; what is not yet verified is that no layout reads a token in a way the alias changes perceptibly.
+
+---
+
+## 5. Redesign direction: "Calm operations room" *(Oct 2026, decided; precedence: CLAUDE.md > this file > HAIP_UI_Redesign_Plan.md > any skill)*
+
+HAIP keeps its own identity: teal `#0F766E`, dark-navy sidebar, Outfit for display. Sections 1-4 above are unchanged and still govern tokens. This section adds the *direction* so every screen is designed toward the same thing.
+
+### Three signature moves (everything else stays quiet and conventional)
+1. **The queue is the hero.** "Who is waiting on me" is the same card/priority/urgency language on My day, the Dashboard top, the Inbox header and sidebar badges.
+2. **One guest timeline.** Inquiry, conversation, call, booking and stay render in one visual pattern (`Timeline`) on Lead, Guest and Booking detail.
+3. **Restrained motion and depth.** One easing curve (`cubic-bezier(0.23, 1, 0.32, 1)`, set in the theme), soft navy-tinted shadows, count-up on KPIs, motion only where it explains a state change. Everything respects `prefers-reduced-motion`.
+
+### Dials (the third-party "taste" vocabulary, used as a shared language, not a dependency)
+App screens: variance **4**, motion **4**, density **7** (dense, with air around groups). Login, empty-state art and the marketing hero may go to variance 7 / motion 6 / density 3.
+
+### Non-negotiables
+WCAG AA contrast; 44px touch targets on phones; loading, empty, error and worst-case states on every screen; light, dark and 390px verified; no change to data behaviour; white-label must keep working (test with two non-default brand colours).
+
+### Rules added to section 2
+- New code uses Tailwind utilities and semantic tokens. **No new inline `style={{}}`.** Shared pieces come from `components/ui` (`page.tsx`, `kit/*`).
+- Two status vocabularies only: the semantic `--haip-green/amber/red` colours plus a label. A red "SLA breached" tag on every row is not allowed: escalate only the worst few.
+- Numbers always say what they cover, and never render as `NaN`, `-100%` against an empty period, or a clipped value.
+- Skills and external style guides are advisory. If one disagrees with this file, this file wins; log the decision in `docs/design/decisions.md`.
+
+### Shared kit (`frontend/src/components/ui/`)
+`page.tsx` (`PageHeader`, `EmptyState`, `StatusPill`) and `kit/` (`Card`, `Stat`, `Tabs`, `FilterBar`, `DataTable`, `Drawer`, `SectionNav`, `Timeline`). A dev-only gallery lives at `/dashboard/dev-kit` (hidden in production, not linked in the navigation).
+
+### Tokens added in Phase 0
+A six-step radius and spacing ramp (`--haip-radius-*`, `--haip-space-*`), semantic status tokens for surfaces and text (`--haip-status-*`), and `--haip-icon-neutral` so structural icons (chevrons, close, menus) are neutral and teal is reserved for what is actionable.
+

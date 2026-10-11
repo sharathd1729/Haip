@@ -11,7 +11,7 @@ export function PageHeader({
     <header className={cn("flex flex-wrap items-end gap-x-4 gap-y-3", className)}>
       <div className="min-w-0 flex-1">
         <h1 className="haip-page-title">{title}</h1>
-        {subtitle && <p className="mt-0.5 text-[13px] leading-snug" style={{ color: "var(--haip-fg-subtle)" }}>{subtitle}</p>}
+        {subtitle && <p className="mt-0.5 text-[13px] leading-snug text-[var(--haip-fg-subtle)]">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </header>
@@ -24,20 +24,21 @@ export function EmptyState({
 }: { title: ReactNode; hint?: ReactNode; action?: ReactNode; className?: string }) {
   return (
     <div className={cn("flex flex-col items-center justify-center gap-1.5 px-6 py-16 text-center", className)}>
-      <p className="text-sm font-semibold" style={{ color: "var(--haip-fg)" }}>{title}</p>
-      {hint && <p className="max-w-sm text-xs leading-relaxed" style={{ color: "var(--haip-fg-subtle)" }}>{hint}</p>}
+      <p className="text-sm font-semibold text-[var(--haip-fg)]">{title}</p>
+      {hint && <p className="max-w-sm text-xs leading-relaxed text-[var(--haip-fg-subtle)]">{hint}</p>}
       {action && <div className="mt-3">{action}</div>}
     </div>
   );
 }
 
+// Written out in full (not built from a variable) so Tailwind can see every class.
 const TONES = {
-  neutral: "bg-gray-100 text-gray-700 border-gray-200",
-  info:    "bg-blue-50 text-blue-700 border-blue-100",
-  success: "bg-emerald-50 text-emerald-700 border-emerald-100",
-  warning: "bg-amber-50 text-amber-800 border-amber-100",
-  danger:  "bg-red-50 text-red-700 border-red-100",
-  brand:   "bg-teal-50 text-teal-700 border-teal-100",
+  neutral: "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-status-neutral-fg)] border-[var(--haip-status-neutral-border)]",
+  info:    "bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)] border-[var(--haip-status-info-border)]",
+  success: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]",
+  warning: "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)] border-[var(--haip-status-warning-border)]",
+  danger:  "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]",
+  brand:   "bg-primary/10 text-primary border-primary/20",
 } as const;
 
 export type Tone = keyof typeof TONES;

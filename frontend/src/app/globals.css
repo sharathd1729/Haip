@@ -468,8 +468,32 @@
   --haip-shadow-sm:     0 1px 2px rgba(0,0,0,0.04), 0 1px 1px rgba(0,0,0,0.03);
   --haip-shadow-md:     0 4px 6px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
   --haip-shadow-lg:     0 10px 15px rgba(0,0,0,0.08), 0 4px 6px rgba(0,0,0,0.04);
+
+  /* Radius + spacing: ONE six-step ramp for both (4 / 6 / 8 / 12 / 16 / 20). Use these, not new numbers.
+     (docs/DESIGN.md section 5; the white-label --radius still scales card corners.) */
+  --haip-radius-xs: 4px;  --haip-radius-s: 6px;  --haip-radius-m: 8px;
+  --haip-radius-l: 12px;  --haip-radius-xl: 16px; --haip-radius-xxl: 20px;
+  --haip-space-xs: 4px;   --haip-space-s: 6px;   --haip-space-m: 8px;
+  --haip-space-l: 12px;   --haip-space-xl: 16px; --haip-space-xxl: 20px;
+
+  /* Status triplets (surface / text / border). A label always accompanies the colour. All text pairs meet
+     WCAG AA on their own surface. */
+  --haip-status-success-bg: #ECFDF5; --haip-status-success-fg: #047857; --haip-status-success-border: #A7F3D0;
+  --haip-status-warning-bg: #FFFBEB; --haip-status-warning-fg: #B45309; --haip-status-warning-border: #FDE68A;
+  --haip-status-danger-bg:  #FEF2F2; --haip-status-danger-fg:  #B91C1C; --haip-status-danger-border:  #FECACA;
+  --haip-status-info-bg:    #EFF6FF; --haip-status-info-fg:    #1D4ED8; --haip-status-info-border:    #BFDBFE;
+  --haip-status-neutral-bg: #F1F5F9; --haip-status-neutral-fg: #475569; --haip-status-neutral-border: #E2E8F0;
+
+  /* Structural icons (chevrons, close, menus) are neutral; teal is for what is actionable or branded. */
+  --haip-icon-neutral: #64748B;
 }
 .dark {
+  --haip-status-success-bg: rgba(16,185,129,0.12); --haip-status-success-fg: #6EE7B7; --haip-status-success-border: rgba(16,185,129,0.28);
+  --haip-status-warning-bg: rgba(245,158,11,0.12); --haip-status-warning-fg: #FCD34D; --haip-status-warning-border: rgba(245,158,11,0.28);
+  --haip-status-danger-bg:  rgba(239,68,68,0.12);  --haip-status-danger-fg:  #FCA5A5; --haip-status-danger-border:  rgba(239,68,68,0.30);
+  --haip-status-info-bg:    rgba(79,142,247,0.12); --haip-status-info-fg:    #93C5FD; --haip-status-info-border:    rgba(79,142,247,0.30);
+  --haip-status-neutral-bg: rgba(255,255,255,0.06); --haip-status-neutral-fg: #A8B5CC; --haip-status-neutral-border: rgba(255,255,255,0.10);
+  --haip-icon-neutral: #7a8ba8;
   /* Only the literals need a dark variant — aliases follow automatically */
   --haip-surface:       var(--background);
   --haip-border-strong: rgba(255,255,255,0.12);
