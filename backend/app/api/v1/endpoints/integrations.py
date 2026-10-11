@@ -16,6 +16,9 @@ from app.core.security import create_access_token, decode_token
 from app.api.v1.deps import get_current_user, require_roles
 from app.models.user import User, UserRole
 from app.models.integration import Integration
+from app.models.tenant import Tenant
+from app.core.audit import append_audit
+from app.services import webhook_verify_service
 from app.schemas.integration import IntegrationOut, IntegrationConnectRequest, IntegrationHealthResponse
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
@@ -308,27 +311,67 @@ def connect_whatsapp_manual(
     }
 
 
+def _webhook_info(db: Session, user: User, channel: str, path: str, steps: list[str], request: Request) -> dict:
+    """URL + steps for the Meta app. The verify token itself is never in this response: it is hidden by
+    default and only an owner can reveal it (POST .../verify-token/reveal)."""
+    base = (settings.API_BASE_URL or str(request.base_url).rstrip("/")).rstrip("/")
+    # Force HTTPS for publicly displayed URLs
+    base = base.replace("http://", "https://", 1) if base.startswith("http://") else base
+    token = webhook_verify_service.current_token(db, user.tenant_id, channel)
+    return {
+        "webhook_url": f"{base}/api/v1/webhooks/{path}",
+        "verify_token_set": bool(token),
+        "verify_token_hint": webhook_verify_service.hint(token),
+        "legacy_token_active": bool(settings.ALLOW_LEGACY_WEBHOOK_VERIFY_TOKEN and settings.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN),
+        "can_reveal": user.role == UserRole.OWNER,
+        "instructions": steps,
+    }
+
+
 @router.get("/whatsapp_meta/webhook-info")
 def get_whatsapp_webhook_info(
     request: Request,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    """Return the webhook URL and verify token to paste into the client's Meta App."""
-    base = (settings.API_BASE_URL or str(request.base_url).rstrip("/")).rstrip("/")
-    # Force HTTPS for publicly displayed URLs
-    base = base.replace("http://", "https://", 1) if base.startswith("http://") else base
-    verify_token = settings.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN or "⚠ META_WEBHOOK_VERIFY_TOKEN not set"
-    return {
-        "webhook_url": f"{base}/api/v1/webhooks/whatsapp",
-        "verify_token": verify_token,
-        "instructions": [
-            "Go to Meta Business Suite → Your App → WhatsApp → Configuration → Webhooks",
-            "Click 'Edit' and paste the Webhook URL above",
-            f"Enter Verify Token: {verify_token}",
-            "Subscribe to: messages, message_deliveries, message_reads",
-            "Click Verify and Save",
-        ],
-    }
+    """Return the webhook URL to paste into the client's Meta App (the verify token is revealed separately)."""
+    return _webhook_info(db, current_user, "whatsapp_meta", "whatsapp", [
+        "Go to Meta Business Suite → Your App → WhatsApp → Configuration → Webhooks",
+        "Click 'Edit' and paste the Webhook URL above",
+        "Paste the Verify Token (an owner can show it above)",
+        "Subscribe to: messages, message_deliveries, message_reads",
+        "Click Verify and Save",
+    ], request)
+
+
+_VERIFY_CHANNELS = {"whatsapp_meta", "instagram"}
+
+
+def _owner_token_action(db: Session, user: User, channel: str, rotate: bool) -> dict:
+    if channel not in _VERIFY_CHANNELS:
+        raise HTTPException(status_code=404, detail="Unknown channel")
+    tenant = db.query(Tenant).filter_by(id=user.tenant_id).first()
+    token = webhook_verify_service.issue_token(db, tenant, channel, rotate=rotate)
+    if token is None:
+        raise HTTPException(status_code=404, detail="Connect this channel first, then set up its webhook.")
+    append_audit(db, tenant_id=user.tenant_id, actor_user_id=user.id,
+                 action="integration.verify_token_rotated" if rotate else "integration.verify_token_revealed",
+                 target_type="integration", target_id=channel, payload={"channel": channel})
+    db.commit()
+    return {"verify_token": token, "verify_token_hint": webhook_verify_service.hint(token), "rotated": rotate}
+
+
+@router.post("/{channel}/verify-token/reveal")
+def reveal_verify_token(channel: str, current_user: User = Depends(require_roles(UserRole.OWNER)), db: Session = Depends(get_db)):
+    """Show this channel's verify token (created on first use). Owner only, and logged."""
+    return _owner_token_action(db, current_user, channel, rotate=False)
+
+
+@router.post("/{channel}/verify-token/rotate")
+def rotate_verify_token(channel: str, current_user: User = Depends(require_roles(UserRole.OWNER)), db: Session = Depends(get_db)):
+    """Replace this channel's verify token. The old one stops working at once; paste the new one into the
+    Meta app the next time the callback is saved (Meta only asks for it then, so live messages are unaffected)."""
+    return _owner_token_action(db, current_user, channel, rotate=True)
 
 
 # ─── Instagram Graph API — manual credentials ─────────────────────────────────
@@ -586,22 +629,15 @@ def instagram_oauth_callback(
 def get_instagram_webhook_info(
     request: Request,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    base = (settings.API_BASE_URL or str(request.base_url).rstrip("/")).rstrip("/")
-    # Force HTTPS for publicly displayed URLs
-    base = base.replace("http://", "https://", 1) if base.startswith("http://") else base
-    verify_token = settings.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN or "⚠ META_WEBHOOK_VERIFY_TOKEN not set"
-    return {
-        "webhook_url": f"{base}/api/v1/webhooks/instagram",
-        "verify_token": verify_token,
-        "instructions": [
-            "Go to Meta Business Suite → Your App → Webhooks → instagram",
-            "Paste the Webhook URL above",
-            f"Enter Verify Token: {verify_token}",
-            "Subscribe to: messages",
-            "Click Verify and Save",
-        ],
-    }
+    return _webhook_info(db, current_user, "instagram", "instagram", [
+        "Go to Meta Business Suite → Your App → Webhooks → instagram",
+        "Paste the Webhook URL above",
+        "Paste the Verify Token (an owner can show it above)",
+        "Subscribe to: messages",
+        "Click Verify and Save",
+    ], request)
 
 
 _IVR_WEBHOOK_KINDS = {"callerdesk", "acefone", "mcube", "vobiz"}

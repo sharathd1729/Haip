@@ -1,12 +1,13 @@
 """Meta WhatsApp Cloud API webhook."""
 import json
 from secrets import compare_digest
-from fastapi import APIRouter, Request, HTTPException, Query
+from fastapi import APIRouter, Depends, Request, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 from app.core.database import get_db, SessionLocal
 from app.core.config import settings
 from app.core.webhook_security import verify_meta_signature
+from app.services import webhook_verify_service
 from app.core.encryption import decrypt_credentials
 from app.workers.tasks.whatsapp import process_whatsapp_message, resolve_wa_tenant
 import structlog
@@ -20,13 +21,11 @@ async def whatsapp_verify(
     hub_mode: str = Query(alias="hub.mode", default=""),
     hub_challenge: str = Query(alias="hub.challenge", default=""),
     hub_verify_token: str = Query(alias="hub.verify_token", default=""),
+    db: Session = Depends(get_db),
 ):
-    verify_token = settings.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN
-    if (
-        hub_mode == "subscribe"
-        and verify_token  # must be configured — empty token always rejects
-        and compare_digest(hub_verify_token, verify_token)
-    ):
+    # Per-workspace WhatsApp token (see webhook_verify_service); the old shared token still works
+    # while ALLOW_LEGACY_WEBHOOK_VERIFY_TOKEN is on. An empty token never verifies.
+    if hub_mode == "subscribe" and webhook_verify_service.verify(db, "whatsapp_meta", hub_verify_token):
         return PlainTextResponse(hub_challenge)
     raise HTTPException(status_code=403, detail="Verification failed")
 

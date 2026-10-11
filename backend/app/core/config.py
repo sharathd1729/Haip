@@ -95,6 +95,9 @@ class Settings(BaseSettings):
     META_WHATSAPP_PHONE_NUMBER_ID: str = ""
     META_WHATSAPP_ACCESS_TOKEN: str = ""
     META_WHATSAPP_WEBHOOK_VERIFY_TOKEN: str = ""
+    # The single shared verify token above is still accepted so existing Meta setups keep verifying while
+    # each workspace re-saves its callback with its own per-channel token. Set false once that is done.
+    ALLOW_LEGACY_WEBHOOK_VERIFY_TOKEN: bool = True
     META_APP_SECRET: str = ""
     # Optional: the Meta app id, used to upload template header media. When
     # empty it is looked up from the WhatsApp access token (debug_token).

@@ -10,7 +10,10 @@ Inbound DMs:   POST /webhooks/instagram  (X-Hub-Signature-256 header)
 
 import json
 from secrets import compare_digest
-from fastapi import APIRouter, Request, HTTPException, Query
+from fastapi import APIRouter, Depends, Request, HTTPException, Query
+from sqlalchemy.orm import Session
+from app.core.database import get_db
+from app.services import webhook_verify_service
 from fastapi.responses import PlainTextResponse
 from app.core.config import settings
 from app.core.webhook_security import verify_meta_signature_any
@@ -27,13 +30,11 @@ def verify_instagram_webhook(
     hub_mode: str = Query(None, alias="hub.mode"),
     hub_verify_token: str = Query(None, alias="hub.verify_token"),
     hub_challenge: str = Query(None, alias="hub.challenge"),
+    db: Session = Depends(get_db),
 ):
-    verify_token = settings.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN
-    if (
-        hub_mode == "subscribe"
-        and verify_token
-        and compare_digest(hub_verify_token, verify_token)
-    ):
+    # Per-workspace Instagram token (a WhatsApp token does not verify here); legacy shared token
+    # still accepted while ALLOW_LEGACY_WEBHOOK_VERIFY_TOKEN is on.
+    if hub_mode == "subscribe" and webhook_verify_service.verify(db, "instagram", hub_verify_token):
         log.info("instagram_webhook_verified")
         return PlainTextResponse(hub_challenge)
     raise HTTPException(status_code=403, detail="Webhook verification failed")

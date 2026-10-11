@@ -36,7 +36,11 @@ interface Integration {
 
 interface WebhookInfo {
   webhook_url: string;
-  verify_token: string;
+  // The verify token is never part of this response: it stays hidden until an owner asks to see it.
+  verify_token_set: boolean;
+  verify_token_hint: string | null;
+  legacy_token_active: boolean;
+  can_reveal: boolean;
   instructions: string[];
 }
 
@@ -154,6 +158,63 @@ function CopyField({ label, value }: { label: string; value: string }) {
 // Webhook Info Panel (shown after WhatsApp / Instagram is connected)
 // ---------------------------------------------------------------------------
 
+/** The webhook verify token: hidden by default. Only an owner can show it or replace it, and both are logged. */
+function VerifyTokenRow({ provider, info }: { provider: string; info: WebhookInfo }) {
+  const queryClient = useQueryClient();
+  const [token, setToken] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const show = useMutation({
+    mutationFn: (action: "reveal" | "rotate") => api.post(`/integrations/${provider}/verify-token/${action}`).then(r => r.data as { verify_token: string }),
+    onSuccess: res => {
+      setToken(res.verify_token);
+      queryClient.invalidateQueries({ queryKey: ["webhook-info", provider] });
+      setTimeout(() => setToken(null), 60_000);     // hide again after a minute
+    },
+  });
+  const failed = show.isError ? ((show.error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Could not load the token.") : null;
+
+  return (
+    <div>
+      <p className="text-[10px] text-gray-400 mb-1 font-semibold uppercase tracking-wide">Verify Token</p>
+      <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5">
+        <code className="text-[11px] text-gray-700 flex-1 break-all font-mono">
+          {token ?? (info.verify_token_set ? `••••••••••••${info.verify_token_hint ?? ""}` : "Not created yet")}
+        </code>
+        {token && (
+          <button
+            onClick={() => { navigator.clipboard.writeText(token); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+            className="text-gray-400 hover:text-gray-600 flex-shrink-0 transition-colors" title="Copy"
+          >
+            {copied ? <CheckCircle2 size={13} className="text-green-500" /> : <Copy size={13} />}
+          </button>
+        )}
+      </div>
+      {info.can_reveal ? (
+        <div className="flex flex-wrap items-center gap-3 mt-1.5">
+          <button onClick={() => (token ? setToken(null) : show.mutate("reveal"))} disabled={show.isPending}
+            className="text-[11px] font-semibold text-teal-700 hover:underline disabled:opacity-50">
+            {token ? "Hide" : info.verify_token_set ? "Show token" : "Create token"}
+          </button>
+          {info.verify_token_set && (
+            <button
+              onClick={() => { if (confirm("Create a new verify token? The current one stops working. Paste the new one into Meta the next time you save the webhook there.")) show.mutate("rotate"); }}
+              disabled={show.isPending} className="text-[11px] font-semibold text-gray-500 hover:underline disabled:opacity-50">
+              Generate new token
+            </button>
+          )}
+        </div>
+      ) : (
+        <p className="text-[10px] text-gray-400 mt-1">Only the account owner can view or replace the verify token.</p>
+      )}
+      {failed && <p className="text-[10px] text-red-600 mt-1">{failed}</p>}
+      {info.can_reveal && info.legacy_token_active && (
+        <p className="text-[10px] text-amber-700 mt-1">An older shared token is still accepted. Once the new token is saved in Meta, ask your administrator to switch the old one off.</p>
+      )}
+    </div>
+  );
+}
+
 function WebhookInfoPanel({ provider }: { provider: string }) {
   const [open, setOpen] = useState(true);
   const { data, isLoading } = useQuery<WebhookInfo>({
@@ -184,7 +245,7 @@ function WebhookInfoPanel({ provider }: { provider: string }) {
           ) : data ? (
             <>
               <CopyField label="Webhook URL" value={data.webhook_url} />
-              <CopyField label="Verify Token" value={data.verify_token} />
+              <VerifyTokenRow provider={provider} info={data} />
               {data.instructions?.length > 0 && (
                 <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
                   <p className="text-[10px] font-semibold text-blue-700 mb-1.5">Setup steps</p>
