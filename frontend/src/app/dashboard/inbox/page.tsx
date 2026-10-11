@@ -4,25 +4,29 @@ import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { Send, Sparkles, Loader2, BellOff, Search, X, StickyNote, Reply, ChevronDown, ChevronLeft, ChevronRight, CalendarClock, Timer, AlertTriangle, LayoutTemplate, Phone, Languages, Wand2, User, Check } from "@/lib/icons";
+import { Send, Sparkles } from "@/lib/icons";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
-import { ConversationList, type InboxView } from "@/components/inbox/ConversationList";
-import { TalkedOn, ChannelBadge, toGuestChannel } from "@/components/inbox/ChannelBadges";
-import { MessageBubble } from "@/components/inbox/MessageBubble";
-import { SavedReplyMenu } from "@/components/inbox/SavedReplyMenu";
+import { type InboxView } from "@/components/inbox/ConversationList";
+
 import { PhoneDeclineCallout } from "@/components/inbox/PhoneDeclineCallout";
-import { TypingDots } from "@/components/inbox/TypingDots";
-import { ChannelIcon, channelLabel } from "@/components/inbox/ChannelIcon";
+
 import { GuestPanel } from "@/components/inbox/GuestPanel";
 import { PinnedInquiryBanner } from "@/components/inbox/PinnedInquiryBanner";
-import { CallLogCard, type CallTimelineItem } from "@/components/inbox/CallLogCard";
+
 import type { RecommendedAction } from "@/components/ai/AIRecommendationCard";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useInboxStore, type GuestChannel } from "@/store/inbox";
+
+import { useInboxStore } from "@/store/inbox";
 import { useAutoGrow } from "@/hooks/useAutoGrow";
+import { ThreadHeader } from "@/components/inbox/thread/ThreadHeader";
+import { ThreadSearch } from "@/components/inbox/thread/ThreadSearch";
+import { ThreadBody } from "@/components/inbox/thread/ThreadBody";
+import { DraftEditor } from "@/components/inbox/thread/DraftEditor";
+import { ComposerNotices } from "@/components/inbox/thread/ComposerNotices";
+import { Composer } from "@/components/inbox/thread/Composer";
+import { InboxListPane } from "@/components/inbox/thread/InboxListPane";
+import { type Message, type ConversationDetail, type TimelineItem, type TimelineCallItem, getWindowSecondsLeft } from "@/components/inbox/thread/types";
 import { useToast } from "@/components/ui/toast";
 import { usePresence } from "@/hooks/usePresence";
 // B5: only needed once the user opens the template picker (WhatsApp window
@@ -32,106 +36,6 @@ const TemplatePickerModal = dynamic(
   { ssr: false }
 );
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface Message {
-  channel?: string;  // whatsapp | instagram | ... -- shown as an icon on guest messages
-  id: string;
-  text: string;
-  direction: "inbound" | "outbound";
-  status?: "pending" | "queued" | "sent" | "delivered" | "read" | "failed";
-  delivery_state?: string;
-  delivery_error?: string;
-  timestamp: string;
-  sender_name?: string;
-  ai_drafted?: boolean;
-  // null/undefined = still pending a decision, true = approved & sent,
-  // false = rejected -- backend now serializes this (previously omitted
-  // entirely), which is what isAiDraft below gates on.
-  was_approved?: boolean | null;
-  ai_confidence?: number;
-  is_internal?: boolean;
-  replied_to_message_id?: string;
-  media_url?: string | null;   // T0.5
-  media_type?: string | null;
-  shared_post_url?: string | null;
-  suggested_actions?: RecommendedAction[];  // ticket 4
-}
-
-interface ConversationDetail {
-  id: string;
-  guest_id?: string;
-  inquiry_id?: string | null;
-  guest_name?: string;
-  guest_phone: string;
-  channel: string;
-  source?: string | null;
-  status: "open" | "resolved" | "snoozed";
-  messages: Message[];
-  last_inbound_at?: string | null;  // D9: WhatsApp 24h service window
-  total_messages?: number;
-  messages_capped?: boolean;  // true when older history exists beyond `messages`
-  // Phone-decline alert plan: the open "Guest declined phone number" Task
-  // for this conversation, if any (see backend concierge_draft.py's
-  // _maybe_alert_phone_decline).
-  phone_decline_task?: { id: string; title: string } | null;
-  // Inbox redesign: every channel the guest has used, the per-conversation
-  // AI switch, and the owner.
-  guest_channels?: GuestChannel[];
-  ai_enabled?: boolean;
-  assigned_to?: string | null;
-}
-
-// HAIP Inbox prototype-wiring plan, ticket 2/5: the call side of the merged
-// timeline. Messages keep coming from ConversationDetail/olderMessages
-// (already paginated, tested) -- only calls are pulled in from the new
-// timeline endpoint and interleaved by timestamp, to avoid disturbing that
-// working pagination state machine.
-interface TimelineCallItem {
-  type: "call";
-  occurred_at: string;
-  call: CallTimelineItem;
-}
-interface TimelineMessageItem {
-  type: "message";
-  occurred_at: string;
-}
-type TimelineItem = TimelineCallItem | TimelineMessageItem;
-
-// D9: compute seconds remaining in 24h WhatsApp service window
-function getWindowSecondsLeft(last_inbound_at?: string | null): number {
-  if (!last_inbound_at) return 0;
-  const since = (Date.now() - new Date(last_inbound_at).getTime()) / 1000;
-  return Math.max(0, 86400 - since);
-}
-
-function formatWindowCountdown(secs: number): string {
-  if (secs <= 0) return "Expired";
-  const h = Math.floor(secs / 3600);
-  const m = Math.floor((secs % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m left`;
-  return `${m}m left`;
-}
-
-// HAIP Inbox full-parity pass, ticket 5: same option sets MessageBubble.tsx
-// uses for the stored-draft rewrite pickers -- duplicated here (not
-// exported there) since this is the composer's own free-text version.
-const COMPOSER_REWRITE_LANGUAGES = ["Hindi", "Kannada", "Tamil", "Telugu", "Malayalam"];
-const COMPOSER_REWRITE_TONES = ["warm", "formal", "brief", "persuasive"] as const;
-
-const CHANNEL_FILTERS = [
-  { value: "",          label: "All" },
-  { value: "whatsapp",  label: "WhatsApp" },
-  { value: "instagram", label: "Instagram" },
-  { value: "voice",     label: "Call" },
-  { value: "webchat",   label: "Web" },
-  // Personal/Business-app WhatsApp bridge (whatsmeow, unofficial) -- kept
-  // out of "WhatsApp"/"All" for now (product decision) since it shares
-  // channel="whatsapp" with the official Cloud API but isn't the same
-  // pipe; this tab is the only way to reach conversations tagged
-  // source="personal_bridge" (backend excludes them from every other filter).
-  { value: "personal_whatsapp", label: "Personal WhatsApp" },
-];
 
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -662,12 +566,6 @@ function InboxPageInner() {
   };
 
   // W4: quick schedule options
-  const SCHEDULE_OPTIONS = [
-    { label: "In 1 hour",     getValue: () => new Date(Date.now() + 60 * 60 * 1000).toISOString() },
-    { label: "Tomorrow 9am",  getValue: () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0); return d.toISOString(); } },
-    { label: "Tomorrow 6pm",  getValue: () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(18, 0, 0, 0); return d.toISOString(); } },
-    { label: "Monday 9am",    getValue: () => { const d = new Date(); const day = d.getDay(); const diff = (8 - day) % 7 || 7; d.setDate(d.getDate() + diff); d.setHours(9, 0, 0, 0); return d.toISOString(); } },
-  ];
 
   // W3: "/" in composer opens saved-reply menu; /note triggers internal mode (W24)
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -760,91 +658,16 @@ function InboxPageInner() {
   return (
     <div className="haip-inbox-v2 h-full flex overflow-hidden">
       {/* Left: conversation list — full-width on mobile when mobileView==="list", sidebar on md+ */}
-      <div className={cn(
-        "flex-col bg-card",
-        "border-r",
-        mobileView === "list" ? "flex w-full" : "hidden",
-        "md:flex md:w-[340px] md:flex-shrink-0",
-      )}
-        style={{ borderColor: "var(--haip-border)" }}
-      >
-        {/* W18: online agents indicator */}
-        {onlineUsers.length > 0 && (
-          <div className="hidden md:flex px-3 py-1.5 items-center gap-1.5" style={{ borderBottom: "1px solid var(--haip-border)" }}>
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
-            <span className="text-[10px]" style={{ color: "var(--haip-fg-subtle)" }}>
-              {onlineUsers.length === 1
-                ? `${onlineUsers[0].name.split(" ")[0]} is online`
-                : `${onlineUsers.length} agents online`}
-            </span>
-            <div className="ml-auto flex -space-x-1">
-              {onlineUsers.slice(0, 4).map(u => (
-                <div
-                  key={u.id}
-                  title={`${u.name} (${u.role})`}
-                  className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold"
-                  style={{ background: "var(--primary)", color: "var(--primary-foreground)", border: "1px solid var(--haip-card)" }}
-                >
-                  {u.name[0]?.toUpperCase()}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        {/* W15: saved views section */}
-        {(savedViews as any[]).length > 0 && (
-          <div className="px-3 py-2" style={{ borderBottom: "1px solid var(--haip-border)" }}>
-            <p className="text-[10px] font-medium uppercase tracking-widest mb-1.5" style={{ color: "var(--haip-fg-subtle)" }}>Saved views</p>
-            <div className="space-y-0.5">
-              {(savedViews as any[]).map((v: any) => (
-                <button
-                  key={v.id}
-                  onClick={() => setActiveView(av => av === v.id ? null : v.id)}
-                  className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-colors duration-150"
-                  style={activeView === v.id
-                    ? { background: "color-mix(in srgb, var(--primary) 10%, transparent)", color: "var(--primary)", fontWeight: 500 }
-                    : { color: "var(--haip-fg-muted)" }}
-                >
-                  {v.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <ConversationList
-            conversations={displayConversations ?? (scopedFeed ? [] : conversations)}
-            isLoading={listLoading}
-            activeId={activeConversationId}
-            onSelect={id => { setActiveConversation(id); setMobileView("thread"); }}
-            view={inboxView}
-            onViewChange={setInboxView}
-            counts={viewCounts}
-            channelFilter={channelFilter}
-            channelOptions={CHANNEL_FILTERS}
-            onChannelChange={setChannelFilter}
-            className="flex-1"
-            onBulkResolve={ids => {
-              // W13: resolve multiple conversations
-              Promise.all(ids.map(id => api.patch(`/conversations/${id}`, { is_open: false })))
-                .then(() => queryClient.invalidateQueries({ queryKey: ["conversations"] }));
-            }}
-            onArchive={id => {
-              // HAIP Inbox full-parity pass, ticket 2: hover-row Archive action
-              api.patch(`/conversations/${id}`, { is_open: false })
-                .then(() => queryClient.invalidateQueries({ queryKey: ["conversations"] }));
-            }}
-            onBulkMarkRead={ids => {
-              // W13: mark multiple conversations as read
-              Promise.all(ids.map(id => api.post(`/conversations/${id}/read`)))
-                .then(() => queryClient.invalidateQueries({ queryKey: ["conversations"] }));
-            }}
-            onLoadMore={hasMoreConversations ? () => fetchNextConversationPage() : undefined}
-            isLoadingMore={isLoadingMoreConversations}
-            onCall={guestNumber => clickToCallMutation.mutate(guestNumber)}
-            callingNumber={clickToCallMutation.isPending ? (clickToCallMutation.variables ?? null) : null}
-          />
-      </div>
+      <InboxListPane
+        mobileView={mobileView} setMobileView={setMobileView} onlineUsers={onlineUsers}
+        savedViews={savedViews as any[]} setActiveView={setActiveView} activeView={activeView}
+        displayConversations={displayConversations} scopedFeed={scopedFeed} conversations={conversations}
+        listLoading={listLoading} activeConversationId={activeConversationId} setActiveConversation={setActiveConversation}
+        inboxView={inboxView} setInboxView={setInboxView} viewCounts={viewCounts}
+        channelFilter={channelFilter} setChannelFilter={setChannelFilter}
+        hasMoreConversations={hasMoreConversations} fetchNextConversationPage={() => fetchNextConversationPage()}
+        isLoadingMoreConversations={isLoadingMoreConversations} clickToCallMutation={clickToCallMutation}
+      />
 
       {/* Center: message thread — full-width on mobile when mobileView==="thread" */}
       <div className={cn(
@@ -862,168 +685,14 @@ function InboxPageInner() {
           </div>
         ) : (
           <>
-            <div className="px-3 md:px-5 py-3 flex items-center gap-2 md:gap-3 flex-shrink-0" style={{ borderBottom: "1px solid var(--haip-border)" }}>
-              {/* Mobile back button */}
-              <button
-                onClick={() => setMobileView("list")}
-                className="md:hidden flex items-center justify-center w-8 h-8 rounded-lg hover:bg-muted flex-shrink-0 -ml-1"
-                style={{ color: "var(--haip-fg-subtle)" }}
-                aria-label="Back to conversations"
-              >
-                <ChevronLeft size={18} />
-              </button>
-              {detail ? (
-                <>
-                  <div className="ibx-avatar flex-shrink-0" style={{ width: 36, height: 36, fontSize: 14 }}>
-                    {detail.guest_name?.[0]?.toUpperCase() ?? "?"}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-[15px] font-bold truncate" style={{ color: "var(--haip-fg)" }}>{detail.guest_name || detail.guest_phone}</span>
-                      {/* Messaging-window countdown (official WhatsApp only -- the one channel that enforces it here) */}
-                      {isOfficialWhatsApp && detail.last_inbound_at && (
-                        windowOpen ? (
-                          <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 flex-shrink-0">
-                            <Timer size={10} />
-                            {formatWindowCountdown(getWindowSecondsLeft(detail.last_inbound_at))} to reply
-                          </span>
-                        ) : (
-                          <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 flex-shrink-0">
-                            <AlertTriangle size={10} /> Template required
-                          </span>
-                        )
-                      )}
-                    </div>
-                    <div className="mt-0.5">
-                      {/* Every channel this guest has talked to us on */}
-                      <TalkedOn
-                        size={14}
-                        channels={detail.guest_channels?.length
-                          ? detail.guest_channels
-                          : (toGuestChannel(detail.channel) ? [toGuestChannel(detail.channel)!] : [])}
-                      />
-                    </div>
-                  </div>
+            <ThreadHeader
+              detail={detail} setMobileView={setMobileView} isOfficialWhatsApp={isOfficialWhatsApp} windowOpen={windowOpen}
+              aiToggleMutation={aiToggleMutation} assignMutation={assignMutation} teamMembers={teamMembers as any[]}
+              currentUserId={currentUserId} clickToCallMutation={clickToCallMutation} resolveMutation={resolveMutation}
+              setShowGuestSheet={setShowGuestSheet} setShowSearch={setShowSearch} showSnooze={showSnooze}
+              setShowSnooze={setShowSnooze} snoozeMutation={snoozeMutation}
+            />
 
-                  {/* Pause / resume the AI for this one guest */}
-                  <button
-                    type="button"
-                    onClick={() => aiToggleMutation.mutate(!(detail.ai_enabled ?? true))}
-                    disabled={aiToggleMutation.isPending}
-                    role="switch"
-                    aria-checked={detail.ai_enabled ?? true}
-                    title={(detail.ai_enabled ?? true) ? "AI is replying to this guest -- click to pause" : "AI is paused for this guest -- click to resume"}
-                    className={cn(
-                      "hidden sm:inline-flex items-center gap-2 text-xs font-bold px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-60",
-                      (detail.ai_enabled ?? true) ? "bg-teal-50 text-teal-800" : "bg-gray-100 text-gray-600",
-                    )}
-                  >
-                    <span className={cn("relative w-7 h-4 rounded-full transition-colors", (detail.ai_enabled ?? true) ? "bg-teal-600" : "bg-gray-300")}>
-                      <span className={cn("absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all", (detail.ai_enabled ?? true) ? "left-3.5" : "left-0.5")} />
-                    </span>
-                    AI replies
-                  </button>
-
-                  {/* Owner */}
-                  <select
-                    value={detail.assigned_to ?? ""}
-                    onChange={e => assignMutation.mutate(e.target.value || null)}
-                    aria-label="Owner"
-                    className="hidden md:block text-xs font-semibold px-2 py-1.5 rounded-lg border outline-none max-w-[140px]"
-                    style={{ borderColor: "var(--haip-border)", background: "var(--haip-card)", color: "var(--haip-fg)" }}
-                  >
-                    <option value="">Unassigned</option>
-                    {(teamMembers as any[]).map((u: any) => (
-                      <option key={u.id} value={u.id}>{u.id === currentUserId ? `${u.name} (me)` : u.name}</option>
-                    ))}
-                  </select>
-
-                  {/* Call -- IVR click-to-call: the agent's phone rings, then bridges to the guest */}
-                  {detail.guest_phone && (
-                    <button
-                      type="button"
-                      onClick={() => clickToCallMutation.mutate(detail.guest_phone)}
-                      disabled={clickToCallMutation.isPending}
-                      className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-teal-700 text-white hover:bg-teal-800 disabled:opacity-60 flex-shrink-0"
-                    >
-                      {clickToCallMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Phone size={13} />}
-                      Call
-                    </button>
-                  )}
-
-                  {/* Resolve */}
-                  <button
-                    type="button"
-                    onClick={() => resolveMutation.mutate()}
-                    disabled={resolveMutation.isPending || detail.status === "resolved"}
-                    title={detail.status === "resolved" ? "Resolved" : "Mark resolved"}
-                    aria-label="Mark resolved"
-                    className="hidden sm:flex w-8 h-8 rounded-lg border items-center justify-center text-emerald-600 hover:bg-emerald-50 disabled:opacity-40"
-                    style={{ borderColor: "var(--haip-border)" }}
-                  >
-                    <Check size={15} />
-                  </button>
-
-                  {/* Guest 360 -- mobile opens it as a sheet */}
-                  <button
-                    onClick={() => setShowGuestSheet(true)}
-                    className="md:hidden w-8 h-8 rounded-lg flex items-center justify-center transition-colors duration-150 hover:bg-muted"
-                    style={{ color: "var(--haip-fg-subtle)" }}
-                    title="Guest details"
-                    aria-label="Guest details"
-                  >
-                    <User size={14} />
-                  </button>
-                  {/* Search messages -- desktop */}
-                  <button
-                    onClick={() => setShowSearch(s => !s)}
-                    className="hidden md:flex w-8 h-8 rounded-lg items-center justify-center transition-colors duration-150 hover:bg-muted"
-                    style={{ color: "var(--haip-fg-subtle)" }}
-                    title="Search messages"
-                    aria-label="Search messages"
-                  >
-                    <Search size={14} />
-                  </button>
-                  {/* Snooze -- desktop */}
-                  <div className="relative hidden md:block">
-                    <button
-                      onClick={() => setShowSnooze(s => !s)}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors duration-150 hover:bg-muted"
-                      style={{ color: "var(--haip-fg-subtle)" }}
-                      title="Snooze conversation"
-                      aria-label="Snooze conversation"
-                    >
-                      <BellOff size={14} />
-                    </button>
-                    {showSnooze && (
-                      <div className="absolute top-full right-0 mt-1 z-20 rounded-xl shadow-md overflow-hidden w-44" style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)" }}>
-                        {[
-                          { label: "3 hours", hours: 3 },
-                          { label: "Until tomorrow", hours: 18 },
-                          { label: "Next week", hours: 168 },
-                        ].map(opt => (
-                          <button
-                            key={opt.label}
-                            onClick={() => { snoozeMutation.mutate(new Date(Date.now() + opt.hours * 3600_000).toISOString()); }}
-                            className="w-full text-left px-4 py-2 text-xs transition-colors duration-150 hover:bg-muted"
-                            style={{ color: "var(--haip-fg-muted)" }}
-                          >
-                            {opt.label}
-                          </button>
-                        ))}
-                        <button
-                          onClick={() => snoozeMutation.mutate(null)}
-                          className="w-full text-left px-4 py-2 text-xs transition-colors duration-150 hover:bg-muted"
-                          style={{ color: "var(--haip-red)", borderTop: "1px solid var(--haip-border)" }}
-                        >
-                          Clear snooze
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </>
-              ) : <Skeleton className="h-6 w-48" />}
-            </div>
 
             {/* Phone-decline alert plan: sits above the AI draft strip, same
                 position as the approved mockup. */}
@@ -1035,514 +704,44 @@ function InboxPageInner() {
                 (dates/guests/budget + lead score) above the thread. */}
             <PinnedInquiryBanner inquiryId={detail?.inquiry_id ?? null} />
 
-            {/* W17: search overlay */}
-            {showSearch && (
-              <div className="px-4 py-3 space-y-2 flex-shrink-0" style={{ borderBottom: "1px solid var(--haip-border)", background: "var(--muted)" }}>
-                <div className="flex items-center gap-2">
-                  <Search size={13} className="flex-shrink-0" style={{ color: "var(--haip-fg-subtle)" }} />
-                  <input
-                    autoFocus
-                    value={searchQ}
-                    onChange={e => setSearchQ(e.target.value)}
-                    placeholder="Search messages…"
-                    className="flex-1 text-sm bg-transparent outline-none"
-                    style={{ color: "var(--haip-fg)" }}
-                  />
-                  <button onClick={() => { setShowSearch(false); setSearchQ(""); }} style={{ color: "var(--haip-fg-subtle)" }}><X size={13} /></button>
-                </div>
-                {searchQ.length >= 2 && (
-                  <div className="space-y-1 max-h-48 overflow-y-auto haip-scrollbar">
-                    {searchLoading ? <p className="text-xs py-2 text-center" style={{ color: "var(--haip-fg-subtle)" }}>Searching…</p>
-                    : (searchResults as any[]).length === 0 ? <p className="text-xs py-2 text-center" style={{ color: "var(--haip-fg-subtle)" }}>No results</p>
-                    : (searchResults as any[]).map((r: any) => (
-                      <button
-                        key={r.message_id}
-                        onClick={() => { setActiveConversation(r.conversation_id); setShowSearch(false); setSearchQ(""); }}
-                        className="w-full text-left px-3 py-2 rounded-lg text-xs transition-colors duration-150 hover:bg-card"
-                      >
-                        <p className="font-medium truncate" style={{ color: "var(--haip-fg)" }}>{r.guest_name || r.guest_phone}</p>
-                        <p className="truncate" style={{ color: "var(--haip-fg-subtle)" }}>{r.snippet}</p>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+            <ThreadSearch
+              showSearch={showSearch} searchQ={searchQ} setSearchQ={setSearchQ} setShowSearch={setShowSearch}
+              searchLoading={searchLoading} searchResults={searchResults as any[]} setActiveConversation={setActiveConversation}
+            />
 
-            {/* Thread body sits a shade below the white pane so the message
-                column reads as its own surface (prototype .thread-body).
-                --haip-surface, not a literal gradient: it resolves to #F8FAFC
-                in light and the page bg in dark, so this doesn't invert. */}
-            <div
-              className="flex-1 overflow-y-auto px-3 md:px-5 py-4 space-y-3"
-              style={{ background: "var(--haip-surface)" }}
-            >
-              {detailLoading ? (
-                <div className="space-y-4">
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className={cn("flex", i % 2 === 0 ? "justify-start" : "justify-end")}>
-                      <Skeleton className="h-10 w-48 rounded-2xl" />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <>
-                  {hasMoreOlderMessages && (
-                    <div className="flex justify-center pb-1">
-                      <button
-                        onClick={loadOlderMessages}
-                        disabled={loadingOlderMessages}
-                        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors duration-150 disabled:opacity-50"
-                        style={{ borderColor: "var(--haip-border)", color: "var(--haip-fg-subtle)", background: "var(--haip-card)" }}
-                      >
-                        {loadingOlderMessages
-                          ? <><Loader2 size={12} className="animate-spin" /> Loading…</>
-                          : "Load older messages"}
-                      </button>
-                    </div>
-                  )}
-                  {(() => {
-                    // Real bug, reported live: a rejected AI draft
-                    // (was_approved=false) fell out of isAiDraft's gate
-                    // (which only checks was_approved == null) and rendered
-                    // as an ordinary outbound bubble -- same green styling,
-                    // same checkmark treatment -- with nothing distinguishing
-                    // it from a message that was actually delivered. It was
-                    // never sent to the guest at all, so showing it in the
-                    // thread as if it were is actively misleading to
-                    // whoever's reading the conversation. Excluded entirely
-                    // rather than given a "rejected" visual treatment --
-                    // there's nothing useful about seeing a reply that never
-                    // reached the guest sitting in their conversation history.
-                    const msgs = [...olderMessages, ...(detail?.messages ?? [])]
-                      .filter(m => !(m.ai_drafted && m.direction === "outbound" && m.was_approved === false));
-                    // Interleave calls (ticket 2) by timestamp -- messages
-                    // keep their own tested render path, calls are spliced
-                    // in purely for chronological display.
-                    type Row = { key: string; at: number } & (
-                      | { kind: "message"; msg: Message }
-                      | { kind: "call"; call: CallTimelineItem }
-                      | { kind: "date"; label: string }
-                    );
-                    const rows: Row[] = [
-                      ...msgs.map(m => ({ key: `m-${m.id}`, at: new Date(m.timestamp).getTime(), kind: "message" as const, msg: m })),
-                      ...callItems.map(c => ({ key: `c-${c.call.id}`, at: new Date(c.occurred_at).getTime(), kind: "call" as const, call: c.call })),
-                    ].sort((a, b) => a.at - b.at);
+            <ThreadBody
+              detail={detail} detailLoading={detailLoading} olderMessages={olderMessages}
+              hasMoreOlderMessages={hasMoreOlderMessages} loadOlderMessages={loadOlderMessages}
+              loadingOlderMessages={loadingOlderMessages} callItems={callItems}
+              handleApprove={handleApprove} handleReject={handleReject} handleRetry={handleRetry}
+              setEditingDraftId={setEditingDraftId} setEditText={setEditText} setReplyToMsg={setReplyToMsg}
+              textareaRef={textareaRef} rewriteDraft={rewriteDraft} rewritingMessageId={rewritingMessageId}
+              aiTyping={aiTyping} bottomRef={bottomRef}
+            />
 
-                    // Insert a date separator before the first row of each
-                    // calendar day -- without this, a message from a week
-                    // ago and one from just now show identical bare times
-                    // ("10:23 am") with nothing marking the gap between
-                    // them, which is exactly what read like "this whole
-                    // thread happened today" for an old conversation with
-                    // one recent reply spliced in.
-                    const withDates: Row[] = [];
-                    let lastDateKey = "";
-                    for (const row of rows) {
-                      const d = new Date(row.at);
-                      const dateKey = d.toDateString();
-                      if (dateKey !== lastDateKey) {
-                        lastDateKey = dateKey;
-                        const today = new Date();
-                        const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
-                        const label =
-                          dateKey === today.toDateString() ? "Today" :
-                          dateKey === yesterday.toDateString() ? "Yesterday" :
-                          d.toLocaleDateString(undefined, { day: "numeric", month: "long", year: d.getFullYear() !== today.getFullYear() ? "numeric" : undefined });
-                        withDates.push({ key: `date-${dateKey}`, at: row.at, kind: "date", label });
-                      }
-                      withDates.push(row);
-                    }
+            <DraftEditor
+              editingDraftId={editingDraftId} editText={editText} setEditText={setEditText}
+              setEditingDraftId={setEditingDraftId} activeConversationId={activeConversationId}
+            />
 
-                    return withDates.map(row => row.kind === "date" ? (
-                      <div key={row.key} className="flex justify-center my-2">
-                        <span
-                          className="text-[11px] font-medium px-2.5 py-1 rounded-full"
-                          style={{ background: "var(--haip-card)", color: "var(--haip-fg-subtle)", border: "1px solid var(--haip-border)" }}
-                        >
-                          {row.label}
-                        </span>
-                      </div>
-                    ) : row.kind === "call" ? (
-                      <CallLogCard key={row.key} call={row.call} />
-                    ) : (
-                      <MessageBubble
-                        key={row.key}
-                        id={row.msg.id}
-                        text={row.msg.text}
-                        direction={row.msg.direction}
-                        status={(row.msg.delivery_state ?? row.msg.status) as any}
-                        deliveryError={row.msg.delivery_error}
-                        timestamp={row.msg.timestamp}
-                        isAiDraft={!!(row.msg.ai_drafted && row.msg.direction === "outbound" && row.msg.was_approved == null)}
-                        isInternal={row.msg.is_internal}
-                        aiConfidence={row.msg.ai_confidence}
-                        senderName={row.msg.direction === "outbound" ? row.msg.sender_name : (detail?.guest_name || detail?.guest_phone)}
-                        channel={row.msg.channel}
-                        mediaUrl={row.msg.media_url}
-                        mediaType={row.msg.media_type}
-                        sharedPostUrl={row.msg.shared_post_url}
-                        suggestedActions={row.msg.suggested_actions}
-                        entityRefs={{ guest_id: detail?.guest_id, inquiry_id: detail?.inquiry_id ?? undefined }}
-                        onApprove={handleApprove}
-                        onEdit={(id, text) => { setEditingDraftId(id); setEditText(text); }}
-                        onReject={handleReject}
-                        onRetry={handleRetry}
-                        onReply={(id) => {
-                          setReplyToMsg(row.msg);
-                          textareaRef.current?.focus();
-                        }}
-                        onRewrite={(id, opts) => rewriteDraft.mutate({ messageId: id, tone: opts.tone, targetLanguage: opts.target_language })}
-                        isRewriting={rewritingMessageId === row.msg.id}
-                      />
-                    ));
-                  })()}
-                  {aiTyping && <div className="flex justify-start"><TypingDots /></div>}
-                  <div ref={bottomRef} />
-                </>
-              )}
-            </div>
+            <ComposerNotices
+              isVoiceOnly={isVoiceOnly} windowBlocked={windowBlocked}
+              setShowTemplatePicker={setShowTemplatePicker} setIsInternalNote={setIsInternalNote}
+            />
 
-            {editingDraftId && (
-              <div className="px-5 py-3 flex gap-2" style={{ borderTop: "1px solid var(--haip-border)", background: "color-mix(in srgb, var(--primary) 4%, transparent)" }}>
-                <textarea
-                  value={editText}
-                  onChange={e => setEditText(e.target.value)}
-                  rows={2}
-                  className="flex-1 text-sm rounded-lg px-3 py-2 focus:outline-none resize-none"
-                  style={{ border: "1px solid var(--haip-border)", background: "var(--haip-card)", color: "var(--haip-fg)" }}
-                />
-                <div className="flex flex-col gap-1">
-                  <button
-                    onClick={() => {
-                      api.post(`/conversations/${activeConversationId}/messages/${editingDraftId}/approve`, { text: editText })
-                        .then(() => { setEditingDraftId(null); queryClient.invalidateQueries({ queryKey: ["conversation", activeConversationId] }); toast({ variant: "success", title: "Edited draft sent" }); });
-                    }}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors duration-150"
-                    style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
-                  >Send</button>
-                  <button onClick={() => setEditingDraftId(null)} className="text-xs px-3 py-1.5" style={{ color: "var(--haip-fg-subtle)" }}>Cancel</button>
-                </div>
-              </div>
-            )}
-
-            {/* HAIP Inbox UI-fidelity pass, ticket 5: no chat composer for a
-                voice-only conversation -- there's no WhatsApp/Instagram
-                thread to send into, only the call log above. */}
-            {isVoiceOnly && (
-              <div
-                className="px-4 py-4 flex items-center gap-3 flex-shrink-0"
-                style={{ borderTop: "1px solid var(--haip-border)", background: "var(--muted)" }}
-              >
-                <Phone size={16} style={{ color: "var(--haip-fg-subtle)" }} />
-                <p className="text-xs font-medium" style={{ color: "var(--haip-fg-subtle)" }}>
-                  No chat channel yet — call log only
-                </p>
-              </div>
-            )}
-
-            {/* D9: Window-closed blocker — shown instead of composer when 24h window expired */}
-            {!isVoiceOnly && windowBlocked && (
-              <div
-                className="px-4 py-4 flex-shrink-0"
-                style={{
-                  borderTop: "1px solid color-mix(in srgb, var(--haip-amber) 30%, transparent)",
-                  background: "color-mix(in srgb, var(--haip-amber) 6%, transparent)",
-                }}
-              >
-                <div className="flex items-start gap-3">
-                  <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
-                    style={{ background: "color-mix(in srgb, var(--haip-amber) 15%, transparent)" }}
-                  >
-                    <AlertTriangle size={14} style={{ color: "var(--haip-amber)" }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold" style={{ color: "var(--haip-amber)" }}>24-hour service window closed</p>
-                    <p className="text-xs mt-0.5" style={{ color: "var(--haip-amber)" }}>
-                      Free-form messages are not allowed. Send a pre-approved WhatsApp template to re-open the window.
-                    </p>
-                    <div className="flex gap-2 mt-3">
-                      <button
-                        onClick={() => setShowTemplatePicker(true)}
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
-                        style={{ background: "var(--haip-amber)", color: "#fff" }}
-                      >
-                        <LayoutTemplate size={12} />
-                        Send template
-                      </button>
-                      <button
-                        onClick={() => { setIsInternalNote(true); }}
-                        className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                        style={{
-                          background: "color-mix(in srgb, var(--haip-amber) 15%, transparent)",
-                          color: "var(--haip-amber)",
-                        }}
-                      >
-                        <StickyNote size={12} />
-                        Internal note
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Composer */}
-            <div
-              className={cn("px-3 md:px-4 pt-2 pb-2 md:pb-1 flex-shrink-0", (isVoiceOnly || (windowBlocked && !isInternalNote)) && "hidden")}
-              style={{
-                borderTop: isInternalNote
-                  ? "1px solid color-mix(in srgb, var(--haip-amber) 30%, transparent)"
-                  : "1px solid var(--haip-border)",
-                background: isInternalNote ? "color-mix(in srgb, var(--haip-amber) 4%, transparent)" : "transparent",
-              }}
-            >
-              {/* W24: internal note banner */}
-              {isInternalNote && (
-                <div className="flex items-center gap-2 mb-2 px-1">
-                  <StickyNote size={12} style={{ color: "var(--haip-amber)" }} />
-                  <span className="text-xs font-semibold" style={{ color: "var(--haip-amber)" }}>Internal note — not sent to guest</span>
-                  <button onClick={exitInternalNote} className="ml-auto transition-colors" style={{ color: "var(--haip-fg-subtle)" }}>
-                    <X size={12} />
-                  </button>
-                </div>
-              )}
-              {/* W5: reply-to preview */}
-              {replyToMsg && (
-                <div className="flex items-start gap-2 mb-2 px-1 py-1 rounded-lg" style={{ background: "var(--muted)", borderLeft: "2px solid var(--primary)" }}>
-                  <Reply size={11} className="mt-0.5 flex-shrink-0" style={{ color: "var(--primary)" }} />
-                  <p className="text-xs truncate flex-1" style={{ color: "var(--haip-fg-muted)" }}>{replyToMsg.text}</p>
-                  <button onClick={() => setReplyToMsg(null)} className="flex-shrink-0" style={{ color: "var(--haip-fg-subtle)" }}>
-                    <X size={11} />
-                  </button>
-                </div>
-              )}
-              {/* W4: scheduled send banner */}
-              {scheduledFor && (
-                <div
-                  className="flex items-center gap-2 mb-2 px-1 py-1 rounded-lg"
-                  style={{
-                    background: "color-mix(in srgb, #3B82F6 8%, transparent)",
-                    border: "1px solid color-mix(in srgb, #3B82F6 20%, transparent)",
-                  }}
-                >
-                  <CalendarClock size={12} className="flex-shrink-0" style={{ color: "#3B82F6" }} />
-                  <span className="text-xs flex-1" style={{ color: "#3B82F6" }}>
-                    Scheduled for {new Date(scheduledFor).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
-                  </span>
-                  <button onClick={() => setScheduledFor(null)} style={{ color: "#3B82F6", opacity: 0.6 }}>
-                    <X size={11} />
-                  </button>
-                </div>
-              )}
-              {/* HAIP Inbox full-parity pass, ticket 5: Translate/Tone-Fix on
-                  whatever the agent is currently typing -- distinct from
-                  MessageBubble's pickers, which only operate on an
-                  already-stored AI draft. */}
-              {!isInternalNote && replyText.trim().length > 0 && (
-                <div className="flex items-center gap-1.5 mb-1.5 px-1">
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => { setShowComposerTonePicker(v => !v); setShowComposerLangPicker(false); }}
-                      disabled={isComposerRewriting}
-                      className="flex items-center gap-1 text-[11px] text-gray-500 bg-white hover:bg-gray-50 border border-gray-200 px-2 py-1 rounded-lg transition-colors disabled:opacity-50"
-                    >
-                      {isComposerRewriting ? <Loader2 size={11} className="animate-spin" /> : <Wand2 size={11} />} Tone Fix
-                    </button>
-                    {showComposerTonePicker && (
-                      <div className="absolute z-10 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[110px]">
-                        {COMPOSER_REWRITE_TONES.map(t => (
-                          <button
-                            key={t}
-                            onClick={() => { composerRewrite.mutate({ tone: t }); setShowComposerTonePicker(false); }}
-                            className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 capitalize"
-                          >
-                            {t}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => { setShowComposerLangPicker(v => !v); setShowComposerTonePicker(false); }}
-                      disabled={isComposerRewriting}
-                      className="flex items-center gap-1 text-[11px] text-gray-500 bg-white hover:bg-gray-50 border border-gray-200 px-2 py-1 rounded-lg transition-colors disabled:opacity-50"
-                    >
-                      <Languages size={11} /> Translate
-                    </button>
-                    {showComposerLangPicker && (
-                      <div className="absolute z-10 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[110px]">
-                        {COMPOSER_REWRITE_LANGUAGES.map(lang => (
-                          <button
-                            key={lang}
-                            onClick={() => { composerRewrite.mutate({ targetLanguage: lang }); setShowComposerLangPicker(false); }}
-                            className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
-                          >
-                            {lang}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div className="relative flex gap-2 items-end">
-                {/* W3: SavedReplyMenu */}
-                {showSavedReplies && (
-                  <SavedReplyMenu
-                    query={savedReplyQuery}
-                    context={{ guest_name: detail?.guest_name }}
-                    onSelect={(resolved) => {
-                      setReplyText(resolved);
-                      setShowSavedReplies(false);
-                      textareaRef.current?.focus();
-                    }}
-                    onClose={() => setShowSavedReplies(false)}
-                    anchorRef={textareaRef}
-                  />
-                )}
-
-                {/* W25: @mention dropdown */}
-                {mentionQuery !== null && mentionMatches.length > 0 && (
-                  <div
-                    className="absolute bottom-full left-0 mb-1.5 z-30 rounded-xl p-1 min-w-[200px]"
-                    style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", boxShadow: "var(--haip-shadow-lg)" }}
-                  >
-                    <p className="text-[10px] font-semibold uppercase px-2 py-1" style={{ color: "var(--haip-fg-subtle)" }}>Mention teammate</p>
-                    {mentionMatches.map((u: any) => (
-                      <button
-                        key={u.id}
-                        onClick={() => insertMention(u)}
-                        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-muted"
-                      >
-                        <div
-                          className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0"
-                          style={{ background: "var(--primary)", color: "var(--primary-foreground)" }}
-                        >
-                          {u.name?.[0]?.toUpperCase() ?? "?"}
-                        </div>
-                        <div className="text-left">
-                          <p className="text-xs font-medium" style={{ color: "var(--haip-fg)" }}>{u.name}</p>
-                          <p className="text-[10px] capitalize" style={{ color: "var(--haip-fg-subtle)" }}>{u.role}</p>
-                        </div>
-                        {onlineUsers.some(o => o.id === u.id) && (
-                          <span className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "var(--haip-green)" }} />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* W4: schedule dropdown */}
-                {showSchedule && (
-                  <div
-                    className="absolute bottom-full right-0 mb-1.5 z-30 rounded-xl p-1 min-w-[170px]"
-                    style={{ background: "var(--haip-card)", border: "1px solid var(--haip-border)", boxShadow: "var(--haip-shadow-lg)" }}
-                  >
-                    <p className="text-[10px] font-semibold uppercase px-2 py-1" style={{ color: "var(--haip-fg-subtle)" }}>Send later</p>
-                    {SCHEDULE_OPTIONS.map(opt => (
-                      <button
-                        key={opt.label}
-                        onClick={() => {
-                          const iso = opt.getValue();
-                          setScheduledFor(iso);
-                          setShowSchedule(false);
-                        }}
-                        className="w-full text-left text-xs px-3 py-1.5 rounded-lg hover:bg-muted"
-                        style={{ color: "var(--haip-fg-muted)" }}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                    <div className="pt-1 px-2 pb-1 mt-1" style={{ borderTop: "1px solid var(--haip-border)" }}>
-                      <input
-                        type="datetime-local"
-                        className="w-full text-xs rounded-lg px-2 py-1 focus:outline-none"
-                        style={{ border: "1px solid var(--haip-border)", background: "var(--input-bg)", color: "var(--haip-fg)" }}
-                        onChange={e => {
-                          if (e.target.value) {
-                            setScheduledFor(new Date(e.target.value).toISOString());
-                            setShowSchedule(false);
-                          }
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <textarea
-                  ref={textareaRef}
-                  value={replyText}
-                  onChange={handleTextChange}
-                  onKeyDown={handleKeyDown}
-                  rows={1}
-                  placeholder={isInternalNote ? "Write an internal note…" : "Type a message or / for saved replies…"}
-                  className={cn("flex-1 text-sm rounded-full px-4 py-2.5 focus:outline-none resize-none transition-all", emptyPulse && "animate-pulse")}
-                  style={{
-                    minHeight: "42px",
-                    background: isInternalNote ? "rgba(245,158,11,0.06)" : "var(--input-bg)",
-                    border: `1.5px solid ${emptyPulse ? "var(--haip-red)" : isInternalNote ? "rgba(245,158,11,0.4)" : "var(--haip-border)"}`,
-                    color: "var(--haip-fg)",
-                  }}
-                />
-                {/* Send button + Schedule dropdown trigger */}
-                <div className="flex flex-shrink-0 items-center gap-1">
-                  <button
-                    onClick={() => handleSend()}
-                    disabled={sendMutation.isPending}
-                    className={cn(
-                      "h-10 w-10 rounded-full flex items-center justify-center transition-colors duration-150",
-                      !isEmpty && !isInternalNote && !scheduledFor && "ibx-send-btn",
-                    )}
-                    style={{
-                      background: isEmpty ? "var(--muted)" : isInternalNote ? "#F59E0B" : scheduledFor ? "#2563EB" : undefined,
-                      color: isEmpty ? "var(--haip-fg-subtle)" : "var(--primary-foreground)",
-                      cursor: isEmpty ? "not-allowed" : "pointer",
-                    }}
-                    aria-label="Send message"
-                  >
-                    {sendMutation.isPending ? <Loader2 size={14} className="animate-spin" />
-                     : isInternalNote ? <StickyNote size={14} />
-                     : scheduledFor ? <CalendarClock size={14} />
-                     : <Send size={14} />}
-                  </button>
-                  {!isInternalNote && (
-                    <button
-                      onClick={() => setShowSchedule(v => !v)}
-                      title="Schedule send"
-                      className="h-10 w-6 rounded-full flex items-center justify-center transition-colors duration-150"
-                    style={{
-                      background: isEmpty ? "var(--muted)" : scheduledFor ? "#2563EB" : "var(--primary)",
-                      color: isEmpty ? "var(--haip-fg-subtle)" : "var(--primary-foreground)",
-                    }}
-                    >
-                      <ChevronDown size={11} />
-                    </button>
-                  )}
-                </div>
-              </div>
-              {/* W2: helper text */}
-              <p className="text-[10px] mt-1 px-1 flex items-center gap-1.5" style={{ color: "var(--haip-fg-subtle)" }}>
-                {/* Which channel a reply goes out on -- matters once a guest
-                    has talked to us on more than one. */}
-                {!isInternalNote && detail && toGuestChannel(detail.channel) && (
-                  <span className="inline-flex items-center gap-1 font-semibold" style={{ color: "var(--haip-fg-muted)" }}>
-                    <ChannelBadge channel={toGuestChannel(detail.channel)!} size={12} />
-                    Replying on {channelLabel(detail.channel)} ·
-                  </span>
-                )}
-                {isInternalNote
-                  ? "Esc to cancel · Enter to save note"
-                  : scheduledFor
-                  ? "Click send to schedule · click ✕ above to cancel"
-                  : "Enter to send · Shift+Enter newline · /note for internal notes · / for saved replies"}
-              </p>
-            </div>
+            <Composer
+              isVoiceOnly={isVoiceOnly} windowBlocked={windowBlocked} isInternalNote={isInternalNote}
+              exitInternalNote={exitInternalNote} replyToMsg={replyToMsg} setReplyToMsg={setReplyToMsg}
+              scheduledFor={scheduledFor} setScheduledFor={setScheduledFor} replyText={replyText} setReplyText={setReplyText}
+              isEmpty={isEmpty} emptyPulse={emptyPulse} isComposerRewriting={isComposerRewriting}
+              showComposerTonePicker={showComposerTonePicker} setShowComposerTonePicker={setShowComposerTonePicker}
+              showComposerLangPicker={showComposerLangPicker} setShowComposerLangPicker={setShowComposerLangPicker}
+              composerRewrite={composerRewrite} showSavedReplies={showSavedReplies} setShowSavedReplies={setShowSavedReplies}
+              savedReplyQuery={savedReplyQuery} detail={detail} textareaRef={textareaRef} mentionQuery={mentionQuery}
+              mentionMatches={mentionMatches} insertMention={insertMention} onlineUsers={onlineUsers}
+              showSchedule={showSchedule} setShowSchedule={setShowSchedule} handleTextChange={handleTextChange}
+              handleKeyDown={handleKeyDown} handleSend={handleSend} sendMutation={sendMutation}
+            />
           </>
         )}
       </div>

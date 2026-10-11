@@ -79,11 +79,11 @@ function timeAgo(iso: string) {
 
 type Tone = "amber" | "red" | "green" | "violet" | "gray";
 const TONE: Record<Tone, string> = {
-  amber: "bg-amber-50 text-amber-700",
-  red: "bg-red-50 text-red-700",
-  green: "bg-emerald-50 text-emerald-700",
-  violet: "bg-violet-50 text-violet-700",
-  gray: "bg-gray-100 text-gray-500",
+  amber: "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)]",
+  red: "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)]",
+  green: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)]",
+  violet: "bg-[var(--haip-status-info-bg)] text-[var(--haip-status-info-fg)]",
+  gray: "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-status-neutral-fg)]",
 };
 
 /** The single most important status for a row -- never a pile of badges. */
@@ -121,6 +121,16 @@ export function ConversationList({
     return "recent";
   });
   const [showSortMenu, setShowSortMenu] = useState(false);
+  // Compact rows fit more conversations on screen. Remembered on this device.
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    try { setCompact(localStorage.getItem("inbox_density") === "compact"); } catch { /* storage unavailable */ }
+  }, []);
+  const toggleCompact = () => setCompact(c => {
+    const next = !c;
+    try { localStorage.setItem("inbox_density", next ? "compact" : "comfortable"); } catch { /* ignore */ }
+    return next;
+  });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const isSelecting = selected.size > 0;
   const [searchQuery, setSearchQuery] = useState("");
@@ -181,7 +191,7 @@ export function ConversationList({
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Search guests and messages"
             aria-label="Search conversations"
-            className="w-full pl-9 pr-3 py-2 rounded-xl text-sm outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+            className="w-full pl-9 pr-3 py-2 rounded-xl text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"
             style={{ background: "var(--muted)", color: "var(--haip-fg)" }}
           />
         </div>
@@ -204,7 +214,7 @@ export function ConversationList({
               >
                 {v.label}
                 {n != null && n > 0 && (
-                  <span className={"tabular-nums text-teal-700 dark:text-teal-300"}>{n}</span>
+                  <span className={"tabular-nums text-primary"}>{n}</span>
                 )}
               </button>
             );
@@ -225,6 +235,17 @@ export function ConversationList({
             </select>
             <ChevronDown size={12} className="absolute right-0 pointer-events-none" />
           </label>
+          <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={toggleCompact}
+            aria-pressed={compact}
+            className="inline-flex items-center text-xs font-semibold hover:text-[var(--haip-fg)]"
+            style={{ color: "var(--haip-fg-subtle)" }}
+            title={compact ? "Show comfortable rows" : "Show more conversations (compact rows)"}
+          >
+            {compact ? "Comfortable" : "Compact"}
+          </button>
           <button
             onClick={() => setShowSortMenu(v => !v)}
             className="inline-flex items-center gap-1 text-xs font-semibold"
@@ -234,6 +255,7 @@ export function ConversationList({
           >
             {SORT_LABELS[sort]} <ArrowUpDown size={11} />
           </button>
+          </div>
           {showSortMenu && (
             <div role="menu" className="absolute top-full right-0 mt-1 border rounded-xl shadow-lg z-20 overflow-hidden"
               style={{ background: "var(--haip-card)", borderColor: "var(--haip-border)" }}>
@@ -242,7 +264,7 @@ export function ConversationList({
                   key={m}
                   role="menuitem"
                   onClick={() => { setSort(m); setShowSortMenu(false); }}
-                  className={cn("w-full text-left px-4 py-2 text-xs", sort === m ? "bg-teal-50 text-teal-700 font-semibold" : "hover:bg-[color:var(--muted)]")}
+                  className={cn("w-full text-left px-4 py-2 text-xs", sort === m ? "bg-primary/10 text-primary font-semibold" : "hover:bg-[color:var(--muted)]")}
                   style={sort === m ? undefined : { color: "var(--haip-fg)" }}
                 >
                   {SORT_LABELS[m]}
@@ -254,23 +276,23 @@ export function ConversationList({
       </div>
 
       {isSelecting && (
-        <div className="px-3 py-2 border-b border-teal-100 bg-teal-50 flex items-center gap-2 flex-shrink-0">
-          <span className="text-xs font-semibold text-teal-700">{selected.size} selected</span>
-          <button onClick={selectAll} className="text-[11px] text-teal-600 hover:underline">All</button>
+        <div className="px-3 py-2 border-b border-primary/20 bg-primary/10 flex items-center gap-2 flex-shrink-0">
+          <span className="text-xs font-semibold text-primary">{selected.size} selected</span>
+          <button onClick={selectAll} className="text-[11px] text-primary hover:underline">All</button>
           <div className="flex-1" />
           {onBulkMarkRead && (
             <button onClick={() => { onBulkMarkRead(Array.from(selected)); clearSelection(); }}
-              className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg bg-white border border-teal-200 text-teal-600 hover:bg-teal-100">
+              className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg bg-[var(--haip-card)] border border-primary/30 text-primary hover:bg-primary/10">
               <CheckCheck size={11} /> Read
             </button>
           )}
           {onBulkResolve && (
             <button onClick={() => { onBulkResolve(Array.from(selected)); clearSelection(); }}
-              className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg bg-white border border-teal-200 text-teal-600 hover:bg-teal-100">
+              className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-lg bg-[var(--haip-card)] border border-primary/30 text-primary hover:bg-primary/10">
               <Archive size={11} /> Resolve
             </button>
           )}
-          <button onClick={clearSelection} className="text-gray-400 hover:text-gray-600 ml-1" aria-label="Clear selection">
+          <button onClick={clearSelection} className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg)] ml-1" aria-label="Clear selection">
             <X size={13} />
           </button>
         </div>
@@ -307,8 +329,9 @@ export function ConversationList({
               onClick={() => isSelecting ? toggleSelect(conv.id, { stopPropagation: () => {} } as React.MouseEvent) : onSelect(conv.id)}
               onKeyDown={e => { if (e.key === "Enter") onSelect(conv.id); }}
               className={cn(
-                "w-full text-left px-3 py-2.5 transition-colors group relative cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-600",
-                isActive ? "bg-teal-50 dark:bg-teal-950/40" : "hover:bg-[color:var(--muted)]",
+                compact ? "py-1.5" : "py-2.5",
+                "w-full text-left px-3 transition-colors group relative cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary",
+                isActive ? "bg-primary/10" : "hover:bg-[color:var(--muted)]",
               )}
               style={{ borderBottom: "1px solid var(--haip-border)" }}
             >
@@ -318,17 +341,17 @@ export function ConversationList({
                   {conv.guest_phone && onCall && (
                     <button type="button" onClick={e => { e.stopPropagation(); onCall(conv.guest_phone); }}
                       disabled={callingNumber === conv.guest_phone} title="Call"
-                      className="p-1 rounded hover:bg-gray-100 text-emerald-600 disabled:opacity-50">
+                      className="p-1 rounded hover:bg-[var(--haip-surface)] text-[var(--haip-status-success-fg)] disabled:opacity-50">
                       {callingNumber === conv.guest_phone ? <Loader2 size={12} className="animate-spin" /> : <Phone size={12} />}
                     </button>
                   )}
                   <button type="button" onClick={e => { e.stopPropagation(); onSelect(conv.id); }} title="Reply"
-                    className="p-1 rounded hover:bg-gray-100 text-teal-600">
+                    className="p-1 rounded hover:bg-[var(--haip-surface)] text-primary">
                     <Reply size={12} />
                   </button>
                   {onArchive && (
                     <button type="button" onClick={e => { e.stopPropagation(); onArchive(conv.id); }} title="Resolve"
-                      className="p-1 rounded hover:bg-gray-100 text-gray-400">
+                      className="p-1 rounded hover:bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)]">
                       <Archive size={12} />
                     </button>
                   )}
@@ -340,7 +363,7 @@ export function ConversationList({
                 <div className="flex-shrink-0 w-10 relative mb-1.5">
                   {(isSelecting || isChecked) ? (
                     <span onClick={e => toggleSelect(conv.id, e)}>
-                      {isChecked ? <CheckSquare size={32} className="text-teal-500" /> : <Square size={32} className="text-gray-300" />}
+                      {isChecked ? <CheckSquare size={32} className="text-primary" /> : <Square size={32} className="text-[var(--haip-border-strong)]" />}
                     </span>
                   ) : (
                     <span
@@ -364,7 +387,7 @@ export function ConversationList({
                         <span title={`From ad: ${conv.ad_title}`} className="flex-shrink-0 text-[9px] font-bold text-pink-600 bg-pink-50 rounded px-1 uppercase">Ad</span>
                       )}
                     </span>
-                    <span className={cn("text-[11px] flex-shrink-0 tabular-nums", unread > 0 ? "font-bold text-teal-700" : "")}
+                    <span className={cn("text-[11px] flex-shrink-0 tabular-nums", unread > 0 ? "font-bold text-primary" : "")}
                       style={unread > 0 ? undefined : { color: "var(--haip-fg-subtle)" }}>
                       {conv.last_message_at ? timeAgo(conv.last_message_at) : ""}
                     </span>
@@ -375,18 +398,18 @@ export function ConversationList({
                       {conv.last_message || "No messages yet"}
                     </p>
                     {unread > 0 ? (
-                      <span className="flex-shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-teal-700 text-white text-[10px] font-bold flex items-center justify-center tabular-nums">
+                      <span className="flex-shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center tabular-nums">
                         {unread > 99 ? "99+" : unread}
                       </span>
                     ) : conv.assigned_owner_name ? (
                       <span title={`Owner: ${conv.assigned_owner_name}`}
-                        className="flex-shrink-0 w-5 h-5 rounded-full bg-gray-200 text-gray-600 text-[9px] font-bold flex items-center justify-center">
+                        className="flex-shrink-0 w-5 h-5 rounded-full bg-[var(--haip-status-neutral-bg)] text-[var(--haip-status-neutral-fg)] text-[9px] font-bold flex items-center justify-center">
                         {conv.assigned_owner_name[0]?.toUpperCase()}
                       </span>
                     ) : null}
                   </div>
                   {status && (
-                    <span className={cn("mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full", TONE[status.tone])}>
+                    <span className={cn(compact ? "mt-0.5" : "mt-1.5", "inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full", TONE[status.tone])}>
                       <span className="w-1.5 h-1.5 rounded-full bg-current" />
                       {status.label}
                     </span>

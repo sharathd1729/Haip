@@ -50,12 +50,12 @@ const STATUS_META: Record<
   MessageStatus,
   { icon: React.ReactNode; label: string; color: string }
 > = {
-  pending:   { icon: <Clock size={12} />,       label: "Pending",   color: "text-gray-300" },
-  queued:    { icon: <Clock size={12} />,        label: "Queued",    color: "text-gray-300" },
-  sent:      { icon: <Check size={12} />,        label: "Sent",      color: "text-gray-400" },
-  delivered: { icon: <CheckCheck size={12} />,   label: "Delivered", color: "text-gray-400" },
-  read:      { icon: <CheckCheck size={12} />,   label: "Read",      color: "text-teal-400" },
-  failed:    { icon: <RotateCw size={12} />,     label: "Failed",    color: "text-red-400" },
+  pending:   { icon: <Clock size={12} />,       label: "Pending",   color: "text-[var(--haip-fg-subtle)]" },
+  queued:    { icon: <Clock size={12} />,        label: "Queued",    color: "text-[var(--haip-fg-subtle)]" },
+  sent:      { icon: <Check size={12} />,        label: "Sent",      color: "text-[var(--haip-fg-subtle)]" },
+  delivered: { icon: <CheckCheck size={12} />,   label: "Delivered", color: "text-[var(--haip-fg-subtle)]" },
+  read:      { icon: <CheckCheck size={12} />,   label: "Read",      color: "text-primary" },
+  failed:    { icon: <RotateCw size={12} />,     label: "Failed",    color: "text-[var(--haip-status-danger-fg)]" },
 };
 
 function StatusIcon({ status, error }: { status?: MessageStatus; error?: string }) {
@@ -94,7 +94,7 @@ function MediaContent({ url, type }: { url: string; type?: string | null }) {
   }
   // Unknown/document type — link out rather than guessing a renderer
   return (
-    <a href={url} target="_blank" rel="noopener noreferrer" className="text-teal-600 underline text-sm">
+    <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary underline text-sm">
       View attachment
     </a>
   );
@@ -137,14 +137,14 @@ export const MessageBubble = memo(function MessageBubble({
   if (isInternal) {
     return (
       <div className={cn("flex justify-center", className)}>
-        <div className="max-w-[85%] bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-sm text-amber-800">
-          <div className="flex items-center gap-1.5 mb-1 text-[10px] font-bold text-amber-600 uppercase tracking-wide">
+        <div className="max-w-[85%] bg-[var(--haip-status-warning-bg)] border border-[var(--haip-status-warning-border)] rounded-xl px-4 py-2.5 text-sm text-[var(--haip-status-warning-fg)]">
+          <div className="flex items-center gap-1.5 mb-1 text-[10px] font-bold text-[var(--haip-status-warning-fg)] uppercase tracking-wide">
             <StickyNote size={10} />
             Internal note
-            {senderName && <span className="font-normal normal-case ml-1 text-amber-500">· {senderName}</span>}
+            {senderName && <span className="font-normal normal-case ml-1 opacity-80">· {senderName}</span>}
           </div>
-          <p className="whitespace-pre-wrap">{text}</p>
-          <p className="text-[10px] text-amber-400 mt-1">{formatTime(timestamp)}</p>
+          <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{text}</p>
+          <p className="text-[10px] opacity-70 mt-1">{formatTime(timestamp)}</p>
         </div>
       </div>
     );
@@ -158,7 +158,7 @@ export const MessageBubble = memo(function MessageBubble({
     >
       {/* Sender name */}
       {senderName && !isOut && (
-        <span className="text-[10px] text-gray-400 font-medium mb-1 ml-1">{senderName}</span>
+        <span className="text-[10px] text-[var(--haip-fg-subtle)] font-medium mb-1 ml-1">{senderName}</span>
       )}
 
       <div className={cn("max-w-[80%] flex flex-col gap-1", isOut && "items-end")}>
@@ -172,7 +172,7 @@ export const MessageBubble = memo(function MessageBubble({
                 : isFailed
                 ? "ibx-bubble-failed rounded-br-sm"
                 : "ibx-bubble-out rounded-br-sm"
-              : "bg-white border border-gray-100 shadow-sm text-gray-800 rounded-bl-sm"
+              : "bg-[var(--haip-card)] border border-[var(--haip-border)] shadow-sm text-[var(--haip-fg)] rounded-bl-sm"
           )}>
             {isAiDraft && (
               <div className="flex items-center gap-1.5 mb-1.5 pb-1.5" style={{ borderBottom: "1px solid color-mix(in srgb, var(--ibx-iris) 25%, transparent)" }}>
@@ -196,7 +196,7 @@ export const MessageBubble = memo(function MessageBubble({
                   href={sharedPostUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-sm text-teal-600 underline"
+                  className="flex items-center gap-1.5 text-sm text-primary underline"
                 >
                   View shared post on Instagram
                 </a>
@@ -205,7 +205,7 @@ export const MessageBubble = memo(function MessageBubble({
             {/* Bracketed placeholder ("[image]") is a fallback caption only --
                 don't show it redundantly once the real media/post link is rendered. */}
             {text && !((mediaUrl || sharedPostUrl) && /^\[[a-z_]+\]$/i.test(text)) && (
-              <p className="whitespace-pre-wrap">{text}</p>
+              <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{text}</p>
             )}
           </div>
 
@@ -215,7 +215,7 @@ export const MessageBubble = memo(function MessageBubble({
               onClick={() => onReply(id)}
               title="Reply to this message"
               className={cn(
-                "absolute top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-400 hover:text-teal-600 transition-colors",
+                "absolute top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[var(--haip-card)] border border-[var(--haip-border)] shadow-sm flex items-center justify-center text-[var(--haip-fg-subtle)] hover:text-primary transition-colors",
                 isOut ? "-left-8" : "-right-8"
               )}
             >
@@ -227,14 +227,14 @@ export const MessageBubble = memo(function MessageBubble({
         {/* Meta row — W20: status always visible */}
         <div className={cn("flex items-center gap-1.5 px-1", isOut ? "flex-row-reverse" : "flex-row")}>
           {!isOut && toGuestChannel(channel) && <ChannelBadge channel={toGuestChannel(channel)!} size={12} />}
-          <span className="text-[10px] text-gray-400">{formatTime(timestamp)}</span>
+          <span className="text-[10px] text-[var(--haip-fg-subtle)]">{formatTime(timestamp)}</span>
           {isOut && <StatusIcon status={status} error={deliveryError} />}
           {/* W23: inline retry for failed messages */}
           {isOut && isFailed && onRetry && (
             <button
               onClick={() => onRetry(id)}
               title={deliveryError ? `Retry — last error: ${deliveryError}` : "Retry sending"}
-              className="flex items-center gap-0.5 text-[10px] font-medium text-red-500 hover:text-red-700 transition-colors ml-1"
+              className="flex items-center gap-0.5 text-[10px] font-medium text-[var(--haip-status-danger-fg)] hover:opacity-80 transition-colors ml-1"
             >
               <RotateCw size={10} /> Retry
             </button>
@@ -243,7 +243,7 @@ export const MessageBubble = memo(function MessageBubble({
 
         {/* Why a send failed, in words -- a red bubble alone tells nobody what to fix */}
         {isOut && isFailed && deliveryError && (
-          <p className="max-w-[80%] px-1 text-[11px] leading-snug text-red-600 text-right" role="status">{deliveryError}</p>
+          <p className="max-w-[80%] px-1 text-[11px] leading-snug text-[var(--haip-status-danger-fg)] text-right" role="status">{deliveryError}</p>
         )}
 
         {/* AI draft action buttons */}
@@ -257,13 +257,13 @@ export const MessageBubble = memo(function MessageBubble({
             </button>
             <button
               onClick={() => onEdit?.(id, text)}
-              className="flex items-center gap-1 text-xs text-gray-600 bg-white hover:bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-full transition-colors"
+              className="flex items-center gap-1 text-xs text-[var(--haip-fg-2)] bg-[var(--haip-card)] hover:bg-[var(--haip-surface)] border border-[var(--haip-border)] px-2.5 py-1 rounded-full transition-colors"
             >
               <Edit2 size={11} /> Edit
             </button>
             <button
               onClick={() => onReject?.(id)}
-              className="flex items-center gap-1 text-xs text-red-500 bg-red-50 hover:bg-red-100 border border-red-200 px-2.5 py-1 rounded-full transition-colors"
+              className="flex items-center gap-1 text-xs text-[var(--haip-status-danger-fg)] bg-[var(--haip-status-danger-bg)] hover:opacity-90 border border-[var(--haip-status-danger-border)] px-2.5 py-1 rounded-full transition-colors"
             >
               <ThumbsDown size={11} /> Reject
             </button>
@@ -276,17 +276,17 @@ export const MessageBubble = memo(function MessageBubble({
                     onClick={() => setShowTonePicker(v => !v)}
                     disabled={isRewriting}
                     title="Rewrite tone"
-                    className="flex items-center gap-1 text-xs text-gray-500 bg-white hover:bg-gray-50 border border-gray-200 px-2 py-1 rounded-full transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1 text-xs text-[var(--haip-fg-subtle)] bg-[var(--haip-card)] hover:bg-[var(--haip-surface)] border border-[var(--haip-border)] px-2 py-1 rounded-full transition-colors disabled:opacity-50"
                   >
                     <Wand2 size={11} /> Tone
                   </button>
                   {showTonePicker && (
-                    <div className="absolute z-10 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[110px]">
+                    <div className="absolute z-10 mt-1 bg-[var(--haip-card)] border border-[var(--haip-border)] rounded-lg shadow-lg py-1 min-w-[110px]">
                       {REWRITE_TONES.map(t => (
                         <button
                           key={t}
                           onClick={() => { onRewrite(id, { tone: t }); setShowTonePicker(false); }}
-                          className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 capitalize"
+                          className="w-full text-left px-3 py-1.5 text-xs text-[var(--haip-fg-2)] hover:bg-[var(--haip-surface)] capitalize"
                         >
                           {t}
                         </button>
@@ -299,17 +299,17 @@ export const MessageBubble = memo(function MessageBubble({
                     onClick={() => setShowLangPicker(v => !v)}
                     disabled={isRewriting}
                     title="Translate"
-                    className="flex items-center gap-1 text-xs text-gray-500 bg-white hover:bg-gray-50 border border-gray-200 px-2 py-1 rounded-full transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1 text-xs text-[var(--haip-fg-subtle)] bg-[var(--haip-card)] hover:bg-[var(--haip-surface)] border border-[var(--haip-border)] px-2 py-1 rounded-full transition-colors disabled:opacity-50"
                   >
                     <Languages size={11} /> Translate
                   </button>
                   {showLangPicker && (
-                    <div className="absolute z-10 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[110px]">
+                    <div className="absolute z-10 mt-1 bg-[var(--haip-card)] border border-[var(--haip-border)] rounded-lg shadow-lg py-1 min-w-[110px]">
                       {REWRITE_LANGUAGES.map(lang => (
                         <button
                           key={lang}
                           onClick={() => { onRewrite(id, { target_language: lang }); setShowLangPicker(false); }}
-                          className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                          className="w-full text-left px-3 py-1.5 text-xs text-[var(--haip-fg-2)] hover:bg-[var(--haip-surface)]"
                         >
                           {lang}
                         </button>
