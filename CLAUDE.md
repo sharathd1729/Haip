@@ -1,6 +1,12 @@
 # HAIP — Claude Code Working Instructions
-**Version**: 2.2 · **Owner**: Sharath D. · **Updated**: July 2026
+**Version**: 2.3 · **Owner**: Sharath D. · **Updated**: 11 Oct 2026 (Alembic head `116`)
 **Reference docs**: HAIP_FULL_BUILD_PLAN.md · architecture-delta.md · execution-plan.md
+
+**KEEP THIS FILE CURRENT — standing rule from the owner.** When a change adds or alters a
+module, migration, endpoint, Celery task, integration, LLM route, env var, test baseline or
+rule, update the matching section here **in the same commit**. Bump the `Updated` date and
+the Alembic head. If this file and the code disagree, the code wins and this file is a bug.
+Keep it under 500 lines: compress old incident notes rather than dropping new facts.
 
 ---
 
@@ -20,7 +26,33 @@ replies, unified lead record across every touchpoint.
 ## CURRENT MILESTONE
 **M4 — COMPLETE** ✓ Leads360 (unified sales pipeline, progressive identity, async AI summaries)
 
-**M5 — NEXT** Acefone full integration + Hostaway sync + Owner Daily dashboard
+**M5 — IN PROGRESS** Acefone full integration + Hostaway sync + Owner Daily dashboard
+(Acefone/Hostaway still open; the items below shipped Aug–Oct 2026 alongside them)
+
+**Shipped since M4 (all live; migration numbers in brackets):**
+- **Bookings** (`Stay`): list + full booking page, add-ons, payment ledger, payment schedule,
+  security deposit (never counted as revenue), service requests mirrored as Tasks, change guest
+  via `identity_service`, date-conflict guard on edits [110, 111]. **Razorpay**: per-tenant keys
+  (encrypted) + signed webhook, idempotent on payment id. DPDP erasure clears all booking children.
+- **iCal feeds** [109]: per-property export (`/ical/{token}.ics`, dates only) + optional import URL
+  (Fernet-encrypted, SSRF-guarded, polled every 30 min into date blocks, re-exported to the other
+  links). Overlap with a HAIP booking raises a high-priority task. (Not two-way Google Calendar —
+  a plan for that exists, not built.)
+- **Public API + webhooks** [112, 113]: `/api/public/v1` is a *separate* FastAPI app
+  (`app/public_api/`) with its own OpenAPI. Scoped API keys (SHA-256 only, shown once, lookup via
+  SECURITY DEFINER fn). Signed outbound webhooks (HMAC-SHA256 over `timestamp.body`, outbox written
+  in the same transaction, ~22h backoff, auto-off after 100 consecutive failures, HTTPS + SSRF guard).
+- **Work queue**: `work_queue_service` is the single source behind My day, the dashboard
+  "Needs you now" cards and Calls. Never add a parallel "what to do now" query.
+- **CRM autopilot**: `lead_recommendation_service` suggests Mark Lost / Move stage; a human
+  clicks Apply (existing audited `move_stage`). Chat-extracted trip fields can be re-stated by
+  later messages; `quoted_amount` stays write-once. Missed/unanswered-call callback reminders.
+- **WhatsApp**: template editor + Meta sync, campaigns (schedule, CSV import, CRM audiences, reports),
+  health check, overview dashboard. **Instagram**: per-channel verify tokens (never shown in page),
+  hourly alert if message access is off, referral-only events handled.
+- **Integration health**: one rule (`integration_health.py`) for the bar, insights and Integrations page.
+- **Meta Ads + Marketing page** [115, 116] — see "META ADS / MARKETING" below.
+- **UI redesign** (phases 0–5): kit, tokens, five-section sidebar, inbox/bookings/calls/leads on the kit.
 
 Active clients:
 - Ratha (luxury caravan) — Vobiz IVR, WhatsApp live (migration `064`: moved
@@ -50,13 +82,20 @@ Active clients:
 
 ## LLM ROUTING TABLE — ALWAYS USE ROUTER, NEVER IMPORT DIRECTLY
 
-Routing is **NVIDIA NIM-first**. `concierge_draft` moved off NVIDIA to Gemini
-(2026-08-25) — NVIDIA's nemotron-49b was hanging indefinitely on certain guest
-replies with no timeout and no exception (confirmed via a direct uncapped call).
-Scoped to `concierge_draft` only; every other task stays on NVIDIA. No Claude
-in the live table, and no direct OpenAI key either — `openai/gpt-oss-20b` (see
-below) is OpenAI's open-weight model served through NVIDIA NIM on the existing
-`NVIDIA_API_KEY`, not a separate OpenAI account.
+Routing is **NVIDIA NIM-first**. `concierge_draft` went NVIDIA → Gemini (2026-08-25, nemotron-49b
+hung with no timeout/exception), then **back to NVIDIA `openai/gpt-oss-20b` on 2026-09-27
+because the Gemini billing account went negative** and Google refused every call (guests got
+only the safe holding reply for hours). **Temporary**: revert `_TASK_ROUTES["concierge_draft"]`
+and `tests/adapters/test_llm_routing.py` to `("gemini", "gemini-3.6-flash")` once GCP shows
+positive credit. Its NVIDIA time bound is 45s (Gemini 40s); a ~20s ceiling was a false hang
+signature. No Claude in the live table, and no direct OpenAI key — `openai/gpt-oss-20b` is
+served through NVIDIA NIM on the existing `NVIDIA_API_KEY`.
+
+**Gemini fallback** (`adapters/llm/fallback.py`): internal-analysis tasks (`call_analysis`,
+`call_scoring`, `lead_summary`, `daily_briefing`, `quick_classify`, `agent_*`, `deep_reason`)
+run on NVIDIA with a 30–120s limit and retry once on Gemini on error/timeout (needs
+`GEMINI_API_KEY`; without it, unchanged). Tradeoff: transcripts can reach Google during NVIDIA
+outages. A negative Gemini balance also disables this fallback.
 
 Task keys below are the exact strings accepted by `get_llm(task)` — verified against
 `_TASK_ROUTES` in `backend/app/adapters/llm/__init__.py`. That dict is the source of
@@ -76,46 +115,24 @@ truth; if this table and the code disagree, the code wins and this table is stal
 | `quick_classify` · `bulk_batch` | NVIDIA | openai/gpt-oss-20b |
 | `concierge_rewrite` | NVIDIA | openai/gpt-oss-20b |
 | `fallback` | NVIDIA | mistralai/mistral-nemotron |
-| `concierge_draft` | Gemini | gemini-3.6-flash |
+| `concierge_draft` | NVIDIA *(temporary — Gemini billing blocked)* | openai/gpt-oss-20b |
 
 Unknown task keys route to `fallback` (they previously defaulted to Claude,
 which fails in prod — no `ANTHROPIC_API_KEY` is provisioned there).
 
-⚠️ **NIM models reach end-of-life and start returning HTTP 410.**
-`mistralai/mistral-medium-3.5-128b` died on 2026-08-07 and sat broken in this
-table until 2026-08-20. `meta/llama-3.1-8b-instruct` AND
-`nvidia/llama-3.3-nemotron-super-49b-v1.5` both died the same way on
-2026-08-26 — took out `quick_classify`/`classify.py`, `judge.py`,
-`generate_ai_summary.py` (Leads360 AI summaries), and `daily_briefing_service.py`
-in prod simultaneously, not caught until 2026-08-30. `openai/gpt-oss-20b`
-(small tier) was verified live: correct tool calls, fast, no cold-start
-lag. The mid tier went through two more dead ends the same day —
-`openai/gpt-oss-120b` (100s+ latency, occasional 504s) then
-`deepseek-ai/deepseek-v4-flash-0731` (fast at first, ~46s, then a
-sustained outage: 6 of 7 real `generate_ai_summary` calls 504'd over 30
-minutes, even a trivial 10-token prompt timed out at 90s) — before
-landing on `openai/gpt-oss-20b` for the mid tier too, as an emergency
-fallback. This is a real capability step-down for `call_analysis`/
-`call_scoring`/`lead_summary`/`daily_briefing`/agent-report tasks (a
-smaller model than intended for that tier), accepted because it's been
-100% reliable all day and working beats not responding. Revisit
-`deepseek-v4-flash`/`gpt-oss-120b` once NIM's congestion clears — check
-via a direct trivial-prompt call before routing back, not just
-`/v1/models` listing it. **Also fix any call site that hardcodes `model=` directly**
-on `.complete()` instead of relying on `get_llm(task)`'s routed default —
-`generate_ai_summary.py` and `daily_briefing_service.py` both did this with
-the literal dead model string, which silently overrode the routing-table fix
-(an explicit `model=` kwarg always wins over the adapter's bound default —
-see `_build_adapter`'s docstring in `adapters/llm/__init__.py`). Verify a
-model still serves before routing
-to it: `GET https://integrate.api.nvidia.com/v1/models` lists what is
-currently available. Note also that `mistral-nemotron` answers tool-call
-prompts in prose rather than emitting a tool call — route structured-output
-work to `openai/gpt-oss-20b` or the 49B/ultra models instead. `moonshotai/
-kimi-k3` and `openai/gpt-oss-120b` are also live on NIM with correct
-tool-calling (verified 2026-08-30) but had 90s+ cold-start latency in
-testing — worth considering for a heavier task, wrong fit for the
-fast/cheap tier.
+⚠️ **NIM models reach end-of-life and start returning HTTP 410.** Dead so far:
+`mistral-medium-3.5-128b` (2026-08-07, sat broken 13 days), `meta/llama-3.1-8b-instruct` and
+`nvidia/llama-3.3-nemotron-super-49b-v1.5` (both 2026-08-26 — took out `quick_classify`, `judge.py`,
+`generate_ai_summary.py` and `daily_briefing_service.py` in prod until 2026-08-30). Mid tier tried
+`openai/gpt-oss-120b` (100s+ latency, 504s) and `deepseek-v4-flash-0731` (sustained 504 outage) before
+landing on `openai/gpt-oss-20b` for the mid tier too — a real capability step-down for `call_analysis`/
+`call_scoring`/`lead_summary`/`daily_briefing`/agent reports, accepted because it is reliable. Revisit
+the bigger models once NIM congestion clears, via a direct trivial-prompt call, not just `/v1/models`.
+- **Fix any call site that hardcodes `model=`** on `.complete()`: an explicit kwarg always beats the
+  routed default (see `_build_adapter` docstring in `adapters/llm/__init__.py`).
+- Verify a model serves before routing to it: `GET https://integrate.api.nvidia.com/v1/models`.
+- `mistral-nemotron` answers tool-call prompts in prose; route structured output to `gpt-oss-20b`
+  or the 49B/ultra models. `kimi-k3` and `gpt-oss-120b` tool-call correctly but cold-start 90s+.
 
 Per-tenant override: `tenants.llm_provider_override` (cached 300s).
 
@@ -181,11 +198,42 @@ Every table must have tenant_id.
 - Personal scorecard (per concierge)
 - After-call wrap-up card
 - Compliance Center (DPDP, audit, deletion)
+- Bookings + payments (Razorpay), iCal feeds, public API + webhooks, work queue (see Current Milestone)
+- **Marketing** — Meta ads spend/metrics joined to leads, bookings and revenue (see below)
+
+## META ADS / MARKETING (Oct 2026)
+
+- Reads only. Reuses the WhatsApp System User token (needs `ads_read`); Graph v20.0, host pinned
+  to `graph.facebook.com` including `paging.next`. Integration `kind="meta_ads"`, ad account chosen
+  on the Marketing page (`PUT /marketing/ads/account`; the token must have the account assigned to
+  its system user in Meta Business Settings or `/accounts` is empty).
+- Tables: `ad_metrics` (daily per ad: spend, impressions, clicks, link/unique clicks, CPC,
+  engagements, video views, first replies, chats started, raw `actions` JSON) [115, 116] and
+  `ad_entities` (campaign/ad set/ad status, objective, budget, dates, creative, targeting) [116].
+- Code: `adapters/marketing/meta_ads.py`, `services/meta_ads_service.py`
+  (`sync` = last 7 days, `backfill` = months in 30-day chunks, up to 36, state in
+  `integration.config["backfill"]`, stops on rate limit/token rejection and can resume),
+  Celery `meta_ads.sync_tenant` / `meta_ads.backfill_tenant` (queue `whatsapp`, exact-name routes
+  required by `tests/test_celery_task_routing.py`), endpoints in `endpoints/meta_ads.py`
+  (`/marketing/ads/{status,summary,sync,backfill,accounts,account}`, owner/manager).
+- Attribution: `lead_attribution` links ad_id → campaign → inquiry → Stay revenue (cancelled stays
+  excluded); a conversation fallback finds the lead. ROAS = revenue ÷ spend; `attribution_gap` =
+  Meta chats − HAIP-traced chats (leads/revenue shown are a floor).
+- Instagram sends the ad referral as its own `messaging_referral` event; HAIP records it
+  (`process_instagram_referral.py`, `_handle_referral_event`). **Meta app must be subscribed to
+  `messaging_referral`** or attribution stays near zero. Past chats cannot be attributed later.
+- Token expiry: `meta_token_expiry.py` + `check_meta_credentials.py` warn owners/managers by email
+  (once per 24h) before the Meta token expires. Prod token expires **2026-11-24** — replace with a
+  never-expiring System User token (keep `ads_read`, `business_management`, WhatsApp scopes).
+- Prod DB pool is capped via `DB_POOL_SIZE=3` / `DB_MAX_OVERFLOW=2` in `backend/.env` after
+  Supabase `EMAXCONNSESSION`; prod uses `create_all` at startup, so migrations must be idempotent
+  (`IF NOT EXISTS`, guarded RLS policy).
 
 ## FUTURE MODULES — ARCHITECT FOR, DO NOT BUILD
 
 - Predictive (no-show / cancellation risk)
-- Marketing ROAS attribution
+- Two-way Google Calendar sync of bookings (plan drafted, not built)
+- Marketing channels beyond Meta ads (Google Ads, ROAS by other sources)
 - Voice of Guest thematic analysis
 - Multi-region tenancy
 - BYOK (customer-managed KMS)
@@ -341,10 +389,11 @@ Backend auth is custom JWT (HS256) via `backend/app/api/v1/endpoints/auth.py` �
 **⚠️ Alembic migration gotcha — read before touching `backend/alembic/`:**
 `env.py` previously ran two "best-effort" setup statements before every migration transaction (`pg_terminate_backend(...)` and `SET lock_timeout`/`SET statement_timeout`), both wrapped in a silent `except: pass`. A failed statement poisons the rest of that connection's transaction in Postgres — so every migration after it would log "success" via Alembic's step-by-step logging (which fires before each step runs) while nothing ever actually committed, and `alembic_version` would never advance. This cost real time on both Neon (`neondb_owner` lacks `pg_signal_backend` — always failed) and Supabase (session pooler rejected the `SET` calls). Both statements are now removed. **If `alembic upgrade head` ever again logs success without `alembic_version` moving, suspect a silently-swallowed exception earlier in the same transaction, not a "did it really run" mystery** — check `env.py` first.
 
-**Known test debt — but do NOT assume it is all fixture drift.** As of 2026-07-25 the
-suite was **455 passing / 44 failing**; that count is now stale (multiple commits since,
-including this file's own Aug 7 pass) and needs a fresh full-suite run before being
-trusted for planning. Some genuinely is drift (`test_auth.py` posts
+**Known test debt — but do NOT assume it is all fixture drift.** Baseline as of 2026-10-11:
+**2115 passing / 46 failing / 12 skipped** (full suite, run alone, ~7 min). Every commit is
+expected to leave exactly that same 46-failure set; diff the FAILED list, don't just compare counts.
+Frontend: `tsc --noEmit --skipLibCheck` clean, vitest has 1 known failure (`permissions.test.ts`).
+Some genuinely is drift (`test_auth.py` posts
 OAuth2 form-encoded credentials to a JSON-only `/login`; `test_dashboard_api.py` unpacks
 a 4-key fixture into 3 variables).
 
