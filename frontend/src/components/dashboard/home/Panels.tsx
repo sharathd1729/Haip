@@ -199,7 +199,10 @@ export function AiNoticed({ insights, onDismiss, dismissing }: { insights: Insig
   if (insights.length === 0) return null;
   return (
     <section>
-      <h2 className="text-base font-bold mb-2.5" style={{ color: "var(--haip-fg)" }}>What the AI noticed</h2>
+      <div className="mb-2.5 flex flex-wrap items-baseline gap-x-3">
+        <h2 className="text-base font-bold" style={{ color: "var(--haip-fg)" }}>What the AI noticed</h2>
+        <span className="text-xs" style={{ color: "var(--haip-fg-subtle)" }}>Right now, across all open leads. Not limited to the date range above.</span>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {insights.slice(0, 3).map(i => {
           const sev = SEVERITY[i.severity] ?? SEVERITY.info;

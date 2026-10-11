@@ -39,40 +39,49 @@ function Pill({ text, good }: { text: string; good: boolean | null }) {
 function pctPill(d?: KPIDelta, lowerIsBetter = false) {
   if (!d || d.direction === "neutral") return null;
   const up = d.direction === "up";
+  // A 100% drop usually means nothing has been recorded yet this period (early in the day, or a
+  // quiet range), not that business collapsed. Show it, but not as an alarm.
+  if (!up && d.pct <= -100) return <Pill text="none yet" good={null} />;
   return <Pill text={`${up ? "+" : "−"}${Math.abs(d.pct)}%`} good={lowerIsBetter ? !up : up} />;
 }
 
-interface Tile { label: string; value: string; spark?: (number | null)[]; pill: React.ReactNode }
+interface Tile { label: string; value: string; spark?: (number | null)[]; pill: React.ReactNode; compares?: boolean }
 
-export function KpiTiles({ data }: { data: OverviewResponse }) {
+export function KpiTiles({ data, rangeLabel }: { data: OverviewResponse; rangeLabel: string }) {
   const { kpi, kpi_deltas: d, series, calls } = data;
   const inbound = calls.answered + calls.missed;
   const answeredPct = inbound ? Math.round((100 * calls.answered) / inbound) : null;
 
   const tiles: Tile[] = [
-    { label: "New leads", value: String(kpi.total_leads), spark: series.leads, pill: pctPill(d.total_leads) },
-    { label: "Avg first reply", value: formatSeconds(kpi.avg_response_seconds), pill: pctPill(d.avg_response_seconds, true) },
+    { label: "New leads", value: String(kpi.total_leads), spark: series.leads, pill: pctPill(d.total_leads), compares: true },
+    { label: "Avg first reply", value: formatSeconds(kpi.avg_response_seconds), pill: pctPill(d.avg_response_seconds, true), compares: true },
     {
       label: "Calls answered", value: answeredPct != null ? `${answeredPct}%` : "—", spark: series.calls_answered_pct,
       pill: calls.missed ? <Pill text={`${calls.missed} missed`} good={null} /> : null,
     },
-    { label: "Bookings", value: String(kpi.bookings), spark: series.bookings, pill: pctPill(d.bookings) },
-    { label: "Revenue", value: formatRupees(kpi.revenue), spark: series.revenue, pill: pctPill(d.revenue) },
-    { label: "Lead → booking", value: `${kpi.conversion_rate}%`, pill: pctPill(d.conversion_rate) },
+    { label: "Bookings", value: String(kpi.bookings), spark: series.bookings, pill: pctPill(d.bookings), compares: true },
+    { label: "Revenue", value: formatRupees(kpi.revenue), spark: series.revenue, pill: pctPill(d.revenue), compares: true },
+    { label: "Lead → booking", value: `${kpi.conversion_rate}%`, pill: pctPill(d.conversion_rate), compares: true },
   ];
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
       {tiles.map(t => (
         <div key={t.label} className="haip-card px-4 py-3 flex flex-col gap-1.5 min-w-0">
-          <span className="text-xs font-semibold truncate" style={{ color: "var(--haip-fg-subtle)" }}>{t.label}</span>
-          <div className="flex items-end justify-between gap-2">
-            <span className="text-2xl font-bold tabular-nums truncate" style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display)" }}>
+          <span className="text-xs font-semibold" style={{ color: "var(--haip-fg-subtle)" }}>{t.label}</span>
+          <div className="flex flex-wrap items-end justify-between gap-x-2 gap-y-1">
+            <span className="text-2xl font-bold tabular-nums [overflow-wrap:anywhere]" title={t.value}
+              style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display)" }}>
               {t.value}
             </span>
             {t.spark && <Sparkline values={t.spark} color="#0F766E" />}
           </div>
-          <span className="h-5">{t.pill}</span>
+          <span className="flex min-h-5 flex-wrap items-center gap-x-1.5 gap-y-0.5">
+            {t.pill}
+            <span className="text-[11px]" style={{ color: "var(--haip-fg-subtle)" }}>
+              {t.pill && t.compares ? `vs previous · ${rangeLabel.toLowerCase()}` : rangeLabel.toLowerCase()}
+            </span>
+          </span>
         </div>
       ))}
     </div>

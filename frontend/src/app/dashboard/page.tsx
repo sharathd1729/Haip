@@ -133,7 +133,7 @@ export default function DashboardPage() {
         ) : (
           <>
             <NeedsYouNowCards data={data.needs_you_now} />
-            <KpiTiles data={data} />
+            <KpiTiles data={data} rangeLabel={rangeLabel} />
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
               <RevenueChart series={data.series} rangeLabel={rangeLabel} />
               <LeadFunnel data={data} rangeLabel={rangeLabel} />

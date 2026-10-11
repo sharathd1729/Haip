@@ -49,20 +49,18 @@ interface NavGroup {
 // items, same visual order, now a real NavGroup[] tree (workspace-style
 // grouping, matching AppFlowy's sidebar sections).
 const NAV_GROUPS: NavGroup[] = [
+  // Five sections, ordered by how often a day is spent in them (Redesign Phase 1).
+  // Today answers "who is waiting on me" (My day) and "how are we doing" (Dashboard).
   {
-    section: null,
+    section: "Today",
     items: [
-      // Role-aware Analytics Dashboard rebuild (2026-08-16, migration 077
-      // re-enables "analytics") -- restores the entry removed 2026-08-08 when
-      // the old Owner Dashboard/widget builder was deactivated pending this
-      // exact rebuild. The standalone "AI Insights" entry (added 2026-08-15,
-      // its own "ai_insights" module) is folded into this page's AI
-      // Intelligence section now instead of being a separate nav item --
-      // First entry deliberately: the dashboard answers "how are we doing",
-      // this answers "who is waiting on me right now" -- which is what an
-      // agent opens the app to find out.
       { label: "My day", href: "/dashboard/my-day", icon: ListChecks, resource: "inbox" },
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, resource: "dashboard" },
+    ],
+  },
+  {
+    section: "Conversations",
+    items: [
       {
         label: "Inbox",
         href: "/dashboard/inbox",
@@ -81,30 +79,6 @@ const NAV_GROUPS: NavGroup[] = [
       // "Settings" (owner/manager only) -- see the "whatsapp_personal"
       // resource in permissions.ts for why this is a separate resource key.
       { label: "My WhatsApp", href: "/dashboard/settings/whatsapp-personal", icon: MessageCircle, resource: "whatsapp_personal" },
-    ],
-  },
-  {
-    section: "Sales",
-    items: [
-      { label: "Leads360", href: "/dashboard/leads", icon: Target, resource: "guests" },
-      { label: "Targets", href: "/dashboard/targets", icon: TrendingUp, resource: "guests" },
-      { label: "Bookings", href: "/dashboard/bookings", icon: BookmarkIcon, resource: "guests" },
-      {
-        label: "Portfolio",
-        href: "/dashboard/properties",
-        icon: Home,
-        resource: "properties",
-        children: [
-          { label: "Properties",      href: "/dashboard/properties",         hideForBusinessTypes: ["caravan"] },
-          { label: "Calendar",        href: "/dashboard/portfolio/calendar" },
-          { label: "Rate Calculator", href: "/dashboard/calculator",         hideForBusinessTypes: ["caravan"] },
-        ],
-      },
-    ],
-  },
-  {
-    section: "Channels",
-    items: [
       {
         label: "Messaging",
         href: "/dashboard/messaging",
@@ -122,38 +96,54 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    section: "Intelligence",
+    section: "Sales",
     items: [
+      { label: "Leads360", href: "/dashboard/leads", icon: Target, resource: "guests" },
+      { label: "Bookings", href: "/dashboard/bookings", icon: BookmarkIcon, resource: "guests" },
+      { label: "Targets", href: "/dashboard/targets", icon: TrendingUp, resource: "guests" },
       {
-        // "Analytics" and "Charts" children removed 2026-08-08 -- analytics
-        // pages deactivated, being rebuilt from scratch. "Exports" (raw
-        // report generation, not "analytics") is unaffected and kept.
-        label: "Reports",
-        href: "/dashboard/reports",
-        icon: BarChart2,
-        resource: "reports",
+        label: "Portfolio",
+        href: "/dashboard/properties",
+        icon: Home,
+        resource: "properties",
+        children: [
+          { label: "Properties",      href: "/dashboard/properties",         hideForBusinessTypes: ["caravan"] },
+          { label: "Calendar",        href: "/dashboard/portfolio/calendar" },
+          { label: "Rate Calculator", href: "/dashboard/calculator",         hideForBusinessTypes: ["caravan"] },
+        ],
       },
-      {
-        label: "Instagram Insights",
-        href: "/dashboard/instagram-insights",
-        icon: AtSign,
-        resource: "analytics",
-      },
-      // "Ask HAIP" (Ask / Reports sub-tab / Free-Form) removed entirely --
-      // not effective, being rebuilt from scratch as a real property-data
-      // analysis assistant + prompt-driven dashboard generator.
     ],
   },
   {
-    section: "Configure",
+    section: "Insights",
+    items: [
+      // "Analytics" and "Charts" children removed 2026-08-08 -- analytics
+      // pages deactivated, being rebuilt from scratch. "Exports" (raw
+      // report generation, not "analytics") is unaffected and kept.
+      { label: "Reports", href: "/dashboard/reports", icon: BarChart2, resource: "reports" },
+      { label: "Instagram Insights", href: "/dashboard/instagram-insights", icon: AtSign, resource: "analytics" },
+    ],
+  },
+  {
+    // Rarely-used configuration pages live under one "Settings" item instead of
+    // six top-level rows, so the rail stays short.
+    section: "Workspace",
     items: [
       { label: "Automations", href: "/dashboard/automations", icon: Zap, resource: "settings" },
-      { label: "Integrations", href: "/dashboard/settings/integrations", icon: Link2, resource: "settings" },
-      { label: "Lead assignment", href: "/dashboard/settings/lead-assignment", icon: Shuffle, resource: "settings" },
-      { label: "Calendar sync", href: "/dashboard/settings/calendar-sync", icon: Calendar, resource: "settings" },
-      { label: "Payments", href: "/dashboard/settings/payments", icon: CreditCard, resource: "settings" },
-      { label: "Developers", href: "/dashboard/settings/developers", icon: Key, resource: "settings" },
-      { label: "Settings", href: "/dashboard/settings", icon: Settings, resource: "settings" },
+      {
+        label: "Settings",
+        href: "/dashboard/settings",
+        icon: Settings,
+        resource: "settings",
+        children: [
+          { label: "General",         href: "/dashboard/settings",                  icon: Settings },
+          { label: "Integrations",    href: "/dashboard/settings/integrations",     icon: Link2 },
+          { label: "Lead assignment", href: "/dashboard/settings/lead-assignment",  icon: Shuffle },
+          { label: "Calendar sync",   href: "/dashboard/settings/calendar-sync",    icon: Calendar },
+          { label: "Payments",        href: "/dashboard/settings/payments",         icon: CreditCard },
+          { label: "Developers",      href: "/dashboard/settings/developers",       icon: Key },
+        ],
+      },
     ],
   },
 ];
@@ -208,6 +198,19 @@ export function Sidebar({ user }: SidebarProps) {
   }
 
   const unreadCount = conversations.filter(c => (c as any).unread_count > 0).length;
+
+  // How many things are waiting on this person (same source as the My day page, so the badge and
+  // the list always agree). Only fetched for roles that can see My day.
+  const canSeeMyDay = canSeeNav(role, "inbox");
+  const { data: queue } = useQuery<{ total: number }>({
+    queryKey: ["work-queue", ""],
+    queryFn: () => api.get("/work-queue").then(r => r.data),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    enabled: canSeeMyDay,
+  });
+  const badgeFor = (href: string): number =>
+    href === "/dashboard/inbox" ? unreadCount : href === "/dashboard/my-day" ? (queue?.total ?? 0) : 0;
 
   function isActive(href: string) {
     if (href === "/dashboard") return pathname === "/dashboard";
@@ -359,7 +362,7 @@ export function Sidebar({ user }: SidebarProps) {
             {group.items.map(item => {
               const active = isActive(item.href);
               const Icon = item.icon;
-              const isInbox = item.href === "/dashboard/inbox";
+              const badge = badgeFor(item.href);
               const hasChildren = (item.children?.length ?? 0) > 0;
               const isExpanded = !collapsed && (expanded === item.label || active);
 
@@ -383,8 +386,8 @@ export function Sidebar({ user }: SidebarProps) {
                       </span>
                       {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
 
-                      {/* Inbox unread badge */}
-                      {isInbox && unreadCount > 0 && (
+                      {/* Count badge: unread conversations on Inbox, things waiting on you on My day */}
+                      {badge > 0 && (
                         <span
                           className="flex-shrink-0 min-w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10px] font-bold"
                           style={{
@@ -396,7 +399,7 @@ export function Sidebar({ user }: SidebarProps) {
                             right: collapsed ? 2 : undefined,
                           }}
                         >
-                          {collapsed ? "" : (unreadCount > 9 ? "9+" : unreadCount)}
+                          {collapsed ? "" : (badge > 99 ? "99+" : badge)}
                         </span>
                       )}
 
