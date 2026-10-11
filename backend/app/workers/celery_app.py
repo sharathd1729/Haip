@@ -69,6 +69,8 @@ celery_app = Celery(
         "app.workers.tasks.sync_wa_templates",
         # WhatsApp/Instagram access-token health check + expiry alerting
         "app.workers.tasks.check_meta_credentials",
+        # Meta ads spend/reach/conversations, nightly
+        "app.workers.tasks.sync_meta_ads",
         # Keeps the Instagram long-lived token from ever reaching expiry
         "app.workers.tasks.refresh_instagram_token",
         # Lead assignment: waiting leads + pass on uncontacted ones
@@ -198,6 +200,8 @@ celery_app.conf.update(
         "meta_quality.poll_all_tenants":             {"queue": "whatsapp"},
         "meta_credentials.check_all_tenants":        {"queue": "whatsapp"},
         "meta_credentials.check_tenant":             {"queue": "whatsapp"},
+        "meta_ads.sync_all_tenants":                 {"queue": "whatsapp"},
+        "meta_ads.sync_tenant":                      {"queue": "whatsapp"},
         # The 5-minute lead-assignment tick had no route, so it sat on
         # Celery's implicit "celery" queue that no worker consumes and never ran.
         "lead_assignment.tick":                      {"queue": "default"},
@@ -291,6 +295,11 @@ celery_app.conf.beat_schedule = {
     "meta-quality-hourly": {
         "task": "app.workers.tasks.meta_quality_poll.poll_all_tenants",
         "schedule": crontab(minute=15),
+    },
+    # 03:00 IST. Meta finalises the previous day overnight; each run re-reads the last 7 days.
+    "meta-ads-sync-daily": {
+        "task": "meta_ads.sync_all_tenants",
+        "schedule": crontab(hour=21, minute=30),
     },
     "meta-credentials-health-daily": {
         "task": "meta_credentials.check_all_tenants",

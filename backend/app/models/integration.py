@@ -14,6 +14,7 @@ class IntegrationKind(str, enum.Enum):
     RETALWISE = "retalwise"
     STAAH = "staah"
     CLOUDBEDS = "cloudbeds"
+    META_ADS = "meta_ads"
 
 
 class IntegrationStatus(str, enum.Enum):

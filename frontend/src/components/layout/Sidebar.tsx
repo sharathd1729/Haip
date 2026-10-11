@@ -24,6 +24,8 @@ interface NavItem {
   /** Business verticals (tenants.business_type) that should NOT see this item.
    *  null/unknown business_type hides nothing. */
   hideForBusinessTypes?: string[];
+  /** Show only to these roles (the page's data is restricted server-side too). */
+  onlyRoles?: string[];
   children?: {
     label: string;
     href: string;
@@ -122,6 +124,7 @@ const NAV_GROUPS: NavGroup[] = [
       // report generation, not "analytics") is unaffected and kept.
       { label: "Reports", href: "/dashboard/reports", icon: BarChart2, resource: "reports" },
       { label: "Instagram Insights", href: "/dashboard/instagram-insights", icon: AtSign, resource: "analytics" },
+      { label: "Marketing", href: "/dashboard/marketing", icon: Megaphone, resource: "analytics", onlyRoles: ["owner", "manager", "marketing"] },
     ],
   },
   {
@@ -236,6 +239,7 @@ export function Sidebar({ user }: SidebarProps) {
       items: group.items
         .filter(item => canSeeNav(role, item.resource))
         .filter(item => !businessType || !item.hideForBusinessTypes?.includes(businessType))
+        .filter(item => !item.onlyRoles || item.onlyRoles.includes(role))
         .map(item => ({
           ...item,
           children: item.children?.filter(
