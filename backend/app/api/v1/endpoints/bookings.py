@@ -540,6 +540,12 @@ def update_booking(
         "status": stay.status, "check_in_time": stay.check_in_time, "check_out_time": stay.check_out_time,
     }
     changes = {k: {"from": before[k], "to": after[k]} for k in after if before[k] != after[k]}
+    if changes:
+        # A booking made from a Google Calendar event: once someone changes its dates, total or guest count here,
+        # the calendar stops overwriting it (it can be handed back to the calendar from the booking page).
+        from app.services import ical_booking_service
+        if ical_booking_service.lock_for_manual_edit(db, tenant_id, stay.id, changes.keys()):
+            changes["calendar_sync"] = {"from": "following the calendar", "to": "locked"}
     if changes or payload.internal_notes is not None or payload.concierge_notes is not None:
         append_audit(db, tenant_id=tenant_id, actor_user_id=current_user.id,
                      action="booking.cancelled" if changes.get("status", {}).get("to") == "cancelled" else "booking.updated",

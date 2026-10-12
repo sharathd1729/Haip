@@ -110,6 +110,7 @@ export interface BookingDetail {
   service_requests: ServiceRequest[];
   assignees: { id: string; name: string }[];
   inquiry_id: string | null;
+  calendar_sync: { linked: boolean; locked: boolean } | null;   // booking made from / tied to a Google Calendar event
   created_at: string | null;
   property: { id: string; name: string; type: string } | null;
   guest: { id: string; name: string | null; phone: string; email: string | null } | null;

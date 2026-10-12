@@ -237,6 +237,15 @@ def sync_now(feed_id: str, current_user: User = Depends(require_roles(*_MANAGE))
     return {**_out(feed, prop.name if prop else None), "sync": result}
 
 
+@router.get("/{feed_id}/activity")
+def activity(feed_id: str, current_user: User = Depends(require_roles(*_MANAGE)), db: Session = Depends(get_db)):
+    """Bookings this calendar has made and the upcoming events that stayed calendar blocks, with the reason."""
+    from datetime import date as _date
+    from app.services import ical_booking_service
+    feed = _get_feed(db, current_user, feed_id)
+    return ical_booking_service.activity(db, feed, _date.today())
+
+
 @router.post("/{feed_id}/regenerate")
 def regenerate(feed_id: str, current_user: User = Depends(require_roles(*_MANAGE)), db: Session = Depends(get_db)):
     feed = _get_feed(db, current_user, feed_id)

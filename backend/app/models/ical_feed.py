@@ -94,5 +94,6 @@ class ICalEventBooking(Base, TimestampMixin, TenantMixin):
     event_key = Column(String(300), nullable=False)
     stay_id = Column(String, nullable=False, index=True)
     payment_id = Column(String, nullable=True)
+    locked = Column(Boolean, nullable=False, default=False)      # the CRM is in charge of this booking now
 
     __table_args__ = (UniqueConstraint("feed_id", "event_key", name="uq_ical_event_booking"),)

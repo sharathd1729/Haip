@@ -329,7 +329,7 @@ def sync_feed(db: Session, feed, fetcher: Optional[Callable[[str], str]] = None)
     wanted: set[tuple[str, str]] = set()
     properties_used: set[str] = set()
     added = changed = lifted = ambiguous = 0
-    booked = {"created": 0, "updated": 0}
+    booked = {"created": 0, "updated": 0, "linked": 0}
     for key, ev in seen.items():
         details = ical_event_details.extract(ev.get("summary", ""), ev.get("description", ""))
         start, end, source = ical_event_details.block_window(ev["start"], ev["end"], details)
@@ -381,7 +381,7 @@ def sync_feed(db: Session, feed, fetcher: Optional[Callable[[str], str]] = None)
              ambiguous=ambiguous, bookings_created=booked["created"], bookings_updated=booked["updated"], bookings_cancelled=cancelled)
     return {"status": "ok", "events": len(seen), "added": added, "changed": changed, "lifted": lifted, "conflicts": conflicts,
             "needs_vehicle": ambiguous, "bookings_created": booked["created"], "bookings_updated": booked["updated"],
-            "bookings_cancelled": cancelled}
+            "bookings_linked": booked["linked"], "bookings_cancelled": cancelled}
 
 
 def _flag_double_bookings(db: Session, feed, today: date, property_id: Optional[str] = None) -> int:

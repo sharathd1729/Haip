@@ -6,6 +6,7 @@ import api from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { PageHeader } from "@/components/ui/page";
+import { CalendarActivity } from "@/components/settings/CalendarActivity";
 
 interface Feed {
   id: string;
@@ -223,6 +224,7 @@ export default function CalendarSyncPage() {
                       if it names no vehicle it waits on the &ldquo;Unassigned&rdquo; vehicle until you pick one at check-in.
                     </p>
                   )}
+                  {f.vehicles.length > 0 && <div className="mt-1.5"><CalendarActivity feedId={f.id} /></div>}
                   {f.needs_vehicle > 0 && (
                     <p className="text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1 mt-1.5">
                       {f.needs_vehicle} event{f.needs_vehicle > 1 ? "s are" : " is"} missing details for a booking (name, phone or total) and name no vehicle. Every vehicle is held until you complete {f.needs_vehicle > 1 ? "them" : "it"} in Google Calendar.

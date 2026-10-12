@@ -67,6 +67,12 @@ export default function BookingPage() {
 
   const dirty = useMemo(() => !!booking && !!draft && JSON.stringify(toDraft(booking)) !== JSON.stringify(draft), [booking, draft]);
 
+  const calendarSync = useMutation({
+    mutationFn: (locked: boolean) => api.put(`/bookings/${id}/calendar-sync`, { locked }).then(() => api.get<BookingDetail>(`/bookings/${id}`)),
+    onSuccess: res => { setBooking(res.data); toast({ variant: "success", title: res.data.calendar_sync?.locked ? "Kept as it is here" : "Following the calendar again" }); },
+    onError: e => toast({ variant: "error", title: errorMessage(e, "Could not change this") }),
+  });
+
   const save = useMutation({
     mutationFn: async (patch: Record<string, unknown>) => {
       await api.patch(`/bookings/${id}`, patch);
@@ -165,6 +171,22 @@ export default function BookingPage() {
           <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
             This booking is synced from your PMS. Changes made here can be overwritten by the next sync.
           </p>
+        )}
+
+        {booking.calendar_sync && (
+          <div className="flex flex-wrap items-center gap-2 text-xs rounded-lg px-3 py-2 border border-gray-200 bg-white text-gray-700">
+            <span className="min-w-0 flex-1">
+              {booking.calendar_sync.locked
+                ? "Linked to a Google Calendar event. You changed this booking here, so the calendar no longer overwrites it."
+                : "Linked to a Google Calendar event. Dates, total and guest count follow the calendar until you change them here."}
+            </span>
+            {role !== "foh" && (
+              <button onClick={() => calendarSync.mutate(!booking.calendar_sync!.locked)} disabled={calendarSync.isPending}
+                className="min-h-11 sm:min-h-0 font-semibold border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 disabled:opacity-50">
+                {booking.calendar_sync.locked ? "Follow the calendar again" : "Keep as it is here"}
+              </button>
+            )}
+          </div>
         )}
 
         {booking.next_due && booking.status !== "cancelled" && (

@@ -39,7 +39,7 @@ replies, unified lead record across every touchpoint.
   links). Overlap with a HAIP booking raises a high-priority task. (Two-way Google Calendar: planned, not built.)
   **Shared calendar** [120]: one link, several vehicles (`ical_feed_vehicles` keywords, whole-word; no match = all held + a "Which vehicle?" task).
   Trip dates in the description widen the block (`ical_event_details.py`); details show on the calendar (amounts: `revenue.read`).
-  **Calendar bookings** [121]: a complete event becomes a `Stay` (`ical_booking_service.py`); no vehicle named = "Unassigned", picked at check-in (`vehicle_pool.py`).
+  **Calendar bookings** [121]: a complete event becomes a `Stay` (`ical_booking_service.py`), tied to the guest's one open lead (marked Sold); no vehicle = "Unassigned", picked at check-in (`vehicle_pool.py`); a CRM edit locks it.
 - **Public API + webhooks** [112, 113]: `/api/public/v1` is a *separate* FastAPI app (`app/public_api/`). Scoped API keys (SHA-256 only, shown once, lookup via
   SECURITY DEFINER fn). Signed outbound webhooks (HMAC-SHA256 over `timestamp.body`, outbox written
   in the same transaction, ~22h backoff, auto-off after 100 consecutive failures, HTTPS + SSRF guard).
