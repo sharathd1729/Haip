@@ -80,3 +80,19 @@ class ICalEventDetail(Base, TimestampMixin, TenantMixin):
     details = Column(JSON, nullable=True)
     dates_source = Column(String(12), nullable=False, default="event")      # description | event
     needs_vehicle = Column(Boolean, nullable=False, default=False)
+
+
+class ICalEventBooking(Base, TimestampMixin, TenantMixin):
+    """The booking (Stay) made from one event of a shared calendar, so a later edit or delete of the event updates or
+    cancels that booking. ``payment_id`` is the advance recorded from the event, kept so a changed advance is updated in
+    place rather than recorded twice."""
+    __tablename__ = "ical_event_bookings"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, nullable=False, index=True)
+    feed_id = Column(String, nullable=False)
+    event_key = Column(String(300), nullable=False)
+    stay_id = Column(String, nullable=False, index=True)
+    payment_id = Column(String, nullable=True)
+
+    __table_args__ = (UniqueConstraint("feed_id", "event_key", name="uq_ical_event_booking"),)

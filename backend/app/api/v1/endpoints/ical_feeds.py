@@ -29,7 +29,7 @@ from app.core.config import settings
 from app.core.database import get_db, set_tenant_context
 from app.core.encryption import decrypt_credentials, encrypt_credentials
 from app.core.url_safety import UnsafeURLError, assert_public_url
-from app.models.ical_feed import ICalEventDetail, ICalFeed, ICalFeedVehicle
+from app.models.ical_feed import ICalEventBooking, ICalEventDetail, ICalFeed, ICalFeedVehicle
 from app.models.property import BlockedDate, Property
 from app.models.user import User, UserRole
 from app.services import ical_sync_service as svc
@@ -128,10 +128,15 @@ def _vehicles_out(feed: ICalFeed) -> tuple[list[dict], int]:
     return ([{"property_id": r.property_id, "property_name": names.get(r.property_id), "keywords": list(r.keywords or [])} for r in rows], live)
 
 
+def _bookings_out(feed: ICalFeed) -> int:
+    db = object_session(feed)
+    return db.query(ICalEventBooking).filter_by(feed_id=feed.id, tenant_id=feed.tenant_id).count() if db is not None else 0
+
+
 def _out(feed: ICalFeed, prop_name: Optional[str]) -> dict:
     vehicles, needs_vehicle = _vehicles_out(feed)
     return {
-        "vehicles": vehicles, "needs_vehicle": needs_vehicle,
+        "vehicles": vehicles, "needs_vehicle": needs_vehicle, "bookings": _bookings_out(feed),
         "id": feed.id, "property_id": feed.property_id, "property_name": prop_name, "name": feed.name,
         "has_import": bool(feed.import_url_enc), "import_hint": _import_hint(feed),
         "export_url": _export_url(feed), "is_active": feed.is_active,
@@ -214,6 +219,7 @@ def delete_feed(feed_id: str, current_user: User = Depends(require_roles(*_MANAG
         b.is_active = False
     db.query(ICalFeedVehicle).filter_by(feed_id=feed.id, tenant_id=feed.tenant_id).delete()
     db.query(ICalEventDetail).filter_by(feed_id=feed.id, tenant_id=feed.tenant_id).delete()
+    db.query(ICalEventBooking).filter_by(feed_id=feed.id, tenant_id=feed.tenant_id).delete()    # bookings stay; only the link goes
     append_audit(db, tenant_id=current_user.tenant_id, action="ical.feed_deleted", actor_user_id=current_user.id,
                  target_type="ical_feed", target_id=feed.id, payload={"property_id": feed.property_id, "name": feed.name})
     db.delete(feed)

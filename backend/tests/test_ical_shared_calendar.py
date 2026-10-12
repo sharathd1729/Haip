@@ -34,6 +34,8 @@ def _event(uid, summary, description="", start=START, end=END):
 NEHA = ("BOOKING\nGuest Name: Neha\nContact Number: +91 98456 00000\nDestination: Kabini\n"
         "Dates: 20th - 22nd March 2030, noon to ~6 PM\nGuests: 2 Adults + 1 Child\n"
         "Total Booking Amount: Rs 70,000\nAdvance Received: Rs 35,000\nBalance Amount: Rs 35,000")
+# Without a phone number an event is not complete enough to become a booking, so it stays a calendar block.
+NEHA_BLOCK = NEHA.replace("Contact Number: +91 98456 00000\n", "")
 BOTH = "Guest Name: Krithika\nVehicles: 2 Caravans (White and Black)\nDates: 25th - 27th March 2030"
 
 
@@ -93,12 +95,12 @@ def test_fixing_the_title_in_google_moves_the_block_on_the_next_read(db, shared)
 
 
 def test_the_blocked_days_follow_the_trip_dates_in_the_description(db, shared):
-    _sync(db, shared["feed"], _event("f@g", "Neha| white ratha| Jishanth", NEHA))
+    _sync(db, shared["feed"], _event("f@g", "Neha| white ratha| Jishanth", NEHA_BLOCK))
     assert _active(db, shared["white"]) == [("2030-03-20", "2030-03-22")]      # event is one day; the trip is two nights
     detail = db.query(ICalEventDetail).filter_by(feed_id=shared["feed"].id).one()
     assert detail.dates_source == "description" and detail.needs_vehicle is False
     assert detail.title == "Neha| white ratha| Jishanth"
-    assert detail.details["guest_name"] == "Neha" and detail.details["phone"] == "+919845600000"
+    assert detail.details["guest_name"] == "Neha"
     assert detail.details["amounts"]["total"] == 70000.0 and detail.details["amounts"]["balance"] == 35000.0
 
 
@@ -164,7 +166,7 @@ def _calendar(client, headers):
 
 
 def test_the_calendar_carries_the_event_details_and_withholds_amounts_without_revenue_read(client, db, shared):
-    _sync(db, shared["feed"], _event("l@g", "Neha| white ratha| Jishanth", NEHA))
+    _sync(db, shared["feed"], _event("l@g", "Neha| white ratha| Jishanth", NEHA_BLOCK))
     owner = _calendar(client, _auth(shared["tu"])).json()
     white = next(r for r in owner["properties"] if r["property_id"] == shared["white"].id)
     event = next(b for b in white["blocks"] if b["event"])["event"]
@@ -185,7 +187,7 @@ def test_the_calendar_carries_the_event_details_and_withholds_amounts_without_re
 
 
 def test_another_workspace_never_sees_these_events(client, db, shared):
-    _sync(db, shared["feed"], _event("m@g", "Neha| white ratha", NEHA))
+    _sync(db, shared["feed"], _event("m@g", "Neha| white ratha", NEHA_BLOCK))
     other = _tenant(db)
     seed_capabilities(db, other)
     owner = User(id=str(uuid.uuid4()), tenant_id=other, name="O", email=f"o-{uuid.uuid4().hex[:5]}@t.com",
