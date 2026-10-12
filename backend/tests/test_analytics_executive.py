@@ -8,6 +8,8 @@ import uuid
 
 import pytest
 
+pytestmark = pytest.mark.usefixtures("capabilities_seeded")   # money endpoints sit behind bookings.read / revenue.read
+
 
 # ─── Fixtures ─────────────────────────────────────────────────────────────────
 

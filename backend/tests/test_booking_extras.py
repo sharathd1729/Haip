@@ -3,9 +3,12 @@ import os
 import uuid
 from datetime import date, timedelta
 
+import pytest
 from cryptography.fernet import Fernet
 
 os.environ.setdefault("ENCRYPTION_KEY", Fernet.generate_key().decode())
+
+pytestmark = pytest.mark.usefixtures("capabilities_seeded")   # money endpoints sit behind bookings.read / revenue.read
 
 from app.core.security import create_access_token  # noqa: E402
 from app.models.base import gen_uuid  # noqa: E402

@@ -1,5 +1,7 @@
 """Tests for GET /bookings -- HAIP's own Stay records, independent of RentalWise."""
 import uuid
+
+from tests.conftest import seed_capabilities
 from datetime import date
 
 from app.models.tenant import Tenant
@@ -11,7 +13,9 @@ from app.core.security import create_access_token, get_password_hash
 
 def _make_tenant(db, name="T"):
     t = Tenant(id=str(uuid.uuid4()), name=name, slug=f"slug-{uuid.uuid4().hex[:6]}", plan="growth")
-    db.add(t); db.flush(); return t
+    db.add(t); db.flush()
+    seed_capabilities(db, t.id)      # the real default role matrix, as a provisioned workspace has
+    return t
 
 
 def _make_user(db, tenant_id, role=UserRole.OWNER):

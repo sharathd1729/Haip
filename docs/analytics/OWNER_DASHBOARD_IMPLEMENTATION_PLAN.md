@@ -5,6 +5,13 @@
 every batch is small, independently shippable and ships with tests; no definition is invented — an undecided metric
 stays out until its decision is made.
 
+> **Progress (12 Oct 2026):** the enforcement half of Batch A (capability gates on bookings, targets, executive, the overview's
+> agent scoping and the MCP tool) shipped with the Owner Command Center; no data migration was needed because migration 057
+> already seeded `bookings.read` and `revenue.read` for every existing workspace. Still to do from Batch A: the calendar's money
+> fields, the frontend capability-awareness beyond the default role lists, and D-18 confirmation. Batch B's overview now exists
+> (`/dashboard`, owners and managers) with period, channel, property and agent filters; ADR / RevPAR and occupancy per property are
+> not on it (D-05, D-06).
+
 ## 1. Order of work (priority from the brief, adjusted for safety)
 
 | Batch | Theme | Why this order |

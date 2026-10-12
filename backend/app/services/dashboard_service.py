@@ -159,3 +159,19 @@ def lead_sources(db: Session, tid: str, scope_user_id: Optional[str], range_star
     total = sum(v[1] for v in grouped.values()) or 1
     out = [{"key": k, "label": v[0], "count": v[1], "pct": round(100 * v[1] / total)} for k, v in grouped.items()]
     return sorted(out, key=lambda r: -r["count"])
+
+
+# ── AI insights ───────────────────────────────────────────────────────────────
+
+def top_insights(db: Session, tid: str, limit: int = 4) -> list[dict]:
+    """The open AI insights that most deserve a look: most severe first, then newest. Severity is sorted BEFORE the
+    cut, so a critical insight can no longer be dropped in favour of an older low one."""
+    from app.models.insight import Insight
+
+    rows = db.query(Insight).filter(
+        Insight.tenant_id == tid, Insight.is_dismissed == False, Insight.is_auto_resolved == False,  # noqa: E712
+    ).order_by(Insight.created_at.desc()).limit(50).all()
+    severity = {"critical": 5, "high": 4, "medium": 3, "low": 2, "info": 1}
+    rows.sort(key=lambda r: severity.get(r.severity, 0), reverse=True)
+    return [{"id": r.id, "severity": r.severity, "title": r.title, "body": r.body, "cta_label": r.cta_label, "cta_href": r.cta_href}
+            for r in rows[:limit]]

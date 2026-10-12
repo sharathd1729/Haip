@@ -55,6 +55,21 @@ where two screens disagree, and which business decisions are needed before they 
 - **Tests:** `test_kpi_metrics.py` (clipping, check-out day, statuses, properties, tenant isolation, empty) and the
   existing executive suite (`test_analytics_executive.py`, 15 tests).
 
+### `stays.booked` — Bookings made  *(shared; evidence T; added with the Owner Command Center)*
+- **Definition:** stays created in the period whose status is confirmed, checked in or checked out; cancelled excluded.
+  Count, and the sum of `Stay.total_amount` (the stay charge; add-ons are separate).
+- **Date basis:** `Stay.created_at` ("booked on"), IST calendar days converted to UTC. This is the Targets / daily-email
+  basis; the dashboard tile still uses check-in ("arriving"), so the two differ by design (D-03 stays open).
+- **Shared by:** the Owner Command Center (`/dashboard/business-overview`). Not yet by the other consumers listed in section 3.
+- **Tests:** `tests/api/test_business_overview.py` (counts, value, cancelled-of-created, period edges, filters, tenant isolation).
+
+### `payments.collected` — Cash collected  *(shared; evidence T)*
+- **Definition:** payments (`StayPayment.kind = payment`) with a payment date in the period, and refunds (`kind = refund`)
+  paid out in the period. Two figures, never merged; "net" is their difference and is labelled as cash, not revenue.
+- **Date basis:** `StayPayment.paid_on` (a calendar date), inclusive IST dates. Payments on cancelled stays count (the money moved).
+- **Not a revenue figure:** HAIP has no tax, commission or fee data, so no net revenue is computed (D-05).
+- **Tests:** `tests/api/test_business_overview.py` (collected, refunds, net, property filter).
+
 ## 1. Leads and enquiries
 
 | Variant | Formula | Date & period | Filters / status | Empty | Computed in → shown on | Evidence |

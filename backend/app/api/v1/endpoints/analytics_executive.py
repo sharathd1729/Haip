@@ -17,6 +17,7 @@ from sqlalchemy import func
 
 from app.core.database import get_db
 from app.api.v1.deps import get_current_user, require_module
+from app.services.authz_service import require_capability
 from app.models.user import User
 from app.models.call import Call
 from app.models.inquiry import Inquiry, InquiryStage
@@ -63,6 +64,8 @@ def executive_dashboard(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     _ctx=Depends(require_module("analytics")),
+    # Revenue, occupancy and funnel for the whole tenant: revenue.read (owner, manager, marketing by default).
+    _cap=Depends(require_capability("revenue.read")),
 ):
     """
     Executive Dashboard — 6 KPI cards + 4 chart datasets.

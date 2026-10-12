@@ -333,6 +333,22 @@ export function canSendMessages(role: UserRole | string | undefined | null): boo
 }
 
 /**
+ * Which roles the UI treats as holding the money capabilities. Display only: the server decides, per workspace, from
+ * the `bookings.read` and `revenue.read` capabilities (backend/app/services/authz_service.py). These lists are those
+ * capabilities' DEFAULT holders; an owner who edits a workspace's matrix will see a 403 state rather than a hidden link.
+ */
+export const BOOKING_READ_ROLES: UserRole[] = ["owner", "manager", "reservations", "concierge", "foh", "read_only"];
+export const REVENUE_READ_ROLES: UserRole[] = ["owner", "manager", "marketing"];
+
+export function canViewBookings(role: UserRole | string | undefined | null): boolean {
+  return !!role && BOOKING_READ_ROLES.includes(role as UserRole);
+}
+
+export function canViewRevenue(role: UserRole | string | undefined | null): boolean {
+  return !!role && REVENUE_READ_ROLES.includes(role as UserRole);
+}
+
+/**
  * Check if a role can see a nav section.
  * @example canSeeNav("concierge", "compliance") // false
  */

@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_current_user, get_db, require_roles
+from app.services.authz_service import require_capability
 from app.models.property import Property
 from app.models.sales_target import SCOPE_AGENT, SCOPE_PROPERTY, SCOPE_TENANT
 from app.models.user import User, UserRole
@@ -91,6 +92,7 @@ def list_targets(
     month: Optional[str] = Query(None, description="YYYY-MM; defaults to the current month"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    _cap=Depends(require_capability("revenue.read")),
 ):
     m = _parse_month(month)
     rows = targets_service.list_targets(db, current_user.tenant_id, m)
@@ -154,6 +156,7 @@ def pickup(
     month: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    _cap=Depends(require_capability("revenue.read")),
 ):
     return sales_performance_service.pickup_report(db, current_user.tenant_id, _parse_month(month))
 
@@ -163,6 +166,7 @@ def agents(
     month: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    _cap=Depends(require_capability("revenue.read")),
 ):
     return sales_performance_service.agent_performance(db, current_user.tenant_id, _parse_month(month))
 
@@ -172,6 +176,7 @@ def properties(
     month: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    _cap=Depends(require_capability("revenue.read")),
 ):
     return sales_performance_service.property_performance(db, current_user.tenant_id, _parse_month(month))
 
@@ -180,6 +185,7 @@ def properties(
 def scopes(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    _cap=Depends(require_capability("revenue.read")),
 ):
     """The tenant's own properties and selling agents -- what the target
     settings screen offers as rows. Driven entirely by the tenant's real

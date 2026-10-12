@@ -40,7 +40,7 @@ Severity: **H** wrong or exposed data today, **M** inconsistent numbers or missi
 
 | Id | Finding | Evidence | Why it matters |
 |---|---|---|---|
-| G-01 | **Agent roles see tenant-wide revenue and bookings** on the dashboard (only the lead counts are scoped to their own leads). | P (SQLite probe reproduced it) | A front-line agent can read total business revenue. Decision D-12 chooses between hiding and scoping. |
+| G-01 | **Agent roles see tenant-wide revenue and bookings** on the dashboard (only the lead counts are scoped to their own leads). **Fixed 12 Oct 2026** on `/dashboard/overview` (agent bookings = those linked to their leads; revenue withheld without `revenue.read`) and not shown on the new Command Center. | P (SQLite probe reproduced it) | A front-line agent can read total business revenue. Decision D-12 chooses between hiding and scoping. |
 | G-02 | `GET /calls/summary` and `GET /analytics/executive` have **no role or capability check** beyond login. | R (no `require_capability` or role dependency seen) | Executive revenue and occupancy reachable by any signed-in role. Update 12 Oct 2026: confirmed, and wider than this row. Bookings, targets and executive money endpoints are open to all 8 roles (reproduced on SQLite); see `OWNER_DASHBOARD_AUDIT.md` section 5. |
 | G-03 | `/reports/agent-leaderboard` reads `User.full_name`, which does not exist (the column is `name`). | R, model checked | Endpoint cannot return rows. No caller was found, so it is dormant, not live. |
 | G-04 | Team report returns **hard-coded zeros** for `inquiries_handled` and `messages_sent` and blanks for `conversion_rate`, `last_active`. | R | A report that looks complete but is not. Hide or compute (D-13). |

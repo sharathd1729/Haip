@@ -8,7 +8,7 @@ import { signOut } from "next-auth/react";
 import { Calendar, CreditCard, Key, Inbox, Phone, Users, Building2, Home, BarChart2, Zap, Link2, Settings, HelpCircle, LogOut, ChevronDown, ChevronRight, ChevronLeft, MessageSquare, AtSign, Bot, Target, Megaphone, Send, FileText, LayoutDashboard, ListChecks, BookmarkIcon, TrendingUp, MessageCircle, User, Shuffle, BarChart3 } from "@/lib/icons";
 import { UserCheck, GitBranch } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { canSeeNav, type Resource } from "@/lib/permissions";
+import { BOOKING_READ_ROLES, REVENUE_READ_ROLES, canSeeNav, type Resource } from "@/lib/permissions";
 import { useBrandTheme } from "@/components/providers/BrandThemeProvider";
 import { useBusinessType } from "@/components/providers/WorkspaceProvider";
 import { useInboxStore } from "@/store/inbox";
@@ -101,8 +101,8 @@ const NAV_GROUPS: NavGroup[] = [
     section: "Sales",
     items: [
       { label: "Leads360", href: "/dashboard/leads", icon: Target, resource: "guests" },
-      { label: "Bookings", href: "/dashboard/bookings", icon: BookmarkIcon, resource: "guests" },
-      { label: "Targets", href: "/dashboard/targets", icon: TrendingUp, resource: "guests" },
+      { label: "Bookings", href: "/dashboard/bookings", icon: BookmarkIcon, resource: "guests", onlyRoles: BOOKING_READ_ROLES },
+      { label: "Targets", href: "/dashboard/targets", icon: TrendingUp, resource: "guests", onlyRoles: REVENUE_READ_ROLES },
       {
         label: "Portfolio",
         href: "/dashboard/properties",

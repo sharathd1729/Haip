@@ -39,7 +39,7 @@ def test_list_bookings_tool_works_with_no_arguments_and_with_new_filters(db, ten
 
 def test_tool_passes_every_parameter_the_endpoint_has():
     """Fails the moment someone adds a parameter to the endpoint and forgets the tool."""
-    endpoint_params = set(inspect.signature(bookings_ep.list_bookings).parameters) - {"current_user", "db"}
+    endpoint_params = set(inspect.signature(bookings_ep.list_bookings).parameters) - {"current_user", "db", "_cap"}   # injected dependencies; the MCP dispatcher checks bookings.read itself
     source = inspect.getsource(mcp_tools._list_bookings)
     missing = [p for p in endpoint_params if f"{p}=" not in source]
     assert not missing, f"MCP list_bookings does not pass: {missing}"

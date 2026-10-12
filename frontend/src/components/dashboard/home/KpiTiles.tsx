@@ -59,8 +59,10 @@ export function KpiTiles({ data, rangeLabel }: { data: OverviewResponse; rangeLa
       label: "Calls answered", value: answeredPct != null ? `${answeredPct}%` : "—", spark: series.calls_answered_pct,
       pill: calls.missed ? <Pill text={`${calls.missed} missed`} good={null} /> : null,
     },
-    { label: "Bookings", value: String(kpi.bookings), spark: series.bookings, pill: pctPill(d.bookings), compares: true },
-    { label: "Revenue", value: formatRupees(kpi.revenue), spark: series.revenue, pill: pctPill(d.revenue), compares: true },
+    { label: "Bookings", value: String(kpi.bookings), spark: series.bookings ?? undefined, pill: pctPill(d.bookings), compares: true },
+    kpi.revenue == null
+      ? { label: "Revenue", value: "Restricted", pill: <Pill text="needs revenue permission" good={null} /> }
+      : { label: "Revenue", value: formatRupees(kpi.revenue), spark: series.revenue ?? undefined, pill: pctPill(d.revenue), compares: true },
   ];
   const more: Tile[] = [
     { label: "Avg first reply", value: formatSeconds(kpi.avg_response_seconds), pill: pctPill(d.avg_response_seconds, true), compares: true },

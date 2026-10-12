@@ -122,20 +122,25 @@ def tenant_and_user(db):
     return {"tenant": tenant, "user": user, "access_token": access_token, "refresh_token": refresh_token}
 
 
-@pytest.fixture()
-def capabilities_seeded(db, tenant_and_user):
-    """Give the test tenant the real default role-capability matrix (authz_service._DEFAULT_GRANTS).
+def seed_capabilities(db, tenant_id):
+    """Give a test tenant the real default role-capability matrix (authz_service._DEFAULT_GRANTS).
 
     A tenant with no role_capabilities rows is "unprovisioned" and every capability check fails closed, so endpoint
     tests that sit behind require_capability need this. SQLite starts with an empty capability catalogue (PostgreSQL
-    built by alembic already has the real one), so the capabilities these tests need are inserted only if missing."""
+    built by alembic already has the real one), so every key in the default matrix is inserted if missing."""
     from app.models.capability import Capability
     from app.services import authz_service
 
-    needed = [("conversations.send", "Send guest-facing messages", "conversations", True, "medium")]
-    for key, label, category, is_write, risk in needed:
+    for key in authz_service._DEFAULT_GRANTS:
         if db.query(Capability).filter_by(key=key).first() is None:
-            db.add(Capability(key=key, label=label, category=category, is_write=is_write, risk=risk))
+            db.add(Capability(key=key, label=key, category=key.split(".")[0],
+                              is_write=key.endswith((".write", ".send", ".merge", ".override", ".manage")), risk="medium"))
     db.commit()
+    authz_service.seed_default_capabilities(db, tenant_id)
+
+
+@pytest.fixture()
+def capabilities_seeded(db, tenant_and_user):
+    """seed_capabilities() for the tenant_and_user tenant."""
     tenant = tenant_and_user["tenant"]
-    authz_service.seed_default_capabilities(db, tenant["id"] if isinstance(tenant, dict) else tenant.id)
+    seed_capabilities(db, tenant["id"] if isinstance(tenant, dict) else tenant.id)

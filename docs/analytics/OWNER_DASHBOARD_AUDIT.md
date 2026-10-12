@@ -4,6 +4,13 @@
 **Companion:** `OWNER_DASHBOARD_IMPLEMENTATION_PLAN.md`. **Builds on:** `KPI_METRIC_CATALOGUE.md`,
 `DASHBOARD_REPORTS_GAP_ANALYSIS.md` (G-nn), `SHARED_METRIC_LAYER_PROPOSAL.md`, `CRM_DASHBOARDS_AND_REPORTS_INVENTORY.md`.
 
+**Status update (12 Oct 2026, Owner Command Center batch):** findings OA-02 to OA-05 are closed for the endpoints named in
+`BUSINESS_OVERVIEW_IMPLEMENTATION.md` section 5: bookings list and detail now need `bookings.read`; the targets reports and
+`/analytics/executive` need `revenue.read`; the dashboard overview no longer gives an agent workspace-wide revenue or booking
+counts; the MCP `get_dashboard_metrics` tool withholds revenue without `revenue.read`. Tests: `tests/api/test_money_access.py`.
+Still open: the portfolio calendar returns per-stay amounts to any signed-in user; OA-01 (no property-owner model), OA-06 (no
+user-property access), D-18 role design still to be confirmed by the owner (the defaults were applied, not a new design).
+
 **Evidence labels:** `R` read in the source · `P` reproduced by a throwaway probe on **SQLite** (probe file deleted, not committed) ·
 `T` covered by an existing passing test · `PG` needs PostgreSQL (not run). Nothing here was checked on staging or production.
 

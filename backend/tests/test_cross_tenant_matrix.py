@@ -10,6 +10,8 @@ The tests run on whatever database ``DATABASE_URL`` points at. In CI that is Pos
 row-level security itself is covered by tests/test_rls_postgres.py.
 """
 import uuid
+
+from tests.conftest import seed_capabilities
 from datetime import date, datetime, timezone
 
 import pytest
@@ -38,6 +40,7 @@ def _tenant_with_owner(db, label):
     )
     db.add(user)
     db.commit()
+    seed_capabilities(db, tenant.id)
     token = create_access_token({"sub": user.id, "tenant_id": tenant.id, "role": user.role.value})
     return tenant, {"Authorization": f"Bearer {token}"}
 

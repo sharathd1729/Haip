@@ -19,11 +19,12 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from typing import Iterable, Optional, Union
 
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.models.inquiry import Inquiry
 from app.models.property import Stay
+from app.models.stay_finance import StayPayment
 
 Bound = Union[datetime, str]
 
@@ -40,6 +41,20 @@ CANONICAL_METRICS: dict[str, dict[str, str]] = {
                       "check-out day not counted.",
         "date_basis": "Stay.check_in / Stay.check_out (calendar dates), half-open window",
         "function": "occupied_nights",
+    },
+    "stays.booked": {
+        "name": "Bookings made",
+        "definition": "Stays created in the period whose status is confirmed, checked in or checked out (cancelled "
+                      "excluded). Count, and the sum of Stay.total_amount (the stay charge, add-ons not included).",
+        "date_basis": "Stay.created_at, period bounds in UTC converted from IST calendar days",
+        "function": "booking_filters / booked_totals",
+    },
+    "payments.collected": {
+        "name": "Cash collected",
+        "definition": "Payments received (kind payment) with a payment date in the period, and refunds (kind refund) "
+                      "paid out in the period, kept as two separate figures.",
+        "date_basis": "StayPayment.paid_on (a calendar date), inclusive IST dates",
+        "function": "payment_totals",
     },
 }
 
@@ -128,3 +143,70 @@ def occupied_nights(
         last = min(check_out, window_end)
         total += max(0, (last - first).days)
     return total
+
+
+# ── stays.booked ─────────────────────────────────────────────────────────────────────────────────────────────
+
+def booking_filters(
+    tenant_id: str,
+    start: Bound,
+    end: Bound,
+    *,
+    property_id: Optional[str] = None,
+    statuses: Iterable[str] = OCCUPYING_STATUSES,
+) -> list:
+    """SQL conditions for bookings made in [start, end] (both inclusive), for one tenant.
+
+    "Made" is judged on the day the booking was created, not the day the guest arrives (the two answer different
+    questions; the catalogue keeps both, see D-03). Pass the result to ``db.query(...).filter(*...)`` and join
+    whatever else the caller needs (the linked lead, payments)."""
+    conditions = [
+        Stay.tenant_id == tenant_id,
+        Stay.created_at >= as_datetime(start),
+        Stay.created_at <= as_datetime(end),
+        Stay.status.in_(list(statuses)),
+    ]
+    if property_id:
+        conditions.append(Stay.property_id == property_id)
+    return conditions
+
+
+def booked_totals(db: Session, tenant_id: str, start: Bound, end: Bound, **filters) -> tuple[int, float]:
+    """(number of bookings made, total stay charge) in the period."""
+    count, value = db.query(func.count(Stay.id), func.coalesce(func.sum(Stay.total_amount), 0)).filter(
+        *booking_filters(tenant_id, start, end, **filters)
+    ).one()
+    return int(count or 0), float(value or 0)
+
+
+# ── payments.collected ───────────────────────────────────────────────────────────────────────────────────────
+
+def payment_totals(
+    db: Session,
+    tenant_id: str,
+    day_from: date,
+    day_to: date,
+    *,
+    property_id: Optional[str] = None,
+    extra_filters: Iterable = (),
+) -> dict[str, float]:
+    """Cash received and cash refunded with a payment date in [day_from, day_to] (inclusive).
+
+    Refunds are NOT netted into ``collected``: the caller shows both and may add ``net``. Payments on cancelled
+    stays still count, because the money really moved. ``extra_filters`` lets a caller restrict to some stays
+    (for example only those linked to one agent's leads) without re-stating the definition."""
+    collected = func.coalesce(func.sum(case((StayPayment.kind == "payment", StayPayment.amount), else_=0)), 0)
+    refunded = func.coalesce(func.sum(case((StayPayment.kind == "refund", StayPayment.amount), else_=0)), 0)
+    q = (
+        db.query(collected, refunded)
+        .join(Stay, Stay.id == StayPayment.stay_id)
+        .filter(StayPayment.tenant_id == tenant_id, Stay.tenant_id == tenant_id,
+                StayPayment.paid_on >= day_from, StayPayment.paid_on <= day_to)
+    )
+    if property_id:
+        q = q.filter(Stay.property_id == property_id)
+    for condition in extra_filters:
+        q = q.filter(condition)
+    got, back = q.one()
+    got, back = float(got or 0), float(back or 0)
+    return {"collected": got, "refunded": back, "net": got - back}
