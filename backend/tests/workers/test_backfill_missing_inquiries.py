@@ -128,7 +128,13 @@ def test_skips_conversation_with_no_real_text(db):
 def test_leaves_conversation_with_existing_inquiry_id_untouched(db):
     tenant = _make_tenant(db)
     guest = _make_guest(db, tenant.id)
-    existing_inquiry_id = str(uuid.uuid4())
+    # conversations.inquiry_id is a foreign key: the conversation's existing inquiry has to exist
+    from app.models.inquiry import Inquiry, InquirySource, InquiryStage
+    existing = Inquiry(id=str(uuid.uuid4()), tenant_id=tenant.id, guest_id=guest.id,
+                       stage=InquiryStage.NEW, source=InquirySource.META_IG)
+    db.add(existing)
+    db.flush()
+    existing_inquiry_id = existing.id
     conv = _make_conversation(db, tenant.id, guest.id, inquiry_id=existing_inquiry_id)
     _add_inbound(db, tenant.id, conv.id, "Hello there")
     db.commit()

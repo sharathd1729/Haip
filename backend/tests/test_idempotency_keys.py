@@ -245,3 +245,10 @@ class TestSendMessageIdempotency:
         # Should be a NEW message, not the old one
         assert resp.json()["id"] != old_msg.id
         mock_delay.assert_called_once()
+
+        # Regression (Phase 0.1): uq_messages_idempotency covers all time, so the expired key had to be released
+        # from the old message; before, PostgreSQL rejected the new insert with a unique violation (HTTP 500).
+        db.expire_all()
+        holders = db.query(Message).filter(Message.tenant_id == tenant_id, Message.idempotency_key == stale_key).all()
+        assert [m.id for m in holders] == [resp.json()["id"]]
+        assert db.get(Message, old_msg.id).body == "Old message"       # the old message itself is untouched

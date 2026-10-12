@@ -82,7 +82,11 @@ class TestDeriveRecommendedAction:
         db.add(Tenant(id=tenant_b, name="Other Tenant", slug=f"other-{uuid.uuid4().hex[:6]}", plan="growth"))
         db.commit()
 
-        shared_guest_id = str(uuid.uuid4())
+        # The guest row has to exist (conversations.guest_id and calls.guest_id are foreign keys); it belongs to
+        # tenant B, and tenant A's call then refers to it too, which is the cross-tenant case under test.
+        shared_guest = Guest(id=str(uuid.uuid4()), tenant_id=tenant_b, name="Shared Guest")
+        db.add(shared_guest); db.flush()
+        shared_guest_id = shared_guest.id
         # Draft lives under tenant B's conversation.
         conv_b = Conversation(id=str(uuid.uuid4()), tenant_id=tenant_b, guest_id=shared_guest_id, channel=ChannelType.WHATSAPP, is_open=True)
         db.add(conv_b); db.flush()

@@ -8,7 +8,7 @@ import pytest
 
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
-from app.models.capability import Capability
+from app.models.capability import Capability, RoleCapability
 from app.models.audit_event import AuditEvent
 from app.core.security import create_access_token, get_password_hash
 from app.services import authz_service
@@ -39,8 +39,13 @@ def _jwt(user):
 
 
 def _seed_catalogue(db):
-    if db.query(Capability.key).first() is not None:
-        return
+    """These tests assert exact capability sets against the small catalogue below, so start from it explicitly.
+
+    PostgreSQL is already seeded by the migrations with the real registry (SQLite starts empty), so the helper used
+    to skip seeding there and every exact-set assertion compared against the full registry. The seeded rows are
+    replaced for this test's transaction only; the per-test rollback restores them for everything else."""
+    db.query(RoleCapability).delete()
+    db.query(Capability).delete()
     for key, label, category, is_write, risk in _TEST_CAPS:
         db.add(Capability(key=key, label=label, category=category, is_write=is_write, risk=risk))
     db.commit()

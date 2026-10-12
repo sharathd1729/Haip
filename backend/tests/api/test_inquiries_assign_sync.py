@@ -49,8 +49,8 @@ def inquiry(db, tenant_and_user, guest):
     return inq
 
 
-def _make_conversation(db, tenant_id, guest_id, inquiry_id):
-    conv = Conversation(id=str(uuid.uuid4()), tenant_id=tenant_id, guest_id=guest_id, inquiry_id=inquiry_id, channel="whatsapp", is_open=True)
+def _make_conversation(db, tenant_id, guest_id, inquiry_id, channel="whatsapp"):
+    conv = Conversation(id=str(uuid.uuid4()), tenant_id=tenant_id, guest_id=guest_id, inquiry_id=inquiry_id, channel=channel, is_open=True)
     db.add(conv); db.commit()
     return conv
 
@@ -69,8 +69,10 @@ class TestAssignSyncsToConversation:
     def test_updates_every_conversation_on_that_inquiry(self, client, db, auth_headers, tenant_and_user, inquiry, agent):
         """A guest can have more than one channel thread tied to the same
         inquiry (e.g. WhatsApp + a later Instagram DM) -- all must sync."""
-        conv1 = _make_conversation(db, tenant_and_user["tenant"].id, inquiry.guest_id, inquiry.id)
-        conv2 = _make_conversation(db, tenant_and_user["tenant"].id, inquiry.guest_id, inquiry.id)
+        # Two threads on two channels: a guest can have only one OPEN thread per channel (migration 099), which is
+        # exactly the case the docstring describes (WhatsApp plus a later Instagram DM).
+        conv1 = _make_conversation(db, tenant_and_user["tenant"].id, inquiry.guest_id, inquiry.id, channel="whatsapp")
+        conv2 = _make_conversation(db, tenant_and_user["tenant"].id, inquiry.guest_id, inquiry.id, channel="instagram")
         client.headers.update(auth_headers)
 
         resp = client.patch(f"/api/v1/inquiries/{inquiry.id}", json={"assigned_to": agent.id})

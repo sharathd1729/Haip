@@ -6,10 +6,20 @@ on:
   pull_request:
     branches: [master]
 
+# Least privilege: nothing here writes to the repository.
+permissions:
+  contents: read
+
+# A newer push to the same ref supersedes an in-flight run.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend-tests:
     name: Backend — pytest
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: backend
@@ -42,9 +52,13 @@ jobs:
     env:
       DATABASE_URL: postgresql://haip:haip@localhost:5432/haip_test
       REDIS_URL: redis://localhost:6379/0
+      # The PostgreSQL-only tests (RLS, audit-chain concurrency) fail instead of skipping when this is not a
+      # PostgreSQL URL, so a misconfigured job cannot go green by skipping them.
+      REQUIRE_POSTGRES_TESTS: "1"
       JWT_SECRET: test-secret-not-for-prod
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || 'sk-ant-placeholder' }}
-      DEEPGRAM_API_KEY: ${{ secrets.DEEPGRAM_API_KEY || 'placeholder' }}
+      # Placeholders only: the tests mock every provider, so real keys must never reach this job.
+      ANTHROPIC_API_KEY: sk-ant-placeholder
+      DEEPGRAM_API_KEY: placeholder
 
     steps:
       - uses: actions/checkout@v4
@@ -61,12 +75,34 @@ jobs:
       - name: Run Alembic migrations
         run: alembic upgrade head
 
+      - name: Confirm the database is PostgreSQL at the migrated head
+        run: |
+          python - <<'PY'
+          import os, sqlalchemy as sa
+          e = sa.create_engine(os.environ["DATABASE_URL"])
+          assert e.dialect.name == "postgresql", e.dialect.name
+          with e.connect() as c:
+              print("alembic head:", c.execute(sa.text("select version_num from alembic_version")).scalar())
+          PY
+
       - name: Run tests
-        run: pytest tests/ -v --tb=short
+        # GitHub's default shell is `bash -e` WITHOUT pipefail, so `pytest | tee` would exit 0 even when pytest fails.
+        # `shell: bash` plus `set -o pipefail` makes the pipeline fail with pytest. -rfEs lists every failure, error and skip.
+        shell: bash
+        run: |
+          set -eo pipefail
+          pytest tests/ -v --tb=short -rfEs -p no:cacheprovider 2>&1 | tee /tmp/pytest.txt
+          # The PostgreSQL-only tests must have run: any skip of them is a failure (explicit test, not `! grep`,
+          # because `set -e` ignores a negated command).
+          if grep -E "^SKIPPED .*(test_rls_postgres|test_audit_concurrency_postgres|test_migration_117_postgres|test_call_score_status)" /tmp/pytest.txt; then
+            echo "::error::PostgreSQL-only tests were skipped; the job must run against PostgreSQL"
+            exit 1
+          fi
 
   frontend-tests:
     name: Frontend — vitest
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: frontend
@@ -83,6 +119,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit --skipLibCheck
 
       - name: Run tests
         run: npm run test -- --run

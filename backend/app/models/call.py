@@ -94,7 +94,8 @@ class Call(Base, TimestampMixin, TenantMixin):
 
     # Processing status
     transcription_status = Column(String(20), default="pending")  # pending/processing/done/failed
-    ai_score_status = Column(String(20), default="pending")
+    # 40, not 20: "skipped_no_transcript" (21 characters) did not fit and failed on PostgreSQL (migration 117)
+    ai_score_status = Column(String(40), default="pending")
     # How many times judge() has started on this call -- lets
     # call_recovery.py retry a "failed" call after a provider incident
     # without ever looping forever on one that can't be scored (migration 108).

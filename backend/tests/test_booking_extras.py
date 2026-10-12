@@ -165,7 +165,10 @@ def test_change_guest_to_existing_by_phone_and_edit(client, db, tenant_and_user)
 
 def test_change_guest_cannot_use_other_tenants_guest(client, db, tenant_and_user):
     _, _, stay = _setup(db, tenant_and_user)
-    foreign = Guest(id=gen_uuid(), tenant_id="someone-else", name="Z", phone="+910000000009")
+    other = Tenant(id=str(uuid.uuid4()), name="Someone Else", slug=f"se-{uuid.uuid4().hex[:6]}", plan="growth")
+    db.add(other)           # guests.tenant_id is a foreign key: the other tenant has to exist
+    db.flush()
+    foreign = Guest(id=gen_uuid(), tenant_id=other.id, name="Z", phone="+910000000009")
     db.add(foreign)
     db.commit()
     r = client.patch(f"/api/v1/bookings/{stay.id}/guest", json={"guest_id": foreign.id}, headers=_h(tenant_and_user))

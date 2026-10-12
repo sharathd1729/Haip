@@ -91,26 +91,25 @@ class TestVerifyMetaSignature:
 # ── Config startup validation ─────────────────────────────────────────────────
 
 class TestProdStartupValidation:
-    """Settings._validate_secrets must block startup without META_APP_SECRET in prod."""
+    """A missing META_APP_SECRET no longer stops the app booting (WhatsApp verifies against each
+    tenant's own app secret, and the core CRM does not depend on Meta), so the safety net is the
+    request path: in production, with no secret to verify against, a webhook is refused (covered by
+    ``test_no_secret_in_prod_raises_401`` above)."""
 
-    def test_prod_without_meta_app_secret_raises(self):
-        from pydantic import ValidationError
-        with pytest.raises((ValueError, ValidationError, RuntimeError)):
-            from pydantic_settings import BaseSettings
-            from pydantic import model_validator
-            # Re-instantiate Settings with prod env and missing secret
-            with patch.dict(os.environ, {
-                "ENVIRONMENT": "production",
-                "SECRET_KEY": "a" * 64,
-                "DATABASE_URL": "postgresql://u:p@localhost/db",
-                "ANTHROPIC_API_KEY": "sk-ant-test",
-                "META_APP_SECRET": "",
-                "ALLOWED_ORIGINS": "https://example.com",
-            }, clear=False):
-                # Import fresh to trigger validator
-                import importlib
-                import app.core.config as cfg_mod
-                importlib.reload(cfg_mod)
+    def test_prod_without_secret_still_boots(self, monkeypatch):
+        """Settings validation must not crash in production when only META_APP_SECRET is missing."""
+        from app.core.config import Settings
+
+        env = {
+            "ENVIRONMENT": "production", "SECRET_KEY": "a" * 64, "JWT_SECRET": "b" * 64,
+            "DATABASE_URL": "postgresql://u:p@localhost/db", "ALLOWED_ORIGINS": "https://example.com",
+            "META_APP_SECRET": "",
+        }
+        for k, v in env.items():
+            monkeypatch.setenv(k, v)
+        settings = Settings(_env_file=None)
+        assert settings.ENVIRONMENT == "production"
+        assert settings.META_APP_SECRET == ""
 
     def test_prod_with_meta_app_secret_passes(self):
         """When all required prod vars are set, no error should be raised."""

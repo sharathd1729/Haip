@@ -37,8 +37,13 @@ def _make_user(db, tenant_id, role=UserRole.OWNER):
 
 
 def _seed_catalogue(db):
-    if db.query(Capability.key).first() is not None:
-        return
+    """These tests assert exact capability sets against the small catalogue below, so start from it explicitly.
+
+    PostgreSQL is already seeded by the migrations with the real registry (SQLite starts empty), so the helper used
+    to skip seeding there and every exact-set assertion compared against the full registry. The seeded rows are
+    replaced for this test's transaction only; the per-test rollback restores them for everything else."""
+    db.query(RoleCapability).delete()
+    db.query(Capability).delete()
     for key, label, category, is_write, risk in _TEST_CAPS:
         db.add(Capability(key=key, label=label, category=category, is_write=is_write, risk=risk))
     db.commit()

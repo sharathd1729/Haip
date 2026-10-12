@@ -14,96 +14,130 @@ import pytest
 from unittest.mock import patch, MagicMock, call
 
 
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+
+def _private_app():
+    """An isolated, eager Celery app.
+
+    These tests exercise the retry policy and the DLQ signal, not any production task. Tasks must
+    not leak into the shared ``celery_app``: an unrouted test task falls into the unconsumed
+    ``celery`` queue and fails ``test_celery_task_routing`` for the whole suite. ``shared=False``
+    and ``set_as_current=False`` keep these tasks on this private app only.
+    """
+    from celery import Celery
+    app = Celery(f"retry-test-{uuid.uuid4().hex[:6]}", set_as_current=False)
+    app.conf.update(task_always_eager=True, task_eager_propagates=False, task_store_eager_result=False)
+    return app
+
+
 # ─── Test: retry on transient failure ─────────────────────────────────────────
 
 def test_transient_failure_triggers_retry():
-    """
-    Wrap a Celery task in eager mode. First call raises ConnectionError
-    (transient); second call succeeds. Assert task ran twice.
-    """
-    from app.workers.celery_app import celery_app
+    """A task built with the standard retry policy retries a transient error and then succeeds."""
+    from app.workers.retry_policy import task_with_retry
 
-    call_count = {"n": 0}
+    app = _private_app()
+    calls = {"n": 0}
 
-    @celery_app.task(bind=True, max_retries=3, name=f"test_retry_{uuid.uuid4().hex[:6]}")
-    def flaky_task(self):
-        call_count["n"] += 1
-        if call_count["n"] < 2:
-            raise self.retry(exc=ConnectionError("transient"), countdown=0)
+    @app.task(shared=False, **task_with_retry(f"test_retry_{uuid.uuid4().hex[:6]}", max_retries=3, countdown=0))
+    def flaky(self):
+        calls["n"] += 1
+        if calls["n"] < 2:
+            raise ConnectionError("transient")
         return "ok"
 
-    with celery_app.conf.update(task_always_eager=True, task_eager_propagates=False):
-        result = flaky_task.apply()
+    result = flaky.apply()
 
-    assert call_count["n"] == 2, "Task should have been called twice (1 failure + 1 success)"
+    assert calls["n"] == 2, "one failure then one success"
+    assert result.result == "ok"
+
+
+def test_non_transient_error_is_not_retried(monkeypatch):
+    """Data/logic errors (e.g. ValueError) fail immediately instead of looping through retries."""
+    from app.workers.retry_policy import task_with_retry
+
+    # A final failure reaches the DLQ signal; keep it away from any real Redis.
+    monkeypatch.setattr("app.workers.retry_policy.push_to_dlq", lambda *a, **k: None)
+
+    app = _private_app()
+    calls = {"n": 0}
+
+    @app.task(shared=False, **task_with_retry(f"test_noretry_{uuid.uuid4().hex[:6]}", max_retries=3, countdown=0))
+    def broken(self):
+        calls["n"] += 1
+        raise ValueError("bad input")
+
+    broken.apply()
+
+    assert calls["n"] == 1
 
 
 # ─── Test: DLQ push on exhausted retries ──────────────────────────────────────
 
 def test_dlq_push_on_exhausted_retries(monkeypatch):
-    """
-    Simulate a task that always fails. After max retries, push_to_dlq is called.
-    """
-    from app.workers.retry_policy import push_to_dlq
+    """A task that keeps failing is pushed to the DLQ exactly once, after its retries run out."""
+    from app.workers.retry_policy import task_with_retry
 
     pushed = []
+    monkeypatch.setattr(
+        "app.workers.retry_policy.push_to_dlq",
+        lambda task_name, task_id, args, kwargs, exc: pushed.append((task_name, task_id, repr(exc))),
+    )
 
-    def fake_push(task_name, task_id, args, kwargs, exc):
-        pushed.append({"task_name": task_name, "error": str(exc)})
+    app = _private_app()
+    calls = {"n": 0}
+    name = f"test_dlq_{uuid.uuid4().hex[:6]}"
 
-    monkeypatch.setattr("app.workers.retry_policy.push_to_dlq", fake_push)
+    @app.task(shared=False, **task_with_retry(name, max_retries=2, countdown=0))
+    def always_down(self):
+        calls["n"] += 1
+        raise ConnectionError("provider down")
 
-    from app.workers.celery_app import celery_app
+    always_down.apply()
 
-    @celery_app.task(bind=True, max_retries=2, name=f"test_dlq_{uuid.uuid4().hex[:6]}")
-    def always_fail(self):
-        raise self.retry(exc=RuntimeError("permanent failure"), countdown=0)
-
-    from celery.signals import task_failure
-    # Re-wire signal to use our mock
-    with patch("app.workers.retry_policy.push_to_dlq", side_effect=fake_push):
-        with celery_app.conf.update(task_always_eager=True, task_eager_propagates=False):
-            always_fail.apply()
-
-    # Because the signal wiring is at import time, we just verify the function works
-    push_to_dlq("test_task", "task123", [], {}, RuntimeError("test error"))
-    assert len(pushed) == 1
-    assert pushed[0]["task_name"] == "test_task"
-    assert "test error" in pushed[0]["error"]
+    assert calls["n"] == 3, "first attempt plus two retries"
+    assert len(pushed) == 1, f"expected a single DLQ entry, got {pushed}"
+    assert pushed[0][0] == name
+    assert "ConnectionError" in pushed[0][2]
 
 
-# ─── Test: transcription adapter fallback chain ───────────────────────────────
+# ─── Test: transcription provider selection ───────────────────────────────────
 
-def test_transcription_fallback_groq_to_deepgram():
+@pytest.mark.parametrize("provider,module,cls", [
+    ("sarvam", "app.adapters.transcription.sarvam", "SarvamAdapter"),
+    ("groq", "app.adapters.transcription.groq_whisper", "GroqWhisperAdapter"),
+    ("deepgram", "app.adapters.transcription.deepgram", "DeepgramAdapter"),
+    ("whisper", "app.adapters.transcription.whisper", "WhisperAdapter"),
+])
+def test_transcription_factory_returns_the_requested_provider(provider, module, cls):
+    """The factory maps each provider name to its adapter class.
+
+    NOTE: there is no runtime failover between providers. ``get_transcription_adapter`` picks one
+    adapter and the ``transcribe`` task only retries that same adapter. The Sarvam -> Deepgram ->
+    Whisper chain in CLAUDE.md is selection-by-config, not automatic fallback (see
+    docs/HAIP_Phase0_Failure_Register.md). The previous test of this name ran its own loop over
+    mocks and proved nothing about the application.
     """
-    Simulate Groq transcription adapter raising an exception.
-    Assert that Deepgram fallback adapter is invoked and returns a result.
-    """
-    # We mock both adapters
-    groq_mock = MagicMock(side_effect=ConnectionError("Groq API down"))
-    deepgram_mock = MagicMock(return_value={"transcript": "Hello from Deepgram", "words": []})
+    import importlib
+    from app.adapters.transcription import get_transcription_adapter
 
-    with patch.dict("app.adapters.transcription.groq.GroqTranscriptionAdapter.__dict__", {}, clear=False):
-        try:
-            from app.adapters.transcription import get_transcription_adapter
-        except ImportError:
-            pytest.skip("Transcription adapters not yet implemented")
+    adapter = get_transcription_adapter(provider)
+    assert isinstance(adapter, getattr(importlib.import_module(module), cls))
 
-        with patch("app.adapters.transcription.groq.GroqTranscriptionAdapter.transcribe", groq_mock), \
-             patch("app.adapters.transcription.deepgram.DeepgramTranscriptionAdapter.transcribe", deepgram_mock):
-            # Simulate the fallback logic in the transcribe task
-            adapters = [groq_mock, deepgram_mock]
-            result = None
-            for adapter in adapters:
-                try:
-                    result = adapter(audio_url="https://example.com/call.wav", call_id="123")
-                    break
-                except Exception:
-                    continue
 
-            assert result == {"transcript": "Hello from Deepgram", "words": []}
-            assert groq_mock.call_count == 1
-            assert deepgram_mock.call_count == 1
+def test_transcription_factory_auto_detects_by_available_key(monkeypatch):
+    from app.adapters.transcription import _auto_detect_transcription
+    from app.core.config import settings
+
+    for key in ("SARVAM_API_KEY", "GROQ_API_KEY", "DEEPGRAM_API_KEY"):
+        monkeypatch.setattr(settings, key, "")
+    assert _auto_detect_transcription() == "whisper"
+    monkeypatch.setattr(settings, "DEEPGRAM_API_KEY", "x")
+    assert _auto_detect_transcription() == "deepgram"
+    monkeypatch.setattr(settings, "GROQ_API_KEY", "x")
+    assert _auto_detect_transcription() == "groq"
+    monkeypatch.setattr(settings, "SARVAM_API_KEY", "x")
+    assert _auto_detect_transcription() == "sarvam"
 
 
 # ─── Test: DLQ storage format ─────────────────────────────────────────────────

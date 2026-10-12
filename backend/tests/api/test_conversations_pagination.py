@@ -35,11 +35,21 @@ def guest(db, tenant_and_user):
 
 
 def _make_conversation(db, tenant_id, guest_id, last_message_at: str):
+    """One open conversation per guest and channel is a database rule (migration 099), so a test that needs several
+    open WhatsApp conversations in a tenant gives each its own guest; the first one uses `guest_id`."""
+    taken = db.query(Conversation.id).filter_by(
+        tenant_id=tenant_id, guest_id=guest_id, channel="whatsapp", is_open=True).first()
+    if taken is not None:
+        guest = Guest(id=str(uuid.uuid4()), tenant_id=tenant_id, phone=f"+9199{uuid.uuid4().int % 10**8:08d}", name="Another Guest")
+        db.add(guest)
+        db.flush()
+        guest_id = guest.id
     conv = Conversation(
         id=str(uuid.uuid4()), tenant_id=tenant_id, guest_id=guest_id,
         channel="whatsapp", is_open=True, last_message_at=last_message_at,
     )
     db.add(conv)
+    db.flush()          # sessions run with autoflush off; make this conversation visible to the next call
     return conv
 
 

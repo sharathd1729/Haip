@@ -5,47 +5,64 @@ import uuid
 
 
 def test_list_calls_empty(client, tenant_and_user):
-    """GET /calls returns empty list for new tenant."""
+    """GET /calls returns an empty page for a new tenant."""
     token = tenant_and_user["access_token"]
     res = client.get("/api/v1/calls", headers={"Authorization": f"Bearer {token}"})
     assert res.status_code == 200
-    assert isinstance(res.json(), list)
+    body = res.json()
+    assert body["items"] == []
+    assert body["total"] == 0
+    assert body["page"] == 1
 
 
-def test_callerdesk_webhook_creates_call(client, tenant_and_user, db):
-    """POST webhook from CallerDesk creates a call record linked to guest."""
-    tenant = tenant_and_user["tenant"]
-
-    # First create a property for the tenant (required for webhook routing)
-    from app.models.property import Property
-    prop = Property(
-        id=str(uuid.uuid4()),
-        tenant_id=tenant.id,
-        name="Test Villa",
-        city="Goa",
-        property_type="villa",
-    )
-    db.add(prop)
+def _connect_callerdesk(db, tenant_id, secret="cd-secret"):
+    import uuid as _uuid
+    from app.core.encryption import encrypt_credentials
+    from app.models.integration import Integration
+    db.add(Integration(
+        id=str(_uuid.uuid4()), tenant_id=tenant_id, kind="callerdesk", status="active",
+        credentials_kms_blob=encrypt_credentials({"webhook_secret": secret}),
+    ))
     db.commit()
 
-    payload = {
-        "event": "call.completed",
-        "call_uuid": "cd-test-call-001",
-        "caller_number": "+918012345678",
-        "called_number": "+919876543210",
-        "direction": "inbound",
-        "duration": 180,
-        "recording_url": "https://recordings.callerdesk.io/test.mp3",
-        "timestamp": "2026-05-14T10:00:00Z",
-    }
 
-    res = client.post(
-        f"/api/v1/webhooks/ivr/callerdesk/{tenant.slug}",
-        json=payload,
-        headers={"X-CallerDesk-Secret": "test-webhook-secret"},
-    )
-    # Webhook may return 200 or 202 (accepted for async processing)
-    assert res.status_code in (200, 202), res.text
+def _signed(payload: dict, secret: str):
+    import hashlib, hmac, json
+    body = json.dumps(payload).encode()
+    return body, hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+
+
+def test_callerdesk_webhook_queues_ingest_for_the_right_tenant(client, tenant_and_user, db, monkeypatch):
+    """A correctly signed CallerDesk webhook is queued for ingestion under the tenant in the URL."""
+    from unittest.mock import MagicMock
+    tenant = tenant_and_user["tenant"]
+    _connect_callerdesk(db, tenant.id)
+    ingest = MagicMock()
+    monkeypatch.setattr("app.api.v1.endpoints.webhooks_callerdesk.ingest_call", ingest)
+
+    payload = {"call_id": "CD-001", "direction": "inbound", "caller_id_number": "+918012345678"}
+    body, sig = _signed(payload, "cd-secret")
+    res = client.post(f"/api/v1/webhooks/callerdesk/{tenant.slug}", content=body,
+                      headers={"X-CallerDesk-Signature": sig, "Content-Type": "application/json"})
+
+    assert res.status_code == 200, res.text
+    assert res.json() == {"status": "queued"}
+    ingest.delay.assert_called_once_with(payload=payload, tenant_id=tenant.id, ivr_provider="callerdesk")
+
+
+def test_callerdesk_webhook_rejects_bad_signature(client, tenant_and_user, db, monkeypatch):
+    from unittest.mock import MagicMock
+    tenant = tenant_and_user["tenant"]
+    _connect_callerdesk(db, tenant.id)
+    ingest = MagicMock()
+    monkeypatch.setattr("app.api.v1.endpoints.webhooks_callerdesk.ingest_call", ingest)
+
+    body, _ = _signed({"call_id": "CD-002"}, "cd-secret")
+    res = client.post(f"/api/v1/webhooks/callerdesk/{tenant.slug}", content=body,
+                      headers={"X-CallerDesk-Signature": "0" * 64, "Content-Type": "application/json"})
+
+    assert res.status_code == 401
+    ingest.delay.assert_not_called()
 
 
 def test_get_call_not_found(client, tenant_and_user):
@@ -58,30 +75,59 @@ def test_get_call_not_found(client, tenant_and_user):
     assert res.status_code == 404
 
 
-def test_disposition_override(client, tenant_and_user, db):
-    """PATCH /calls/{id}/disposition updates the disposition field."""
-    from app.models.call import Call
-    tenant = tenant_and_user["tenant"]
-    token = tenant_and_user["access_token"]
-
+def _make_call(db, tenant_id):
+    from app.models.call import Call, CallDirection
     call = Call(
-        id=str(uuid.uuid4()),
-        tenant_id=tenant.id,
-        external_id="test-call-disp",
-        direction="inbound",
-        caller_number="+918012345678",
-        called_number="+919876543210",
-        duration=120,
-        status="completed",
+        id=str(uuid.uuid4()), tenant_id=tenant_id, ivr_provider="callerdesk",
+        ivr_call_id=f"cd-{uuid.uuid4().hex[:8]}", direction=CallDirection.INBOUND,
+        from_number="+918012345678", to_number="+919876543210", duration_seconds=120,
     )
     db.add(call)
     db.commit()
+    return call
+
+
+def test_disposition_override(client, tenant_and_user, db):
+    """PATCH /calls/{id}/disposition records the human's disposition, note and who set it."""
+    from app.models.call import CallDisposition
+    tenant, user = tenant_and_user["tenant"], tenant_and_user["user"]
+    call = _make_call(db, tenant.id)
 
     res = client.patch(
         f"/api/v1/calls/{call.id}/disposition",
-        json={"disposition": "booked", "notes": "Guest booked 3 nights"},
-        headers={"Authorization": f"Bearer {token}"},
+        json={"disposition": "booked", "note": "Guest booked 3 nights"},
+        headers={"Authorization": f"Bearer {tenant_and_user['access_token']}"},
     )
     assert res.status_code == 200, res.text
-    data = res.json()
-    assert data.get("disposition") == "booked"
+    assert res.json() == {"status": "updated", "disposition": "booked"}
+    db.refresh(call)
+    assert call.human_disposition == CallDisposition.BOOKED
+    assert call.disposition_note == "Guest booked 3 nights"
+    assert call.disposition_set_by == user.id
+
+
+def test_disposition_rejects_unknown_value(client, tenant_and_user, db):
+    call = _make_call(db, tenant_and_user["tenant"].id)
+    res = client.patch(
+        f"/api/v1/calls/{call.id}/disposition", json={"disposition": "maybe"},
+        headers={"Authorization": f"Bearer {tenant_and_user['access_token']}"},
+    )
+    assert res.status_code == 400
+
+
+def test_disposition_cannot_touch_another_tenants_call(client, tenant_and_user, db):
+    """Cross-tenant: a call that belongs to a different tenant is a 404, never an update."""
+    from app.models.call import CallDisposition
+    from app.models.tenant import Tenant
+    other = Tenant(id=str(uuid.uuid4()), name="Other", slug=f"other-{uuid.uuid4().hex[:6]}", plan="growth")
+    db.add(other)
+    db.flush()
+    call = _make_call(db, other.id)
+
+    res = client.patch(
+        f"/api/v1/calls/{call.id}/disposition", json={"disposition": "booked"},
+        headers={"Authorization": f"Bearer {tenant_and_user['access_token']}"},
+    )
+    assert res.status_code == 404
+    db.refresh(call)
+    assert call.human_disposition is None

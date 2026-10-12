@@ -424,6 +424,15 @@ def send_message(
             )
             return existing  # 201 → 200 via response_model; caller gets original
 
+        # No message inside the window holds this key, but an older one may still own it: the unique index
+        # uq_messages_idempotency covers all time, not just 24 hours. Release the expired key so a legitimate
+        # send is not rejected with a unique violation (HTTP 500 on PostgreSQL). The old message is untouched
+        # apart from losing a key that no longer protects anything.
+        db.query(Message).filter(
+            Message.tenant_id == current_user.tenant_id,
+            Message.idempotency_key == idempotency_key,
+        ).update({Message.idempotency_key: None}, synchronize_session=False)
+
     # ── Create new message ────────────────────────────────────────────────────
     msg = Message(
         id=str(uuid.uuid4()),

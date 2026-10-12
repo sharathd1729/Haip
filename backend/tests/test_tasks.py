@@ -1,8 +1,29 @@
 """Tests for HAIP Inbox prototype-wiring plan, ticket 1: the Task model."""
 import uuid
 
+from app.models.conversation import ChannelType, Conversation
+from app.models.guest import Guest
 from app.models.tenant import Tenant
 from app.services import task_service
+
+
+def _guest(db, tenant_id):
+    """A real guest owned by `tenant_id`: tasks.guest_id is a foreign key, and PostgreSQL enforces it."""
+    guest = Guest(id=str(uuid.uuid4()), tenant_id=tenant_id, name="Task Guest")
+    db.add(guest)
+    db.commit()
+    return guest.id
+
+
+def _conversation(db, tenant_id):
+    """A real open conversation (with its guest) owned by `tenant_id`: tasks.conversation_id is a foreign key."""
+    conversation = Conversation(
+        id=str(uuid.uuid4()), tenant_id=tenant_id, guest_id=_guest(db, tenant_id),
+        channel=ChannelType.WHATSAPP, is_open=True,
+    )
+    db.add(conversation)
+    db.commit()
+    return conversation.id
 
 
 def _tenant_id(tenant_and_user):
@@ -17,7 +38,7 @@ def _auth_headers(tenant_and_user):
 class TestTaskServiceHappyPath:
     def test_create_list_toggle_roundtrip(self, db, tenant_and_user):
         tenant_id = _tenant_id(tenant_and_user)
-        conv_id = str(uuid.uuid4())
+        conv_id = _conversation(db, tenant_id)
 
         task = task_service.create_task(
             db, tenant_id=tenant_id, title="Follow up tomorrow", conversation_id=conv_id,
@@ -44,7 +65,7 @@ class TestTaskServiceTenantIsolation:
         db.add(Tenant(id=tenant_b, name="Other Tenant", slug=f"other-{uuid.uuid4().hex[:6]}", plan="growth"))
         db.commit()
 
-        task = task_service.create_task(db, tenant_id=tenant_b, title="Tenant B task", guest_id=str(uuid.uuid4()))
+        task = task_service.create_task(db, tenant_id=tenant_b, title="Tenant B task", guest_id=_guest(db, tenant_b))
 
         result = task_service.toggle_task(db, tenant_id=tenant_a, task_id=task.id)
         assert result is None
@@ -55,7 +76,9 @@ class TestTaskServiceTenantIsolation:
         db.add(Tenant(id=tenant_b, name="Other Tenant 2", slug=f"other2-{uuid.uuid4().hex[:6]}", plan="growth"))
         db.commit()
 
-        guest_id = str(uuid.uuid4())  # same value used across both tenants on purpose
+        # One guest, owned by tenant A, referenced by both tenants' tasks on purpose: list_tasks must filter on
+        # tenant_id as well as guest_id, so B's task never shows up in A's list (or the reverse).
+        guest_id = _guest(db, tenant_a)
         task_service.create_task(db, tenant_id=tenant_a, title="A's task", guest_id=guest_id)
         task_service.create_task(db, tenant_id=tenant_b, title="B's task", guest_id=guest_id)
 
@@ -73,8 +96,8 @@ class TestTaskEndpoints:
         )
         assert resp.status_code == 422
 
-    def test_create_list_toggle_happy_path(self, client, tenant_and_user):
-        conv_id = str(uuid.uuid4())
+    def test_create_list_toggle_happy_path(self, client, db, tenant_and_user):
+        conv_id = _conversation(db, _tenant_id(tenant_and_user))
         create_resp = client.post(
             "/api/v1/tasks",
             json={"title": "Call back at 5pm", "conversation_id": conv_id, "priority": "high"},
@@ -109,7 +132,7 @@ class TestTaskEndpoints:
         db.add(Tenant(id=other_tenant_id, name="Other Tenant 3", slug=f"other3-{uuid.uuid4().hex[:6]}", plan="growth"))
         db.commit()
         other_task = task_service.create_task(
-            db, tenant_id=other_tenant_id, title="Other tenant's task", guest_id=str(uuid.uuid4()),
+            db, tenant_id=other_tenant_id, title="Other tenant's task", guest_id=_guest(db, other_tenant_id),
         )
 
         resp = client.patch(

@@ -4,10 +4,47 @@ Tests for GET /analytics/executive, GET /analytics/insights, POST /analytics/ins
 Uses in-memory SQLite via conftest; Redis cache is a no-op (REDIS_URL points to unreachable localhost).
 """
 
+import uuid
+
 import pytest
 
 
 # ─── Fixtures ─────────────────────────────────────────────────────────────────
+
+@pytest.fixture(autouse=True)
+def _entitle_analytics_modules(request):
+    """Grant the modules these endpoints require.
+
+    Module entitlement fails closed (a workspace with no workspace_modules rows gets no module
+    access), and the bare ``tenant_and_user`` fixture provisions none. The 403/404 cases below
+    that test *other* guards still need the module guard to pass first.
+    """
+    if "tenant_and_user" not in request.fixturenames:
+        yield
+        return
+    from app.models.module import Module, WorkspaceModule
+
+    db = request.getfixturevalue("db")
+    tenant_id = request.getfixturevalue("tenant_and_user")["tenant"].id
+    for code in ("analytics", "ai_insights"):
+        module = db.query(Module).filter_by(code=code).first()
+        if not module:
+            module = Module(id=str(uuid.uuid4()), code=code, name=code.title())
+            db.add(module)
+            db.flush()
+        db.add(WorkspaceModule(id=str(uuid.uuid4()), workspace_id=tenant_id, module_id=module.id, enabled=True))
+    db.commit()
+    yield
+
+
+def _guest(db, tenant_id):
+    """A real guest of the tenant: stays.guest_id and inquiries.guest_id are foreign keys (PostgreSQL enforces them)."""
+    from app.models.guest import Guest
+    g = Guest(id=str(uuid.uuid4()), tenant_id=tenant_id, name="Exec Guest")
+    db.add(g)
+    db.flush()
+    return g.id
+
 
 def _auth(token: str):
     return {"Authorization": f"Bearer {token}"}
@@ -76,10 +113,10 @@ class TestExecutiveDashboard:
         # Create a confirmed stay this month
         stay = Stay(
             id=gen_uuid(), tenant_id=tid,
-            guest_id=tenant_and_user["user"].id,  # reuse user id as placeholder
+            guest_id=_guest(db, tid),         # stays.guest_id is a foreign key to guests
             property_id=prop.id,
-            check_in=today.replace(day=1).isoformat(),
-            check_out=today.isoformat(),
+            check_in=today.replace(day=1),
+            check_out=today,
             status="confirmed",
             total_amount=50000.00,
         )
@@ -116,10 +153,11 @@ class TestExecutiveDashboard:
         tid   = tenant_and_user["tenant"].id
 
         # Create a few inquiries across different stages
+        guest_id = _guest(db, tid)
         for stage in [InquiryStage.NEW, InquiryStage.QUOTED, InquiryStage.BOOKED]:
             inq = Inquiry(
                 id=gen_uuid(), tenant_id=tid,
-                guest_id=tenant_and_user["user"].id,
+                guest_id=guest_id,
                 stage=stage,
                 source=InquirySource.WEBSITE,
             )
@@ -141,10 +179,11 @@ class TestExecutiveDashboard:
         token = tenant_and_user["access_token"]
         tid   = tenant_and_user["tenant"].id
 
+        guest_id = _guest(db, tid)
         for source in [InquirySource.WEBSITE, InquirySource.WEBSITE, InquirySource.WA_DIRECT]:
             db.add(Inquiry(
                 id=gen_uuid(), tenant_id=tid,
-                guest_id=tenant_and_user["user"].id,
+                guest_id=guest_id,
                 stage=InquiryStage.NEW,
                 source=source,
             ))

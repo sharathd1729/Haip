@@ -5,7 +5,7 @@ Covers:
   SEC-2  — Messages endpoint filters by tenant_id (conversation isolation)
   SEC-3  — Celery workers call set_tenant_context before querying
   PERF-1 — Analytics _p95_seconds uses SQL percentile_cont (no Python sort)
-  PERF-2 — Instagram DM task uses JSONB containment query (no table scan)
+  PERF-2 — Instagram DM guest lookup is an indexed identity-signal lookup (no table scan)
   PERF-3 — reports.fetch_team uses aggregate query (no per-user N+1)
   PERF-4 — leads_service.get_leads_pipeline batches property-interest lookup (no per-inquiry N+1)
 """
@@ -206,7 +206,7 @@ class TestAnalyticsP95:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# PERF-2: Instagram DM task uses JSONB containment query (not full table scan)
+# PERF-2: Instagram DM guest lookup is an indexed identity-signal lookup (not a full table scan)
 # ──────────────────────────────────────────────────────────────────────────────
 
 class TestInstagramDMGuestLookup:
@@ -219,13 +219,38 @@ class TestInstagramDMGuestLookup:
             "use a JSONB containment query"
         )
 
-    def test_uses_jsonb_containment_op(self):
-        """Guest lookup must use JSONB @> containment operator."""
+    def test_lookup_is_backed_by_the_unique_signal_index(self):
+        """Instagram DMs resolve a guest through the identity graph (``identity_service.resolve_gid``),
+        not a JSONB containment scan. That lookup filters on (tenant_id, identity_type,
+        identity_value), which the unique constraint indexes -- so it is a point lookup."""
+        from sqlalchemy import UniqueConstraint
+        from app.models.guest_identity import GuestIdentity
+
+        uniques = [c for c in GuestIdentity.__table__.constraints if isinstance(c, UniqueConstraint)]
+        assert any([col.name for col in c.columns] == ["tenant_id", "identity_type", "identity_value"] for c in uniques)
+
         import app.workers.tasks.process_instagram_dm as ig_module
-        source = inspect.getsource(ig_module)
-        assert "@>" in source or "op(\"@>\")" in source, (
-            "Guest lookup must use JSONB @> containment instead of iterating all guests"
-        )
+        assert "resolve_gid" in inspect.getsource(ig_module), "DM guest lookup must go through identity_service"
+
+    def test_resolution_is_idempotent_and_tenant_scoped(self, db):
+        """Same Instagram user id -> the same guest within a tenant; a different tenant never shares it."""
+        import uuid
+        from app.models.tenant import Tenant
+        from app.services.identity_service import resolve_gid
+
+        t1 = Tenant(id=str(uuid.uuid4()), name="T1", slug=f"t1-{uuid.uuid4().hex[:6]}", plan="growth")
+        t2 = Tenant(id=str(uuid.uuid4()), name="T2", slug=f"t2-{uuid.uuid4().hex[:6]}", plan="growth")
+        db.add_all([t1, t2])
+        db.flush()
+
+        first, created1 = resolve_gid(db, t1.id, "instagram_user_id", "17841400000000001", source="instagram")
+        db.flush()
+        again, created2 = resolve_gid(db, t1.id, "instagram_user_id", "17841400000000001", source="instagram")
+        other, created3 = resolve_gid(db, t2.id, "instagram_user_id", "17841400000000001", source="instagram")
+
+        assert created1 is True and created2 is False
+        assert again == first
+        assert created3 is True and other != first
 
 
 # ──────────────────────────────────────────────────────────────────────────────

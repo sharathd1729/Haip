@@ -16,6 +16,7 @@ from app.models.tenant import Tenant
 from app.models.inquiry import Inquiry, InquiryStage, InquirySource
 from app.models.guest_identity import GuestIdentity
 from app.models.pipeline_stage import PipelineStage
+from app.models.user import User, UserRole
 from app.services import leads_service
 
 
@@ -24,6 +25,15 @@ def _make_tenant(db, name="TenantLeads"):
     db.add(t)
     db.flush()
     return t
+
+
+def _make_agent(db, tenant_id, name):
+    """A real agent: inquiries.assigned_to is a foreign key to users, enforced by PostgreSQL."""
+    u = User(id=str(uuid.uuid4()), tenant_id=tenant_id, name=name, email=f"{name.lower()}-{uuid.uuid4().hex[:6]}@test.com",
+             hashed_password="x", role=UserRole.CONCIERGE, is_active=True)
+    db.add(u)
+    db.flush()
+    return u
 
 
 def _make_guest(db, tenant_id, name="Test Guest"):
@@ -236,14 +246,15 @@ def test_scope_user_id_hides_peer_agents_leads(db):
     lead assigned to a different agent, only their own + unclaimed ones."""
     tenant = _make_tenant(db)
     guest = _make_guest(db, tenant.id)
+    jishant, krisha = _make_agent(db, tenant.id, "Jishant"), _make_agent(db, tenant.id, "Krisha")
     mine = _make_inquiry(db, tenant.id, guest.id)
-    mine.assigned_to = "agent-jishant"
+    mine.assigned_to = jishant.id
     theirs = _make_inquiry(db, tenant.id, guest.id)
-    theirs.assigned_to = "agent-krisha"
+    theirs.assigned_to = krisha.id
     unclaimed = _make_inquiry(db, tenant.id, guest.id)
     db.commit()
 
-    result = leads_service.get_leads_pipeline(db=db, tenant_id=tenant.id, scope_user_id="agent-jishant")
+    result = leads_service.get_leads_pipeline(db=db, tenant_id=tenant.id, scope_user_id=jishant.id)
 
     visible_ids = {card.inquiry_id for card in result.leads}
     assert visible_ids == {mine.id, unclaimed.id}
@@ -255,9 +266,9 @@ def test_scope_user_id_none_sees_everything(db):
     tenant = _make_tenant(db)
     guest = _make_guest(db, tenant.id)
     a = _make_inquiry(db, tenant.id, guest.id)
-    a.assigned_to = "agent-a"
+    a.assigned_to = _make_agent(db, tenant.id, "AgentA").id
     b = _make_inquiry(db, tenant.id, guest.id)
-    b.assigned_to = "agent-b"
+    b.assigned_to = _make_agent(db, tenant.id, "AgentB").id
     db.commit()
 
     result = leads_service.get_leads_pipeline(db=db, tenant_id=tenant.id, scope_user_id=None)
@@ -267,12 +278,13 @@ def test_scope_user_id_none_sees_everything(db):
 def test_get_lead_detail_scoped_agent_cannot_open_peers_lead(db):
     tenant = _make_tenant(db)
     guest = _make_guest(db, tenant.id)
+    jishant, krisha = _make_agent(db, tenant.id, "Jishant"), _make_agent(db, tenant.id, "Krisha")
     theirs = _make_inquiry(db, tenant.id, guest.id)
-    theirs.assigned_to = "agent-krisha"
+    theirs.assigned_to = krisha.id
     db.commit()
 
-    assert leads_service.get_lead_detail(db, tenant.id, theirs.id, scope_user_id="agent-jishant") is None
-    assert leads_service.get_lead_detail(db, tenant.id, theirs.id, scope_user_id="agent-krisha") is not None
+    assert leads_service.get_lead_detail(db, tenant.id, theirs.id, scope_user_id=jishant.id) is None
+    assert leads_service.get_lead_detail(db, tenant.id, theirs.id, scope_user_id=krisha.id) is not None
     assert leads_service.get_lead_detail(db, tenant.id, theirs.id, scope_user_id=None) is not None
 
 
@@ -307,7 +319,7 @@ def test_profile_completeness_ig_plus_wa(db):
 
 def test_build_timeline_cap(db):
     """60 timeline events → capped at 50 entries, timeline_capped=True."""
-    from app.models.conversation import Conversation, Message
+    from app.models.conversation import ChannelType, Conversation, Message, MessageDirection
     from datetime import datetime, timezone, timedelta
 
     tenant = _make_tenant(db)
@@ -320,8 +332,8 @@ def test_build_timeline_cap(db):
         tenant_id=tenant.id,
         guest_id=guest.id,
         inquiry_id=inq.id,
-        channel="whatsapp",
-        status="open",
+        channel=ChannelType.WHATSAPP,
+        is_open=True,
     )
     db.add(conv)
     db.flush()
@@ -333,8 +345,8 @@ def test_build_timeline_cap(db):
             id=str(uuid.uuid4()),
             tenant_id=tenant.id,
             conversation_id=conv.id,
-            direction="inbound",
-            channel="whatsapp",
+            direction=MessageDirection.INBOUND,
+            channel=ChannelType.WHATSAPP,
             body=f"Message {i}",
             created_at=base_time - timedelta(minutes=i),
         )
