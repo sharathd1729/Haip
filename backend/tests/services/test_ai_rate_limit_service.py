@@ -68,9 +68,11 @@ def test_blocks_after_consecutive_ai_replies_without_guest_response(db):
 
 def test_guest_reply_resets_the_consecutive_counter(db):
     t, g, c = _mk(db, consecutive=3)
-    for _ in range(3):
-        _msg(db, c, t, direction="outbound", autonomous=True)
-    _msg(db, c, t, direction="inbound")
+    # Spaced timestamps: the loop guard orders by created_at, and back-to-back datetime.now() calls can tie on a coarse
+    # clock (Windows), which made the guest's reply sort before the AI messages and this test fail intermittently.
+    for minutes_ago in (4, 3, 2):
+        _msg(db, c, t, direction="outbound", autonomous=True, minutes_ago=minutes_ago)
+    _msg(db, c, t, direction="inbound", minutes_ago=1)
     allowed, _ = rl.check_send_allowed(db, t, c)
     assert allowed is True
 

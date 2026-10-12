@@ -409,7 +409,15 @@ class CalculatorService:
             )
             .first()
         )
-        return blocked is None
+        if blocked is not None:
+            return False
+
+        # Vehicles sharing a calendar: bookings that have no vehicle yet use up one of them.
+        from app.services import vehicle_pool
+        try:
+            return not vehicle_pool.shortage_days(db, tenant_id, property_id, date.fromisoformat(checkin), date.fromisoformat(checkout))
+        except ValueError:
+            return True
 
     def _resolve_rate(
         self,

@@ -6,6 +6,7 @@ import api from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { PageHeader } from "@/components/ui/page";
+import { CalendarActivity } from "@/components/settings/CalendarActivity";
 
 interface Feed {
   id: string;
@@ -23,6 +24,7 @@ interface Feed {
   last_conflicts: number;
   vehicles: { property_id: string; property_name: string | null; keywords: string[] }[];
   needs_vehicle: number;
+  bookings: number;
 }
 
 interface Property { id: string; name: string }
@@ -216,9 +218,16 @@ export default function CalendarSyncPage() {
                       Shared calendar: {f.vehicles.map(v => `${v.property_name ?? "Vehicle"} (${v.keywords.join(", ")})`).join(" · ")}
                     </p>
                   )}
+                  {f.vehicles.length > 0 && (
+                    <p className="text-gray-500 mt-1">
+                      {f.bookings} booking{f.bookings === 1 ? "" : "s"} made from this calendar. An event with a guest name, phone, total and dates becomes a booking;
+                      if it names no vehicle it waits on the &ldquo;Unassigned&rdquo; vehicle until you pick one at check-in.
+                    </p>
+                  )}
+                  {f.vehicles.length > 0 && <div className="mt-1.5"><CalendarActivity feedId={f.id} /></div>}
                   {f.needs_vehicle > 0 && (
                     <p className="text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1 mt-1.5">
-                      {f.needs_vehicle} event{f.needs_vehicle > 1 ? "s don't" : " doesn't"} say which vehicle. Every vehicle is held for {f.needs_vehicle > 1 ? "them" : "it"} until you add the vehicle name to the event title in Google Calendar.
+                      {f.needs_vehicle} event{f.needs_vehicle > 1 ? "s are" : " is"} missing details for a booking (name, phone or total) and name no vehicle. Every vehicle is held until you complete {f.needs_vehicle > 1 ? "them" : "it"} in Google Calendar.
                     </p>
                   )}
                   {f.last_conflicts > 0 && (

@@ -29,7 +29,7 @@ from sqlalchemy.orm import Session
 
 from app.core.encryption import decrypt_credentials
 from app.core.url_safety import safe_get
-from app.services import ical_event_details
+from app.services import ical_booking_service, ical_event_details
 
 log = structlog.get_logger()
 
@@ -271,6 +271,19 @@ def _ask_which_vehicle(db: Session, feed, ev: dict, start: str, end: str) -> Non
     db.add(Task(tenant_id=feed.tenant_id, title=title, priority="high", due_date=datetime.now(timezone.utc)))
 
 
+def _book(db: Session, feed, key, ev, details, start, end, source, hits, today) -> Optional[str]:
+    """Booking for one event, isolated so a single odd event cannot stop the whole calendar from syncing.
+
+    Guest resolution commits (identity_resolution), so a savepoint cannot wrap this; a failure rolls back the open work and
+    the next sync, which is idempotent, picks up whatever that lost."""
+    try:
+        return ical_booking_service.apply(db, feed, key, ev, details, start, end, source, hits, today)
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        log.warning("ical_booking_failed", feed_id=feed.id, event_key=key[:60], error=str(exc)[:200])
+        return None
+
+
 def sync_feed(db: Session, feed, fetcher: Optional[Callable[[str], str]] = None) -> dict:
     """Read the link's calendar into BlockedDate rows. Never raises: the outcome
     is recorded on the feed (last_status / last_error) and returned.
@@ -316,11 +329,17 @@ def sync_feed(db: Session, feed, fetcher: Optional[Callable[[str], str]] = None)
     wanted: set[tuple[str, str]] = set()
     properties_used: set[str] = set()
     added = changed = lifted = ambiguous = 0
+    booked = {"created": 0, "updated": 0, "linked": 0}
     for key, ev in seen.items():
         details = ical_event_details.extract(ev.get("summary", ""), ev.get("description", ""))
         start, end, source = ical_event_details.block_window(ev["start"], ev["end"], details)
         if rules:
             hits = ical_event_details.match_vehicles(ev.get("summary", "") + "\n" + ev.get("description", ""), rules)
+            state = _book(db, feed, key, ev, details, start, end, source, hits, today)
+            if state is not None:                    # a complete event is a booking, not a block
+                if state in booked:
+                    booked[state] += 1
+                continue
             needs_vehicle = not hits
             targets = hits or list(rules)
         else:
@@ -349,14 +368,20 @@ def sync_feed(db: Session, feed, fetcher: Optional[Callable[[str], str]] = None)
             row.is_active = False
             lifted += 1
 
+    cancelled = 0
+    if rules:
+        cancelled = ical_booking_service.cancel_missing(db, feed, set(seen), today)
+        ical_booking_service.flag_over_capacity(db, feed, list(rules), today)
     db.flush()
     conflicts = sum(_flag_double_bookings(db, feed, today, pid) for pid in (properties_used or {feed.property_id}))
     feed.last_status, feed.last_error, feed.last_synced_at = "ok", None, now
     feed.last_event_count, feed.last_conflicts = len(seen), conflicts
     db.commit()
-    log.info("ical_sync_done", feed_id=feed.id, added=added, changed=changed, lifted=lifted, conflicts=conflicts, ambiguous=ambiguous)
+    log.info("ical_sync_done", feed_id=feed.id, added=added, changed=changed, lifted=lifted, conflicts=conflicts,
+             ambiguous=ambiguous, bookings_created=booked["created"], bookings_updated=booked["updated"], bookings_cancelled=cancelled)
     return {"status": "ok", "events": len(seen), "added": added, "changed": changed, "lifted": lifted, "conflicts": conflicts,
-            "needs_vehicle": ambiguous}
+            "needs_vehicle": ambiguous, "bookings_created": booked["created"], "bookings_updated": booked["updated"],
+            "bookings_linked": booked["linked"], "bookings_cancelled": cancelled}
 
 
 def _flag_double_bookings(db: Session, feed, today: date, property_id: Optional[str] = None) -> int:

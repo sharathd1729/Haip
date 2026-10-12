@@ -13,8 +13,9 @@ from typing import Iterable, Optional
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
-from app.models.property import BlockedDate, PropertyAddOn, Stay
+from app.models.property import BlockedDate, Property, PropertyAddOn, Stay
 from app.models.stay_finance import StayAddOn, StayInstalment, StayPayment
+from app.services import vehicle_pool
 
 ACTIVE_STATUSES = ("confirmed", "checked_in")
 PAYMENT_METHODS = ("cash", "upi", "card", "bank_transfer", "other")
@@ -89,6 +90,9 @@ def catalog_for_property(db: Session, tenant_id: str, property_id: str) -> list[
 def find_conflicts(db: Session, tenant_id: str, property_id: str, check_in: date, check_out: date,
                    exclude_stay_id: Optional[str] = None) -> list[dict]:
     """Other bookings and blocks that overlap [check_in, check_out) on this property."""
+    prop = db.query(Property.name).filter(Property.id == property_id, Property.tenant_id == tenant_id).first()
+    if prop and vehicle_pool.is_placeholder_name(prop[0]):
+        return []                                  # the "Unassigned" holder takes any number of bookings
     ci, co = check_in.isoformat(), check_out.isoformat()
     # a same-day stay still occupies its day
     end = co if check_out > check_in else (date.fromordinal(check_in.toordinal() + 1)).isoformat()
@@ -106,6 +110,12 @@ def find_conflicts(db: Session, tenant_id: str, property_id: str, check_in: date
         BlockedDate.is_active.is_(True), BlockedDate.blocked_from < end, BlockedDate.blocked_to > ci,
     ).all():
         out.append({"type": "block", "id": b.id, "from": b.blocked_from, "to": b.blocked_to, "reason": b.reason})
+    # Vehicles sharing a calendar: bookings with no vehicle yet use up one of them (see vehicle_pool).
+    if not out:
+        short = vehicle_pool.shortage_days(db, tenant_id, property_id, check_in, check_out, exclude_stay_id)
+        if short:
+            out.append({"type": "unassigned_bookings", "from": short[0], "to": short[-1],
+                        "message": "Bookings that have no vehicle yet already need the other vehicles on these days."})
     return out
 
 

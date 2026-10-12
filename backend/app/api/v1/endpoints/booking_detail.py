@@ -31,6 +31,7 @@ from app.models.property import PropertyAddOn, Stay
 from app.models.stay_finance import StayAddOn, StayDeposit, StayPayment, StayPaymentLink, StayServiceRequest
 from app.models.user import User, UserRole
 from app.services import booking_service as bsvc
+from app.services import ical_booking_service
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 
@@ -107,6 +108,7 @@ def _detail(db: Session, tenant_id: str, stay: Stay) -> dict:
         "occasion": stay.occasion, "special_requests": requests[0] if requests else "",
         "internal_notes": stay.internal_notes or "", "concierge_notes": stay.concierge_notes or "",
         "inquiry_id": stay.inquiry_id,
+        "calendar_sync": ical_booking_service.sync_info(db, tenant_id, stay.id),
         "schedule": schedule, "next_due": bsvc.next_due(schedule),
         "deposit": _deposit_out(deposit),
         "service_requests": [_request_out(r, team_names) for r in reqs],
@@ -136,6 +138,24 @@ def _detail(db: Session, tenant_id: str, stay: Stay) -> dict:
 def get_booking(booking_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db),
                 _cap=Depends(require_capability("bookings.read"))):
     return _detail(db, current_user.tenant_id, _get_stay(db, current_user, booking_id))
+
+
+class CalendarSyncBody(BaseModel):
+    locked: bool
+
+
+@router.put("/{booking_id}/calendar-sync")
+def set_calendar_sync(booking_id: str, body: CalendarSyncBody, current_user: User = Depends(require_roles(*_EDIT)),
+                      db: Session = Depends(get_db)):
+    """Hand a booking made from a Google Calendar event back to the calendar (locked=false) or keep it as edited here."""
+    stay = _get_stay(db, current_user, booking_id)
+    link = ical_booking_service.set_locked(db, current_user.tenant_id, stay.id, body.locked)
+    if link is None:
+        raise HTTPException(status_code=404, detail="This booking did not come from a calendar event")
+    append_audit(db, tenant_id=current_user.tenant_id, action="booking.calendar_sync_changed", actor_user_id=current_user.id,
+                 target_type="booking", target_id=stay.id, payload={"locked": body.locked})
+    db.commit()
+    return {"calendar_sync": ical_booking_service.sync_info(db, current_user.tenant_id, stay.id)}
 
 
 # ── Add-ons ──────────────────────────────────────────────────────────────────
