@@ -1,6 +1,6 @@
 # HAIP — Claude Code Working Instructions
-**Version**: 2.3 · **Owner**: Sharath D. · **Updated**: 11 Oct 2026 (Alembic head `116`)
-**Reference docs**: HAIP_FULL_BUILD_PLAN.md · architecture-delta.md · execution-plan.md
+**Version**: 2.3 · **Owner**: Sharath D. · **Updated**: 11 Oct 2026 (Alembic head `117`)
+**Reference docs**: HAIP_FULL_BUILD_PLAN.md · architecture-delta.md · execution-plan.md · docs/HAIP_Module_Audit_M0.md (module status matrix, 11 Oct 2026 — update statuses as gaps close)
 
 **KEEP THIS FILE CURRENT — standing rule from the owner.** When a change adds or alters a
 module, migration, endpoint, Celery task, integration, LLM route, env var, test baseline or
@@ -71,7 +71,7 @@ Active clients:
 | Database | PostgreSQL 16 + pgvector + RLS |
 | Queue | Celery + Redis |
 | Storage | AWS S3 + KMS (Mumbai ap-south-1) |
-| Transcription | Sarvam AI (primary) → Deepgram (fallback) → Whisper (bulk) |
+| Transcription | Provider chosen by `TRANSCRIPTION_PROVIDER` or by which key is set (Sarvam, then Groq, then Deepgram, else local Whisper). **No runtime failover**: a failed call only retries the same provider (5×, backoff) |
 | LLM | Router pattern — see LLM routing table below |
 | Auth | NextAuth.js + JWT (15m) + refresh token |
 | IVR | Vobiz (Ratha) + Acefone (Jade) — CallerDesk/Mcube adapters still exist in code (historical Ratha providers, not currently active for any tenant) |
@@ -389,27 +389,31 @@ Backend auth is custom JWT (HS256) via `backend/app/api/v1/endpoints/auth.py` �
 **⚠️ Alembic migration gotcha — read before touching `backend/alembic/`:**
 `env.py` previously ran two "best-effort" setup statements before every migration transaction (`pg_terminate_backend(...)` and `SET lock_timeout`/`SET statement_timeout`), both wrapped in a silent `except: pass`. A failed statement poisons the rest of that connection's transaction in Postgres — so every migration after it would log "success" via Alembic's step-by-step logging (which fires before each step runs) while nothing ever actually committed, and `alembic_version` would never advance. This cost real time on both Neon (`neondb_owner` lacks `pg_signal_backend` — always failed) and Supabase (session pooler rejected the `SET` calls). Both statements are now removed. **If `alembic upgrade head` ever again logs success without `alembic_version` moving, suspect a silently-swallowed exception earlier in the same transaction, not a "did it really run" mystery** — check `env.py` first.
 
-**Known test debt — but do NOT assume it is all fixture drift.** Baseline as of 2026-10-11:
-**2115 passing / 46 failing / 12 skipped** (full suite, run alone, ~7 min). Every commit is
-expected to leave exactly that same 46-failure set; diff the FAILED list, don't just compare counts.
-Frontend: `tsc --noEmit --skipLibCheck` clean, vitest has 1 known failure (`permissions.test.ts`).
-Some genuinely is drift (`test_auth.py` posts
-OAuth2 form-encoded credentials to a JSON-only `/login`; `test_dashboard_api.py` unpacks
-a 4-key fixture into 3 variables).
-
-⚠️ **13 of the previously-"pre-existing" failures turned out to be a real production
-bug, not drift.** `leads_service.py`, `identity_service.py`, and
-`property_share_service.py` used stdlib `logging.getLogger()` but called it with
-structlog-style kwargs (`log.info("evt", tenant_id=...)`). `Logger.info()` short-circuits
-when its level is disabled, so this was **silent at WARNING and raised `TypeError` at
-INFO** — which is how production and pytest run. It took out `test_tenant_isolation`,
-the whole idempotency suite, and request-ID middleware tests. Fixed by switching those
-modules to structlog; an AST sweep confirms zero remaining call sites.
-
-The lesson: before writing a failure off as drift, check whether it is a latent
-level-dependent or environment-dependent bug. Grep is not enough to find this class —
-use an AST scan for `log.*()` calls carrying non-stdlib kwargs in modules that use
-`logging.getLogger`.
+**Test baseline** (branch `phase0-reliability`, 2026-10-11, Phase 0.1): **PostgreSQL 16 (what production and `test.yml` use):
+2251 passing / 0 failing / 1 skipped**; SQLite: **2207 passing / 0 failing / 45 skipped** (the PostgreSQL-only tests skip there).
+Run the suite on PostgreSQL before trusting a result: SQLite does not enforce foreign keys, column widths, boolean types or
+partial unique indexes, and hid a real `ai_score_status` varchar(20) bug and a forking audit chain (see
+`docs/HAIP_Phase0_Failure_Register.md`, Appendices 4-5). Do not add "known failures" -- fix or register them. The test `db`
+fixture uses savepoints on PostgreSQL, so code under test may call `commit/rollback/close` without wiping the test's rows.
+Frontend: `tsc --noEmit --skipLibCheck` clean, vitest has 1 known failure (`permissions.test.ts`). Tests default `ENCRYPTION_KEY` in `tests/conftest.py`.
+`tests/test_celery_task_routing.py` guards two things: every registered task routes to a consumed queue, and every
+beat entry names a registered task. It pins today's known exceptions (`_KNOWN_UNROUTED`, `_KNOWN_DEAD_BEAT`:
+7 scheduled jobs -- DPDP purge, retention purge, Hostaway/RentalWise sync, owner digest, Meta quality poll,
+lost-reason clustering -- reference names that do not exist and never run). The lists may only shrink; enabling
+a job needs an owner decision (see the failure register). New tasks need an exact-name route.
+`core/audit.py::append_audit` chains within one transaction and, on PostgreSQL, takes a per-tenant advisory lock (held until
+commit, 10 s bounded wait; failures log `audit_chain_lock_failed`) and stamps `created_at` strictly increasing, so concurrent
+writers form one chain. A transaction must never audit several tenants (deadlock): use one transaction per tenant.
+Row-level security: `alembic/proposed/118_*` is NOT applied; check the DB role with `backend/scripts/verify_rls_isolation.py`
+(read-only) and `docs/HAIP_Phase0_Production_Checklist.md` before assuming RLS protects anything. Migration 117 (head) widens
+`calls.ai_score_status`; rolling code back after it needs `alembic downgrade 116` first (checklist section 11).
+**CI:** GitHub's default shell is `bash -e` WITHOUT pipefail, so `pytest | tee` passes even when pytest fails; every such step
+needs `shell: bash` + `set -eo pipefail`, and `! grep` is ignored by `set -e` (use `if grep ...; then exit 1; fi`).
+Transcription has no runtime provider failover (provider is chosen by config).
+⚠️ **Don't write a failure off as drift before checking for a latent bug.** Thirteen "pre-existing" failures were stdlib
+`logging` called with structlog kwargs (silent at WARNING, `TypeError` at INFO, how production runs); fixed. Phase 0 repeated
+the lesson: stale-looking tests hid an audit-chain fork, dead inbox tasks, a Hostaway sync that never worked, a `varchar(20)`
+status bug, and a CI step that passed on failing tests.
 
 ---
 
