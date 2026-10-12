@@ -20,6 +20,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font
 from app.core.database import get_db
 from app.api.v1.deps import get_current_user, require_roles
+from app.services.authz_service import has_capability
 from app.models.user import User, UserRole
 from app.models.call import Call, CallDirection, CallDisposition
 from app.models.inquiry import Inquiry, InquiryStage, InquirySource
@@ -586,6 +587,16 @@ def _report_scope(user: User, report_id: str) -> Optional[str]:
     raise HTTPException(status_code=403, detail="Your role can't run this report")
 
 
+MONEY_REPORTS = ("revenue",)   # per-booking value: needs revenue.read on top of the role's report access
+
+
+def _require_report_money(db: Session, user: User, report_id: str) -> None:
+    """403 for a revenue report without revenue.read, whatever the role's report access says (compliance can run
+    most reports but holds no revenue capability by default)."""
+    if report_id in MONEY_REPORTS and not has_capability(db, user, "revenue.read"):
+        raise HTTPException(status_code=403, detail="Your role can't run this report")
+
+
 def _catalog_for(db: Session, user: User) -> List[Dict[str, Any]]:
     """The catalog this person sees: only their reports, with the workspace's
     own stages and owners filled into the filter choices."""
@@ -594,6 +605,8 @@ def _catalog_for(db: Session, user: User) -> List[Dict[str, Any]]:
     out = []
     for entry in REPORT_CATALOG:
         if allowed is not None and entry["id"] not in allowed:
+            continue
+        if entry["id"] in MONEY_REPORTS and not has_capability(db, user, "revenue.read"):
             continue
         item = copy.deepcopy(entry)
         filters = []
@@ -735,6 +748,7 @@ def preview_report(
     """The first few rows, plus how many rows the full report would hold."""
     entry = _catalog_entry(body.report_id)
     scope = _report_scope(current_user, body.report_id)
+    _require_report_money(db, current_user, body.report_id)
     fields = _clean_fields(entry, body.fields)
     req = body.model_copy(update={"fields": fields, "limit": max(1, min(body.limit, PREVIEW_ROWS))})
     rows, total, truncated = run_report(db, current_user.tenant_id, req, scope)
@@ -762,6 +776,7 @@ def download_report(
     MAX_DOWNLOAD_ROWS, and the audit trail says how many."""
     entry = _catalog_entry(body.report_id)
     scope = _report_scope(current_user, body.report_id)
+    _require_report_money(db, current_user, body.report_id)
     fields = _clean_fields(entry, body.fields)
     req = body.model_copy(update={"fields": fields, "limit": MAX_DOWNLOAD_ROWS})
     rows, total, truncated = run_report(db, current_user.tenant_id, req, scope)
@@ -782,6 +797,7 @@ def export_report(
     filters -- for a plain link. Same access rules and audit as /download."""
     entry = _catalog_entry(report_id)
     scope = _report_scope(current_user, report_id)
+    _require_report_money(db, current_user, report_id)
     fields = [f["key"] for f in entry["fields"] if f.get("default")]
     body = ReportRequest(
         report_id=report_id,

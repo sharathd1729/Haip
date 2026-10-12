@@ -8,6 +8,8 @@ the new behaviour.
 import csv
 import io
 import uuid
+
+from tests.conftest import seed_capabilities
 from datetime import datetime, timezone
 
 from app.core.security import create_access_token, get_password_hash
@@ -26,6 +28,7 @@ def _tenant(db):
     t = Tenant(id=str(uuid.uuid4()), name="T", slug=f"rp-{uuid.uuid4().hex[:6]}", plan="growth")
     db.add(t)
     db.flush()
+    seed_capabilities(db, t.id)       # the revenue report needs revenue.read, like a provisioned workspace has
     return t
 
 

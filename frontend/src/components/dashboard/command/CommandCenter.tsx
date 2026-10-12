@@ -12,13 +12,17 @@ import { useToast } from "@/components/ui/toast";
 import { AiNoticed } from "@/components/dashboard/home/Panels";
 import { Acquisition } from "./Acquisition";
 import { AttentionStrip } from "./AttentionStrip";
+import { Breakdowns } from "./Breakdowns";
+import { ChannelPanels } from "./ChannelPanels";
+import { KpiGrid } from "./KpiGrid";
+import { Team } from "./Team";
 import { Controls, type Filters } from "./Controls";
 import { JourneyBand } from "./JourneyBand";
 import { Ledger } from "./Ledger";
 import { Trends } from "./Trends";
 import { isRestricted, type BusinessOverview } from "./types";
 
-const INITIAL: Filters = { preset: "this_month", customFrom: "", customTo: "", channel: "", propertyId: "", agentId: "" };
+const INITIAL: Filters = { preset: "this_month", customFrom: "", customTo: "", channel: "", propertyId: "", agentId: "", trend: "day" };
 
 function greeting() {
   const h = new Date().getHours();
@@ -34,6 +38,7 @@ export function useBusinessOverview(f: Filters, enabled = true) {
     ...(f.channel ? { channel: f.channel } : {}),
     ...(f.propertyId ? { property_id: f.propertyId } : {}),
     ...(f.agentId ? { agent_id: f.agentId } : {}),
+    ...(f.trend !== "day" ? { trend: f.trend } : {}),
   };
   return useQuery<BusinessOverview>({
     queryKey: ["business-overview", params],
@@ -48,9 +53,10 @@ export function useBusinessOverview(f: Filters, enabled = true) {
 function Loading() {
   return (
     <div className="space-y-5" aria-busy="true" aria-label="Loading the business overview">
-      <Skeleton className="h-14 w-full" />
-      <div className="grid grid-cols-1 gap-px md:grid-cols-3">{[0, 1, 2].map(i => <Skeleton key={i} className="h-72" />)}</div>
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">{[0, 1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-24" />)}</div>
+      <Skeleton className="h-28 w-full" />
       <Skeleton className="h-44 w-full" />
+      <Skeleton className="h-72 w-full" />
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3"><Skeleton className="h-72 lg:col-span-2" /><Skeleton className="h-72" /></div>
     </div>
   );
@@ -81,7 +87,7 @@ export function CommandCenter() {
 
   return (
     <div className="h-full overflow-y-auto bg-[var(--haip-bg,var(--background))]">
-      <div className="mx-auto max-w-[1360px] space-y-5 px-4 py-5 sm:px-6">
+      <div className="mx-auto max-w-[1360px] space-y-4 px-3 py-4 sm:space-y-5 sm:px-6 sm:py-5">
         <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
           <div>
             <h1 className="font-[family-name:var(--font-display)] text-[26px] font-semibold tracking-tight text-[var(--haip-fg)]">
@@ -92,7 +98,7 @@ export function CommandCenter() {
           <div className="flex items-center gap-3 text-xs text-[var(--haip-fg-subtle)]" aria-live="polite">
             {isFetching && <span className="inline-flex items-center gap-1.5"><RefreshCw size={13} className="motion-safe:animate-spin" aria-hidden />Updating…</span>}
             {asOf && !isFetching && <span>As of {asOf} IST</span>}
-            <Link href="/dashboard/operations" className="inline-flex min-h-11 items-center font-semibold text-primary hover:underline sm:min-h-0">Team, calls and response times</Link>
+            <Link href="/dashboard/operations" className="inline-flex min-h-11 items-center font-semibold text-primary hover:underline lg:min-h-0">Team, calls and response times</Link>
           </div>
         </header>
 
@@ -116,12 +122,16 @@ export function CommandCenter() {
         ) : isLoading || !data ? (
           <Loading />
         ) : (
-          <div className={isPlaceholderData ? "space-y-5 opacity-60 motion-safe:transition-opacity motion-safe:duration-150" : "space-y-5 motion-safe:transition-opacity motion-safe:duration-150"}>
+          <div className={isPlaceholderData ? "space-y-4 opacity-60 motion-safe:transition-opacity motion-safe:duration-150 sm:space-y-5" : "space-y-4 motion-safe:transition-opacity motion-safe:duration-150 sm:space-y-5"}>
+            <KpiGrid data={data} />
             <AttentionStrip data={data} />
-            <Ledger data={data} />
             <JourneyBand data={data} />
-            <Trends data={data} />
+            <Ledger data={data} />
+            <Trends data={data} trend={filters.trend} onTrend={trend => setFilters(f => ({ ...f, trend }))} />
+            <Breakdowns data={data} />
             <Acquisition data={data} />
+            {data.agents && <Team rows={data.agents} />}
+            <ChannelPanels ready={!isPlaceholderData} />
             {data.insights.length > 0 && <AiNoticed insights={data.insights} onDismiss={id => dismiss.mutate(id)} dismissing={dismiss.isPending ? dismiss.variables : null} />}
             <Definitions data={data} />
           </div>
@@ -141,7 +151,7 @@ function Definitions({ data }: { data: BusinessOverview }) {
   ];
   return (
     <details className="haip-card px-5 py-3 text-[13px] text-[var(--haip-fg-2)] sm:px-6">
-      <summary className="cursor-pointer rounded py-2 font-semibold text-[var(--haip-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">How these numbers are defined</summary>
+      <summary className="cursor-pointer rounded py-3 font-semibold lg:py-2 text-[var(--haip-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">How these numbers are defined</summary>
       <dl className="mt-3 space-y-2">
         {rows.map(([k, v]) => (
           <div key={k} className="grid grid-cols-1 gap-x-4 sm:grid-cols-[7rem_1fr]">

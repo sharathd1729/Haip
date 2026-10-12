@@ -8,7 +8,7 @@ import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis
 import { Tabs } from "@/components/ui/kit";
 import { cn } from "@/lib/utils";
 import { Empty, SectionTitle } from "./parts";
-import { inr, inrShort, num, type BusinessOverview, type PipelineRow } from "./types";
+import { inr, inrShort, num, type BusinessOverview, type PipelineRow, type Trend } from "./types";
 
 type Measure = "leads" | "bookings" | "booking_value" | "net_collected";
 const MEASURES: { value: Measure; label: string; money: boolean; unit: string }[] = [
@@ -18,23 +18,32 @@ const MEASURES: { value: Measure; label: string; money: boolean; unit: string }[
   { value: "net_collected", label: "Cash in", money: true, unit: "collected less refunds" },
 ];
 
-function day(iso: string, long = false) {
-  return new Date(`${iso}T00:00:00`).toLocaleDateString("en-IN", long ? { weekday: "short", day: "numeric", month: "short" } : { day: "numeric", month: "short" });
+const TRENDS: { value: Trend; label: string; per: string }[] = [
+  { value: "day", label: "Daily", per: "per day" },
+  { value: "week", label: "Weekly", per: "per week (from Monday)" },
+  { value: "month", label: "Monthly", per: "per month" },
+];
+
+function day(iso: string, g: Trend = "day", long = false) {
+  const d = new Date(`${iso}T00:00:00`);
+  if (g === "month") return d.toLocaleDateString("en-IN", long ? { month: "long", year: "numeric" } : { month: "short" });
+  if (g === "week") return long ? `Week of ${d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}` : d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  return d.toLocaleDateString("en-IN", long ? { weekday: "short", day: "numeric", month: "short" } : { day: "numeric", month: "short" });
 }
 
-function TooltipBox({ active, payload, money, unit }: { active?: boolean; payload?: { value: number; payload: { date: string; inPeriod: boolean } }[]; money: boolean; unit: string }) {
+function TooltipBox({ active, payload, money, unit, g }: { active?: boolean; payload?: { value: number; payload: { date: string; inPeriod: boolean } }[]; money: boolean; unit: string; g: Trend }) {
   if (!active || !payload?.length) return null;
   const p = payload[0];
   return (
     <div className="rounded-lg border border-[var(--haip-border)] bg-[var(--haip-card)] px-3 py-2 text-xs shadow-md">
-      <p className="font-semibold text-[var(--haip-fg)]">{day(p.payload.date, true)}</p>
+      <p className="font-semibold text-[var(--haip-fg)]">{day(p.payload.date, g, true)}</p>
       <p className="mt-0.5 tabular-nums text-[var(--haip-fg-2)]">{money ? inr(p.value) : num(p.value)} {unit}</p>
       {!p.payload.inPeriod && <p className="mt-0.5 text-[var(--haip-fg-subtle)]">before the selected period</p>}
     </div>
   );
 }
 
-export function Trends({ data }: { data: BusinessOverview }) {
+export function Trends({ data, trend, onTrend }: { data: BusinessOverview; trend: Trend; onTrend: (t: Trend) => void }) {
   const available = MEASURES.filter(m => data.series[m.value] != null);
   const [measure, setMeasure] = useState<Measure>("leads");
   const active = available.find(m => m.value === measure) ?? available[0];
@@ -42,7 +51,7 @@ export function Trends({ data }: { data: BusinessOverview }) {
 
   const rows = useMemo(() => {
     const values = (active ? s[active.value] : null) ?? [];
-    return s.days.map((d, i) => ({ date: d, label: day(d), value: values[i] ?? 0, inPeriod: i >= s.period_start_index }));
+    return s.days.map((d, i) => ({ date: d, label: day(d, s.granularity), value: values[i] ?? 0, inPeriod: i >= s.period_start_index }));
   }, [s, active]);
   const inPeriod = rows.filter(r => r.inPeriod);
   const total = inPeriod.reduce((a, r) => a + r.value, 0);
@@ -52,10 +61,11 @@ export function Trends({ data }: { data: BusinessOverview }) {
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
       <section aria-labelledby="trend-title" className="haip-card px-5 py-5 sm:px-6 lg:col-span-2">
-        <SectionTitle sub={active ? `${active.unit}, per day (IST)` : undefined}
-          actions={<Tabs label="Measure" value={active?.value ?? "leads"} onChange={v => setMeasure(v as Measure)} items={available.map(m => ({ value: m.value, label: m.label }))} />}>
-          <span id="trend-title">Day by day</span>
+        <SectionTitle sub={active ? `${active.unit}, ${TRENDS.find(t => t.value === s.granularity)?.per} (IST)` : undefined}
+          actions={<Tabs label="Measure" value={active?.value ?? "leads"} onChange={v => setMeasure(v as Measure)} items={available.map(m => ({ value: m.value, label: m.label }))} className="max-w-full [&_button]:min-h-11 lg:[&_button]:min-h-9" />}>
+          <span id="trend-title">Trend</span>
         </SectionTitle>
+        <Tabs label="Trend interval" value={trend} onChange={v => onTrend(v as Trend)} items={TRENDS.map(t => ({ value: t.value, label: t.label }))} className="mb-3 w-fit max-w-full [&_button]:min-h-11 lg:[&_button]:min-h-9" />
         {!active || !hasData ? (
           <Empty>Nothing to chart for this measure in the selected period.</Empty>
         ) : (
@@ -65,13 +75,13 @@ export function Trends({ data }: { data: BusinessOverview }) {
               in the period
             </p>
             <div className="h-56 sm:h-64" role="img" aria-label={`${active.label} per day. ${active.money ? inr(total) : num(total)} in the selected period.`}>
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <BarChart data={rows} margin={{ top: 6, right: 4, left: 0, bottom: 0 }} barCategoryGap={dense ? 2 : 6}>
                   <CartesianGrid vertical={false} stroke="var(--haip-border)" />
                   <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={18} tick={{ fontSize: 11, fill: "var(--haip-fg-subtle)" }} />
                   <YAxis tickLine={false} axisLine={false} width={active.money ? 52 : 34} allowDecimals={false}
                     tickFormatter={v => (active.money ? inrShort(Number(v)) : String(v))} tick={{ fontSize: 11, fill: "var(--haip-fg-subtle)" }} />
-                  <Tooltip cursor={{ fill: "color-mix(in srgb, var(--primary) 7%, transparent)" }} content={<TooltipBox money={active.money} unit={active.unit} />} />
+                  <Tooltip cursor={{ fill: "color-mix(in srgb, var(--primary) 7%, transparent)" }} content={<TooltipBox money={active.money} unit={active.unit} g={s.granularity} />} />
                   <Bar dataKey="value" radius={[3, 3, 0, 0]} maxBarSize={30} isAnimationActive={false}>
                     {rows.map(r => <Cell key={r.date} fill={r.inPeriod ? "var(--primary)" : "var(--haip-border-strong, #CBD5D1)"} />)}
                   </Bar>
@@ -86,12 +96,12 @@ export function Trends({ data }: { data: BusinessOverview }) {
         )}
       </section>
 
-      <Pipeline rows={data.pipeline} />
+      <Pipeline rows={data.pipeline} leads={data.leads} />
     </div>
   );
 }
 
-function Pipeline({ rows }: { rows: PipelineRow[] }) {
+function Pipeline({ rows, leads }: { rows: PipelineRow[]; leads: BusinessOverview["leads"] }) {
   const max = Math.max(1, ...rows.map(r => r.count));
   const total = rows.reduce((a, r) => a + r.count, 0);
   return (
@@ -117,8 +127,19 @@ function Pipeline({ rows }: { rows: PipelineRow[] }) {
               </Link>
             </li>
           ))}
-          <li className="border-t border-[var(--haip-border)] pt-2 text-[12px] text-[var(--haip-fg-subtle)]">{num(total)} leads in total</li>
+          <li className="border-t border-[var(--haip-border)] pt-2 text-[12px] text-[var(--haip-fg-subtle)]">{num(total)} leads in total · {num(leads.lost)} lost</li>
         </ul>
+      )}
+      {leads.by_expected_check_in.length > 0 && (
+        <div className="mt-4 border-t border-[var(--haip-border)] pt-3">
+          <h3 className="text-[12.5px] font-semibold text-[var(--haip-fg)]">Expected check-in of these leads</h3>
+          <ul className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] text-[var(--haip-fg-2)]">
+            {leads.by_expected_check_in.map(m => (
+              <li key={m.month} className="tabular-nums"><span className="font-semibold text-[var(--haip-fg)]">{num(m.count)}</span> in {new Date(`${m.month}-01T00:00:00`).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}</li>
+            ))}
+          </ul>
+          {leads.expected_check_in_unknown > 0 && <p className="mt-1 text-[11.5px] text-[var(--haip-fg-subtle)]">{num(leads.expected_check_in_unknown)} have no dates yet.</p>}
+        </div>
       )}
     </section>
   );

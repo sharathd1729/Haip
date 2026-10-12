@@ -24,10 +24,10 @@ export const CHANNELS = [
 ];
 
 export interface Filters {
-  preset: string; customFrom: string; customTo: string; channel: string; propertyId: string; agentId: string;
+  preset: string; customFrom: string; customTo: string; channel: string; propertyId: string; agentId: string; trend: "day" | "week" | "month";
 }
 
-const select = "h-10 min-w-[8.5rem] max-w-[11rem] flex-1 sm:h-9 sm:flex-none rounded-lg border border-[var(--haip-border)] bg-[var(--haip-card)] px-2.5 text-[13px] text-[var(--haip-fg)] focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25";
+const select = "h-11 w-full min-w-0 lg:h-9 sm:w-auto sm:max-w-[11rem] rounded-lg border border-[var(--haip-border)] bg-[var(--haip-card)] px-2.5 text-[13px] text-[var(--haip-fg)] focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25";
 
 export function Controls({ value, onChange, properties, agents, from, to, tenantWide }: {
   value: Filters; onChange: (next: Filters) => void;
@@ -39,8 +39,8 @@ export function Controls({ value, onChange, properties, agents, from, to, tenant
   const customReady = value.customFrom && value.customTo && value.customFrom <= value.customTo;
   return (
     <div className="space-y-3">
-      <Tabs label="Period" value={value.preset} onChange={v => set({ preset: v })} items={PRESETS.map(p => ({ value: p.value, label: p.label }))} className="max-w-full sm:w-fit" />
-      <div className="flex flex-wrap items-center gap-2">
+      <Tabs label="Period" value={value.preset} onChange={v => set({ preset: v })} items={PRESETS.map(p => ({ value: p.value, label: p.label }))} className="max-w-full sm:w-fit [&_button]:min-h-11 lg:[&_button]:min-h-9" />
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
         <label className="sr-only" htmlFor="oc-channel">Channel</label>
         <select id="oc-channel" className={select} value={value.channel} onChange={e => set({ channel: e.target.value })}>
           {CHANNELS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
@@ -62,14 +62,14 @@ export function Controls({ value, onChange, properties, agents, from, to, tenant
       </div>
 
       {value.preset === "custom" && (
-        <div className="flex flex-wrap items-end gap-2 text-[13px]">
+        <div className="grid grid-cols-2 items-end gap-2 text-[13px] sm:flex sm:flex-wrap">
           <label className="flex flex-col gap-1 text-[var(--haip-fg-subtle)]">From
             <input type="date" max={today} value={value.customFrom} onChange={e => set({ customFrom: e.target.value })} className={cn(select, "text-[16px] sm:text-[13px]")} />
           </label>
           <label className="flex flex-col gap-1 text-[var(--haip-fg-subtle)]">To
             <input type="date" max={today} min={value.customFrom || undefined} value={value.customTo} onChange={e => set({ customTo: e.target.value })} className={cn(select, "text-[16px] sm:text-[13px]")} />
           </label>
-          {!customReady && <p className="pb-2 text-[12px] text-[var(--haip-fg-subtle)]">Pick both dates to apply.</p>}
+          {!customReady && <p className="col-span-2 text-[12px] text-[var(--haip-fg-subtle)] sm:pb-2">Pick both dates to apply.</p>}
         </div>
       )}
 

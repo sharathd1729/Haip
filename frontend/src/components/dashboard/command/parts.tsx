@@ -44,8 +44,9 @@ export function Row({ label, value, hint, href, tone, muted }: {
     </>
   );
   const cls = "flex items-baseline justify-between gap-3 py-1.5";
+  const tap = href ? " min-h-11 items-center lg:min-h-0" : "";
   return href
-    ? <Link href={href} className={cn(cls, "-mx-2 rounded-md px-2 transition-colors hover:bg-[var(--haip-surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40")}>{body}</Link>
+    ? <Link href={href} className={cn(cls + tap, "-mx-2 rounded-md px-2 transition-colors hover:bg-[var(--haip-surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40")}>{body}</Link>
     : <div className={cls}>{body}</div>;
 }
 

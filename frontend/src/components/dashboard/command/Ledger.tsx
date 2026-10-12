@@ -1,19 +1,19 @@
 "use client";
 // The three business columns — Leads, Bookings, Revenue — as ONE surface divided by hairlines (not three cards,
 // not cards inside cards). Each column leads with its headline number, then plain label/value lines.
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { CalendarCheck, ChevronRight, IndianRupee, Users } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { ChangePill, NotAvailable, RestrictedNote, Row } from "./parts";
 import { inr, isRestricted, isUnavailable, num, pct, type BusinessOverview } from "./types";
 
-function Column({ title, icon, headline, headlineLabel, change, children, href, hrefLabel }: {
-  title: string; icon: ReactNode; headline: ReactNode; headlineLabel: string; change?: ReactNode;
+function Column({ title, icon, headline, headlineLabel, change, children, href, hrefLabel, shown }: {
+  shown: boolean; title: string; icon: ReactNode; headline: ReactNode; headlineLabel: string; change?: ReactNode;
   children: ReactNode; href?: string; hrefLabel?: string;
 }) {
   return (
-    <section aria-labelledby={`ledger-${title}`} className="flex min-w-0 flex-col px-5 py-5 sm:px-6">
+    <section aria-labelledby={`ledger-${title}`} className={cn("min-w-0 flex-col px-4 py-4 sm:px-6 sm:py-5", shown ? "flex" : "hidden md:flex")}>
       <div className="flex items-center gap-2 text-[var(--haip-fg-2)]">
         <span className="text-[var(--haip-icon-neutral)]" aria-hidden>{icon}</span>
         <h2 id={`ledger-${title}`} className="text-[13px] font-semibold uppercase tracking-wide">{title}</h2>
@@ -26,7 +26,7 @@ function Column({ title, icon, headline, headlineLabel, change, children, href, 
       </p>
       <dl className="mt-4 divide-y divide-[var(--haip-border)] border-t border-[var(--haip-border)] [&>*]:first:pt-2">{children}</dl>
       {href && (
-        <Link href={href} className="mt-auto inline-flex items-center gap-0.5 self-start pt-4 text-[12.5px] font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded">
+        <Link href={href} className="mt-auto inline-flex min-h-11 items-center gap-0.5 self-start pt-2 text-[12.5px] font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded">
           {hrefLabel}<ChevronRight size={14} aria-hidden />
         </Link>
       )}
@@ -34,13 +34,26 @@ function Column({ title, icon, headline, headlineLabel, change, children, href, 
   );
 }
 
+const TABS = [{ id: "leads", label: "Leads" }, { id: "bookings", label: "Bookings" }, { id: "revenue", label: "Revenue" }] as const;
+
 export function Ledger({ data }: { data: BusinessOverview }) {
   const { leads, bookings, revenue } = data;
+  // On a phone one column is shown at a time (all three headline numbers are already in the grid above); from the
+  // tablet width up the three columns sit side by side.
+  const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("leads");
   const week = !isRestricted(bookings) ? bookings.upcoming_window_days : 7;
 
   return (
-    <div className="haip-card grid grid-cols-1 divide-y divide-[var(--haip-border)] md:grid-cols-3 md:divide-x md:divide-y-0">
-      <Column title="Leads" icon={<Users size={16} />} headline={num(leads.received)} headlineLabel="received"
+    <div className="haip-card overflow-hidden">
+    <div role="tablist" aria-label="Business area" className="flex border-b border-[var(--haip-border)] md:hidden">
+      {TABS.map(t => (
+        <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
+          className={cn("min-h-11 flex-1 text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40",
+            tab === t.id ? "border-b-2 border-primary text-[var(--haip-fg)]" : "text-[var(--haip-fg-subtle)]")}>{t.label}</button>
+      ))}
+    </div>
+    <div className="grid grid-cols-1 md:grid-cols-3 md:divide-x md:divide-[var(--haip-border)]">
+      <Column shown={tab === "leads"} title="Leads" icon={<Users size={16} />} headline={num(leads.received)} headlineLabel="received"
         change={<ChangePill change={leads.received_change} />} href="/dashboard/leads" hrefLabel="Open Leads360">
         <Row label="Valid" value={num(leads.valid)} hint="in a pipeline stage that counts as a real lead" />
         <Row label="Invalid (triage)" value={num(leads.invalid)} />
@@ -48,18 +61,20 @@ export function Ledger({ data }: { data: BusinessOverview }) {
           hint={leads.conversion_rate == null ? "no leads in this period" : `${pct(leads.conversion_rate)} of received, so far`} />
         <Row label="Unassigned right now" value={num(leads.unassigned_now)} tone={leads.unassigned_now > 0 ? "warning" : undefined}
           hint="open leads nobody owns, not limited to this period" href="/dashboard/my-day?kind=unassigned" />
+        <Row label="Lost" value={num(leads.lost)} hint="moved to a closed-lost stage" />
         <Row label="Marked as spam, left out" value={num(leads.marked_spam_excluded)} muted />
       </Column>
 
       {isRestricted(bookings) ? (
-        <Column title="Bookings" icon={<CalendarCheck size={16} />} headline="—" headlineLabel="restricted">
+        <Column shown={tab === "bookings"} title="Bookings" icon={<CalendarCheck size={16} />} headline="—" headlineLabel="restricted">
           <div className="pt-3"><RestrictedNote what="Booking figures" permission="bookings.read" /></div>
         </Column>
       ) : (
-        <Column title="Bookings" icon={<CalendarCheck size={16} />} headline={num(bookings.confirmed_created)} headlineLabel="made in this period"
+        <Column shown={tab === "bookings"} title="Bookings" icon={<CalendarCheck size={16} />} headline={num(bookings.confirmed_created)} headlineLabel="made in this period"
           change={<ChangePill change={bookings.confirmed_change} />} href="/dashboard/bookings" hrefLabel="Open Bookings">
           <Row label="Cancelled" value={num(bookings.cancelled_of_created)} hint="of those made in this period" />
           <Row label={`Check-ins, next ${week} days`} value={num(bookings.upcoming_checkins)} href="/dashboard/bookings?quick=upcoming" />
+          <Row label={`Check-outs, next ${week} days`} value={num(bookings.upcoming_checkouts)} href="/dashboard/bookings?quick=current" />
           <Row label="Still owing money" value={num(bookings.needs_payment)}
             hint={bookings.payment_overdue > 0 ? `${num(bookings.payment_overdue)} past a due date` : "confirmed or in house, not fully paid"}
             tone={bookings.payment_overdue > 0 ? "danger" : undefined} href="/dashboard/bookings?quick=due" />
@@ -71,11 +86,11 @@ export function Ledger({ data }: { data: BusinessOverview }) {
       )}
 
       {isRestricted(revenue) ? (
-        <Column title="Revenue" icon={<IndianRupee size={16} />} headline="—" headlineLabel="restricted">
+        <Column shown={tab === "revenue"} title="Revenue" icon={<IndianRupee size={16} />} headline="—" headlineLabel="restricted">
           <div className="pt-3"><RestrictedNote what="Revenue figures" permission="revenue.read" /></div>
         </Column>
       ) : (
-        <Column title="Revenue" icon={<IndianRupee size={16} />} headline={inr(revenue.gross_booking_value)} headlineLabel="booked in this period (stay charge)"
+        <Column shown={tab === "revenue"} title="Revenue" icon={<IndianRupee size={16} />} headline={inr(revenue.gross_booking_value)} headlineLabel="booked in this period (stay charge)"
           change={<ChangePill change={revenue.gross_change} />} href="/dashboard/targets" hrefLabel="Open Targets">
           <Row label="Collected" value={inr(revenue.collected)} hint="by payment date" />
           <Row label="Refunded" value={inr(revenue.refunds)} />
@@ -89,6 +104,7 @@ export function Ledger({ data }: { data: BusinessOverview }) {
           {isUnavailable(revenue.net_revenue) && <NotAvailable label="Net revenue" reason={revenue.net_revenue.reason} />}
         </Column>
       )}
+    </div>
     </div>
   );
 }

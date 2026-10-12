@@ -35,11 +35,12 @@ from app.models.lead_attribution import LeadAttribution
 from app.models.pipeline_stage import PipelineStage
 from app.models.property import Stay
 from app.models.stay_finance import StayAddOn, StayPayment
-from app.models.user import User
 from app.services import booking_service, dashboard_service, integration_health, kpi_metrics
+from app.services import business_overview_extras as extras
+from app.services import work_queue_service
 from app.services.date_presets import IST, ist_range_to_utc
 from app.services.business_overview_common import (  # noqa: F401  (Params, normalise_channel, previous_period are re-exported)
-    Params, _change, _channel_condition, _ist_day, _lead_conditions, _linked_stay_ids, _money, _rate, _stay_conditions,
+    Params, _change, _channel_condition, _lead_conditions, _linked_stay_ids, _money, _rate, _stay_conditions,
     normalise_channel, previous_period,
 )
 
@@ -234,38 +235,6 @@ def _target(db: Session, p: Params) -> Optional[dict]:
 
 # ── trends ───────────────────────────────────────────────────────────────────────────────────────────────────
 
-def _series(db: Session, p: Params) -> dict:
-    d_from, d_to = date.fromisoformat(p.d_from), date.fromisoformat(p.d_to)
-    days = dashboard_service._day_list(d_from, d_to)
-    start, end = dashboard_service._utc_bounds(days)
-    leads, booked, value = defaultdict(int), defaultdict(int), defaultdict(float)
-    for (created,) in db.query(Inquiry.created_at).filter(*_lead_conditions(p, start, end)).all():
-        leads[_ist_day(created)] += 1
-    if p.can_bookings:
-        for created, amount in db.query(Stay.created_at, Stay.total_amount).filter(*_stay_conditions(p, start, end)).all():
-            booked[_ist_day(created)] += 1
-            value[_ist_day(created)] += float(amount or 0)
-    cash = defaultdict(float)
-    if p.can_revenue:
-        q = (db.query(StayPayment.paid_on, StayPayment.kind, StayPayment.amount).join(Stay, Stay.id == StayPayment.stay_id)
-             .filter(StayPayment.tenant_id == p.tid, StayPayment.paid_on >= days[0], StayPayment.paid_on <= days[-1]))
-        if p.property_id:
-            q = q.filter(Stay.property_id == p.property_id)
-        scoped = _linked_stay_ids(p)
-        if scoped is not None:
-            q = q.filter(Stay.id.in_(scoped))
-        for paid_on, kind, amount in q.all():
-            cash[paid_on] += float(amount) * (-1 if kind == "refund" else 1)
-    return {
-        "days": [d.isoformat() for d in days],
-        "period_start_index": max(0, days.index(d_from)) if d_from in days else 0,
-        "leads": [leads[d] for d in days],
-        "bookings": [booked[d] for d in days] if p.can_bookings else None,
-        "booking_value": [round(value[d], 2) for d in days] if p.can_revenue else None,
-        "net_collected": [round(cash[d], 2) for d in days] if p.can_revenue else None,
-    }
-
-
 def _pipeline(db: Session, p: Params) -> list[dict]:
     rows = (db.query(PipelineStage.label, PipelineStage.category, PipelineStage.is_closed_won, PipelineStage.is_closed_lost,
                      PipelineStage.order, func.count(Inquiry.id))
@@ -334,37 +303,22 @@ def _meta_ads(db: Session, p: Params) -> dict:
     }
 
 
-def _agents(db: Session, p: Params) -> Optional[list[dict]]:
-    if not (p.tenant_wide and p.scope_user_id is None):
-        return None
-    conds = _lead_conditions(p, p.start, p.end)
-    rows = defaultdict(lambda: {"leads": 0, "bookings": 0, "value": 0.0})
-    for uid, n in db.query(Inquiry.assigned_to, func.count(Inquiry.id)).filter(*conds).group_by(Inquiry.assigned_to).all():
-        rows[uid]["leads"] += n
-    if p.can_bookings:
-        for uid, n, v in (db.query(Inquiry.assigned_to, func.count(func.distinct(Stay.id)), func.coalesce(func.sum(Stay.total_amount), 0))
-                          .join(Stay, Stay.inquiry_id == Inquiry.id)
-                          .filter(*conds, Stay.tenant_id == p.tid, Stay.status.in_(list(kpi_metrics.OCCUPYING_STATUSES)))
-                          .group_by(Inquiry.assigned_to).all()):
-            rows[uid]["bookings"] += n
-            rows[uid]["value"] += float(v or 0)
-    names = dict(db.query(User.id, User.name).filter(User.tenant_id == p.tid, User.id.in_([u for u in rows if u])).all()) if rows else {}
-    out = [{"agent_id": uid, "name": names.get(uid) if uid else "Unassigned", "leads": v["leads"],
-            "bookings": v["bookings"] if p.can_bookings else None,
-            "booking_value": _money(p, v["value"]) if p.can_bookings else None}
-           for uid, v in rows.items() if uid is None or uid in names]
-    return sorted(out, key=lambda r: -r["leads"])[:10]
-
-
 # ── attention and freshness ──────────────────────────────────────────────────────────────────────────────────
 
-def _attention(q: dict, bookings: Optional[dict]) -> list[dict]:
+def _meta_with_detail(db: Session, p: Params) -> dict:
+    meta = _meta_ads(db, p)
+    return {**meta, **extras.meta_detail(db, p)} if meta.get("configured") else meta
+
+
+def _attention(q: dict, bookings: Optional[dict], at_risk: dict) -> list[dict]:
     items = [
         ("unassigned", "Leads nobody owns", q["unassigned"], None, "/dashboard/my-day"),
         ("waiting_reply", "Guests waiting for a reply", q["waiting_reply"], q["waiting_oldest_at"], "/dashboard/my-day"),
         ("missed_calls", "Missed calls not called back", q["missed_not_called_back"], q["missed_oldest_at"], "/dashboard/calls"),
         ("followups", "Follow-ups overdue", q["followups_overdue"], q["followups_oldest_due"], "/dashboard/my-day"),
     ]
+    if at_risk["count"]:
+        items.append(("high_intent_risk", "Promising leads at risk", at_risk["count"], None, "/dashboard/leads"))
     if bookings and not bookings.get("restricted"):
         items += [("payment_overdue", "Bookings with an overdue payment", bookings["payment_overdue"], None, "/dashboard/bookings"),
                   ("needs_payment", "Upcoming bookings still owing money", bookings["needs_payment"], None, "/dashboard/bookings")]
@@ -388,7 +342,9 @@ def _integrations(db: Session, p: Params) -> list[dict]:
 def build(db: Session, p: Params, tenant) -> dict:
     today = datetime.now(IST).date()
     cur, prev = _cohort(db, p, p.start, p.end), _cohort(db, p, p.prev_start, p.prev_end)
-    queue = dashboard_service.needs_you_now(db, tenant, p.scope_user_id)     # the shared work queue, read once
+    work = work_queue_service.build(db, tenant, p.scope_user_id)             # the shared work queue, read once
+    queue = dashboard_service.needs_you_now_from(work)
+    at_risk = extras.high_intent_at_risk(db, p, work)
 
     computed_bookings = computed_revenue = None
     if p.can_bookings or p.can_revenue:
@@ -403,16 +359,16 @@ def build(db: Session, p: Params, tenant) -> dict:
                    "previous_from": p.prev_from, "previous_to": p.prev_to},
         "filters": {"property_id": p.property_id, "channel": p.channel, "agent_id": p.scope_user_id if p.tenant_wide else None},
         "access": {"tenant_wide": p.tenant_wide, "bookings": p.can_bookings, "revenue": p.can_revenue},
-        "leads": _leads_block(db, p, cur, prev, queue),
-        "bookings": bookings,
+        "leads": {**_leads_block(db, p, cur, prev, queue), **extras.leads_extras(db, p), "high_intent_at_risk": at_risk},
+        "bookings": bookings if bookings.get("restricted") else {**bookings, **extras.bookings_extras(db, p, today)},
         "revenue": revenue,
         "funnel": _funnel(cur, prev),
-        "series": _series(db, p),
+        "series": extras.trend_series(db, p),
         "pipeline": _pipeline(db, p),
         "sources": _source_rows(db, p),
-        "meta_ads": _meta_ads(db, p) if p.tenant_wide else None,
-        "agents": _agents(db, p),
-        "attention": _attention(queue, bookings),
+        "meta_ads": _meta_with_detail(db, p) if p.tenant_wide else None,
+        "agents": extras.agent_table(db, p),
+        "attention": _attention(queue, bookings, at_risk),
         "stale_integrations": _integrations(db, p) if p.tenant_wide else [],
         "insights": dashboard_service.top_insights(db, p.tid) if p.tenant_wide else [],
     }

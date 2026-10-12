@@ -36,6 +36,7 @@ class Params:
     tenant_wide: bool
     can_bookings: bool
     can_revenue: bool
+    trend: str = "day"             # chart bucket: day | week | month
 
 
 def normalise_channel(raw: Optional[str]) -> Optional[str]:

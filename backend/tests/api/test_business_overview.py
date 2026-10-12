@@ -11,6 +11,7 @@ What is pinned:
 Runs on SQLite and PostgreSQL alike (the endpoint uses no PostgreSQL-only SQL). PostgreSQL has not been run for it.
 """
 import json
+import os
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
@@ -18,7 +19,7 @@ import pytest
 
 from app.core.security import create_access_token, get_password_hash
 from app.models.ad_metrics import AdMetric
-from app.models.conversation import ChannelType, Conversation
+from app.models.conversation import ChannelType, Conversation, Message
 from app.models.guest import Guest
 from app.models.inquiry import Inquiry, InquirySource, InquiryStage
 from app.models.integration import Integration
@@ -30,10 +31,19 @@ from app.models.sales_target import SalesTarget
 from app.models.stay_finance import StayPayment
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
+from app.services import business_overview_extras as extras
 from tests.conftest import seed_capabilities
 
 D_FROM, D_TO = "2026-09-10", "2026-09-20"          # the reporting period used throughout (IST days)
 URL = "/api/v1/dashboard/business-overview"
+
+
+@pytest.fixture(autouse=True)
+def _agent_scorecard(monkeypatch):
+    """The per-agent scorecard (shared with the old dashboard) computes response times with PostgreSQL-only SQL
+    (LATERAL, percentile_cont). On SQLite it is replaced by an empty scorecard; on PostgreSQL the real one runs."""
+    if "sqlite" in os.environ.get("DATABASE_URL", "sqlite"):
+        monkeypatch.setattr(extras, "get_agent_scorecard_rows", lambda *a, **k: [])
 
 
 # ── a small, fully known workspace ──────────────────────────────────────────────────────────────────────────
@@ -385,3 +395,118 @@ def test_the_response_says_when_it_was_made(client, world):
     j = _get(client, world["h_owner"]).json()
     assert datetime.fromisoformat(j["generated_at"]).tzinfo is not None
     assert [a["key"] for a in j["attention"]][:4] == ["unassigned", "waiting_reply", "missed_calls", "followups"]
+
+
+# ── the fuller owner view: lost leads, expected check-in, breakdowns, trend, Meta detail, agents, at-risk ──────
+
+def test_lost_leads_and_expected_check_in_are_reported(client, db, world):
+    tid, stages = world["tid"], world["stages"]
+    lost = _stage(db, tid, "lost", "Lost", "valid", 9, lost=True)
+    a = _lead(db, tid, lost, _ist("2026-09-17"))
+    a.check_in = "2026-11-14"
+    b = _lead(db, tid, stages[1], _ist("2026-09-18"))
+    b.check_in = "2026-12-24"
+    c = _lead(db, tid, stages[1], _ist("2026-09-18"))
+    c.check_in = "not a date"
+    db.commit()
+    leads = _get(client, world["h_owner"]).json()["leads"]
+    assert leads["lost"] == 1
+    assert leads["by_expected_check_in"] == [{"month": "2026-11", "count": 1}, {"month": "2026-12", "count": 1}]
+    assert leads["expected_check_in_unknown"] == 4 + 3 - 2     # 7 leads in the period, 2 with a usable date
+
+
+def test_booking_breakdowns_by_property_and_channel_and_upcoming_checkouts(client, db, world):
+    tid, pa, pb = world["tid"], world["pa"], world["pb"]
+    s = _stay(db, tid, pa, _ist("2026-09-17"), 12000, check_in_days=-1)      # in house, leaves tomorrow
+    s.channel_source = "airbnb"
+    db.commit()
+    b = _get(client, world["h_owner"]).json()["bookings"]
+    assert b["upcoming_checkouts"] == 1
+    prop = {r["name"]: r for r in b["by_property"]}
+    assert prop["Villa A"]["bookings"] == 3 and prop["Villa A"]["value"] == 52000.0      # s2 30,000 + s3 10,000 + this 12,000
+    assert prop["Villa B"]["bookings"] == 1 and prop["Villa B"]["value"] == 50000.0
+    channel = {r["channel"]: r for r in b["by_channel"]}
+    assert channel["airbnb"] == {"channel": "airbnb", "bookings": 1, "value": 12000.0}
+    assert channel["direct"]["bookings"] == 3
+
+
+def test_an_agent_gets_the_breakdowns_without_money(client, world):
+    j = _get(client, world["h_a1"]).json()
+    assert all(r["value"] is None for r in j["bookings"]["by_property"] + j["bookings"]["by_channel"])
+
+
+@pytest.mark.parametrize("trend,expected_buckets", [("day", None), ("week", 12), ("month", 12)])
+def test_the_trend_can_be_day_week_or_month(client, world, trend, expected_buckets):
+    s = _get(client, world["h_owner"], trend=trend).json()["series"]
+    assert s["granularity"] == trend
+    if expected_buckets:
+        assert len(s["days"]) == expected_buckets
+    assert sum(s["leads"][s["period_start_index"]:]) >= 4
+    assert sum(s["booking_value"]) >= 90000.0 and sum(s["bookings"]) >= 3
+    if trend == "week":
+        assert all(date.fromisoformat(d).weekday() == 0 for d in s["days"])           # buckets start on Monday
+    if trend == "month":
+        assert all(d.endswith("-01") for d in s["days"])
+
+
+def test_a_bad_trend_is_refused_and_a_restricted_viewer_gets_no_money_series(client, world):
+    assert _get(client, world["h_owner"], trend="decade").status_code == 422
+    s = _get(client, world["h_a1"], trend="week").json()["series"]
+    assert s["booking_value"] is None and s["net_collected"] is None and s["leads"] is not None
+
+
+def test_meta_ads_reports_delivery_numbers_and_top_campaigns(client, db, world):
+    tid, l2 = world["tid"], world["leads"][1]
+    db.add(Integration(id=str(uuid.uuid4()), tenant_id=tid, kind="meta_ads", status="active", config={"ad_account_id": "act_1"}))
+    for day, spend, imp, clk, chats, camp, name in [(date(2026, 9, 12), 3000, 20000, 400, 6, "c1", "Weekend Escape"),
+                                                      (date(2026, 9, 13), 1000, 10000, 100, 2, "c2", "Monsoon Offer")]:
+        db.add(AdMetric(tenant_id=tid, ad_account_id="act_1", date=day, campaign_id=camp, campaign_name=name, ad_id=f"ad-{camp}",
+                        spend=spend, impressions=imp, clicks=clk, conversations_started=chats))
+    conv = Conversation(id=str(uuid.uuid4()), tenant_id=tid, guest_id=l2.guest_id, inquiry_id=l2.id, channel=ChannelType.INSTAGRAM)
+    db.add(conv); db.flush()
+    db.add(LeadAttribution(tenant_id=tid, inquiry_id=l2.id, conversation_id=conv.id, guest_id=l2.guest_id, destination_channel="instagram",
+                           ad_id="ad-c1", first_message_at=_ist("2026-09-13"), created_at=_ist("2026-09-13")))
+    db.commit()
+    m = _get(client, world["h_owner"]).json()["meta_ads"]
+    assert (m["impressions"], m["clicks"]) == (30000, 500)
+    assert m["ctr"] == 1.67 and m["cpc"] == 8.0 and m["cpm"] == 133.33         # 4,000 spend
+    top = m["campaigns"]
+    assert [c["name"] for c in top] == ["Weekend Escape", "Monsoon Offer"]
+    assert top[0]["spend"] == 3000.0 and top[0]["reported_chats"] == 6 and top[0]["verified_conversations"] == 1
+    assert top[1]["verified_conversations"] == 0
+
+
+def test_the_agent_table_merges_leads_bookings_messages_and_the_scorecard(client, db, world, monkeypatch):
+    tid, a1 = world["tid"], world["a1"]
+    conv = Conversation(id=str(uuid.uuid4()), tenant_id=tid, guest_id=world["leads"][0].guest_id, inquiry_id=world["leads"][0].id,
+                        channel=ChannelType.WHATSAPP)
+    db.add(conv); db.flush()
+    for i in range(3):
+        db.add(Message(id=str(uuid.uuid4()), tenant_id=tid, conversation_id=conv.id, direction="outbound", channel="whatsapp",
+                       body="hi", sender_id=a1.id, is_ai_generated=False, created_at=_ist("2026-09-14", 10 + i)))
+    db.add(Message(id=str(uuid.uuid4()), tenant_id=tid, conversation_id=conv.id, direction="outbound", channel="whatsapp", body="note",
+                   sender_id=a1.id, is_internal=True, created_at=_ist("2026-09-14", 13)))        # internal notes are not messages sent
+    db.commit()
+    monkeypatch.setattr(extras, "get_agent_scorecard_rows", lambda *a, **k: [{
+        "agent_id": a1.id, "agent_name": "Asha", "leads_handled": 2, "avg_response_seconds": 540.0, "response_count": 7,
+        "followups_total": 5, "followups_completed": 3, "followups_overdue": 1, "calls_answered": 9, "calls_missed": 4,
+        "calls_missed_recovered": 1, "ai_drafts_total": 6, "ai_drafts_approved": 4, "ai_drafts_rejected": 1, "conversions": 1}])
+    agents = {a["name"]: a for a in _get(client, world["h_owner"]).json()["agents"]}
+    asha = agents["Asha"]
+    assert (asha["leads"], asha["valid"], asha["invalid"]) == (2, 2, 0)
+    assert (asha["bookings"], asha["booking_value"]) == (2, 80000.0)
+    assert asha["messages_sent"] == 3
+    assert (asha["calls_answered"], asha["calls_missed"], asha["callbacks_waiting"]) == (9, 4, 3)
+    assert asha["avg_response_seconds"] == 540 and (asha["followups_completed"], asha["followups_overdue"]) == (3, 1)
+    assert agents["Bala"]["invalid"] == 1 and agents["Bala"]["avg_response_seconds"] is None     # no scorecard data: unknown, not 0
+
+
+def test_promising_leads_at_risk_come_from_the_work_queue_and_the_ai_reading(client, db, world):
+    l4 = world["leads"][3]                                   # unassigned and open
+    l4.ai_analysis = {"sentiment": "positive"}
+    world["leads"][0].ai_analysis = {"sentiment": "neutral"}
+    db.commit()
+    j = _get(client, world["h_owner"]).json()
+    risk = j["leads"]["high_intent_at_risk"]
+    assert risk["count"] == 1 and risk["items"][0]["inquiry_id"] == l4.id and risk["items"][0]["reason"] == "nobody owns it"
+    assert {"key": "high_intent_risk", "label": "Promising leads at risk", "count": 1, "oldest_at": None, "href": "/dashboard/leads"} in j["attention"]

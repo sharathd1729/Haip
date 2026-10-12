@@ -31,6 +31,7 @@ def business_overview(
     channel: Optional[str] = Query(None, description="whatsapp|instagram|facebook|call|website|other"),
     property_id: Optional[str] = Query(None),
     agent_id: Optional[str] = Query(None, description="Owner/manager only: narrow to one agent's leads"),
+    trend: str = Query("day", pattern="^(day|week|month)$", description="Trend chart bucket"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     _cap=Depends(require_capability("analytics.read")),
@@ -64,7 +65,7 @@ def business_overview(
         property_id=property_id or None, channel=channel_key,
         scope_user_id=(agent_id or None) if tenant_wide else current_user.id,
         tenant_wide=tenant_wide,
-        can_bookings="bookings.read" in caps, can_revenue="revenue.read" in caps,
+        can_bookings="bookings.read" in caps, can_revenue="revenue.read" in caps, trend=trend,
     )
     tenant = db.query(Tenant).filter_by(id=tid).first()
     return svc.build(db, params, tenant)

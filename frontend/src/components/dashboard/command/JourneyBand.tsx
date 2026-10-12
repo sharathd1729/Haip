@@ -43,8 +43,8 @@ export function JourneyBand({ data }: { data: BusinessOverview }) {
                 )}
                 {i === 0 && <p className="mb-1 text-[11.5px] text-[var(--haip-fg-subtle)]">&nbsp;</p>}
                 <Link href={LINKS[s.key]} className="group block rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
-                  {/* The label reserves two lines below the desktop width so the four counts stay on one baseline. */}
-                  <span className="block min-h-10 text-[13px] font-medium leading-5 text-[var(--haip-fg-2)] group-hover:text-[var(--haip-fg)] lg:min-h-0">{s.label}</span>
+                  {/* From the tablet width the four stages sit side by side: the label reserves two lines so the counts share a baseline. */}
+                  <span className="block text-[13px] font-medium leading-5 text-[var(--haip-fg-2)] group-hover:text-[var(--haip-fg)] sm:min-h-10 lg:min-h-0">{s.label}</span>
                   <span className="mt-0.5 flex items-baseline justify-between gap-2">
                     <span className="font-[family-name:var(--font-display)] text-[28px] font-semibold leading-tight tabular-nums text-[var(--haip-fg)]">
                       {hidden ? "—" : num(s.count)}

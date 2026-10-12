@@ -21,6 +21,10 @@ export interface LeadsBlock {
   valid: number; invalid: number; marked_spam_excluded: number;
   converted_to_booking: number; conversion_rate: number | null; conversion_basis: string;
   unassigned_now: number;
+  lost: number;
+  by_expected_check_in: { month: string; count: number }[];
+  expected_check_in_unknown: number;
+  high_intent_at_risk: { count: number; items: { inquiry_id: string; name: string; reason: string; href: string }[] };
 }
 
 export interface BookingsBlock {
@@ -31,6 +35,9 @@ export interface BookingsBlock {
   upcoming_checkins: number; upcoming_window_days: number;
   needs_payment: number; payment_overdue: number; needs_payment_truncated: boolean;
   not_linked_to_a_lead: number | null;
+  upcoming_checkouts: number;
+  by_property: { property_id: string; name: string; bookings: number; value: number | null }[];
+  by_channel: { channel: string; bookings: number; value: number | null }[];
   basis: string;
 }
 
@@ -50,7 +57,10 @@ export interface RevenueBlock {
   basis: string;
 }
 
+export type Trend = "day" | "week" | "month";
+
 export interface SeriesBlock {
+  granularity: Trend;
   days: string[];
   period_start_index: number;
   leads: number[];
@@ -61,7 +71,14 @@ export interface SeriesBlock {
 
 export interface PipelineRow { stage: string; category: string | null; won: boolean; lost: boolean; count: number }
 export interface SourceRow { key: string; label: string; leads: number; bookings: number | null; booking_value: number | null }
-export interface AgentRow { agent_id: string | null; name: string; leads: number; bookings: number | null; booking_value: number | null }
+export interface AgentRow {
+  agent_id: string | null; name: string;
+  leads: number; valid: number; invalid: number; bookings: number | null; booking_value: number | null;
+  calls_answered: number; calls_missed: number; callbacks_waiting: number;
+  avg_response_seconds: number | null; messages_sent: number;
+  followups_total: number; followups_completed: number; followups_overdue: number;
+  ai_drafts_approved: number; ai_drafts_total: number; avg_call_score: number | null;
+}
 
 export interface MetaAds {
   configured: boolean;
@@ -69,6 +86,8 @@ export interface MetaAds {
   spend?: number | null; reported_chats?: number; verified_conversations?: number; verified_leads?: number;
   verified_bookings?: number | null; verified_booking_value?: number | null; not_traced?: number; basis?: string;
   cost_per_verified_lead?: number | null; return_on_spend?: number | null;
+  impressions?: number; clicks?: number; ctr?: number | null; cpc?: number | null; cpm?: number | null;
+  campaigns?: { campaign_id: string; name: string; spend: number | null; impressions: number; clicks: number; reported_chats: number; verified_conversations: number }[];
 }
 
 export interface AttentionItem { key: string; label: string; count: number; oldest_at: string | null; href: string }
@@ -106,6 +125,15 @@ const NUM = new Intl.NumberFormat("en-IN");
 export const inr = (n: number | null | undefined): string => (n == null ? "—" : INR.format(n));
 export const num = (n: number | null | undefined): string => (n == null ? "—" : NUM.format(n));
 export const pct = (n: number | null | undefined): string => (n == null ? "—" : `${n.toFixed(n % 1 ? 1 : 0)}%`);
+
+/** 540 -> "9m", 45 -> "45s", 7300 -> "2h 2m"; null stays "—" (unknown, not zero). */
+export function duration(seconds: number | null | undefined): string {
+  if (seconds == null) return "—";
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+  const h = Math.floor(seconds / 3600), m = Math.round((seconds % 3600) / 60);
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
 
 /** ₹1.2L / ₹3.4Cr — for chart axes and tight spaces only. */
 export function inrShort(n: number): string {

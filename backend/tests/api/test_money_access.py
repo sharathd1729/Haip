@@ -185,3 +185,71 @@ def test_the_mcp_dashboard_tool_withholds_revenue_without_revenue_read(db, overv
     assert seen_by_agent["revenue_restricted"] is True
     assert seen_by_agent["revenue_mtd"] is None and seen_by_agent["revenue_mtd_prev"] is None and seen_by_agent["revenue_chart"] is None
     assert seen_by_agent["occupancy_pct"] is not None        # the non-money KPIs are still delivered
+
+
+# ── the portfolio calendar and the revenue report ────────────────────────────────────────────────────────────
+
+def _calendar_path():
+    today = date.today()
+    return f"/api/v1/calendar?from_date={today}&to_date={today + timedelta(days=8)}"
+
+
+def test_the_calendar_is_a_bookings_view_and_shows_amounts_only_with_revenue_read(client, world):
+    path = _calendar_path()
+    for role, (_, headers) in world["users"].items():
+        r = client.get(path, headers=headers)
+        if role not in BOOKINGS_READ:
+            assert r.status_code == 403, f"calendar as {role}"
+            assert not any(m in r.text for m in MONEY)
+            continue
+        assert r.status_code == 200, f"calendar as {role}"
+        body, text = r.json(), r.text
+        stay = next(s for row in body["properties"] for s in row["stays"])
+        assert stay["guest_name"]                                           # operations data is still there
+        if role in REVENUE_READ:
+            assert stay["total_amount"] == 48500.0 and body["stats"]["revenue_restricted"] is False
+            assert body["stats"]["revenue_locked"] == 48500.0
+        else:
+            assert stay["total_amount"] is None and body["stats"]["revenue_restricted"] is True
+            assert body["stats"]["revenue_locked"] is None and body["stats"]["revenue_quoted"] is None
+            assert all(row["monthly_revenue"] is None for row in body["properties"])
+            assert not any(m in text for m in MONEY), f"amount leaked to {role}"
+
+
+def test_another_workspaces_owner_sees_none_of_this_calendar(client, db, world):
+    other = _tenant(db)
+    _, h = _user(db, other.id, "owner")
+    r = client.get(_calendar_path(), headers=h)
+    assert r.status_code == 200 and not any(m in r.text for m in MONEY) and "Guest" not in r.text
+
+
+def test_a_signed_out_caller_gets_no_calendar(client, world):
+    assert client.get(_calendar_path()).status_code in (401, 403)
+
+
+def _report(client, headers, how="preview"):
+    body = {"report_id": "revenue", "fields": ["booking_date", "guest_name", "total_revenue"]}
+    if how == "preview":
+        return client.post("/api/v1/reports/preview", json=body, headers=headers)
+    if how == "download":
+        return client.post("/api/v1/reports/download?format=json", json=body, headers=headers)
+    return client.get("/api/v1/reports/export?report_id=revenue&format=json", headers=headers)
+
+
+@pytest.mark.parametrize("how", ["preview", "download", "export"])
+def test_the_revenue_report_needs_revenue_read_on_top_of_report_access(client, world, how):
+    for role, (_, headers) in world["users"].items():
+        r = _report(client, headers, how)
+        if role in ("owner", "manager"):
+            assert r.status_code == 200, f"{how} as {role}: {r.text[:200]}"
+        else:
+            assert r.status_code == 403, f"{how} as {role}: expected 403, got {r.status_code}"
+            assert not any(m in r.text for m in MONEY)
+
+
+def test_the_revenue_report_is_missing_from_the_catalog_of_roles_without_revenue_read(client, world):
+    def ids(role):
+        return {e["id"] for e in client.get("/api/v1/reports/catalog", headers=world["users"][role][1]).json()}
+    assert "revenue" in ids("owner") and "revenue" in ids("manager")
+    assert "revenue" not in ids("compliance")           # compliance runs most reports but holds no revenue capability
+    assert "calls" in ids("compliance")                  # ...and keeps the rest

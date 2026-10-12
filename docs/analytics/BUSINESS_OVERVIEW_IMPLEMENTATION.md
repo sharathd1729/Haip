@@ -2,7 +2,7 @@
 
 **Date:** 12 Oct 2026. **Page:** `/dashboard` (owners and managers; every other role keeps the operations view, now also at `/dashboard/operations`).
 **API:** `GET /api/v1/dashboard/business-overview`. **Code:** `backend/app/api/v1/endpoints/business_overview.py`,
-`backend/app/services/business_overview_service.py` (+ `business_overview_common.py`: parameters and shared filters), shared metrics in `backend/app/services/kpi_metrics.py`,
+`backend/app/services/business_overview_service.py` (+ `business_overview_common.py`: parameters and shared filters; `business_overview_extras.py`: lead extras, breakdowns, trend, Meta detail, agents, at-risk), shared metrics in `backend/app/services/kpi_metrics.py`,
 UI in `frontend/src/components/dashboard/command/`.
 Read with `KPI_METRIC_CATALOGUE.md` (definitions, decisions D-nn), `OWNER_DASHBOARD_AUDIT.md` (access findings OA-nn).
 Design: `docs/design/owner-command-center.md`.
@@ -23,7 +23,7 @@ endpoint, the Command Center components.
 ## 2. Request and response
 
 Query: `date_preset` (today, yesterday, this_month, last_month, last_7d, last_14d, custom; default `this_month`),
-`date_from` / `date_to` (IST dates, with `custom`), `channel` (whatsapp, instagram, facebook, call, website, other; `voice`
+`trend` (day, week or month chart buckets), `date_from` / `date_to` (IST dates, with `custom`), `channel` (whatsapp, instagram, facebook, call, website, other; `voice`
 is accepted as `call`), `property_id`, `agent_id` (owner and manager only). Bad values return 422.
 
 Response blocks: `period` (dates, `Asia/Kolkata`, previous period), `filters`, `access` (`tenant_wide`, `bookings`,
@@ -60,6 +60,15 @@ HAIP cannot compute is `{"available": false, "reason": ...}`. A change against a
 | Agents | leads, linked bookings, value per current lead owner | `inquiries`, `stays` | cohort | in service |
 | Attention | unassigned, waiting reply, missed calls, overdue follow-ups, overdue payments, owing bookings | work queue + booking rules | live | `needs_you_now`, `booking_service` |
 | Stale integrations | PMS polled kinds late, errors, Meta token near expiry | `integrations` | live | `integration_health.classify` |
+| Lost leads | cohort leads now in a closed-lost stage | `inquiries` + `pipeline_stages` | cohort | in extras |
+| Expected check-in | cohort leads by month of `Inquiry.check_in` (leads without a usable date are counted separately) | `inquiries` | cohort | in extras |
+| Check-outs next 7 days | confirmed / in-house stays leaving today..+6 | `stays` | `check_out`, IST today | in extras |
+| Bookings by property / channel | bookings made in the period grouped by `property_id` and `channel_source` (no recorded channel = direct) | `stays` | `created_at` | in extras |
+| Trend (day / week / month) | leads, bookings, booked value, net cash per bucket; weeks start Monday; week and month show the last 12 buckets ending at the period end | as above | IST | in extras |
+| Meta delivery | impressions, clicks, CTR, CPC, CPM from Meta; top 5 campaigns with traced conversations | `ad_metrics`, `lead_attribution` | Meta date | in extras |
+| Agent table | leads (valid / invalid), linked bookings and value, calls answered / missed, callbacks waiting, first-reply time, messages sent, follow-ups done / overdue, AI drafts, average call score | `inquiries`, `stays`, `messages`, `calls` + the shared scorecard | cohort / IST | `agent_analytics_service.get_agent_scorecard_rows` + extras |
+| Promising leads at risk | open leads whose AI reading is positive ("hot", as on Leads activity) that nobody owns, wait for a reply, or have an overdue follow-up | work queue + `inquiries.ai_analysis` | live | `work_queue_service.build` |
+| Instagram, WhatsApp campaigns | read by the page from the existing Instagram Insights and WhatsApp overview APIs, **last 30 days, not the selected period** | Meta Graph, `wa_campaigns` | 30 days | existing endpoints |
 | Not available | pending bookings (no such status), net revenue (no tax / commission data) | n/a | n/a | documented, not computed |
 
 ## 4. Rules
@@ -93,9 +102,13 @@ Money endpoints now gated in this batch (backend, enforced regardless of what th
 `GET /analytics/executive` (`revenue.read`); MCP `get_dashboard_metrics` withholds revenue without `revenue.read`.
 `GET /dashboard/overview` no longer returns workspace-wide revenue or booking counts to an agent (their bookings are
 those linked to their own leads; revenue is `null` with `revenue_restricted`).
-**Not yet gated:** the portfolio calendar (`GET /calendar`, `/calendar/occupancy-summary`) still returns per-stay amounts
-and `monthly_revenue` to any signed-in user; `GET /calls/summary` and `/instagram-insights` carry no money. Public API
-keys are scoped separately and were not changed.
+`GET /calendar` now needs `bookings.read` (it carries guest names and phones) and withholds amounts without `revenue.read`:
+per-stay `total_amount`, each property's `monthly_revenue` and `stats.revenue_locked` / `revenue_quoted` come back `null`
+with `stats.revenue_restricted: true`. The **revenue report** (`/reports/preview`, `/download`, `/export`) needs `revenue.read` on
+top of the role's report access and is dropped from the catalog without it (compliance runs most reports but holds no revenue
+capability). **Not gated:** `/calendar/occupancy-summary`, `/calls/summary` and `/instagram-insights` carry no booking money;
+the guest-directory report shows a guest's lifetime value; a lead's quoted amount is visible on lead records; Public API keys are
+scoped separately and were not changed.
 
 ## 6. Freshness
 

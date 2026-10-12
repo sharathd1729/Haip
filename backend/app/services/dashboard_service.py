@@ -61,7 +61,12 @@ def needs_you_now(db: Session, tenant, scope_user_id: Optional[str]) -> dict:
     to be its own set of queries, which is exactly how they drifted apart."""
     from app.services import work_queue_service
 
-    res = work_queue_service.counts(db, tenant, scope_user_id)
+    return needs_you_now_from(work_queue_service.counts(db, tenant, scope_user_id))
+
+
+def needs_you_now_from(res: dict) -> dict:
+    """The same four cards from an already-built work-queue result (``build`` and ``counts`` both carry counts and
+    oldest), so a caller that also needs the items does not query the queue twice."""
     c, oldest = res["counts"], res["oldest"]
     return {
         "waiting_reply": c["reply"], "waiting_oldest_at": oldest["reply"],

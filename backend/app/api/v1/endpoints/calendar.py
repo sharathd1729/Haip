@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.api.v1.deps import get_current_user
+from app.services.authz_service import has_capability, require_capability
 from app.models.property import Property, Stay, BlockedDate, SeasonalRate, RatePlan
 # Guest is imported lazily inside the handler to avoid any startup mapper issues
 
@@ -86,11 +87,17 @@ def get_calendar(
     to_date: str = Query(..., description="YYYY-MM-DD end of window (exclusive)"),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
+    # The grid carries guest names, phones and what each stay is worth: it is a bookings view (bookings.read).
+    _cap=Depends(require_capability("bookings.read")),
 ):
     """
     Return full calendar grid: properties × dates with status + stats.
+
+    Amounts (per-stay value, a property's monthly revenue, the locked / quoted totals) need revenue.read. Without it
+    they are returned as null and ``stats.revenue_restricted`` is true: withheld, never zero.
     """
     tenant_id = current_user.tenant_id
+    can_revenue = has_capability(db, current_user, "revenue.read")
     start = date.fromisoformat(from_date)
     end   = date.fromisoformat(to_date)
     days  = _date_range(start, end)
@@ -180,7 +187,7 @@ def get_calendar(
                 "guest_phone":  guest_phones.get(str(s.guest_id), "") if s.guest_id else "",
                 # getattr guards for columns that may not exist in older DB schemas
                 "adults":       getattr(s, "adults", None) or 1,
-                "total_amount": float(s.total_amount) if s.total_amount else None,
+                "total_amount": (float(s.total_amount) if s.total_amount else None) if can_revenue else None,
                 "channel_source": getattr(s, "channel_source", None) or "direct",
             }
             for s in stays_raw
@@ -280,7 +287,7 @@ def get_calendar(
             "stays":            stays,
             "blocks":           blocks,
             "rates":            rates,
-            "monthly_revenue":  monthly_revenue,
+            "monthly_revenue":  monthly_revenue if can_revenue else None,
         })
 
     # Occupancy %
@@ -312,8 +319,9 @@ def get_calendar(
         "properties":     rows,
         "stats": {
             "occupancy_pct":      occupancy_pct,
-            "revenue_locked":     float(revenue_locked),
-            "revenue_quoted":     float(revenue_quoted),
+            "revenue_locked":     float(revenue_locked) if can_revenue else None,
+            "revenue_quoted":     float(revenue_quoted) if can_revenue else None,
+            "revenue_restricted": not can_revenue,
             "total_properties":   len(rows),
             "window_days":        total_days,
             "check_ins_today":    check_ins_today,
