@@ -391,10 +391,9 @@ Backend auth is custom JWT (HS256) via `backend/app/api/v1/endpoints/auth.py` �
 
 **Test baseline** (branch `phase0-reliability`, 2026-10-11, Phase 0.1): **PostgreSQL 16 (what production and `test.yml` use):
 2251 passing / 0 failing / 1 skipped**; SQLite: **2207 passing / 0 failing / 45 skipped** (the PostgreSQL-only tests skip there).
-Run the suite on PostgreSQL before trusting a result: SQLite does not enforce foreign keys, column widths, boolean types or
-partial unique indexes, and hid a real `ai_score_status` varchar(20) bug and a forking audit chain (see
-`docs/HAIP_Phase0_Failure_Register.md`, Appendices 4-5). Do not add "known failures" -- fix or register them. The test `db`
-fixture uses savepoints on PostgreSQL, so code under test may call `commit/rollback/close` without wiping the test's rows.
+Run the suite on PostgreSQL before trusting a result: SQLite ignores foreign keys, column widths, booleans and partial unique indexes, and hid a
+real `ai_score_status` varchar(20) bug and a forking audit chain (`docs/HAIP_Phase0_Failure_Register.md`, Appendices 4-5). Do not add "known
+failures" -- fix or register them. The `db` fixture uses savepoints on PostgreSQL, so code under test may `commit/rollback/close` freely.
 Frontend: `tsc --noEmit --skipLibCheck` clean, vitest has no known failures (`permissions.test.ts` expected owner compliance `write`; it now asserts `manage`, which is what `permissions.ts` grants). Tests default `ENCRYPTION_KEY` in `tests/conftest.py`.
 `tests/test_celery_task_routing.py` guards that every registered task routes to a consumed queue and every beat entry names a
 registered task. It pins known exceptions (`_KNOWN_UNROUTED`, `_KNOWN_DEAD_BEAT`: 7 scheduled jobs -- DPDP purge, retention purge,
@@ -409,6 +408,8 @@ Row-level security: `alembic/proposed/118_*` is NOT applied; check the DB role w
 `conversations.send` to existing tenants unless the owner edited that cell; roll code back with `alembic downgrade 116` first (checklist 11).
 **Sending needs `conversations.send`** (owner, manager, reservations, concierge, foh by default): `send_message`, `send_template`, `retry`,
 `approve` and both AI-rewrite POSTs use `require_capability`. A new default grant only reaches NEW tenants; existing ones need a data migration.
+**AI-rewrite tasks are bounded** (`rewrite_draft.py`): one provider request <= `REWRITE_TIMEOUT_SECONDS` (30 s, `asyncio.wait_for`), a timeout is never retried, the draft task retries a
+provider error once (max 70 s per click), the composer never retries (reports `failed`/`timeout`); Celery soft/hard limits 45/60 s are only a backstop.
 **CI:** GitHub's default shell is `bash -e` WITHOUT pipefail, so `pytest | tee` passes even when pytest fails; every such step
 needs `shell: bash` + `set -eo pipefail`, and `! grep` is ignored by `set -e` (use `if grep ...; then exit 1; fi`).
 ⚠️ **Don't write a failure off as drift before checking for a latent bug.** Thirteen "pre-existing" failures were stdlib `logging` called
