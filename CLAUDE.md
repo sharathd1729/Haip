@@ -395,7 +395,7 @@ Run the suite on PostgreSQL before trusting a result: SQLite does not enforce fo
 partial unique indexes, and hid a real `ai_score_status` varchar(20) bug and a forking audit chain (see
 `docs/HAIP_Phase0_Failure_Register.md`, Appendices 4-5). Do not add "known failures" -- fix or register them. The test `db`
 fixture uses savepoints on PostgreSQL, so code under test may call `commit/rollback/close` without wiping the test's rows.
-Frontend: `tsc --noEmit --skipLibCheck` clean, vitest has 1 known failure (`permissions.test.ts`). Tests default `ENCRYPTION_KEY` in `tests/conftest.py`.
+Frontend: `tsc --noEmit --skipLibCheck` clean, vitest has no known failures (`permissions.test.ts` expected owner compliance `write`; it now asserts `manage`, which is what `permissions.ts` grants). Tests default `ENCRYPTION_KEY` in `tests/conftest.py`.
 `tests/test_celery_task_routing.py` guards two things: every registered task routes to a consumed queue, and every
 beat entry names a registered task. It pins today's known exceptions (`_KNOWN_UNROUTED`, `_KNOWN_DEAD_BEAT`:
 7 scheduled jobs -- DPDP purge, retention purge, Hostaway/RentalWise sync, owner digest, Meta quality poll,

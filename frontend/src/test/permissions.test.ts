@@ -38,9 +38,10 @@ describe("permissions", () => {
   });
 
   describe("hasPermission", () => {
-    it("owner has write permission on all resources", () => {
+    it("owner can write calls and users, and manage (but not write) compliance", () => {
       expect(hasPermission("owner", "calls", "write")).toBe(true);
-      expect(hasPermission("owner", "compliance", "write")).toBe(true);
+      expect(hasPermission("owner", "compliance", "manage")).toBe(true);
+      expect(hasPermission("owner", "compliance", "write")).toBe(false);
       expect(hasPermission("owner", "users", "write")).toBe(true);
     });
 
