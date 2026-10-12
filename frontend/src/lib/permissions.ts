@@ -322,6 +322,17 @@ export function hasPermission(
 }
 
 /**
+ * Whether a role may reply to guests and use the AI-rewrite buttons in the inbox.
+ *
+ * This only decides which controls the UI shows. The server is authoritative: every send and rewrite route requires
+ * the `conversations.send` capability (backend/app/services/authz_service.py), whose default holders are exactly the
+ * roles that have inbox "write" here: owner, manager, reservations, concierge and foh.
+ */
+export function canSendMessages(role: UserRole | string | undefined | null): boolean {
+  return hasPermission(role, "inbox", "write");
+}
+
+/**
  * Check if a role can see a nav section.
  * @example canSeeNav("concierge", "compliance") // false
  */

@@ -15,6 +15,8 @@ import httpx
 import pytest
 from cryptography.fernet import Fernet
 
+pytestmark = pytest.mark.usefixtures("capabilities_seeded")   # the send routes are gated by conversations.send
+
 os.environ.setdefault("ENCRYPTION_KEY", Fernet.generate_key().decode())
 
 from app.api.v1.endpoints.messaging import TemplateStatus, WATemplate

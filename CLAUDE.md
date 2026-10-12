@@ -1,5 +1,5 @@
 # HAIP — Claude Code Working Instructions
-**Version**: 2.3 · **Owner**: Sharath D. · **Updated**: 11 Oct 2026 (Alembic head `117`)
+**Version**: 2.3 · **Owner**: Sharath D. · **Updated**: 12 Oct 2026 (Alembic head `119`)
 **Reference docs**: HAIP_FULL_BUILD_PLAN.md · architecture-delta.md · execution-plan.md · docs/HAIP_Module_Audit_M0.md (module status matrix, 11 Oct 2026 — update statuses as gaps close)
 
 **KEEP THIS FILE CURRENT — standing rule from the owner.** When a change adds or alters a
@@ -396,24 +396,23 @@ partial unique indexes, and hid a real `ai_score_status` varchar(20) bug and a f
 `docs/HAIP_Phase0_Failure_Register.md`, Appendices 4-5). Do not add "known failures" -- fix or register them. The test `db`
 fixture uses savepoints on PostgreSQL, so code under test may call `commit/rollback/close` without wiping the test's rows.
 Frontend: `tsc --noEmit --skipLibCheck` clean, vitest has no known failures (`permissions.test.ts` expected owner compliance `write`; it now asserts `manage`, which is what `permissions.ts` grants). Tests default `ENCRYPTION_KEY` in `tests/conftest.py`.
-`tests/test_celery_task_routing.py` guards two things: every registered task routes to a consumed queue, and every
-beat entry names a registered task. It pins today's known exceptions (`_KNOWN_UNROUTED`, `_KNOWN_DEAD_BEAT`:
-7 scheduled jobs -- DPDP purge, retention purge, Hostaway/RentalWise sync, owner digest, Meta quality poll,
-lost-reason clustering -- reference names that do not exist and never run). The lists may only shrink; enabling
-a job needs an owner decision (see the failure register). New tasks need an exact-name route.
+`tests/test_celery_task_routing.py` guards that every registered task routes to a consumed queue and every beat entry names a
+registered task. It pins known exceptions (`_KNOWN_UNROUTED`, `_KNOWN_DEAD_BEAT`: 7 scheduled jobs -- DPDP purge, retention purge,
+Hostaway/RentalWise sync, owner digest, Meta quality poll, lost-reason clustering -- name tasks that do not exist and never run). The lists
+may only shrink; enabling a job needs an owner decision (failure register). New tasks need an exact-name route.
 `core/audit.py::append_audit` chains within one transaction and, on PostgreSQL, takes a per-tenant advisory lock (held until
 commit, 10 s bounded wait; failures log `audit_chain_lock_failed`) and stamps `created_at` strictly increasing, so concurrent
 writers form one chain. A transaction must never audit several tenants (deadlock): use one transaction per tenant.
 Row-level security: `alembic/proposed/118_*` is NOT applied; check the DB role with `backend/scripts/verify_rls_isolation.py`
-(read-only) and `docs/HAIP_Phase0_Production_Checklist.md` before assuming RLS protects anything. Migration 117 (head) widens
-`calls.ai_score_status`; rolling code back after it needs `alembic downgrade 116` first (checklist section 11).
+(read-only) and `docs/HAIP_Phase0_Production_Checklist.md` before assuming RLS protects anything. Migration 117 widens
+`calls.ai_score_status`; 119 (head; 118 is reserved for the proposed RLS file, which must be re-parented on 119 when promoted) grants foh
+`conversations.send` to existing tenants unless the owner edited that cell; roll code back with `alembic downgrade 116` first (checklist 11).
+**Sending needs `conversations.send`** (owner, manager, reservations, concierge, foh by default): `send_message`, `send_template`, `retry`,
+`approve` and both AI-rewrite POSTs use `require_capability`. A new default grant only reaches NEW tenants; existing ones need a data migration.
 **CI:** GitHub's default shell is `bash -e` WITHOUT pipefail, so `pytest | tee` passes even when pytest fails; every such step
 needs `shell: bash` + `set -eo pipefail`, and `! grep` is ignored by `set -e` (use `if grep ...; then exit 1; fi`).
-Transcription has no runtime provider failover (provider is chosen by config).
-⚠️ **Don't write a failure off as drift before checking for a latent bug.** Thirteen "pre-existing" failures were stdlib
-`logging` called with structlog kwargs (silent at WARNING, `TypeError` at INFO, how production runs); fixed. Phase 0 repeated
-the lesson: stale-looking tests hid an audit-chain fork, dead inbox tasks, a Hostaway sync that never worked, a `varchar(20)`
-status bug, and a CI step that passed on failing tests.
+⚠️ **Don't write a failure off as drift before checking for a latent bug.** Thirteen "pre-existing" failures were stdlib `logging` called
+with structlog kwargs (`TypeError` at INFO, how production runs); Phase 0 found an audit-chain fork, dead inbox tasks, a Hostaway sync that never worked, a `varchar(20)` bug and a CI step that passed on failing tests.
 
 ---
 

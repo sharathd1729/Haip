@@ -67,9 +67,14 @@ def narrow_column():
 # ── runs on every database ────────────────────────────────────────────────────────────────────
 
 def test_alembic_head_is_117_and_118_is_not_auto_applied():
-    """Alembic only sees alembic/versions. 118 lives in alembic/proposed, so it cannot ship by accident."""
+    """Alembic only sees alembic/versions. 118 lives in alembic/proposed, so it cannot ship by accident.
+
+    (Name kept because the failure register refers to it.) The chain tip is now 119, the front-of-house data
+    migration, which follows 117 directly because number 118 is reserved for the proposed RLS migration.
+    """
     script = ScriptDirectory.from_config(Config(str(BACKEND / "alembic.ini")))
-    assert script.get_heads() == ["117"]
+    assert script.get_heads() == ["119"]
+    assert script.get_revision("119").down_revision == "117"
     assert script.get_revision("117").down_revision == "116"
     assert not list((BACKEND / "alembic" / "versions").glob("118*")), "118 must stay in alembic/proposed until approved"
     assert (BACKEND / "alembic" / "proposed" / "118_rls_remaining_tenant_tables.py").exists()

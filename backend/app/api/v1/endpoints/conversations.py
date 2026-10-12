@@ -398,6 +398,9 @@ def send_message(
     request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    # Sends a message to a guest, so it needs the same capability as the AI-rewrite endpoints.
+    # Checked as a dependency, i.e. before the body runs and before anything is queued or delivered.
+    _cap=Depends(require_capability("conversations.send")),
 ):
     """
     Send an outbound message on a conversation.
@@ -515,6 +518,9 @@ def send_template_message(
     body: SendTemplateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    # Sends a message to a guest, so it needs the same capability as the AI-rewrite endpoints.
+    # Checked as a dependency, i.e. before the body runs and before anything is queued or delivered.
+    _cap=Depends(require_capability("conversations.send")),
 ):
     """
     T3.2: send an approved template to re-open a closed WhatsApp service
@@ -715,6 +721,9 @@ def retry_failed_message(
     message_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    # Sends a message to a guest, so it needs the same capability as the AI-rewrite endpoints.
+    # Checked as a dependency, i.e. before the body runs and before anything is queued or delivered.
+    _cap=Depends(require_capability("conversations.send")),
 ):
     """
     Re-enqueue delivery for a failed message (W23).
@@ -1000,6 +1009,9 @@ def approve_ai_draft(
     body: ApproveDraftRequest = ApproveDraftRequest(),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    # Sends a message to a guest, so it needs the same capability as the AI-rewrite endpoints.
+    # Checked as a dependency, i.e. before the body runs and before anything is queued or delivered.
+    _cap=Depends(require_capability("conversations.send")),
 ):
     msg = db.query(Message).filter_by(
         id=message_id, conversation_id=conversation_id, tenant_id=current_user.tenant_id

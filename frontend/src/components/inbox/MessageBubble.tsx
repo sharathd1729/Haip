@@ -249,12 +249,14 @@ export const MessageBubble = memo(function MessageBubble({
         {/* AI draft action buttons */}
         {isAiDraft && (
           <div className="flex items-center gap-1.5 mt-0.5">
-            <button
-              onClick={() => onApprove?.(id)}
-              className="ibx-approve-btn flex items-center gap-1 text-xs font-semibold border px-2.5 py-1 rounded-full transition-colors"
-            >
-              <ThumbsUp size={11} /> Approve
-            </button>
+            {onApprove && (
+              <button
+                onClick={() => onApprove(id)}
+                className="ibx-approve-btn flex items-center gap-1 text-xs font-semibold border px-2.5 py-1 rounded-full transition-colors"
+              >
+                <ThumbsUp size={11} /> Approve
+              </button>
+            )}
             <button
               onClick={() => onEdit?.(id, text)}
               className="flex items-center gap-1 text-xs text-[var(--haip-fg-2)] bg-[var(--haip-card)] hover:bg-[var(--haip-surface)] border border-[var(--haip-border)] px-2.5 py-1 rounded-full transition-colors"

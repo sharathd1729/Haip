@@ -1,9 +1,9 @@
 """Authorization of the two AI-rewrite POST endpoints.
 
 Both endpoints queue a real LLM request (NVIDIA NIM), so they are gated by the same capability as sending a
-message, ``conversations.send`` (default grants: owner, manager, reservations, concierge). Before this gate they
-only required a valid login and a conversation in the caller's own tenant, so a read_only, foh, marketing or
-compliance user could spend provider credit.
+message, ``conversations.send`` (default grants: owner, manager, reservations, concierge and, since Oct 2026,
+foh). Before this gate they only required a valid login and a conversation in the caller's own tenant, so a
+read_only, marketing or compliance user could spend provider credit.
 
 What is pinned here:
   * the default roles that may and may not queue a rewrite, on both endpoints;
@@ -27,8 +27,8 @@ from app.models.tenant import Tenant
 from app.models.user import User, UserRole
 from app.services import authz_service
 
-ALLOWED_ROLES = [UserRole.OWNER, UserRole.MANAGER, UserRole.RESERVATIONS, UserRole.CONCIERGE]
-DENIED_ROLES = [UserRole.FOH, UserRole.MARKETING, UserRole.COMPLIANCE, UserRole.READ_ONLY]
+ALLOWED_ROLES = [UserRole.OWNER, UserRole.MANAGER, UserRole.RESERVATIONS, UserRole.CONCIERGE, UserRole.FOH]
+DENIED_ROLES = [UserRole.MARKETING, UserRole.COMPLIANCE, UserRole.READ_ONLY]
 
 DRAFT_DELAY = "app.workers.tasks.rewrite_draft.rewrite_draft.delay"
 COMPOSER_DELAY = "app.workers.tasks.composer_rewrite.composer_rewrite.delay"
@@ -178,10 +178,10 @@ def test_a_tenant_can_revoke_the_capability_from_a_default_role(client, db, post
 @ENDPOINTS
 def test_a_tenant_can_grant_the_capability_to_another_role(client, db, post):
     tenant = _tenant(db)
-    db.query(RoleCapability).filter_by(tenant_id=tenant.id, role="foh",
+    db.query(RoleCapability).filter_by(tenant_id=tenant.id, role="marketing",
                                        capability_key="conversations.send").update({"allowed": True})
     db.commit()
-    resp, delay = post(client, db, _user(db, tenant.id, UserRole.FOH), tenant.id)
+    resp, delay = post(client, db, _user(db, tenant.id, UserRole.MARKETING), tenant.id)
     assert resp.status_code == 200, resp.text
     delay.assert_called_once()
 

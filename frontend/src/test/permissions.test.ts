@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hasPermission, canSeeNav, navByRole } from "@/lib/permissions";
+import { hasPermission, canSeeNav, canSendMessages, navByRole } from "@/lib/permissions";
 
 describe("permissions", () => {
   describe("navByRole", () => {
@@ -52,6 +52,38 @@ describe("permissions", () => {
 
     it("concierge cannot write to compliance", () => {
       expect(hasPermission("concierge", "compliance", "write")).toBe(false);
+    });
+  });
+
+  describe("canSendMessages (reply + AI rewrite controls in the inbox)", () => {
+    it("front-of-house can reply to guests", () => {
+      expect(canSendMessages("foh")).toBe(true);
+    });
+
+    it("exactly the roles that hold conversations.send on the server can send", () => {
+      // Mirrors backend authz_service._DEFAULT_GRANTS["conversations.send"]. If one changes, change the other.
+      const roles = Object.keys(navByRole);
+      const senders = roles.filter((r) => canSendMessages(r)).sort();
+      expect(senders).toEqual(["concierge", "foh", "manager", "owner", "reservations"]);
+    });
+
+    it("read-only, marketing and compliance cannot send", () => {
+      for (const role of ["read_only", "marketing", "compliance"]) {
+        expect(canSendMessages(role)).toBe(false);
+      }
+    });
+
+    it("an unknown or missing role cannot send", () => {
+      expect(canSendMessages(undefined)).toBe(false);
+      expect(canSendMessages(null)).toBe(false);
+      expect(canSendMessages("intruder")).toBe(false);
+    });
+
+    it("front-of-house gets no unrelated powers", () => {
+      expect(hasPermission("foh", "compliance", "read")).toBe(false);
+      expect(hasPermission("foh", "users", "write")).toBe(false);
+      expect(hasPermission("foh", "settings", "write")).toBe(false);
+      expect(hasPermission("foh", "properties", "write")).toBe(false);
     });
   });
 });

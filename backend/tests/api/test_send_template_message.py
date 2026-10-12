@@ -10,6 +10,8 @@ from app.models.conversation import Conversation, ChannelType, MessageDeliverySt
 from app.models.guest import Guest
 from app.api.v1.endpoints.messaging import WATemplate, TemplateStatus
 
+pytestmark = pytest.mark.usefixtures("capabilities_seeded")   # the send routes are gated by conversations.send
+
 
 @pytest.fixture()
 def wa_conversation(db, tenant_and_user):

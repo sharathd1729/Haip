@@ -16,6 +16,8 @@ import pytest
 from app.models.conversation import Message, MessageDeliveryState, Conversation, ChannelType
 from app.models.guest import Guest
 
+pytestmark = pytest.mark.usefixtures("capabilities_seeded")   # the send routes are gated by conversations.send
+
 
 @pytest.fixture()
 def auth_headers(tenant_and_user):

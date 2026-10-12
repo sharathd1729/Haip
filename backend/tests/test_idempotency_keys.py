@@ -24,6 +24,8 @@ from app.api.v1.endpoints.conversations import (
     _IDEMPOTENCY_WINDOW_HOURS,
 )
 
+pytestmark = pytest.mark.usefixtures("capabilities_seeded")   # the send routes are gated by conversations.send
+
 
 # ─────────────────────────────────────────────────────────────────
 # Unit tests: _extract_idempotency_key

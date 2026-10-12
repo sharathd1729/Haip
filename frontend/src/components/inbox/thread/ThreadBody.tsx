@@ -22,7 +22,7 @@ import {
 export function ThreadBody({
   detail, detailLoading, olderMessages, hasMoreOlderMessages, loadOlderMessages, loadingOlderMessages, callItems,
   handleApprove, handleReject, handleRetry, setEditingDraftId, setEditText, setReplyToMsg, textareaRef,
-  rewriteDraft, rewritingMessageId, aiTyping, bottomRef,
+  rewriteDraft, rewritingMessageId, aiTyping, bottomRef, canSend = true,
 }: {
   detail?: ConversationDetail; detailLoading: boolean;
   olderMessages: Message[]; hasMoreOlderMessages: boolean; loadOlderMessages: () => void; loadingOlderMessages: boolean;
@@ -33,6 +33,8 @@ export function ThreadBody({
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   rewriteDraft: Mut; rewritingMessageId: string | null;
   aiTyping: boolean; bottomRef: RefObject<HTMLDivElement | null>;
+  /** False hides the controls that send to a guest (approve a draft, retry, AI rewrite). The server enforces it too. */
+  canSend?: boolean;
 }) {
   // Thread body sits a shade below the white pane so the message column reads as its own surface
   // (prototype .thread-body). --haip-surface, not a literal gradient: it resolves to #F8FAFC in light
@@ -149,15 +151,15 @@ export function ThreadBody({
                         sharedPostUrl={row.msg.shared_post_url}
                         suggestedActions={row.msg.suggested_actions}
                         entityRefs={{ guest_id: detail?.guest_id, inquiry_id: detail?.inquiry_id ?? undefined }}
-                        onApprove={handleApprove}
+                        onApprove={canSend ? handleApprove : undefined}
                         onEdit={(id, text) => { setEditingDraftId(id); setEditText(text); }}
                         onReject={handleReject}
-                        onRetry={handleRetry}
+                        onRetry={canSend ? handleRetry : undefined}
                         onReply={(id) => {
                           setReplyToMsg(row.msg);
                           textareaRef.current?.focus();
                         }}
-                        onRewrite={(id, opts) => rewriteDraft.mutate({ messageId: id, tone: opts.tone, targetLanguage: opts.target_language })}
+                        onRewrite={canSend ? (id, opts) => rewriteDraft.mutate({ messageId: id, tone: opts.tone, targetLanguage: opts.target_language }) : undefined}
                         isRewriting={rewritingMessageId === row.msg.id}
                       />
                     ));
