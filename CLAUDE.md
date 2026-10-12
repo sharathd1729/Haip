@@ -1,5 +1,5 @@
 # HAIP — Claude Code Working Instructions
-**Version**: 2.3 · **Owner**: Sharath D. · **Updated**: 12 Oct 2026 (Alembic head `119`)
+**Version**: 2.3 · **Owner**: Sharath D. · **Updated**: 12 Oct 2026 (Alembic head `120`)
 **Reference docs**: HAIP_FULL_BUILD_PLAN.md · architecture-delta.md · execution-plan.md · docs/HAIP_Module_Audit_M0.md (module status matrix, 11 Oct 2026 — update statuses as gaps close)
 
 **KEEP THIS FILE CURRENT — standing rule from the owner.** When a change adds or alters a
@@ -36,10 +36,10 @@ replies, unified lead record across every touchpoint.
   (encrypted) + signed webhook, idempotent on payment id. DPDP erasure clears all booking children.
 - **iCal feeds** [109]: per-property export (`/ical/{token}.ics`, dates only) + optional import URL
   (Fernet-encrypted, SSRF-guarded, polled every 30 min into date blocks, re-exported to the other
-  links). Overlap with a HAIP booking raises a high-priority task. (Not two-way Google Calendar —
-  a plan for that exists, not built.)
-- **Public API + webhooks** [112, 113]: `/api/public/v1` is a *separate* FastAPI app
-  (`app/public_api/`) with its own OpenAPI. Scoped API keys (SHA-256 only, shown once, lookup via
+  links). Overlap with a HAIP booking raises a high-priority task. (Two-way Google Calendar: planned, not built.)
+  **Shared calendar** [120]: one link, several vehicles (`ical_feed_vehicles` keywords per property, whole-word match; no match = all held + one "Which vehicle?" task).
+  Trip dates in the description widen the block (`ical_event_details.py`); details show on the calendar (amounts: `revenue.read`).
+- **Public API + webhooks** [112, 113]: `/api/public/v1` is a *separate* FastAPI app (`app/public_api/`), own OpenAPI. Scoped API keys (SHA-256 only, shown once, lookup via
   SECURITY DEFINER fn). Signed outbound webhooks (HMAC-SHA256 over `timestamp.body`, outbox written
   in the same transaction, ~22h backoff, auto-off after 100 consecutive failures, HTTPS + SSRF guard).
 - **Work queue**: `work_queue_service` is the single source behind My day, the dashboard
@@ -404,8 +404,8 @@ commit, 10 s bounded wait; failures log `audit_chain_lock_failed`) and stamps `c
 writers form one chain. A transaction must never audit several tenants (deadlock): use one transaction per tenant.
 Row-level security: `alembic/proposed/118_*` is NOT applied; check the DB role with `backend/scripts/verify_rls_isolation.py`
 (read-only) and `docs/HAIP_Phase0_Production_Checklist.md` before assuming RLS protects anything. Migration 117 widens
-`calls.ai_score_status`; 119 (head; 118 is reserved for the proposed RLS file, which must be re-parented on 119 when promoted) grants foh
-`conversations.send` to existing tenants unless the owner edited that cell; roll code back with `alembic downgrade 116` first (checklist 11).
+`calls.ai_score_status`; 119 grants foh `conversations.send` to existing tenants unless the owner edited that cell; 120 (head) adds the
+iCal vehicle tables (new tables only). 118 is reserved for the proposed RLS file (re-parent on 120 when promoted). Roll code back with `alembic downgrade 116` first (checklist 11).
 **Sending needs `conversations.send`** (owner, manager, reservations, concierge, foh by default): `send_message`, `send_template`, `retry`,
 `approve` and both AI-rewrite POSTs use `require_capability`. A new default grant only reaches NEW tenants; existing ones need a data migration.
 **AI-rewrite tasks are bounded** (`rewrite_draft.py`): one provider request <= `REWRITE_TIMEOUT_SECONDS` (30 s, `asyncio.wait_for`), a timeout is never retried, the draft task retries a

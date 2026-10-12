@@ -153,6 +153,23 @@ def get_calendar(
         for b in blocks_all:
             blocks_by_prop.setdefault(b.property_id, []).append(b)
 
+    # What imported calendar events said (title, guest, phone, destination, package, amounts), one query for all blocks.
+    # Failure must not break the grid.
+    event_details: dict = {}
+    try:
+        from app.models.ical_feed import ICalEventDetail
+        block_ids = [b.id for bl in blocks_by_prop.values() for b in bl]
+        if block_ids:
+            for d in db.query(ICalEventDetail).filter(ICalEventDetail.tenant_id == tenant_id,
+                                                      ICalEventDetail.blocked_date_id.in_(block_ids)).all():
+                shown = dict(d.details or {})
+                if not can_revenue:
+                    shown.pop("amounts", None)          # booking money needs revenue.read, like per-stay amounts
+                event_details[d.blocked_date_id] = {"title": d.title, "details": shown, "dates_source": d.dates_source,
+                                                    "needs_vehicle": bool(d.needs_vehicle)}
+    except Exception:  # noqa: BLE001
+        event_details = {}
+
     # Best-effort guest enrichment (name + phone), batched across ALL properties
     # at once — failure MUST NOT break response.
     guest_names: dict[str, str] = {}
@@ -202,6 +219,7 @@ def get_calendar(
                 "reason": b.reason,
                 "notes": b.notes,
                 "is_active": b.is_active,
+                "event": event_details.get(str(b.id)),
             }
             for b in blocks_raw
         ]

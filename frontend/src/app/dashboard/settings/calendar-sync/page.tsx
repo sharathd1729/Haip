@@ -21,11 +21,23 @@ interface Feed {
   last_error: string | null;
   last_event_count: number | null;
   last_conflicts: number;
+  vehicles: { property_id: string; property_name: string | null; keywords: string[] }[];
+  needs_vehicle: number;
 }
 
 interface Property { id: string; name: string }
 
-interface FormState { property_id: string; name: string; import_url: string; feedId?: string }
+// keywords: property id -> comma-separated words that mean "this event is for that vehicle"
+interface FormState { property_id: string; name: string; import_url: string; feedId?: string; keywords: Record<string, string> }
+
+function vehiclesPayload(keywords: Record<string, string>): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const [pid, raw] of Object.entries(keywords)) {
+    const words = raw.split(",").map(w => w.trim()).filter(Boolean);
+    if (words.length) out[pid] = words;
+  }
+  return out;
+}
 
 const PRESETS = ["Airbnb", "Booking.com", "Google Calendar", "MakeMyTrip", "Agoda", "Other"];
 
@@ -63,8 +75,8 @@ export default function CalendarSyncPage() {
   const saveMutation = useMutation({
     mutationFn: (f: FormState) =>
       f.feedId
-        ? api.patch(`/ical-feeds/${f.feedId}`, { name: f.name, import_url: f.import_url })
-        : api.post("/ical-feeds", { property_id: f.property_id, name: f.name, import_url: f.import_url || null }),
+        ? api.patch(`/ical-feeds/${f.feedId}`, { name: f.name, import_url: f.import_url, vehicles: vehiclesPayload(f.keywords) })
+        : api.post("/ical-feeds", { property_id: f.property_id, name: f.name, import_url: f.import_url || null, vehicles: vehiclesPayload(f.keywords) }),
     onSuccess: res => {
       refresh();
       setForm(null);
@@ -119,7 +131,7 @@ export default function CalendarSyncPage() {
         subtitle="Keep Airbnb, Booking.com and Google Calendar in step with your bookings"
         actions={
         <button
-          onClick={() => setForm({ property_id: properties[0]?.id ?? "", name: "Airbnb", import_url: "" })}
+          onClick={() => setForm({ property_id: properties[0]?.id ?? "", name: "Airbnb", import_url: "", keywords: {} })}
           disabled={properties.length === 0}
           className="flex items-center gap-1.5 text-xs bg-teal-500 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-teal-600 disabled:opacity-40 transition-colors"
         >
@@ -161,7 +173,10 @@ export default function CalendarSyncPage() {
                       </button>
                     )}
                     <button
-                      onClick={() => setForm({ property_id: f.property_id, name: f.name, import_url: "", feedId: f.id })}
+                      onClick={() => setForm({
+                        property_id: f.property_id, name: f.name, import_url: "", feedId: f.id,
+                        keywords: Object.fromEntries(f.vehicles.map(v => [v.property_id, v.keywords.join(", ")])),
+                      })}
                       className="text-[11px] text-gray-600 border border-gray-200 hover:bg-gray-50 px-2 py-1 rounded-lg"
                     >
                       Edit
@@ -196,6 +211,16 @@ export default function CalendarSyncPage() {
                     <p className="text-gray-400">No link added. Edit this entry to paste the calendar link from {f.name}.</p>
                   )}
                   {f.last_status === "error" && f.last_error && <p className="text-red-600 mt-1">{f.last_error}</p>}
+                  {f.vehicles.length > 0 && (
+                    <p className="text-gray-500 mt-1">
+                      Shared calendar: {f.vehicles.map(v => `${v.property_name ?? "Vehicle"} (${v.keywords.join(", ")})`).join(" · ")}
+                    </p>
+                  )}
+                  {f.needs_vehicle > 0 && (
+                    <p className="text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1 mt-1.5">
+                      {f.needs_vehicle} event{f.needs_vehicle > 1 ? "s don't" : " doesn't"} say which vehicle. Every vehicle is held for {f.needs_vehicle > 1 ? "them" : "it"} until you add the vehicle name to the event title in Google Calendar.
+                    </p>
+                  )}
                   {f.last_conflicts > 0 && (
                     <p className="text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1 mt-1.5">
                       {f.last_conflicts} reservation{f.last_conflicts > 1 ? "s" : ""} here overlap{f.last_conflicts > 1 ? "" : "s"} a HAIP booking. A task was added to My Day.
@@ -274,6 +299,29 @@ export default function CalendarSyncPage() {
                   Optional. Leave empty if you only want to send HAIP bookings to this calendar. Treat the link like a password.
                 </p>
               </div>
+              {properties.length > 1 && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">One calendar for several vehicles? (optional)</label>
+                  <p className="text-[11px] text-gray-400 mb-2">
+                    Type the words that appear in an event for each vehicle, separated by commas, e.g. &ldquo;white, white ratha&rdquo;. Leave a vehicle blank if it is not in this calendar.
+                    An event that names no vehicle holds all of them and adds a task.
+                  </p>
+                  <div className="space-y-2">
+                    {properties.map(p => (
+                      <div key={p.id} className="flex items-center gap-2">
+                        <span className="w-28 shrink-0 text-xs text-gray-600 truncate" title={p.name}>{p.name}</span>
+                        <input
+                          value={form.keywords[p.id] ?? ""}
+                          onChange={e => setForm(f => f ? { ...f, keywords: { ...f.keywords, [p.id]: e.target.value } } : f)}
+                          aria-label={`Words for ${p.name}`}
+                          placeholder="white, white ratha"
+                          className="flex-1 min-w-0 text-base sm:text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="flex gap-2">
               <button onClick={() => setForm(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50">Cancel</button>

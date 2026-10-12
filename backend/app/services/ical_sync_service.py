@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session
 
 from app.core.encryption import decrypt_credentials
 from app.core.url_safety import safe_get
+from app.services import ical_event_details
 
 log = structlog.get_logger()
 
@@ -120,7 +121,8 @@ def parse_ics(text: str, tz: ZoneInfo) -> list[dict]:
                 e_date = s_date + timedelta(days=1)
             uid = (ev.get("UID") or "").strip() or f"nouid-{s_date.isoformat()}"
             events.append({"uid": uid, "start": s_date.isoformat(), "end": e_date.isoformat(),
-                           "summary": ev.get("SUMMARY", "")})
+                           "summary": ical_event_details.unescape(ev.get("SUMMARY", "")),
+                           "description": ical_event_details.unescape(ev.get("DESCRIPTION", ""))})
         elif current is not None and ":" in line:
             head, _, value = line.partition(":")
             parts = head.split(";")
@@ -241,9 +243,41 @@ def _tenant_tz(db: Session, tenant_id: str) -> ZoneInfo:
     return get_tz(tenant) if tenant else ZoneInfo("Asia/Kolkata")
 
 
+def _vehicle_rules(db: Session, feed) -> dict[str, list[str]]:
+    """{property_id: keywords} for a shared calendar; empty = the link belongs to one property."""
+    from app.models.ical_feed import ICalFeedVehicle
+    rows = db.query(ICalFeedVehicle).filter_by(feed_id=feed.id, tenant_id=feed.tenant_id).all()
+    return {r.property_id: [k for k in (r.keywords or []) if isinstance(k, str) and k.strip()] for r in rows}
+
+
+def _save_details(db: Session, feed, block, ev: dict, details: dict, source: str, needs_vehicle: bool) -> None:
+    from app.models.ical_feed import ICalEventDetail
+    row = db.query(ICalEventDetail).filter_by(blocked_date_id=block.id).first()
+    if row is None:
+        row = ICalEventDetail(tenant_id=feed.tenant_id, blocked_date_id=block.id, feed_id=feed.id, event_uid=ev["uid"][:255])
+        db.add(row)
+    row.title = (ev.get("summary") or "")[:255] or None
+    row.details = details
+    row.dates_source = source
+    row.needs_vehicle = needs_vehicle
+
+
+def _ask_which_vehicle(db: Session, feed, ev: dict, start: str, end: str) -> None:
+    """One task per event that named no vehicle, so someone says which caravan it is (shows on My Day)."""
+    from app.models.task import Task
+    title = f"Which vehicle? {(ev.get('summary') or 'Calendar booking')[:120]} ({start} to {end})"[:255]
+    if db.query(Task.id).filter_by(tenant_id=feed.tenant_id, title=title, is_done=False).first():
+        return
+    db.add(Task(tenant_id=feed.tenant_id, title=title, priority="high", due_date=datetime.now(timezone.utc)))
+
+
 def sync_feed(db: Session, feed, fetcher: Optional[Callable[[str], str]] = None) -> dict:
     """Read the link's calendar into BlockedDate rows. Never raises: the outcome
-    is recorded on the feed (last_status / last_error) and returned."""
+    is recorded on the feed (last_status / last_error) and returned.
+
+    A link with vehicle keywords is a SHARED calendar: each event blocks the vehicles it names, or all of them when it
+    names none (and a task asks which). The days blocked are the trip dates written in the description when those are
+    sensible, else the event's own days. The event's title and the details read from its description are kept with the block."""
     from app.models.property import BlockedDate
 
     now = datetime.now(timezone.utc)
@@ -272,57 +306,80 @@ def sync_feed(db: Session, feed, fetcher: Optional[Callable[[str], str]] = None)
         key = ev["uid"] if ev["uid"] not in seen else f"{ev['uid']}#{ev['start']}"
         seen[key] = ev
 
+    rules = _vehicle_rules(db, feed)
     prefix = marker(feed.id)
     existing = {
-        (b.notes or "")[len(prefix):]: b
+        (b.property_id, (b.notes or "")[len(prefix):]): b
         for b in db.query(BlockedDate).filter(
-            BlockedDate.tenant_id == feed.tenant_id, BlockedDate.property_id == feed.property_id,
-            BlockedDate.notes.like(prefix + "%")).all()
+            BlockedDate.tenant_id == feed.tenant_id, BlockedDate.notes.like(prefix + "%")).all()
     }
-    added = changed = lifted = 0
+    wanted: set[tuple[str, str]] = set()
+    properties_used: set[str] = set()
+    added = changed = lifted = ambiguous = 0
     for key, ev in seen.items():
-        row = existing.get(key)
-        if row is None:
-            db.add(BlockedDate(tenant_id=feed.tenant_id, property_id=feed.property_id,
-                               blocked_from=ev["start"], blocked_to=ev["end"], reason=IMPORT_REASON,
-                               notes=prefix + key, is_active=True))
-            added += 1
-        elif (row.blocked_from, row.blocked_to, row.is_active) != (ev["start"], ev["end"], True):
-            row.blocked_from, row.blocked_to, row.is_active = ev["start"], ev["end"], True
-            changed += 1
-    for key, row in existing.items():
-        # Gone from the source calendar: the reservation was cancelled. Past ones
-        # are left as history.
-        if key not in seen and row.is_active and row.blocked_to >= today.isoformat():
+        details = ical_event_details.extract(ev.get("summary", ""), ev.get("description", ""))
+        start, end, source = ical_event_details.block_window(ev["start"], ev["end"], details)
+        if rules:
+            hits = ical_event_details.match_vehicles(ev.get("summary", "") + "\n" + ev.get("description", ""), rules)
+            needs_vehicle = not hits
+            targets = hits or list(rules)
+        else:
+            needs_vehicle, targets = False, [feed.property_id]
+        if needs_vehicle:
+            ambiguous += 1
+            if end > today.isoformat():
+                _ask_which_vehicle(db, feed, ev, start, end)
+        for property_id in targets:
+            wanted.add((property_id, key))
+            properties_used.add(property_id)
+            row = existing.get((property_id, key))
+            if row is None:
+                row = BlockedDate(tenant_id=feed.tenant_id, property_id=property_id, blocked_from=start, blocked_to=end,
+                                  reason=IMPORT_REASON, notes=prefix + key, is_active=True)
+                db.add(row)
+                db.flush()
+                added += 1
+            elif (row.blocked_from, row.blocked_to, row.is_active) != (start, end, True):
+                row.blocked_from, row.blocked_to, row.is_active = start, end, True
+                changed += 1
+            _save_details(db, feed, row, ev, details, source, needs_vehicle)
+    for (property_id, key), row in existing.items():
+        # Gone from the source calendar (cancelled), or no longer meant for this vehicle: lifted. Past ones are history.
+        if (property_id, key) not in wanted and row.is_active and row.blocked_to >= today.isoformat():
             row.is_active = False
             lifted += 1
 
     db.flush()
-    conflicts = _flag_double_bookings(db, feed, today)
+    conflicts = sum(_flag_double_bookings(db, feed, today, pid) for pid in (properties_used or {feed.property_id}))
     feed.last_status, feed.last_error, feed.last_synced_at = "ok", None, now
     feed.last_event_count, feed.last_conflicts = len(seen), conflicts
     db.commit()
-    log.info("ical_sync_done", feed_id=feed.id, added=added, changed=changed, lifted=lifted, conflicts=conflicts)
-    return {"status": "ok", "events": len(seen), "added": added, "changed": changed, "lifted": lifted, "conflicts": conflicts}
+    log.info("ical_sync_done", feed_id=feed.id, added=added, changed=changed, lifted=lifted, conflicts=conflicts, ambiguous=ambiguous)
+    return {"status": "ok", "events": len(seen), "added": added, "changed": changed, "lifted": lifted, "conflicts": conflicts,
+            "needs_vehicle": ambiguous}
 
 
-def _flag_double_bookings(db: Session, feed, today: date) -> int:
+def _flag_double_bookings(db: Session, feed, today: date, property_id: Optional[str] = None) -> int:
     """An imported reservation that overlaps a HAIP booking means two guests
     hold the same dates. Count them and raise a task so someone sorts it out
-    (it shows on My Day) -- iCal sync has no way to stop it, only to notice."""
+    (it shows on My Day) -- iCal sync has no way to stop it, only to notice.
+    An event that named no vehicle already has its own "which vehicle?" task and is not counted here."""
+    from app.models.ical_feed import ICalEventDetail
     from app.models.property import BlockedDate, Property, Stay
     from app.models.task import Task
 
-    prop = db.query(Property).filter_by(id=feed.property_id, tenant_id=feed.tenant_id).first()
+    property_id = property_id or feed.property_id
+    prop = db.query(Property).filter_by(id=property_id, tenant_id=feed.tenant_id).first()
     pname = prop.name if prop else "property"
-    blocks = db.query(BlockedDate).filter(
-        BlockedDate.tenant_id == feed.tenant_id, BlockedDate.property_id == feed.property_id,
+    undecided = {r[0] for r in db.query(ICalEventDetail.blocked_date_id).filter_by(feed_id=feed.id, needs_vehicle=True).all()}
+    blocks = [b for b in db.query(BlockedDate).filter(
+        BlockedDate.tenant_id == feed.tenant_id, BlockedDate.property_id == property_id,
         BlockedDate.is_active.is_(True), BlockedDate.notes.like(marker(feed.id) + "%"),
-        BlockedDate.blocked_to > today.isoformat()).all()
+        BlockedDate.blocked_to > today.isoformat()).all() if b.id not in undecided]
     count = 0
     for b in blocks:
         clashes = db.query(Stay).filter(
-            Stay.tenant_id == feed.tenant_id, Stay.property_id == feed.property_id,
+            Stay.tenant_id == feed.tenant_id, Stay.property_id == property_id,
             Stay.status.in_(["confirmed", "checked_in"]),
             Stay.check_in < b.blocked_to, Stay.check_out > b.blocked_from).all()
         for stay in clashes:
