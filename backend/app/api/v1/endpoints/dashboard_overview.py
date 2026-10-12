@@ -31,7 +31,7 @@ from app.models.ai_draft_outcome import AIDraftOutcome
 from app.models.insight import Insight
 from app.services.date_presets import VALID_PRESETS, resolve_range, ist_range_to_utc
 from app.services.message_metrics import chat_response_avg_seconds
-from app.services import call_status_service, dashboard_service
+from app.services import call_status_service, dashboard_service, kpi_metrics
 from app.services.agent_analytics_service import get_agent_scorecard_rows
 from app.api.v1.endpoints.analytics import _delta
 
@@ -103,18 +103,11 @@ def dashboard_overview(
         equal-length period. Kept as a nested closure (not a module-level
         helper) since it needs scope_user_id/property_id/tid/tenant/
         closed_won_ids from the enclosing request."""
+        # leads.new (kpi_metrics): includes the exclusion of "unqualified" enquiries that Leads360's own pipeline
+        # count applies (leads_service.py::get_leads_pipeline) -- without it the two never agree for the same range.
         inq_q = db.query(Inquiry).filter(
-            Inquiry.tenant_id == tid, Inquiry.created_at >= rs, Inquiry.created_at <= re_,
-            # Same exclusion Leads360's own pipeline count applies
-            # (leads_service.py::get_leads_pipeline) -- without it this
-            # count and Leads360's never agree even when scoped to the
-            # same date range, since Leads360 never counts these at all.
-            Inquiry.qualification_status != "unqualified",
+            *kpi_metrics.lead_filters(tid, rs, re_, scope_user_id=scope_user_id, property_id=property_id)
         )
-        if scope_user_id:
-            inq_q = inq_q.filter(Inquiry.assigned_to == scope_user_id)
-        if property_id:
-            inq_q = inq_q.filter(Inquiry.property_id == property_id)
         total_leads = inq_q.count()
 
         qualified_leads = (

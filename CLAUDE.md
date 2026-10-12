@@ -43,7 +43,7 @@ replies, unified lead record across every touchpoint.
   SECURITY DEFINER fn). Signed outbound webhooks (HMAC-SHA256 over `timestamp.body`, outbox written
   in the same transaction, ~22h backoff, auto-off after 100 consecutive failures, HTTPS + SSRF guard).
 - **Work queue**: `work_queue_service` is the single source behind My day, the dashboard
-  "Needs you now" cards and Calls. Never add a parallel "what to do now" query.
+  "Needs you now" cards and Calls. Never add a parallel "what to do now" query. **KPI metrics**: `services/kpi_metrics.py` holds shared definitions (`leads.new`, `stays.occupied_nights`); catalogue + gaps in `docs/analytics/`. Don't unify a metric without its D-nn decision.
 - **CRM autopilot**: `lead_recommendation_service` suggests Mark Lost / Move stage; a human
   clicks Apply (existing audited `move_stage`). Chat-extracted trip fields can be re-stated by
   later messages; `quoted_amount` stays write-once. Missed/unanswered-call callback reminders.

@@ -29,6 +29,7 @@ from app.schemas.analytics import (
     ChannelMixPoint, OccupancyHeatPoint, InsightItem, InsightList,
 )
 from app.core.cache import cache_key, get_cached, set_cached
+from app.services import kpi_metrics
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -44,52 +45,13 @@ def _month_bounds(now: datetime):
 
 
 def _occ_nights(db, tid, prop_ids, start, end):
-    """Occupied nights across all properties (or filtered) within [start, end)."""
-    q = db.query(Stay.check_in, Stay.check_out).filter(
-        Stay.tenant_id == tid,
-        Stay.status.in_(["confirmed", "checked_in", "checked_out"]),
-        Stay.check_in < end.date().isoformat(),
-        Stay.check_out > start.date().isoformat(),
-    )
-    if prop_ids:
-        q = q.filter(Stay.property_id.in_(prop_ids))
-    total = 0
-    for r in q.all():
-        try:
-            # migration 071: check_in/check_out are real DATE columns now,
-            # already datetime.date objects -- no fromisoformat() needed.
-            ci = r.check_in
-            co = r.check_out
-            s = max(ci, start.date())
-            e = min(co, end.date())
-            total += max(0, (e - s).days)
-        except Exception:
-            pass
-    return total
+    """Occupied nights across all properties (or filtered) within [start, end). Shared definition: kpi_metrics.occupied_nights."""
+    return kpi_metrics.occupied_nights(db, tid, start.date(), end.date(), property_ids=prop_ids or None)
 
 
 def _occ_nights_prop(db, tid, prop_id, start, end):
     """Occupied nights for a single property."""
-    q = db.query(Stay.check_in, Stay.check_out).filter(
-        Stay.tenant_id == tid,
-        Stay.property_id == prop_id,
-        Stay.status.in_(["confirmed", "checked_in", "checked_out"]),
-        Stay.check_in < end.date().isoformat(),
-        Stay.check_out > start.date().isoformat(),
-    )
-    total = 0
-    for r in q.all():
-        try:
-            # migration 071: check_in/check_out are real DATE columns now,
-            # already datetime.date objects -- no fromisoformat() needed.
-            ci = r.check_in
-            co = r.check_out
-            s = max(ci, start.date())
-            e = min(co, end.date())
-            total += max(0, (e - s).days)
-        except Exception:
-            pass
-    return total
+    return kpi_metrics.occupied_nights(db, tid, start.date(), end.date(), property_ids=[prop_id])
 
 
 # ─── GET /analytics/executive ─────────────────────────────────────────────────

@@ -22,7 +22,7 @@ from app.models.conversation import Conversation
 from app.models.inquiry import Inquiry
 from app.models.property import Stay
 from app.models.task import Task
-from app.services import call_status_service, inbox_service
+from app.services import call_status_service, inbox_service, kpi_metrics
 from app.services.date_presets import IST
 
 # Same windows as the screens these link to.
@@ -109,12 +109,8 @@ def daily_series(db: Session, tenant, scope_user_id: Optional[str], d_from: str,
     days = _day_list(date.fromisoformat(d_from), date.fromisoformat(d_to))
     start, end = _utc_bounds(days)
 
-    inq_q = db.query(Inquiry.created_at).filter(
-        Inquiry.tenant_id == tid, Inquiry.created_at >= start, Inquiry.created_at <= end,
-        Inquiry.qualification_status != "unqualified",
-    )
-    if scope_user_id:
-        inq_q = inq_q.filter(Inquiry.assigned_to == scope_user_id)
+    # "New leads" is defined once, in kpi_metrics (leads.new).
+    inq_q = db.query(Inquiry.created_at).filter(*kpi_metrics.lead_filters(tid, start, end, scope_user_id=scope_user_id))
     leads = defaultdict(int)
     for (created,) in inq_q.all():
         leads[_ist_day(created)] += 1
@@ -151,11 +147,8 @@ def daily_series(db: Session, tenant, scope_user_id: Optional[str], d_from: str,
 
 def lead_sources(db: Session, tid: str, scope_user_id: Optional[str], range_start: str, range_end: str) -> list[dict]:
     q = db.query(Inquiry.source, func.count(Inquiry.id)).filter(
-        Inquiry.tenant_id == tid, Inquiry.created_at >= range_start, Inquiry.created_at <= range_end,
-        Inquiry.qualification_status != "unqualified",
+        *kpi_metrics.lead_filters(tid, range_start, range_end, scope_user_id=scope_user_id)   # leads.new
     )
-    if scope_user_id:
-        q = q.filter(Inquiry.assigned_to == scope_user_id)
     grouped: dict[str, list] = {}
     for source, n in q.group_by(Inquiry.source).all():
         raw = str(getattr(source, "value", source) or "other")
