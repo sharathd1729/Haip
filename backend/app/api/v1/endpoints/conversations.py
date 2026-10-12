@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from app.core.database import get_db
 from app.api.v1.deps import get_current_user
+from app.services.authz_service import require_capability
 from app.models.user import User
 from app.models.conversation import Conversation, Message, MessageDeliveryState
 from app.schemas.conversation import MessageOut, SendMessageRequest, AIDraftRequest, ConversationOut, SendTemplateRequest, ApproveDraftRequest, RewriteDraftRequest, ComposerRewriteRequest
@@ -397,6 +398,9 @@ def send_message(
     request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    # Sends a message to a guest, so it needs the same capability as the AI-rewrite endpoints.
+    # Checked as a dependency, i.e. before the body runs and before anything is queued or delivered.
+    _cap=Depends(require_capability("conversations.send")),
 ):
     """
     Send an outbound message on a conversation.
@@ -423,6 +427,15 @@ def send_message(
                 original_message_id=existing.id,
             )
             return existing  # 201 → 200 via response_model; caller gets original
+
+        # No message inside the window holds this key, but an older one may still own it: the unique index
+        # uq_messages_idempotency covers all time, not just 24 hours. Release the expired key so a legitimate
+        # send is not rejected with a unique violation (HTTP 500 on PostgreSQL). The old message is untouched
+        # apart from losing a key that no longer protects anything.
+        db.query(Message).filter(
+            Message.tenant_id == current_user.tenant_id,
+            Message.idempotency_key == idempotency_key,
+        ).update({Message.idempotency_key: None}, synchronize_session=False)
 
     # ── Create new message ────────────────────────────────────────────────────
     msg = Message(
@@ -505,6 +518,9 @@ def send_template_message(
     body: SendTemplateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    # Sends a message to a guest, so it needs the same capability as the AI-rewrite endpoints.
+    # Checked as a dependency, i.e. before the body runs and before anything is queued or delivered.
+    _cap=Depends(require_capability("conversations.send")),
 ):
     """
     T3.2: send an approved template to re-open a closed WhatsApp service
@@ -621,6 +637,8 @@ def rewrite_draft_endpoint(
     body: RewriteDraftRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    # An AI rewrite spends provider credit, so it needs the same capability as sending a message.
+    _cap=Depends(require_capability("conversations.send")),
 ):
     """HAIP Inbox prototype-wiring plan, ticket 3: real translate/tone-fix.
     Queues rewrite_draft, which updates the same Message.body in place --
@@ -651,6 +669,8 @@ def composer_rewrite_endpoint(
     body: ComposerRewriteRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    # An AI rewrite spends provider credit, so it needs the same capability as sending a message.
+    _cap=Depends(require_capability("conversations.send")),
 ):
     """HAIP Inbox full-parity pass, ticket 5: Translate/Tone-Fix on the
     composer's free-typed text, before it's ever sent -- unlike
@@ -701,6 +721,9 @@ def retry_failed_message(
     message_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    # Sends a message to a guest, so it needs the same capability as the AI-rewrite endpoints.
+    # Checked as a dependency, i.e. before the body runs and before anything is queued or delivered.
+    _cap=Depends(require_capability("conversations.send")),
 ):
     """
     Re-enqueue delivery for a failed message (W23).
@@ -986,6 +1009,9 @@ def approve_ai_draft(
     body: ApproveDraftRequest = ApproveDraftRequest(),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    # Sends a message to a guest, so it needs the same capability as the AI-rewrite endpoints.
+    # Checked as a dependency, i.e. before the body runs and before anything is queued or delivered.
+    _cap=Depends(require_capability("conversations.send")),
 ):
     msg = db.query(Message).filter_by(
         id=message_id, conversation_id=conversation_id, tenant_id=current_user.tenant_id

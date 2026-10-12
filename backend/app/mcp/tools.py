@@ -270,11 +270,18 @@ def _get_revenue_summary(db: Session, user: User, tenant_id: str, args: dict) ->
 def _get_dashboard_metrics(db: Session, user: User, tenant_id: str, args: dict) -> Any:
     _check_module(db, user, "analytics")
     from app.api.v1.endpoints.analytics_executive import executive_dashboard
-    result = executive_dashboard(
+    result = _dump(executive_dashboard(
         range_days=args.get("range_days", 30), property_ids=args.get("property_ids"),
         current_user=user, db=db,
-    )
-    return _dump(result)
+    ))
+    # This tool needs analytics.read, but its payload also carries revenue. Without revenue.read (the capability
+    # get_revenue_summary demands) the money fields are withheld, not zeroed, so the tool cannot be used to read them.
+    from app.services import authz_service
+    if not authz_service.has_capability(db, user, "revenue.read"):
+        result["revenue_mtd"] = result["revenue_mtd_prev"] = None
+        result["revenue_chart"] = None
+        result["revenue_restricted"] = True
+    return result
 
 
 def _get_agent_scorecard(db: Session, user: User, tenant_id: str, args: dict) -> Any:

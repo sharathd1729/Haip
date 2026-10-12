@@ -25,8 +25,8 @@ def test_register_and_login(client):
     assert reg_data["user"]["role"] == "owner"
 
     # Login with credentials
-    login_res = client.post("/api/v1/auth/login", data={
-        "username": "sharath@testprop.com",
+    login_res = client.post("/api/v1/auth/login", json={
+        "email": "sharath@testprop.com",
         "password": "Secure123!",
     })
     assert login_res.status_code == 200, login_res.text
@@ -55,8 +55,8 @@ def test_register_duplicate_email(client):
 
 def test_login_wrong_password(client, tenant_and_user):
     """Wrong password returns 401."""
-    res = client.post("/api/v1/auth/login", data={
-        "username": tenant_and_user["user"].email,
+    res = client.post("/api/v1/auth/login", json={
+        "email": tenant_and_user["user"].email,
         "password": "wrong-password",
     })
     assert res.status_code == 401

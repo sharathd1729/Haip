@@ -8,6 +8,7 @@ import { Send, Sparkles } from "@/lib/icons";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
+import { canSendMessages } from "@/lib/permissions";
 import { type InboxView } from "@/components/inbox/ConversationList";
 
 import { PhoneDeclineCallout } from "@/components/inbox/PhoneDeclineCallout";
@@ -43,8 +44,12 @@ const TemplatePickerModal = dynamic(
 function InboxPageInner() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const currentUserId = (session?.user as { id?: string } | undefined)?.id ?? null;
+  // Which reply / rewrite controls to show. The server enforces the same rule (conversations.send) on every send and
+  // rewrite route, so this only avoids offering buttons that would be refused. While the session loads, don't flash a
+  // "view only" notice at people who can reply.
+  const canSend = sessionStatus === "loading" || canSendMessages((session?.user as { role?: string } | undefined)?.role);
   const {
     conversations,
     activeConversationId,
@@ -716,7 +721,7 @@ function InboxPageInner() {
               handleApprove={handleApprove} handleReject={handleReject} handleRetry={handleRetry}
               setEditingDraftId={setEditingDraftId} setEditText={setEditText} setReplyToMsg={setReplyToMsg}
               textareaRef={textareaRef} rewriteDraft={rewriteDraft} rewritingMessageId={rewritingMessageId}
-              aiTyping={aiTyping} bottomRef={bottomRef}
+              aiTyping={aiTyping} bottomRef={bottomRef} canSend={canSend}
             />
 
             <DraftEditor
@@ -729,6 +734,14 @@ function InboxPageInner() {
               setShowTemplatePicker={setShowTemplatePicker} setIsInternalNote={setIsInternalNote}
             />
 
+            {!canSend ? (
+              <div
+                role="note"
+                className="border-t border-[var(--haip-border)] bg-[var(--haip-surface)] px-4 py-3 text-sm text-[var(--haip-fg-2)]"
+              >
+                You have view-only access to this inbox, so you can read conversations but not reply to guests.
+              </div>
+            ) : (
             <Composer
               isVoiceOnly={isVoiceOnly} windowBlocked={windowBlocked} isInternalNote={isInternalNote}
               exitInternalNote={exitInternalNote} replyToMsg={replyToMsg} setReplyToMsg={setReplyToMsg}
@@ -742,6 +755,7 @@ function InboxPageInner() {
               showSchedule={showSchedule} setShowSchedule={setShowSchedule} handleTextChange={handleTextChange}
               handleKeyDown={handleKeyDown} handleSend={handleSend} sendMutation={sendMutation}
             />
+            )}
           </>
         )}
       </div>

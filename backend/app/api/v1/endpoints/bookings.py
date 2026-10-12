@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.audit import append_audit
 from app.core.database import get_db
 from app.api.v1.deps import get_current_user, require_roles
+from app.services.authz_service import require_capability
 from app.models.property import Property, RatePlan, Stay
 from app.models.guest import Guest
 from app.models.user import User, UserRole
@@ -145,6 +146,9 @@ def list_bookings(
     per_page: int = Query(25, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    # Booking amounts, paid and outstanding are money: bookings.read (owner, manager, reservations, concierge, foh,
+    # read_only by default), not any signed-in user.
+    _cap=Depends(require_capability("bookings.read")),
 ):
     tenant_id = current_user.tenant_id
 

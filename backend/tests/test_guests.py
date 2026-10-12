@@ -43,22 +43,38 @@ def test_list_guests_phone_filter_returns_exact_match_only(client, tenant_and_us
 
 
 def test_guest_upsert_by_phone(db, tenant_and_user):
-    """GuestService.upsert_by_phone creates or returns existing guest."""
-    from app.services.guest_service import GuestService
+    """upsert_by_phone creates the guest once and returns the same record afterwards."""
+    from app.services.guest_service import upsert_by_phone
     tenant = tenant_and_user["tenant"]
 
-    service = GuestService(db)
-    guest1 = service.upsert_by_phone(tenant_id=tenant.id, phone="+918011111111", name="Arun Kumar")
+    guest1 = upsert_by_phone(db, tenant.id, "+918011111111", name="Arun Kumar")
+    db.commit()
     assert guest1.id is not None
     assert guest1.phone == "+918011111111"
 
-    # Second call returns same record
-    guest2 = service.upsert_by_phone(tenant_id=tenant.id, phone="+918011111111")
+    guest2 = upsert_by_phone(db, tenant.id, "+918011111111")
     assert guest1.id == guest2.id
 
 
+def test_guest_upsert_by_phone_is_per_tenant(db, tenant_and_user):
+    """The same phone under two tenants is two guests, never one shared record."""
+    import uuid as _uuid
+    from app.models.tenant import Tenant
+    from app.services.guest_service import upsert_by_phone
+
+    other = Tenant(id=str(_uuid.uuid4()), name="Other", slug=f"o-{_uuid.uuid4().hex[:6]}", plan="growth")
+    db.add(other)
+    db.flush()
+    mine = upsert_by_phone(db, tenant_and_user["tenant"].id, "+918022222222", name="A")
+    theirs = upsert_by_phone(db, other.id, "+918022222222", name="B")
+    db.commit()
+
+    assert mine.id != theirs.id
+    assert mine.tenant_id != theirs.tenant_id
+
+
 def test_guest_get_timeline(client, tenant_and_user, db):
-    """GET /guests/{id}/timeline returns empty list for fresh guest."""
+    """GET /guests/{id}/timeline returns the (legacy) timeline object, empty for a fresh guest."""
     from app.models.guest import Guest
     tenant = tenant_and_user["tenant"]
     token = tenant_and_user["access_token"]
@@ -77,4 +93,7 @@ def test_guest_get_timeline(client, tenant_and_user, db):
         headers={"Authorization": f"Bearer {token}"},
     )
     assert res.status_code == 200
-    assert isinstance(res.json(), list)
+    body = res.json()
+    assert body["guest_id"] == guest.id
+    assert body["events"] == []
+    assert body["total_calls"] == 0 and body["total_stays"] == 0

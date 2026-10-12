@@ -9,7 +9,7 @@ import { signOut } from "next-auth/react";
 import { Inbox, Phone, Users, Menu, X, Home, Target, Calendar, Calculator, MessageSquare, Megaphone, FileDown, Star, Shield, Zap, Settings, CreditCard, UserCircle, HelpCircle, Palette, FileText, LogOut, ListChecks, BookmarkIcon, Shuffle, Key } from "@/lib/icons";
 import { UserCheck, GitBranch, Plug2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { canSeeNav, type Resource } from "@/lib/permissions";
+import { BOOKING_READ_ROLES, canSeeNav, type Resource } from "@/lib/permissions";
 import { useBrandTheme } from "@/components/providers/BrandThemeProvider";
 import { useBusinessType } from "@/components/providers/WorkspaceProvider";
 import { useInboxStore } from "@/store/inbox";
@@ -47,7 +47,7 @@ const ALL_SECTIONS = [
     label: "Sales",
     items: [
       { label: "Leads360",  href: "/dashboard/leads",      icon: Target,   resource: "guests"     as Resource },
-      { label: "Bookings",  href: "/dashboard/bookings",   icon: Users,    resource: "guests"     as Resource },
+      { label: "Bookings",  href: "/dashboard/bookings",   icon: Users,    resource: "guests"     as Resource, onlyRoles: BOOKING_READ_ROLES as string[] },
     ],
   },
   {
@@ -224,8 +224,9 @@ export function MobileNav({ user }: MobileNavProps) {
             <nav className="flex-1 py-2 overflow-y-auto">
               {ALL_SECTIONS.map((section) => {
                 const visible = section.items.filter(
-                  (item: { resource: Resource; hideForBusinessTypes?: string[] }) =>
+                  (item: { resource: Resource; hideForBusinessTypes?: string[]; onlyRoles?: string[] }) =>
                     canSeeNav(role, item.resource) &&
+                    (!item.onlyRoles || item.onlyRoles.includes(role as string)) &&
                     (!businessType || !item.hideForBusinessTypes?.includes(businessType))
                 );
                 if (visible.length === 0) return null;

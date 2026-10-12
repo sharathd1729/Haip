@@ -136,10 +136,14 @@ def test_best_time_needs_enough_messages_to_mean_anything(db, world):
 def test_upcoming_scheduled_campaigns_and_opt_outs_and_health(db, world):
     db.add(WACampaign(id=str(uuid.uuid4()), tenant_id=world.tid, name="Later", audience_filter={}, variable_map={},
                       status=CampaignStatus.SCHEDULED, scheduled_at="2026-09-28T04:30:00+00:00"))
-    g = str(uuid.uuid4())
+    from app.models.guest import Guest
+    # consents.guest_id is a foreign key to guests: both opted-out guests have to exist
+    g, g_old = str(uuid.uuid4()), str(uuid.uuid4())
+    db.add_all([Guest(id=g, tenant_id=world.tid, name="Opted out"), Guest(id=g_old, tenant_id=world.tid, name="Opted out long ago")])
+    db.flush()
     db.add(Consent(id=str(uuid.uuid4()), tenant_id=world.tid, guest_id=g, channel="whatsapp", scope="marketing", granted=False,
                    recorded_at=NOW.isoformat(), withdrawn_at=(NOW - timedelta(days=1)).isoformat()))
-    db.add(Consent(id=str(uuid.uuid4()), tenant_id=world.tid, guest_id=str(uuid.uuid4()), channel="whatsapp", scope="marketing", granted=False,
+    db.add(Consent(id=str(uuid.uuid4()), tenant_id=world.tid, guest_id=g_old, channel="whatsapp", scope="marketing", granted=False,
                    recorded_at=NOW.isoformat(), withdrawn_at=(NOW - timedelta(days=90)).isoformat()))
     db.add(WATemplate(id=str(uuid.uuid4()), tenant_id=world.tid, name="d", language="en", status=TemplateStatus.REJECTED, components=[]))
     db.add(Integration(id=str(uuid.uuid4()), tenant_id=world.tid, kind="whatsapp_meta", status="active", config={}))

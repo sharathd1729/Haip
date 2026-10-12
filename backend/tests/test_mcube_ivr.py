@@ -204,7 +204,9 @@ def test_webhook_accepts_correct_secret_and_dispatches(client, tenant_and_user, 
 
 # ── GET /integrations/mcube/webhook-info ────────────────────────────────────
 
-def test_webhook_info_includes_secret_in_url(client, tenant_and_user, db):
+def test_webhook_info_includes_secret_in_url(client, tenant_and_user, db, monkeypatch):
+    # Pin the setting: a configured API_BASE_URL (set in .env / prod) wins over the request host.
+    monkeypatch.setattr("app.api.v1.endpoints.integrations.settings.API_BASE_URL", "")
     tenant = tenant_and_user["tenant"]
     _connect_mcube(db, tenant.id, webhook_secret="my-secret-123")
 
@@ -226,9 +228,11 @@ def test_webhook_info_null_url_before_connect(client, tenant_and_user):
     assert res.json()["webhook_url"] is None
 
 
-def test_webhook_info_callerdesk_has_no_secret_in_url(client, tenant_and_user, db):
+def test_webhook_info_callerdesk_has_no_secret_in_url(client, tenant_and_user, db, monkeypatch):
     """CallerDesk/Acefone still use HMAC signing, not a URL-embedded secret --
     their webhook-info URL should never leak the secret into the path."""
+    # Pin the setting: a configured API_BASE_URL (set in .env / prod) wins over the request host.
+    monkeypatch.setattr("app.api.v1.endpoints.integrations.settings.API_BASE_URL", "")
     tenant = tenant_and_user["tenant"]
     integration = Integration(
         id=str(uuid.uuid4()), tenant_id=tenant.id, kind="callerdesk", status="active",
@@ -245,3 +249,16 @@ def test_webhook_info_callerdesk_has_no_secret_in_url(client, tenant_and_user, d
     body = res.json()
     assert body["webhook_url"] == f"https://testserver/api/v1/webhooks/callerdesk/{tenant.slug}"
     assert "cd-secret" not in body["webhook_url"]
+
+
+def test_webhook_info_uses_configured_public_base_url(client, tenant_and_user, db, monkeypatch):
+    """When API_BASE_URL is configured the displayed webhook URL uses it, not the request host."""
+    monkeypatch.setattr("app.api.v1.endpoints.integrations.settings.API_BASE_URL", "https://api.example.test/")
+    tenant = tenant_and_user["tenant"]
+    _connect_mcube(db, tenant.id, webhook_secret="my-secret-123")
+
+    res = client.get(
+        "/api/v1/integrations/mcube/webhook-info",
+        headers={"Authorization": f"Bearer {tenant_and_user['access_token']}"},
+    )
+    assert res.json()["webhook_url"] == f"https://api.example.test/api/v1/webhooks/mcube/{tenant.slug}/my-secret-123"

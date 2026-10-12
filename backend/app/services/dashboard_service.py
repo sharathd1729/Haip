@@ -22,7 +22,7 @@ from app.models.conversation import Conversation
 from app.models.inquiry import Inquiry
 from app.models.property import Stay
 from app.models.task import Task
-from app.services import call_status_service, inbox_service
+from app.services import call_status_service, inbox_service, kpi_metrics
 from app.services.date_presets import IST
 
 # Same windows as the screens these link to.
@@ -61,7 +61,12 @@ def needs_you_now(db: Session, tenant, scope_user_id: Optional[str]) -> dict:
     to be its own set of queries, which is exactly how they drifted apart."""
     from app.services import work_queue_service
 
-    res = work_queue_service.counts(db, tenant, scope_user_id)
+    return needs_you_now_from(work_queue_service.counts(db, tenant, scope_user_id))
+
+
+def needs_you_now_from(res: dict) -> dict:
+    """The same four cards from an already-built work-queue result (``build`` and ``counts`` both carry counts and
+    oldest), so a caller that also needs the items does not query the queue twice."""
     c, oldest = res["counts"], res["oldest"]
     return {
         "waiting_reply": c["reply"], "waiting_oldest_at": oldest["reply"],
@@ -109,12 +114,8 @@ def daily_series(db: Session, tenant, scope_user_id: Optional[str], d_from: str,
     days = _day_list(date.fromisoformat(d_from), date.fromisoformat(d_to))
     start, end = _utc_bounds(days)
 
-    inq_q = db.query(Inquiry.created_at).filter(
-        Inquiry.tenant_id == tid, Inquiry.created_at >= start, Inquiry.created_at <= end,
-        Inquiry.qualification_status != "unqualified",
-    )
-    if scope_user_id:
-        inq_q = inq_q.filter(Inquiry.assigned_to == scope_user_id)
+    # "New leads" is defined once, in kpi_metrics (leads.new).
+    inq_q = db.query(Inquiry.created_at).filter(*kpi_metrics.lead_filters(tid, start, end, scope_user_id=scope_user_id))
     leads = defaultdict(int)
     for (created,) in inq_q.all():
         leads[_ist_day(created)] += 1
@@ -151,11 +152,8 @@ def daily_series(db: Session, tenant, scope_user_id: Optional[str], d_from: str,
 
 def lead_sources(db: Session, tid: str, scope_user_id: Optional[str], range_start: str, range_end: str) -> list[dict]:
     q = db.query(Inquiry.source, func.count(Inquiry.id)).filter(
-        Inquiry.tenant_id == tid, Inquiry.created_at >= range_start, Inquiry.created_at <= range_end,
-        Inquiry.qualification_status != "unqualified",
+        *kpi_metrics.lead_filters(tid, range_start, range_end, scope_user_id=scope_user_id)   # leads.new
     )
-    if scope_user_id:
-        q = q.filter(Inquiry.assigned_to == scope_user_id)
     grouped: dict[str, list] = {}
     for source, n in q.group_by(Inquiry.source).all():
         raw = str(getattr(source, "value", source) or "other")
@@ -166,3 +164,19 @@ def lead_sources(db: Session, tid: str, scope_user_id: Optional[str], range_star
     total = sum(v[1] for v in grouped.values()) or 1
     out = [{"key": k, "label": v[0], "count": v[1], "pct": round(100 * v[1] / total)} for k, v in grouped.items()]
     return sorted(out, key=lambda r: -r["count"])
+
+
+# ── AI insights ───────────────────────────────────────────────────────────────
+
+def top_insights(db: Session, tid: str, limit: int = 4) -> list[dict]:
+    """The open AI insights that most deserve a look: most severe first, then newest. Severity is sorted BEFORE the
+    cut, so a critical insight can no longer be dropped in favour of an older low one."""
+    from app.models.insight import Insight
+
+    rows = db.query(Insight).filter(
+        Insight.tenant_id == tid, Insight.is_dismissed == False, Insight.is_auto_resolved == False,  # noqa: E712
+    ).order_by(Insight.created_at.desc()).limit(50).all()
+    severity = {"critical": 5, "high": 4, "medium": 3, "low": 2, "info": 1}
+    rows.sort(key=lambda r: severity.get(r.severity, 0), reverse=True)
+    return [{"id": r.id, "severity": r.severity, "title": r.title, "body": r.body, "cta_label": r.cta_label, "cta_href": r.cta_href}
+            for r in rows[:limit]]

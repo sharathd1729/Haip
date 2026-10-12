@@ -76,7 +76,9 @@ function BookingsList() {
 
   const [search, setSearch] = useState(initialQ);
   const [debounced, setDebounced] = useState(initialQ);
-  const [quick, setQuick] = useState<Quick | "">("");
+  // The Owner Command Center deep-links here with ?quick=upcoming|due|..., so a figure opens the rows it counted.
+  const initialQuick = params.get("quick");
+  const [quick, setQuick] = useState<Quick | "">(QUICK.some(q => q.id === initialQuick) ? (initialQuick as Quick) : "");
   const [status, setStatus] = useState("");
   const [payment, setPayment] = useState("");
   const [range, setRange] = useState("");

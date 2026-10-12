@@ -7,6 +7,8 @@ analytics_sections.py's channels endpoint already used.
 """
 import uuid
 
+from tests.conftest import seed_capabilities
+
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
 from app.models.module import Module, WorkspaceModule
@@ -27,6 +29,7 @@ def _make_tenant_and_user(db):
     )
     db.add(user)
     db.commit()
+    seed_capabilities(db, tenant.id)
     token = create_access_token({"sub": user.id, "tenant_id": tenant.id, "role": user.role.value})
     return tenant, user, token
 

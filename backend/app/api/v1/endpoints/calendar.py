@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.api.v1.deps import get_current_user
+from app.services.authz_service import has_capability, require_capability
 from app.models.property import Property, Stay, BlockedDate, SeasonalRate, RatePlan
 # Guest is imported lazily inside the handler to avoid any startup mapper issues
 
@@ -86,11 +87,17 @@ def get_calendar(
     to_date: str = Query(..., description="YYYY-MM-DD end of window (exclusive)"),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
+    # The grid carries guest names, phones and what each stay is worth: it is a bookings view (bookings.read).
+    _cap=Depends(require_capability("bookings.read")),
 ):
     """
     Return full calendar grid: properties × dates with status + stats.
+
+    Amounts (per-stay value, a property's monthly revenue, the locked / quoted totals) need revenue.read. Without it
+    they are returned as null and ``stats.revenue_restricted`` is true: withheld, never zero.
     """
     tenant_id = current_user.tenant_id
+    can_revenue = has_capability(db, current_user, "revenue.read")
     start = date.fromisoformat(from_date)
     end   = date.fromisoformat(to_date)
     days  = _date_range(start, end)
@@ -146,6 +153,23 @@ def get_calendar(
         for b in blocks_all:
             blocks_by_prop.setdefault(b.property_id, []).append(b)
 
+    # What imported calendar events said (title, guest, phone, destination, package, amounts), one query for all blocks.
+    # Failure must not break the grid.
+    event_details: dict = {}
+    try:
+        from app.models.ical_feed import ICalEventDetail
+        block_ids = [b.id for bl in blocks_by_prop.values() for b in bl]
+        if block_ids:
+            for d in db.query(ICalEventDetail).filter(ICalEventDetail.tenant_id == tenant_id,
+                                                      ICalEventDetail.blocked_date_id.in_(block_ids)).all():
+                shown = dict(d.details or {})
+                if not can_revenue:
+                    shown.pop("amounts", None)          # booking money needs revenue.read, like per-stay amounts
+                event_details[d.blocked_date_id] = {"title": d.title, "details": shown, "dates_source": d.dates_source,
+                                                    "needs_vehicle": bool(d.needs_vehicle)}
+    except Exception:  # noqa: BLE001
+        event_details = {}
+
     # Best-effort guest enrichment (name + phone), batched across ALL properties
     # at once — failure MUST NOT break response.
     guest_names: dict[str, str] = {}
@@ -180,7 +204,7 @@ def get_calendar(
                 "guest_phone":  guest_phones.get(str(s.guest_id), "") if s.guest_id else "",
                 # getattr guards for columns that may not exist in older DB schemas
                 "adults":       getattr(s, "adults", None) or 1,
-                "total_amount": float(s.total_amount) if s.total_amount else None,
+                "total_amount": (float(s.total_amount) if s.total_amount else None) if can_revenue else None,
                 "channel_source": getattr(s, "channel_source", None) or "direct",
             }
             for s in stays_raw
@@ -195,6 +219,7 @@ def get_calendar(
                 "reason": b.reason,
                 "notes": b.notes,
                 "is_active": b.is_active,
+                "event": event_details.get(str(b.id)),
             }
             for b in blocks_raw
         ]
@@ -280,7 +305,7 @@ def get_calendar(
             "stays":            stays,
             "blocks":           blocks,
             "rates":            rates,
-            "monthly_revenue":  monthly_revenue,
+            "monthly_revenue":  monthly_revenue if can_revenue else None,
         })
 
     # Occupancy %
@@ -312,8 +337,9 @@ def get_calendar(
         "properties":     rows,
         "stats": {
             "occupancy_pct":      occupancy_pct,
-            "revenue_locked":     float(revenue_locked),
-            "revenue_quoted":     float(revenue_quoted),
+            "revenue_locked":     float(revenue_locked) if can_revenue else None,
+            "revenue_quoted":     float(revenue_quoted) if can_revenue else None,
+            "revenue_restricted": not can_revenue,
             "total_properties":   len(rows),
             "window_days":        total_days,
             "check_ins_today":    check_ins_today,

@@ -35,12 +35,12 @@ export function RevenueChart({ series, rangeLabel }: { series: Series; rangeLabe
   const many = series.days.length > 14;
   const rows = series.days.map((d, i) => ({
     day: dayTick(d, many), date: d,
-    revenue: series.revenue[i], previous: series.prev_revenue[i] ?? 0, bookings: series.bookings[i],
+    revenue: series.revenue?.[i] ?? 0, previous: series.prev_revenue?.[i] ?? 0, bookings: series.bookings?.[i] ?? 0,
   }));
   const hasData = rows.some(r => r.revenue || r.previous);
   return (
     <Panel title="Revenue & bookings" meta={`${rangeLabel} vs previous`} className="lg:col-span-3">
-      {!hasData ? <Empty text="No bookings checking in during this period." /> : (
+      {series.revenue == null ? <Empty text="Revenue and bookings are shown to roles with revenue access." /> : !hasData ? <Empty text="No bookings checking in during this period." /> : (
         <>
           <div className="h-60">
             <ResponsiveContainer width="100%" height="100%">
@@ -64,7 +64,7 @@ export function RevenueChart({ series, rangeLabel }: { series: Series; rangeLabe
           <div className="flex gap-5 mt-2 text-xs" style={{ color: "var(--haip-fg-muted)" }}>
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-teal-700" />This period</span>
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: "#CBD5D1" }} />Previous period</span>
-            <span className="ml-auto tabular-nums">{series.bookings.reduce((a, b) => a + b, 0)} bookings</span>
+            <span className="ml-auto tabular-nums">{(series.bookings ?? []).reduce((a, b) => a + b, 0)} bookings</span>
           </div>
         </>
       )}

@@ -113,9 +113,13 @@ def test_far_away_or_never_expiring_token_sends_nothing(db, tenant_and_user):
 
 
 def test_other_workspace_is_not_touched(db, tenant_and_user):
+    from app.models.tenant import Tenant
     tid = tenant_and_user["tenant"].id
+    other_tenant = Tenant(id=str(uuid.uuid4()), name="Other", slug=f"other-{uuid.uuid4().hex[:6]}", plan="growth")
+    db.add(other_tenant)    # integrations.tenant_id is a foreign key: the other workspace has to exist
+    db.flush()
     other = Integration(
-        id=str(uuid.uuid4()), tenant_id=str(uuid.uuid4()), kind="whatsapp_meta", status="active",
+        id=str(uuid.uuid4()), tenant_id=other_tenant.id, kind="whatsapp_meta", status="active",
         config={}, credentials_kms_blob=encrypt_credentials({"access_token": "other"}),
     )
     _wa(db, tid)

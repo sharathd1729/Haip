@@ -107,8 +107,11 @@ def test_sends_older_than_an_hour_do_not_count(db):
 def test_tenant_wide_cap_catches_fan_out_across_conversations(db):
     """No single conversation looks abnormal, but the workspace is blasting."""
     t, g, c = _mk(db, per_conv=99, consecutive=99, per_tenant=5)
-    for _ in range(5):
-        other = Conversation(tenant_id=t.id, guest_id=g.id, channel=ChannelType.WHATSAPP, is_open=True)
+    for i in range(5):
+        # a fan-out is many guests' conversations; one open conversation per guest+channel is a database rule
+        other_guest = Guest(tenant_id=t.id, name=f"Fan-out guest {i}")
+        db.add(other_guest); db.flush()
+        other = Conversation(tenant_id=t.id, guest_id=other_guest.id, channel=ChannelType.WHATSAPP, is_open=True)
         db.add(other); db.commit()
         _msg(db, other, t, direction="outbound", autonomous=True)
     allowed, reason = rl.check_send_allowed(db, t, c)

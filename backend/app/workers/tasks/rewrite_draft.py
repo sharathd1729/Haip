@@ -11,6 +11,7 @@ new claims, so the prompt's own instruction to preserve every fact/number/
 date is the guard here, not a second grounded_facts pass.
 """
 import asyncio
+from celery.exceptions import SoftTimeLimitExceeded
 from app.workers.celery_app import celery_app
 from app.core.database import SessionLocal, set_tenant_context
 from app.models.conversation import Message
@@ -34,6 +35,21 @@ REWRITE_TOOL = {
 
 _VALID_TONES = {"warm", "formal", "brief", "persuasive"}
 
+# Every click on an AI rewrite button is a paid provider request, so it is bounded. The NVIDIA client is built without a
+# timeout (the openai SDK then waits up to 10 minutes) and the worker runs only 2 processes shared by every queue, so one
+# hung request used to be able to hold a slot for ~10 minutes. The same wait_for pattern concierge_draft uses applies here.
+#
+#   * One provider request may take at most REWRITE_TIMEOUT_SECONDS.
+#   * A timeout is NOT retried (it is the signature of a hung request, and the person asked a moment ago). Draft: the
+#     draft is left as it was. Composer: the job is marked failed with error "timeout".
+#   * Any other provider error: draft retries ONCE after 10 s (max_retries=1, was 3); composer never retries.
+#   * Worst case per click: composer 30 s; draft 30 s on timeout, or 30 + 10 + 30 = 70 s on a provider error.
+#   * REWRITE_SOFT/HARD_TIME_LIMIT are Celery backstops for anything that is not the provider call (they apply to one
+#     execution of the task, and the soft limit is handled like a timeout).
+REWRITE_TIMEOUT_SECONDS = 30
+REWRITE_SOFT_TIME_LIMIT = REWRITE_TIMEOUT_SECONDS + 15
+REWRITE_HARD_TIME_LIMIT = REWRITE_TIMEOUT_SECONDS + 30
+
 
 def _run_async(coro):
     loop = asyncio.new_event_loop()
@@ -41,6 +57,20 @@ def _run_async(coro):
         return loop.run_until_complete(coro)
     finally:
         loop.close()
+
+
+def _rewrite_completion(adapter, system_prompt: str) -> dict:
+    """One bounded provider request; raises asyncio.TimeoutError after REWRITE_TIMEOUT_SECONDS."""
+    return _run_async(
+        asyncio.wait_for(
+            adapter.complete(
+                system_prompt=system_prompt,
+                user_message="Rewrite the message per the instructions above.",
+                tools=[REWRITE_TOOL],
+            ),
+            timeout=REWRITE_TIMEOUT_SECONDS,
+        )
+    )
 
 
 def _build_system_prompt(original_text: str, tone: str | None, target_language: str | None) -> str:
@@ -71,7 +101,10 @@ def _build_system_prompt(original_text: str, tone: str | None, target_language: 
     )
 
 
-@celery_app.task(bind=True, max_retries=3, default_retry_delay=10, name="tasks.rewrite_draft")
+@celery_app.task(
+    bind=True, max_retries=1, default_retry_delay=10, name="tasks.rewrite_draft",
+    soft_time_limit=REWRITE_SOFT_TIME_LIMIT, time_limit=REWRITE_HARD_TIME_LIMIT,
+)
 def rewrite_draft(self, message_id: str, tenant_id: str, tone: str | None = None, target_language: str | None = None):
     db = SessionLocal()
     try:
@@ -86,13 +119,7 @@ def rewrite_draft(self, message_id: str, tenant_id: str, tone: str | None = None
 
         system_prompt = _build_system_prompt(msg.body or "", tone, target_language)
         adapter = get_llm("concierge_rewrite")
-        result = _run_async(
-            adapter.complete(
-                system_prompt=system_prompt,
-                user_message="Rewrite the message per the instructions above.",
-                tools=[REWRITE_TOOL],
-            )
-        )
+        result = _rewrite_completion(adapter, system_prompt)
         rewritten = (result.get("tool_use") or {}).get("rewritten_text")
         if not rewritten:
             log.warning("rewrite_draft_empty_result", message_id=message_id)
@@ -102,6 +129,10 @@ def rewrite_draft(self, message_id: str, tenant_id: str, tone: str | None = None
         db.commit()
         log.info("rewrite_draft_applied", message_id=message_id, tone=tone,
                   target_language=target_language, **stamp("concierge_rewrite"))
+    except (asyncio.TimeoutError, SoftTimeLimitExceeded):
+        # Deliberately not retried: see the comment on REWRITE_TIMEOUT_SECONDS. The draft keeps its current text.
+        log.warning("rewrite_draft_timed_out", message_id=message_id, timeout_sec=REWRITE_TIMEOUT_SECONDS)
+        return
     except Exception as exc:
         log.error("rewrite_draft_failed", message_id=message_id, error=str(exc))
         raise self.retry(exc=exc)

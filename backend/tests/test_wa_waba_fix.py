@@ -90,7 +90,11 @@ def test_apply_waba_refuses_an_id_meta_does_not_confirm(db, tenant_and_user):
 
 
 def test_apply_waba_is_tenant_scoped(db, tenant_and_user):
-    _connect(db, "some-other-tenant")
+    from app.models.tenant import Tenant
+    other = Tenant(id=str(uuid.uuid4()), name="Other", slug=f"other-{uuid.uuid4().hex[:6]}", plan="growth")
+    db.add(other)       # integrations.tenant_id is a foreign key: the other workspace has to exist
+    db.commit()
+    _connect(db, other.id)
     with patch.object(svc, "candidate_wabas", return_value=([], ["999"], None)):
         with pytest.raises(ValueError):
             svc.apply_waba(db, _tid(tenant_and_user), "999")

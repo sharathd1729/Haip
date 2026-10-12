@@ -83,10 +83,25 @@ def _status_callback(wamid: str, status: str) -> dict:
 
 # ─── Tests ────────────────────────────────────────────────────────────────────
 
+WA_APP_SECRET = "test-app-secret"
+
+
 @pytest.fixture()
-def tenant_with_wa(db, client):
-    """Create a tenant configured with the test WhatsApp phone number ID."""
+def tenant_with_wa(db, client, monkeypatch):
+    """A tenant that is fully connected to WhatsApp the way production is.
+
+    The webhook now (a) resolves the tenant from the phone number id, (b) verifies the
+    signature against that tenant's own app secret stored on its active integration, and
+    (c) hands the payload to a Celery task that opens its own DB session. This fixture
+    provides all three: an active integration with an encrypted app secret, the module's
+    ``SessionLocal`` pointed at the per-test session, and the task run inline.
+    """
+    from cryptography.fernet import Fernet
+    from app.core.encryption import encrypt_credentials
+    from app.models.integration import Integration
     from app.models.tenant import Tenant
+
+    monkeypatch.setenv("ENCRYPTION_KEY", Fernet.generate_key().decode())
     tenant = Tenant(
         id=str(uuid.uuid4()),
         name="Test Hotel",
@@ -94,9 +109,40 @@ def tenant_with_wa(db, client):
         whatsapp_phone_number_id=WA_PHONE_NUMBER_ID,
     )
     db.add(tenant)
+    db.flush()
+    db.add(Integration(
+        id=str(uuid.uuid4()), tenant_id=tenant.id, kind="whatsapp_meta", status="active",
+        credentials_kms_blob=encrypt_credentials({"app_secret": WA_APP_SECRET, "phone_number_id": WA_PHONE_NUMBER_ID}),
+    ))
     db.commit()
     db.refresh(tenant)
+
+    # The request path and the Celery task both open SessionLocal(); give them the test
+    # session (whose close() must not end the per-test transaction).
+    monkeypatch.setattr(db, "close", lambda: None)
+    monkeypatch.setattr("app.api.v1.endpoints.webhooks_whatsapp.SessionLocal", lambda: db)
+    monkeypatch.setattr("app.workers.tasks.whatsapp.SessionLocal", lambda: db)
+
+    from app.workers.tasks import whatsapp as wa_tasks
+
+    class _Inline:
+        @staticmethod
+        def delay(payload):
+            return wa_tasks.process_whatsapp_message.run(payload)
+
+    monkeypatch.setattr("app.api.v1.endpoints.webhooks_whatsapp.process_whatsapp_message", _Inline)
     return tenant
+
+
+def _post(client, payload: dict):
+    """POST a webhook body signed the way Meta signs it (HMAC-SHA256 of the raw bytes)."""
+    import hashlib
+    import hmac
+    import json
+    body = json.dumps(payload).encode()
+    sig = "sha256=" + hmac.new(WA_APP_SECRET.encode(), body, hashlib.sha256).hexdigest()
+    return client.post("/api/v1/webhooks/whatsapp", content=body,
+                       headers={"X-Hub-Signature-256": sig, "Content-Type": "application/json"})
 
 
 def test_new_guest_text_message_creates_chain(tenant_with_wa, db, client):
@@ -111,11 +157,7 @@ def test_new_guest_text_message_creates_chain(tenant_with_wa, db, client):
     payload = _meta_payload(messages=[msg])
 
     with _mock_concierge():
-        resp = client.post(
-            "/api/v1/webhooks/whatsapp",
-            json=payload,
-            headers={"X-Hub-Signature-256": "sha256=mock"},   # bypass sig check in test mode
-        )
+        resp = _post(client, payload)
 
     assert resp.status_code in (200, 202), resp.text
 
@@ -144,10 +186,8 @@ def test_existing_guest_reuses_conversation(tenant_with_wa, db, client):
     msg2 = _text_msg("Second message")
 
     with _mock_concierge():
-        client.post("/api/v1/webhooks/whatsapp", json=_meta_payload(messages=[msg1]),
-                    headers={"X-Hub-Signature-256": "sha256=mock"})
-        client.post("/api/v1/webhooks/whatsapp", json=_meta_payload(messages=[msg2]),
-                    headers={"X-Hub-Signature-256": "sha256=mock"})
+        _post(client, _meta_payload(messages=[msg1]))
+        _post(client, _meta_payload(messages=[msg2]))
 
     guests = db.query(Guest).filter_by(phone=GUEST_PHONE).all()
     assert len(guests) == 1, "Should not create duplicate guests"
@@ -167,10 +207,8 @@ def test_duplicate_message_dedup(tenant_with_wa, db, client):
     payload = _meta_payload(messages=[msg])
 
     with _mock_concierge():
-        client.post("/api/v1/webhooks/whatsapp", json=payload,
-                    headers={"X-Hub-Signature-256": "sha256=mock"})
-        client.post("/api/v1/webhooks/whatsapp", json=payload,
-                    headers={"X-Hub-Signature-256": "sha256=mock"})
+        _post(client, payload)
+        _post(client, payload)
 
     count = db.query(Message).filter_by(channel_message_id=msg["id"]).count()
     assert count == 1, "Duplicate wa message should be deduped"
@@ -187,8 +225,7 @@ def test_text_message_records_automation_outcome(tenant_with_wa, db, client):
     payload = _meta_payload(messages=[msg])
 
     with _mock_concierge():
-        client.post("/api/v1/webhooks/whatsapp", json=payload,
-                    headers={"X-Hub-Signature-256": "sha256=mock"})
+        _post(client, payload)
 
     stored = db.query(Message).filter_by(channel_message_id=msg["id"]).first()
     assert stored is not None
@@ -196,20 +233,44 @@ def test_text_message_records_automation_outcome(tenant_with_wa, db, client):
 
 
 def test_media_message_stored(tenant_with_wa, db, client):
-    """Image message with caption is stored with media_type=image."""
+    """Image message with caption is stored with media_type=image once Meta's media is fetched.
+
+    WhatsApp webhooks carry only a media id; the task downloads it and stores it in object
+    storage, and only then records media_url/media_type (T1.2). The download/storage boundary
+    is stubbed here; the failure path is covered by the next test.
+    """
     from app.models.conversation import Message
 
     msg = _image_msg("Great view from the balcony!")
     payload = _meta_payload(messages=[msg])
 
-    with _mock_concierge():
-        resp = client.post("/api/v1/webhooks/whatsapp", json=payload,
-                           headers={"X-Hub-Signature-256": "sha256=mock"})
+    with _mock_concierge(), patch(
+        "app.workers.tasks.whatsapp._fetch_and_store_media", return_value=("media/key.jpg", "image"),
+    ) as fetch:
+        _post(client, payload)
 
     stored = db.query(Message).filter_by(channel_message_id=msg["id"]).first()
     assert stored is not None
     assert stored.media_type == "image"
+    assert stored.media_url == "media/key.jpg"
     assert stored.body == "Great view from the balcony!"
+    assert fetch.call_args.args[3] == "img123", "must fetch by the media id Meta sent"
+
+
+def test_media_message_survives_failed_media_fetch(tenant_with_wa, db, client):
+    """If Meta's media cannot be fetched, the guest's message and caption are still kept."""
+    from app.models.conversation import Message
+
+    msg = _image_msg("Check this view")
+    with _mock_concierge(), patch(
+        "app.workers.tasks.whatsapp._fetch_and_store_media", return_value=(None, None),
+    ):
+        _post(client, _meta_payload(messages=[msg]))
+
+    stored = db.query(Message).filter_by(channel_message_id=msg["id"]).first()
+    assert stored is not None, "a failed media download must not drop the message"
+    assert stored.body == "Check this view"
+    assert stored.media_url is None and stored.media_type is None
 
 
 def test_status_callback_advances_delivery_state(tenant_with_wa, db, client):
@@ -242,19 +303,13 @@ def test_status_callback_advances_delivery_state(tenant_with_wa, db, client):
     db.commit()
 
     # Send delivered callback
-    resp = client.post(
-        "/api/v1/webhooks/whatsapp",
-        json=_meta_payload(statuses=[_status_callback(wamid, "delivered")]),
-        headers={"X-Hub-Signature-256": "sha256=mock"},
-    )
+    resp = _post(client, _meta_payload(statuses=[_status_callback(wamid, "delivered")]))
     assert resp.status_code in (200, 202)
     db.refresh(msg)
     assert msg.delivery_state == MessageDeliveryState.DELIVERED
 
     # Send read callback
-    client.post("/api/v1/webhooks/whatsapp",
-                json=_meta_payload(statuses=[_status_callback(wamid, "read")]),
-                headers={"X-Hub-Signature-256": "sha256=mock"})
+    _post(client, _meta_payload(statuses=[_status_callback(wamid, "read")]))
     db.refresh(msg)
     assert msg.delivery_state == MessageDeliveryState.READ
 
@@ -284,9 +339,7 @@ def test_status_never_goes_backwards(tenant_with_wa, db, client):
     db.commit()
 
     # Send delivered (backward) — should not regress
-    client.post("/api/v1/webhooks/whatsapp",
-                json=_meta_payload(statuses=[_status_callback(wamid, "delivered")]),
-                headers={"X-Hub-Signature-256": "sha256=mock"})
+    _post(client, _meta_payload(statuses=[_status_callback(wamid, "delivered")]))
     db.refresh(msg)
     assert msg.delivery_state == MessageDeliveryState.READ, "State should not go backward"
 

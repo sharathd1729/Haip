@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.adapters.payments import razorpay as rzp
 from app.api.v1.deps import get_current_user, require_roles
+from app.services.authz_service import require_capability
 from app.core.audit import append_audit
 from app.core.database import get_db
 from app.core.encryption import decrypt_credentials
@@ -132,7 +133,8 @@ def _detail(db: Session, tenant_id: str, stay: Stay) -> dict:
 
 
 @router.get("/{booking_id}")
-def get_booking(booking_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_booking(booking_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db),
+                _cap=Depends(require_capability("bookings.read"))):
     return _detail(db, current_user.tenant_id, _get_stay(db, current_user, booking_id))
 
 

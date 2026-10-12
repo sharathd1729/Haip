@@ -1,0 +1,98 @@
+name: Tenant isolation (PostgreSQL)
+
+# Runs the cross-tenant matrix, the row-level-security checks and the audit-chain concurrency tests against a real
+# PostgreSQL.
+# REQUIRE_POSTGRES_TESTS=1 makes a missing database a failure instead of a silent skip, so a green run
+# here always means the PostgreSQL checks actually executed.
+#
+# Also runs weekly: CLAUDE.md promises a weekly cross-tenant breach simulation.
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "backend/**"
+      - ".github/workflows/tenant-isolation.yml"
+  pull_request:
+    branches: [master]
+  schedule:
+    - cron: "0 3 * * 1"   # Mondays 03:00 UTC
+  workflow_dispatch:
+
+# Least privilege: nothing here writes to the repository.
+permissions:
+  contents: read
+
+concurrency:
+  group: tenant-isolation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tenant-isolation-postgres:
+    name: Cross-tenant + RLS (PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: haip_test
+          POSTGRES_USER: haip
+          POSTGRES_PASSWORD: haip
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://haip:haip@localhost:5432/haip_test
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET: test-secret-not-for-prod
+      ANTHROPIC_API_KEY: sk-ant-placeholder
+      DEEPGRAM_API_KEY: placeholder
+      REQUIRE_POSTGRES_TESTS: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest pytest-asyncio httpx
+
+      - name: Build the schema the way production does
+        run: alembic upgrade head
+
+      - name: Cross-tenant matrix and row-level security
+        # GitHub's default shell is `bash -e` WITHOUT pipefail, so `pytest | tee` would exit 0 even when pytest fails.
+        # `shell: bash` plus `set -o pipefail` makes the pipeline fail with pytest; the explicit test below makes any
+        # skip a failure too, so green always means the PostgreSQL checks actually executed.
+        shell: bash
+        run: |
+          set -eo pipefail
+          pytest tests/test_cross_tenant_matrix.py tests/test_rls_postgres.py tests/test_audit_concurrency_postgres.py tests/test_call_score_status.py tests/test_migration_117_postgres.py tests/test_verify_rls_isolation.py -v --tb=short -rs 2>&1 | tee /tmp/isolation.txt
+          if grep -E "[0-9]+ skipped" /tmp/isolation.txt; then
+            echo "::error::PostgreSQL-only tests were skipped; the job must run against PostgreSQL"
+            exit 1
+          fi

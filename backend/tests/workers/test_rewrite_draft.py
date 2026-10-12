@@ -84,6 +84,7 @@ class TestRewriteDraftTask:
         assert reloaded.body == original_body
 
 
+@pytest.mark.usefixtures("capabilities_seeded")   # the POST is gated by conversations.send
 class TestRewriteDraftEndpoint:
     @patch("app.workers.tasks.rewrite_draft.rewrite_draft.delay")
     def test_happy_path_queues_task(self, mock_delay, client, db, tenant_and_user):

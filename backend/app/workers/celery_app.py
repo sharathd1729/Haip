@@ -214,6 +214,15 @@ celery_app.conf.update(
         "instagram_token.refresh_tenant":            {"queue": "whatsapp"},
         "instagram_insights.poll_all_tenants":       {"queue": "whatsapp"},
         "owner_digest.orchestrate":                  {"queue": "ai_scoring"},
+        # Registered under short names, so the "app.workers.tasks.<module>.*" globs above never
+        # matched them and they fell into the unconsumed "celery" queue. The inbox "rewrite"
+        # buttons enqueue the first two on every click; the last three are only reached from
+        # beat entries that are not wired up yet (see tests/test_celery_task_routing.py).
+        "tasks.rewrite_draft":                       {"queue": "whatsapp"},
+        "tasks.composer_rewrite":                    {"queue": "whatsapp"},
+        "lost_reason_cluster.nightly":               {"queue": "ai_scoring"},
+        "lost_reason_cluster.full_refit":            {"queue": "ai_scoring"},
+        "owner_digest":                              {"queue": "ai_scoring"},
         "retention.nightly_purge":                   {"queue": "call_ingest"},
         "call_ingest.fetch_recording":                {"queue": "call_ingest"},
         "dograh.process_call_completed":              {"queue": "call_ingest"},

@@ -21,7 +21,7 @@ from app.models.user import User, UserRole
 from app.models.guest import Guest
 from app.models.inquiry import Inquiry, InquiryStage, InquirySource
 from app.models.audit_event import AuditEvent
-from app.models.capability import Capability
+from app.models.capability import Capability, RoleCapability
 from app.core.security import get_password_hash
 from app.services import authz_service, token_service
 
@@ -36,10 +36,13 @@ _TOOL_CAPS = [
 
 
 def _seed_capabilities(db, *tenant_ids):
-    if db.query(Capability.key).first() is None:
-        for key, label, category, is_write, risk in _TOOL_CAPS:
-            db.add(Capability(key=key, label=label, category=category, is_write=is_write, risk=risk))
-        db.commit()
+    # The assertions are about this small catalogue. PostgreSQL is already seeded by the migrations with the real
+    # registry, so replace it for this test's transaction (rolled back afterwards) instead of assuming it is empty.
+    db.query(RoleCapability).delete()
+    db.query(Capability).delete()
+    for key, label, category, is_write, risk in _TOOL_CAPS:
+        db.add(Capability(key=key, label=label, category=category, is_write=is_write, risk=risk))
+    db.commit()
     for tenant_id in tenant_ids:
         authz_service.seed_default_capabilities(db, tenant_id)
 

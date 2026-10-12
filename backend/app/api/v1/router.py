@@ -19,7 +19,7 @@ from app.api.v1.endpoints import (
     tasks,
     ivr,
     push,
-    dashboard_overview,
+    dashboard_overview, business_overview,
     knowledge,
     targets,
     work_queue,
@@ -33,6 +33,7 @@ api_router.include_router(auth.router)
 
 # Dashboard
 api_router.include_router(dashboard_overview.router)
+api_router.include_router(business_overview.router)
 api_router.include_router(workspace_context.router)
 
 # Metrics & Widgets catalogue

@@ -36,6 +36,16 @@ def _make_inquiry(db, tenant_id, stage_id):
     return inq
 
 
+def _make_property(db, tenant_id):
+    """A real property: inquiries.property_id and stays.property_id are foreign keys, enforced by PostgreSQL."""
+    from app.models.property import Property
+    p = Property(id=str(uuid.uuid4()), tenant_id=tenant_id, name="Lake Villa", slug=f"lv-{uuid.uuid4().hex[:6]}",
+                 type="villa", is_active=True)
+    db.add(p)
+    db.flush()
+    return p
+
+
 def _setup(db):
     t = _make_tenant(db)
     s_new = _make_stage(db, t.id, "new", 0, is_default_entry=True)
@@ -108,7 +118,8 @@ def test_won_transition_creates_stay_when_booking_fields_present(db):
 
     t, s_new, s_negotiation, s_won, s_lost = _setup(db)
     inq = _make_inquiry(db, t.id, s_new.id)
-    inq.property_id = "prop-1"
+    prop = _make_property(db, t.id)
+    inq.property_id = prop.id
     inq.check_in = "2026-08-01"
     inq.check_out = "2026-08-03"
     inq.quoted_amount = 15000
@@ -123,7 +134,7 @@ def test_won_transition_creates_stay_when_booking_fields_present(db):
     assert stay is not None
     assert stay.tenant_id == t.id
     assert stay.guest_id == inq.guest_id
-    assert stay.property_id == "prop-1"
+    assert stay.property_id == prop.id
     # migration 071: Stay.check_in/check_out are real date objects now,
     # parsed from Inquiry.check_in/check_out (still plain ISO strings).
     assert stay.check_in.isoformat() == "2026-08-01"
@@ -158,7 +169,7 @@ def test_won_transition_stay_creation_is_idempotent(db):
 
     t, s_new, s_negotiation, s_won, s_lost = _setup(db)
     inq = _make_inquiry(db, t.id, s_new.id)
-    inq.property_id = "prop-1"
+    inq.property_id = _make_property(db, t.id).id
     inq.check_in = "2026-08-01"
     inq.check_out = "2026-08-03"
     db.flush()

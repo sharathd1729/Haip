@@ -851,7 +851,9 @@ def test_dial_status_webhook_caches_dial_status_for_recording_merge(client, tena
 
 # ── GET /integrations/vobiz/webhook-info ────────────────────────────────────
 
-def test_webhook_info_includes_secret_and_answer_suffix(client, tenant_and_user, db):
+def test_webhook_info_includes_secret_and_answer_suffix(client, tenant_and_user, db, monkeypatch):
+    # Pin the setting: a configured API_BASE_URL (set in .env / prod) wins over the request host.
+    monkeypatch.setattr("app.api.v1.endpoints.integrations.settings.API_BASE_URL", "")
     tenant = tenant_and_user["tenant"]
     _connect_vobiz(db, tenant.id, webhook_secret="my-secret-123")
 

@@ -18,6 +18,10 @@ os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 os.environ.setdefault("JWT_SECRET", "test-secret-for-unit-tests-only")
 os.environ.setdefault("ANTHROPIC_API_KEY", "sk-ant-placeholder")
 os.environ.setdefault("DEEPGRAM_API_KEY", "placeholder")
+# Integration credentials are Fernet-encrypted. Several test modules need a key; without a default
+# they only passed when an earlier module happened to set one, so results depended on test order.
+from cryptography.fernet import Fernet  # noqa: E402
+os.environ.setdefault("ENCRYPTION_KEY", Fernet.generate_key().decode())
 
 from app.core.database import Base, get_db  # noqa: E402
 from app.main import app                     # noqa: E402
@@ -32,7 +36,12 @@ def setup_database():
     """Create all tables once per session."""
     Base.metadata.create_all(bind=engine)
     yield
-    Base.metadata.drop_all(bind=engine)
+    # Only the throwaway SQLite file is dropped. On PostgreSQL (CI, or a local test container) the
+    # database was built by ``alembic upgrade head``, whose tables have foreign keys the models do not
+    # declare, so ``drop_all`` fails with DependentObjectsStillExist and errored the whole session.
+    # It would also wipe whatever database DATABASE_URL pointed at; the test database is discarded instead.
+    if engine.dialect.name == "sqlite":
+        Base.metadata.drop_all(bind=engine)
 
 
 @pytest.fixture()
@@ -40,7 +49,13 @@ def db():
     """Per-test DB session, rolled back after each test."""
     connection = engine.connect()
     transaction = connection.begin()
-    session = TestingSessionLocal(bind=connection)
+    # On PostgreSQL the session must use SAVEPOINTs inside the per-test transaction. In the default join mode a
+    # Session.close() or rollback() by the code under test (every Celery task closes its session) rolls back the
+    # whole outer transaction, so rows the test had committed through this session vanish and the test fails with
+    # "Instance ... has been deleted, or its row is otherwise not present". SQLite hides this because pysqlite
+    # only begins a transaction on the first write; its savepoint support is unreliable, so it keeps the default.
+    mode = {"join_transaction_mode": "create_savepoint"} if engine.dialect.name == "postgresql" else {}
+    session = TestingSessionLocal(bind=connection, **mode)
     yield session
     session.close()
     transaction.rollback()
@@ -105,3 +120,27 @@ def tenant_and_user(db):
     db.commit()
 
     return {"tenant": tenant, "user": user, "access_token": access_token, "refresh_token": refresh_token}
+
+
+def seed_capabilities(db, tenant_id):
+    """Give a test tenant the real default role-capability matrix (authz_service._DEFAULT_GRANTS).
+
+    A tenant with no role_capabilities rows is "unprovisioned" and every capability check fails closed, so endpoint
+    tests that sit behind require_capability need this. SQLite starts with an empty capability catalogue (PostgreSQL
+    built by alembic already has the real one), so every key in the default matrix is inserted if missing."""
+    from app.models.capability import Capability
+    from app.services import authz_service
+
+    for key in authz_service._DEFAULT_GRANTS:
+        if db.query(Capability).filter_by(key=key).first() is None:
+            db.add(Capability(key=key, label=key, category=key.split(".")[0],
+                              is_write=key.endswith((".write", ".send", ".merge", ".override", ".manage")), risk="medium"))
+    db.commit()
+    authz_service.seed_default_capabilities(db, tenant_id)
+
+
+@pytest.fixture()
+def capabilities_seeded(db, tenant_and_user):
+    """seed_capabilities() for the tenant_and_user tenant."""
+    tenant = tenant_and_user["tenant"]
+    seed_capabilities(db, tenant["id"] if isinstance(tenant, dict) else tenant.id)

@@ -21,7 +21,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from app.api.v1.deps import require_roles
 from app.core.audit import append_audit
@@ -29,7 +29,7 @@ from app.core.config import settings
 from app.core.database import get_db, set_tenant_context
 from app.core.encryption import decrypt_credentials, encrypt_credentials
 from app.core.url_safety import UnsafeURLError, assert_public_url
-from app.models.ical_feed import ICalFeed
+from app.models.ical_feed import ICalEventDetail, ICalFeed, ICalFeedVehicle
 from app.models.property import BlockedDate, Property
 from app.models.user import User, UserRole
 from app.services import ical_sync_service as svc
@@ -44,12 +44,15 @@ class FeedCreate(BaseModel):
     property_id: str
     name: str = Field(min_length=1, max_length=80)
     import_url: Optional[str] = Field(default=None, max_length=2000)
+    # Shared calendar: {property_id: ["white", "white ratha"]}. See ICalFeedVehicle.
+    vehicles: Optional[dict[str, list[str]]] = None
 
 
 class FeedUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=80)
     import_url: Optional[str] = Field(default=None, max_length=2000)   # "" removes the import side
     is_active: Optional[bool] = None
+    vehicles: Optional[dict[str, list[str]]] = None                    # replaces the whole list; {} clears it
 
 
 def _clean_url(raw: str) -> str:
@@ -79,8 +82,56 @@ def _import_hint(feed: ICalFeed) -> Optional[str]:
         return "saved"
 
 
+MAX_KEYWORDS = 10
+
+
+def _clean_vehicles(db: Session, user: User, raw: dict[str, list[str]]) -> dict[str, list[str]]:
+    """Keywords per property, trimmed and de-duplicated; every property must belong to this workspace."""
+    owned = {p.id for p in db.query(Property.id).filter(Property.tenant_id == user.tenant_id).all()}
+    out: dict[str, list[str]] = {}
+    for property_id, words in raw.items():
+        if property_id not in owned:
+            raise HTTPException(status_code=404, detail="Property not found")
+        seen: list[str] = []
+        for w in words:
+            w = (w or "").strip()[:40]
+            if w and w.lower() not in [s.lower() for s in seen]:
+                seen.append(w)
+        if not seen:
+            raise HTTPException(status_code=422, detail="Give each vehicle at least one name keyword, or remove it from the list.")
+        if len(seen) > MAX_KEYWORDS:
+            raise HTTPException(status_code=422, detail=f"At most {MAX_KEYWORDS} keywords per vehicle.")
+        out[property_id] = seen
+    return out
+
+
+def _save_vehicles(db: Session, feed: ICalFeed, rules: dict[str, list[str]]) -> None:
+    db.query(ICalFeedVehicle).filter_by(feed_id=feed.id, tenant_id=feed.tenant_id).delete()
+    for property_id, words in rules.items():
+        db.add(ICalFeedVehicle(tenant_id=feed.tenant_id, feed_id=feed.id, property_id=property_id, keywords=words))
+
+
+def _vehicles_out(feed: ICalFeed) -> tuple[list[dict], int]:
+    db = object_session(feed)
+    if db is None:
+        return [], 0
+    names = {p.id: p.name for p in db.query(Property).filter_by(tenant_id=feed.tenant_id).all()}
+    rows = db.query(ICalFeedVehicle).filter_by(feed_id=feed.id, tenant_id=feed.tenant_id).all()
+    undecided = db.query(ICalEventDetail.blocked_date_id).filter_by(feed_id=feed.id, tenant_id=feed.tenant_id, needs_vehicle=True).all()
+    live = 0
+    if undecided:
+        from datetime import date as _date
+        ids = [r[0] for r in undecided]
+        live = (db.query(BlockedDate.notes).filter(BlockedDate.tenant_id == feed.tenant_id, BlockedDate.id.in_(ids),
+                                                  BlockedDate.is_active.is_(True), BlockedDate.blocked_to >= _date.today().isoformat())
+                .distinct().count())
+    return ([{"property_id": r.property_id, "property_name": names.get(r.property_id), "keywords": list(r.keywords or [])} for r in rows], live)
+
+
 def _out(feed: ICalFeed, prop_name: Optional[str]) -> dict:
+    vehicles, needs_vehicle = _vehicles_out(feed)
     return {
+        "vehicles": vehicles, "needs_vehicle": needs_vehicle,
         "id": feed.id, "property_id": feed.property_id, "property_name": prop_name, "name": feed.name,
         "has_import": bool(feed.import_url_enc), "import_hint": _import_hint(feed),
         "export_url": _export_url(feed), "is_active": feed.is_active,
@@ -111,12 +162,14 @@ def create_feed(body: FeedCreate, current_user: User = Depends(require_roles(*_M
         raise HTTPException(status_code=404, detail="Property not found")
     if db.query(ICalFeed).filter_by(tenant_id=current_user.tenant_id, property_id=prop.id).count() >= svc.feed_cap():
         raise HTTPException(status_code=422, detail=f"A property can have at most {svc.feed_cap()} calendar links.")
+    rules = _clean_vehicles(db, current_user, body.vehicles or {})
     feed = ICalFeed(tenant_id=current_user.tenant_id, property_id=prop.id, name=body.name.strip(),
                     export_token=svc.new_export_token(), is_active=True)
     if body.import_url and body.import_url.strip():
         feed.import_url_enc = encrypt_credentials({"url": _clean_url(body.import_url)})
     db.add(feed)
     db.flush()
+    _save_vehicles(db, feed, rules)
     append_audit(db, tenant_id=current_user.tenant_id, action="ical.feed_created", actor_user_id=current_user.id,
                  target_type="ical_feed", target_id=feed.id, payload={"property_id": prop.id, "name": feed.name,
                                                                       "has_import": bool(feed.import_url_enc)})
@@ -138,10 +191,17 @@ def update_feed(feed_id: str, body: FeedUpdate, current_user: User = Depends(req
         feed.import_url_enc = encrypt_credentials({"url": _clean_url(body.import_url)}) if body.import_url.strip() else None
     if body.is_active is not None:
         feed.is_active = body.is_active
+    if body.vehicles is not None:
+        _save_vehicles(db, feed, _clean_vehicles(db, current_user, body.vehicles))
+        append_audit(db, tenant_id=current_user.tenant_id, action="ical.feed_vehicles_changed", actor_user_id=current_user.id,
+                     target_type="ical_feed", target_id=feed.id, payload={"vehicles": len(body.vehicles)})
     db.commit()
     set_tenant_context(db, feed.tenant_id)
+    result = svc.sync_feed(db, feed) if (body.vehicles is not None and feed.import_url_enc and feed.is_active) else None
+    set_tenant_context(db, feed.tenant_id)
+    db.refresh(feed)
     prop = db.query(Property).filter_by(id=feed.property_id, tenant_id=feed.tenant_id).first()
-    return _out(feed, prop.name if prop else None)
+    return {**_out(feed, prop.name if prop else None), "sync": result}
 
 
 @router.delete("/{feed_id}", status_code=204)
@@ -152,6 +212,8 @@ def delete_feed(feed_id: str, current_user: User = Depends(require_roles(*_MANAG
     for b in db.query(BlockedDate).filter(BlockedDate.tenant_id == feed.tenant_id,
                                           BlockedDate.notes.like(svc.marker(feed.id) + "%")).all():
         b.is_active = False
+    db.query(ICalFeedVehicle).filter_by(feed_id=feed.id, tenant_id=feed.tenant_id).delete()
+    db.query(ICalEventDetail).filter_by(feed_id=feed.id, tenant_id=feed.tenant_id).delete()
     append_audit(db, tenant_id=current_user.tenant_id, action="ical.feed_deleted", actor_user_id=current_user.id,
                  target_type="ical_feed", target_id=feed.id, payload={"property_id": feed.property_id, "name": feed.name})
     db.delete(feed)

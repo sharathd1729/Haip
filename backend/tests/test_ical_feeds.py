@@ -12,7 +12,9 @@ os.environ.setdefault("ENCRYPTION_KEY", Fernet.generate_key().decode())
 from app.core.encryption import encrypt_credentials  # noqa: E402
 from app.models.base import gen_uuid  # noqa: E402
 from app.models.ical_feed import ICalFeed  # noqa: E402
+from app.models.guest import Guest  # noqa: E402
 from app.models.property import BlockedDate, Property, Stay  # noqa: E402
+from app.models.tenant import Tenant  # noqa: E402
 from app.models.task import Task  # noqa: E402
 from app.services import ical_sync_service as svc  # noqa: E402
 
@@ -30,6 +32,22 @@ def _ics(*events: str) -> str:
 def _ev(uid: str, start: str, end: str, extra: str = "") -> str:
     return (f"BEGIN:VEVENT\r\nUID:{uid}\r\nDTSTART;VALUE=DATE:{start.replace('-', '')}\r\n"
             f"DTEND;VALUE=DATE:{end.replace('-', '')}\r\n{extra}END:VEVENT\r\n")
+
+
+def _tenant(db, slug_prefix="other"):
+    """A real second tenant: properties.tenant_id is a foreign key and PostgreSQL enforces it."""
+    t = Tenant(id=str(uuid.uuid4()), name=f"{slug_prefix} tenant", slug=f"{slug_prefix}-{uuid.uuid4().hex[:6]}", plan="growth")
+    db.add(t)
+    db.flush()
+    return t.id
+
+
+def _guest(db, tenant_id):
+    """A real guest of `tenant_id`: stays.guest_id is a foreign key (the tests used the owner's user id)."""
+    g = Guest(id=str(uuid.uuid4()), tenant_id=tenant_id, name="Stay Guest")
+    db.add(g)
+    db.flush()
+    return g.id
 
 
 def _prop(db, tenant_id, name="Caravan 1"):
@@ -114,7 +132,7 @@ def test_sync_flags_double_booking_once(db, tenant_and_user):
     tid = tenant_and_user["tenant"].id
     prop = _prop(db, tid)
     feed = _feed(db, tid, prop.id)
-    db.add(Stay(id=gen_uuid(), tenant_id=tid, guest_id=tenant_and_user["user"].id, property_id=prop.id,
+    db.add(Stay(id=gen_uuid(), tenant_id=tid, guest_id=_guest(db, tid), property_id=prop.id,
                 check_in=date.today() + timedelta(days=5), check_out=date.today() + timedelta(days=7), status="confirmed"))
     db.flush()
     fetch = lambda u: _ics(_ev("a@x", _d(6), _d(9)))  # noqa: E731
@@ -127,7 +145,7 @@ def test_sync_flags_double_booking_once(db, tenant_and_user):
 def test_sync_isolated_by_tenant(db, tenant_and_user):
     """Blocks land only on the feed's own property/tenant."""
     tid = tenant_and_user["tenant"].id
-    other = _prop(db, "other-tenant")
+    other = _prop(db, _tenant(db, "other"))
     feed = _feed(db, tid, _prop(db, tid).id)
     svc.sync_feed(db, feed, fetcher=lambda u: _ics(_ev("a@x", _d(2), _d(4))))
     assert db.query(BlockedDate).filter_by(property_id=other.id).count() == 0
@@ -140,7 +158,7 @@ def test_export_content_and_exclusions(db, tenant_and_user):
     prop = _prop(db, tid)
     airbnb = _feed(db, tid, prop.id, "Airbnb")
     booking = _feed(db, tid, prop.id, "Booking.com", url="https://example.com/b.ics")
-    guest = tenant_and_user["user"].id
+    guest = _guest(db, tid)
     db.add_all([
         Stay(id="s-direct", tenant_id=tid, guest_id=guest, property_id=prop.id, check_in=date.today() + timedelta(days=2),
              check_out=date.today() + timedelta(days=4), status="confirmed"),
@@ -211,21 +229,22 @@ def test_forbidden_for_wrong_role(client, db, tenant_and_user):
 
 
 def test_cross_tenant_feed_is_404(client, db, tenant_and_user):
-    other = _feed(db, "someone-else", _prop(db, "someone-else").id)
+    other_tid = _tenant(db, "someone-else")
+    other = _feed(db, other_tid, _prop(db, other_tid).id)
     db.commit()
     h = _auth(tenant_and_user)
     assert client.post(f"/api/v1/ical-feeds/{other.id}/sync", headers=h).status_code == 404
     assert client.patch(f"/api/v1/ical-feeds/{other.id}", json={"name": "x"}, headers=h).status_code == 404
     assert client.delete(f"/api/v1/ical-feeds/{other.id}", headers=h).status_code == 404
     assert client.post(f"/api/v1/ical-feeds/{other.id}/regenerate", headers=h).status_code == 404
-    assert client.post("/api/v1/ical-feeds", json={"property_id": _prop(db, "someone-else").id, "name": "x"}, headers=h).status_code == 404
+    assert client.post("/api/v1/ical-feeds", json={"property_id": _prop(db, other_tid).id, "name": "x"}, headers=h).status_code == 404
 
 
 def test_public_export_serves_ics_and_404s(client, db, tenant_and_user):
     tid = tenant_and_user["tenant"].id
     prop = _prop(db, tid)
     feed = _feed(db, tid, prop.id, url=None)
-    db.add(Stay(id="s1", tenant_id=tid, guest_id=tenant_and_user["user"].id, property_id=prop.id,
+    db.add(Stay(id="s1", tenant_id=tid, guest_id=_guest(db, tid), property_id=prop.id,
                 check_in=date.today() + timedelta(days=2), check_out=date.today() + timedelta(days=4), status="confirmed"))
     db.commit()
 

@@ -123,6 +123,13 @@ interface BlockBar {
   blocked_to: string;
   reason: string;
   notes?: string;
+  // Read from an imported calendar event (title, guest, destination, package; amounts only with revenue.read)
+  event?: {
+    title: string;
+    needs_vehicle: boolean;
+    dates_source: string;
+    details: { guest_name?: string; phone?: string; destination?: string; package?: string; guests?: string; amounts?: Record<string, number> };
+  } | null;
 }
 
 interface CalendarRow {
@@ -554,15 +561,26 @@ const BlockBar = memo(function BlockBar({ block, days }: { block: BlockBar; days
   if (spanDays <= 0) return null;
 
   const cls = BLOCK_CLS[block.reason] ?? BLOCK_CLS.other;
+  const ev = block.event;
+  const d = ev?.details;
+  const label = ev ? (d?.guest_name || ev.title) : block.reason.replace(/_/g, " ");
+  const tip = ev
+    ? [ev.title, d?.destination && `Destination: ${d.destination}`, d?.package && `Package: ${d.package}`, d?.guests && `Guests: ${d.guests}`,
+       d?.phone && `Phone: ${d.phone}`,
+       d?.amounts?.total != null && `Total: ₹${d.amounts.total.toLocaleString("en-IN")}`,
+       d?.amounts?.balance != null && `Balance: ₹${d.amounts.balance.toLocaleString("en-IN")}`,
+       ev.needs_vehicle && "Vehicle not named in the Google event, so every vehicle is held. Add white or black to the event title."]
+        .filter(Boolean).join("\n")
+    : block.notes || block.reason;
 
   return (
     <div
-      className={cn("absolute rounded-md border flex items-center overflow-hidden select-none", cls)}
+      className={cn("absolute rounded-md border flex items-center overflow-hidden select-none", cls, ev?.needs_vehicle && "border-dashed")}
       style={{ left: startIdx * DAY_W + 2, width: spanDays * DAY_W - 4, top: 8, height: 38, zIndex: 2 }}
-      title={block.notes || block.reason}
+      title={tip}
     >
-      <span className="px-2 text-[9px] font-bold uppercase tracking-wide truncate">
-        {block.reason.replace(/_/g, " ")}
+      <span className={cn("px-2 text-[9px] font-bold tracking-wide truncate", !ev && "uppercase")}>
+        {ev?.needs_vehicle ? `? ${label}` : label}
       </span>
     </div>
   );

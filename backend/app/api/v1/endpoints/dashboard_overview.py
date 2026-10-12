@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.api.v1.deps import get_current_user, require_module
-from app.services.authz_service import require_capability
+from app.services.authz_service import has_capability, require_capability
 from app.models.user import User, UserRole
 from app.models.inquiry import Inquiry
 from app.models.pipeline_stage import PipelineStage
@@ -31,11 +31,21 @@ from app.models.ai_draft_outcome import AIDraftOutcome
 from app.models.insight import Insight
 from app.services.date_presets import VALID_PRESETS, resolve_range, ist_range_to_utc
 from app.services.message_metrics import chat_response_avg_seconds
-from app.services import call_status_service, dashboard_service
+from app.services import call_status_service, dashboard_service, kpi_metrics
 from app.services.agent_analytics_service import get_agent_scorecard_rows
 from app.api.v1.endpoints.analytics import _delta
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+
+
+def _restrict_series(series: dict, *, money: bool, bookings: bool) -> dict:
+    """The daily bookings / revenue series are workspace-wide. Show them only to a viewer allowed to see the whole
+    workspace's figures; everyone else gets null (restricted), never a tenant-wide number or a zero."""
+    if not bookings:
+        series["bookings"] = None
+    if not money:
+        series["revenue"] = series["prev_revenue"] = None
+    return series
 
 
 @router.get("/overview")
@@ -91,6 +101,10 @@ def dashboard_overview(
     else:
         scope_user_id = current_user.id
 
+    # Money on this page needs revenue.read. Anyone without it gets an explicit "restricted" answer, not zeros; an
+    # agent's booking numbers are only those linked to their own leads (never the workspace's).
+    can_see_revenue = has_capability(db, current_user, "revenue.read")
+
     from app.models.tenant import Tenant
     tenant = db.query(Tenant).filter_by(id=tid).first()
     closed_won_ids = [
@@ -103,18 +117,11 @@ def dashboard_overview(
         equal-length period. Kept as a nested closure (not a module-level
         helper) since it needs scope_user_id/property_id/tid/tenant/
         closed_won_ids from the enclosing request."""
+        # leads.new (kpi_metrics): includes the exclusion of "unqualified" enquiries that Leads360's own pipeline
+        # count applies (leads_service.py::get_leads_pipeline) -- without it the two never agree for the same range.
         inq_q = db.query(Inquiry).filter(
-            Inquiry.tenant_id == tid, Inquiry.created_at >= rs, Inquiry.created_at <= re_,
-            # Same exclusion Leads360's own pipeline count applies
-            # (leads_service.py::get_leads_pipeline) -- without it this
-            # count and Leads360's never agree even when scoped to the
-            # same date range, since Leads360 never counts these at all.
-            Inquiry.qualification_status != "unqualified",
+            *kpi_metrics.lead_filters(tid, rs, re_, scope_user_id=scope_user_id, property_id=property_id)
         )
-        if scope_user_id:
-            inq_q = inq_q.filter(Inquiry.assigned_to == scope_user_id)
-        if property_id:
-            inq_q = inq_q.filter(Inquiry.property_id == property_id)
         total_leads = inq_q.count()
 
         qualified_leads = (
@@ -155,8 +162,10 @@ def dashboard_overview(
         )
         if property_id:
             stay_q = stay_q.filter(Stay.property_id == property_id)
+        if scope_user_id:
+            stay_q = stay_q.join(Inquiry, Inquiry.id == Stay.inquiry_id).filter(Inquiry.assigned_to == scope_user_id)
         bookings = stay_q.count()
-        revenue = float(stay_q.with_entities(func.coalesce(func.sum(Stay.total_amount), 0)).scalar() or 0)
+        revenue = float(stay_q.with_entities(func.coalesce(func.sum(Stay.total_amount), 0)).scalar() or 0) if can_see_revenue else None
 
         return {
             "total_leads": total_leads, "qualified_leads": qualified_leads,
@@ -180,7 +189,8 @@ def dashboard_overview(
     )
     kpi_deltas = {
         k: _delta(float(kpi[k]), float(prev_kpi[k])).model_dump()
-        for k in ("total_leads", "qualified_leads", "avg_response_seconds", "calls", "bookings", "conversion_rate", "revenue")
+        for k in ("total_leads", "qualified_leads", "avg_response_seconds", "calls", "bookings", "conversion_rate")
+        + (("revenue",) if can_see_revenue else ())
     }
 
     # Re-derive the query objects the sections below still need (funnel/
@@ -278,19 +288,7 @@ def dashboard_overview(
     }
 
     # ── AI Intelligence (existing insight_detector output, capped) ──────────
-    # Sort by severity BEFORE taking the top few -- this used to take the
-    # first 4 rows and then sort them, so a critical insight could be
-    # dropped in favour of an older low one.
-    insight_rows = db.query(Insight).filter(
-        Insight.tenant_id == tid, Insight.is_dismissed == False, Insight.is_auto_resolved == False,  # noqa: E712
-    ).order_by(Insight.created_at.desc()).limit(50).all()
-    _SEV = {"critical": 5, "high": 4, "medium": 3, "low": 2, "info": 1}
-    insight_rows.sort(key=lambda r: _SEV.get(r.severity, 0), reverse=True)
-    insight_rows = insight_rows[:4]
-    top_insights = [
-        {"id": r.id, "severity": r.severity, "title": r.title, "body": r.body, "cta_label": r.cta_label, "cta_href": r.cta_href}
-        for r in insight_rows
-    ]
+    top_insights = dashboard_service.top_insights(db, tid)
 
     result = {
         "date_from": d_from, "date_to": d_to,
@@ -305,7 +303,9 @@ def dashboard_overview(
         # Owner Daily redesign (dashboard_service): live queues, per-day
         # series for sparklines/charts, lead sources.
         "needs_you_now": dashboard_service.needs_you_now(db, tenant, scope_user_id),
-        "series": dashboard_service.daily_series(db, tenant, scope_user_id, d_from, d_to),
+        "series": _restrict_series(dashboard_service.daily_series(db, tenant, scope_user_id, d_from, d_to),
+                                   money=can_see_revenue and not scope_user_id, bookings=not scope_user_id),
+        "revenue_restricted": not can_see_revenue,
         "sources": dashboard_service.lead_sources(db, tid, scope_user_id, range_start, range_end),
     }
 

@@ -148,3 +148,20 @@ def test_judge_counts_its_attempts_and_marks_failure(db):
         got = _run_judge(db, t.id, c)           # must not raise
     assert got.ai_score_status == "failed"
     assert got.ai_score_attempts == 1
+
+
+def test_a_transcriptless_call_is_skipped_once_and_never_redispatched(db):
+    """Register P-1. judge() skips a call with no transcript row; recovery must then leave it alone on every later
+    pass. When the status did not fit the column on PostgreSQL the write failed, the call fell back to "failed" with
+    ai_score_attempts still 0, and recovery re-dispatched it every 30 minutes for 14 days."""
+    t = _tenant(db)
+    c = _call(db, t.id, status="pending")
+
+    judged = _run_judge(db, t.id, c)
+
+    assert judged.ai_score_status == "skipped_no_transcript"
+    assert judged.ai_score_attempts == 0          # a skip is not a scoring attempt
+    for _ in range(3):                            # three recovery passes, each after a quiet period
+        judged.updated_at = NOW - timedelta(minutes=120)
+        db.commit()
+        assert _recover(db, t.id) == []

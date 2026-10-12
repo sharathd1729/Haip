@@ -28,7 +28,7 @@ from app.models.insight import Insight
 from app.models.pipeline_stage import PipelineStage
 from app.models.property import Stay
 from app.models.user import User, UserRole
-from app.services import agent_analytics_service, call_status_service, lead_activity_service, worklist_service
+from app.services import agent_analytics_service, call_status_service, kpi_metrics, lead_activity_service, worklist_service
 from app.services import phone_decline_detector
 from app.services.date_presets import IST, ist_range_to_utc
 
@@ -237,16 +237,7 @@ def build_daily_report(
     # ── Leads ────────────────────────────────────────────────────────────
     # Only `valid`-category stages count as real leads, matching Leads360 and
     # the dashboard (CLAUDE.md: invalid/marketing stages are not leads).
-    new_leads = (
-        db.query(func.count(Inquiry.id))
-        .filter(
-            Inquiry.tenant_id == tenant_id,
-            Inquiry.created_at >= start_iso,
-            Inquiry.created_at <= end_iso,
-            Inquiry.qualification_status != "unqualified",
-        )
-        .scalar()
-    ) or 0
+    new_leads = kpi_metrics.count_leads(db, tenant_id, start_dt, end_dt)   # leads.new, shared with the dashboard
 
     qualified_leads = (
         db.query(func.count(Inquiry.id))

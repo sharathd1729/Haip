@@ -3,7 +3,8 @@ Conversation rows gets a channel=voice Conversation created retroactively,
 with last_message_at seeded from their most recent call so it sorts
 correctly immediately. Exercises the same SQL the migration runs, directly
 against the test DB (migrations themselves aren't run under the SQLite test
-harness -- see conftest.py), rather than invoking Alembic."""
+harness -- see conftest.py), rather than invoking Alembic. Booleans are written as
+true/false exactly as migration 063 does: PostgreSQL rejects 1/0 for a boolean column."""
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -57,7 +58,7 @@ def _run_backfill(db, tenant_id):
         db.execute(text(
             """
             INSERT INTO conversations (id, tenant_id, guest_id, channel, is_open, is_sample, last_message_at, created_at, updated_at)
-            VALUES (:id, :tenant_id, :guest_id, 'VOICE', 1, 0, :last_message_at, :now, :now)
+            VALUES (:id, :tenant_id, :guest_id, 'VOICE', true, false, :last_message_at, :now, :now)
             """
         ), {
             "id": str(uuid.uuid4()), "tenant_id": t_id, "guest_id": guest_id,

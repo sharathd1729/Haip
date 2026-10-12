@@ -13,7 +13,12 @@ HOSTAWAY_BASE = "https://api.hostaway.com/v1"
 
 
 class HostawayAdapter:
-    def __init__(self):
+    def __init__(self, account_id: Optional[str] = None, api_secret: Optional[str] = None):
+        """Credentials are per tenant (stored encrypted on the Integration row). The global
+        HOSTAWAY_* settings are only a fallback for callers that pass nothing -- the sync task
+        always passes the tenant's own, so one tenant never talks to Hostaway as another."""
+        self._account_id = account_id if account_id is not None else settings.HOSTAWAY_ACCOUNT_ID
+        self._api_secret = api_secret if api_secret is not None else settings.HOSTAWAY_API_KEY
         self._token: Optional[str] = None
 
     async def _get_token(self) -> str:
@@ -24,8 +29,8 @@ class HostawayAdapter:
                 f"{HOSTAWAY_BASE}/accessTokens",
                 data={
                     "grant_type": "client_credentials",
-                    "client_id": settings.HOSTAWAY_ACCOUNT_ID,
-                    "client_secret": settings.HOSTAWAY_API_KEY,
+                    "client_id": self._account_id,
+                    "client_secret": self._api_secret,
                     "scope": "general",
                 },
             )

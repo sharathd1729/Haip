@@ -39,7 +39,7 @@ _DEFAULT_GRANTS: dict[str, set[str]] = {
     "leads.write": {"owner", "manager", "reservations", "concierge"},
     "leads.merge": {"owner", "manager"},
     "conversations.read": {"owner", "manager", "reservations", "concierge", "foh", "read_only"},
-    "conversations.send": {"owner", "manager", "reservations", "concierge"},
+    "conversations.send": {"owner", "manager", "reservations", "concierge", "foh"},
     "calls.read": {"owner", "manager", "reservations", "concierge", "marketing", "read_only"},
     "calls.transcript.read": {"owner", "manager", "reservations", "concierge", "compliance"},
     "calls.recording.read": {"owner", "manager", "compliance"},

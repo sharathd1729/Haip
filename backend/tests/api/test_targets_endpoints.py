@@ -4,7 +4,11 @@ Per CLAUDE.md every new endpoint needs those three.
 """
 import uuid
 
+import pytest
+
 from tests.conftest import *  # noqa: F401,F403
+
+pytestmark = pytest.mark.usefixtures("capabilities_seeded")   # money endpoints sit behind bookings.read / revenue.read
 
 from app.models.property import Property
 from app.models.tenant import Tenant

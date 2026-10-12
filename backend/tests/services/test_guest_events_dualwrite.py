@@ -18,6 +18,7 @@ import pytest
 
 from app.models.tenant import Tenant
 from app.models.guest import Guest
+from app.models.user import User, UserRole
 from app.models.inquiry import Inquiry, InquiryStage, InquirySource
 from app.schemas.guest_events import GuestEventCreate, GuestEventType, SourceModule
 from app.services import guest_events_service as ges
@@ -29,6 +30,14 @@ def _tenant(db):
                slug=f"dw-{uuid.uuid4().hex[:6]}", plan="growth")
     db.add(t); db.flush()
     return t
+
+
+def _actor(db, tenant_id, name="Actor"):
+    """A real user: audit_events.actor_user_id (written by the stage-move audit trail) is a foreign key."""
+    u = User(id=str(uuid.uuid4()), tenant_id=tenant_id, name=name, email=f"{name.lower()}-{uuid.uuid4().hex[:6]}@test.com",
+             hashed_password="x", role=UserRole.OWNER, is_active=True)
+    db.add(u); db.flush()
+    return u
 
 
 def _guest(db, tenant_id, name="G"):
@@ -50,10 +59,11 @@ def test_stage_transition_writes_to_ledger(db):
     t = _tenant(db)
     g = _guest(db, t.id)
     inq = _inquiry(db, t.id, g.id)
+    actor = _actor(db, t.id)
 
     inquiry_service.update_stage(
         db, tenant_id=t.id, inquiry_id=inq.id,
-        new_stage=InquiryStage.RESPONDING, actor_user_id="user-1", actor_role="owner",
+        new_stage=InquiryStage.RESPONDING, actor_user_id=actor.id, actor_role="owner",
     )
     db.flush()
 
@@ -65,7 +75,7 @@ def test_stage_transition_writes_to_ledger(db):
     assert ev.guest_id == g.id
     assert ev.payload["from_stage"] == InquiryStage.NEW.value
     assert ev.payload["to_stage"] == InquiryStage.RESPONDING.value
-    assert ev.actor_user_id == "user-1"
+    assert ev.actor_user_id == actor.id
 
     # The same event is reachable from the guest-level journey.
     guest_entries, _ = ges.get_guest_timeline(db, t.id, g.id)
@@ -98,7 +108,7 @@ def test_stage_transition_by_id_writes_to_ledger(db):
 
     inquiry_service.update_stage_by_id(
         db, tenant_id=t.id, inquiry_id=inq.id, new_stage_id=to_stage.id,
-        actor_user_id="user-2", actor_role="owner",
+        actor_user_id=_actor(db, t.id, "Actor2").id, actor_role="owner",
     )
     db.flush()
 
@@ -126,7 +136,7 @@ def test_ledger_failure_does_not_block_stage_transition(db, monkeypatch):
 
     inquiry_service.update_stage(
         db, tenant_id=t.id, inquiry_id=inq.id,
-        new_stage=InquiryStage.RESPONDING, actor_user_id="user-1", actor_role="owner",
+        new_stage=InquiryStage.RESPONDING, actor_user_id=_actor(db, t.id, "Actor3").id, actor_role="owner",
     )
     db.flush()
 

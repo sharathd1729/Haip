@@ -120,11 +120,15 @@ def test_waiting_minutes_is_reported(db):
 
 def test_agent_scope_filters_to_own_conversations(db):
     t = _tenant(db)
-    _, mine = _conv(db, t, name="Mine", assigned_to="user-1")
-    _, theirs = _conv(db, t, name="Theirs", assigned_to="user-2")
+    # conversations.assigned_to is a foreign key to users, enforced by PostgreSQL
+    me = User(tenant_id=t.id, email="me@ratha.test", name="Me")
+    peer = User(tenant_id=t.id, email="peer@ratha.test", name="Peer")
+    db.add_all([me, peer]); db.commit()
+    _, mine = _conv(db, t, name="Mine", assigned_to=me.id)
+    _, theirs = _conv(db, t, name="Theirs", assigned_to=peer.id)
     _msg(db, t, mine, MessageDirection.INBOUND)
     _msg(db, t, theirs, MessageDirection.INBOUND)
-    rows = ws.awaiting_reply(db, t.id, scope_user_id="user-1")
+    rows = ws.awaiting_reply(db, t.id, scope_user_id=me.id)
     assert [r["lead"]["name"] for r in rows] == ["Mine"]
 
 

@@ -74,6 +74,7 @@ def test_add_signal_happy_path(db):
     )
 
     assert confidence == pytest.approx(0.85, abs=0.01)
+    db.flush()  # add_signal leaves flushing/committing to the caller; sessions run with autoflush off
 
     sig = db.query(GuestIdentity).filter_by(
         tenant_id=tenant.id,

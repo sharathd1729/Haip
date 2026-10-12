@@ -130,7 +130,7 @@ def test_parse_summary_valid_json():
         ' "analysis": {"intent": "villa stay", "sentiment": "positive",'
         ' "objection": null, "reply_urgency": "high", "next_action": "Call back"}}'
     )
-    summary, analysis = _parse_summary_response(raw)
+    summary, analysis, _extracted, _lead = _parse_summary_response(raw)
     assert summary.startswith("Guest wants a villa")
     assert analysis["sentiment"] == "positive"
     assert analysis["objection"] is None
@@ -140,7 +140,7 @@ def test_parse_summary_valid_json():
 def test_parse_summary_markdown_fenced():
     from app.workers.tasks.generate_ai_summary import _parse_summary_response
     raw = '```json\n{"summary": "S1. S2. S3.", "analysis": {"intent": "x", "sentiment": "neutral", "objection": null, "reply_urgency": "low", "next_action": "y"}}\n```'
-    summary, analysis = _parse_summary_response(raw)
+    summary, analysis, _extracted, _lead = _parse_summary_response(raw)
     assert summary == "S1. S2. S3."
     assert analysis["reply_urgency"] == "low"
 
@@ -148,7 +148,7 @@ def test_parse_summary_markdown_fenced():
 def test_parse_summary_prose_fallback():
     from app.workers.tasks.generate_ai_summary import _parse_summary_response
     raw = "Guest wants a caravan trip. No budget stated. Send quote."
-    summary, analysis = _parse_summary_response(raw)
+    summary, analysis, _extracted, _lead = _parse_summary_response(raw)
     assert summary == raw
     assert analysis is None
 
@@ -158,7 +158,7 @@ def test_parse_summary_truncated_json_salvages_summary():
     (seen in prod: summary stored as '{ "summary": "...", "analysis": { "reply_urg')."""
     from app.workers.tasks.generate_ai_summary import _parse_summary_response
     raw = '{ "summary": "Guest has not specified dates. Budget unknown. Ask for details.", "analysis": { "intent": "inquire about services", "sentiment": "neutral", "objection": null, "reply_urg'
-    summary, analysis = _parse_summary_response(raw)
+    summary, analysis, _extracted, _lead = _parse_summary_response(raw)
     assert summary == "Guest has not specified dates. Budget unknown. Ask for details."
     assert analysis is None
 
@@ -166,7 +166,7 @@ def test_parse_summary_truncated_json_salvages_summary():
 def test_parse_summary_truncated_json_without_summary_is_rejected():
     from app.workers.tasks.generate_ai_summary import _parse_summary_response
     raw = '{ "anal'
-    summary, analysis = _parse_summary_response(raw)
+    summary, analysis, _extracted, _lead = _parse_summary_response(raw)
     assert summary == ""   # caller logs unparseable + keeps the old summary
     assert analysis is None
 
@@ -178,6 +178,23 @@ def test_parse_summary_strips_think_blocks():
         '{"summary": "S1. S2. S3.", "analysis": {"intent": "pricing", "sentiment": "positive",'
         ' "objection": null, "reply_urgency": "high", "next_action": "Send quote"}}'
     )
-    summary, analysis = _parse_summary_response(raw)
+    summary, analysis, _extracted, _lead = _parse_summary_response(raw)
     assert summary == "S1. S2. S3."
     assert analysis["reply_urgency"] == "high"
+
+
+def test_parse_summary_v4_extracted_and_lead_analysis():
+    """v4 payload: trip details under "extracted" (only the known keys survive) and a free-text
+    "lead_analysis"; anything else the model adds is dropped."""
+    from app.workers.tasks.generate_ai_summary import _EXTRACTED_KEYS, _parse_summary_response
+    raw = (
+        '{"summary": "S1. S2. S3.", "analysis": null,'
+        ' "extracted": {"adults": 2, "occasion": "anniversary", "not_a_known_key": "x"},'
+        ' "lead_analysis": "  Warm lead, asked for a quote.  "}'
+    )
+    summary, analysis, extracted, lead = _parse_summary_response(raw)
+    assert summary == "S1. S2. S3."
+    assert analysis is None
+    assert set(extracted.keys()) == set(_EXTRACTED_KEYS)
+    assert extracted["adults"] == 2 and extracted["occasion"] == "anniversary"
+    assert lead == "Warm lead, asked for a quote."

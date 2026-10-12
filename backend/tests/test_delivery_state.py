@@ -21,6 +21,8 @@ from unittest.mock import patch, MagicMock, PropertyMock
 from app.models.conversation import Message, MessageDeliveryState, Conversation, ChannelType
 from app.workers.tasks.whatsapp import _handle_status_update, _META_STATUS_MAP
 
+pytestmark = pytest.mark.usefixtures("capabilities_seeded")   # the send routes are gated by conversations.send
+
 
 # ─────────────────────────────────────────────────────────────────
 # Helpers

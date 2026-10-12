@@ -9,8 +9,11 @@ export interface OverviewResponse {
   kpi: {
     total_leads: number; qualified_leads: number; avg_response_seconds: number;
     followups_total: number; followups_completed: number; calls: number;
-    bookings: number; conversion_rate: number; revenue: number;
+    bookings: number; conversion_rate: number;
+    /** null when the viewer lacks revenue.read (see `revenue_restricted`); never 0 in its place. */
+    revenue: number | null;
   };
+  revenue_restricted?: boolean;
   kpi_deltas: Record<string, KPIDelta>;
   funnel: { stage: string; count: number; pct: number }[];
   calls: { total: number; answered: number; missed: number; missed_recovered: number; callback_rate_pct: number };
@@ -31,9 +34,10 @@ export interface NeedsYouNow {
 export interface Series {
   days: string[];
   leads: number[];
-  bookings: number[];
-  revenue: number[];
-  prev_revenue: number[];
+  /** null = workspace-wide figures the viewer may not see. */
+  bookings: number[] | null;
+  revenue: number[] | null;
+  prev_revenue: number[] | null;
   calls_answered_pct: (number | null)[];
 }
 

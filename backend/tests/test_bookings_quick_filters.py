@@ -2,9 +2,13 @@
 import uuid
 from datetime import date, timedelta
 
+import pytest
+
 from app.models.base import gen_uuid
 from app.models.guest import Guest
 from app.models.property import Property, Stay
+
+pytestmark = pytest.mark.usefixtures("capabilities_seeded")   # money endpoints sit behind bookings.read / revenue.read
 
 
 def _h(ctx):
