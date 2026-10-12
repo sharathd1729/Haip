@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from app.core.database import get_db
 from app.api.v1.deps import get_current_user
+from app.services.authz_service import require_capability
 from app.models.user import User
 from app.models.conversation import Conversation, Message, MessageDeliveryState
 from app.schemas.conversation import MessageOut, SendMessageRequest, AIDraftRequest, ConversationOut, SendTemplateRequest, ApproveDraftRequest, RewriteDraftRequest, ComposerRewriteRequest
@@ -630,6 +631,8 @@ def rewrite_draft_endpoint(
     body: RewriteDraftRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    # An AI rewrite spends provider credit, so it needs the same capability as sending a message.
+    _cap=Depends(require_capability("conversations.send")),
 ):
     """HAIP Inbox prototype-wiring plan, ticket 3: real translate/tone-fix.
     Queues rewrite_draft, which updates the same Message.body in place --
@@ -660,6 +663,8 @@ def composer_rewrite_endpoint(
     body: ComposerRewriteRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    # An AI rewrite spends provider credit, so it needs the same capability as sending a message.
+    _cap=Depends(require_capability("conversations.send")),
 ):
     """HAIP Inbox full-parity pass, ticket 5: Translate/Tone-Fix on the
     composer's free-typed text, before it's ever sent -- unlike

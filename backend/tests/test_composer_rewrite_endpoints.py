@@ -4,6 +4,8 @@ reads the short-lived cached result back."""
 import uuid
 from unittest.mock import patch
 
+import pytest
+
 from app.models.conversation import Conversation, ChannelType
 from app.models.guest import Guest
 
@@ -25,6 +27,7 @@ def _make_conversation(db, tenant_id):
     return conv
 
 
+@pytest.mark.usefixtures("capabilities_seeded")   # the POST is gated by conversations.send
 class TestComposerRewriteEndpoint:
     def test_kicks_off_task_and_returns_job_id(self, client, db, tenant_and_user):
         tenant_id = _tenant_id(tenant_and_user)
