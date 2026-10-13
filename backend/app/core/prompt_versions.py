@@ -76,7 +76,10 @@ PROMPT_VERSIONS: dict[str, str] = {
     # guest asked for pictures and the draft said "Here are some photos of
     # our luxury caravan" with nothing attached (this pipeline can only
     # send plain text). See concierge_draft.py's _check_no_media_claim().
-    "concierge_reply": "concierge-reply-v11",   # concierge_reply.jinja
+    # v12 (2026-10-13): works from operational data -- property facts, the guest's own bookings with their real state, availability
+    # WITH the reason a property is not open, what the guest already told us, every question they asked, and a "grounded" pricing
+    # mode (only live figures). Knowledge-base text no longer carries prices. See the template header.
+    "concierge_reply": "concierge-reply-v12",   # concierge_reply.jinja
     "lost_reason":     "lost-reason-v1",        # lost_reason.jinja
     "agent_performance_narrative": "agent-performance-narrative-v1",  # agent_performance_narrative.jinja
     "agent_leads_feedback": "agent-leads-feedback-v1",  # agent_leads_feedback.jinja
@@ -104,7 +107,9 @@ PROMPT_VERSIONS: dict[str, str] = {
     "ask_haip_freeform_summary": "ask-haip-freeform-summary-v1",
     # AI Autonomy Plan Phase 1 ticket 4: new intent classify+extract step
     # gating the grounded tool loop.
-    "concierge_intent": "concierge-intent-v1",
+    # v2 (2026-10-13): reads the newest message in the context of the conversation, extracts only what was stated, and also returns
+    # destination/occasion/budget, each distinct question, sentiment, urgency and a "booking_status" intent.
+    "concierge_intent": "concierge-intent-v2",
     # HAIP Inbox prototype-wiring plan, ticket 3: real translate/tone-fix
     # rewrite of an existing pending AI draft.
     "concierge_rewrite": "concierge-rewrite-v1",

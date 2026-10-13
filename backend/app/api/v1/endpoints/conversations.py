@@ -626,6 +626,7 @@ def request_ai_draft(
         conversation_id=conversation_id,
         tenant_id=current_user.tenant_id,
         tone=body.tone,
+        force=True,   # an agent asked for a draft: write one even if the guest's last message already has one
     )
     return {"status": "draft_queued", "draft_id": draft_id}
 

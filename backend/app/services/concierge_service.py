@@ -72,6 +72,27 @@ def unanswered_guest_text(db: Session, tenant_id: str, conversation_id: str) -> 
     return "\n".join(lines)
 
 
+def retrieval_query_text(db: Session, tenant_id: str, conversation_id: str) -> str:
+    """What to search the knowledge base with.
+
+    The newest unanswered burst, plus the guest's few previous messages when the burst alone is too short to mean anything
+    ("and pets?", "what about parking"): a follow-up question is only searchable together with what it follows.
+    """
+    burst = unanswered_guest_text(db, tenant_id, conversation_id)
+    if len(burst.split()) >= 6:
+        return burst
+    earlier = (
+        db.query(Message)
+        .filter(Message.conversation_id == conversation_id, Message.direction == MessageDirection.INBOUND)
+        .order_by(Message.created_at.desc())
+        .limit(4)
+        .all()
+    )
+    lines = [m.body for m in reversed(earlier) if m.body and not m.body.startswith("[")]
+    context = "\n".join(lines)
+    return (context or burst)[-600:]
+
+
 def _get_recent_messages(db: Session, conversation_id: str, limit: int = 20) -> list:
     """Confirmed live, a real self-reinforcing bug: an AI draft that was
     never approved/sent (still pending review, or rejected) was still being
@@ -146,21 +167,38 @@ def build_concierge_context(
     # availability and price; this covers everything else the guest asks
     # about -- amenities, add-ons, routes, locations, policies.
     kb_snippets: list = []
-    query_text = unanswered_guest_text(db, tenant_id, conversation_id)
+    # ok | no_match | embedding_unavailable | search_failed | unsupported | empty_query -- so a reply written while the knowledge
+    # base could not be searched is not mistaken for one written when the base simply had no answer.
+    kb_status = "empty_query"
+    query_text = retrieval_query_text(db, tenant_id, conversation_id)
     if query_text.strip():
         try:
             from app.services import knowledge_service
-            kb_snippets = knowledge_service.search_snippets(
+            outcome = knowledge_service.search_detailed(
                 db,
                 tenant_id,
                 query_text,
-                property_id=(conversation.property_id if conversation else None),
+                # The conversation's property, else the enquiry's: a guest asking about one property must get that property's
+                # knowledge, and one property's knowledge must never be offered for another.
+                property_id=((conversation.property_id if conversation else None) or (inquiry.property_id if inquiry else None)),
             )
+            kb_status = outcome.status
+            kb_snippets = [
+                {
+                    "text": (f"Q: {h['question']}\nA: {h['content']}" if h.get("question") else h["content"]),
+                    "source": h["category"],
+                    "score": h["score"],
+                }
+                for h in outcome.hits
+            ]
+            if outcome.status not in ("ok", "no_match", "unsupported"):
+                log.warning("kb_retrieval_degraded", tenant_id=tenant_id, conversation_id=conversation_id, status=outcome.status)
         except Exception as exc:
             # Retrieval is an enhancement, never a dependency: a KB failure
             # degrades the draft to ungrounded rather than dropping the reply.
             log.warning("kb_snippets_failed", tenant_id=tenant_id, error=str(exc))
             kb_snippets = []
+            kb_status = "search_failed"
 
     return {
         "guest": guest,
@@ -169,4 +207,5 @@ def build_concierge_context(
         "recent_messages": recent_msgs,
         "call_summaries": call_summaries,
         "kb_snippets": kb_snippets,
+        "kb_status": kb_status,
     }

@@ -35,6 +35,7 @@ def _run_async(coro):
     finally:
         loop.close()
 from app.services.concierge_service import build_concierge_context, is_latest_pending_draft, unanswered_guest_text
+from app.services import concierge_facts
 from app.core.database import set_tenant_context
 import structlog
 
@@ -77,17 +78,21 @@ CONFIDENCE_THRESHOLD = 0.78
 # calls on, and if so what dates/pax does it imply.
 INTENT_TOOL = {
     "name": "classify_and_extract",
-    "description": "Classify the guest's message intent and extract any stay dates/party size mentioned",
+    "description": (
+        "Classify the guest's message and extract ONLY what the guest has actually stated (in the newest message or earlier in "
+        "the conversation). Never infer or guess a value; leave it null."
+    ),
     "input_schema": {
         "type": "object",
         "properties": {
             "intent": {
                 "type": "string",
-                "enum": ["availability_check", "price_quote", "faq_answer", "complaint", "general"],
+                "enum": ["availability_check", "price_quote", "faq_answer", "booking_status", "complaint", "general"],
                 "description": (
                     "availability_check: asking if specific dates are free. "
                     "price_quote: asking cost/pricing for a stay. "
                     "faq_answer: policy, amenity, or location question. "
+                    "booking_status: asking about their OWN existing booking (is it confirmed, payment, arrival details). "
                     "complaint: expressing dissatisfaction. "
                     "general: greeting, unclear, or anything else."
                 ),
@@ -96,6 +101,17 @@ INTENT_TOOL = {
             "check_out": {"type": ["string", "null"], "description": "YYYY-MM-DD if a check-out date is stated or clearly inferable, else null"},
             "adults": {"type": ["integer", "null"]},
             "children": {"type": ["integer", "null"]},
+            "destination": {"type": ["string", "null"], "description": "Place or route the guest wants to travel to/stay at, as stated"},
+            "property_hint": {"type": ["string", "null"], "description": "A specific property/vehicle the guest named, as stated"},
+            "occasion": {"type": ["string", "null"], "description": "Occasion or special request the guest stated (birthday, honeymoon ...)"},
+            "budget": {"type": ["number", "null"], "description": "Budget in rupees ONLY if the guest stated one"},
+            "questions": {
+                "type": "array", "items": {"type": "string"},
+                "description": "Each distinct thing the guest is asking in the newest message(s), as a short phrase",
+            },
+            "sentiment": {"type": "string", "enum": ["positive", "neutral", "negative", "frustrated"]},
+            "urgency": {"type": "string", "enum": ["low", "normal", "high"]},
+            "wants_human": {"type": "boolean", "description": "True if the guest asks to speak to a person"},
         },
         "required": ["intent"],
     },
@@ -281,38 +297,76 @@ def _check_no_media_claim(reply_text: str) -> tuple[bool, "str | None"]:
     return True, None
 
 
-async def _classify_and_extract(latest_message: str) -> dict:
+def _history_block(history, limit: int = 8) -> str:
+    """The last few real messages (never unsent AI drafts: build_concierge_context already excludes those), oldest first."""
+    lines = []
+    for m in (history or [])[-limit:]:
+        direction = getattr(m.get("direction"), "value", m.get("direction"))
+        who = "GUEST" if str(direction).lower() == "inbound" else "US"
+        body = (m.get("body") or "").strip()
+        if body:
+            lines.append(f"[{who}] {body[:400]}")
+    return "\n".join(lines)
+
+
+async def _classify_and_extract(latest_message: str, history=None, known: dict | None = None) -> dict:
+    """One cheap call that reads the guest's newest message IN the context of the conversation.
+
+    It used to see only the newest burst, so "and for 3 nights?" lost the dates and party size the guest gave a message earlier,
+    and the draft asked for them again. `history` is the recent conversation; `known` is what the enquiry already records.
+    """
     adapter = get_llm("quick_classify")
     today = date.today().isoformat()
+    context = ""
+    block = _history_block(history)
+    if block:
+        context += "CONVERSATION SO FAR (oldest first; the guest's newest unanswered lines are last):\n" + block + "\n\n"
+    if known:
+        context += "ALREADY RECORDED ABOUT THIS ENQUIRY: " + json.dumps(known, default=str) + "\n\n"
     result = await adapter.complete(
         system_prompt=(
-            f"Today's date is {today}. Classify this WhatsApp message from a "
-            "hospitality guest and extract any stay details mentioned. "
-            "Resolve relative dates (e.g. 'next weekend', 'the 14th') against "
-            "today's date. If no year is given, assume the next future "
-            "occurrence of that date."
+            f"Today's date is {today}. Classify the newest WhatsApp/Instagram message from a hospitality guest and extract "
+            "the stay details the guest has STATED. A date or headcount given earlier in the conversation still counts; if the "
+            "guest later changed it, use the latest value. Never guess: leave anything not stated as null. Resolve relative "
+            "dates (e.g. 'next weekend', 'the 14th') against today's date; if no year is given, assume the next future "
+            "occurrence of that date. List every distinct thing the guest is asking in `questions`."
         ),
-        user_message=latest_message,
+        user_message=context + "NEWEST UNANSWERED GUEST MESSAGE(S):\n" + latest_message,
         tools=[INTENT_TOOL],
     )
     return result.get("tool_use") or {"intent": "general"}
 
 
-async def _ground_reply(db, tenant_id: str, latest_message: str, inquiry) -> tuple[str, list, list]:
+async def _ground_reply(
+    db, tenant_id: str, latest_message: str, inquiry,
+    history=None, known: dict | None = None, details_out: dict | None = None, property_id: str | None = None,
+) -> tuple[str, list, list]:
     """Returns (intent, grounded_facts, suggested_actions). grounded_facts is
     [] whenever grounding wasn't attempted or found nothing -- never
     fabricated. suggested_actions is the RecommendedAction[] shape
     (HAIP Inbox prototype-wiring plan, ticket 4), populated only when a real
-    quote was fetched -- never a guess at what the guest wants."""
-    classification = await _classify_and_extract(latest_message)
+    quote was fetched -- never a guess at what the guest wants.
+
+    `details_out`, when given, receives what the guest stated (dates, party, destination, questions ... validated by
+    concierge_facts.clean_details) so the caller can remember it and stop asking for it again."""
+    classification = await _classify_and_extract(latest_message, history=history, known=known)
     intent = classification.get("intent", "general")
+    details = concierge_facts.clean_details(classification)
+    if details_out is not None:
+        details_out.update(details)
+        details_out["intent"] = intent
     if intent not in GROUNDED_INTENTS:
         return intent, [], []
 
-    check_in = classification.get("check_in") or (inquiry.check_in if inquiry else None)
-    check_out = classification.get("check_out") or (inquiry.check_out if inquiry else None)
-    adults = classification.get("adults") or (inquiry.adults if inquiry else None) or 1
-    children = classification.get("children") or (inquiry.children if inquiry else 0) or 0
+    # Stated dates win; otherwise what the enquiry already records. Both go through the same checks (real, in order, not past).
+    check_in, check_out = details.get("check_in"), details.get("check_out")
+    if not (check_in and check_out):
+        check_in, check_out, _ = concierge_facts.valid_stay_dates(
+            str(inquiry.check_in) if inquiry and inquiry.check_in else None,
+            str(inquiry.check_out) if inquiry and inquiry.check_out else None,
+        )
+    adults = details.get("adults") or (inquiry.adults if inquiry else None) or 1
+    children = details.get("children") or (inquiry.children if inquiry else 0) or 0
 
     if not check_in or not check_out:
         # Can't ground without dates -- the prompt already instructs the
@@ -323,7 +377,7 @@ async def _ground_reply(db, tenant_id: str, latest_message: str, inquiry) -> tup
 
     grounded_facts: list = []
     suggested_actions: list = []
-    property_id = inquiry.property_id if inquiry else None
+    property_id = property_id or (inquiry.property_id if inquiry else None)
 
     # check_availability -- same underlying service the MCP tool of the same
     # name wraps (app/mcp/tools.py), called directly here rather than
@@ -332,6 +386,7 @@ async def _ground_reply(db, tenant_id: str, latest_message: str, inquiry) -> tup
     # trail (action="mcp.tool.*"); this internal loop has neither, and
     # routing it through MCP's audit log would misrepresent an internal
     # HAIP task as an external client's tool call.
+    args = {"checkin": check_in, "checkout": check_out, "adults": adults, "children": children, "property_id": property_id}
     try:
         results = calculator_service.search(
             db, tenant_id=tenant_id, checkin=check_in, checkout=check_out,
@@ -339,7 +394,9 @@ async def _ground_reply(db, tenant_id: str, latest_message: str, inquiry) -> tup
         )
     except Exception as exc:
         log.warning("concierge_grounding_availability_failed", tenant_id=tenant_id, error=str(exc))
-        return intent, [], []
+        # Say so. Returning no fact at all made the prompt tell the model "no availability was fetched, ask for the dates" --
+        # wrong when the dates are known and the lookup is what failed -- and left nothing for the guard to check a claim against.
+        return intent, [{"tool": "check_availability", "args": args, "result": [], "lookup_failed": True}], []
 
     # Confirmed live bug: a guest asking about a 20-person group got told
     # "our caravans are designed for up to 4 guests" -- Property.max_adults
@@ -351,18 +408,26 @@ async def _ground_reply(db, tenant_id: str, latest_message: str, inquiry) -> tup
     # here, plus the empty-results capacity note below, plus the
     # _check_grounding() guard extension, closes that gap the same way the
     # price/availability guards already do for their claim types.
-    availability_fact: dict = {
-        "tool": "check_availability",
-        "args": {"checkin": check_in, "checkout": check_out, "adults": adults, "children": children, "property_id": property_id},
-        "result": [
-            {
-                "property_id": r.property_id, "property_name": r.property_name,
-                "available": r.available, "price_per_night": str(r.price_per_night),
-                "nights": r.nights, "currency": r.currency, "max_adults": r.max_adults,
-            }
-            for r in results
-        ],
-    }
+    priced = [
+        {
+            "property_id": r.property_id, "property_name": r.property_name,
+            "available": r.available, "price_per_night": str(r.price_per_night),
+            "nights": r.nights, "currency": r.currency, "max_adults": r.max_adults,
+        }
+        for r in results
+    ]
+    # search() drops every property that cannot be booked; the report says why each one was dropped (booked or blocked, party too
+    # large, no rate for these dates) so "nothing matched" is never a guess. Best effort: the priced results above stand alone.
+    try:
+        report = calculator_service.availability_report(
+            db, tenant_id=tenant_id, checkin=check_in, checkout=check_out,
+            adults=adults, children=children, property_id=property_id,
+        )
+        fact_results = concierge_facts.availability_with_reasons(report, priced)
+    except Exception as exc:
+        log.warning("concierge_availability_report_failed", tenant_id=tenant_id, error=str(exc))
+        fact_results = priced
+    availability_fact: dict = {"tool": "check_availability", "args": args, "result": fact_results}
     if not results:
         # Adults only -- max_adults caps adults, and children have their own
         # max_children. Counting a toddler against the adult limit is what
@@ -391,6 +456,8 @@ async def _ground_reply(db, tenant_id: str, latest_message: str, inquiry) -> tup
                     "tool": "get_quote",
                     "args": {"property_id": target.property_id, "checkin": check_in, "checkout": check_out},
                     "result": {
+                        "property_name": target.property_name, "nights": target.nights,
+                        "adults": adults, "children": children,
                         "subtotal": str(quote.subtotal), "gst": str(quote.gst),
                         "total": str(quote.total), "advance_amount": str(quote.advance_amount),
                         "currency": quote.currency,
@@ -446,20 +513,62 @@ def _known_home_bases(db, tenant_id: str) -> list:
     return out
 
 
+_NEGATED_AVAILABILITY_RE = re.compile(
+    r"\b(not available|unavailable|isn'?t available|aren'?t available|no availability|booked|blocked|taken|not free|not open)\b",
+    re.IGNORECASE,
+)
+
+
+def _positive_availability_claim(reply_text: str) -> "str | None":
+    """A sentence that says dates are open ("is available for those dates") without saying they are not."""
+    for sentence in re.split(r"(?<=[.!?])\s+", reply_text):
+        if (
+            _AVAILABILITY_WORDS_RE.search(sentence)
+            and _STAY_CONTEXT_RE.search(sentence)
+            and not _NEGATED_AVAILABILITY_RE.search(sentence)
+        ):
+            return sentence.strip()
+    return None
+
+
+def _known_capacity_values(grounded_facts: list) -> set[str]:
+    """Capacities the reply may cite: the availability lookup's, and each property record's own figures."""
+    known: set[str] = set()
+    for fact in grounded_facts:
+        if fact.get("tool") == "check_availability":
+            for p in fact.get("result", []):
+                if p.get("max_adults"):
+                    known.add(str(p["max_adults"]))
+            if fact.get("max_capacity_note"):
+                known.add(str(fact["max_capacity_note"]))
+        elif fact.get("tool") == "property_facts":
+            for p in fact.get("result", []):
+                for key in ("max_adults", "max_children"):
+                    if p.get(key):
+                        known.add(str(p[key]))
+    return known
+
+
 def _check_grounding(reply_text: str, grounded_facts: list) -> tuple[bool, "str | None"]:
-    """Deterministic post-check (plan §1.3): every ₹ figure the draft cites
-    must appear somewhere in grounded_facts' results, and an availability
-    claim must not be made with zero grounding attempted at all. Not full
-    NLP understanding -- a conservative, literal check on the highest-risk
-    claim types (a wrong price is the worst-case outcome).
+    """Deterministic post-check (plan §1.3): every price figure the draft
+    cites must be a money value in grounded_facts (exact match), and an
+    availability claim must be backed by what the availability lookup said.
+    Not full NLP understanding -- a conservative, literal check on the
+    highest-risk claim types (a wrong price or a false "yes, it's free" is the
+    worst-case outcome).
 
     Capacity check added after a confirmed live hallucination: a guest
     asking about a 20-person group was told "designed for up to 4 guests"
     -- the real max_adults is 8. Same shape as the money check: any
     "up to/max/fits/sleeps N guests"-style claim must match a real number
     from grounded_facts (per-property max_adults, or the empty-results
-    max_capacity_note), not just sound plausible."""
-    money_mentions = _MONEY_RE.findall(reply_text)
+    max_capacity_note), not just sound plausible.
+
+    Availability: if the lookup failed, or it found no property open for the dates and party, a reply that says the dates ARE
+    available is a false promise -- a calendar block or a booking exists -- and is blocked."""
+    from app.services import price_policy
+
+    money_mentions = price_policy.money_figures(reply_text)
     availability_mentions = [
         m
         for sentence in re.split(r"(?<=[.!?])\s+", reply_text)
@@ -468,31 +577,31 @@ def _check_grounding(reply_text: str, grounded_facts: list) -> tuple[bool, "str 
     ]
     capacity_mentions = _CAPACITY_RE.findall(reply_text)
 
-    known_capacities: set[str] = set()
-    for fact in grounded_facts:
-        if fact.get("tool") != "check_availability":
-            continue
-        for p in fact.get("result", []):
-            if p.get("max_adults"):
-                known_capacities.add(str(p["max_adults"]))
-        if fact.get("max_capacity_note"):
-            known_capacities.add(str(fact["max_capacity_note"]))
+    known_capacities = _known_capacity_values(grounded_facts)
 
     if capacity_mentions:
         bad_capacity = [n for n in capacity_mentions if n not in known_capacities]
         if bad_capacity:
             return False, f"cites capacity {bad_capacity!r}, not present in grounded_facts (known: {known_capacities or 'none'})"
 
+    # What the availability lookup actually said, when it was run for specific dates.
+    checked = [f for f in grounded_facts if f.get("tool") == "check_availability" and (f.get("args") or {}).get("checkin")]
+    if checked:
+        positive = _positive_availability_claim(reply_text)
+        if positive:
+            if any(f.get("lookup_failed") for f in checked):
+                return False, f"says dates are available but the availability lookup failed: {positive!r}"
+            if not any(r.get("available") for f in checked for r in f.get("result", [])):
+                return False, f"says dates are available but the lookup found no open property: {positive!r}"
+
     if not grounded_facts:
         if money_mentions or availability_mentions:
             return False, f"cites price/availability with zero grounded_facts: {money_mentions or availability_mentions}"
         return True, None
 
-    grounded_blob = json.dumps(grounded_facts, default=str)
-    for money in money_mentions:
-        digits = re.sub(r"[^\d]", "", money)
-        if digits and digits not in grounded_blob:
-            return False, f"cites {money!r}, not present in grounded_facts"
+    unsupported = price_policy.unsupported_figures(reply_text, grounded_facts)
+    if unsupported:
+        return False, f"cites {unsupported!r}, not present in grounded_facts"
     return True, None
 
 
@@ -640,8 +749,137 @@ def _maybe_alert_phone_decline(
 _VALID_TONES = {"warm", "formal", "brief", "persuasive"}
 
 
+def _already_drafted_for_latest_inbound(db, conversation_id: str) -> bool:
+    """True when an AI draft already exists that is newer than the guest's newest message.
+
+    A Celery retry (or a duplicate delivery) of a run that had already stored its draft would otherwise draft AGAIN -- and in
+    autonomous mode send a second reply to the same message. unanswered_guest_text() is empty by then (the stored draft counts as
+    an outbound message), so the second run would not even know what the guest asked.
+    """
+    from app.models.conversation import MessageDirection
+    newest_inbound = (
+        db.query(Message.created_at)
+        .filter(Message.conversation_id == conversation_id, Message.direction == MessageDirection.INBOUND)
+        .order_by(Message.created_at.desc())
+        .first()
+    )
+    if not newest_inbound:
+        return False
+    return db.query(Message.id).filter(
+        Message.conversation_id == conversation_id,
+        Message.direction == MessageDirection.OUTBOUND,
+        Message.is_ai_generated.is_(True),
+        Message.created_at >= newest_inbound[0],
+    ).first() is not None
+
+
+def _known_enquiry(inquiry) -> dict:
+    """What the CRM enquiry already records, for the classifier (never persisted back by this task)."""
+    if not inquiry:
+        return {}
+    known = {
+        "check_in": str(inquiry.check_in) if inquiry.check_in else None,
+        "check_out": str(inquiry.check_out) if inquiry.check_out else None,
+        "adults": inquiry.adults, "children": inquiry.children,
+        "occasion": getattr(inquiry, "occasion", None),
+    }
+    return {k: v for k, v in known.items() if v}
+
+
+def _known_lines(inquiry, details: dict) -> list[str]:
+    """Plain-language list of what is already known about the trip: the enquiry's fields, then what the guest said in chat."""
+    lines: list[str] = []
+    ci = (str(inquiry.check_in) if inquiry and inquiry.check_in else None) or details.get("check_in")
+    co = (str(inquiry.check_out) if inquiry and inquiry.check_out else None) or details.get("check_out")
+    if details.get("check_in") and details.get("check_out"):
+        ci, co = details["check_in"], details["check_out"]          # the guest's newest statement wins over an older record
+    if ci and co:
+        lines.append(f"Travel dates: {ci} → {co}")
+    adults = details.get("adults") or (inquiry.adults if inquiry else None)
+    children = details.get("children") if details.get("children") is not None else (inquiry.children if inquiry else None)
+    if adults:
+        lines.append(f"Party: {adults} adults" + (f" + {children} children" if children else ""))
+    place = details.get("destination") or details.get("property_hint")
+    if place:
+        lines.append(f"Destination / property mentioned: {place}")
+    occasion = details.get("occasion") or (getattr(inquiry, "occasion", None) if inquiry else None)
+    if occasion:
+        lines.append(f"Occasion / special request: {occasion}")
+    if details.get("budget") or (inquiry and getattr(inquiry, "budget", None)):
+        lines.append("Budget: shared (the team handles it; never repeat the figure)")
+    return lines
+
+
+def _extract_draft(result: dict) -> dict:
+    """The model's reply object. Some providers answer in plain text/JSON instead of calling the tool."""
+    tool_use = result.get("tool_use")
+    if isinstance(tool_use, dict) and tool_use:
+        return tool_use
+    content = result.get("content")
+    if isinstance(content, str) and content.strip():
+        match = re.search(r"\{.*\}", content, re.DOTALL)
+        if match:
+            try:
+                obj = json.loads(match.group(0))
+            except ValueError:
+                obj = None
+            if isinstance(obj, dict) and "reply" in obj:
+                return obj
+    return {}
+
+
+MAX_REPLY_CHARS = 1200
+
+
+def _sanitize_draft(draft: dict) -> tuple[dict, list[str]]:
+    """Coerce the model's output to the contract, and name every way it broke it.
+
+    A model can return a non-string reply, a confidence of "high" or 7, a reply wrapped in JSON/code fences, or a runaway wall of
+    text. None of those may reach a guest or crash the task; each one drops confidence to 0 (human review) and is recorded.
+    """
+    problems: list[str] = []
+    reply = draft.get("reply")
+    if not isinstance(reply, str):
+        reply = ""
+        if "reply" in draft:
+            problems.append("reply was not text")
+    reply = reply.strip()
+    if reply.startswith("```"):
+        reply = re.sub(r"^```[a-zA-Z]*\s*|\s*```$", "", reply).strip()
+    if reply.startswith("{") and '"reply"' in reply:
+        try:
+            inner = json.loads(reply)
+            if isinstance(inner, dict) and isinstance(inner.get("reply"), str):
+                reply = inner["reply"].strip()
+                problems.append("reply was wrapped in JSON")
+        except ValueError:
+            problems.append("reply looked like unparsed JSON")
+            reply = ""
+    if len(reply) > MAX_REPLY_CHARS:
+        problems.append(f"reply unusually long ({len(reply)} characters)")
+
+    try:
+        confidence = float(draft.get("confidence", 0.0))
+        if confidence != confidence or confidence < 0.0 or confidence > 1.0:      # NaN or out of range
+            problems.append(f"confidence {draft.get('confidence')!r} out of range")
+            confidence = 0.0
+    except (TypeError, ValueError):
+        problems.append(f"confidence {draft.get('confidence')!r} not a number")
+        confidence = 0.0
+
+    needs_human = draft.get("needs_human", True)
+    if not isinstance(needs_human, bool):
+        problems.append("needs_human was not true/false")
+        needs_human = True
+    reason = draft.get("reason_needs_human")
+    return {
+        "reply": reply, "confidence": confidence, "needs_human": needs_human,
+        "reason_needs_human": reason if isinstance(reason, str) else None,
+    }, problems
+
+
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=10, name="tasks.concierge_draft")
-def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str, tone: str | None = None):
+def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str, tone: str | None = None, force: bool = False):
     from app.workers.tasks.send_whatsapp import send_whatsapp
     from app.workers.tasks.send_instagram_dm import send_instagram_dm
 
@@ -660,6 +898,12 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         # below. No-op here rather than writing a second, disjointed draft.
         if not is_latest_pending_draft(tenant_id, conversation_id, message_id):
             log.info("concierge_draft_superseded", conversation_id=conversation_id, message_id=message_id)
+            return
+
+        # `force` is the agent clicking "write a draft" -- a second draft is exactly what they asked for. Every automatic caller
+        # (webhooks, automations, retries) is stopped when this message already has its draft.
+        if not force and _already_drafted_for_latest_inbound(db, conversation_id):
+            log.info("concierge_draft_already_drafted", conversation_id=conversation_id, message_id=message_id)
             return
 
         guest_id = conversation.guest_id
@@ -704,12 +948,20 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         # try below, so a grounding timeout/failure -- or a message with no
         # body -- left it undefined for every later reader.
         _intent: str = "general"
+        # What the guest has stated, filled by _ground_reply (dates, party, destination, the questions they asked ...). It is
+        # filled as soon as the message is understood, so it survives a later availability-lookup timeout.
+        details: dict = {}
+        scope_property_id = (inquiry.property_id if inquiry else None) or conversation.property_id
         if burst_text:
             start = time.monotonic()
             try:
                 _intent, grounded_facts, suggested_actions = _run_async(
                     asyncio.wait_for(
-                        _ground_reply(db, tenant_id, burst_text, inquiry),
+                        _ground_reply(
+                            db, tenant_id, burst_text, inquiry,
+                            history=ctx["recent_messages"], known=_known_enquiry(inquiry),
+                            details_out=details, property_id=scope_property_id,
+                        ),
                         timeout=MAX_GROUNDING_SECONDS,
                     )
                 )
@@ -751,6 +1003,21 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         if _home_bases:
             grounded_facts.append({"tool": "home_base", "result": _home_bases})
 
+        # Operational data the reply may rely on, from the same tables the rest of HAIP reads. Each is best effort: a failed
+        # lookup leaves the fact out (the prompt then says the team will confirm) and never costs the guest their reply.
+        for _label, _builder in (
+            ("property_facts", lambda: concierge_facts.property_facts(db, tenant_id, scope_property_id)),
+            ("guest_bookings", lambda: concierge_facts.guest_booking_facts(db, tenant_id, guest_id)),
+        ):
+            try:
+                _fact = _builder()
+                if _fact:
+                    grounded_facts.append(_fact)
+            except Exception as exc:
+                log.warning("concierge_fact_lookup_failed", fact=_label, conversation_id=conversation_id, error=str(exc))
+        if details:
+            grounded_facts.append({"tool": "conversation_details", "result": details})
+
         # HAIP Inbox UI-fidelity pass, ticket 3: widen the AI card trigger
         # beyond price_quote-only. One query, checked alongside the rest of
         # the context-building above.
@@ -774,17 +1041,32 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         # repeat -- instructions alone leave the number one slip away from
         # the guest's screen.
         from app.services import price_policy
-        missing_details = price_policy.missing_lead_details(guest, inquiry)
-        qualified = price_policy.is_qualified(guest, inquiry)
+        price_mode = price_policy.price_mode(tenant)
+        missing_details = price_policy.missing_lead_details(guest, inquiry, details)
+        qualified = price_policy.is_qualified(guest, inquiry, details)
 
+        # "handoff" (default): the model is never shown a figure. "grounded": it sees the live rate/quote and may repeat exactly
+        # those figures (the guard further down blocks any other number).
+        prompt_facts = grounded_facts if price_mode == "grounded" else price_policy.redact_price_facts(grounded_facts)
+        _by_tool = {f.get("tool"): f for f in prompt_facts}
+        questions = details.get("questions") or []
         system_prompt = template.render(
             tenant=TenantProxy(tenant),
             guest=guest,
             inquiry=inquiry,
             recent_messages=ctx["recent_messages"],
             call_summaries=ctx["call_summaries"],
-            kb_snippets=ctx["kb_snippets"],
-            grounded_facts=price_policy.redact_price_facts(grounded_facts),
+            # A document's old rate must never compete with the live one: figures are removed from knowledge text.
+            kb_snippets=[dict(sn, text=price_policy.strip_prices(sn.get("text", ""))) for sn in ctx["kb_snippets"]],
+            kb_unavailable=ctx.get("kb_status") in ("embedding_unavailable", "search_failed"),
+            grounded_facts=prompt_facts,
+            property_info=(_by_tool.get("property_facts") or {}).get("result") or [],
+            guest_bookings=(_by_tool.get("guest_bookings") or {}).get("result") or [],
+            known_lines=_known_lines(inquiry, details),
+            date_problem=details.get("date_problem"),
+            questions=questions,
+            max_words=80 if len(questions) >= 2 else 45,
+            price_mode=price_mode,
             tone=tone if tone in _VALID_TONES else None,
             guest_missing_phone=guest_missing_phone,
             missing_details=missing_details,
@@ -815,6 +1097,14 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
                         ),
                         timeout=reply_timeout,
                     )
+                )
+                # Provider, model, latency and (when the provider reports it) token usage -- never the prompt or the reply text.
+                log.info(
+                    "concierge_completion_ok", conversation_id=conversation_id, attempt=attempt,
+                    provider=getattr(adapter, "provider", None),
+                    elapsed_sec=round(time.monotonic() - completion_start, 2),
+                    prompt_chars=len(system_prompt),
+                    **{k: result.get(k) for k in ("model", "input_tokens", "output_tokens", "tokens_used") if result.get(k) is not None},
                 )
                 break
             except asyncio.TimeoutError:
@@ -848,14 +1138,20 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
                 "confidence": 0.0, "citations": [], "needs_human": True,
                 "reason_needs_human": reason,
             }}
-        draft = result.get("tool_use") or {}
-        confidence = draft.get("confidence", 0.0)
-        reply_text = draft.get("reply", "")
-        needs_human = draft.get("needs_human", True)
+        draft, _malformed = _sanitize_draft(_extract_draft(result))
+        confidence = draft["confidence"]
+        reply_text = draft["reply"]
+        needs_human = draft["needs_human"]
         # Persisted so "why didn't this auto-send despite high confidence"
         # is answerable from the database afterward, not just from a log
         # line the next container restart erases (migration 088).
         needs_human_reasons: list[str] = []
+        if _malformed:
+            log.warning("concierge_malformed_output", conversation_id=conversation_id, problems=_malformed,
+                        provider=getattr(adapter, "provider", None))
+            needs_human_reasons.append("malformed model output: " + "; ".join(_malformed))
+            confidence = 0.0
+            needs_human = True
 
         # Real bug, reported live: a completion that finishes without
         # timing out but comes back with no usable tool_use (the model
@@ -890,9 +1186,18 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         # mode/confidence gate below); leads_service.py separately flags
         # the lead for a human to follow up on, using the same
         # ai_needs_human_reason this block already persists.
-        hard_block = False
+        hard_block = bool(_malformed)
         if needs_human and draft.get("reason_needs_human"):
             needs_human_reasons.append(str(draft["reason_needs_human"]))
+
+        # The guest's tone and any request for a person are recorded for the agent (soft flag: it never blocks a send by itself,
+        # the escalation guard below does that for the cases that must not be answered by the AI).
+        if details.get("wants_human"):
+            needs_human = True
+            needs_human_reasons.append("guest asked to speak to a person")
+        if details.get("sentiment") == "frustrated":
+            needs_human = True
+            needs_human_reasons.append("guest sounds frustrated")
 
         # ── Ticket 4: deterministic hallucination guard ────────────────────
         is_grounded, violation = _check_grounding(reply_text, grounded_facts)
@@ -945,7 +1250,12 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         # model ignores that. A leaked rate sent unreviewed is precisely the
         # outcome the no-pricing-in-chat rule exists to prevent, so any price
         # mention drops the draft to human review rather than being sent.
-        price_leak = price_policy.detect_price(reply_text)
+        if price_mode == "grounded":
+            # Any figure must be one the live lookup returned for this conversation; anything else is a leak all the same.
+            _unsupported = price_policy.unsupported_figures(reply_text, grounded_facts)
+            price_leak = f"figure(s) not from the live rate: {_unsupported}" if _unsupported else None
+        else:
+            price_leak = price_policy.detect_price(reply_text)
         if price_leak:
             log.warning(
                 "draft_price_leak_blocked",

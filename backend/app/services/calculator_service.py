@@ -266,6 +266,60 @@ class CalculatorService:
         results.sort(key=lambda r: r.price_per_night)
         return results
 
+    def availability_report(
+        self,
+        db: Session,
+        tenant_id: str,
+        checkin: str,
+        checkout: str,
+        adults: int,
+        children: int = 0,
+        property_id: str | None = None,
+    ) -> list[dict]:
+        """Why each active property is or is not bookable for these dates and party.
+
+        search() silently drops every property that cannot be booked, so "nothing came back" could mean booked out, blocked on the
+        calendar, too many people, or no rate configured -- and the AI could only guess which. This reports each one separately
+        using the same checks search() makes (capacity, rate, bookings and blocks), in the same order:
+
+          available | over_capacity | no_rate | unavailable (a confirmed/checked-in booking or a calendar block overlaps)
+
+        It deliberately does not say WHICH of booking or block applies: a guest is told the dates are not open, never who or
+        what holds them. No prices here -- search()/build_quote() own those.
+        """
+        checkin_date = date.fromisoformat(checkin)
+        checkout_date = date.fromisoformat(checkout)
+        nights = (checkout_date - checkin_date).days
+        if nights < 0:
+            return []
+
+        q = db.query(Property).filter_by(tenant_id=tenant_id, is_active=True)
+        if property_id:
+            q = q.filter(Property.id == property_id)
+
+        report: list[dict] = []
+        for prop in q.all():
+            entry = {
+                "property_id": str(prop.id), "property_name": prop.name,
+                "max_adults": prop.max_adults or 0, "nights": nights,
+            }
+            if adults > (prop.max_adults or 0) or (prop.max_children and children > prop.max_children):
+                entry["status"] = "over_capacity"
+            else:
+                rate = self._resolve_rate(
+                    db=db, prop=prop, checkin=checkin, checkout=checkout,
+                    checkin_date=checkin_date, nights=nights, guests=adults + children,
+                )
+                if rate is None:
+                    entry["status"] = "no_rate"
+                elif not self._is_available(db, str(prop.id), tenant_id, checkin, checkout):
+                    entry["status"] = "unavailable"
+                else:
+                    entry["status"] = "available"
+                    entry["min_nights"] = rate[3]
+            report.append(entry)
+        return report
+
     def build_quote(
         self,
         db: Session,
