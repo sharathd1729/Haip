@@ -35,7 +35,7 @@ def _run_async(coro):
     finally:
         loop.close()
 from app.services.concierge_service import build_concierge_context, is_latest_pending_draft, unanswered_guest_text
-from app.services import concierge_facts
+from app.services import concierge_facts, sales_gateway
 from app.core.database import set_tenant_context
 import structlog
 
@@ -546,6 +546,10 @@ def _known_capacity_values(grounded_facts: list) -> set[str]:
                 for key in ("max_adults", "max_children"):
                     if p.get(key):
                         known.add(str(p[key]))
+        elif fact.get("tool") == "business_data":
+            for p in (fact.get("result") or {}).get("packages", []):
+                if p.get("max_guests"):
+                    known.add(str(p["max_guests"]))
     return known
 
 
@@ -1023,6 +1027,12 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
                     grounded_facts.append(_fact)
             except Exception as exc:
                 log.warning("concierge_fact_lookup_failed", fact=_label, conversation_id=conversation_id, error=str(exc))
+        # Ratha's structured business data (packages, routes, itineraries, policies, and a package quote when the guest has named
+        # one): published records only, read through the gateway, best effort like the facts above.
+        try:
+            grounded_facts.extend(sales_gateway.concierge_business_facts(db, tenant_id, details))
+        except Exception as exc:
+            log.warning("concierge_fact_lookup_failed", fact="business_data", conversation_id=conversation_id, error=str(exc))
         if details:
             grounded_facts.append({"tool": "conversation_details", "result": details})
 

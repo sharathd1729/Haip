@@ -165,6 +165,7 @@ _PRICE_KEYS = {
     "price_per_night", "price", "total", "subtotal", "gst", "tax",
     "advance_amount", "amount", "rate", "base_rate", "nightly_rate",
     "total_amount", "discount", "addon_total", "grand_total", "balance",
+    "taxable", "advance",                      # package quotes (sales_gateway)
 }
 
 

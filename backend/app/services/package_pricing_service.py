@@ -146,6 +146,18 @@ def _open_vehicles(db: Session, tenant_id: str, vehicle_ids: list[str], ci: date
     return out
 
 
+def evaluate_discount(pol, percent: Decimal, base_total: Decimal) -> dict:
+    """What the published discount policy says about a requested percentage: applied / needs_approval / refused. The one place."""
+    amount = _money(base_total * percent / 100)
+    if percent > pol.max_discount_percent or (pol.max_discount_amount is not None and amount > pol.max_discount_amount):
+        return {"requested_percent": str(percent), "status": "refused", "amount": None,
+                "reason": f"above the policy maximum of {pol.max_discount_percent}%" + (f" / {pol.max_discount_amount}" if pol.max_discount_amount is not None else "")}
+    if percent > pol.requires_approval_above_percent:
+        return {"requested_percent": str(percent), "status": "needs_approval", "amount": None,
+                "reason": f"above {pol.requires_approval_above_percent}% needs approval from {', '.join(pol.approver_roles)}"}
+    return {"requested_percent": str(percent), "status": "applied", "amount": str(amount), "reason": "within policy"}
+
+
 def quote(
     db: Session, tenant_id: str, package_key: str, check_in: date, check_out: date, adults: int, children: int = 0,
     planned_km: Optional[Decimal] = None, extras: Optional[list[dict]] = None, discount_percent: Optional[Decimal] = None,
@@ -250,15 +262,9 @@ def quote(
             return _refuse("no_discount_policy", "No discount policy is published, so no discount can be offered.", **base)
         pol = bds.parse(pol_rec)
         refs.append({"kind": "discount_policy", "key": pol_rec.key, "version": pol_rec.version, "record_id": pol_rec.id})
-        amount = _money(base_total * discount_percent / 100)               # a discount applies to the package price, not to extras
-        if discount_percent > pol.max_discount_percent or (pol.max_discount_amount is not None and amount > pol.max_discount_amount):
-            discount = {"requested_percent": str(discount_percent), "status": "refused", "amount": None,
-                        "reason": f"above the policy maximum of {pol.max_discount_percent}%" + (f" / {pol.max_discount_amount}" if pol.max_discount_amount is not None else "")}
-        elif discount_percent > pol.requires_approval_above_percent:
-            discount = {"requested_percent": str(discount_percent), "status": "needs_approval", "amount": None,
-                        "reason": f"above {pol.requires_approval_above_percent}% needs approval from {', '.join(pol.approver_roles)}"}
-        else:
-            discount = {"requested_percent": str(discount_percent), "status": "applied", "amount": str(amount), "reason": "within policy"}
+        discount = evaluate_discount(pol, discount_percent, base_total)         # a discount applies to the package price, not to extras
+        if discount["status"] == "applied":
+            amount = Decimal(discount["amount"])
             lines.append(Line(f"Discount {discount_percent}%", -amount, "within the published discount policy"))
             taxable = _money(subtotal - amount)
 

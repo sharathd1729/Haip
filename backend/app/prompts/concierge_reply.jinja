@@ -119,6 +119,39 @@ PROPERTY FACTS (from the property records -- the source for what each property o
 - If something is not in PROPERTY FACTS or the KNOWLEDGE BASE, say the team will confirm -- do not invent it.
 {% endif %}
 
+{% set bd_facts = (grounded_facts or []) | selectattr("tool", "equalto", "business_data") | list %}
+{% if bd_facts %}
+{% set bd = bd_facts[0].result %}
+PACKAGES, ROUTES AND POLICIES (published business records -- the source for exactly what each package includes, its limits, its routes and the stay rules)
+{% for p in bd.packages or [] %}
+- Package "{{ p.name }}" ({{ p.product | replace("_", " ") }}): up to {{ p.max_guests }} guests{% if p.min_nights %}; at least {{ p.min_nights }} night(s){% endif %}{% if p.max_nights %}; at most {{ p.max_nights }} night(s){% endif %}{% if p.included_km %}; {{ p.included_km }} km included{% endif %}
+{% if p.summary %}  About: {{ p.summary }}
+{% endif %}
+{% if p.inclusions %}  Included: {{ p.inclusions | join(", ") }}
+{% endif %}
+{% if p.exclusions %}  Not included: {{ p.exclusions | join(", ") }}
+{% endif %}
+{% endfor %}
+{% for d in bd.destinations or [] %}
+- Destination {{ d.name }}: {{ d.distance_km_from_base }} km, about {{ d.travel_hours_from_base }} h from the base{% if d.stops %}; route {% for s in d.stops %}{{ s.name }}{% if s.overnight %} (overnight){% endif %}{% if not loop.last %} → {% endif %}{% endfor %}{% endif %}{% if d.description %}. {{ d.description }}{% endif %}
+{% endfor %}
+{% for it in bd.itineraries or [] %}
+- Itinerary "{{ it.name }}" ({{ it.nights }} night(s)): {% for day in it.days %}Day {{ day.day }} {{ day.title }}{% if day.overnight_location %} (night at {{ day.overnight_location }}){% endif %}{% if not loop.last %}; {% endif %}{% endfor %}
+{% endfor %}
+{% if bd.stay_rules %}- Stay rules: check-in {{ bd.stay_rules.check_in_time }}, check-out {{ bd.stay_rules.check_out_time }}{% if bd.stay_rules.min_age %}; minimum age {{ bd.stay_rules.min_age }}{% endif %}{% if bd.stay_rules.id_required %}; photo ID required{% endif %}{% if bd.stay_rules.house_rules %}; house rules: {{ bd.stay_rules.house_rules | join("; ") }}{% endif %}
+
+{% endif %}
+{% if price_mode == "grounded" %}
+{% if bd.cancellation_policy %}- Cancellation: {% for t in bd.cancellation_policy.tiers %}{{ t.refund_percent }}% refund if cancelled {{ t.days_before }}+ days before check-in{% if not loop.last %}; {% endif %}{% endfor %}.
+{% endif %}
+{% if bd.payment_policy %}- Payment: {{ bd.payment_policy.advance_percent }}% advance, balance {{ bd.payment_policy.balance_due_days_before_checkin }} days before check-in.
+{% endif %}
+{% endif %}
+{% if bd_facts[0].flags %}- Not available / still to be confirmed by the team: {{ bd_facts[0].flags | join(", ") }}.
+{% endif %}
+- Describe a package, route or rule ONLY as written above, for that package. A package, route or rule that is not listed here is not confirmed: say the team will confirm. Never combine two packages' limits or inclusions.
+{% endif %}
+
 {% if guest_bookings %}
 THIS GUEST'S OWN BOOKINGS (records for the person you are chatting with -- nobody else's)
 {% for b in guest_bookings %}
@@ -183,10 +216,15 @@ CURRENT PRICING -- THE ONLY PRICES YOU MAY STATE
 {% for q in quotes %}
 - Quote for {{ q.result.property_name }}, {{ q.args.checkin }} → {{ q.args.checkout }}, {{ q.result.adults }} adults{% if q.result.children %} + {{ q.result.children }} children{% endif %}: stay {{ q.result.subtotal }} + GST {{ q.result.gst }} = total {{ q.result.total }} {{ q.result.currency }}; advance {{ q.result.advance_amount }}.
 {% endfor %}
+{% for pq in (grounded_facts or []) | selectattr("tool", "equalto", "package_quote") %}
+{% if pq.result.refused %}- Package quote not possible ({{ pq.result.refused | replace("_", " ") }}): do NOT state any price for this package; say the team will confirm.
+{% else %}- Package quote "{{ pq.result.package_name }}", {{ pq.args.checkin }} → {{ pq.args.checkout }}: {% for l in pq.result.lines %}{{ l.label }} {{ l.amount }}{% if not loop.last %}; {% endif %}{% endfor %}; subtotal {{ pq.result.subtotal }} + GST {{ pq.result.gst }} = total {{ pq.result.total }} {{ pq.result.currency }}{% if pq.result.advance %}; advance {{ pq.result.advance }}{% endif %}. Valid until {{ pq.result.valid_until }}.
+{% endif %}
+{% endfor %}
 {% for r in rates %}
 - {{ r.p.property_name }}: {{ r.p.price_per_night }} {{ r.p.currency }} per night for {{ r.p.nights }} night(s) ({{ r.fact.args.checkin }} → {{ r.fact.args.checkout }}, {{ r.fact.args.adults }} adults).
 {% endfor %}
-{% if not quotes and not rates %}
+{% if not quotes and not rates and not (grounded_facts or []) | selectattr("tool", "equalto", "package_quote") | list %}
 - (no live price was fetched for this message)
 {% endif %}
 - You may state a price ONLY if it appears in the list above, for exactly that property, those dates and that party. Present it as the current rate for those dates, not a promise: it is confirmed when the booking is made.
