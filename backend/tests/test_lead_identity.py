@@ -101,7 +101,8 @@ def test_many_dms_from_one_contact_are_still_one_lead(db, tenant_and_user):
     assert len(ids) == 1
     gid = ids.pop()
     db.add(Conversation(id=str(uuid.uuid4()), tenant_id=tid, guest_id=gid, channel=ChannelType.INSTAGRAM))
-    db.add(Conversation(id=str(uuid.uuid4()), tenant_id=tid, guest_id=gid, channel=ChannelType.INSTAGRAM))
+    # One OPEN conversation per guest and channel is a database rule (migration 099); the earlier one is closed.
+    db.add(Conversation(id=str(uuid.uuid4()), tenant_id=tid, guest_id=gid, channel=ChannelType.INSTAGRAM, is_open=False))
     identity_service.add_signal(db, tid, gid, "phone", PHONE, source="message_text")
     db.commit()
     assert _leads(db, tid) == 1

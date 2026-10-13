@@ -1,5 +1,5 @@
 # HAIP — Claude Code Working Instructions
-**Version**: 2.3 · **Owner**: Sharath D. · **Updated**: 13 Oct 2026 (Alembic head `122`)
+**Version**: 2.3 · **Owner**: Sharath D. · **Updated**: 14 Oct 2026 (Alembic head `123`)
 **Reference docs**: HAIP_FULL_BUILD_PLAN.md · architecture-delta.md · execution-plan.md · docs/HAIP_Module_Audit_M0.md (module status matrix, 11 Oct 2026 — update statuses as gaps close)
 
 **KEEP THIS FILE CURRENT — standing rule from the owner.** When a change adds or alters a
@@ -52,6 +52,12 @@ replies, unified lead record across every touchpoint.
 - **WhatsApp**: template editor + Meta sync, campaigns (schedule, CSV import, CRM audiences, reports), health check, overview dashboard.
   **Instagram**: per-channel verify tokens (never shown in page), hourly alert if message access is off, referral-only events handled.
 - **Integration health**: one rule (`integration_health.py`) for the bar, insights and Integrations page.
+- **AI reliability (mAI3, Oct 2026) [123]**: inventory + gaps `docs/ai/AI_FEATURE_MATRIX.md`. **KB**: ONE
+  retrieval path, `knowledge_service.search_detailed`; an entry is used only if active + approved + indexed + not `stale_since` + in scope; an edit makes it `pending`
+  (unused) until re-indexed; beat `knowledge.sweep_all_tenants` retries (cap 6); a failed lookup is never reported as "no answer". **Concierge facts** (`concierge_facts.py`):
+  property records, the conversation guest's OWN bookings, availability WITH reasons; guards block "available" when nothing is open and any price that is not an exact
+  live figure; KB text has prices stripped. **Pricing is a TENANT policy**: `brand_config.price_disclosure` = `handoff` (default; Ratha: never a price in chat) | `grounded`.
+  Summary `leads360-summary-v7` (updates the previous one, ignores unsent drafts, booking state computed). `send_whatsapp*` never resend a SENT message.
 - **Meta Ads + Marketing page** [115, 116] — see "META ADS / MARKETING" below.
 - **UI redesign** (phases 0–5): kit, tokens, five-section sidebar, inbox/bookings/calls/leads on the kit.
 
@@ -389,27 +395,21 @@ Backend auth is custom JWT (HS256) via `backend/app/api/v1/endpoints/auth.py` �
 **⚠️ Alembic migration gotcha — read before touching `backend/alembic/`:**
 `env.py` previously ran two "best-effort" setup statements before every migration transaction (`pg_terminate_backend(...)` and `SET lock_timeout`/`SET statement_timeout`), both wrapped in a silent `except: pass`. A failed statement poisons the rest of that connection's transaction in Postgres — so every migration after it would log "success" via Alembic's step-by-step logging (which fires before each step runs) while nothing ever actually committed, and `alembic_version` would never advance. This cost real time on both Neon (`neondb_owner` lacks `pg_signal_backend` — always failed) and Supabase (session pooler rejected the `SET` calls). Both statements are now removed. **If `alembic upgrade head` ever again logs success without `alembic_version` moving, suspect a silently-swallowed exception earlier in the same transaction, not a "did it really run" mystery** — check `env.py` first.
 
-**Test baseline** (branch `phase0-reliability`, 2026-10-11, Phase 0.1): **PostgreSQL 16 (what production and `test.yml` use):
-2251 passing / 0 failing / 1 skipped**; SQLite: **2207 passing / 0 failing / 45 skipped** (the PostgreSQL-only tests skip there).
-Run the suite on PostgreSQL before trusting a result: SQLite ignores foreign keys, column widths, booleans and partial unique indexes, and hid a
-real `ai_score_status` varchar(20) bug and a forking audit chain (`docs/HAIP_Phase0_Failure_Register.md`, Appendices 4-5). Do not add "known
-failures" -- fix or register them. The `db` fixture uses savepoints on PostgreSQL, so code under test may `commit/rollback/close` freely.
-Frontend: `tsc --noEmit --skipLibCheck` clean, vitest has no known failures (`permissions.test.ts` expected owner compliance `write`; it now asserts `manage`, which is what `permissions.ts` grants). Tests default `ENCRYPTION_KEY` in `tests/conftest.py`.
-`tests/test_celery_task_routing.py` guards that every registered task routes to a consumed queue and every beat entry names a
-registered task. It pins known exceptions (`_KNOWN_UNROUTED`, `_KNOWN_DEAD_BEAT`: 7 scheduled jobs -- DPDP purge, retention purge,
-Hostaway/RentalWise sync, owner digest, Meta quality poll, lost-reason clustering -- name tasks that do not exist and never run). The lists
-may only shrink; enabling a job needs an owner decision (failure register). New tasks need an exact-name route.
+**Test baseline** (`feat/mai3-reliability`, 2026-10-14, exit 0 both): **PostgreSQL 16.14 + pgvector 0.8.5: 2628 passed / 0 failed / 1 skipped**; SQLite: **2573 passed / 0 failed / 56 skipped**.
+Run on PostgreSQL before trusting a result (SQLite ignores foreign keys, widths, booleans, partial unique indexes; `docs/HAIP_Phase0_Failure_Register.md`). No "known failures". PG `db` fixture uses
+savepoints; on SQLite a `rollback()` in code under test erases the test's rows. pgvector SQL: `test_knowledge_pgvector_postgres.py` (PG only); SQLite uses `knowledge_service.PYTHON_VECTOR_FALLBACK`.
+Frontend: `tsc --noEmit --skipLibCheck` clean, vitest green (57); ESLint cannot run (no `eslint.config.*`). `tests/test_celery_task_routing.py`: every task routes to a consumed queue, every beat entry
+names a registered task; pinned exceptions (`_KNOWN_UNROUTED`, `_KNOWN_DEAD_BEAT`) may only shrink. New tasks need an exact-name route. Tests default `ENCRYPTION_KEY` in `conftest.py`.
 `core/audit.py::append_audit` chains within one transaction and, on PostgreSQL, takes a per-tenant advisory lock (held until
 commit, 10 s bounded wait; failures log `audit_chain_lock_failed`) and stamps `created_at` strictly increasing, so concurrent
 writers form one chain. A transaction must never audit several tenants (deadlock): use one transaction per tenant.
 Row-level security: `alembic/proposed/118_*` is NOT applied; check the DB role with `backend/scripts/verify_rls_isolation.py`
 (read-only) and `docs/HAIP_Phase0_Production_Checklist.md` before assuming RLS protects anything. Migration 117 widens
-`calls.ai_score_status`; 119 grants foh `conversations.send` to existing tenants unless the owner edited that cell; 120-121 add the iCal tables; 122 (head) adds the
-lead columns on `guests` + `guest_merge_events`. 118 is reserved for the proposed RLS file (re-parent on 122 when promoted). Roll code back with `alembic downgrade 116` first (checklist 11).
-**Sending needs `conversations.send`** (owner, manager, reservations, concierge, foh by default): `send_message`, `send_template`, `retry`,
-`approve` and both AI-rewrite POSTs use `require_capability`. A new default grant only reaches NEW tenants; existing ones need a data migration.
-**AI-rewrite tasks are bounded** (`rewrite_draft.py`): one provider request <= `REWRITE_TIMEOUT_SECONDS` (30 s, `asyncio.wait_for`), a timeout is never retried, the draft task retries a
-provider error once (max 70 s per click), the composer never retries (reports `failed`/`timeout`); Celery soft/hard limits 45/60 s are only a backstop.
+`calls.ai_score_status`; 119 grants foh `conversations.send` to existing tenants unless the owner edited that cell; 120-121 add the iCal tables; 122 adds the lead columns on `guests` + `guest_merge_events`; 123 (head) adds
+`knowledge_entries.embedding_attempts/stale_since`. 118 is reserved for the proposed RLS file (re-parent on 123 when promoted). Roll code back with `alembic downgrade 116` first (checklist 11).
+**Sending needs `conversations.send`** (owner, manager, reservations, concierge, foh by default): `send_message`, `send_template`, `retry`, `approve` and both AI-rewrite POSTs use `require_capability`. A new default grant only reaches NEW tenants; existing ones need a data migration.
+**AI-rewrite tasks are bounded** (`rewrite_draft.py`): one request <= 30 s (`asyncio.wait_for`), a timeout is never retried, the draft task retries a
+provider error once, the composer never retries; a rewrite that changes a number is rejected. Embedding calls: 8 s query / 30 s indexing, SDK retries off.
 **CI:** GitHub's default shell is `bash -e` WITHOUT pipefail, so `pytest | tee` passes even when pytest fails; every such step
 needs `shell: bash` + `set -eo pipefail`, and `! grep` is ignored by `set -e` (use `if grep ...; then exit 1; fi`).
 ⚠️ **Don't write a failure off as drift before checking for a latent bug.** Thirteen "pre-existing" failures were stdlib `logging` called
