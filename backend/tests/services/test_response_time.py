@@ -134,7 +134,11 @@ def test_parse_summary_valid_json():
     assert summary.startswith("Guest wants a villa")
     assert analysis["sentiment"] == "positive"
     assert analysis["objection"] is None
-    assert set(analysis.keys()) == {"intent", "sentiment", "objection", "reply_urgency", "next_action"}
+    assert set(analysis.keys()) == {
+        "intent", "sentiment", "objection", "reply_urgency", "next_action",
+        "unanswered_questions", "requirements", "inferences", "follow_up",     # added in leads360-summary-v7
+    }
+    assert analysis["unanswered_questions"] == [] and analysis["follow_up"] is None
 
 
 def test_parse_summary_markdown_fenced():

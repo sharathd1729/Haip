@@ -99,7 +99,10 @@ PROMPT_VERSIONS: dict[str, str] = {
     # includes a "Reference date" line (the most recent inbound message's
     # own timestamp, not run-time) and check_in/check_out are instructed to
     # resolve to the nearest occurrence on/after it.
-    "leads360_summary":       "leads360-summary-v6",  # generate_ai_summary.py -- v3 adds structured trip-fact extraction
+    # v7 (2026-10-13): updates the previous summary instead of rewriting from the last 10 messages; sees the real stage and the real
+    # booking status; ignores AI drafts nobody sent; adds unanswered_questions / requirements / inferences / follow_up and keeps
+    # stated facts (extracted) apart from conclusions (inferences).
+    "leads360_summary":       "leads360-summary-v7",  # generate_ai_summary.py -- v3 adds structured trip-fact extraction
     "ask_haip_intent":        "ask-haip-intent-v1",
     "ask_haip_rca":           "ask-haip-rca-v1",
     "ask_haip_report":        "ask-haip-report-v1",

@@ -923,6 +923,14 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
                 "concierge_draft_skipped_mode_off",
                 conversation_id=conversation_id, tenant_id=tenant_id,
             )
+            # No draft means nothing below refreshes the lead's summary, so an enquiry whose AI is off kept an analysis that
+            # ignored every new message. The refresh does not need a draft.
+            if inquiry and inquiry.id:
+                try:
+                    from app.services.leads_service import trigger_summary_refresh
+                    trigger_summary_refresh(db=db, inquiry_id=str(inquiry.id), tenant_id=tenant_id, source="message")
+                except Exception as summary_exc:
+                    log.warning("concierge_summary_refresh_skipped", conversation_id=conversation_id, error=str(summary_exc))
             return
 
         # Let the guest see "typing…" while the draft is being generated --

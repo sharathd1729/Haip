@@ -391,6 +391,22 @@ def get_conversation_timeline_endpoint(
     return result
 
 
+def _refresh_lead_summary(db, conv, tenant_id: str) -> None:
+    """A message the team sends changes the lead's analysis too (what has been answered, what to do next).
+
+    Only inbound messages used to refresh it -- and only when an AI draft was written for them -- so the analysis could go on
+    describing a question the team had already answered. Debounced like every message-triggered refresh; never blocks a send.
+    """
+    inquiry_id = getattr(conv, "inquiry_id", None)
+    if not inquiry_id:
+        return
+    try:
+        from app.services.leads_service import trigger_summary_refresh
+        trigger_summary_refresh(db, str(inquiry_id), tenant_id, source="message")
+    except Exception as exc:
+        log.warning("send_summary_refresh_skipped", conversation_id=str(conv.id), error=str(exc))
+
+
 @router.post("/{conversation_id}/messages", response_model=MessageOut, status_code=201)
 def send_message(
     conversation_id: str,
@@ -474,6 +490,8 @@ def send_message(
         claim_on_first_touch(db, current_user.tenant_id, conv.guest_id, current_user.id)
     db.commit()
     db.refresh(msg)
+    if not body.is_internal:
+        _refresh_lead_summary(db, conv, current_user.tenant_id)
 
     log.info(
         "send_message_created",
@@ -1068,6 +1086,8 @@ def approve_ai_draft(
     if _conv:
         claim_on_first_touch(db, current_user.tenant_id, _conv.guest_id, current_user.id)
     db.commit()
+    if _conv:
+        _refresh_lead_summary(db, _conv, current_user.tenant_id)
 
     if channel == "instagram":
         from app.workers.tasks.send_instagram_dm import send_instagram_dm
