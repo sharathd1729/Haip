@@ -130,9 +130,13 @@ def merge_guests(
     tenant_id: str,
     survivor_id: str,
     deprecated_id: str,
+    *,
+    actor_user_id: Optional[str] = None,
+    reason: str = "exact_identity_match",
 ) -> None:
     """
     Merge deprecated guest into survivor. Idempotent — safe to call twice.
+    ``reason`` is "manual" for a merge a person approved; every merge is logged and can be undone (guest_merge_events).
 
     After merge:
       - All identity signals re-pointed to survivor
@@ -148,6 +152,8 @@ def merge_guests(
         tenant_id=tenant_id,
         survivor_id=survivor_id,
         deprecated_id=deprecated_id,
+        actor_user_id=actor_user_id,
+        reason=reason,
     )
 
     # Write system timeline event to inquiry_stage_log for all survivor's inquiries

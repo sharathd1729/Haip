@@ -34,14 +34,15 @@ export function KpiGrid({ data }: { data: BusinessOverview }) {
   const bookingsOff = isRestricted(bookings), revenueOff = isRestricted(revenue);
   return (
     <section aria-label="Headline numbers" className="grid grid-cols-2 gap-px overflow-hidden rounded-[var(--radius)] border border-[var(--haip-border)] bg-[var(--haip-border)] md:grid-cols-3 xl:grid-cols-6">
-      <Tile label="Leads received" value={num(leads.received)} change={leads.received_change} href="/dashboard/leads" hint="spam left out" />
+      <Tile label="New leads" value={num(leads.identified_new.count)} change={leads.identified_new.change} href="/dashboard/leads" hint="people with a phone number" />
       <Tile label="Bookings made" value={bookingsOff ? "Restricted" : num(bookings.confirmed_created)} restricted={bookingsOff}
         change={bookingsOff ? null : bookings.confirmed_change} href="/dashboard/bookings" hint={bookingsOff ? undefined : `${num(bookings.cancelled_of_created)} cancelled`} />
       <Tile label="Booked value" value={revenueOff ? "Restricted" : inr(revenue.gross_booking_value)} restricted={revenueOff}
         change={revenueOff ? null : revenue.gross_change} href="/dashboard/targets" hint={revenueOff ? undefined : "stay charge"} />
       <Tile label="Cash collected" value={revenueOff ? "Restricted" : inr(revenue.collected)} restricted={revenueOff}
         change={revenueOff ? null : revenue.collected_change} href="/dashboard/bookings" hint={revenueOff ? undefined : `${inr(revenue.refunds)} refunded`} />
-      <Tile label="Lead to booking" value={pct(leads.conversion_rate)} href="/dashboard/leads" hint={`${num(leads.converted_to_booking)} of ${num(leads.received)} so far`} />
+      <Tile label="Lead to booking" value={pct(leads.conversion.rate)} href="/dashboard/leads"
+        hint={`${num(leads.conversion.numerator)} of ${num(leads.conversion.denominator)} new leads booked so far`} />
       <Tile label="Needs attention" value={num(alerts)} href="#needs-attention" hint={alerts ? "see the list below" : "all clear"} />
     </section>
   );

@@ -53,16 +53,19 @@ export function Ledger({ data }: { data: BusinessOverview }) {
       ))}
     </div>
     <div className="grid grid-cols-1 md:grid-cols-3 md:divide-x md:divide-[var(--haip-border)]">
-      <Column shown={tab === "leads"} title="Leads" icon={<Users size={16} />} headline={num(leads.received)} headlineLabel="received"
-        change={<ChangePill change={leads.received_change} />} href="/dashboard/leads" hrefLabel="Open Leads360">
-        <Row label="Valid" value={num(leads.valid)} hint="in a pipeline stage that counts as a real lead" />
-        <Row label="Invalid (triage)" value={num(leads.invalid)} />
-        <Row label="Converted to a booking" value={num(leads.converted_to_booking)}
-          hint={leads.conversion_rate == null ? "no leads in this period" : `${pct(leads.conversion_rate)} of received, so far`} />
-        <Row label="Unassigned right now" value={num(leads.unassigned_now)} tone={leads.unassigned_now > 0 ? "warning" : undefined}
-          hint="open leads nobody owns, not limited to this period" href="/dashboard/my-day?kind=unassigned" />
-        <Row label="Lost" value={num(leads.lost)} hint="moved to a closed-lost stage" />
-        <Row label="Marked as spam, left out" value={num(leads.marked_spam_excluded)} muted />
+      <Column shown={tab === "leads"} title="Leads" icon={<Users size={16} />} headline={num(leads.identified_new.count)} headlineLabel="new leads (phone number captured)"
+        change={<ChangePill change={leads.identified_new.change} />} href="/dashboard/leads" hrefLabel="Open Leads360">
+        <Row label="Qualified" value={num(leads.qualified_new.count)}
+          hint={leads.qualified_new.rate_of_new == null ? "of the new leads" : `${pct(leads.qualified_new.rate_of_new)} of the new leads`} />
+        <Row label="Booked so far" value={num(leads.conversion.numerator)}
+          hint={leads.conversion.rate == null ? "no new leads in this period" : `${pct(leads.conversion.rate)} of the ${num(leads.conversion.denominator)} new leads`} />
+        <Row label="Conversations opened" value={num(leads.conversations_new.count)} hint="one person can have several" />
+        <Row label="Contacts without a number" value={num(leads.unidentified_contacts.count)} muted hint="not leads yet" />
+        <Row label="Enquiries" value={num(leads.enquiries.created)} hint={`${num(leads.enquiries.repeat)} repeat from the same person`} />
+        <Row label="Enquiries nobody owns now" value={num(leads.unassigned_now)} tone={leads.unassigned_now > 0 ? "warning" : undefined}
+          hint="open, not limited to this period" href="/dashboard/my-day?kind=unassigned" />
+        <Row label="Lost enquiries" value={num(leads.enquiries.lost)} hint="moved to a closed-lost stage" />
+        <Row label="Marked as spam, left out" value={num(leads.enquiries.marked_spam_excluded)} muted />
       </Column>
 
       {isRestricted(bookings) ? (
@@ -79,8 +82,8 @@ export function Ledger({ data }: { data: BusinessOverview }) {
             hint={bookings.payment_overdue > 0 ? `${num(bookings.payment_overdue)} past a due date` : "confirmed or in house, not fully paid"}
             tone={bookings.payment_overdue > 0 ? "danger" : undefined} href="/dashboard/bookings?quick=due" />
           <Row label="Pending" value="Not tracked" muted hint="HAIP has no pending booking status" />
-          {bookings.not_linked_to_a_lead != null && (
-            <Row label="Not linked to a lead" value={num(bookings.not_linked_to_a_lead)} muted hint="cannot be traced to a source or agent" />
+          {bookings.no_identified_lead != null && (
+            <Row label="Guests with no phone number" value={num(bookings.no_identified_lead)} muted hint="not leads, so not in a source or agent" />
           )}
         </Column>
       )}

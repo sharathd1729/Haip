@@ -1,6 +1,7 @@
 "use client";
-// Where leads and bookings come from, and what Meta Ads cost. Attribution is stated for what it is: a booking counts for
-// a source only when it is linked to a lead, and Meta's own numbers sit apart from what HAIP can verify.
+// Where new leads first came from, and what Meta Ads cost. Sources follow the PERSON's first touch (a lead who returns through
+// another platform is not moved); a person whose first touch is unknown is shown as Unknown. Meta's own numbers sit apart from
+// what HAIP can verify.
 // Lists reflow into stacked rows on a phone (no sideways scrolling) and become aligned columns from the tablet width.
 import type { ReactNode } from "react";
 import Link from "next/link";
@@ -9,7 +10,7 @@ import { ago, inr, isRestricted, num, pct, type BusinessOverview, type MetaAds, 
 
 export function Acquisition({ data }: { data: BusinessOverview }) {
   const bookings = data.access.bookings, money = data.access.revenue;
-  const unlinked = !isRestricted(data.bookings) ? data.bookings.not_linked_to_a_lead : null;
+  const unlinked = !isRestricted(data.bookings) ? data.bookings.no_identified_lead : null;
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       <Sources rows={data.sources} bookings={bookings} money={money} unlinked={unlinked} />
@@ -49,10 +50,10 @@ function Sources({ rows, bookings, money, unlinked }: { rows: SourceRow[]; booki
   const max = Math.max(1, ...rows.map(r => r.leads));
   return (
     <section aria-labelledby="sources-title" className="haip-card px-4 py-4 sm:px-6 sm:py-5 lg:col-span-2">
-      <SectionTitle sub="Leads by where they first came from; bookings and value only where a booking is linked to the lead">
+      <SectionTitle sub="New leads (people) by where they first got in touch; bookings and value are those made by the same people">
         <span id="sources-title">Sources</span>
       </SectionTitle>
-      {rows.length === 0 ? <Empty>No leads in this period.</Empty> : (
+      {rows.length === 0 ? <Empty>No new leads in this period.</Empty> : (
         <>
           <ListHead cols={["Source", "Leads", "Bookings", "Booked value"]} />
           <ul className="divide-y divide-[var(--haip-border)]">
@@ -68,7 +69,7 @@ function Sources({ rows, bookings, money, unlinked }: { rows: SourceRow[]; booki
         </>
       )}
       {unlinked != null && unlinked > 0 && (
-        <p className="mt-3 text-[12px] text-[var(--haip-fg-subtle)]">{num(unlinked)} booking{unlinked === 1 ? "" : "s"} made in this period {unlinked === 1 ? "is" : "are"} not linked to a lead, so {unlinked === 1 ? "it is" : "they are"} not credited to any source above.</p>
+        <p className="mt-3 text-[12px] text-[var(--haip-fg-subtle)]">{num(unlinked)} booking{unlinked === 1 ? "" : "s"} made in this period {unlinked === 1 ? "is" : "are"} from a guest with no phone number on file, so {unlinked === 1 ? "it is" : "they are"} not credited to any source above.</p>
       )}
     </section>
   );
@@ -95,7 +96,8 @@ function Meta({ meta, bookings }: { meta: MetaAds; bookings: boolean }) {
           <p className="mt-4 text-[11.5px] font-semibold uppercase tracking-wide text-[var(--haip-fg-subtle)]">Verified in HAIP</p>
           <dl className="divide-y divide-[var(--haip-border)]">
             <Row label="Chats traced to an ad" value={num(meta.verified_conversations)} hint={(meta.not_traced ?? 0) > 0 ? `${num(meta.not_traced)} of Meta’s chats could not be traced` : undefined} />
-            <Row label="Leads" value={num(meta.verified_leads)} hint={meta.cost_per_verified_lead != null ? `${inr(meta.cost_per_verified_lead)} each` : undefined} />
+            <Row label="People in those chats" value={num(meta.verified_contacts)} />
+            <Row label="Leads (phone number held)" value={num(meta.verified_leads)} hint={meta.cost_per_verified_lead != null ? `${inr(meta.cost_per_verified_lead)} each` : undefined} />
             {bookings && <Row label="Bookings linked to them" value={num(meta.verified_bookings)} hint="any date, not only this period" />}
             {bookings && <Row label="Booked value" value={inr(meta.verified_booking_value)} hint={meta.return_on_spend != null ? `${meta.return_on_spend}× the spend` : undefined} />}
           </dl>

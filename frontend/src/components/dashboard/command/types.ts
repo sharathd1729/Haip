@@ -8,7 +8,7 @@ export interface Unavailable { available: false; reason: string }
 export interface Restricted { restricted: true }
 
 export interface FunnelStage {
-  key: "received" | "valid" | "booked" | "paid";
+  key: "identified" | "qualified" | "booked" | "paid";
   label: string;
   count: number;
   previous: number;
@@ -16,16 +16,27 @@ export interface FunnelStage {
   change: Change | null;
 }
 
+/** A count with its period-on-period change and a one-line statement of exactly what it counts. */
+export interface Counted { count: number; change?: Change | null; basis?: string }
+
+/** The lead block. A LEAD is a person we hold a usable phone number for; conversations and enquiries are counted apart. */
 export interface LeadsBlock {
-  received: number; received_change: Change | null;
-  valid: number; invalid: number; marked_spam_excluded: number;
-  converted_to_booking: number; conversion_rate: number | null; conversion_basis: string;
+  definition: string;
+  conversations_new: Counted;
+  unidentified_contacts: Counted;
+  identified_new: Counted;
+  identified_active: Counted;
+  qualified_new: Counted & { rate_of_new: number | null };
+  conversion: { numerator: number; denominator: number; rate: number | null; previous_rate: number | null; basis: string };
+  enquiries: {
+    created: number; repeat: number; marked_spam_excluded: number; lost: number;
+    by_expected_check_in: { month: string; count: number }[]; expected_check_in_unknown: number; basis: string;
+  };
   unassigned_now: number;
-  lost: number;
-  by_expected_check_in: { month: string; count: number }[];
-  expected_check_in_unknown: number;
   high_intent_at_risk: { count: number; items: { inquiry_id: string; name: string; reason: string; href: string }[] };
 }
+
+export interface LeadCohortSplit { count: number | null; value: number | null }
 
 export interface BookingsBlock {
   restricted: false;
@@ -34,7 +45,8 @@ export interface BookingsBlock {
   pending: Unavailable;
   upcoming_checkins: number; upcoming_window_days: number;
   needs_payment: number; payment_overdue: number; needs_payment_truncated: boolean;
-  not_linked_to_a_lead: number | null;
+  by_lead_cohort: { from_new_leads: LeadCohortSplit; from_earlier_leads: LeadCohortSplit; no_identified_lead: LeadCohortSplit };
+  no_identified_lead: number | null;
   upcoming_checkouts: number;
   by_property: { property_id: string; name: string; bookings: number; value: number | null }[];
   by_channel: { channel: string; bookings: number; value: number | null }[];
@@ -64,6 +76,7 @@ export interface SeriesBlock {
   days: string[];
   period_start_index: number;
   leads: number[];
+  conversations: number[];
   bookings: number[] | null;
   booking_value: number[] | null;
   net_collected: number[] | null;
@@ -73,7 +86,7 @@ export interface PipelineRow { stage: string; category: string | null; won: bool
 export interface SourceRow { key: string; label: string; leads: number; bookings: number | null; booking_value: number | null }
 export interface AgentRow {
   agent_id: string | null; name: string;
-  leads: number; valid: number; invalid: number; bookings: number | null; booking_value: number | null;
+  leads: number; qualified: number; bookings: number | null; booking_value: number | null;
   calls_answered: number; calls_missed: number; callbacks_waiting: number;
   avg_response_seconds: number | null; messages_sent: number;
   followups_total: number; followups_completed: number; followups_overdue: number;
@@ -83,14 +96,14 @@ export interface AgentRow {
 export interface MetaAds {
   configured: boolean;
   last_synced_at?: string | null; last_error?: string | null;
-  spend?: number | null; reported_chats?: number; verified_conversations?: number; verified_leads?: number;
+  spend?: number | null; reported_chats?: number; verified_conversations?: number; verified_contacts?: number; verified_leads?: number;
   verified_bookings?: number | null; verified_booking_value?: number | null; not_traced?: number; basis?: string;
   cost_per_verified_lead?: number | null; return_on_spend?: number | null;
   impressions?: number; clicks?: number; ctr?: number | null; cpc?: number | null; cpm?: number | null;
   campaigns?: { campaign_id: string; name: string; spend: number | null; impressions: number; clicks: number; reported_chats: number; verified_conversations: number }[];
 }
 
-export interface AttentionItem { key: string; label: string; count: number; oldest_at: string | null; href: string }
+export interface AttentionItem { key: string; label: string; count: number; oldest_at: string | null; href: string; people: number | null }
 export interface StaleIntegration { kind: string; label: string; status: "yellow" | "red"; last_sync: string | null; message: string | null; href: string }
 export interface Insight { id: string; severity: string; title: string; body: string; cta_label?: string | null; cta_href?: string | null }
 

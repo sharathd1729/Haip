@@ -1,96 +1,81 @@
-"""Business Overview (Owner Command Center): leads -> bookings -> revenue on one page.
+"""Business Overview (Owner Command Center): conversations -> leads -> bookings -> revenue on one page.
 
 This module only COMPOSES. Every definition it uses already lives somewhere shared and is reused, not restated:
-  * new leads            kpi_metrics.lead_filters            (leads.new)
-  * bookings made        kpi_metrics.booking_filters         (stays.booked)
-  * cash in / refunds    kpi_metrics.payment_totals          (payments.collected)
-  * owed / paid / due    booking_service.financials_for / schedules_for
-  * work queue counts    dashboard_service.needs_you_now     (-> work_queue_service)
-  * integration health   integration_health.classify
-  * month target         sales_performance_service.pickup_report
-The one thing computed here is how they fit together: the lead -> booking -> payment cohort and the per-source /
-per-agent splits that join leads to the bookings linked to them (Stay.inquiry_id).
+  * conversations, contacts, leads, qualified leads, cohort, conversion   lead_metrics   (the canonical LEAD definition)
+  * enquiry records (repeat enquiries included)                           lead_metrics.enquiry_counts
+  * bookings made                                                         kpi_metrics.booking_filters         (stays.booked)
+  * cash in / refunds                                                     kpi_metrics.payment_totals          (payments.collected)
+  * owed / paid / due                                                     booking_service.financials_for / schedules_for
+  * work queue counts                                                     dashboard_service.needs_you_now     (-> work_queue_service)
+  * integration health                                                    integration_health.classify
+  * month target                                                          sales_performance_service.pickup_report
 
-Rules this module keeps (docs/analytics/BUSINESS_OVERVIEW_IMPLEMENTATION.md has the full list):
+A LEAD is a person HAIP holds a usable phone number for. A conversation or an enquiry is not a lead: one person who messages on
+Instagram and WhatsApp and enquires twice is two conversations, two enquiries and ONE lead. The page keeps those apart and never
+adds them up. Conversion is a cohort figure (see lead_metrics.lead_to_booking). docs/analytics/BUSINESS_OVERVIEW_IMPLEMENTATION.md
+has the full rules; the ones this module keeps:
   * A figure the caller may not see is returned as ``None`` inside a block marked ``restricted``; it is never 0.
   * A figure HAIP cannot compute is ``{"available": False, "reason": ...}``; it is never 0.
-  * Only a booking with a lead link (Stay.inquiry_id) is attributed to a source or an agent. The rest are counted
-    as "not linked to a lead" and shown as such.
+  * A booking belongs to its guest (Stay.guest_id); source and agent splits follow the PERSON: first-touch channel and owner.
   * Reporting day is the IST calendar day (date_presets), shown to the user in the response.
 """
 from __future__ import annotations
 
-from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
-from sqlalchemy import case, func
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.ad_metrics import AdMetric
 from app.models.conversation import Conversation
+from app.models.guest import Guest
 from app.models.inquiry import Inquiry
 from app.models.integration import Integration
 from app.models.lead_attribution import LeadAttribution
 from app.models.pipeline_stage import PipelineStage
 from app.models.property import Stay
-from app.models.stay_finance import StayAddOn, StayPayment
-from app.services import booking_service, dashboard_service, integration_health, kpi_metrics
+from app.models.stay_finance import StayAddOn
+from app.services import booking_service, dashboard_service, integration_health, kpi_metrics, lead_metrics
 from app.services import business_overview_extras as extras
 from app.services import work_queue_service
 from app.services.date_presets import IST, ist_range_to_utc
 from app.services.business_overview_common import (  # noqa: F401  (Params, normalise_channel, previous_period are re-exported)
     Params, _change, _channel_condition, _lead_conditions, _linked_stay_ids, _money, _rate, _stay_conditions,
-    normalise_channel, previous_period,
+    normalise_channel, people_filters, previous_period,
 )
 
 LIVE_STATUSES = ("confirmed", "checked_in")
 LIVE_STAY_CAP = 2000       # live bookings examined for "needs payment"; beyond this the answer says truncated
 UPCOMING_DAYS = 7
 
+LEAD_DEFINITION = ("A lead is a person we hold a usable phone number for. A conversation, a DM or an enquiry on its own is not a lead; "
+                   "one person across Instagram, WhatsApp and calls is one lead.")
 
-# ── leads and the lead -> booking -> payment cohort ──────────────────────────────────────────────────────────
 
-def _cohort(db: Session, p: Params, start: str, end: str) -> dict:
-    """Leads received in the period and what became of them SO FAR (a lead may book after the period closes)."""
-    conds = _lead_conditions(p, start, end)
-    received = db.query(func.count(Inquiry.id)).filter(*conds).scalar() or 0
+# ── leads: people, kept apart from conversations and enquiries ───────────────────────────────────────────────
 
-    by_cat = dict(db.query(PipelineStage.category, func.count(Inquiry.id))
-                  .join(PipelineStage, PipelineStage.id == Inquiry.stage_id).filter(*conds)
-                  .group_by(PipelineStage.category).all())
-    valid, invalid = by_cat.get("valid", 0), by_cat.get("invalid", 0)
-
-    booked_q = (db.query(func.count(func.distinct(Inquiry.id)))
-                .join(Stay, Stay.inquiry_id == Inquiry.id)
-                .filter(*conds, Stay.tenant_id == p.tid, Stay.status.in_(list(kpi_metrics.OCCUPYING_STATUSES))))
-    booked_any = booked_q.scalar() or 0
-    booked_valid = (booked_q.join(PipelineStage, PipelineStage.id == Inquiry.stage_id)
-                    .filter(PipelineStage.category == "valid").scalar() or 0)
-
-    paid_sq = (db.query(StayPayment.stay_id.label("stay_id"),
-                        func.sum(case((StayPayment.kind == "refund", -StayPayment.amount), else_=StayPayment.amount)).label("net"))
-               .filter(StayPayment.tenant_id == p.tid).group_by(StayPayment.stay_id).subquery())
-    paid = (db.query(func.count(func.distinct(Inquiry.id)))
-            .join(Stay, Stay.inquiry_id == Inquiry.id).join(PipelineStage, PipelineStage.id == Inquiry.stage_id)
-            .join(paid_sq, paid_sq.c.stay_id == Stay.id)
-            .filter(*conds, Stay.tenant_id == p.tid, Stay.status.in_(list(kpi_metrics.OCCUPYING_STATUSES)),
-                    PipelineStage.category == "valid", paid_sq.c.net > 0).scalar() or 0)
-    return {"received": received, "valid": valid, "invalid": invalid, "booked_any": booked_any,
-            "booked_valid": booked_valid, "paid": paid}
+def _lead_numbers(db: Session, p: Params, start: str, end: str) -> dict:
+    """The period's people-level numbers and the cohort of leads identified in it."""
+    f = people_filters(p)
+    return {**lead_metrics.cohort(db, p.tid, start, end, **f),
+            "conversations": lead_metrics.count_conversations(db, p.tid, start, end, **f),
+            "unidentified": lead_metrics.count_unidentified_contacts(db, p.tid, start, end, **f)}
 
 
 def _funnel(cur: dict, prev: dict) -> dict:
     stages = [
-        ("received", "Lead received", cur["received"], prev["received"], None),
-        ("valid", "Valid lead", cur["valid"], prev["valid"], cur["received"]),
-        ("booked", "Booking confirmed", cur["booked_valid"], prev["booked_valid"], cur["valid"]),
-        ("paid", "Payment collected", cur["paid"], prev["paid"], cur["booked_valid"]),
+        ("identified", "Lead identified", cur["identified"], prev["identified"], None),
+        ("qualified", "Qualified", cur["qualified"], prev["qualified"], cur["identified"]),
+        ("booked", "Booked", cur["booked"], prev["booked"], cur["identified"]),
+        ("paid", "Payment collected", cur["paid"], prev["paid"], cur["booked"]),
     ]
     return {
         "basis": "cohort",
-        "note": ("Counts the leads received in this period and what became of them so far. A lead can book or pay "
-                 "after the period ends, so recent periods are still maturing. Only bookings linked to a lead are counted."),
+        "note": ("Counts the people who became leads (phone captured) in this period and what became of them so far. Each person is "
+                 "counted once, however many chats, calls or enquiries they had. A lead can book or pay after the period ends, so "
+                 "recent periods are still maturing. Qualified and Booked are measured against all identified leads; Payment "
+                 "collected against those booked."),
         "stages": [{"key": k, "label": label, "count": n, "previous": pn,
                     "rate_from_previous": _rate(n, base) if base is not None else None,
                     "change": _change(n, pn)} for k, label, n, pn, base in stages],
@@ -98,7 +83,11 @@ def _funnel(cur: dict, prev: dict) -> dict:
 
 
 def _leads_block(db: Session, p: Params, cur: dict, prev: dict, queue: dict) -> dict:
-    # Enquiries marked as spam are left out of "received" (leads.new); counted here so the page can say how many.
+    f = people_filters(p)
+    active = lead_metrics.count_active_leads(db, p.tid, p.start, p.end, **f)
+    enq = lead_metrics.enquiry_counts(db, p.tid, p.start, p.end, property_id=p.property_id, scope_user_id=p.scope_user_id,
+                                      channel_condition=_channel_condition(p.channel) if p.channel else None)
+    # Enquiries marked as spam are left out of the enquiry count; counted here so the page can say how many.
     spam_q = db.query(func.count(Inquiry.id)).filter(
         Inquiry.tenant_id == p.tid, Inquiry.qualification_status == kpi_metrics.UNQUALIFIED,
         Inquiry.created_at >= kpi_metrics.as_datetime(p.start), Inquiry.created_at <= kpi_metrics.as_datetime(p.end))
@@ -108,14 +97,25 @@ def _leads_block(db: Session, p: Params, cur: dict, prev: dict, queue: dict) -> 
         spam_q = spam_q.filter(Inquiry.property_id == p.property_id)
     if p.channel:
         spam_q = spam_q.filter(_channel_condition(p.channel))
-    spam = spam_q.scalar() or 0
+    conversion = lead_metrics.lead_to_booking(cur)
+    prev_rate = lead_metrics.lead_to_booking(prev)["rate"]
     return {
-        "received": cur["received"], "received_change": _change(cur["received"], prev["received"]),
-        "valid": cur["valid"], "invalid": cur["invalid"],
-        "marked_spam_excluded": spam,
-        "converted_to_booking": cur["booked_any"],
-        "conversion_rate": _rate(cur["booked_any"], cur["received"]),
-        "conversion_basis": "cohort: leads received in the period that have a linked booking so far",
+        "definition": LEAD_DEFINITION,
+        "conversations_new": {"count": cur["conversations"], "change": _change(cur["conversations"], prev["conversations"]),
+                              "basis": "conversations opened in the period; one person can have several"},
+        "unidentified_contacts": {"count": cur["unidentified"], "change": _change(cur["unidentified"], prev["unidentified"]),
+                                  "basis": "people who first got in touch in the period and still have no usable phone number"},
+        "identified_new": {"count": cur["identified"], "change": _change(cur["identified"], prev["identified"]),
+                           "basis": "unique people whose phone number was captured in the period (their first time as a lead)"},
+        "identified_active": {"count": active,
+                              "basis": "unique leads (phone known by the end of the period) with a message, call or enquiry in it"},
+        "qualified_new": {"count": cur["qualified"], "change": _change(cur["qualified"], prev["qualified"]),
+                          "rate_of_new": _rate(cur["qualified"], cur["identified"]),
+                          "basis": "of the new leads, those with a non-spam enquiry in a valid pipeline stage, as of now"},
+        "conversion": {**conversion, "previous_rate": prev_rate},
+        "enquiries": {"created": enq["created"], "repeat": enq["repeat"], "change": None,
+                      "marked_spam_excluded": spam_q.scalar() or 0, **extras.leads_extras(db, p),
+                      "basis": "enquiry records created in the period; repeat enquiries from one person count each time"},
         "unassigned_now": queue["unassigned"],
     }
 
@@ -170,10 +170,11 @@ def _bookings_and_revenue(db: Session, p: Params, today: date) -> tuple[dict, di
         upcoming_q = upcoming_q.filter(Stay.id.in_(scoped))
     live = _live_money(db, p, today)
 
-    unlinked = None
-    if p.tenant_wide and not p.channel and p.scope_user_id is None:
-        unlinked = db.query(func.count(Stay.id)).filter(
-            *kpi_metrics.booking_filters(p.tid, p.start, p.end, property_id=p.property_id), Stay.inquiry_id.is_(None)).scalar() or 0
+    split = lead_metrics.bookings_by_lead_cohort(db, p.tid, p.start, p.end, **people_filters(p))
+    by_lead = {k: {"count": v["count"], "value": _money(p, v["value"])} for k, v in split.items()}
+    narrowed = bool(p.scope_user_id or p.channel)
+    if narrowed:        # a booking with no identified lead has no owner or channel, so it cannot be placed in a narrowed view
+        by_lead["no_identified_lead"] = {"count": None, "value": None}
 
     bookings = {
         "restricted": False,
@@ -182,8 +183,10 @@ def _bookings_and_revenue(db: Session, p: Params, today: date) -> tuple[dict, di
         "pending": {"available": False, "reason": "HAIP bookings are confirmed, checked in, checked out or cancelled; there is no pending status."},
         "upcoming_checkins": int(upcoming_q.scalar() or 0), "upcoming_window_days": UPCOMING_DAYS,
         "needs_payment": live["owing"], "payment_overdue": live["overdue"], "needs_payment_truncated": live["truncated"],
-        "not_linked_to_a_lead": unlinked,
-        "basis": "bookings created in the period (booked-on date), cancelled excluded; cancellations are those created in the period",
+        "by_lead_cohort": by_lead,
+        "no_identified_lead": None if narrowed else split["no_identified_lead"]["count"],
+        "basis": ("bookings created in the period (booked-on date), cancelled excluded; cancellations are those created in the period. "
+                  "by_lead_cohort says whether they came from people who became leads in this period, from earlier leads, or from a guest with no phone number"),
     }
 
     day_from, day_to = date.fromisoformat(p.d_from), date.fromisoformat(p.d_to)
@@ -233,9 +236,10 @@ def _target(db: Session, p: Params) -> Optional[dict]:
             "basis": "month to date, bookings created in the month (the Targets page definition)"}
 
 
-# ── trends ───────────────────────────────────────────────────────────────────────────────────────────────────
+# ── enquiries by stage, sources, Meta Ads ────────────────────────────────────────────────────────────────────
 
 def _pipeline(db: Session, p: Params) -> list[dict]:
+    """Where this period's ENQUIRIES stand in the pipeline (records, so a repeat enquiry shows twice)."""
     rows = (db.query(PipelineStage.label, PipelineStage.category, PipelineStage.is_closed_won, PipelineStage.is_closed_lost,
                      PipelineStage.order, func.count(Inquiry.id))
             .join(Inquiry, Inquiry.stage_id == PipelineStage.id).filter(*_lead_conditions(p, p.start, p.end))
@@ -244,31 +248,19 @@ def _pipeline(db: Session, p: Params) -> list[dict]:
     return [{"stage": r[0], "category": r[1], "won": bool(r[2]), "lost": bool(r[3]), "count": r[5]} for r in rows]
 
 
-# ── sources, Meta Ads, agents ────────────────────────────────────────────────────────────────────────────────
-
 def _source_rows(db: Session, p: Params) -> list[dict]:
-    leads = defaultdict(lambda: {"leads": 0, "bookings": 0, "value": 0.0, "label": "Other"})
-    for source, n in db.query(Inquiry.source, func.count(Inquiry.id)).filter(*_lead_conditions(p, p.start, p.end)).group_by(Inquiry.source).all():
-        key, label = dashboard_service._SOURCE_GROUPS.get(str(getattr(source, "value", source) or "other"), ("other", "Other"))
-        leads[key]["leads"] += n
-        leads[key]["label"] = label
-    conds = _lead_conditions(p, p.start, p.end)
-    if p.can_bookings:
-        for source, n, v in (db.query(Inquiry.source, func.count(func.distinct(Stay.id)), func.coalesce(func.sum(Stay.total_amount), 0))
-                             .join(Stay, Stay.inquiry_id == Inquiry.id)
-                             .filter(*conds, Stay.tenant_id == p.tid, Stay.status.in_(list(kpi_metrics.OCCUPYING_STATUSES)))
-                             .group_by(Inquiry.source).all()):
-            key, _ = dashboard_service._SOURCE_GROUPS.get(str(getattr(source, "value", source) or "other"), ("other", "Other"))
-            leads[key]["bookings"] += n
-            leads[key]["value"] += float(v or 0)
-    return [{"key": k, "label": v["label"], "leads": v["leads"],
-             "bookings": v["bookings"] if p.can_bookings else None, "booking_value": _money(p, v["value"]) if p.can_bookings else None}
-            for k, v in sorted(leads.items(), key=lambda kv: -kv[1]["leads"])]
+    """New leads by FIRST-TOUCH channel (unique people). The channel they came back through later does not move them, and a
+    person whose first touch is unknown is shown as Unknown."""
+    rows = lead_metrics.by_first_touch(db, p.tid, p.start, p.end, with_bookings=p.can_bookings, **people_filters(p))
+    return [{"key": r["key"], "label": r["label"], "leads": r["leads"],
+             "bookings": r["bookings"] if p.can_bookings else None,
+             "booking_value": _money(p, r["value"]) if p.can_bookings else None} for r in rows]
 
 
 def _meta_ads(db: Session, p: Params) -> dict:
     """Meta Ads for the period: what Meta reports, and what HAIP can verify. Spend is Meta's own figure; leads and
-    bookings count only when an ad referral was recorded against the conversation (LeadAttribution)."""
+    bookings count only when an ad referral was recorded against the conversation (LeadAttribution), and a lead is a person
+    with a phone number."""
     row = db.query(Integration).filter_by(tenant_id=p.tid, kind="meta_ads").first()
     cfg = (row.config if row else None) or {}
     if not (row and cfg.get("ad_account_id")):
@@ -283,23 +275,28 @@ def _meta_ads(db: Session, p: Params) -> dict:
     via_conv = dict(db.query(Conversation.id, Conversation.inquiry_id).filter(
         Conversation.tenant_id == p.tid, Conversation.id.in_(missing))) if missing else {}
     inquiry_ids = {a.inquiry_id or via_conv.get(a.conversation_id) for a in atts} - {None}
+    guest_ids = {g for (g,) in db.query(Inquiry.guest_id).filter(Inquiry.tenant_id == p.tid, Inquiry.id.in_(inquiry_ids))} if inquiry_ids else set()
+    identified = (db.query(func.count(Guest.id)).filter(Guest.tenant_id == p.tid, Guest.id.in_(guest_ids), Guest.is_deleted.is_(False),
+                                                        Guest.lead_identified_at.isnot(None)).scalar() or 0) if guest_ids else 0
     bookings, value = 0, 0.0
-    if inquiry_ids and p.can_bookings:
+    if guest_ids and p.can_bookings:
         bookings, value = db.query(func.count(Stay.id), func.coalesce(func.sum(Stay.total_amount), 0)).filter(
-            Stay.tenant_id == p.tid, Stay.inquiry_id.in_(inquiry_ids), Stay.status.in_(list(kpi_metrics.OCCUPYING_STATUSES))).one()
+            Stay.tenant_id == p.tid, Stay.guest_id.in_(guest_ids), Stay.status.in_(list(kpi_metrics.OCCUPYING_STATUSES))).one()
     chats = int(chats or 0)
     return {
         "configured": True, "last_synced_at": cfg.get("last_synced_at"), "last_error": cfg.get("last_error"),
         "spend": _money(p, float(spend or 0)),
         "reported_chats": chats,                                  # platform-reported
         "verified_conversations": len({a.conversation_id for a in atts}),   # HAIP-recorded referrals
-        "verified_leads": len(inquiry_ids), "verified_bookings": int(bookings or 0) if p.can_bookings else None,
+        "verified_contacts": len(guest_ids),                     # people behind those conversations
+        "verified_leads": int(identified),                       # of them, people with a phone number
+        "verified_bookings": int(bookings or 0) if p.can_bookings else None,
         "verified_booking_value": _money(p, float(value or 0)) if p.can_bookings else None,
-        "cost_per_verified_lead": _money(p, float(spend) / len(inquiry_ids)) if inquiry_ids and spend else None,
+        "cost_per_verified_lead": _money(p, float(spend) / identified) if identified and spend else None,
         "return_on_spend": round(float(value or 0) / float(spend), 2) if p.can_revenue and p.can_bookings and spend else None,
         "not_traced": max(0, chats - len({a.conversation_id for a in atts})),
-        "basis": "Spend and chats are Meta's figures. Leads and bookings count only chats where HAIP recorded the ad referral; "
-                 "bookings are those linked to those leads (any time since).",
+        "basis": "Spend and chats are Meta's figures. Leads and bookings count only chats where HAIP recorded the ad referral; a lead is "
+                 "a person from those chats whose phone number we hold; bookings are those made by those people (any time since).",
     }
 
 
@@ -310,19 +307,35 @@ def _meta_with_detail(db: Session, p: Params) -> dict:
     return {**meta, **extras.meta_detail(db, p)} if meta.get("configured") else meta
 
 
-def _attention(q: dict, bookings: Optional[dict], at_risk: dict) -> list[dict]:
+def _people_in(work: dict, kinds: tuple[str, ...], total: int) -> Optional[int]:
+    """How many different people the queue items of these kinds are about, or None when the list was cut short."""
+    items = [i for i in work.get("items", []) if i["kind"] in kinds]
+    if len(items) < total:
+        return None
+    return len({i.get("guest_id") or i.get("title") for i in items})
+
+
+def _attention(q: dict, bookings: Optional[dict], at_risk: dict, work: dict) -> list[dict]:
+    """Actionable WORKLOAD, not unique leads: each row counts the things to do (conversations, calls, follow-ups, bookings).
+    ``people`` is how many different people they are about, when that is known. Nothing is hidden: an overdue follow-up, a
+    missed call or an unpaid booking always shows."""
     items = [
-        ("unassigned", "Leads nobody owns", q["unassigned"], None, "/dashboard/my-day"),
-        ("waiting_reply", "Guests waiting for a reply", q["waiting_reply"], q["waiting_oldest_at"], "/dashboard/my-day"),
-        ("missed_calls", "Missed calls not called back", q["missed_not_called_back"], q["missed_oldest_at"], "/dashboard/calls"),
-        ("followups", "Follow-ups overdue", q["followups_overdue"], q["followups_oldest_due"], "/dashboard/my-day"),
+        ("unassigned", "Enquiries nobody owns", q["unassigned"], None, "/dashboard/my-day", ("unassigned",)),
+        ("waiting_reply", "Conversations waiting for a reply", q["waiting_reply"], q["waiting_oldest_at"], "/dashboard/my-day", ("reply",)),
+        ("missed_calls", "Missed calls not called back", q["missed_not_called_back"], q["missed_oldest_at"], "/dashboard/calls", ("callback",)),
+        ("followups", "Follow-ups overdue", q["followups_overdue"], q["followups_oldest_due"], "/dashboard/my-day", ("followup",)),
     ]
+    out = [{"key": k, "label": label, "count": n, "oldest_at": oldest, "href": href, "people": _people_in(work, kinds, n)}
+           for k, label, n, oldest, href, kinds in items]
     if at_risk["count"]:
-        items.append(("high_intent_risk", "Promising leads at risk", at_risk["count"], None, "/dashboard/leads"))
+        out.append({"key": "high_intent_risk", "label": "Promising enquiries at risk", "count": at_risk["count"], "oldest_at": None,
+                    "href": "/dashboard/leads", "people": at_risk["count"]})
     if bookings and not bookings.get("restricted"):
-        items += [("payment_overdue", "Bookings with an overdue payment", bookings["payment_overdue"], None, "/dashboard/bookings"),
-                  ("needs_payment", "Upcoming bookings still owing money", bookings["needs_payment"], None, "/dashboard/bookings")]
-    return [{"key": k, "label": label, "count": n, "oldest_at": oldest, "href": href} for k, label, n, oldest, href in items]
+        out += [{"key": "payment_overdue", "label": "Bookings with an overdue payment", "count": bookings["payment_overdue"],
+                 "oldest_at": None, "href": "/dashboard/bookings", "people": None},
+                {"key": "needs_payment", "label": "Upcoming bookings still owing money", "count": bookings["needs_payment"],
+                 "oldest_at": None, "href": "/dashboard/bookings", "people": None}]
+    return out
 
 
 def _integrations(db: Session, p: Params) -> list[dict]:
@@ -341,7 +354,7 @@ def _integrations(db: Session, p: Params) -> list[dict]:
 
 def build(db: Session, p: Params, tenant) -> dict:
     today = datetime.now(IST).date()
-    cur, prev = _cohort(db, p, p.start, p.end), _cohort(db, p, p.prev_start, p.prev_end)
+    cur, prev = _lead_numbers(db, p, p.start, p.end), _lead_numbers(db, p, p.prev_start, p.prev_end)
     work = work_queue_service.build(db, tenant, p.scope_user_id)             # the shared work queue, read once
     queue = dashboard_service.needs_you_now_from(work)
     at_risk = extras.high_intent_at_risk(db, p, work)
@@ -359,7 +372,7 @@ def build(db: Session, p: Params, tenant) -> dict:
                    "previous_from": p.prev_from, "previous_to": p.prev_to},
         "filters": {"property_id": p.property_id, "channel": p.channel, "agent_id": p.scope_user_id if p.tenant_wide else None},
         "access": {"tenant_wide": p.tenant_wide, "bookings": p.can_bookings, "revenue": p.can_revenue},
-        "leads": {**_leads_block(db, p, cur, prev, queue), **extras.leads_extras(db, p), "high_intent_at_risk": at_risk},
+        "leads": {**_leads_block(db, p, cur, prev, queue), "high_intent_at_risk": at_risk},
         "bookings": bookings if bookings.get("restricted") else {**bookings, **extras.bookings_extras(db, p, today)},
         "revenue": revenue,
         "funnel": _funnel(cur, prev),
@@ -368,7 +381,7 @@ def build(db: Session, p: Params, tenant) -> dict:
         "sources": _source_rows(db, p),
         "meta_ads": _meta_with_detail(db, p) if p.tenant_wide else None,
         "agents": extras.agent_table(db, p),
-        "attention": _attention(queue, bookings, at_risk),
+        "attention": _attention(queue, bookings, at_risk, work),
         "stale_integrations": _integrations(db, p) if p.tenant_wide else [],
         "insights": dashboard_service.top_insights(db, p.tid) if p.tenant_wide else [],
     }

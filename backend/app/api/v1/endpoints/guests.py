@@ -71,6 +71,24 @@ def get_guest(
     return guest
 
 
+@router.get("/{guest_id}/lead-state")
+def get_lead_state(
+    guest_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Is this person a lead, how and when they first got in touch, the channels they have used, and the bookings that came from
+    them. Bookings need bookings.read and amounts need revenue.read; without them those fields are null, not zero."""
+    from app.services import lead_journey_service
+    from app.services.authz_service import get_capabilities
+    guest = db.query(Guest).filter_by(id=guest_id, tenant_id=current_user.tenant_id, is_deleted=False).first()
+    if not guest:
+        raise HTTPException(status_code=404, detail="Guest not found")
+    caps = get_capabilities(db, current_user)
+    return lead_journey_service.build(db, current_user.tenant_id, guest, can_bookings="bookings.read" in caps,
+                                      can_revenue="revenue.read" in caps)
+
+
 @router.get("/{guest_id}/timeline")
 def guest_timeline(
     guest_id: str,

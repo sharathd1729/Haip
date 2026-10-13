@@ -81,8 +81,14 @@ def _stage(db, tid, key, label, category, order, won=False, lost=False):
     return s
 
 
+_FIRST_TOUCH = {InquirySource.WA_DIRECT: "whatsapp", InquirySource.CLICK_TO_WA: "whatsapp", InquirySource.META_IG: "instagram",
+                InquirySource.META_FB: "facebook", InquirySource.PHONE: "call", InquirySource.WEBSITE: "website"}
+
+
 def _lead(db, tid, stage, when, *, source=InquirySource.WA_DIRECT, assigned=None, prop=None, qualification="qualified"):
-    g = Guest(id=str(uuid.uuid4()), tenant_id=tid, name="G", phone=f"+9197{uuid.uuid4().int % 10**8:08d}")
+    """An enquiry from a person we hold a phone number for: the person became a lead on the day of the enquiry."""
+    g = Guest(id=str(uuid.uuid4()), tenant_id=tid, name="G", phone=f"+9197{uuid.uuid4().int % 10**8:08d}",
+              lead_identified_at=when, first_touch_channel=_FIRST_TOUCH.get(source, "other"), first_touch_at=when)
     db.add(g); db.flush()
     i = Inquiry(id=str(uuid.uuid4()), tenant_id=tid, guest_id=g.id, stage=InquiryStage.NEW, stage_id=stage.id, source=source,
                 created_at=when, qualification_status=qualification, assigned_to=assigned, property_id=prop)
@@ -91,10 +97,15 @@ def _lead(db, tid, stage, when, *, source=InquirySource.WA_DIRECT, assigned=None
 
 
 def _stay(db, tid, prop, created, amount, *, lead=None, status="confirmed", check_in_days=30):
-    g = Guest(id=str(uuid.uuid4()), tenant_id=tid, name="G", phone=f"+9196{uuid.uuid4().int % 10**8:08d}")
-    db.add(g); db.flush()
+    """A booking. With ``lead`` it belongs to that person; without, to a guest we have no phone number for (not a lead)."""
+    if lead is not None:
+        guest_id = lead.guest_id
+    else:
+        g = Guest(id=str(uuid.uuid4()), tenant_id=tid, name="G", phone="")
+        db.add(g); db.flush()
+        guest_id = g.id
     ci = date.today() + timedelta(days=check_in_days)
-    s = Stay(id=str(uuid.uuid4()), tenant_id=tid, guest_id=g.id, property_id=prop.id, inquiry_id=lead.id if lead else None,
+    s = Stay(id=str(uuid.uuid4()), tenant_id=tid, guest_id=guest_id, property_id=prop.id, inquiry_id=lead.id if lead else None,
              check_in=ci, check_out=ci + timedelta(days=2), status=status, total_amount=amount, created_at=created)
     db.add(s); db.flush()
     return s
@@ -156,36 +167,43 @@ def _get(client, headers, **params):
 
 # ── the owner's numbers ──────────────────────────────────────────────────────────────────────────────────────
 
-def test_the_leads_block_counts_what_the_catalogue_says(client, world):
+def test_the_leads_block_counts_people_not_enquiries(client, world):
     r = _get(client, world["h_owner"])
     assert r.status_code == 200, r.text
     leads = r.json()["leads"]
-    assert leads["received"] == 4                    # l1..l4; spam and the earlier lead are out
-    assert leads["valid"] == 3 and leads["invalid"] == 1
-    assert leads["marked_spam_excluded"] == 1
-    assert leads["converted_to_booking"] == 2        # l1 and l2 each have a counted booking; the cancelled one does not count
-    assert leads["conversion_rate"] == 50.0
-    assert "cohort" in leads["conversion_basis"]
-    assert leads["unassigned_now"] >= 1              # l4 (and l5/l6 may count as open too); the work queue owns that rule
+    assert "usable phone number" in leads["definition"]
+    assert leads["identified_new"]["count"] == 5          # l1..l5: people whose number was captured in the period (l6 is earlier)
+    assert leads["qualified_new"]["count"] == 3           # l1, l2, l4: non-spam enquiry in a valid stage (l3 invalid, l5 spam)
+    assert leads["qualified_new"]["rate_of_new"] == 60.0
+    assert leads["enquiries"]["created"] == 4             # l1..l4 (spam is not counted)
+    assert leads["enquiries"]["marked_spam_excluded"] == 1
+    assert leads["conversations_new"]["count"] == 0 and leads["unidentified_contacts"]["count"] == 0
+    c = leads["conversion"]
+    assert (c["numerator"], c["denominator"], c["rate"]) == (2, 5, 40.0)    # l1 and l2 booked; the cancelled one does not count
+    assert "cohort" in c["basis"]
+    assert leads["unassigned_now"] >= 1                    # l4 (and l5/l6 may count as open too); the work queue owns that rule
 
 
-def test_the_funnel_is_a_cohort_with_a_rate_from_the_previous_stage(client, world):
+def test_the_funnel_is_a_cohort_with_a_rate_from_the_stated_base(client, world):
     f = _get(client, world["h_owner"]).json()["funnel"]
     assert f["basis"] == "cohort"
     by = {s["key"]: s for s in f["stages"]}
-    assert [by[k]["count"] for k in ("received", "valid", "booked", "paid")] == [4, 3, 2, 1]
-    assert by["received"]["rate_from_previous"] is None
-    assert by["valid"]["rate_from_previous"] == 75.0
-    assert by["booked"]["rate_from_previous"] == 66.7
-    assert by["paid"]["rate_from_previous"] == 50.0  # only l2 has net cash in (20,000 less a 5,000 refund)
+    assert [by[k]["count"] for k in ("identified", "qualified", "booked", "paid")] == [5, 3, 2, 1]
+    assert by["identified"]["rate_from_previous"] is None
+    assert by["qualified"]["rate_from_previous"] == 60.0     # of the identified leads
+    assert by["booked"]["rate_from_previous"] == 40.0        # of the identified leads
+    assert by["paid"]["rate_from_previous"] == 50.0          # of those booked; only l2 has net cash in (20,000 less a 5,000 refund)
 
 
-def test_bookings_are_counted_by_the_day_they_were_made_and_unlinked_ones_are_disclosed(client, world):
+def test_bookings_are_counted_by_the_day_they_were_made_and_split_by_when_their_guest_became_a_lead(client, world):
     b = _get(client, world["h_owner"]).json()["bookings"]
     assert b["restricted"] is False
     assert b["confirmed_created"] == 3               # s1, s2, s3 (s6 predates the period, s4 is cancelled)
     assert b["cancelled_of_created"] == 1
-    assert b["not_linked_to_a_lead"] == 1            # s3
+    assert b["no_identified_lead"] == 1              # s3: a guest we have no phone number for
+    assert b["by_lead_cohort"]["from_new_leads"] == {"count": 2, "value": 80000.0}      # s1 (l2) and s2 (l1), both identified in the period
+    assert b["by_lead_cohort"]["from_earlier_leads"] == {"count": 0, "value": 0.0}
+    assert b["by_lead_cohort"]["no_identified_lead"] == {"count": 1, "value": 10000.0}
     assert b["pending"]["available"] is False        # no such status exists in HAIP
     assert b["needs_payment"] == 3                   # s1 (35k owed), s2 (30k), s6 (7k): live and not fully paid
     assert b["payment_overdue"] == 0
@@ -212,17 +230,19 @@ def test_a_monthly_target_is_reported_when_one_is_set_and_the_period_is_one_mont
     assert spans["available"] is False and "one calendar month" in spans["reason"]
 
 
-def test_sources_and_agents_attribute_only_linked_bookings(client, world):
+def test_sources_follow_the_first_touch_and_agents_the_owner_of_the_person(client, world):
     j = _get(client, world["h_owner"]).json()
     src = {s["key"]: s for s in j["sources"]}
-    assert src["whatsapp"]["leads"] == 1 and src["whatsapp"]["bookings"] == 1 and src["whatsapp"]["booking_value"] == 30000.0
+    assert src["whatsapp"]["leads"] == 2 and src["whatsapp"]["bookings"] == 1 and src["whatsapp"]["booking_value"] == 30000.0   # l1 (booked), l5
     assert src["instagram"]["leads"] == 1 and src["instagram"]["bookings"] == 1 and src["instagram"]["booking_value"] == 50000.0
     assert src["call"]["leads"] == 1 and src["call"]["bookings"] == 0
     assert src["website"]["leads"] == 1
+    assert "unknown" not in src
     agents = {a["name"]: a for a in j["agents"]}
-    assert agents["Asha"]["leads"] == 2 and agents["Asha"]["bookings"] == 2 and agents["Asha"]["booking_value"] == 80000.0
+    assert agents["Asha"]["leads"] == 2 and agents["Asha"]["qualified"] == 2
+    assert agents["Asha"]["bookings"] == 2 and agents["Asha"]["booking_value"] == 80000.0
     assert agents["Bala"]["leads"] == 1 and agents["Bala"]["bookings"] == 0
-    assert agents["Unassigned"]["leads"] == 1
+    assert agents["Unassigned"]["leads"] == 2
 
 
 def test_the_daily_series_covers_the_period_and_adds_up(client, world):
@@ -230,7 +250,8 @@ def test_the_daily_series_covers_the_period_and_adds_up(client, world):
     assert s["days"][-1] == D_TO and D_FROM in s["days"]
     start = s["days"].index(D_FROM)
     assert s["period_start_index"] == start
-    assert sum(s["leads"][start:]) == 4
+    assert sum(s["leads"][start:]) == 5
+    assert sum(s["conversations"][start:]) == 0
     assert sum(s["bookings"][start:]) == 3
     assert sum(s["booking_value"][start:]) == 90000.0
     assert round(sum(s["net_collected"][start:]), 2) == 25000.0
@@ -244,12 +265,12 @@ def test_the_pipeline_lists_stages_for_the_same_leads(client, world):
 def test_previous_period_comparison_has_a_baseline_only_when_there_was_one(client, world):
     r = _get(client, world["h_owner"]).json()
     assert r["period"]["previous_from"] == "2026-08-30" and r["period"]["previous_to"] == "2026-09-09"
-    # l6 (5 Sep) is the one lead in the previous period: 4 now against 1 before
-    assert r["leads"]["received_change"] == {"pct": 300.0, "direction": "up"}
+    # l6 (5 Sep) is the one lead identified in the previous period: 5 now against 1 before
+    assert r["leads"]["identified_new"]["change"] == {"pct": 400.0, "direction": "up"}
     assert r["funnel"]["stages"][0]["previous"] == 1
     # an earlier window with nothing before it has no baseline: no "+0%" and no "-100%"
     early = _get(client, world["h_owner"], date_from="2026-09-05", date_to="2026-09-06").json()
-    assert early["leads"]["received"] == 1 and early["leads"]["received_change"] is None
+    assert early["leads"]["identified_new"]["count"] == 1 and early["leads"]["identified_new"]["change"] is None
 
 
 # ── period edges, empty data, errors ─────────────────────────────────────────────────────────────────────────
@@ -260,7 +281,7 @@ def test_the_period_edge_is_the_ist_midnight(client, db, world):
     _lead(db, world["tid"], stage, _ist("2026-09-30", 23, 59))                     # last minute of 30 Sep IST
     db.commit()
     one_day = _get(client, world["h_owner"], date_from="2026-10-01", date_to="2026-10-01").json()
-    assert one_day["leads"]["received"] == 1
+    assert one_day["leads"]["identified_new"]["count"] == 1
     assert one_day["period"]["timezone"] == "Asia/Kolkata"
 
 
@@ -268,7 +289,7 @@ def test_an_empty_workspace_gives_zero_counts_and_no_rates(client, db):
     t = _tenant(db)
     _, h = _user(db, t.id, UserRole.OWNER)
     j = _get(client, h).json()
-    assert j["leads"]["received"] == 0 and j["leads"]["conversion_rate"] is None
+    assert j["leads"]["identified_new"]["count"] == 0 and j["leads"]["conversion"]["rate"] is None
     assert all(s["count"] == 0 and s["rate_from_previous"] is None for s in j["funnel"]["stages"])
     assert j["bookings"]["confirmed_created"] == 0
     assert j["revenue"]["gross_booking_value"] == 0.0 and j["revenue"]["collected"] == 0.0
@@ -297,9 +318,9 @@ def test_an_agent_sees_only_their_own_leads_and_linked_bookings_and_no_money(cli
     assert r.status_code == 200
     j = r.json()
     assert j["access"] == {"tenant_wide": False, "bookings": True, "revenue": False}
-    assert j["leads"]["received"] == 2               # Asha's l1 and l2
-    assert j["bookings"]["confirmed_created"] == 2   # their two linked bookings, not the workspace's three
-    assert j["bookings"]["not_linked_to_a_lead"] is None
+    assert j["leads"]["identified_new"]["count"] == 2    # Asha's l1 and l2
+    assert j["bookings"]["confirmed_created"] == 2   # their two people's bookings, not the workspace's three
+    assert j["bookings"]["no_identified_lead"] is None
     assert j["revenue"] == {"restricted": True}
     assert j["agents"] is None and j["meta_ads"] is None and j["stale_integrations"] == []
     text = json.dumps(j)
@@ -309,15 +330,15 @@ def test_an_agent_sees_only_their_own_leads_and_linked_bookings_and_no_money(cli
 
 def test_an_agent_cannot_ask_for_someone_elses_numbers(client, world):
     j = _get(client, world["h_a2"], agent_id=world["a1"].id).json()
-    assert j["leads"]["received"] == 1               # Bala's own lead, whatever agent_id says
+    assert j["leads"]["identified_new"]["count"] == 1    # Bala's own lead, whatever agent_id says
     assert j["filters"]["agent_id"] is None
 
 
 def test_the_owner_can_narrow_to_one_agent(client, world):
     j = _get(client, world["h_owner"], agent_id=world["a2"].id).json()
-    assert j["leads"]["received"] == 1 and j["filters"]["agent_id"] == world["a2"].id
+    assert j["leads"]["identified_new"]["count"] == 1 and j["filters"]["agent_id"] == world["a2"].id
     assert j["agents"] is None                       # the all-agents table is for the unfiltered view
-    assert j["bookings"]["not_linked_to_a_lead"] is None
+    assert j["bookings"]["no_identified_lead"] is None
 
 
 def test_a_role_with_no_booking_rights_gets_a_restricted_bookings_block(client, db, world):
@@ -341,7 +362,7 @@ def test_the_page_needs_the_analytics_module(client, db):
 
 def test_a_manager_sees_the_whole_workspace_and_never_another(client, world):
     j = _get(client, world["h_manager"]).json()
-    assert j["access"]["tenant_wide"] is True and j["leads"]["received"] == 4
+    assert j["access"]["tenant_wide"] is True and j["leads"]["identified_new"]["count"] == 5
     assert "999999" not in json.dumps(j)
 
 
@@ -349,15 +370,15 @@ def test_a_manager_sees_the_whole_workspace_and_never_another(client, world):
 
 def test_the_channel_filter_narrows_leads_and_the_bookings_linked_to_them(client, world):
     j = _get(client, world["h_owner"], channel="instagram").json()
-    assert j["leads"]["received"] == 1
+    assert j["leads"]["identified_new"]["count"] == 1
     assert j["bookings"]["confirmed_created"] == 1 and j["revenue"]["gross_booking_value"] == 50000.0
-    assert j["bookings"]["not_linked_to_a_lead"] is None       # unlinked bookings cannot be placed in a channel
+    assert j["bookings"]["no_identified_lead"] is None         # a guest with no number has no first touch, so cannot be placed in a channel
     assert _get(client, world["h_owner"], channel="voice").json()["filters"]["channel"] == "call"
 
 
 def test_the_property_filter_narrows_leads_bookings_and_cash(client, world):
     j = _get(client, world["h_owner"], property_id=world["pa"].id).json()
-    assert j["leads"]["received"] == 1                           # l1 only: the other leads have another or no property
+    assert j["leads"]["identified_new"]["count"] == 1            # l1 only: the other leads have another or no property
     assert j["bookings"]["confirmed_created"] == 2               # s2 and s3 are on Villa A
     assert j["revenue"]["gross_booking_value"] == 40000.0
     assert j["revenue"]["collected"] == 10000.0                  # s3's payment; s1's cash is on Villa B
@@ -409,10 +430,10 @@ def test_lost_leads_and_expected_check_in_are_reported(client, db, world):
     c = _lead(db, tid, stages[1], _ist("2026-09-18"))
     c.check_in = "not a date"
     db.commit()
-    leads = _get(client, world["h_owner"]).json()["leads"]
-    assert leads["lost"] == 1
-    assert leads["by_expected_check_in"] == [{"month": "2026-11", "count": 1}, {"month": "2026-12", "count": 1}]
-    assert leads["expected_check_in_unknown"] == 4 + 3 - 2     # 7 leads in the period, 2 with a usable date
+    enq = _get(client, world["h_owner"]).json()["leads"]["enquiries"]
+    assert enq["lost"] == 1
+    assert enq["by_expected_check_in"] == [{"month": "2026-11", "count": 1}, {"month": "2026-12", "count": 1}]
+    assert enq["expected_check_in_unknown"] == 4 + 3 - 2       # 7 enquiries in the period, 2 with a usable date
 
 
 def test_booking_breakdowns_by_property_and_channel_and_upcoming_checkouts(client, db, world):
@@ -441,7 +462,7 @@ def test_the_trend_can_be_day_week_or_month(client, world, trend, expected_bucke
     assert s["granularity"] == trend
     if expected_buckets:
         assert len(s["days"]) == expected_buckets
-    assert sum(s["leads"][s["period_start_index"]:]) >= 4
+    assert sum(s["leads"][s["period_start_index"]:]) >= 5
     assert sum(s["booking_value"]) >= 90000.0 and sum(s["bookings"]) >= 3
     if trend == "week":
         assert all(date.fromisoformat(d).weekday() == 0 for d in s["days"])           # buckets start on Monday
@@ -493,12 +514,12 @@ def test_the_agent_table_merges_leads_bookings_messages_and_the_scorecard(client
         "calls_missed_recovered": 1, "ai_drafts_total": 6, "ai_drafts_approved": 4, "ai_drafts_rejected": 1, "conversions": 1}])
     agents = {a["name"]: a for a in _get(client, world["h_owner"]).json()["agents"]}
     asha = agents["Asha"]
-    assert (asha["leads"], asha["valid"], asha["invalid"]) == (2, 2, 0)
+    assert (asha["leads"], asha["qualified"]) == (2, 2)
     assert (asha["bookings"], asha["booking_value"]) == (2, 80000.0)
     assert asha["messages_sent"] == 3
     assert (asha["calls_answered"], asha["calls_missed"], asha["callbacks_waiting"]) == (9, 4, 3)
     assert asha["avg_response_seconds"] == 540 and (asha["followups_completed"], asha["followups_overdue"]) == (3, 1)
-    assert agents["Bala"]["invalid"] == 1 and agents["Bala"]["avg_response_seconds"] is None     # no scorecard data: unknown, not 0
+    assert agents["Bala"]["leads"] == 1 and agents["Bala"]["qualified"] == 0 and agents["Bala"]["avg_response_seconds"] is None   # no scorecard data: unknown, not 0
 
 
 def test_promising_leads_at_risk_come_from_the_work_queue_and_the_ai_reading(client, db, world):
@@ -509,4 +530,5 @@ def test_promising_leads_at_risk_come_from_the_work_queue_and_the_ai_reading(cli
     j = _get(client, world["h_owner"]).json()
     risk = j["leads"]["high_intent_at_risk"]
     assert risk["count"] == 1 and risk["items"][0]["inquiry_id"] == l4.id and risk["items"][0]["reason"] == "nobody owns it"
-    assert {"key": "high_intent_risk", "label": "Promising leads at risk", "count": 1, "oldest_at": None, "href": "/dashboard/leads"} in j["attention"]
+    assert {"key": "high_intent_risk", "label": "Promising enquiries at risk", "count": 1, "oldest_at": None, "href": "/dashboard/leads",
+            "people": 1} in j["attention"]
