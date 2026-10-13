@@ -534,7 +534,14 @@ function InboxPageInner() {
       if (activeConversationId) setAiDraft(activeConversationId, false);
       toast({ variant: "success", title: "Draft approved & sent" });
     },
-    onError: () => toast({ variant: "error", title: "Approval failed" }),
+    onError: (e: unknown) => {
+      // 409 = someone else already approved/rejected it, or it changed after it was opened: show the current state, not a failure.
+      const status = (e as { response?: { status?: number } })?.response?.status;
+      queryClient.invalidateQueries({ queryKey: ["conversation", activeConversationId] });
+      if (status === 409) toast({ variant: "error", title: "This draft was already handled or has changed", description: "The conversation has been refreshed." });
+      else if (status === 403) toast({ variant: "error", title: "You don't have permission to send messages" });
+      else toast({ variant: "error", title: "Approval failed" });
+    },
   });
 
   // W1: pulse animation on empty send attempt
@@ -553,9 +560,14 @@ function InboxPageInner() {
     if (!activeConversationId || !detail) return;
     const draftMsg = detail.messages.find(m => m.id === id);
     if (draftMsg) setRejectedDrafts(p => [...p.slice(-2), draftMsg.text]);
-    api.post(`/conversations/${activeConversationId}/messages/${id}/reject`, {}).catch(() => {});
-    queryClient.invalidateQueries({ queryKey: ["conversation", activeConversationId] });
-  }, [activeConversationId, detail, queryClient]);
+    api.post(`/conversations/${activeConversationId}/messages/${id}/reject`, {})
+      .catch((e: unknown) => {
+        const status = (e as { response?: { status?: number } })?.response?.status;
+        if (status === 403) toast({ variant: "error", title: "You don't have permission to reject drafts" });
+        else if (status === 409) toast({ variant: "error", title: "This draft was already handled" });
+      })
+      .finally(() => queryClient.invalidateQueries({ queryKey: ["conversation", activeConversationId] }));
+  }, [activeConversationId, detail, queryClient, toast]);
 
   const handleSend = (overrideScheduled?: string | null) => {
     if (isEmpty) { triggerEmptyPulse(); return; }
