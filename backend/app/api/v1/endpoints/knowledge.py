@@ -121,6 +121,8 @@ def reindex_all(
         KnowledgeEntry.embedding_status.in_(["pending", "failed"]),
     ).count()
     if waiting:
+        knowledge_service.audit_change(db, current_user.tenant_id, current_user.id, "reindex_requested", "all", entries=waiting)
+        db.commit()
         try:
             from app.workers.tasks.embed_knowledge import embed_pending
             embed_pending.apply_async(kwargs={"tenant_id": current_user.tenant_id, "limit": 200, "force": True})
@@ -156,6 +158,8 @@ def create_entry(
         created_by=current_user.id,
     )
     db.add(entry)
+    db.flush()
+    knowledge_service.audit_change(db, entry.tenant_id, current_user.id, "created", entry.id, after=knowledge_service.snapshot(entry), source="manual")
     db.commit()
     db.refresh(entry)
     _queue_embed(entry.tenant_id, entry.id)
@@ -217,6 +221,9 @@ async def upload_knowledge_document(
         created_by=current_user.id,
     )
     n = len(report.created)
+    knowledge_service.audit_change(db, current_user.tenant_id, current_user.id, "ingested", upload_id, source="document", filename=filename,
+                                   entries_created=n, unchanged=report.unchanged, marked_out_of_date=report.marked_out_of_date)
+    db.commit()
     log.info("kb_document_uploaded", tenant_id=current_user.tenant_id, filename=filename, chunk_count=n, unchanged=report.unchanged)
     return KnowledgeIngestResult(
         entries_created=n,
@@ -262,6 +269,9 @@ def crawl_knowledge_urls(
 
     if fetched == 0:
         raise HTTPException(status_code=400, detail="; ".join(failures) or "Couldn't ingest any of the given URLs.")
+    knowledge_service.audit_change(db, current_user.tenant_id, current_user.id, "ingested", urls[0], source="website", urls=urls,
+                                   entries_created=total_entries, unchanged=unchanged, marked_out_of_date=out_of_date)
+    db.commit()
 
     log.info(
         "kb_urls_crawled", tenant_id=current_user.tenant_id, url_count=len(urls),
@@ -293,6 +303,7 @@ def update_entry(
     if not entry:
         raise HTTPException(status_code=404, detail="Knowledge entry not found")
 
+    before = knowledge_service.snapshot(entry)
     sent = body.model_fields_set
     if "property_id" in sent:
         # Explicit null = "applies to every property". Anything else must be one of this tenant's properties.
@@ -330,6 +341,9 @@ def update_entry(
         entry.embedding_attempts = 0
         if "content" in sent or "question" in sent:
             entry.stale_since = None      # the owner just touched it: it is current by definition
+    knowledge_service.audit_change(db, entry.tenant_id, current_user.id, "updated", entry.id, before=before, after=knowledge_service.snapshot(entry))
+    if body.keep_out_of_date:
+        knowledge_service.audit_change(db, entry.tenant_id, current_user.id, "kept_out_of_date_entry", entry.id)
     db.commit()
     db.refresh(entry)
     if stale:
@@ -352,6 +366,7 @@ def delete_entry(
     )
     if not entry:
         raise HTTPException(status_code=404, detail="Knowledge entry not found")
+    knowledge_service.audit_change(db, entry.tenant_id, current_user.id, "deleted", entry.id, before=knowledge_service.snapshot(entry))
     knowledge_service.delete_vector(db, entry.tenant_id, entry.id)
     db.delete(entry)
     db.commit()
@@ -377,6 +392,7 @@ def reembed_entry(
     entry.embedding_status = "pending"
     entry.embedding_error = None
     entry.embedding_attempts = 0
+    knowledge_service.audit_change(db, entry.tenant_id, current_user.id, "reindex_requested", entry.id)
     db.commit()
     db.refresh(entry)
     _queue_embed(entry.tenant_id, entry.id)

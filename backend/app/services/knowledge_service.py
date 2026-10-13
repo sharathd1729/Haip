@@ -32,6 +32,42 @@ from app.models.knowledge import KnowledgeEntry
 
 log = structlog.get_logger()
 
+# Fields whose change is an edit a person made (not index bookkeeping).
+AUDITED_FIELDS = ("category", "question", "content", "property_id", "priority", "is_active", "review_status", "alt_phrasings")
+_AUDIT_TEXT_LIMIT = 4000
+
+
+def snapshot(entry: KnowledgeEntry) -> dict:
+    """The audited fields of an entry as plain JSON values, for a before/after comparison."""
+    return {f: (list(getattr(entry, f) or []) if f == "alt_phrasings" else getattr(entry, f)) for f in AUDITED_FIELDS}
+
+
+def _clip(value):
+    if isinstance(value, str) and len(value) > _AUDIT_TEXT_LIMIT:
+        return value[:_AUDIT_TEXT_LIMIT] + f"...[{len(value)} chars, sha256 {hashlib.sha256(value.encode()).hexdigest()[:16]}]"
+    return value
+
+
+def audit_change(db: Session, tenant_id: str, actor_id: Optional[str], action: str, entry_id: str, before: Optional[dict] = None,
+                 after: Optional[dict] = None, **extra) -> bool:
+    """One chained audit row for a knowledge-base change: who, what, and for edits the previous and new value of each field that
+    changed. Same transaction as the change (the caller commits). Returns False when an edit changed nothing audited."""
+    from app.core.audit import append_audit
+
+    payload: dict = dict(extra)
+    if before is not None and after is not None:
+        changes = {f: {"from": _clip(before.get(f)), "to": _clip(after.get(f))} for f in AUDITED_FIELDS if before.get(f) != after.get(f)}
+        if not changes:
+            return False
+        payload["changes"] = changes
+    elif after is not None:
+        payload["values"] = {f: _clip(v) for f, v in after.items()}
+    elif before is not None:
+        payload["deleted_values"] = {f: _clip(v) for f, v in before.items()}
+    append_audit(db, tenant_id=tenant_id, action=f"kb.{action}", actor_user_id=actor_id, target_type="knowledge_entry", target_id=entry_id, payload=payload)
+    return True
+
+
 KB_NAMESPACE = "kb"
 KB_REF_TYPE = "knowledge_entry"
 
