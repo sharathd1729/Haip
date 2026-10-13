@@ -26,10 +26,67 @@ where two screens disagree, and which business decisions are needed before they 
 | Empty denominators | Not consistent: `0.0`, `100.0`, `None` and hard-coded zeros all occur (see section 12). |
 | "Unqualified" | `Inquiry.qualification_status = 'unqualified'` marks spam; the column is non-null, default `qualified`. |
 
+## Lead definition (13 Oct 2026) — read this first
+
+**A lead is an identifiable person (a guest) for whom HAIP holds a usable phone number, captured directly or through a reliable
+identity match.** The moment that first became true is stored once on the guest (`guests.lead_identified_at`, with
+`lead_identified_via`) and never moved. Everything below counts **unique people**, except where it says records.
+
+| Thing | What it is | Counts | Metric id |
+|---|---|---|---|
+| Conversation | a chat thread (WhatsApp, Instagram, web chat, voice) | threads; one person can have several | `conversations.new` |
+| Contact without a number | a person first heard from, no usable phone yet (an Instagram DM with no number) | people, **not leads** | `contacts.unidentified` |
+| New lead | a person whose phone number was captured in the period | people, once each, across every channel | `leads.identified_new` |
+| Lead active in the period | a lead who messaged, called or enquired in the period | people | `leads.identified_active` |
+| Qualified lead | a new lead with a non-spam enquiry in a `valid` pipeline stage, as of now | people | `leads.qualified_new` |
+| Enquiry | an enquiry record (`inquiries` row); repeat enquiries from one person count each time | records | `enquiries.created` |
+| Booking | a stay record (`stays`), by its own status | records | `stays.booked` |
+| Payment | money on a stay (`stay_payments`) | amounts | `payments.collected` |
+| Lead to booking | of the people who became leads in the period, the share with a live booking so far | people / people (cohort) | `leads.conversion_cohort` |
+
+These are never added together and the dashboard never divides one by another unless the row says so. `leads.new` below is the
+older **enquiry** count and is kept for the pages that still read it; it is *not* a count of leads.
+
+**What makes a phone number usable** (`services/phone_identity.py`): it parses and is valid for its country (the `phonenumbers`
+library) and is not a placeholder (all one digit, 1234567890, the bare `+91`). It is stored as E.164. A number written without a
+country code is read in the **workspace's own country, taken from its configured timezone** (`Asia/Kolkata` -> India, `Asia/Dubai` ->
+UAE, ...). India is assumed only for a workspace whose timezone says so; a workspace whose country cannot be told gets no default,
+so a bare 10-digit number stays unusable until it has a country code. WhatsApp ids (`9198...@s.whatsapp.net`) are read as international.
+
+**How the same person is recognised** (`services/identity_resolution.py`), in this order, always inside one workspace:
+1. an exact match on the normalised phone number, whether it arrived as a *phone* (a call, a form, a typed number) or a *WhatsApp number*;
+2. an exact match on another verified identity (Instagram id, email, booking id, OTA thread id);
+3. a person approving a merge (`POST /leads/{id}/merge`, owner or manager).
+Names, usernames and message content never merge anyone. A match across two existing guests merges them: identities, enquiries, calls,
+conversations and bookings move to the survivor, the other guest is soft-deleted, nothing is removed. The survivor keeps the **earlier**
+lead date and first touch of the two. Every merge is recorded in `guest_merge_events` (what moved, who, why) and can be undone with
+`unmerge_guests`. Concurrent creation of the same contact is settled by the unique `(tenant, type, value)` index: the loser returns the
+winner's person.
+
+**Journey** (`services/lead_journey_service.py`, `GET /guests/{id}/lead-state`): first-touch channel and time (written once at
+creation, never overwritten when the person returns through another platform; unknown stays *unknown*), when and through which channel
+they became a lead, latest touch, the channels they have used, enquiries/conversations/calls, and the bookings and money from them
+(bookings need `bookings.read`, amounts `revenue.read`; otherwise `null`).
+
+**Periods and cohorts.** New leads, contacts, conversations and enquiries are counted on the IST day they happened. **Conversion is a
+cohort figure**: leads identified in the period, followed to their bookings *so far* (a lead can book after the period ends, so recent
+periods are still maturing). Bookings made in the period are shown **separately**, split by whether their guest became a lead in the
+period, earlier, or has no phone number on file; they are never divided by that period's new leads.
+
+**Filters** narrow the *people* counted: property (an enquiry, conversation or booking for it), channel (the person's **first-touch**
+channel), agent (the person's owner: assignee of their latest enquiry, else of their latest conversation). Bookings follow their guest.
+
+**History and its limits.** Migration 122 fills `lead_identified_at` for existing guests conservatively (`services/lead_backfill.py`,
+re-runnable, dry-run available): a guest is marked only if HAIP holds a usable number for them, dated by the earliest phone/WhatsApp
+identity record, else by the guest's creation date (which can be earlier than the day the number was really captured, so past periods are
+best-effort). A guest with no usable number stays unidentified; old Instagram-only DMs are not turned into leads. First-touch channel is
+taken from the guest's earliest identity record; with nothing to go on it is left empty and shown as *Unknown*.
+
 ## 0. Shared metrics (implemented in this phase)
 
-### `leads.new` — New leads  *(shared; evidence T)*
-- **Definition:** enquiries created in the period that are not `unqualified`.
+### `leads.new` — New enquiries (legacy name "New leads")  *(shared; evidence T)*
+- **Definition:** enquiry *records* created in the period that are not `unqualified`. **This is not a count of leads or of
+  people** (see "Lead definition" above); it is kept because older dashboards read it.
 - **Formula:** `COUNT(Inquiry.id)`; numerator only, no denominator.
 - **Source:** `inquiries.created_at`, `.qualification_status`, `.assigned_to`, `.property_id`, `.tenant_id`.
 - **Period:** IST calendar days converted to UTC instants by `ist_range_to_utc`, both ends inclusive.

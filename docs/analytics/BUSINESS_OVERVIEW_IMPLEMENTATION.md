@@ -144,3 +144,24 @@ no per-metric "data through" time: an ingestion delay (for example a webhook bac
 
 Existing suites that sit behind the new gates now provision the real default capability matrix (`seed_capabilities` in
 `tests/conftest.py`). Results and what is not verified are in the final report of the batch; SQLite only, PostgreSQL not run.
+
+
+## Lead definition update (13 Oct 2026)
+
+The page used to treat every enquiry record as a lead, so a DM with no phone number, a second chat on another platform and a
+repeat enquiry were each a "lead". It now counts **people**. Definitions, identity rules, cohort semantics and the history limits are in
+`KPI_METRIC_CATALOGUE.md`, section "Lead definition". What changed in this response:
+
+| Block | Before | Now |
+|---|---|---|
+| `leads` | `received`, `valid`, `invalid`, `converted_to_booking`, `conversion_rate` (all enquiry-based) | `conversations_new`, `unidentified_contacts`, `identified_new`, `identified_active`, `qualified_new`, `conversion` (numerator, denominator, rate, basis), `enquiries` (created, repeat, lost, spam, expected check-in) |
+| `funnel` | received -> valid -> booked -> paid, from enquiries | identified -> qualified -> booked -> paid, from the people who became leads in the period |
+| `bookings` | `not_linked_to_a_lead` (no `Stay.inquiry_id`) | `by_lead_cohort` (from new leads / earlier leads / no phone number) and `no_identified_lead`; a booking belongs to its guest (`Stay.guest_id`) |
+| `sources` | enquiry source | first-touch channel of the new leads (`unknown` is its own row) |
+| `agents` | enquiries per assignee, valid/invalid | unique new leads per owner, qualified |
+| `series` | `leads` per enquiry day | `leads` per identification day, plus `conversations` per opened day |
+| `attention` | counts of items | the same counts, relabelled for what they are (enquiries, conversations, calls, follow-ups, bookings), each with `people` (different people) when the list is complete; nothing is hidden |
+| `meta_ads` | verified leads = enquiries | verified contacts (people) and verified leads (people with a phone number) |
+
+Narrowed views (agent, channel) cannot place a booking whose guest has no phone number, so `no_identified_lead` is `null` there rather than 0.
+Pages outside the Owner Command Center (operations, executive analytics, daily email) still read `leads.new` and are not changed here.

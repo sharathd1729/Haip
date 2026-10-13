@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, JSON, ForeignKey, Text, Integer, Numeric
+from sqlalchemy import Column, String, Boolean, JSON, ForeignKey, Text, Integer, Numeric, DateTime
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 from app.models.base import TimestampMixin, TenantMixin, SoftDeleteMixin, gen_uuid
@@ -17,6 +17,15 @@ class Guest(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     email = Column(String(255), nullable=True, index=True)
     name = Column(String(255), nullable=True)
     alt_phone = Column(String(20), nullable=True)
+
+    # Lead state (migration 122). A guest is a LEAD once a usable phone number has been captured for them (directly, from a
+    # call, a WhatsApp number, a number typed in a chat, or an explicit merge). NULL = a contact we have not identified yet,
+    # e.g. an Instagram DM with no number: it is a conversation, not a lead. Set once, never moved later.
+    lead_identified_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    lead_identified_via = Column(String(30), nullable=True)      # channel that gave the number: whatsapp / call / instagram ...
+    # First touch: how and when HAIP first heard from this person. Written once at creation; NULL channel = unknown (not guessed).
+    first_touch_channel = Column(String(30), nullable=True)
+    first_touch_at = Column(DateTime(timezone=True), nullable=True)
 
     # Profile
     city = Column(String(100), nullable=True)

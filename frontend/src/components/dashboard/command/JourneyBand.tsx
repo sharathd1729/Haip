@@ -1,7 +1,7 @@
 "use client";
-// Lead received -> Valid -> Booking confirmed -> Payment collected, as one band. Bar length is the stage count
-// relative to leads received; the figure between two stages is the share of the previous stage that reached the next.
-// It is a COHORT (leads received in the period, followed so far), and the page says so.
+// Lead identified -> Qualified -> Booked -> Payment collected, as one band. Bar length is the stage count relative to the
+// leads identified; the figure between two stages is the share of its stated base that reached it. A LEAD is a person with a
+// phone number, counted once. It is a COHORT (people who became leads in the period, followed so far), and the page says so.
 import Link from "next/link";
 import { Info } from "@/lib/icons";
 import { cn } from "@/lib/utils";
@@ -9,7 +9,7 @@ import { ChangePill, SectionTitle } from "./parts";
 import { isRestricted, num, pct, type BusinessOverview, type FunnelStage } from "./types";
 
 const LINKS: Record<FunnelStage["key"], string> = {
-  received: "/dashboard/leads", valid: "/dashboard/leads", booked: "/dashboard/bookings", paid: "/dashboard/bookings",
+  identified: "/dashboard/leads", qualified: "/dashboard/leads", booked: "/dashboard/bookings", paid: "/dashboard/bookings",
 };
 const SHADE = ["bg-primary", "bg-primary/80", "bg-primary/60", "bg-primary/45"];
 
@@ -18,16 +18,17 @@ export function JourneyBand({ data }: { data: BusinessOverview }) {
   const top = Math.max(1, stages[0]?.count ?? 0);
   const bookingsHidden = isRestricted(data.bookings);
   const empty = stages.every(s => s.count === 0);
-  const unlinked = !isRestricted(data.bookings) ? data.bookings.not_linked_to_a_lead : null;
+  const split = !isRestricted(data.bookings) ? data.bookings.by_lead_cohort : null;
+  const noNumber = !isRestricted(data.bookings) ? data.bookings.no_identified_lead : null;
 
   return (
     <section aria-labelledby="journey-title" className="haip-card px-5 py-5 sm:px-6">
-      <SectionTitle sub="Leads received in this period, and what became of them so far">
+      <SectionTitle sub="People who became leads in this period (phone number captured), and what became of them so far">
         <span id="journey-title">From lead to payment</span>
       </SectionTitle>
 
       {empty ? (
-        <p className="py-6 text-center text-[13px] text-[var(--haip-fg-subtle)]">No leads were received in this period, so there is no journey to show.</p>
+        <p className="py-6 text-center text-[13px] text-[var(--haip-fg-subtle)]">No one became a lead in this period, so there is no journey to show.</p>
       ) : (
         <ol className="grid grid-cols-1 gap-x-2 gap-y-4 sm:grid-cols-4">
           {stages.map((s, i) => {
@@ -38,7 +39,7 @@ export function JourneyBand({ data }: { data: BusinessOverview }) {
                 {i > 0 && (
                   <p className="mb-1 flex items-center gap-1 text-[11.5px] tabular-nums text-[var(--haip-fg-subtle)]">
                     <span aria-hidden>↳</span>
-                    {hidden ? "restricted" : s.rate_from_previous == null ? "no rate yet" : `${pct(s.rate_from_previous)} of ${stages[i - 1].label.toLowerCase()}`}
+                    {hidden ? "restricted" : s.rate_from_previous == null ? "no rate yet" : `${pct(s.rate_from_previous)} of ${(s.key === "paid" ? stages[2] : stages[0]).label.toLowerCase()}`}
                   </p>
                 )}
                 {i === 0 && <p className="mb-1 text-[11.5px] text-[var(--haip-fg-subtle)]">&nbsp;</p>}
@@ -65,8 +66,12 @@ export function JourneyBand({ data }: { data: BusinessOverview }) {
         <Info size={14} className="mt-0.5 shrink-0" aria-hidden />
         <div className="space-y-0.5">
           <p>{note}</p>
-          {unlinked != null && unlinked > 0 && (
-            <p><span className="font-semibold text-[var(--haip-fg-2)]">{num(unlinked)} booking{unlinked === 1 ? "" : "s"} made in this period {unlinked === 1 ? "has" : "have"} no lead attached</span> and {unlinked === 1 ? "is" : "are"} not in this journey.</p>
+          {split && (split.from_earlier_leads.count ?? 0) + (split.from_new_leads.count ?? 0) > 0 && (
+            <p>Bookings made in this period: <span className="font-semibold text-[var(--haip-fg-2)]">{num(split.from_new_leads.count)}</span> from people who became leads in it,{" "}
+              <span className="font-semibold text-[var(--haip-fg-2)]">{num(split.from_earlier_leads.count)}</span> from leads identified earlier. Only the first group is in the journey above.</p>
+          )}
+          {noNumber != null && noNumber > 0 && (
+            <p><span className="font-semibold text-[var(--haip-fg-2)]">{num(noNumber)} booking{noNumber === 1 ? "" : "s"} made in this period {noNumber === 1 ? "is" : "are"} from a guest with no phone number on file</span>, so {noNumber === 1 ? "it is" : "they are"} not a lead.</p>
           )}
         </div>
       </div>

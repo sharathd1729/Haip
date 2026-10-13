@@ -23,6 +23,7 @@ from app.api.v1.endpoints.messaging import WATemplate, WACampaign, WASubscriber,
 from app.models.wa_campaign_recipient import WACampaignRecipient
 from app.models.ad_metrics import AdMetric
 from app.models.ad_entity import AdEntity
+from app.models.guest_merge_event import GuestMergeEvent
 from app.models.ical_feed import ICalEventBooking, ICalEventDetail, ICalFeed, ICalFeedVehicle
 from app.models.api_key import ApiKey
 from app.models.webhook import WebhookDelivery, WebhookEndpoint

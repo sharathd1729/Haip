@@ -1,5 +1,5 @@
 "use client";
-// One chart, four questions (leads, bookings, booked value, cash). One chart at a time keeps a single hue and a
+// One chart, five questions (new leads, conversations, bookings, booked value, cash). One chart at a time keeps a single hue and a
 // single scale; days before the selected period are drawn muted so the period itself reads first. Beside it, where
 // the period's leads sit in the pipeline.
 import { useMemo, useState } from "react";
@@ -10,9 +10,10 @@ import { cn } from "@/lib/utils";
 import { Empty, SectionTitle } from "./parts";
 import { inr, inrShort, num, type BusinessOverview, type PipelineRow, type Trend } from "./types";
 
-type Measure = "leads" | "bookings" | "booking_value" | "net_collected";
+type Measure = "leads" | "conversations" | "bookings" | "booking_value" | "net_collected";
 const MEASURES: { value: Measure; label: string; money: boolean; unit: string }[] = [
-  { value: "leads", label: "Leads", money: false, unit: "leads received" },
+  { value: "leads", label: "New leads", money: false, unit: "people became leads" },
+  { value: "conversations", label: "Conversations", money: false, unit: "conversations opened" },
   { value: "bookings", label: "Bookings", money: false, unit: "bookings made" },
   { value: "booking_value", label: "Booked value", money: true, unit: "stay charge booked" },
   { value: "net_collected", label: "Cash in", money: true, unit: "collected less refunds" },
@@ -106,8 +107,8 @@ function Pipeline({ rows, leads }: { rows: PipelineRow[]; leads: BusinessOvervie
   const total = rows.reduce((a, r) => a + r.count, 0);
   return (
     <section aria-labelledby="pipeline-title" className="haip-card px-5 py-5 sm:px-6">
-      <SectionTitle sub="Leads received in this period, by the stage they are in now"><span id="pipeline-title">Pipeline</span></SectionTitle>
-      {rows.length === 0 ? <Empty>No leads in this period.</Empty> : (
+      <SectionTitle sub="Enquiries created in this period, by the stage they are in now (a person can have more than one)"><span id="pipeline-title">Enquiries by stage</span></SectionTitle>
+      {rows.length === 0 ? <Empty>No enquiries in this period.</Empty> : (
         <ul className="space-y-2.5">
           {rows.map(r => (
             <li key={r.stage}>
@@ -115,7 +116,7 @@ function Pipeline({ rows, leads }: { rows: PipelineRow[]; leads: BusinessOvervie
                 <span className="flex items-baseline justify-between gap-3 text-[13px]">
                   <span className="min-w-0 truncate text-[var(--haip-fg-2)] group-hover:text-[var(--haip-fg)]">
                     {r.stage}
-                    {r.category && r.category !== "valid" && <span className="ml-1.5 text-[11px] text-[var(--haip-fg-subtle)]">not counted as a lead</span>}
+                    {r.category && r.category !== "valid" && <span className="ml-1.5 text-[11px] text-[var(--haip-fg-subtle)]">not counted as qualified</span>}
                   </span>
                   <span className="font-semibold tabular-nums text-[var(--haip-fg)]">{num(r.count)}</span>
                 </span>
@@ -127,18 +128,18 @@ function Pipeline({ rows, leads }: { rows: PipelineRow[]; leads: BusinessOvervie
               </Link>
             </li>
           ))}
-          <li className="border-t border-[var(--haip-border)] pt-2 text-[12px] text-[var(--haip-fg-subtle)]">{num(total)} leads in total · {num(leads.lost)} lost</li>
+          <li className="border-t border-[var(--haip-border)] pt-2 text-[12px] text-[var(--haip-fg-subtle)]">{num(total)} enquiries in total · {num(leads.enquiries.lost)} lost</li>
         </ul>
       )}
-      {leads.by_expected_check_in.length > 0 && (
+      {leads.enquiries.by_expected_check_in.length > 0 && (
         <div className="mt-4 border-t border-[var(--haip-border)] pt-3">
-          <h3 className="text-[12.5px] font-semibold text-[var(--haip-fg)]">Expected check-in of these leads</h3>
+          <h3 className="text-[12.5px] font-semibold text-[var(--haip-fg)]">Expected check-in of these enquiries</h3>
           <ul className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] text-[var(--haip-fg-2)]">
-            {leads.by_expected_check_in.map(m => (
+            {leads.enquiries.by_expected_check_in.map(m => (
               <li key={m.month} className="tabular-nums"><span className="font-semibold text-[var(--haip-fg)]">{num(m.count)}</span> in {new Date(`${m.month}-01T00:00:00`).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}</li>
             ))}
           </ul>
-          {leads.expected_check_in_unknown > 0 && <p className="mt-1 text-[11.5px] text-[var(--haip-fg-subtle)]">{num(leads.expected_check_in_unknown)} have no dates yet.</p>}
+          {leads.enquiries.expected_check_in_unknown > 0 && <p className="mt-1 text-[11.5px] text-[var(--haip-fg-subtle)]">{num(leads.enquiries.expected_check_in_unknown)} have no dates yet.</p>}
         </div>
       )}
     </section>

@@ -1,5 +1,5 @@
 # HAIP — Claude Code Working Instructions
-**Version**: 2.3 · **Owner**: Sharath D. · **Updated**: 12 Oct 2026 (Alembic head `121`)
+**Version**: 2.3 · **Owner**: Sharath D. · **Updated**: 13 Oct 2026 (Alembic head `122`)
 **Reference docs**: HAIP_FULL_BUILD_PLAN.md · architecture-delta.md · execution-plan.md · docs/HAIP_Module_Audit_M0.md (module status matrix, 11 Oct 2026 — update statuses as gaps close)
 
 **KEEP THIS FILE CURRENT — standing rule from the owner.** When a change adds or alters a
@@ -34,30 +34,30 @@ replies, unified lead record across every touchpoint.
   security deposit (never counted as revenue), service requests mirrored as Tasks, change guest
   via `identity_service`, date-conflict guard on edits [110, 111]. **Razorpay**: per-tenant keys
   (encrypted) + signed webhook, idempotent on payment id. DPDP erasure clears all booking children.
-- **iCal feeds** [109]: per-property export (`/ical/{token}.ics`, dates only) + optional import URL
-  (Fernet-encrypted, SSRF-guarded, polled every 30 min into date blocks, re-exported to the other
-  links). Overlap with a HAIP booking raises a high-priority task. (Two-way Google Calendar: planned, not built.)
+- **iCal feeds** [109]: per-property export (`/ical/{token}.ics`, dates only) + optional import URL (Fernet-encrypted, SSRF-guarded, polled
+  every 30 min into date blocks, re-exported to the other links). Overlap with a HAIP booking raises a task. (Two-way Google Calendar: not built.)
   **Shared calendar** [120]: one link, several vehicles (`ical_feed_vehicles` keywords, whole-word; no match = all held + a "Which vehicle?" task).
   Trip dates in the description widen the block (`ical_event_details.py`); details show on the calendar (amounts: `revenue.read`).
   **Calendar bookings** [121]: a complete event becomes a `Stay` (`ical_booking_service.py`), tied to the guest's one open lead (marked Sold); no vehicle = "Unassigned", picked at check-in (`vehicle_pool.py`); a CRM edit locks it.
 - **Public API + webhooks** [112, 113]: `/api/public/v1` is a *separate* FastAPI app (`app/public_api/`). Scoped API keys (SHA-256 only, shown once, lookup via
   SECURITY DEFINER fn). Signed outbound webhooks (HMAC-SHA256 over `timestamp.body`, outbox written
   in the same transaction, ~22h backoff, auto-off after 100 consecutive failures, HTTPS + SSRF guard).
+- **A LEAD is a person (Guest) with a usable phone number** (`guests.lead_identified_at`, migration 122; `phone_identity.py`, `lead_metrics.py`).
+  A DM/conversation/enquiry alone is not a lead; leads, conversations, enquiries, bookings and cash are counted apart, conversion is a
+  cohort. Same person = exact normalised phone (phone or WhatsApp number) / verified identity / approved merge, never names; merges are logged
+  (`guest_merge_events`) and reversible; first touch is written once. Catalogue: `docs/analytics/KPI_METRIC_CATALOGUE.md` "Lead definition".
 - **Work queue**: `work_queue_service` is the single source behind My day, the dashboard "Needs you now" cards and Calls. Never add a parallel "what to do now" query. **KPI metrics**: `services/kpi_metrics.py` holds shared definitions (`leads.new`, `stays.occupied_nights`); catalogue + gaps in `docs/analytics/`. Don't unify a metric without its D-nn decision. **Owner Command Center** (`/dashboard` for owner/manager; others keep `/dashboard/operations`): `GET /dashboard/business-overview` composes shared metrics; booking amounts (list, detail, calendar) need `bookings.read`; targets, executive, calendar amounts and the revenue report need `revenue.read` (REST and MCP); restricted = `{restricted:true}`, never 0. Docs: `docs/analytics/BUSINESS_OVERVIEW_IMPLEMENTATION.md`.
-- **CRM autopilot**: `lead_recommendation_service` suggests Mark Lost / Move stage; a human
-  clicks Apply (existing audited `move_stage`). Chat-extracted trip fields can be re-stated by
-  later messages; `quoted_amount` stays write-once. Missed/unanswered-call callback reminders.
-- **WhatsApp**: template editor + Meta sync, campaigns (schedule, CSV import, CRM audiences, reports),
-  health check, overview dashboard. **Instagram**: per-channel verify tokens (never shown in page),
-  hourly alert if message access is off, referral-only events handled.
+- **CRM autopilot**: `lead_recommendation_service` suggests Mark Lost / Move stage; a human clicks Apply (existing audited `move_stage`).
+  Chat-extracted trip fields can be re-stated by later messages; `quoted_amount` stays write-once. Missed-call callback reminders.
+- **WhatsApp**: template editor + Meta sync, campaigns (schedule, CSV import, CRM audiences, reports), health check, overview dashboard.
+  **Instagram**: per-channel verify tokens (never shown in page), hourly alert if message access is off, referral-only events handled.
 - **Integration health**: one rule (`integration_health.py`) for the bar, insights and Integrations page.
 - **Meta Ads + Marketing page** [115, 116] — see "META ADS / MARKETING" below.
 - **UI redesign** (phases 0–5): kit, tokens, five-section sidebar, inbox/bookings/calls/leads on the kit.
 
 Active clients:
-- Ratha (luxury caravan) — Vobiz IVR, WhatsApp live (migration `064`: moved
-  CallerDesk → Mcube → Vobiz-only; Mcube's Integration row is disconnected
-  but not deleted)
+- Ratha (luxury caravan) — Vobiz IVR, WhatsApp live (migration `064`: moved CallerDesk → Mcube → Vobiz-only;
+  Mcube's Integration row is disconnected, not deleted)
 - Jade (pool villas, Bangalore) — Acefone IVR, onboarding
 
 ---
@@ -404,8 +404,8 @@ commit, 10 s bounded wait; failures log `audit_chain_lock_failed`) and stamps `c
 writers form one chain. A transaction must never audit several tenants (deadlock): use one transaction per tenant.
 Row-level security: `alembic/proposed/118_*` is NOT applied; check the DB role with `backend/scripts/verify_rls_isolation.py`
 (read-only) and `docs/HAIP_Phase0_Production_Checklist.md` before assuming RLS protects anything. Migration 117 widens
-`calls.ai_score_status`; 119 grants foh `conversations.send` to existing tenants unless the owner edited that cell; 120-121 (head) add the
-iCal vehicle/booking tables (new tables only). 118 is reserved for the proposed RLS file (re-parent on 121 when promoted). Roll code back with `alembic downgrade 116` first (checklist 11).
+`calls.ai_score_status`; 119 grants foh `conversations.send` to existing tenants unless the owner edited that cell; 120-121 add the iCal tables; 122 (head) adds the
+lead columns on `guests` + `guest_merge_events`. 118 is reserved for the proposed RLS file (re-parent on 122 when promoted). Roll code back with `alembic downgrade 116` first (checklist 11).
 **Sending needs `conversations.send`** (owner, manager, reservations, concierge, foh by default): `send_message`, `send_template`, `retry`,
 `approve` and both AI-rewrite POSTs use `require_capability`. A new default grant only reaches NEW tenants; existing ones need a data migration.
 **AI-rewrite tasks are bounded** (`rewrite_draft.py`): one provider request <= `REWRITE_TIMEOUT_SECONDS` (30 s, `asyncio.wait_for`), a timeout is never retried, the draft task retries a
