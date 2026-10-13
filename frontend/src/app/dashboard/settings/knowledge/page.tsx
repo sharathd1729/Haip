@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Pencil, Trash2, X, Search, Sparkles, AlertCircle, Loader2, RefreshCw, CheckCircle2, BookOpen, Upload, Globe } from "@/lib/icons";
 import api from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { cn, timeAgo } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 
@@ -20,6 +20,10 @@ interface KnowledgeEntry {
   review_status: string;
   embedding_status: string;
   embedding_error?: string | null;
+  embedding_attempts?: number;
+  embedded_at?: string | null;
+  stale_since?: string | null;
+  property_id?: string | null;
   updated_at: string;
 }
 
@@ -30,6 +34,22 @@ interface KnowledgeStats {
   embedding_pending: number;
   embedding_failed: number;
   retrievable: number;
+  stale?: number;
+  last_indexed_at?: string | null;
+  last_error?: string | null;
+  search_available?: boolean;
+}
+
+interface SearchResult {
+  hits: SearchHit[];
+  status: string;
+  message: string;
+  retrievable_count: number;
+}
+
+interface PropertyLite {
+  id: string;
+  name: string;
 }
 
 interface SearchHit {
@@ -38,6 +58,7 @@ interface SearchHit {
   question?: string | null;
   content: string;
   source: string;
+  property_id?: string | null;
   score: number;
 }
 
@@ -63,9 +84,10 @@ type FormState = {
   question: string;
   content: string;
   priority: number;
+  property_id: string;   // "" = applies to every property
 };
 
-const EMPTY_FORM: FormState = { category: "faq", question: "", content: "", priority: 0 };
+const EMPTY_FORM: FormState = { category: "faq", question: "", content: "", priority: 0, property_id: "" };
 
 export default function KnowledgePage() {
   const queryClient = useQueryClient();
@@ -74,10 +96,20 @@ export default function KnowledgePage() {
   const [form, setForm] = useState<FormState | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>("");
   const [testQuery, setTestQuery] = useState("");
-  const [testHits, setTestHits] = useState<SearchHit[] | null>(null);
+  const [testResult, setTestResult] = useState<SearchResult | null>(null);
+  const [testProperty, setTestProperty] = useState("");
   const [crawlOpen, setCrawlOpen] = useState(false);
   const [crawlUrls, setCrawlUrls] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { data: stats } = useQuery<KnowledgeStats>({
+    queryKey: ["knowledge-stats"],
+    queryFn: () => api.get("/knowledge/stats").then((r) => r.data),
+    retry: 1,
+    // While anything is waiting to be indexed, keep checking: the owner should see it become usable, not guess.
+    refetchInterval: (q) => ((q.state.data?.embedding_pending ?? 0) > 0 ? 5000 : false),
+  });
+  const indexing = (stats?.embedding_pending ?? 0) > 0;
 
   const { data, isLoading, isError, refetch } = useQuery<{ items: KnowledgeEntry[]; total: number }>({
     queryKey: ["knowledge", categoryFilter],
@@ -86,13 +118,15 @@ export default function KnowledgePage() {
         .get("/knowledge", { params: { include_inactive: true, ...(categoryFilter ? { category: categoryFilter } : {}) } })
         .then((r) => r.data),
     retry: 1,
+    refetchInterval: indexing ? 5000 : false,
   });
 
-  const { data: stats } = useQuery<KnowledgeStats>({
-    queryKey: ["knowledge-stats"],
-    queryFn: () => api.get("/knowledge/stats").then((r) => r.data),
-    retry: 1,
+  const { data: properties = [] } = useQuery<PropertyLite[]>({
+    queryKey: ["properties-lite"],
+    queryFn: () => api.get("/properties").then((r) => r.data),
+    staleTime: 5 * 60_000,
   });
+  const propertyName = (id?: string | null) => properties.find((p) => p.id === id)?.name ?? "one property";
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["knowledge"] });
@@ -106,13 +140,19 @@ export default function KnowledgePage() {
         question: d.question.trim() || null,
         content: d.content.trim(),
         priority: d.priority,
+        // null on edit = "applies to every property"; the server reads an explicit null as clearing the scope.
+        property_id: d.property_id || null,
       };
       return d.id ? api.patch(`/knowledge/${d.id}`, payload) : api.post("/knowledge", payload);
     },
     onSuccess: () => {
       invalidate();
       setForm(null);
-      toast({ variant: "success", title: "Saved", description: "The AI will use this within a few seconds." });
+      toast({
+        variant: "success",
+        title: "Saved",
+        description: "The AI starts using the new wording once it has been indexed. Watch the status on the entry.",
+      });
     },
     onError: (e: unknown) => {
       const err = e as { response?: { data?: { detail?: unknown } } };
@@ -191,6 +231,40 @@ export default function KnowledgePage() {
     },
   });
 
+  const review = useMutation({
+    mutationFn: ({ id, review_status }: { id: string; review_status: "approved" | "rejected" }) =>
+      api.patch(`/knowledge/${id}`, { review_status }),
+    onSuccess: (_d, v) => {
+      invalidate();
+      toast({
+        variant: "success",
+        title: v.review_status === "approved" ? "Approved" : "Rejected",
+        description: v.review_status === "approved" ? "The AI can use it once indexing shows as done." : undefined,
+      });
+    },
+    onError: () => toast({ variant: "error", title: "Couldn't update that entry" }),
+  });
+
+  const keepOutOfDate = useMutation({
+    mutationFn: (id: string) => api.patch(`/knowledge/${id}`, { keep_out_of_date: true }),
+    onSuccess: () => {
+      invalidate();
+      toast({ variant: "success", title: "Kept", description: "The AI can use this again." });
+    },
+  });
+
+  const reindexAll = useMutation({
+    mutationFn: () => api.post("/knowledge/reindex").then((r) => r.data as { queued: number }),
+    onSuccess: (d) => {
+      invalidate();
+      toast({
+        variant: "success",
+        title: d.queued ? `Re-indexing ${d.queued} entr${d.queued === 1 ? "y" : "ies"}` : "Nothing to re-index",
+      });
+    },
+    onError: () => toast({ variant: "error", title: "Couldn't start indexing", description: "Try again in a minute." }),
+  });
+
   const reembed = useMutation({
     mutationFn: (id: string) => api.post(`/knowledge/${id}/reembed`),
     onSuccess: () => {
@@ -200,8 +274,11 @@ export default function KnowledgePage() {
   });
 
   const testMutation = useMutation({
-    mutationFn: (q: string) => api.post("/knowledge/search", { query: q, top_k: 5 }).then((r) => r.data),
-    onSuccess: (d: { hits: SearchHit[] }) => setTestHits(d.hits),
+    mutationFn: (q: string) =>
+      api
+        .post("/knowledge/search", { query: q, top_k: 5, ...(testProperty ? { property_id: testProperty } : {}) })
+        .then((r) => r.data as SearchResult),
+    onSuccess: (d) => setTestResult(d),
     onError: () => toast({ variant: "error", title: "Search failed" }),
   });
 
@@ -215,8 +292,9 @@ export default function KnowledgePage() {
           <div>
             <h1 className="haip-page-title">AI Knowledge Base</h1>
             <p className="text-sm text-gray-400 mt-0.5 max-w-2xl">
-              What your AI concierge knows about your property. Live availability and pricing come from your
-              calendar automatically — everything else (amenities, add-ons, routes, policies) it learns here.
+              What your AI concierge knows about your properties. Live availability and rates come from your
+              calendar and rate card — everything else (amenities, add-ons, routes, policies) it learns here.
+              Edits are used only after the entry shows as indexed.
             </p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -261,15 +339,33 @@ export default function KnowledgePage() {
             <span className="inline-flex items-center gap-1.5 text-teal-700 font-medium">
               <CheckCircle2 size={13} /> {stats.retrievable} answers the AI can use
             </span>
+            {stats.last_indexed_at && (
+              <span className="text-gray-400">last indexed {timeAgo(stats.last_indexed_at)}</span>
+            )}
             {stats.embedding_pending > 0 && (
-              <span className="inline-flex items-center gap-1.5 text-gray-400">
-                <Loader2 size={12} className="animate-spin" /> {stats.embedding_pending} indexing
+              <span className="inline-flex items-center gap-1.5 text-gray-500">
+                <Loader2 size={12} className="animate-spin" /> {stats.embedding_pending} indexing — not usable yet
               </span>
             )}
             {stats.embedding_failed > 0 && (
-              <span className="inline-flex items-center gap-1.5 text-red-600">
-                <AlertCircle size={12} /> {stats.embedding_failed} failed to index
+              <span className="inline-flex items-center gap-1.5 text-red-600" title={stats.last_error ?? undefined}>
+                <AlertCircle size={12} /> {stats.embedding_failed} failed to index — the AI cannot use{" "}
+                {stats.embedding_failed === 1 ? "it" : "them"}
               </span>
+            )}
+            {!!stats.stale && (
+              <span className="inline-flex items-center gap-1.5 text-amber-600">
+                <AlertCircle size={12} /> {stats.stale} out of date — not used
+              </span>
+            )}
+            {(stats.embedding_failed > 0 || stats.embedding_pending > 0) && (
+              <button
+                onClick={() => reindexAll.mutate()}
+                disabled={reindexAll.isPending}
+                className="inline-flex items-center gap-1 text-teal-700 font-semibold hover:underline disabled:opacity-50"
+              >
+                <RefreshCw size={11} className={reindexAll.isPending ? "animate-spin" : undefined} /> Retry indexing
+              </button>
             )}
             {stats.pending_review > 0 && (
               <span className="inline-flex items-center gap-1.5 text-amber-600">
@@ -277,6 +373,14 @@ export default function KnowledgePage() {
               </span>
             )}
           </div>
+        )}
+        {stats && stats.search_available === false && (
+          <p className="mt-3 text-xs text-red-600">
+            Knowledge search is not available on this deployment, so the AI is answering without your knowledge base.
+          </p>
+        )}
+        {stats && stats.embedding_failed > 0 && stats.last_error && (
+          <p className="mt-2 text-[11px] text-red-500 break-words">Last indexing error: {stats.last_error}</p>
         )}
       </div>
 
@@ -289,9 +393,25 @@ export default function KnowledgePage() {
               <p className="text-sm font-semibold text-gray-800">Test what the AI knows</p>
             </div>
             <p className="text-xs text-gray-400 mb-3">
-              Type a question the way a guest would ask it. This is exactly what the AI retrieves before writing a reply.
+              Type a question the way a guest would ask it. This runs the same search the AI runs before writing a reply.
+              Only active, approved, fully indexed entries are searched.
             </p>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              {properties.length > 1 && (
+                <select
+                  value={testProperty}
+                  onChange={(e) => setTestProperty(e.target.value)}
+                  aria-label="Property to test for"
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                >
+                  <option value="">Any property</option>
+                  {properties.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              )}
               <input
                 value={testQuery}
                 onChange={(e) => setTestQuery(e.target.value)}
@@ -311,24 +431,28 @@ export default function KnowledgePage() {
               </button>
             </div>
 
-            {testHits !== null && (
+            {testResult !== null && (
               <div className="mt-3 space-y-2">
-                {testHits.length === 0 ? (
+                {testResult.hits.length === 0 ? (
                   <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
                     <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
                     <span>
-                      Nothing matched. The AI would have to answer this from general knowledge — add an entry
-                      covering it.
+                      {testResult.message || "Nothing matched."}
+                      {testResult.status === "no_match" &&
+                        " The AI would not have this to go on — add or approve an entry covering it."}
                     </span>
                   </div>
                 ) : (
-                  testHits.map((h) => (
+                  testResult.hits.map((h) => (
                     <div key={h.id} className="p-3 bg-gray-50 rounded-lg border border-gray-100">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-[10px] font-semibold uppercase tracking-wider text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded">
                           {CATEGORY_LABEL[h.category] ?? h.category}
                         </span>
                         <span className="text-[10px] text-gray-400">match {(h.score * 100).toFixed(0)}%</span>
+                        {h.property_id && (
+                          <span className="text-[10px] text-gray-500">only for {propertyName(h.property_id)}</span>
+                        )}
                       </div>
                       {h.question && <p className="text-xs font-medium text-gray-700">{h.question}</p>}
                       <p className="text-xs text-gray-500 leading-relaxed">{h.content}</p>
@@ -426,25 +550,47 @@ export default function KnowledgePage() {
                             from {e.source}
                           </span>
                         )}
+                        {e.property_id && (
+                          <span className="text-[10px] text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded">
+                            only {propertyName(e.property_id)}
+                          </span>
+                        )}
                         {e.review_status === "pending" && (
                           <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
                             needs review — not used yet
                           </span>
                         )}
+                        {e.review_status === "rejected" && (
+                          <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">rejected</span>
+                        )}
+                        {e.stale_since && (
+                          <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
+                            no longer on the source — not used
+                          </span>
+                        )}
                         {e.embedding_status === "pending" && (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-gray-400">
-                            <Loader2 size={9} className="animate-spin" /> indexing
+                          <span className="inline-flex items-center gap-1 text-[10px] text-gray-500">
+                            <Loader2 size={9} className="animate-spin" /> indexing — not usable until done
                           </span>
                         )}
                         {e.embedding_status === "failed" && (
-                          <span className="text-[10px] text-red-600 bg-red-50 px-1.5 py-0.5 rounded">
-                            indexing failed
+                          <span
+                            className="text-[10px] text-red-600 bg-red-50 px-1.5 py-0.5 rounded"
+                            title={e.embedding_error ?? undefined}
+                          >
+                            indexing failed — not used
                           </span>
+                        )}
+                        {e.embedding_status === "done" && e.embedded_at && (
+                          <span className="text-[10px] text-gray-400">indexed {timeAgo(e.embedded_at)}</span>
                         )}
                         {!e.is_active && (
                           <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">off</span>
                         )}
                       </div>
+                      {e.embedding_status === "failed" && e.embedding_error && (
+                        <p className="text-[11px] text-red-500 mb-1 break-words">{e.embedding_error}</p>
+                      )}
                       {e.question && <p className="text-sm font-semibold text-gray-900">{e.question}</p>}
                       <p className="text-xs text-gray-600 leading-relaxed mt-0.5 whitespace-pre-wrap">{e.content}</p>
 
@@ -483,6 +629,35 @@ export default function KnowledgePage() {
                     </div>
 
                     <div className="flex items-center gap-1 flex-shrink-0">
+                      {e.review_status === "pending" && (
+                        <>
+                          <button
+                            onClick={() => review.mutate({ id: e.id, review_status: "approved" })}
+                            disabled={review.isPending}
+                            title="Let the AI use this"
+                            className="px-2 py-1.5 text-teal-700 hover:text-teal-900 text-[11px] font-semibold whitespace-nowrap"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => review.mutate({ id: e.id, review_status: "rejected" })}
+                            disabled={review.isPending}
+                            title="Never use this"
+                            className="px-2 py-1.5 text-gray-500 hover:text-red-600 text-[11px] font-medium whitespace-nowrap"
+                          >
+                            Reject
+                          </button>
+                        </>
+                      )}
+                      {e.stale_since && (
+                        <button
+                          onClick={() => keepOutOfDate.mutate(e.id)}
+                          title="The source no longer has this, but it is still true — let the AI use it"
+                          className="px-2 py-1.5 text-teal-700 hover:text-teal-900 text-[11px] font-semibold whitespace-nowrap"
+                        >
+                          Keep
+                        </button>
+                      )}
                       {e.embedding_status === "failed" && (
                         <button
                           onClick={() => reembed.mutate(e.id)}
@@ -510,6 +685,7 @@ export default function KnowledgePage() {
                             question: e.question ?? "",
                             content: e.content,
                             priority: e.priority,
+                            property_id: e.property_id ?? "",
                           })
                         }
                         title="Edit"
@@ -605,6 +781,27 @@ export default function KnowledgePage() {
                   it word for word.
                 </p>
               </div>
+
+              {properties.length > 1 && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Applies to</label>
+                  <select
+                    value={form.property_id}
+                    onChange={(e) => setForm({ ...form, property_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                  >
+                    <option value="">Every property</option>
+                    {properties.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} only
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    A property-only entry is never offered to guests asking about another property.
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1.5">
