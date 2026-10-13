@@ -115,6 +115,10 @@ class KnowledgeSearchResponse(BaseModel):
     retrievable_count: int = 0
 
 
+class KnowledgeRollbackRequest(BaseModel):
+    event_id: str = Field(min_length=1, max_length=64)
+
+
 class KnowledgeTestDetails(BaseModel):
     """What the classifier would have read from the guest's message. The test box does not call a model: you state it."""
     check_in: Optional[date] = None

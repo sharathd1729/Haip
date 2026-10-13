@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, X, AlertCircle, Loader2, RefreshCw, CheckCircle2, BookOpen, Upload, Globe } from "@/lib/icons";
+import { Plus, Pencil, Trash2, X, History, AlertCircle, Loader2, RefreshCw, CheckCircle2, BookOpen, Upload, Globe } from "@/lib/icons";
 import api from "@/lib/api";
 import { cn, timeAgo } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/toast";
 import { Tabs } from "@/components/ui/kit";
 import { KnowledgeTestBox } from "@/components/knowledge/KnowledgeTestBox";
 import { StructuredDataTab } from "@/components/knowledge/StructuredDataTab";
+import { KnowledgeHistoryDrawer } from "@/components/knowledge/KnowledgeHistoryDrawer";
 
 interface KnowledgeEntry {
   id: string;
@@ -81,6 +82,7 @@ function KnowledgeAndTrainingTab() {
 
   const [form, setForm] = useState<FormState | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>("");
+  const [historyFor, setHistoryFor] = useState<string | null>(null);
   const [crawlOpen, setCrawlOpen] = useState(false);
   const [crawlUrls, setCrawlUrls] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -593,6 +595,14 @@ function KnowledgeAndTrainingTab() {
                         <Pencil size={14} />
                       </button>
                       <button
+                        onClick={() => setHistoryFor(e.id)}
+                        title="History — who changed this and what it said before"
+                        aria-label="History"
+                        className="p-1.5 text-gray-400 hover:text-teal-600 transition-colors"
+                      >
+                        <History size={14} />
+                      </button>
+                      <button
                         onClick={() => {
                           if (confirm("Delete this entry? The AI will stop using it immediately.")) {
                             deleteMutation.mutate(e.id);
@@ -611,6 +621,8 @@ function KnowledgeAndTrainingTab() {
           )}
         </div>
       </div>
+
+      <KnowledgeHistoryDrawer entryId={historyFor} onClose={() => setHistoryFor(null)} />
 
       {/* Editor modal */}
       {form && (

@@ -107,3 +107,52 @@ def test_another_tenants_entry_is_not_found_and_leaves_no_row(db, client, w):
     assert client.patch(f"/api/v1/knowledge/{eid}", json={"content": "x"}, headers=_h(w.owner)).status_code == 404
     assert client.delete(f"/api/v1/knowledge/{eid}", headers=_h(w.owner)).status_code == 404
     assert len(rows(db, other.t.id)) == n and rows(db, w.t.id) == []
+
+
+# ─── K-1: history and rollback, built on the audit trail ──────────────────────────────────────────────────
+
+def test_history_lists_each_change_with_its_previous_wording_and_survives_deletion(db, client, w):
+    eid = make(client, w)
+    h = _h(w.owner)
+    client.patch(f"/api/v1/knowledge/{eid}", json={"content": "Wi-Fi is free."}, headers=h)
+    client.patch(f"/api/v1/knowledge/{eid}", json={"content": "Wi-Fi is free for guests only.", "priority": 5}, headers=h)
+    hist = client.get(f"/api/v1/knowledge/{eid}/history", headers=h).json()
+    assert [x["action"] for x in hist] == ["updated", "updated", "created"]                    # newest first
+    assert hist[0]["changes"]["content"] == {"from": "Wi-Fi is free.", "to": "Wi-Fi is free for guests only."}
+    assert hist[0]["actor_user_id"] == w.owner.id
+    client.delete(f"/api/v1/knowledge/{eid}", headers=h)
+    assert [x["action"] for x in client.get(f"/api/v1/knowledge/{eid}/history", headers=h).json()][0] == "deleted"
+
+
+def test_rollback_restores_the_earlier_wording_through_the_normal_edit_path(db, client, w):
+    eid = make(client, w)
+    h = _h(w.owner)
+    client.patch(f"/api/v1/knowledge/{eid}", json={"content": "Wi-Fi is free for guests only.", "priority": 5}, headers=h)
+    event = client.get(f"/api/v1/knowledge/{eid}/history", headers=h).json()[0]
+    r = client.post(f"/api/v1/knowledge/{eid}/rollback", json={"event_id": event["id"]}, headers=h)
+    assert r.status_code == 200, r.text
+    entry = db.query(KnowledgeEntry).filter_by(id=eid).one()
+    db.refresh(entry)
+    assert entry.content == "Yes, in the caravan." and entry.priority == 0
+    assert entry.embedding_status == "pending"                                                 # restored text is re-indexed before the AI uses it
+    assert [x["action"] for x in client.get(f"/api/v1/knowledge/{eid}/history", headers=h).json()][:2] == ["rolled_back", "updated"]
+
+
+def test_rollback_refuses_unknown_events_other_tenants_readers_and_truncated_history(db, client, w):
+    eid = make(client, w)
+    h = _h(w.owner)
+    assert client.post(f"/api/v1/knowledge/{eid}/rollback", json={"event_id": "nope"}, headers=h).status_code == 404
+    created = client.get(f"/api/v1/knowledge/{eid}/history", headers=h).json()[0]
+    assert client.post(f"/api/v1/knowledge/{eid}/rollback", json={"event_id": created["id"]}, headers=h).status_code == 404     # only edits can be undone
+    assert client.post(f"/api/v1/knowledge/{eid}/rollback", json={"event_id": created["id"]}, headers=_h(w.ro)).status_code == 403
+    assert client.get(f"/api/v1/knowledge/{eid}/history", headers=_h(w.ro)).status_code == 403
+    other = _workspace(db)
+    assert client.get(f"/api/v1/knowledge/{eid}/history", headers=_h(other.owner)).json() == []
+    assert client.post(f"/api/v1/knowledge/{eid}/rollback", json={"event_id": created["id"]}, headers=_h(other.owner)).status_code == 404
+
+    long_text = "x" * 4500
+    big = make(client, w, content=long_text)
+    client.patch(f"/api/v1/knowledge/{big}", json={"content": "short"}, headers=h)
+    ev = client.get(f"/api/v1/knowledge/{big}/history", headers=h).json()[0]
+    assert client.post(f"/api/v1/knowledge/{big}/rollback", json={"event_id": ev["id"]}, headers=h).status_code == 409
+    assert db.query(KnowledgeEntry).filter_by(id=big).one().content == "short"                 # nothing half-restored

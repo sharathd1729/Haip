@@ -68,6 +68,26 @@ def audit_change(db: Session, tenant_id: str, actor_id: Optional[str], action: s
     return True
 
 
+def entry_history(db: Session, tenant_id: str, entry_id: str, limit: int = 50) -> list[dict]:
+    """Every audited change to one entry, newest first: who, when, and each changed field's previous and new value."""
+    from app.models.audit_event import AuditEvent
+
+    rows = (
+        db.query(AuditEvent)
+        .filter(AuditEvent.tenant_id == tenant_id, AuditEvent.target_type == "knowledge_entry", AuditEvent.target_id == entry_id,
+                AuditEvent.action.like("kb.%"))
+        .order_by(AuditEvent.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [{"id": r.id, "action": r.action.removeprefix("kb."), "at": r.created_at, "actor_user_id": r.actor_user_id,
+             "changes": (r.payload or {}).get("changes"), "values": (r.payload or {}).get("values")} for r in rows]
+
+
+def is_clipped(value) -> bool:
+    return isinstance(value, str) and bool(re.search(r"\.\.\.\[\d+ chars, sha256 [0-9a-f]{16}\]$", value))
+
+
 KB_NAMESPACE = "kb"
 KB_REF_TYPE = "knowledge_entry"
 

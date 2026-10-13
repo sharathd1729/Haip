@@ -33,6 +33,7 @@ from app.schemas.knowledge import (
     KnowledgeSearchHit,
     KnowledgeSearchRequest,
     KnowledgeTestRequest,
+    KnowledgeRollbackRequest,
     KnowledgeSearchResponse,
     KnowledgeCrawlRequest,
     KnowledgeIngestResult,
@@ -374,6 +375,45 @@ def delete_entry(
     db.commit()
     log.info("kb_entry_deleted", entry_id=entry_id, tenant_id=current_user.tenant_id)
     return None
+
+
+@router.get("/{entry_id}/history")
+def entry_history(
+    entry_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _cap=Depends(require_capability("settings.manage")),
+    _module=Depends(require_module("ai_concierge")),
+):
+    """Who changed this entry, when, and what it said before. Backed by the audit trail, so it survives edits and deletion."""
+    return knowledge_service.entry_history(db, current_user.tenant_id, entry_id)
+
+
+@router.post("/{entry_id}/rollback", response_model=KnowledgeEntryOut)
+def rollback_entry(
+    entry_id: str,
+    body: KnowledgeRollbackRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _cap=Depends(require_capability("settings.manage")),
+    _module=Depends(require_module("ai_concierge")),
+):
+    """Undo one earlier edit: put every field that change touched back to its previous value. It goes through the normal edit path,
+    so the restored wording is audited and re-indexed before the AI uses it, exactly like any other edit."""
+    entry = db.query(KnowledgeEntry).filter_by(id=entry_id, tenant_id=current_user.tenant_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Knowledge entry not found")
+    event = next((h for h in knowledge_service.entry_history(db, current_user.tenant_id, entry_id, limit=500) if h["id"] == body.event_id), None)
+    if event is None or event["action"] != "updated" or not event["changes"]:
+        raise HTTPException(status_code=404, detail="That change was not found for this entry")
+    previous = {f: c["from"] for f, c in event["changes"].items()}
+    if any(knowledge_service.is_clipped(v) for v in previous.values()):
+        raise HTTPException(status_code=409, detail="That earlier wording was too long to keep in full, so it cannot be restored automatically.")
+    update = KnowledgeEntryUpdate(**{k: v for k, v in previous.items() if k in KnowledgeEntryUpdate.model_fields})
+    result = update_entry(entry_id, update, current_user=current_user, db=db, _cap=None, _module=None)
+    knowledge_service.audit_change(db, current_user.tenant_id, current_user.id, "rolled_back", entry_id, restored_event=body.event_id)
+    db.commit()
+    return result
 
 
 @router.post("/{entry_id}/reembed", response_model=KnowledgeEntryOut)
