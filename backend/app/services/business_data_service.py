@@ -171,6 +171,9 @@ def validate_record(db: Session, tenant_id: str, rec: BusinessRecord, at: Option
             warnings.append("no inclusions are listed")
         if not model.exclusions:
             warnings.append("no exclusions are listed (guests will be told only what is included)")
+    elif rec.kind == "destination":
+        if model.distance_km_from_base > 0 and model.travel_hours_from_base == 0:
+            errors.append("travel_hours_from_base is 0 for a destination that is not at the base: enter the real travel time")
     elif rec.kind == "itinerary":
         if not published("destination", model.destination_key):
             errors.append(f"destination '{model.destination_key}' is not published")

@@ -123,6 +123,18 @@ export function StructuredDataTab() {
     onError: fail("Couldn't switch it off"),
   });
 
+  const importExisting = useMutation({
+    mutationFn: () => api.post("/business-data/import-existing").then(r => r.data as { created: unknown[]; skipped: { key: string; reason: string }[] }),
+    onSuccess: d => {
+      refresh();
+      toast({
+        variant: d.created.length ? "success" : "info", title: d.created.length ? `${d.created.length} draft${d.created.length === 1 ? "" : "s"} created` : "Nothing new to import",
+        description: d.created.length ? "Review each one, fill in what is missing, then publish. Nothing is live yet." : d.skipped.length ? `${d.skipped.length} already exist.` : "No rate plans or routes were found.",
+      });
+    },
+    onError: fail("Couldn't import"),
+  });
+
   const draftBusy = save.isPending || startReview.isPending;
   const set = (patch: Partial<NonNullable<typeof editing>>) => { setEditing(e => (e ? { ...e, ...patch } : e)); setReview(null); };
 
@@ -148,7 +160,16 @@ export function StructuredDataTab() {
           <>
             {rows.length === 0 && (
               <Card><EmptyState title={`No ${spec.plural.toLowerCase()} yet`} hint="Until something is published, the AI says the team will confirm instead of answering from here."
-                action={<button onClick={() => open(null)} className="min-h-11 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground">Add {spec.label.toLowerCase()}</button>} /></Card>
+                action={
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <button onClick={() => open(null)} className="min-h-11 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground">Add {spec.label.toLowerCase()}</button>
+                    {(kind === "package" || kind === "destination") && (
+                      <button onClick={() => importExisting.mutate()} disabled={importExisting.isPending}
+                        className="min-h-11 rounded-lg border border-[var(--haip-border)] px-4 text-sm font-semibold hover:bg-[var(--haip-surface)] disabled:opacity-50">
+                        {importExisting.isPending ? <Loader2 size={14} className="animate-spin" /> : "Start from my existing rates and routes"}
+                      </button>
+                    )}
+                  </div>} /></Card>
             )}
             {rows.map(g => {
               const shown = g.live ?? g.scheduled;

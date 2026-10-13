@@ -90,6 +90,15 @@ describe("Structured Business Data tab", () => {
     expect(screen.getByText(/the AI says the team will confirm/i)).toBeTruthy();
   });
 
+  it("offers to start from the existing rates and routes, which only creates drafts", async () => {
+    route([]);
+    post.mockResolvedValue({ data: { created: [{ kind: "package", key: "a" }], skipped: [] } });
+    wrap(<StructuredDataTab />);
+    await userEvent.click(await screen.findByRole("button", { name: /Start from my existing rates/ }));
+    await waitFor(() => expect(post).toHaveBeenCalledWith("/business-data/import-existing"));
+    expect(post.mock.calls.some(c => String(c[0]).endsWith("/publish"))).toBe(false);
+  });
+
   it("shows a retry when the data cannot be loaded", async () => {
     get.mockImplementation((url: string) => (url === "/properties" ? Promise.resolve({ data: [] }) : Promise.reject(new Error("boom"))));
     wrap(<StructuredDataTab />);

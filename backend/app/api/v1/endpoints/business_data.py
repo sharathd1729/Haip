@@ -115,6 +115,15 @@ def list_records(
     return list(grouped.values())
 
 
+@router.post("/import-existing")
+def import_existing(current_user: User = Depends(get_current_user), db: Session = Depends(get_db), _cap=_write, _m=_module):
+    """Create DRAFTS from the workspace's rate plans, seasonal rates and vehicle routes. Never publishes, never overwrites."""
+    from app.services import business_data_import_service as imp
+    report = imp.draft_from_existing(db, current_user.tenant_id, current_user.id)
+    db.commit()
+    return {"created": report.created, "skipped": report.skipped}
+
+
 @router.get("/records/{record_id}/diff")
 def diff(record_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db), _cap=_write, _m=_module):
     rec = _run(svc._get, db, current_user.tenant_id, record_id)
