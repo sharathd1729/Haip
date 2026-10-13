@@ -320,6 +320,11 @@ class CalculatorService:
             report.append(entry)
         return report
 
+    def is_open(self, db: Session, tenant_id: str, property_id: str, checkin: str, checkout: str) -> bool:
+        """True when no confirmed/checked-in booking, calendar block or shared-vehicle shortage overlaps [checkin, checkout).
+        The availability check on its own, without needing a legacy per-night rate (packages are priced elsewhere)."""
+        return self._is_available(db, property_id, tenant_id, checkin, checkout)
+
     def build_quote(
         self,
         db: Session,

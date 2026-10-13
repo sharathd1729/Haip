@@ -8,7 +8,7 @@ New tables:
 """
 
 import enum
-from sqlalchemy import Column, String, Text, Numeric, Boolean, DateTime, ForeignKey, Index
+from sqlalchemy import JSON, Column, Date, Integer, String, Text, Numeric, Boolean, DateTime, ForeignKey, Index
 from app.core.database import Base
 from app.models.base import TimestampMixin, TenantMixin, gen_uuid
 
@@ -54,6 +54,16 @@ class InquiryQuote(Base, TimestampMixin, TenantMixin):
     notes        = Column(Text, nullable=True)
     created_by   = Column(String, nullable=True)   # user_id
     is_active    = Column(Boolean, default=True, nullable=False)
+
+    # Issued-quote snapshot (migration 125): what the guest was actually quoted, so a later price change never alters it.
+    package_key  = Column(String(60), nullable=True)
+    check_in     = Column(Date, nullable=True)
+    check_out    = Column(Date, nullable=True)
+    guests       = Column(Integer, nullable=True)
+    snapshot     = Column(JSON, nullable=True)       # lines, totals, inputs, inclusions/exclusions (package_pricing_service.to_snapshot)
+    record_refs  = Column(JSON, nullable=True)       # [{kind, key, version, record_id}] the quote was built from
+    params_hash  = Column(String(64), nullable=True) # same inputs + same record versions -> same hash (idempotent issue)
+    status       = Column(String(20), nullable=True) # issued | superseded | expired | accepted | withdrawn
 
     __table_args__ = (
         Index("ix_inquiry_quotes_inquiry", "inquiry_id"),

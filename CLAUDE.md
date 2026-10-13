@@ -1,5 +1,5 @@
 # HAIP — Claude Code Working Instructions
-**Version**: 2.3 · **Owner**: Sharath D. · **Updated**: 14 Oct 2026 (Alembic head `124`)
+**Version**: 2.3 · **Owner**: Sharath D. · **Updated**: 14 Oct 2026 (Alembic head `125`)
 **Reference docs**: HAIP_FULL_BUILD_PLAN.md · architecture-delta.md · execution-plan.md · docs/HAIP_Module_Audit_M0.md (module status matrix, 11 Oct 2026 — update statuses as gaps close)
 
 **KEEP THIS FILE CURRENT — standing rule from the owner.** When a change adds or alters a
@@ -59,7 +59,7 @@ replies, unified lead record across every touchpoint.
   live figure; KB text has prices stripped. **Pricing is a TENANT policy**: `brand_config.price_disclosure` = `handoff` (default; Ratha: never a price in chat) | `grounded`.
   Summary `leads360-summary-v7` (updates the previous one, ignores unsent drafts, booking state computed). `send_whatsapp*` never resend a SENT message.
   **Ratha business data** (`business_records`, migration 124; `docs/ai/RATHA_KB_EVOLUTION.md`): versioned typed records (package, destination, itinerary, reseller/discount/stay/payment/cancellation policy);
-  draft → publish → superseded, immutable once published, rollback = new version, effective-dated, audited. Guest-facing code reads ONLY `business_data_service.get_effective` (never drafts).
+  draft → publish → superseded, immutable once published, rollback = new version, effective-dated, audited. Guest-facing code reads ONLY `business_data_service.get_effective` (never drafts). Package prices: `package_pricing_service.quote` (refuses, never guesses; availability via `calculator_service`); `quote_service.issue_quote` snapshots amounts + record versions in `inquiry_quotes` [125], so a later price change never alters an issued quote.
 - **Meta Ads + Marketing page** [115, 116] — see "META ADS / MARKETING" below.
 - **UI redesign** (phases 0–5): kit, tokens, five-section sidebar, inbox/bookings/calls/leads on the kit.
 
@@ -406,7 +406,7 @@ writers form one chain. A transaction must never audit several tenants (deadlock
 Row-level security: `alembic/proposed/118_*` is NOT applied; check the DB role with `backend/scripts/verify_rls_isolation.py`
 (read-only) and `docs/HAIP_Phase0_Production_Checklist.md` before assuming RLS protects anything. Migration 117 widens
 `calls.ai_score_status`; 119 grants foh `conversations.send` to existing tenants unless the owner edited that cell; 120-121 add the iCal tables; 122 adds the lead columns on `guests` + `guest_merge_events`; 123 (head) adds
-`knowledge_entries.embedding_attempts/stale_since`; 124 (head) adds `business_records`. 118 is reserved for the proposed RLS file (re-parent on 124 when promoted). Roll code back with `alembic downgrade 116` first (checklist 11).
+`knowledge_entries.embedding_attempts/stale_since`; 124 adds `business_records`; 125 (head) adds quote snapshot columns. 118 is reserved for the proposed RLS file (re-parent on 125 when promoted). Roll code back with `alembic downgrade 116` first (checklist 11).
 **Sending needs `conversations.send`** (owner, manager, reservations, concierge, foh by default): `send_message`, `send_template`, `retry`, `approve` and both AI-rewrite POSTs use `require_capability`. A new default grant only reaches NEW tenants; existing ones need a data migration.
 **AI-rewrite tasks are bounded** (`rewrite_draft.py`): one request <= 30 s (`asyncio.wait_for`), a timeout is never retried, the draft task retries a
 provider error once, the composer never retries; a rewrite that changes a number is rejected. Embedding calls: 8 s query / 30 s indexing, SDK retries off.
