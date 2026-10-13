@@ -52,6 +52,9 @@ def test_shows_knowledge_structured_data_a_quote_and_where_each_came_from(client
     assert {(s["kind"], s["key"], s["version"]) for s in j["structured"]["sources"]} >= {("package", "coorg-signature", 1), ("destination", "coorg", 1)}
     assert j["structured"]["descriptive"]["packages"][0]["name"] == "Signature Caravan - Coorg"
     assert j["ai_sees_prices"] is False and any(f["code"] == "price_mode_handoff" for f in j["flags"])           # default workspace: hand-off
+    refs = [(s["kind"], s["key"], s["version"]) for s in j["structured"]["sources"]]
+    assert len(refs) == len(set(refs))                                                                           # each source listed once
+    assert all(not f["message"].endswith("..") for f in j["flags"])
 
 
 def test_it_calls_exactly_the_functions_a_real_reply_calls_with_the_same_arguments(db, client, pub):

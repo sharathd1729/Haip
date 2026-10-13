@@ -1,11 +1,14 @@
 "use client";
 import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, X, Search, Sparkles, AlertCircle, Loader2, RefreshCw, CheckCircle2, BookOpen, Upload, Globe } from "@/lib/icons";
+import { Plus, Pencil, Trash2, X, AlertCircle, Loader2, RefreshCw, CheckCircle2, BookOpen, Upload, Globe } from "@/lib/icons";
 import api from "@/lib/api";
 import { cn, timeAgo } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
+import { Tabs } from "@/components/ui/kit";
+import { KnowledgeTestBox } from "@/components/knowledge/KnowledgeTestBox";
+import { StructuredDataTab } from "@/components/knowledge/StructuredDataTab";
 
 interface KnowledgeEntry {
   id: string;
@@ -40,26 +43,9 @@ interface KnowledgeStats {
   search_available?: boolean;
 }
 
-interface SearchResult {
-  hits: SearchHit[];
-  status: string;
-  message: string;
-  retrievable_count: number;
-}
-
 interface PropertyLite {
   id: string;
   name: string;
-}
-
-interface SearchHit {
-  id: string;
-  category: string;
-  question?: string | null;
-  content: string;
-  source: string;
-  property_id?: string | null;
-  score: number;
 }
 
 const CATEGORIES = [
@@ -89,15 +75,12 @@ type FormState = {
 
 const EMPTY_FORM: FormState = { category: "faq", question: "", content: "", priority: 0, property_id: "" };
 
-export default function KnowledgePage() {
+function KnowledgeAndTrainingTab() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const [form, setForm] = useState<FormState | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>("");
-  const [testQuery, setTestQuery] = useState("");
-  const [testResult, setTestResult] = useState<SearchResult | null>(null);
-  const [testProperty, setTestProperty] = useState("");
   const [crawlOpen, setCrawlOpen] = useState(false);
   const [crawlUrls, setCrawlUrls] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -273,15 +256,6 @@ export default function KnowledgePage() {
     },
   });
 
-  const testMutation = useMutation({
-    mutationFn: (q: string) =>
-      api
-        .post("/knowledge/search", { query: q, top_k: 5, ...(testProperty ? { property_id: testProperty } : {}) })
-        .then((r) => r.data as SearchResult),
-    onSuccess: (d) => setTestResult(d),
-    onError: () => toast({ variant: "error", title: "Search failed" }),
-  });
-
   const entries = data?.items ?? [];
 
   return (
@@ -386,82 +360,7 @@ export default function KnowledgePage() {
 
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-4xl space-y-5">
-          {/* Test panel — the honest way to see what the AI would retrieve */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-            <div className="flex items-center gap-1.5 mb-1">
-              <Sparkles size={14} className="text-teal-500" />
-              <p className="text-sm font-semibold text-gray-800">Test what the AI knows</p>
-            </div>
-            <p className="text-xs text-gray-400 mb-3">
-              Type a question the way a guest would ask it. This runs the same search the AI runs before writing a reply.
-              Only active, approved, fully indexed entries are searched.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {properties.length > 1 && (
-                <select
-                  value={testProperty}
-                  onChange={(e) => setTestProperty(e.target.value)}
-                  aria-label="Property to test for"
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
-                >
-                  <option value="">Any property</option>
-                  {properties.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <input
-                value={testQuery}
-                onChange={(e) => setTestQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && testQuery.trim()) testMutation.mutate(testQuery);
-                }}
-                placeholder="e.g. can i bring my dog?"
-                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
-              />
-              <button
-                onClick={() => testQuery.trim() && testMutation.mutate(testQuery)}
-                disabled={testMutation.isPending || !testQuery.trim()}
-                className="flex items-center gap-1.5 px-4 py-2 bg-[#0F766E] text-white rounded-lg text-xs font-semibold hover:bg-[#0d6660] transition-colors disabled:opacity-50"
-              >
-                {testMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Search size={12} />}
-                Test
-              </button>
-            </div>
-
-            {testResult !== null && (
-              <div className="mt-3 space-y-2">
-                {testResult.hits.length === 0 ? (
-                  <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-                    <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
-                    <span>
-                      {testResult.message || "Nothing matched."}
-                      {testResult.status === "no_match" &&
-                        " The AI would not have this to go on — add or approve an entry covering it."}
-                    </span>
-                  </div>
-                ) : (
-                  testResult.hits.map((h) => (
-                    <div key={h.id} className="p-3 bg-gray-50 rounded-lg border border-gray-100">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded">
-                          {CATEGORY_LABEL[h.category] ?? h.category}
-                        </span>
-                        <span className="text-[10px] text-gray-400">match {(h.score * 100).toFixed(0)}%</span>
-                        {h.property_id && (
-                          <span className="text-[10px] text-gray-500">only for {propertyName(h.property_id)}</span>
-                        )}
-                      </div>
-                      {h.question && <p className="text-xs font-medium text-gray-700">{h.question}</p>}
-                      <p className="text-xs text-gray-500 leading-relaxed">{h.content}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
+          <KnowledgeTestBox properties={properties} />
 
           {/* Category filter */}
           <div className="flex flex-wrap gap-1.5">
@@ -896,6 +795,39 @@ export default function KnowledgePage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+type Tab = "knowledge" | "structured";
+
+export default function KnowledgePage() {
+  const [tab, setTab] = useState<Tab>("knowledge");
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex-shrink-0 border-b border-[var(--haip-border)] bg-[var(--haip-card)] px-4 pt-3 sm:px-6">
+        <Tabs
+          label="Knowledge base sections" value={tab} onChange={(v) => setTab(v as Tab)} className="max-w-md"
+          items={[{ value: "knowledge", label: "Knowledge & Training" }, { value: "structured", label: "Structured Business Data" }]}
+        />
+      </div>
+      <div className="min-h-0 flex-1">{tab === "knowledge" ? <KnowledgeAndTrainingTab /> : <StructuredDataPane />}</div>
+    </div>
+  );
+}
+
+function StructuredDataPane() {
+  const { data: properties = [] } = useQuery<PropertyLite[]>({
+    queryKey: ["properties-lite"],
+    queryFn: () => api.get("/properties").then((r) => r.data),
+    staleTime: 5 * 60_000,
+  });
+  return (
+    <div className="flex h-full flex-col overflow-y-auto">
+      <StructuredDataTab />
+      <div className="mx-auto w-full max-w-4xl px-4 pb-8 sm:px-6">
+        <KnowledgeTestBox properties={properties} />
+      </div>
     </div>
   );
 }

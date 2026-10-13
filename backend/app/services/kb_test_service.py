@@ -40,6 +40,8 @@ def _human(flag: str) -> str:
         return f"The itinerary's length does not fit package '{flag.split(':', 1)[1]}' (minimum/maximum nights)."
     if flag.startswith("policy_unconfirmed:"):
         return f"{flag.split(':', 1)[1].replace('_', ' ').capitalize()} is published but not confirmed by Ratha, so the AI will not state it."
+    if " " in flag:                                  # already a sentence (a quote warning)
+        return flag if flag.endswith(".") else flag + "."
     return _STRUCTURED_FLAG_TEXT.get(flag, flag.replace("_", " ").capitalize() + ".")
 
 
@@ -79,7 +81,10 @@ def run(db: Session, tenant_id: str, question: str, property_id: Optional[str] =
     sources: list[dict] = []
     structured_flags: list[str] = []
     for f in facts:
-        sources += [s for s in f.get("sources", []) if s not in sources]
+        for s in f.get("sources", []):
+            ref = {"kind": s["kind"], "key": s["key"], "version": s["version"]}
+            if ref not in sources:
+                sources.append(ref)
         structured_flags += [x for x in f.get("flags", []) if x not in structured_flags]
     if not facts:
         flags.append(_flag("no_business_data", "warn", "No packages, routes or policies are published, so the AI has no exact data and will say the team will confirm."))
