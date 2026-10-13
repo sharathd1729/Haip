@@ -173,3 +173,40 @@ The real package list and prices (the repo has placeholders only), seasonal wind
 | B5 | GST and advance move from hard-coded constants into published `payment_policy`/`package.gst_percent` | yes, with the old constants as the fallback only when no policy is published |
 | B6 | Narrative-KB edit semantics change from "unusable until re-indexed" to "old text serves until the new text is published" (K-1) | yes |
 | B7 | Draft preview in the test box (editors only, clearly labelled, never used by guest paths) | yes |
+
+## 11. Status (14 Oct 2026, `feat/ratha-business-data`)
+
+| Increment | State | Commit | What it delivers |
+|---|---|---|---|
+| K-2 | done | `09c60c9` | `business_records` (migration 124), typed per-kind schemas, draft → publish → superseded, rollback = new version, effective dating, audit, `/business-data` API |
+| K-4a | done | `69d5015` | `package_pricing_service.quote`, `quote_service.issue_quote` / `check_still_valid`, issued-quote snapshots (migration 125) |
+| K-4b | done | `65cafbc` | `sales_gateway` (read-only), concierge facts, prompt `concierge-reply-v13` |
+| K-0 | done | `cd463e5` | chained `kb.*` audit row for every knowledge write |
+| K-5 | done | `2338664` | `POST /knowledge/test`: same retrieval and gateway calls as a reply; sources, versions, flags |
+| K-3 | done | `2c0f2e0` | two-tab knowledge page, typed editors, review/diff/publish, history/restore, 375 px |
+| K-6 | done | `65096af` | `POST /business-data/import-existing` (drafts only) |
+| K-1 | done in part | `450f7bb` | history and undo for narrative entries from the audit trail. **Not done:** "old text keeps serving until the new text is indexed" (B6) -- needs a versions table; today an edited entry is withheld until indexed, which never exposes unpublished wording |
+
+### 11.1 How the acceptance tests are met
+
+| Acceptance test | Where it is pinned |
+|---|---|
+| Published price change affects new quotes without re-indexing | `test_package_pricing.py::test_a_published_price_change_reaches_the_next_quote_without_any_re_indexing`; `test_concierge_business_data.py` (real concierge task, indexing patched to fail if called) |
+| Draft and rejected changes never affect replies | `test_sales_gateway.py::test_draft_rejected_scheduled_and_unknown_records_are_invisible`; `test_concierge_business_data.py::test_a_draft_or_rejected_change_never_reaches_the_model`; `test_kb_test_box.py::test_drafts_are_never_previewed` |
+| Published itinerary change is retrieved correctly | `test_sales_gateway.py::test_a_published_itinerary_change_is_retrieved_at_once_with_its_new_version` |
+| Historical quotes keep original price and version | `test_package_pricing.py::test_an_issued_quote_keeps_its_price_and_terms_after_a_later_change` |
+| Missing or conflicting prices give a safe response | `test_package_pricing.py` (parametrised refusals, conflicting rates, km without a rate); prompt tests show no figure reaches the model on a refusal |
+| Availability and payment status come from authoritative services | quote availability = `calculator_service.is_open` (bookings and blocks), tests in `test_package_pricing.py`; payment status is **not** part of this work (stays with Razorpay/`StayPayment`) |
+| Tenant permissions and audit logging stay enforced | `settings.manage` on every write and on the test box; cross-tenant tests in each file; `business_record.*` and `kb.*` audit rows |
+| Existing KB and reliability tests still pass | full-suite results in §11.3 |
+
+### 11.2 Decisions taken without asking (change them if you disagree)
+
+* One typed table (B1), `settings.manage` for edit and publish (B2), future-dated publish (B3), `RatePlan` stays authoritative for bookings (B4).
+* Payment and cancellation terms reach the model only when the workspace is in `grounded` price mode; descriptive data (what is included, routes, check-in times) is always available. Ratha's default hand-off rule is untouched.
+* A quote is **priced**, not **issued**, until a person or a later tool calls `issue_quote`; issuing is idempotent and audited.
+* The test box does not call the language model: you state what the classifier would have read (dates, party, destination). Draft preview (B7) was not built.
+
+### 11.3 Verification
+
+Full suites on this branch at `450f7bb` (exit 0 both): **PostgreSQL 16.14 + pgvector (fresh DB migrated to 125): 2764 passed / 0 failed / 1 skipped / 26 xfailed**; **SQLite: 2707 passed / 0 failed / 59 skipped / 25 xfailed**. Frontend: `tsc --noEmit --skipLibCheck` clean, vitest 72 passed. This branch is based before PR-1 (`a48ad25`), so PR-1's tests are not in these counts. The UI was also exercised in a browser against a throwaway PostgreSQL workspace (draft, review, publish, quote reflects the new price; 375 px, no horizontal overflow). Nothing was pushed, deployed or run against production.
