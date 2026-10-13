@@ -21,6 +21,7 @@ import { Controls, type Filters } from "./Controls";
 import { JourneyBand } from "./JourneyBand";
 import { Ledger } from "./Ledger";
 import { Trends } from "./Trends";
+import { Safe } from "./parts";
 import { isRestricted, type BusinessOverview } from "./types";
 
 const INITIAL: Filters = { preset: "this_month", customFrom: "", customTo: "", channel: "", propertyId: "", agentId: "", trend: "day" };
@@ -124,18 +125,18 @@ export function CommandCenter() {
           <Loading />
         ) : (
           <div className={isPlaceholderData ? "space-y-4 opacity-60 motion-safe:transition-opacity motion-safe:duration-150 sm:space-y-5" : "space-y-4 motion-safe:transition-opacity motion-safe:duration-150 sm:space-y-5"}>
-            <KpiGrid data={data} />
-            <LeadFlow data={data} />
-            <AttentionStrip data={data} />
-            <JourneyBand data={data} />
-            <Ledger data={data} />
-            <Trends data={data} trend={filters.trend} onTrend={trend => setFilters(f => ({ ...f, trend }))} />
-            <Breakdowns data={data} />
-            <Acquisition data={data} />
-            {data.agents && <Team rows={data.agents} />}
-            <ChannelPanels ready={!isPlaceholderData} />
-            {data.insights.length > 0 && <AiNoticed insights={data.insights} onDismiss={id => dismiss.mutate(id)} dismissing={dismiss.isPending ? dismiss.variables : null} />}
-            <Definitions data={data} />
+            <Safe name="Headline numbers"><KpiGrid data={data} /></Safe>
+            <Safe name="Conversations and leads"><LeadFlow data={data} /></Safe>
+            <Safe name="Needs attention"><AttentionStrip data={data} /></Safe>
+            <Safe name="From lead to payment"><JourneyBand data={data} /></Safe>
+            <Safe name="Leads, bookings and revenue"><Ledger data={data} /></Safe>
+            <Safe name="Trends"><Trends data={data} trend={filters.trend} onTrend={trend => setFilters(f => ({ ...f, trend }))} /></Safe>
+            <Safe name="Breakdowns"><Breakdowns data={data} /></Safe>
+            <Safe name="Sources and Meta Ads"><Acquisition data={data} /></Safe>
+            {data.agents && <Safe name="Agent performance"><Team rows={data.agents} /></Safe>}
+            <Safe name="Channel activity"><ChannelPanels ready={!isPlaceholderData} /></Safe>
+            {data.insights.length > 0 && <Safe name="What AI noticed"><AiNoticed insights={data.insights} onDismiss={id => dismiss.mutate(id)} dismissing={dismiss.isPending ? dismiss.variables : null} /></Safe>}
+            <Safe name="Definitions"><Definitions data={data} /></Safe>
           </div>
         )}
       </div>

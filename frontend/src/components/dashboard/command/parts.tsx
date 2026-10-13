@@ -1,11 +1,31 @@
 "use client";
 // Small shared pieces of the Owner Command Center. Presentation only: every value arrives formatted-ready from the
 // server response in ./types.ts.
-import type { ReactNode } from "react";
+import { Component, type ErrorInfo, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, Info, Lock } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import type { Change } from "./types";
+
+/**
+ * Draws one section. If that section throws (an unexpected response, a bad value), only IT is replaced by a short notice that says
+ * which section and why; the rest of the page keeps working. Without this a single bad field blanks the whole Owner Command Center.
+ */
+export class Safe extends Component<{ name: string; children: ReactNode }, { error: Error | null }> {
+  state: { error: Error | null } = { error: null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  componentDidCatch(error: Error, info: ErrorInfo) { console.error(`[dashboard] "${this.props.name}" could not be drawn`, error, info.componentStack); }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <section role="alert" className="haip-card px-4 py-3 text-[13px] text-[var(--haip-fg-2)] sm:px-6">
+        <p className="font-semibold text-[var(--haip-fg)]">{this.props.name} could not be shown.</p>
+        <p className="mt-0.5 text-[12px] text-[var(--haip-fg-subtle)]">{this.state.error.message || "Unexpected data."} The rest of the page is unaffected.</p>
+        <button type="button" onClick={() => this.setState({ error: null })} className="mt-2 inline-flex min-h-11 items-center font-semibold text-primary hover:underline lg:min-h-0">Try again</button>
+      </section>
+    );
+  }
+}
 
 /** "+12% vs previous" — only when the server found a baseline; nothing at all otherwise (never "+0%" / "-100%"). */
 export function ChangePill({ change, goodWhen = "up", className }: { change: Change | null | undefined; goodWhen?: "up" | "down"; className?: string }) {

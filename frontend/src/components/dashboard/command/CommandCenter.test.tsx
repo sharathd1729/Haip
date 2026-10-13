@@ -17,6 +17,8 @@ import { LeadFlow } from "./LeadFlow";
 import { Ledger } from "./Ledger";
 import { Team } from "./Team";
 import { Trends } from "./Trends";
+import { Safe } from "./parts";
+import { QUERY_CACHE_VERSION, queryPersistOptions } from "@/lib/queryClient";
 import { inr, inrShort, pct, periodLabel, type BusinessOverview } from "./types";
 
 // A small workspace with every block present. Values are fixtures for the component, not product data.
@@ -295,5 +297,45 @@ describe("Team", () => {
   it("says so when there is no activity", () => {
     render(<Team rows={[]} />);
     expect(screen.getByText("No agent activity in this period.")).toBeTruthy();
+  });
+});
+
+
+describe("a response of an older shape (a saved copy from before a release)", () => {
+  function serve(payload: unknown) {
+    get.mockImplementation((url: string) => Promise.resolve({ data: url === "/dashboard/business-overview" ? payload : [] }));
+  }
+
+  it("never blanks the page: the broken sections say so and the rest still draws", async () => {
+    const old = overview() as unknown as Record<string, unknown>;
+    // what the page looked like before the lead definition changed: no identified_new, conversion, enquiries, by_lead_cohort ...
+    old.leads = { received: 124, valid: 90, invalid: 30, converted_to_booking: 18, conversion_rate: 14.5, unassigned_now: 3, high_intent_at_risk: { count: 0, items: [] } };
+    serve(old);
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    wrap(<CommandCenter />);
+    expect(await screen.findAllByRole("alert")).not.toHaveLength(0);              // sections that could not be drawn say so
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toMatch(/Sharath/);   // the page itself is still there
+    expect(screen.getAllByText(/could not be shown/).length).toBeGreaterThan(0);
+    expect(screen.getByText("Needs attention")).toBeTruthy();                      // an unaffected section still draws
+    spy.mockRestore();
+  });
+
+  it("isolates one failing section and lets it be retried", async () => {
+    let boom = true;
+    function Bomb() { if (boom) throw new Error("bad field"); return <p>recovered</p>; }
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    render(<div><Safe name="Trends"><Bomb /></Safe><p>other section</p></div>);
+    expect(screen.getByText("Trends could not be shown.")).toBeTruthy();
+    expect(screen.getByText("bad field", { exact: false })).toBeTruthy();
+    expect(screen.getByText("other section")).toBeTruthy();
+    boom = false;
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(screen.getByText("recovered")).toBeTruthy();
+    spy.mockRestore();
+  });
+
+  it("versions the saved query cache so an old copy is discarded, not replayed", () => {
+    expect(QUERY_CACHE_VERSION).toMatch(/\S/);
+    expect(queryPersistOptions.buster).toBe(QUERY_CACHE_VERSION);
   });
 });

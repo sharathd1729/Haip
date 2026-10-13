@@ -17,6 +17,12 @@ import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persist
 const PERSIST_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 export const QUERY_PERSIST_STORAGE_KEY = "haip-query-cache";
 
+// The saved copy is replayed into the page on the next visit, BEFORE the fresh response arrives. If an API response changes shape in
+// a release, an old saved copy under the same key makes the new page read fields that are not there, and it crashes for everyone who
+// opened that page before the release. A different `buster` makes the library discard the whole saved copy once, so it is never
+// replayed. BUMP THIS whenever a response that pages cache changes shape (a new, renamed or removed field).
+export const QUERY_CACHE_VERSION = "2026-10-13-lead-metrics";
+
 // Module-level singleton so api.ts's response interceptor can invalidate
 // every query the instant connectivity is restored, without either module
 // importing the other (Providers still owns mounting <PersistQueryClientProvider>).
@@ -37,4 +43,4 @@ export const queryPersister = typeof window !== "undefined"
   ? createSyncStoragePersister({ storage: window.localStorage, key: QUERY_PERSIST_STORAGE_KEY })
   : undefined;
 
-export const queryPersistOptions = { persister: queryPersister!, maxAge: PERSIST_MAX_AGE_MS };
+export const queryPersistOptions = { persister: queryPersister!, maxAge: PERSIST_MAX_AGE_MS, buster: QUERY_CACHE_VERSION };
