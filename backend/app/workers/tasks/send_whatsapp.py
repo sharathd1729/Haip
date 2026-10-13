@@ -29,6 +29,12 @@ def send_whatsapp(self, message_id: str, tenant_id: str):
             log.error("send_whatsapp_message_not_found", message_id=message_id)
             return
 
+        # Already sent? A redelivered or retried task must not send the same message to the guest a second time (the Meta API
+        # has no idempotency key, so the only protection is not calling it again).
+        if _already_sent(message):
+            log.info("send_whatsapp_already_sent", message_id=message_id)
+            return
+
         conversation = db.query(Conversation).filter_by(id=message.conversation_id).first()
         if not conversation:
             log.error("send_whatsapp_conv_not_found", conversation_id=message.conversation_id)
@@ -110,7 +116,7 @@ def send_whatsapp(self, message_id: str, tenant_id: str):
             "whatsapp_sent",
             message_id=message_id,
             wamid=wamid,
-            to=guest.phone,
+            to=_phone_token(guest.phone),       # never the number itself
         )
 
     except Exception as exc:
@@ -136,6 +142,10 @@ def send_whatsapp_template(self, message_id: str, tenant_id: str, template_name:
         message = db.query(Message).filter_by(id=message_id, tenant_id=tenant_id).first()
         if not message:
             log.error("send_whatsapp_template_message_not_found", message_id=message_id)
+            return
+
+        if _already_sent(message):
+            log.info("send_whatsapp_already_sent", message_id=message_id)
             return
 
         conversation = db.query(Conversation).filter_by(id=message.conversation_id).first()
@@ -229,6 +239,21 @@ def _template_components(db, tenant_id: str, message: Message, variables: list) 
     vmap = {"body": {str(i): {"source": "static", "value": str(v)} for i, v in enumerate(variables or [], start=1)}}
     link = get_presigned_media_url(tmpl.header_media_key, expires_in=3600) if tmpl.header_media_key else None
     return wts.build_send_components(tmpl.components, vmap, None, header_media_link=link)
+
+
+def _already_sent(message) -> bool:
+    """The message has a provider id and has reached SENT or later."""
+    return bool(
+        message.channel_message_id
+        and not str(message.channel_message_id).startswith("draft_")
+        and message.delivery_state in (MessageDeliveryState.SENT, MessageDeliveryState.DELIVERED, MessageDeliveryState.READ)
+    )
+
+
+def _phone_token(value) -> str:
+    """Stable short hash for correlating log lines without writing the number."""
+    import hashlib
+    return hashlib.sha256(str(value or "").encode()).hexdigest()[:12]
 
 
 def _fail_or_retry(task, db, message, exc: Exception, event: str, message_id: str) -> None:
