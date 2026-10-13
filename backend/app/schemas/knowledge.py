@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional, Literal, List
 from pydantic import BaseModel, Field, model_validator
 
@@ -113,6 +113,20 @@ class KnowledgeSearchResponse(BaseModel):
     message: str = ""
     property_id: Optional[str] = None
     retrievable_count: int = 0
+
+
+class KnowledgeTestDetails(BaseModel):
+    """What the classifier would have read from the guest's message. The test box does not call a model: you state it."""
+    check_in: Optional[date] = None
+    check_out: Optional[date] = None
+    adults: Optional[int] = Field(default=None, ge=1, le=100)
+    children: Optional[int] = Field(default=None, ge=0, le=100)
+    destination: Optional[str] = Field(default=None, max_length=120)
+    property_hint: Optional[str] = Field(default=None, max_length=120)
+
+
+class KnowledgeTestRequest(KnowledgeSearchRequest):
+    details: Optional[KnowledgeTestDetails] = None
 
 
 class WebsiteIngestRequest(BaseModel):

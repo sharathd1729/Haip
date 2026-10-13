@@ -284,6 +284,8 @@ def concierge_business_facts(db: Session, tenant_id: str, details: Optional[dict
             body[label] = res.data
             sources += res.sources
             flags += res.flags
+    for p in body.get("packages", []):                       # a package whose route is no longer published is contradictory data
+        flags += get_package(db, tenant_id, p["key"], include_rates=False).flags
     for label, res in (("stay_rules", rules), ("payment_policy", pay), ("cancellation_policy", canc)):
         if res.ok:
             body[label] = res.data

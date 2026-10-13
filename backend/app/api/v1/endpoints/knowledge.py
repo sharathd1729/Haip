@@ -6,6 +6,7 @@ PATCH  /knowledge/{id}            update an entry
 DELETE /knowledge/{id}            delete an entry (and its vector)
 POST   /knowledge/{id}/reembed    force re-embedding
 POST   /knowledge/search          retrieval preview -- "what would the AI find?"
+POST   /knowledge/test            full test box: knowledge + published structured data + quote, with sources, versions and flags
 GET    /knowledge/stats           counts by status + indexing health, for the settings header
 POST   /knowledge/reindex         retry every entry that is waiting or failed
 POST   /knowledge/upload          ingest a document (PDF/Word/text) -- pending review
@@ -31,11 +32,12 @@ from app.schemas.knowledge import (
     KnowledgeEntryUpdate,
     KnowledgeSearchHit,
     KnowledgeSearchRequest,
+    KnowledgeTestRequest,
     KnowledgeSearchResponse,
     KnowledgeCrawlRequest,
     KnowledgeIngestResult,
 )
-from app.services import knowledge_service, knowledge_ingest
+from app.services import knowledge_service, knowledge_ingest, kb_test_service
 
 log = structlog.get_logger()
 
@@ -461,3 +463,28 @@ def search_knowledge(
         property_id=property_id,
         retrievable_count=health["retrievable"],
     )
+
+
+@router.post("/test")
+def test_knowledge(
+    body: KnowledgeTestRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _cap=Depends(require_capability("settings.manage")),
+    _module=Depends(require_module("ai_concierge")),
+):
+    """What the concierge would be given for this question: the knowledge passages AND the published structured data (packages,
+    routes, itineraries, policies, a quote when a package, dates and party are stated), each with its source and version, and flags
+    for anything missing or contradictory. Runs the code a real reply runs; published data only; read-only. Needs `settings.manage`
+    because it shows exact rates."""
+    property_id = body.property_id
+    if body.conversation_id:
+        from app.models.conversation import Conversation
+        conv = db.query(Conversation).filter_by(id=body.conversation_id, tenant_id=current_user.tenant_id).first()
+        if conv is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        property_id = conv.property_id
+    else:
+        _require_own_property(db, current_user.tenant_id, property_id)
+    details = body.details.model_dump(mode="json") if body.details else {}
+    return kb_test_service.run(db, current_user.tenant_id, body.query, property_id=property_id, details=details, top_k=body.top_k)
