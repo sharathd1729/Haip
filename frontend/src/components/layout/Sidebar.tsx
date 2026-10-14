@@ -191,7 +191,12 @@ export function Sidebar({ user }: SidebarProps) {
   // collapsed it.
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
-    return window.localStorage.getItem(COLLAPSE_STORAGE_KEY) === "1";
+    const saved = window.localStorage.getItem(COLLAPSE_STORAGE_KEY);
+    if (saved === "1") return true;
+    if (saved === "0") return false;
+    // No choice made yet: on tablet widths (768-1023px, where the rail replaces the phone tab bar) start as the slim rail so
+    // the page keeps the room; wider screens start expanded. Toggling stores the person's choice.
+    return window.innerWidth < 1024;
   });
 
   function toggleCollapsed() {

@@ -484,8 +484,8 @@ export default function Leads360Page() {
           </div>
         </div>
 
-        {/* Controls */}
-        <div className="flex items-center gap-2">
+        {/* Controls: wrap on narrow screens instead of running off the edge */}
+        <div className="flex flex-wrap items-center gap-2">
           <div role="tablist" aria-label="Leads view" className="flex flex-shrink-0 rounded-lg p-0.5" style={{ background: "var(--muted)" }}>
             {([["action", "Needs action"], ["pipeline", "Pipeline"]] as const).map(([key, label]) => (
               <button
@@ -493,7 +493,7 @@ export default function Leads360Page() {
                 role="tab"
                 aria-selected={view === key}
                 onClick={() => setView(key)}
-                className="text-xs font-semibold px-3 py-1.5 rounded-md transition-colors"
+                className="text-xs font-semibold px-3 min-h-11 sm:min-h-0 sm:py-1.5 rounded-md transition-colors"
                 style={view === key
                   ? { background: "var(--haip-card)", color: "var(--haip-fg)", boxShadow: "0 1px 2px rgb(0 0 0 / 0.06)" }
                   : { color: "var(--haip-fg-subtle)" }}
@@ -507,7 +507,7 @@ export default function Leads360Page() {
           <div role="group" aria-label="Layout" className="flex flex-shrink-0 rounded-lg p-0.5" style={{ background: "var(--muted)" }}>
             {(["board", "table"] as const).map(l => (
               <button key={l} type="button" aria-pressed={layout === l} onClick={() => chooseLayout(l)}
-                className={cn("rounded-md px-3 py-1.5 text-xs font-semibold capitalize transition-colors",
+                className={cn("rounded-md px-3 min-h-11 sm:min-h-0 sm:py-1.5 text-xs font-semibold capitalize transition-colors",
                   layout === l ? "bg-[var(--haip-card)] text-[var(--haip-fg)] shadow-sm" : "text-[var(--haip-fg-subtle)]")}>
                 {l}
               </button>
@@ -571,7 +571,7 @@ export default function Leads360Page() {
           {/* Add lead manually */}
           <button
             onClick={() => setAddLeadOpen(true)}
-            className="lx-btn-add flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 transition-colors duration-150"
+            className="lx-btn-add flex items-center gap-1.5 text-xs font-semibold px-3 min-h-11 sm:min-h-0 sm:py-1.5 transition-colors duration-150"
             title="Add a lead manually"
           >
             <Plus size={12} />

@@ -403,13 +403,13 @@ export default function ReportsPage() {
             ) : REPORTS.length === 0 ? (
               <p className="text-sm text-gray-500 py-4">No reports are available for your role. Ask an owner or manager for access.</p>
             ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               {REPORTS.map(r => (
                 <button
                   key={r.id}
                   onClick={() => selectReport(r)}
                   className={cn(
-                    "flex items-start gap-3 p-4 rounded-2xl border-2 text-left transition-all",
+                    "flex items-start gap-3 p-4 min-h-[64px] rounded-2xl border-2 text-left transition-all",
                     selectedReport?.id === r.id
                       ? "border-teal-500 bg-teal-50 shadow-sm"
                       : "bg-white border-gray-100 hover:border-teal-300 hover:shadow-sm"
@@ -529,7 +529,7 @@ export default function ReportsPage() {
                           key={f.key}
                           onClick={() => toggleField(f.key)}
                           className={cn(
-                            "flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm transition-all text-left",
+                            "flex items-center gap-2 px-3 min-h-11 sm:min-h-0 sm:py-2.5 rounded-xl border text-sm transition-all text-left",
                             checked ? "border-teal-300 bg-teal-50 text-teal-800" : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
                           )}
                         >
