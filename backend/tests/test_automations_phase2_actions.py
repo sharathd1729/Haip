@@ -229,7 +229,8 @@ class TestSendQuote:
 
 
 class TestRegenerateDraftTone:
-    def test_ai_draft_request_accepts_and_forwards_tone(self, client, db, tenant_and_user, monkeypatch):
+    def test_ai_draft_request_accepts_and_forwards_tone(self, client, db, tenant_and_user, capabilities_seeded, monkeypatch):
+        # requesting a draft needs conversations.send, so the tenant needs its role matrix (a bare tenant fails closed)
         from app.models.conversation import Conversation, ChannelType
 
         tenant_id = _tenant_id(tenant_and_user)

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List, Union
 from datetime import datetime
 
@@ -117,5 +117,13 @@ class ApproveDraftRequest(BaseModel):
     """Approve an AI draft, optionally with edited text. `text` omitted or
     equal to the stored draft means sent verbatim; a different value means
     the agent edited it before sending -- distinguishing the two is the
-    whole point of this endpoint accepting a body at all."""
+    whole point of this endpoint accepting a body at all.
+
+    `expected_body_sha256` binds the approval to the exact text the person saw: if the draft was changed after they opened it
+    (an AI rewrite edits it in place) the approval is refused instead of sending text nobody reviewed."""
     text: Optional[str] = None
+    expected_body_sha256: Optional[str] = Field(default=None, min_length=64, max_length=64)
+
+
+class RejectDraftRequest(BaseModel):
+    reason: Optional[str] = Field(default=None, max_length=200)

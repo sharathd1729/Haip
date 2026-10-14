@@ -100,7 +100,7 @@ def world(db):
     return SimpleNamespace(t=t, owner=_user(db, t.id, UserRole.OWNER), ro=_user(db, t.id, UserRole.READ_ONLY))
 
 
-# ═══ A. AI draft approval and rejection (PR-1) ═════════════════════════════════════════════════════════════
+# ═══ A. AI draft approval and rejection (fixed in PR-1; now ordinary regression tests) ═════════════════════════════════════════════════════════════
 
 def test_control_a_pending_ai_draft_can_be_approved_once_by_an_authorised_user(db, client, world):
     g, c = _conv(db, world.t.id)
@@ -113,7 +113,6 @@ def test_control_a_pending_ai_draft_can_be_approved_once_by_an_authorised_user(d
     assert db.get(Message, d.id).was_approved is True
 
 
-@PR(1, "requesting a draft spends provider credit, so it needs conversations.send like the rewrite endpoints")
 def test_a_read_only_user_cannot_queue_an_ai_draft(db, client, world):
     g, c = _conv(db, world.t.id)
     db.commit()
@@ -122,7 +121,6 @@ def test_a_read_only_user_cannot_queue_an_ai_draft(db, client, world):
     assert r.status_code == 403 and queued.call_count == 0
 
 
-@PR(1, "reject must require conversations.send")
 def test_a_read_only_user_cannot_reject_a_draft(db, client, world):
     g, c = _conv(db, world.t.id)
     d = _draft(db, world.t.id, c)
@@ -132,7 +130,6 @@ def test_a_read_only_user_cannot_reject_a_draft(db, client, world):
     assert db.get(Message, d.id).was_approved is None
 
 
-@PR(1, "reject only acts on a pending AI draft")
 def test_rejecting_an_already_sent_human_message_is_refused_and_changes_nothing(db, client, world):
     g, c = _conv(db, world.t.id)
     m = _sent_human(db, world.t.id, c, world.owner.id)
@@ -143,7 +140,6 @@ def test_rejecting_an_already_sent_human_message_is_refused_and_changes_nothing(
     assert after.delivery_state == MessageDeliveryState.SENT and after.was_approved is None
 
 
-@PR(1, "approve only acts on a pending AI draft")
 def test_approve_cannot_rewrite_a_message_that_was_already_sent(db, client, world):
     g, c = _conv(db, world.t.id)
     m = _sent_human(db, world.t.id, c, world.owner.id)
@@ -154,7 +150,6 @@ def test_approve_cannot_rewrite_a_message_that_was_already_sent(db, client, worl
     assert db.get(Message, m.id).body == "Booked, see you on the 12th."
 
 
-@PR(1, "a rejected draft cannot be revived by approve")
 def test_a_rejected_draft_cannot_be_approved(db, client, world):
     g, c = _conv(db, world.t.id)
     d = _draft(db, world.t.id, c)
@@ -164,7 +159,6 @@ def test_a_rejected_draft_cannot_be_approved(db, client, world):
     assert r.status_code == 409 and send.call_count == 0
 
 
-@PR(1, "an inbound message is not a draft")
 def test_an_inbound_guest_message_can_be_neither_approved_nor_rejected(db, client, world):
     g, c = _conv(db, world.t.id)
     m = _msg(db, world.t.id, c, direction="inbound", body="Hi", is_ai_generated=False)
@@ -174,7 +168,6 @@ def test_an_inbound_guest_message_can_be_neither_approved_nor_rejected(db, clien
     assert a.status_code == 409 and r.status_code == 409 and send.call_count == 0
 
 
-@PR(1, "approval is idempotent: the second request must not queue a second send")
 def test_approving_twice_queues_exactly_one_send(db, client, world):
     g, c = _conv(db, world.t.id)
     d = _draft(db, world.t.id, c)
@@ -185,7 +178,6 @@ def test_approving_twice_queues_exactly_one_send(db, client, world):
     assert send.call_count == 1
 
 
-@PR(1, "approval is bound to the text the human saw (expected_body_sha256)")
 def test_approving_with_a_stale_view_of_the_draft_is_refused(db, client, world):
     g, c = _conv(db, world.t.id)
     d = _draft(db, world.t.id, c)          # e.g. rewrite_draft changed the body after the agent opened it
@@ -195,7 +187,6 @@ def test_approving_with_a_stale_view_of_the_draft_is_refused(db, client, world):
 
 
 @pytest.mark.skipif(engine.dialect.name != "postgresql", reason="needs real concurrent transactions (PostgreSQL)")
-@PR(1, "concurrent approvals must be serialised by a guarded UPDATE")
 def test_concurrent_approvals_queue_exactly_one_send():
     from fastapi import HTTPException
     from app.api.v1.endpoints.conversations import approve_ai_draft
@@ -232,7 +223,7 @@ def test_concurrent_approvals_queue_exactly_one_send():
     finally:                                              # this test commits for real (threads need separate connections): clean up
         from sqlalchemy import text
         s = TestingSessionLocal()
-        for tbl in ("ai_draft_outcomes", "messages", "conversations", "guests", "users", "role_capabilities"):
+        for tbl in ("audit_events", "ai_draft_outcomes", "messages", "conversations", "guests", "users", "role_capabilities"):
             s.execute(text(f"DELETE FROM {tbl} WHERE tenant_id = :t"), {"t": tid})
         s.execute(text("DELETE FROM tenants WHERE id = :t"), {"t": tid})
         s.commit()
