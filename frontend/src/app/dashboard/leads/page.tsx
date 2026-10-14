@@ -479,7 +479,7 @@ export default function Leads360Page() {
               Leads360
             </h1>
             <p className="text-xs" style={{ color: "var(--haip-fg-muted)" }}>
-              {view === "action" ? "What to do next, most urgent first" : `${total} active leads`}
+              {view === "action" ? "What to do next, most urgent first" : `${total} lead${total === 1 ? "" : "s"} on the board${stageFilter === ALL_STAGES_ID ? "" : " in this stage"}`}
             </p>
           </div>
         </div>

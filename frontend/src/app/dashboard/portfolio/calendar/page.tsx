@@ -881,7 +881,7 @@ export default function PortfolioCalendarPage() {
   const [isPhone, setIsPhone]         = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
-    const apply = () => { setIsPhone(mq.matches); if (mq.matches) setViewWindow("14"); };
+    const apply = () => { setIsPhone(mq.matches); if (mq.matches) { setViewWindow("14"); setStartDate(new Date()); } };   // a phone opens on today, not on the 1st
     apply();
     mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
@@ -987,7 +987,7 @@ export default function PortfolioCalendarPage() {
     >
 
       {/* ── Top summary bar ──────────────────────────────────── */}
-      {stats && todaySummary && (
+      {stats && todaySummary && !isPhone && (
         <TopSummaryBar
           revenue={(stats.revenue_locked ?? 0) + (stats.revenue_quoted ?? 0)}
           occupancy={stats.occupancy_pct ?? 0}
