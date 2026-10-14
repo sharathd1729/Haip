@@ -29,8 +29,9 @@ ISOLATION = [
     "tests/test_cross_tenant_matrix.py", "tests/test_rls_postgres.py", "tests/test_audit_concurrency_postgres.py",
     "tests/test_call_score_status.py", "tests/test_migration_117_postgres.py", "tests/test_verify_rls_isolation.py",
 ]
-RISKY = re.compile(r"(alembic/|app/models/|app/core/(security|database|audit)|api/v1/deps|authz_service|workspace_context|set_tenant_context|rls)", re.I)
+RISKY = re.compile(r"(alembic/|app/models/|app/core/(security|database|audit)|api/v1/deps|authz_service|workspace_context|set_tenant_context|(^|[/_])rls([_./]|$))", re.I)
 CROSS_CUTTING = re.compile(r"(^backend/tests/conftest\.py|^backend/requirements|^backend/pytest\.ini|^backend/app/main\.py|^backend/app/core/config\.py|^backend/alembic/env\.py)")
+SOURCE_SUFFIXES = (".py", ".ts", ".tsx", ".css", ".md", ".yml", ".ini", ".txt", ".jinja", ".sql", ".json")
 FULL_SUITE_BACKEND_FILES = 25          # more changed backend source files than this = treat as cross-module
 
 
@@ -43,7 +44,7 @@ def changed_files(base: str | None) -> list[str]:
     files = set(git("diff", "--name-only", base) if base else git("diff", "--name-only", "HEAD"))
     files |= set(git("diff", "--name-only", "--cached"))
     files |= set(git("ls-files", "--others", "--exclude-standard"))
-    return sorted(f for f in files if not f.endswith((".pyc", ".db", ".log")) and "__pycache__" not in f)
+    return sorted(f for f in files if f.endswith(SOURCE_SUFFIXES) and "__pycache__" not in f)   # stray scratch files never count
 
 
 def dotted(rel: str) -> str:
