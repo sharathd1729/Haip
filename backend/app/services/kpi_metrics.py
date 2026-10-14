@@ -30,10 +30,54 @@ Bound = Union[datetime, str]
 
 CANONICAL_METRICS: dict[str, dict[str, str]] = {
     "leads.new": {
-        "name": "New leads",
-        "definition": "Enquiries created in the period that were not marked unqualified (spam).",
+        "name": "New enquiries (legacy name)",
+        "definition": "Enquiry RECORDS created in the period that were not marked unqualified (spam). This counts records, not "
+                      "people: one person with three enquiries is three. For people see leads.identified_new.",
         "date_basis": "Inquiry.created_at, period bounds in UTC converted from IST calendar days",
         "function": "lead_filters / count_leads",
+    },
+    "conversations.new": {
+        "name": "New conversations",
+        "definition": "Conversations opened in the period (internal notes threads excluded). Interactions, not people.",
+        "date_basis": "Conversation.created_at, IST days as UTC instants",
+        "function": "lead_metrics.count_conversations",
+    },
+    "contacts.unidentified": {
+        "name": "Contacts without a phone number",
+        "definition": "People first heard from in the period who still have no usable phone number. Not leads.",
+        "date_basis": "Guest.created_at; Guest.lead_identified_at IS NULL now",
+        "function": "lead_metrics.count_unidentified_contacts",
+    },
+    "leads.identified_new": {
+        "name": "New leads",
+        "definition": "Unique people (guests) whose usable phone number was captured in the period: their first time as a lead.",
+        "date_basis": "Guest.lead_identified_at, IST days as UTC instants",
+        "function": "lead_metrics.count_new_leads / new_leads_conditions",
+    },
+    "leads.identified_active": {
+        "name": "Leads active in the period",
+        "definition": "Unique leads (phone known by the end of the period) with a message, a call or a new enquiry in the period.",
+        "date_basis": "Message / Call / Inquiry created_at in the period",
+        "function": "lead_metrics.count_active_leads",
+    },
+    "leads.qualified_new": {
+        "name": "Qualified leads",
+        "definition": "Of the new leads, those with a non-spam enquiry sitting in a pipeline stage of category valid, as of now.",
+        "date_basis": "Guest.lead_identified_at (cohort)",
+        "function": "lead_metrics.count_qualified_new",
+    },
+    "enquiries.created": {
+        "name": "Enquiries (records)",
+        "definition": "Enquiry records created in the period, with how many were repeat enquiries from a person who had enquired before.",
+        "date_basis": "Inquiry.created_at, IST days as UTC instants",
+        "function": "lead_metrics.enquiry_counts",
+    },
+    "leads.conversion_cohort": {
+        "name": "Lead to booking (cohort)",
+        "definition": "Of the people who became leads in the period, the share that has a live booking so far. Numerator and "
+                      "denominator are both people from the same cohort; it is never bookings in the period over leads in the period.",
+        "date_basis": "Guest.lead_identified_at (cohort); bookings counted whenever they were made",
+        "function": "lead_metrics.cohort / lead_to_booking",
     },
     "stays.occupied_nights": {
         "name": "Occupied nights",

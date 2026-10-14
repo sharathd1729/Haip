@@ -13,6 +13,7 @@ import { AttentionStrip } from "./AttentionStrip";
 import { CommandCenter } from "./CommandCenter";
 import { JourneyBand } from "./JourneyBand";
 import { KpiGrid } from "./KpiGrid";
+import { LeadFlow } from "./LeadFlow";
 import { Ledger } from "./Ledger";
 import { Team } from "./Team";
 import { Trends } from "./Trends";
@@ -25,38 +26,47 @@ function overview(patch: Partial<BusinessOverview> = {}): BusinessOverview {
     period: { date_from: "2026-09-10", date_to: "2026-09-20", timezone: "Asia/Kolkata", previous_from: "2026-08-30", previous_to: "2026-09-09" },
     filters: { property_id: null, channel: null, agent_id: null },
     access: { tenant_wide: true, bookings: true, revenue: true },
-    leads: { received: 124, received_change: { pct: 12.5, direction: "up" }, valid: 90, invalid: 30, marked_spam_excluded: 4,
-      converted_to_booking: 18, conversion_rate: 14.5, conversion_basis: "cohort", unassigned_now: 3,
-      lost: 11, by_expected_check_in: [{ month: "2026-11", count: 6 }, { month: "2026-12", count: 3 }], expected_check_in_unknown: 40,
+    leads: { definition: "A lead is a person we hold a usable phone number for.",
+      conversations_new: { count: 210, change: { pct: 4, direction: "up" } },
+      unidentified_contacts: { count: 55, change: null },
+      identified_new: { count: 124, change: { pct: 12.5, direction: "up" } },
+      identified_active: { count: 150 },
+      qualified_new: { count: 90, change: null, rate_of_new: 72.6 },
+      conversion: { numerator: 18, denominator: 124, rate: 14.5, previous_rate: 12, basis: "cohort" },
+      enquiries: { created: 160, repeat: 36, marked_spam_excluded: 4, lost: 11, basis: "enquiry records",
+        by_expected_check_in: [{ month: "2026-11", count: 6 }, { month: "2026-12", count: 3 }], expected_check_in_unknown: 40 },
+      unassigned_now: 3,
       high_intent_at_risk: { count: 2, items: [{ inquiry_id: "i1", name: "Priya S", reason: "waiting for a reply", href: "/dashboard/leads/i1" }] } },
     bookings: { restricted: false, confirmed_created: 21, confirmed_change: { pct: 5, direction: "up" }, cancelled_of_created: 2,
       pending: { available: false, reason: "no pending status" }, upcoming_checkins: 6, upcoming_window_days: 7,
-      needs_payment: 9, payment_overdue: 2, needs_payment_truncated: false, not_linked_to_a_lead: 3, upcoming_checkouts: 4,
+      needs_payment: 9, payment_overdue: 2, needs_payment_truncated: false, upcoming_checkouts: 4,
+      by_lead_cohort: { from_new_leads: { count: 15, value: 900000 }, from_earlier_leads: { count: 3, value: 200000 }, no_identified_lead: { count: 3, value: 150000 } },
+      no_identified_lead: 3,
       by_property: [{ property_id: "p1", name: "Caravan 1", bookings: 12, value: 800000 }], by_channel: [{ channel: "airbnb", bookings: 5, value: 300000 }], basis: "bookings made in the period" },
     revenue: { restricted: false, gross_booking_value: 1250000, gross_change: { pct: -8, direction: "down" }, add_ons_value: 40000,
       arriving_value: 900000, collected: 640000, collected_change: null, refunds: 25000, net_collected: 615000,
       outstanding_on_live_bookings: 410000, overdue_amount: 90000,
       net_revenue: { available: false, reason: "no tax or commission data" },
       target: { available: false, reason: "No target is set for this month." }, basis: "stay charge booked" },
-    funnel: { basis: "cohort", note: "Counts the leads received in this period and what became of them so far.",
+    funnel: { basis: "cohort", note: "Counts the people who became leads in this period and what became of them so far.",
       stages: [
-        { key: "received", label: "Lead received", count: 124, previous: 100, rate_from_previous: null, change: { pct: 24, direction: "up" } },
-        { key: "valid", label: "Valid lead", count: 90, previous: 80, rate_from_previous: 72.6, change: null },
-        { key: "booked", label: "Booking confirmed", count: 18, previous: 20, rate_from_previous: 20, change: { pct: -10, direction: "down" } },
+        { key: "identified", label: "Lead identified", count: 124, previous: 100, rate_from_previous: null, change: { pct: 24, direction: "up" } },
+        { key: "qualified", label: "Qualified", count: 90, previous: 80, rate_from_previous: 72.6, change: null },
+        { key: "booked", label: "Booked", count: 18, previous: 20, rate_from_previous: 20, change: { pct: -10, direction: "down" } },
         { key: "paid", label: "Payment collected", count: 11, previous: 12, rate_from_previous: 61.1, change: null },
       ] },
-    series: { granularity: "day", days: ["2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11"], period_start_index: 2, leads: [3, 4, 5, 6], bookings: [0, 1, 1, 2],
+    series: { granularity: "day", days: ["2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11"], period_start_index: 2, leads: [3, 4, 5, 6], conversations: [9, 8, 7, 6], bookings: [0, 1, 1, 2],
       booking_value: [0, 1000, 2000, 3000], net_collected: [0, 0, 500, 0] },
     pipeline: [{ stage: "Active", category: "valid", won: false, lost: false, count: 60 }, { stage: "Sold", category: "valid", won: true, lost: false, count: 18 }],
     sources: [{ key: "whatsapp", label: "WhatsApp", leads: 70, bookings: 12, booking_value: 800000 }],
-    meta_ads: { configured: true, spend: 45000, reported_chats: 80, verified_conversations: 30, verified_leads: 28, verified_bookings: 4,
+    meta_ads: { configured: true, spend: 45000, reported_chats: 80, verified_conversations: 30, verified_contacts: 29, verified_leads: 28, verified_bookings: 4,
       verified_booking_value: 300000, not_traced: 50, cost_per_verified_lead: 1607, return_on_spend: 6.67 },
-    agents: [{ agent_id: "u1", name: "Asha", leads: 40, valid: 30, invalid: 10, bookings: 8, booking_value: 500000, calls_answered: 20, calls_missed: 5, callbacks_waiting: 3,
+    agents: [{ agent_id: "u1", name: "Asha", leads: 40, qualified: 30, bookings: 8, booking_value: 500000, calls_answered: 20, calls_missed: 5, callbacks_waiting: 3,
       avg_response_seconds: 540, messages_sent: 120, followups_total: 20, followups_completed: 15, followups_overdue: 2, ai_drafts_approved: 9, ai_drafts_total: 12, avg_call_score: 82.5 }],
     attention: [
-      { key: "unassigned", label: "Leads nobody owns", count: 3, oldest_at: null, href: "/dashboard/my-day" },
-      { key: "waiting_reply", label: "Guests waiting for a reply", count: 0, oldest_at: null, href: "/dashboard/my-day" },
-      { key: "payment_overdue", label: "Bookings with an overdue payment", count: 2, oldest_at: null, href: "/dashboard/bookings" },
+      { key: "unassigned", label: "Enquiries nobody owns", count: 3, oldest_at: null, href: "/dashboard/my-day", people: 2 },
+      { key: "waiting_reply", label: "Conversations waiting for a reply", count: 0, oldest_at: null, href: "/dashboard/my-day", people: null },
+      { key: "payment_overdue", label: "Bookings with an overdue payment", count: 2, oldest_at: null, href: "/dashboard/bookings", people: null },
     ],
     stale_integrations: [], insights: [],
     ...patch,
@@ -93,7 +103,8 @@ describe("Ledger", () => {
     expect(screen.getByRole("heading", { name: "Bookings" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Revenue" })).toBeTruthy();
     expect(screen.getByText("₹12,50,000")).toBeTruthy();            // gross booking value, Indian grouping
-    expect(screen.getByText("124")).toBeTruthy();
+    expect(screen.getByText("124")).toBeTruthy();                  // new leads (people), not enquiries
+    expect(screen.getByText("160")).toBeTruthy();                  // enquiries, shown apart
     expect(screen.getByText("Not tracked")).toBeTruthy();           // pending bookings are not a HAIP concept
     expect(screen.getByText(/Net revenue: not available/)).toBeTruthy();
     expect(screen.getByText(/No target is set for this month/)).toBeTruthy();
@@ -120,10 +131,12 @@ describe("JourneyBand", () => {
     render(<JourneyBand data={overview()} />);
     const stages = screen.getAllByRole("listitem");
     expect(stages).toHaveLength(4);
-    expect(within(stages[1]).getByText(/72.6% of lead received/)).toBeTruthy();
-    expect(within(stages[2]).getByText(/20% of valid lead/)).toBeTruthy();
+    expect(within(stages[1]).getByText(/72.6% of lead identified/)).toBeTruthy();
+    expect(within(stages[2]).getByText(/20% of lead identified/)).toBeTruthy();
+    expect(within(stages[3]).getByText(/61.1% of booked/)).toBeTruthy();
     expect(screen.getAllByText(/what became of them so far/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/3 bookings made in this period have no lead attached/)).toBeTruthy();
+    expect(screen.getByText(/3 bookings made in this period are from a guest with no phone number on file/)).toBeTruthy();
+    expect(screen.getByText(/from people who became leads in it/)).toBeTruthy();       // bookings are split by when their guest became a lead
   });
 
   it("says there is nothing to show for an empty period rather than drawing zeros", () => {
@@ -145,9 +158,10 @@ describe("JourneyBand", () => {
 describe("AttentionStrip", () => {
   it("lists only what needs attention", () => {
     render(<AttentionStrip data={overview()} />);
-    expect(screen.getByText("Leads nobody owns")).toBeTruthy();
+    expect(screen.getByText("Enquiries nobody owns")).toBeTruthy();
+    expect(screen.getByText("2 people")).toBeTruthy();                       // 3 enquiries from 2 different people
     expect(screen.getByText("Bookings with an overdue payment")).toBeTruthy();
-    expect(screen.queryByText("Guests waiting for a reply")).toBeNull();     // count 0: not listed
+    expect(screen.queryByText("Conversations waiting for a reply")).toBeNull();     // count 0: not listed
   });
   it("is quiet and says so when nothing is waiting", () => {
     render(<AttentionStrip data={overview({ attention: [], stale_integrations: [] })} />);
@@ -233,6 +247,21 @@ describe("KpiGrid", () => {
   });
 });
 
+describe("LeadFlow", () => {
+  it("keeps conversations, contacts, leads and enquiries apart, each with its own definition", () => {
+    render(<LeadFlow data={overview()} />);
+    for (const label of ["New conversations", "Contacts without a number", "New leads", "Leads active in the period", "Qualified leads", "Enquiries"]) {
+      expect(screen.getByText(label)).toBeTruthy();
+    }
+    expect(screen.getByText("210")).toBeTruthy();       // conversations
+    expect(screen.getByText("55")).toBeTruthy();        // contacts without a number
+    expect(screen.getByText("124")).toBeTruthy();       // people who became leads
+    expect(screen.getByText("160")).toBeTruthy();       // enquiry records
+    expect(screen.getByText(/36 came from someone who had enquired before/)).toBeTruthy();
+    expect(screen.getByText(/A lead is a person we hold a usable phone number for/)).toBeTruthy();
+  });
+});
+
 describe("Ledger on a phone", () => {
   it("switches between Leads, Bookings and Revenue with a tab strip", async () => {
     render(<Ledger data={overview()} />);
@@ -249,7 +278,7 @@ describe("Trends", () => {
     render(<Trends data={overview()} trend="day" onTrend={onTrend} />);
     await userEvent.click(screen.getByRole("tab", { name: "Weekly" }));
     expect(onTrend).toHaveBeenCalledWith("week");
-    expect(screen.getByText(/Expected check-in of these leads/)).toBeTruthy();
+    expect(screen.getByText(/Expected check-in of these enquiries/)).toBeTruthy();
     expect(screen.getByText(/11 lost/)).toBeTruthy();
   });
 });

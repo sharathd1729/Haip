@@ -15,6 +15,7 @@ import { AttentionStrip } from "./AttentionStrip";
 import { Breakdowns } from "./Breakdowns";
 import { ChannelPanels } from "./ChannelPanels";
 import { KpiGrid } from "./KpiGrid";
+import { LeadFlow } from "./LeadFlow";
 import { Team } from "./Team";
 import { Controls, type Filters } from "./Controls";
 import { PeriodBar, usePersistedPeriod, type PeriodValue } from "../PeriodBar";
@@ -115,7 +116,7 @@ export function CommandCenter() {
             <h1 className="font-[family-name:var(--font-display)] text-[26px] font-semibold tracking-tight text-[var(--haip-fg)]">
               {greeting()}{firstName ? `, ${firstName}` : ""}
             </h1>
-            <p className="mt-0.5 text-[13px] text-[var(--haip-fg-subtle)]">Leads, bookings and revenue across the business.</p>
+            <p className="mt-0.5 text-[13px] text-[var(--haip-fg-subtle)]">Conversations, leads, bookings and revenue across the business.</p>
           </div>
           <div className="flex items-center gap-3 text-xs text-[var(--haip-fg-subtle)]" aria-live="polite">
             {isFetching && <span className="inline-flex items-center gap-1.5"><RefreshCw size={13} className="motion-safe:animate-spin" aria-hidden />Updating…</span>}
@@ -157,6 +158,7 @@ export function CommandCenter() {
         ) : (
           <div className={isPlaceholderData ? "space-y-4 opacity-60 motion-safe:transition-opacity motion-safe:duration-150 sm:space-y-5" : "space-y-4 motion-safe:transition-opacity motion-safe:duration-150 sm:space-y-5"}>
             <KpiGrid data={data} />
+            <LeadFlow data={data} />
             <AttentionStrip data={data} />
             <JourneyBand data={data} />
             <Ledger data={data} />
@@ -176,7 +178,8 @@ export function CommandCenter() {
 
 function Definitions({ data }: { data: BusinessOverview }) {
   const rows = [
-    ["Leads", "Enquiries created in the period, spam left out. “Valid” means the lead sits in a pipeline stage that counts as a real lead."],
+    ["Lead", data.leads.definition],
+    ["Counts", "Conversations are chat threads, contacts are people without a phone number yet, leads are people with one (each counted once, whichever channel they used), enquiries are records. They are never added together."],
     ["Journey", data.funnel.note],
     ...(!isRestricted(data.bookings) ? [["Bookings", data.bookings.basis]] : []),
     ...(!isRestricted(data.revenue) ? [["Revenue", data.revenue.basis]] : []),

@@ -17,16 +17,17 @@ from sqlalchemy.orm import Session
 from app.models.ad_metrics import AdMetric
 from app.models.call import Call
 from app.models.conversation import Message, MessageDirection
+from app.models.guest import Guest
 from app.models.inquiry import Inquiry
 from app.models.lead_attribution import LeadAttribution
 from app.models.pipeline_stage import PipelineStage
 from app.models.property import Property, Stay
 from app.models.stay_finance import StayPayment
 from app.models.user import User
-from app.services import dashboard_service, kpi_metrics
+from app.services import dashboard_service, kpi_metrics, lead_metrics
 from app.services.agent_analytics_service import get_agent_scorecard_rows
 from app.services.business_overview_common import (
-    Params, _ist_day, _lead_conditions, _linked_stay_ids, _money, _stay_conditions,
+    Params, _ist_day, _lead_conditions, _linked_stay_ids, _money, _stay_conditions, people_filters,
 )
 from app.services.date_presets import ist_range_to_utc
 
@@ -120,9 +121,13 @@ def trend_series(db: Session, p: Params) -> dict:
     keys = _buckets(p)
     d_from, d_to = date.fromisoformat(p.d_from), date.fromisoformat(p.d_to)
     start, end = dashboard_service._utc_bounds([keys[0], d_to])
-    leads, booked, value, cash = defaultdict(int), defaultdict(int), defaultdict(float), defaultdict(float)
-    for (created,) in db.query(Inquiry.created_at).filter(*_lead_conditions(p, start, end)).all():
-        leads[_bucket(_ist_day(created), g)] += 1
+    leads, convs, booked, value, cash = defaultdict(int), defaultdict(int), defaultdict(int), defaultdict(float), defaultdict(float)
+    f = people_filters(p)
+    # New leads are counted on the day their phone number was captured; conversations (activity) on the day they opened.
+    for (identified,) in db.query(Guest.lead_identified_at).filter(*lead_metrics.new_leads_conditions(p.tid, start, end, **f)).all():
+        leads[_bucket(_ist_day(identified), g)] += 1
+    for opened in lead_metrics.conversation_times(db, p.tid, start, end, **f):
+        convs[_bucket(_ist_day(opened), g)] += 1
     if p.can_bookings:
         for created, amount in db.query(Stay.created_at, Stay.total_amount).filter(*_stay_conditions(p, start, end)).all():
             k = _bucket(_ist_day(created), g)
@@ -144,6 +149,7 @@ def trend_series(db: Session, p: Params) -> dict:
         "days": [k.isoformat() for k in keys],
         "period_start_index": first_in_period,
         "leads": [leads[k] for k in keys],
+        "conversations": [convs[k] for k in keys],
         "bookings": [booked[k] for k in keys] if p.can_bookings else None,
         "booking_value": [round(value[k], 2) for k in keys] if p.can_revenue else None,
         "net_collected": [round(cash[k], 2) for k in keys] if p.can_revenue else None,
@@ -191,21 +197,10 @@ def agent_table(db: Session, p: Params) -> Optional[list[dict]]:
     """One row per agent for the owner view: what they were given, what they did, and what became of it."""
     if not (p.tenant_wide and p.scope_user_id is None):
         return None
-    conds = _lead_conditions(p, p.start, p.end)
-    rows = defaultdict(lambda: {"leads": 0, "valid": 0, "invalid": 0, "bookings": 0, "value": 0.0})
-    for uid, cat, n in (db.query(Inquiry.assigned_to, PipelineStage.category, func.count(Inquiry.id))
-                        .outerjoin(PipelineStage, PipelineStage.id == Inquiry.stage_id).filter(*conds)
-                        .group_by(Inquiry.assigned_to, PipelineStage.category).all()):
-        rows[uid]["leads"] += n
-        if cat in ("valid", "invalid"):
-            rows[uid][cat] += n
-    if p.can_bookings:
-        for uid, n, v in (db.query(Inquiry.assigned_to, func.count(func.distinct(Stay.id)), func.coalesce(func.sum(Stay.total_amount), 0))
-                          .join(Stay, Stay.inquiry_id == Inquiry.id)
-                          .filter(*conds, Stay.tenant_id == p.tid, Stay.status.in_(list(kpi_metrics.OCCUPYING_STATUSES)))
-                          .group_by(Inquiry.assigned_to).all()):
-            rows[uid]["bookings"] += n
-            rows[uid]["value"] += float(v or 0)
+    # Leads per owner are unique people (lead_metrics.by_owner): the owner is the assignee of the person's latest enquiry.
+    rows = defaultdict(lambda: {"leads": 0, "qualified": 0, "bookings": 0, "value": 0.0})
+    for uid, v in lead_metrics.by_owner(db, p.tid, p.start, p.end, with_bookings=p.can_bookings, **people_filters(p)).items():
+        rows[uid].update(v)
 
     start_dt, end_dt = ist_range_to_utc(p.d_from, p.d_to)[2:]
     messages = dict(db.query(Message.sender_id, func.count(Message.id)).filter(
@@ -226,7 +221,7 @@ def agent_table(db: Session, p: Params) -> Optional[list[dict]]:
         responded = (c.get("response_count") or 0) > 0
         out.append({
             "agent_id": uid, "name": names.get(uid) if uid else "Unassigned",
-            "leads": r["leads"], "valid": r["valid"], "invalid": r["invalid"],
+            "leads": r["leads"], "qualified": r["qualified"],
             "bookings": r["bookings"] if p.can_bookings else None,
             "booking_value": _money(p, r["value"]) if p.can_bookings else None,
             "calls_answered": c.get("calls_answered", 0), "calls_missed": c.get("calls_missed", 0),

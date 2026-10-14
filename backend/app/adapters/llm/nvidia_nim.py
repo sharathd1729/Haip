@@ -139,9 +139,16 @@ class NvidiaNIMAdapter(LLMAdapter):
         else:
             result["content"] = choice.message.content or ""
 
+        usage = getattr(resp, "usage", None)
+        result["model"] = model
+        if usage is not None:
+            # Reported to callers (the concierge logs it) so cost and runaway prompts can be seen per provider.
+            result["input_tokens"] = getattr(usage, "prompt_tokens", None)
+            result["output_tokens"] = getattr(usage, "completion_tokens", None)
+            result["tokens_used"] = getattr(usage, "total_tokens", None)
         log.debug(
             "nvidia_nim_complete",
             model=model,
-            tokens_used=getattr(resp.usage, "total_tokens", None),
+            tokens_used=getattr(usage, "total_tokens", None),
         )
         return result

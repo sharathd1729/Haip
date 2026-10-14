@@ -11,9 +11,10 @@ from typing import Optional
 
 from sqlalchemy import or_, select
 
+from app.models.guest import Guest
 from app.models.inquiry import Inquiry, InquirySource
 from app.models.property import Stay
-from app.services import dashboard_service, kpi_metrics
+from app.services import dashboard_service, kpi_metrics, lead_metrics
 
 CHANNEL_KEYS = ("whatsapp", "instagram", "facebook", "call", "organic_call", "website", "email", "walk_in", "referral", "ota", "other")
 CHANNEL_ALIASES = {"voice": "call", "phone": "call"}
@@ -93,15 +94,17 @@ def _lead_conditions(p: Params, start: str, end: str) -> list:
 
 def _linked_stay_ids(p: Params):
     """A SELECT of the stays this viewer may count when the view is narrowed to an agent or a channel, else None.
-    Narrowing goes through the lead link, so bookings with no lead drop out of a narrowed view (the response says so)."""
+    Narrowing goes through the PERSON (Stay.guest_id): the stays of the guests the filter selects (lead_metrics.people), by
+    the guest's first-touch channel and owner. The booking's own record is the canonical link; Stay.inquiry_id is not needed."""
     if not (p.scope_user_id or p.channel):
         return None
-    q = select(Stay.id).join(Inquiry, Inquiry.id == Stay.inquiry_id).where(Stay.tenant_id == p.tid, Inquiry.tenant_id == p.tid)
-    if p.scope_user_id:
-        q = q.where(Inquiry.assigned_to == p.scope_user_id)
-    if p.channel:
-        q = q.where(_channel_condition(p.channel))
-    return q
+    return (select(Stay.id).join(Guest, Guest.id == Stay.guest_id)
+            .where(Stay.tenant_id == p.tid, *lead_metrics.people(p.tid, channel=p.channel, scope_user_id=p.scope_user_id)))
+
+
+def people_filters(p: Params) -> dict:
+    """The filters the lead metrics take, from the request."""
+    return {"property_id": p.property_id, "channel": p.channel, "scope_user_id": p.scope_user_id}
 
 
 def _stay_conditions(p: Params, start: str, end: str, statuses=kpi_metrics.OCCUPYING_STATUSES) -> list:

@@ -64,6 +64,13 @@ class KnowledgeEntry(Base, TimestampMixin, TenantMixin):
     # cost money and rate-limit); set to a hash of question+content at embed
     # time and compared before re-queueing.
     content_hash = Column(String(64), nullable=True)
+    # Consecutive failed indexing attempts (reset on success). The periodic sweep backs off by this number and stops
+    # retrying on its own after a few; a person can still force a retry from the settings page.
+    embedding_attempts = Column(Integer, nullable=False, default=0, server_default="0")
+
+    # Set when a later crawl/upload of the same page or file no longer contained this passage. A stale entry is never
+    # retrieved (the source no longer says it); the owner can keep it from the settings page, which clears this.
+    stale_since = Column(DateTime(timezone=True), nullable=True)
 
     created_by = Column(String, ForeignKey("users.id"), nullable=True)
 

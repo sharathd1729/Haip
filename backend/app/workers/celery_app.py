@@ -233,6 +233,7 @@ celery_app.conf.update(
         # need exact-name routes for the same reason as the block above.
         "knowledge.embed_entry":   {"queue": "ai_scoring"},
         "knowledge.embed_pending": {"queue": "ai_scoring"},
+        "knowledge.sweep_all_tenants": {"queue": "ai_scoring"},
         # Short-name tasks again -- these need exact-name routes or they
         # land in the unconsumed default "celery" queue.
         "reports.send_daily_owner_report":      {"queue": "ai_scoring"},
@@ -260,6 +261,12 @@ celery_app.conf.beat_schedule = {
     },
     # Reads the Airbnb / Booking.com / Google calendars linked to properties.
     # Minutes 12/42: clear of the :00/:05/:10/:15/:20/:30 jobs above.
+    # Safety net for the knowledge base: an entry whose indexing task was lost (broker blip, worker restart) or failed stays
+    # invisible to the AI until something retries it. Minutes 7/22/37/52 are clear of the other jobs.
+    "knowledge-index-sweep": {
+        "task": "knowledge.sweep_all_tenants",
+        "schedule": crontab(minute="7,22,37,52"),
+    },
     "ical-sync-30min": {
         "task": "ical.sync_all_feeds",
         "schedule": crontab(minute="12,42"),

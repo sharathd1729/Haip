@@ -80,7 +80,7 @@ _SOURCE_CHANNEL_MAP: dict[str, str] = {
 # Stages grouped as "Closed" in the pipeline
 _CLOSED_STAGES = {InquiryStage.LOST.value, InquiryStage.GHOSTED.value}
 
-SUMMARY_DEBOUNCE_TTL = 1800   # 30 minutes
+SUMMARY_DEBOUNCE_TTL = 600    # 10 minutes: a new message is reflected in the analysis within this window (was 30)
 TIMELINE_CAP = 50
 
 

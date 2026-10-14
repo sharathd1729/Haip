@@ -16,6 +16,8 @@ this stack.
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Optional
 
 import httpx
@@ -139,7 +141,18 @@ def fetch_url_text(url: str) -> str:
 
 # ─── Shared ingest → pending KnowledgeEntry rows ───────────────────────────
 
-def ingest_chunks(
+@dataclass
+class IngestReport:
+    created: list[KnowledgeEntry] = field(default_factory=list)
+    unchanged: int = 0          # passages already in the knowledge base from this same page/file; not added again
+    marked_out_of_date: int = 0  # earlier passages from this page/file that the new version no longer contains
+
+
+def _norm(text: str) -> str:
+    return " ".join((text or "").split())
+
+
+def ingest_chunks_report(
     db: Session,
     tenant_id: str,
     text: str,
@@ -150,15 +163,45 @@ def ingest_chunks(
     file_s3_key: Optional[str] = None,
     category: str = "other",
     created_by: Optional[str] = None,
-) -> list[KnowledgeEntry]:
-    """Chunk `text` and store each piece as a pending KnowledgeEntry,
-    queuing embedding for each. Never marks anything approved -- a human
-    must review machine-sourced content before the AI can use it
-    (knowledge_service.search() only retrieves review_status="approved").
+) -> IngestReport:
+    """Chunk `text` and store each NEW piece as a pending KnowledgeEntry, queuing embedding for each.
+
+    Never marks anything approved -- a human must review machine-sourced content before the AI can use it.
+
+    Re-importing the same page or file is safe: a passage that is already there (same words) is not added a second time, and
+    an earlier passage from that page/file that the new version no longer contains is marked out of date, so an old price or
+    policy that was removed from the website stops being retrievable instead of living on beside the new text. Passages the
+    owner wants to keep can be kept from the settings page.
     """
     chunks = knowledge_service.chunk_text(text)
-    entries: list[KnowledgeEntry] = []
+    report = IngestReport()
+
+    # The same origin = same tenant + source + page URL (website) or file name (document).
+    origin = KnowledgeEntry.tenant_id == tenant_id
+    q = db.query(KnowledgeEntry).filter(origin, KnowledgeEntry.source == source)
+    if source_url:
+        q = q.filter(KnowledgeEntry.source_url == source_url)
+    elif source_ref:
+        q = q.filter(KnowledgeEntry.source_ref == source_ref)
+    else:
+        q = q.filter(KnowledgeEntry.id == "")      # no stable origin: nothing to compare with
+    earlier = q.all()
+    by_text = {}
+    for e in earlier:
+        by_text.setdefault(_norm(e.content), e)
+
+    seen_texts: set[str] = set()
     for chunk in chunks:
+        key = _norm(chunk)
+        if key in seen_texts:
+            continue                                  # the page repeats itself
+        seen_texts.add(key)
+        match = by_text.get(key)
+        if match is not None:
+            report.unchanged += 1
+            if match.stale_since is not None:
+                match.stale_since = None              # it is back on the page
+            continue
         entry = KnowledgeEntry(
             id=str(uuid.uuid4()),
             tenant_id=tenant_id,
@@ -176,9 +219,17 @@ def ingest_chunks(
             created_by=created_by,
         )
         db.add(entry)
-        entries.append(entry)
+        report.created.append(entry)
+
+    if chunks and earlier:
+        now = datetime.now(timezone.utc)
+        for e in earlier:
+            if _norm(e.content) not in seen_texts and e.stale_since is None and e.review_status != "rejected":
+                e.stale_since = now
+                report.marked_out_of_date += 1
+
     db.commit()
-    for entry in entries:
+    for entry in report.created:
         db.refresh(entry)
         try:
             from app.workers.tasks.embed_knowledge import embed_entry as embed_task
@@ -187,6 +238,12 @@ def ingest_chunks(
             log.warning("kb_ingest_embed_enqueue_failed", entry_id=entry.id, tenant_id=tenant_id, error=str(exc))
     log.info(
         "kb_bulk_ingested", tenant_id=tenant_id, source=source, source_url=source_url,
-        source_ref=source_ref, chunk_count=len(entries),
+        source_ref=source_ref, chunk_count=len(report.created), unchanged=report.unchanged,
+        marked_out_of_date=report.marked_out_of_date,
     )
-    return entries
+    return report
+
+
+def ingest_chunks(db: Session, tenant_id: str, text: str, **kwargs) -> list[KnowledgeEntry]:
+    """Back-compatible wrapper: the entries that were newly created."""
+    return ingest_chunks_report(db, tenant_id, text, **kwargs).created

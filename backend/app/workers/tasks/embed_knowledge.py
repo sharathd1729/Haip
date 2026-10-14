@@ -68,12 +68,33 @@ def embed_entry(self, tenant_id: str, entry_id: str):
         db.close()
 
 
-@shared_task(name="knowledge.embed_pending")
-def embed_pending(tenant_id: str, limit: int = 200):
-    """Embed every entry for a tenant that is pending or stale.
+# Stop a sweep after this many entries fail in a row: the provider is down, and every further attempt would only fail too.
+_CIRCUIT_BREAKER = 3
 
-    Used after bulk ingestion (website crawl, document upload) and as the
-    retry path for entries whose embedding previously failed.
+
+def _due(entry: KnowledgeEntry, now: datetime, min_age_seconds: int, force: bool) -> bool:
+    """Whether the periodic sweep should (re)try this entry now."""
+    if force:
+        return True
+    updated = entry.updated_at
+    if updated is not None and updated.tzinfo is None:
+        updated = updated.replace(tzinfo=timezone.utc)
+    age = (now - updated).total_seconds() if updated else 10**9
+    if entry.embedding_status == "pending":
+        return age >= min_age_seconds
+    attempts = int(entry.embedding_attempts or 0)
+    if attempts >= knowledge_service.MAX_AUTO_ATTEMPTS:
+        return False            # gave up on its own; a person can force a retry from the settings page
+    return age >= min(60, 5 * 2 ** attempts) * 60   # 10, 20, 40, 60, 60 ... minutes between automatic retries
+
+
+@shared_task(name="knowledge.embed_pending")
+def embed_pending(tenant_id: str, limit: int = 200, min_age_seconds: int = 0, force: bool = False):
+    """Embed every entry for a tenant that is pending or failed.
+
+    Used after bulk ingestion, as the periodic safety net (a task lost to a broker blip or a worker restart used to leave an
+    entry "pending" -- invisible to the AI -- until someone clicked Re-index), and for a manual "retry failed" click
+    (`force=True`, which ignores backoff and the attempt cap).
     """
     db = SessionLocal()
     try:
@@ -85,14 +106,39 @@ def embed_pending(tenant_id: str, limit: int = 200):
                 KnowledgeEntry.is_active.is_(True),
                 KnowledgeEntry.embedding_status.in_(["pending", "failed"]),
             )
+            .order_by(KnowledgeEntry.updated_at.asc())
             .limit(limit)
             .all()
         )
-        done = 0
-        for entry in candidates:
+        now = datetime.now(timezone.utc)
+        due = [e for e in candidates if _due(e, now, min_age_seconds, force)]
+        done = failed_in_a_row = attempted = 0
+        for entry in due:
+            attempted += 1
             if knowledge_service.embed_entry(db, entry):
                 done += 1
-        log.info("kb_embed_pending_done", tenant_id=tenant_id, attempted=len(candidates), succeeded=done)
-        return {"tenant_id": tenant_id, "attempted": len(candidates), "succeeded": done}
+                failed_in_a_row = 0
+                continue
+            failed_in_a_row += 1
+            if failed_in_a_row >= _CIRCUIT_BREAKER:
+                log.warning("kb_embed_sweep_stopped_provider_failing", tenant_id=tenant_id, attempted=attempted)
+                break
+        log.info("kb_embed_pending_done", tenant_id=tenant_id, candidates=len(candidates), attempted=attempted, succeeded=done)
+        return {"tenant_id": tenant_id, "attempted": attempted, "succeeded": done}
     finally:
         db.close()
+
+
+@shared_task(name="knowledge.sweep_all_tenants")
+def sweep_all_tenants():
+    """Beat entry point (celery_app.py "knowledge-index-sweep"): fan out to every active tenant."""
+    from app.models.tenant import Tenant
+
+    db = SessionLocal()
+    try:
+        tenant_ids = [t.id for t in db.query(Tenant).filter(Tenant.is_active.is_(True)).all()]
+    finally:
+        db.close()
+    for tid in tenant_ids:
+        embed_pending.apply_async(kwargs={"tenant_id": tid, "limit": 50, "min_age_seconds": 120})
+    return {"tenants_queued": len(tenant_ids)}

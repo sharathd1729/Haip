@@ -10,6 +10,7 @@ testcontainer runs these for real.
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -37,7 +38,9 @@ def _ids(tenant_and_user):
 
 
 def _today_range():
-    today = datetime.now(timezone.utc).date().isoformat()
+    # The service reads these as IST calendar dates. Using the UTC date made both tests fail every day between 18:30 and 24:00 UTC,
+    # when the IST date has already moved on and the rows created "now" fall outside the window.
+    today = datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat()
     return today, today
 
 

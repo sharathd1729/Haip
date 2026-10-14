@@ -11,6 +11,7 @@ new claims, so the prompt's own instruction to preserve every fact/number/
 date is the guard here, not a second grounded_facts pass.
 """
 import asyncio
+import re
 from celery.exceptions import SoftTimeLimitExceeded
 from app.workers.celery_app import celery_app
 from app.core.database import SessionLocal, set_tenant_context
@@ -73,6 +74,34 @@ def _rewrite_completion(adapter, system_prompt: str) -> dict:
     )
 
 
+_NUMBER_RE = re.compile(r"[0-9][0-9,]*(?:\.[0-9]+)?")      # ASCII digits only: a translation may write them in another script
+MAX_REWRITE_GROWTH = 3      # a rewrite more than 3x the original (plus 200 characters) is a runaway, not a rewrite
+
+
+def _numbers(text: str) -> set[str]:
+    return {m.group(0).replace(",", "").rstrip(".") for m in _NUMBER_RE.finditer(text or "")}
+
+
+def validate_rewrite(original: str, rewritten, translating: bool) -> str | None:
+    """None when the rewrite is acceptable, else why it was rejected.
+
+    The prompt tells the model to keep every price, date and number. That is an instruction, not a guarantee, and a changed figure
+    in a message an agent is about to send is exactly the error nobody notices. A same-language rewrite must keep the same set of
+    numbers; a translation may write them in another script, so it may only not ADD numbers the original did not have.
+    """
+    if not isinstance(rewritten, str) or not rewritten.strip():
+        return "empty"
+    if len(rewritten) > len(original or "") * MAX_REWRITE_GROWTH + 200:
+        return "far longer than the original"
+    before, after = _numbers(original), _numbers(rewritten)
+    if translating:
+        if after - before:
+            return f"introduced numbers {sorted(after - before)}"
+    elif before != after:
+        return f"changed numbers {sorted(before ^ after)}"
+    return None
+
+
 def _build_system_prompt(original_text: str, tone: str | None, target_language: str | None) -> str:
     instructions = []
     if tone in _VALID_TONES:
@@ -121,11 +150,13 @@ def rewrite_draft(self, message_id: str, tenant_id: str, tone: str | None = None
         adapter = get_llm("concierge_rewrite")
         result = _rewrite_completion(adapter, system_prompt)
         rewritten = (result.get("tool_use") or {}).get("rewritten_text")
-        if not rewritten:
-            log.warning("rewrite_draft_empty_result", message_id=message_id)
+        problem = validate_rewrite(msg.body or "", rewritten, bool(target_language))
+        if problem:
+            # The draft keeps its current text: an unchanged draft is better than a changed price.
+            log.warning("rewrite_draft_rejected", message_id=message_id, problem=problem)
             return
 
-        msg.body = rewritten
+        msg.body = rewritten.strip()
         db.commit()
         log.info("rewrite_draft_applied", message_id=message_id, tone=tone,
                   target_language=target_language, **stamp("concierge_rewrite"))

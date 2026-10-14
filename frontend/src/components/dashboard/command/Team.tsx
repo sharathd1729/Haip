@@ -9,7 +9,7 @@ import { Empty, SectionTitle } from "./parts";
 import { duration, inr, num, type AgentRow } from "./types";
 
 const COLS = "lg:grid-cols-[minmax(0,1.5fr)_repeat(8,minmax(0,1fr))]";
-const HEAD = ["Leads (valid / invalid)", "Bookings", "Calls answered / missed", "Callbacks waiting", "First reply", "Messages sent", "Follow-ups done / overdue", "Call quality"];
+const HEAD = ["New leads (qualified)", "Bookings", "Calls answered / missed", "Callbacks waiting", "First reply", "Messages sent", "Follow-ups done / overdue", "Call quality"];
 
 function Stat({ label, children, tone }: { label: string; children: ReactNode; tone?: "danger" }) {
   return (
@@ -22,7 +22,7 @@ function Stat({ label, children, tone }: { label: string; children: ReactNode; t
 export function Team({ rows }: { rows: AgentRow[] }) {
   return (
     <section aria-labelledby="team-title" className="haip-card px-4 py-4 sm:px-6 sm:py-5">
-      <SectionTitle sub="Credited to whoever owns the lead now; only bookings linked to a lead count"
+      <SectionTitle sub="Leads are people with a phone number, credited to whoever owns them now; bookings are those made by those people"
         actions={<Link href="/dashboard/operations" className="inline-flex min-h-11 items-center text-[12.5px] font-semibold text-primary hover:underline lg:min-h-0">Full response-time view</Link>}>
         <span id="team-title">Agent performance</span>
       </SectionTitle>
@@ -35,7 +35,7 @@ export function Team({ rows }: { rows: AgentRow[] }) {
             {rows.map(a => (
               <li key={a.agent_id ?? "none"} className={cn("grid grid-cols-2 gap-x-3 gap-y-2.5 py-3.5 sm:grid-cols-3 lg:items-center lg:py-2.5", COLS)}>
                 <span className={cn("col-span-2 min-w-0 truncate text-[14px] font-semibold sm:col-span-3 lg:col-span-1 lg:text-[13px]", a.agent_id ? "text-[var(--haip-fg)]" : "font-medium text-[var(--haip-fg-subtle)]")}>{a.name}</span>
-                <Stat label="Leads (valid / invalid)">{num(a.leads)} <span className="text-[var(--haip-fg-subtle)]">({num(a.valid)} / {num(a.invalid)})</span></Stat>
+                <Stat label="New leads (qualified)">{num(a.leads)} <span className="text-[var(--haip-fg-subtle)]">({num(a.qualified)})</span></Stat>
                 <Stat label="Bookings">{a.bookings == null ? "—" : num(a.bookings)}{a.booking_value != null && <span className="block text-[11.5px] text-[var(--haip-fg-subtle)]">{inr(a.booking_value)}</span>}</Stat>
                 <Stat label="Calls answered / missed">{a.agent_id ? `${num(a.calls_answered)} / ${num(a.calls_missed)}` : "—"}</Stat>
                 <Stat label="Callbacks waiting" tone={a.callbacks_waiting > 0 ? "danger" : undefined}>{a.agent_id ? num(a.callbacks_waiting) : "—"}</Stat>

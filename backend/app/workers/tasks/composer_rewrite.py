@@ -22,6 +22,7 @@ from app.core.prompt_versions import stamp
 from app.adapters.llm import get_llm
 from app.workers.tasks.rewrite_draft import (
     REWRITE_HARD_TIME_LIMIT, REWRITE_SOFT_TIME_LIMIT, REWRITE_TIMEOUT_SECONDS, _build_system_prompt, _rewrite_completion,
+    validate_rewrite,
 )
 import structlog
 
@@ -44,10 +45,15 @@ def composer_rewrite(self, job_id: str, tenant_id: str, text: str, tone: str | N
         adapter = get_llm("concierge_rewrite")
         result = _rewrite_completion(adapter, system_prompt)
         rewritten = (result.get("tool_use") or {}).get("rewritten_text")
-        if not rewritten:
+        problem = validate_rewrite(text, rewritten, bool(target_language))
+        if problem == "empty":
             set_cached(key, {"status": "failed", "error": "empty_result"}, ttl=COMPOSER_REWRITE_TTL)
             return
-        set_cached(key, {"status": "done", "rewritten_text": rewritten}, ttl=COMPOSER_REWRITE_TTL)
+        if problem:
+            log.warning("composer_rewrite_rejected", job_id=job_id, tenant_id=tenant_id, problem=problem)
+            set_cached(key, {"status": "failed", "error": "changed_facts"}, ttl=COMPOSER_REWRITE_TTL)
+            return
+        set_cached(key, {"status": "done", "rewritten_text": rewritten.strip()}, ttl=COMPOSER_REWRITE_TTL)
         log.info("composer_rewrite_done", job_id=job_id, tenant_id=tenant_id, **stamp("concierge_rewrite"))
     except (asyncio.TimeoutError, SoftTimeLimitExceeded):
         log.warning("composer_rewrite_timed_out", job_id=job_id, tenant_id=tenant_id, timeout_sec=REWRITE_TIMEOUT_SECONDS)

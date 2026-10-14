@@ -31,6 +31,7 @@ export function AttentionStrip({ data }: { data: BusinessOverview }) {
                   RED_KEYS.has(a.key) ? "text-[var(--haip-status-danger-fg)]" : "text-[var(--haip-status-warning-fg)]")}>{num(a.count)}</span>
                 <span className="min-w-0 flex-1 text-[13px] leading-snug text-[var(--haip-fg-2)] group-hover:text-[var(--haip-fg)]">
                   {a.label}
+                  {a.people != null && a.people !== a.count && <span className="ml-1.5 text-[11.5px] text-[var(--haip-fg-subtle)]">{num(a.people)} {a.people === 1 ? "person" : "people"}</span>}
                   {a.oldest_at && <span className="ml-1.5 text-[11.5px] text-[var(--haip-fg-subtle)]">oldest {ago(a.oldest_at)}</span>}
                   {a.key === "high_intent_risk" && risk.items.length > 0 && (
                     <span className="block truncate text-[11.5px] text-[var(--haip-fg-subtle)]">{risk.items.map(i => `${i.name} (${i.reason})`).join(" · ")}</span>

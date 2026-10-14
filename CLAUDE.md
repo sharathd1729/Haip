@@ -1,5 +1,5 @@
 # HAIP — Claude Code Working Instructions
-**Version**: 2.3 · **Owner**: Sharath D. · **Updated**: 14 Oct 2026 (Alembic head `126`)
+**Version**: 2.3 · **Owner**: Sharath D. · **Updated**: 14 Oct 2026 (Alembic head `127`)
 **Reference docs**: HAIP_FULL_BUILD_PLAN.md · architecture-delta.md · execution-plan.md · docs/HAIP_Module_Audit_M0.md (module status matrix, 11 Oct 2026 — update statuses as gaps close)
 
 **KEEP THIS FILE CURRENT — standing rule from the owner.** When a change adds or alters a
@@ -34,9 +34,8 @@ replies, unified lead record across every touchpoint.
   security deposit (never counted as revenue), service requests mirrored as Tasks, change guest
   via `identity_service`, date-conflict guard on edits [110, 111]. **Razorpay**: per-tenant keys
   (encrypted) + signed webhook, idempotent on payment id. DPDP erasure clears all booking children.
-- **iCal feeds** [109]: per-property export (`/ical/{token}.ics`, dates only) + optional import URL
-  (Fernet-encrypted, SSRF-guarded, polled every 30 min into date blocks, re-exported to the other
-  links). Overlap with a HAIP booking raises a high-priority task. (Two-way Google Calendar: planned, not built.)
+- **iCal feeds** [109]: per-property export (`/ical/{token}.ics`, dates only) + optional import URL (Fernet-encrypted, SSRF-guarded, polled
+  every 30 min into date blocks, re-exported to the other links). Overlap with a HAIP booking raises a task. (Two-way Google Calendar: not built.)
   **Shared calendar** [120]: one link, several vehicles (`ical_feed_vehicles` keywords, whole-word; no match = all held + a "Which vehicle?" task).
   Trip dates in the description widen the block (`ical_event_details.py`); details show on the calendar (amounts: `revenue.read`).
   **Lead attribution (Oct 14)**: `inquiry_service._stage_id_for` resolves legacy stages by meaning (valid-entry / closed-won / closed-lost), never to a gone key; the stage chips apply the list's filters; a manual booking links to the guest's one open lead (or `inquiry_id`) and marks it Sold; `organic_call` source [126] = inbound call with no ad behind it (older call leads keep their source); no source = "Not recorded". **Mobile shell**: bottom tabs Home/Inbox/Leads/Calendar/More; one `PeriodBar` (Today/7d/This month/Last month, per-device) on both Home views; calendar = agenda on phones, timeline above 768px, entries open booking/lead (`/calendar` returns `inquiry_id`). Campaign report has Replied (inbox match, 7 days).
@@ -44,21 +43,30 @@ replies, unified lead record across every touchpoint.
 - **Public API + webhooks** [112, 113]: `/api/public/v1` is a *separate* FastAPI app (`app/public_api/`). Scoped API keys (SHA-256 only, shown once, lookup via
   SECURITY DEFINER fn). Signed outbound webhooks (HMAC-SHA256 over `timestamp.body`, outbox written
   in the same transaction, ~22h backoff, auto-off after 100 consecutive failures, HTTPS + SSRF guard).
+- **A LEAD is a person (Guest) with a usable phone number** (`guests.lead_identified_at`, migration 122; `phone_identity.py`, `lead_metrics.py`).
+  A DM/conversation/enquiry alone is not a lead; leads, conversations, enquiries, bookings and cash are counted apart, conversion is a
+  cohort. Same person = exact normalised phone (phone or WhatsApp number) / verified identity / approved merge, never names; merges are logged
+  (`guest_merge_events`) and reversible; first touch is written once. Catalogue: `docs/analytics/KPI_METRIC_CATALOGUE.md` "Lead definition".
 - **Work queue**: `work_queue_service` is the single source behind My day, the dashboard "Needs you now" cards and Calls. Never add a parallel "what to do now" query. **KPI metrics**: `services/kpi_metrics.py` holds shared definitions (`leads.new`, `stays.occupied_nights`); catalogue + gaps in `docs/analytics/`. Don't unify a metric without its D-nn decision. **Owner Command Center** (`/dashboard` for owner/manager; others keep `/dashboard/operations`): `GET /dashboard/business-overview` composes shared metrics; booking amounts (list, detail, calendar) need `bookings.read`; targets, executive, calendar amounts and the revenue report need `revenue.read` (REST and MCP); restricted = `{restricted:true}`, never 0. Docs: `docs/analytics/BUSINESS_OVERVIEW_IMPLEMENTATION.md`.
-- **CRM autopilot**: `lead_recommendation_service` suggests Mark Lost / Move stage; a human
-  clicks Apply (existing audited `move_stage`). Chat-extracted trip fields can be re-stated by
-  later messages; `quoted_amount` stays write-once. Missed/unanswered-call callback reminders.
-- **WhatsApp**: template editor + Meta sync, campaigns (schedule, CSV import, CRM audiences, reports),
-  health check, overview dashboard. **Instagram**: per-channel verify tokens (never shown in page),
-  hourly alert if message access is off, referral-only events handled.
+- **CRM autopilot**: `lead_recommendation_service` suggests Mark Lost / Move stage; a human clicks Apply (existing audited `move_stage`).
+  Chat-extracted trip fields can be re-stated by later messages; `quoted_amount` stays write-once. Missed-call callback reminders.
+- **WhatsApp**: template editor + Meta sync, campaigns (schedule, CSV import, CRM audiences, reports), health check, overview dashboard.
+  **Instagram**: per-channel verify tokens (never shown in page), hourly alert if message access is off, referral-only events handled.
 - **Integration health**: one rule (`integration_health.py`) for the bar, insights and Integrations page.
+- **AI reliability (mAI3, Oct 2026) [123]**: inventory + gaps `docs/ai/AI_FEATURE_MATRIX.md`; sales-agent roadmap `docs/ai/SALES_AGENT_*.md` (proposal only, nothing built). **KB**: ONE
+  retrieval path, `knowledge_service.search_detailed`; an entry is used only if active + approved + indexed + not `stale_since` + in scope; an edit makes it `pending`
+  (unused) until re-indexed; beat `knowledge.sweep_all_tenants` retries (cap 6); a failed lookup is never reported as "no answer". **Concierge facts** (`concierge_facts.py`):
+  property records, the conversation guest's OWN bookings, availability WITH reasons; guards block "available" when nothing is open and any price that is not an exact
+  live figure; KB text has prices stripped. **Pricing is a TENANT policy**: `brand_config.price_disclosure` = `handoff` (default; Ratha: never a price in chat) | `grounded`.
+  Summary `leads360-summary-v7` (updates the previous one, ignores unsent drafts, booking state computed). `send_whatsapp*` never resend a SENT message.
+  **Ratha business data** (`business_records`, migration 124; `docs/ai/RATHA_KB_EVOLUTION.md`): versioned typed records (package, destination, itinerary, reseller/discount/stay/payment/cancellation policy);
+  draft → publish → superseded, immutable once published, rollback = new version, effective-dated, audited. Guest-facing code reads ONLY `business_data_service.get_effective` (never drafts). Package prices: `package_pricing_service.quote` (refuses, never guesses; availability via `calculator_service`); `quote_service.issue_quote` snapshots amounts + record versions in `inquiry_quotes` [125], so a later price change never alters an issued quote. The AI reads this data ONLY via `sales_gateway` (read-only: `list_packages/get_package/get_destination/get_itinerary/quote_package/policy_check`, each returns data + sources + flags; `concierge_business_facts` feeds the concierge; prompt `concierge-reply-v13`). Payment/cancellation terms reach the prompt only in `grounded` price mode. Every KB write (create/edit/delete/reindex/upload/crawl) appends a chained `kb.*` audit row with before/after values (`knowledge_service.audit_change`). `GET /knowledge/{id}/history` + `POST /knowledge/{id}/rollback` undo an edit via that trail (normal edit path: re-indexed before use). `POST /knowledge/test` (`kb_test_service`, `settings.manage`) runs the same retrieval + gateway calls as a reply and returns sources/versions/flags. UI: KB page has two tabs (`dashboard/settings/knowledge`: Knowledge & Training | Structured Business Data); typed editors are spec-driven (`components/knowledge/businessDataSpecs.ts` mirrors `schemas/business_data.py` — change both together). `POST /business-data/import-existing` drafts packages/destinations from RatePlan/SeasonalRate/Property.routes (drafts only; never overwrites).
 - **Meta Ads + Marketing page** [115, 116] — see "META ADS / MARKETING" below.
 - **UI redesign** (phases 0–5): kit, tokens, five-section sidebar, inbox/bookings/calls/leads on the kit.
 
 Active clients:
-- Ratha (luxury caravan) — Vobiz IVR, WhatsApp live (migration `064`: moved
-  CallerDesk → Mcube → Vobiz-only; Mcube's Integration row is disconnected
-  but not deleted)
+- Ratha (luxury caravan) — Vobiz IVR, WhatsApp live (migration `064`: moved CallerDesk → Mcube → Vobiz-only;
+  Mcube's Integration row is disconnected, not deleted)
 - Jade (pool villas, Bangalore) — Acefone IVR, onboarding
 
 ---
@@ -183,8 +191,7 @@ Every table must have tenant_id.
 - Every table has tenant_id
 - RLS policy on every tenant-scoped table
 - Every new table needs: migration + RLS + tenant_id column
-- Weekly cross-tenant breach simulation test
-- Per-tenant KMS encryption for credentials
+- Weekly cross-tenant breach simulation test; per-tenant KMS encryption for credentials
 
 ---
 
@@ -390,26 +397,19 @@ Backend auth is custom JWT (HS256) via `backend/app/api/v1/endpoints/auth.py` �
 **⚠️ Alembic migration gotcha — read before touching `backend/alembic/`:**
 `env.py` previously ran two "best-effort" setup statements before every migration transaction (`pg_terminate_backend(...)` and `SET lock_timeout`/`SET statement_timeout`), both wrapped in a silent `except: pass`. A failed statement poisons the rest of that connection's transaction in Postgres — so every migration after it would log "success" via Alembic's step-by-step logging (which fires before each step runs) while nothing ever actually committed, and `alembic_version` would never advance. This cost real time on both Neon (`neondb_owner` lacks `pg_signal_backend` — always failed) and Supabase (session pooler rejected the `SET` calls). Both statements are now removed. **If `alembic upgrade head` ever again logs success without `alembic_version` moving, suspect a silently-swallowed exception earlier in the same transaction, not a "did it really run" mystery** — check `env.py` first.
 
-**Test baseline** (branch `phase0-reliability`, 2026-10-11, Phase 0.1): **PostgreSQL 16 (what production and `test.yml` use):
-2251 passing / 0 failing / 1 skipped**; SQLite: **2207 passing / 0 failing / 45 skipped** (the PostgreSQL-only tests skip there).
-Run the suite on PostgreSQL before trusting a result: SQLite ignores foreign keys, column widths, booleans and partial unique indexes, and hid a
-real `ai_score_status` varchar(20) bug and a forking audit chain (`docs/HAIP_Phase0_Failure_Register.md`, Appendices 4-5). Do not add "known
-failures" -- fix or register them. The `db` fixture uses savepoints on PostgreSQL, so code under test may `commit/rollback/close` freely.
-Frontend: `tsc --noEmit --skipLibCheck` clean, vitest has no known failures (`permissions.test.ts` expected owner compliance `write`; it now asserts `manage`, which is what `permissions.ts` grants). Tests default `ENCRYPTION_KEY` in `tests/conftest.py`.
-`tests/test_celery_task_routing.py` guards that every registered task routes to a consumed queue and every beat entry names a
-registered task. It pins known exceptions (`_KNOWN_UNROUTED`, `_KNOWN_DEAD_BEAT`: 7 scheduled jobs -- DPDP purge, retention purge,
-Hostaway/RentalWise sync, owner digest, Meta quality poll, lost-reason clustering -- name tasks that do not exist and never run). The lists
-may only shrink; enabling a job needs an owner decision (failure register). New tasks need an exact-name route.
+**Test baseline** (`feat/mai3-reliability` at PR-1 `a48ad25`, 2026-10-14, exit 0 both): **PostgreSQL 16.14 + pgvector 0.8.5: 2676 passed / 0 failed / 1 skipped / 17 xfailed**; SQLite: **2620 passed / 0 failed / 57 skipped / 17 xfailed**.
+Run on PostgreSQL before trusting a result (SQLite ignores foreign keys, widths, booleans, partial unique indexes; `docs/HAIP_Phase0_Failure_Register.md`). Defects awaiting a fix are strict `xfail` specs in `tests/test_increment1_defect_specs.py` (each names its PR; remove the marker in that PR). PG `db` fixture uses savepoints; on SQLite a `rollback()` in code under test erases the test's rows. pgvector SQL: `test_knowledge_pgvector_postgres.py` (PG only); SQLite uses `knowledge_service.PYTHON_VECTOR_FALLBACK`.
+Frontend: `tsc --noEmit --skipLibCheck` clean, vitest green (57); ESLint cannot run (no `eslint.config.*`). `tests/test_celery_task_routing.py`: every task routes to a consumed queue, every beat entry
+names a registered task; pinned exceptions (`_KNOWN_UNROUTED`, `_KNOWN_DEAD_BEAT`) may only shrink. New tasks need an exact-name route. Tests default `ENCRYPTION_KEY` in `conftest.py`.
 `core/audit.py::append_audit` chains within one transaction and, on PostgreSQL, takes a per-tenant advisory lock (held until
 commit, 10 s bounded wait; failures log `audit_chain_lock_failed`) and stamps `created_at` strictly increasing, so concurrent
 writers form one chain. A transaction must never audit several tenants (deadlock): use one transaction per tenant.
-Row-level security: `alembic/proposed/118_*` is NOT applied; check the DB role with `backend/scripts/verify_rls_isolation.py`
-(read-only) and `docs/HAIP_Phase0_Production_Checklist.md` before assuming RLS protects anything. Migration 117 widens
-`calls.ai_score_status`; 119 grants foh `conversations.send` to existing tenants unless the owner edited that cell; 120-121 add the iCal vehicle/booking tables (new tables only); 126 (head) adds the `organic_call` source value (hangs off 121; merging the 122-125 branches needs `alembic/proposed/127_merge_heads.py`). 118 is reserved for the proposed RLS file (re-parent on 126 when promoted). Roll code back with `alembic downgrade 116` first (checklist 11).
-**Sending needs `conversations.send`** (owner, manager, reservations, concierge, foh by default): `send_message`, `send_template`, `retry`,
-`approve` and both AI-rewrite POSTs use `require_capability`. A new default grant only reaches NEW tenants; existing ones need a data migration.
-**AI-rewrite tasks are bounded** (`rewrite_draft.py`): one provider request <= `REWRITE_TIMEOUT_SECONDS` (30 s, `asyncio.wait_for`), a timeout is never retried, the draft task retries a
-provider error once (max 70 s per click), the composer never retries (reports `failed`/`timeout`); Celery soft/hard limits 45/60 s are only a backstop.
+Row-level security: `alembic/proposed/118_*` is NOT applied; check the DB role with `backend/scripts/verify_rls_isolation.py` (read-only) and `docs/HAIP_Phase0_Production_Checklist.md` before assuming RLS protects anything. Migration 117 widens
+`calls.ai_score_status`; 119 grants foh `conversations.send` to existing tenants unless the owner edited that cell; 120-121 add the iCal tables; 122 adds the lead columns on `guests` + `guest_merge_events`; 123 adds
+`knowledge_entries.embedding_attempts/stale_since`; 124 adds `business_records`; 125 adds quote snapshot columns; 126 adds the `organic_call` source value; 127 (head) merges 125 and 126 (no schema change). 118 is reserved for the proposed RLS file (re-parent on 127 when promoted). Roll code back with `alembic downgrade 116` first (checklist 11).
+**Sending needs `conversations.send`** (owner, manager, reservations, concierge, foh by default): `send_message`, `send_template`, `retry`, `approve`, `reject`, `ai-draft` and both AI-rewrite POSTs use `require_capability`. `approve`/`reject` are one guarded UPDATE (only a pending AI draft, text unchanged since read; 409 otherwise; audited `ai_draft.approved|rejected`). A new default grant only reaches NEW tenants; existing ones need a data migration.
+**AI-rewrite tasks are bounded** (`rewrite_draft.py`): one request <= 30 s (`asyncio.wait_for`), a timeout is never retried, the draft task retries a
+provider error once, the composer never retries; a rewrite that changes a number is rejected. Embedding calls: 8 s query / 30 s indexing, SDK retries off.
 **CI:** GitHub's default shell is `bash -e` WITHOUT pipefail, so `pytest | tee` passes even when pytest fails; every such step
 needs `shell: bash` + `set -eo pipefail`, and `! grep` is ignored by `set -e` (use `if grep ...; then exit 1; fi`).
 ⚠️ **Don't write a failure off as drift before checking for a latent bug.** Thirteen "pre-existing" failures were stdlib `logging` called

@@ -348,6 +348,8 @@ def merge_leads(
         tenant_id=tid,
         survivor_id=str(survivor_inq.guest_id),
         deprecated_id=str(deprecated_inq.guest_id),
+        actor_user_id=current_user.id,
+        reason="manual",
     )
     db.commit()
 

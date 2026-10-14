@@ -17,12 +17,30 @@ Three responsibilities:
      are rendered into the prompt, so the model is never shown a number it
      could repeat.
   3. missing_lead_details() -- what still needs collecting before handoff.
+
+Two modes (`tenant.brand_config["price_disclosure"]`, see price_mode()):
+  "handoff"  (default, Ratha's rule) -- no price ever appears in chat.
+  "grounded" -- the AI may state a price ONLY if it is a figure from the
+                live rate/quote lookup for the exact property, dates and party
+                (unsupported_figures() is the gate). Anything else is still
+                blocked, and with no live figure the reply says the rate needs
+                confirming. Never a negotiation either way.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Optional
+
+PRICE_MODES = ("handoff", "grounded")
+
+
+def price_mode(tenant) -> str:
+    """How this tenant lets the AI talk about price. Anything unrecognised means the safe default, "handoff"."""
+    cfg = getattr(tenant, "brand_config", None) or {}
+    value = cfg.get("price_disclosure") if isinstance(cfg, dict) else None
+    return value if value in PRICE_MODES else "handoff"
 
 # Deliberately broad. The pre-existing _MONEY_RE in concierge_draft only
 # matched a literal "₹" and would miss every one of: "Rs 12,000",
@@ -73,12 +91,86 @@ def detect_price(text: str) -> Optional[str]:
     return m.group(0).strip() if m else None
 
 
+_FIGURE_RE = re.compile(r"(?<![\w.])(\d[\d,]*(?:\.\d+)?)\s*(k\b)?", re.IGNORECASE)
+
+
+def _to_int(raw: str, k: Optional[str]) -> Optional[int]:
+    try:
+        n = float(raw.replace(",", ""))
+    except ValueError:
+        return None
+    if k:
+        n *= 1000
+    return int(round(n))
+
+
+def money_figures(text: str) -> list[int]:
+    """Every rupee-style figure the text states, as whole numbers ("Rs 12,000", "12k per night", "INR 9500")."""
+    found: list[int] = []
+    for pat in _PRICE_PATTERNS:
+        for m in pat.finditer(text or ""):
+            for num in _FIGURE_RE.finditer(m.group(0)):
+                n = _to_int(num.group(1), num.group(2))
+                if n is not None:
+                    found.append(n)
+    return found
+
+
+def grounded_numbers(facts: list) -> set[int]:
+    """Whole-number money values present in grounded facts, matched exactly.
+
+    Only values stored under money-bearing keys count (a total, a nightly rate, an add-on price ...). Reading every number in the
+    facts would let a fragment of an id or a headcount "support" an invented price.
+    """
+    nums: set[int] = set()
+
+    def walk(obj):
+        if isinstance(obj, dict):
+            for key, val in obj.items():
+                if key in _MONEY_KEYS and not isinstance(val, (dict, list)) and val is not None:
+                    for num in _FIGURE_RE.finditer(str(val)):
+                        n = _to_int(num.group(1), None)
+                        if n is not None:
+                            nums.add(n)
+                else:
+                    walk(val)
+        elif isinstance(obj, list):
+            for item in obj:
+                walk(item)
+
+    walk(facts or [])
+    return nums
+
+
+def unsupported_figures(text: str, facts: list) -> list[int]:
+    """Figures in the reply that no grounded fact states. Empty list = every price the reply quotes is a live figure."""
+    allowed = grounded_numbers(facts)
+    return [n for n in money_figures(text) if n not in allowed]
+
+
+def strip_prices(text: str) -> str:
+    """Remove price figures from free text (knowledge-base passages, uploaded rate cards) before the model sees them.
+
+    A document's rate is whatever it said when it was written; the live rate comes from the rate tables. Letting the model see
+    both is how an old price ends up in a reply.
+    """
+    out = text or ""
+    for pat in _PRICE_PATTERNS:
+        out = pat.sub("[rate: see live pricing or team to confirm]", out)
+    return out
+
+
 # Keys carrying money inside grounded_facts results.
 _PRICE_KEYS = {
     "price_per_night", "price", "total", "subtotal", "gst", "tax",
     "advance_amount", "amount", "rate", "base_rate", "nightly_rate",
     "total_amount", "discount", "addon_total", "grand_total", "balance",
+    "taxable", "advance",                      # package quotes (sales_gateway)
 }
+
+
+# Money-bearing keys that can carry a figure a reply is allowed to repeat (a superset of what redaction hides).
+_MONEY_KEYS = _PRICE_KEYS | {"price_per_night", "per_night", "price_per_day", "unit_price", "deposit", "deposit_amount"}
 
 
 def redact_price_facts(grounded_facts: list) -> list:
@@ -116,8 +208,13 @@ DETAIL_FIELDS = [
 ]
 
 
-def missing_lead_details(guest, inquiry) -> list[str]:
-    """Which qualifying details are still unknown, as prompt-ready phrases."""
+def missing_lead_details(guest, inquiry, details: Optional[dict] = None) -> list[str]:
+    """Which qualifying details are still unknown, as prompt-ready phrases.
+
+    `details` are facts the guest stated in the conversation that have not reached the inquiry yet (the CRM fields are filled
+    by a debounced background job, so a detail given a minute ago would otherwise be asked for again).
+    """
+    details = details or {}
     missing: list[str] = []
 
     name = (getattr(guest, "name", None) or "").strip()
@@ -126,18 +223,21 @@ def missing_lead_details(guest, inquiry) -> list[str]:
     if not name or name.lower() in {"guest", "unknown", "instagram user", "whatsapp user"}:
         missing.append("their name")
 
-    if not inquiry or not (getattr(inquiry, "check_in", None) and getattr(inquiry, "check_out", None)):
+    has_dates = bool(inquiry and getattr(inquiry, "check_in", None) and getattr(inquiry, "check_out", None)) \
+        or bool(details.get("check_in") and details.get("check_out"))
+    if not has_dates:
         missing.append("travel dates (check-in and check-out)")
 
-    adults = getattr(inquiry, "adults", None) if inquiry else None
+    adults = (getattr(inquiry, "adults", None) if inquiry else None) or details.get("adults")
     if not adults:
         missing.append("how many guests (adults and children)")
 
-    has_property = bool(getattr(inquiry, "property_id", None)) if inquiry else False
+    has_property = (bool(getattr(inquiry, "property_id", None)) if inquiry else False) \
+        or bool(details.get("destination") or details.get("property_hint"))
     if not has_property:
         missing.append("which property or destination they have in mind")
 
-    occasion = (getattr(inquiry, "occasion", None) or "") if inquiry else ""
+    occasion = ((getattr(inquiry, "occasion", None) or "") if inquiry else "") or (details.get("occasion") or "")
     notes = (getattr(inquiry, "notes", None) or "") if inquiry else ""
     if not (occasion or notes):
         missing.append("any special requests or occasion")
@@ -145,11 +245,11 @@ def missing_lead_details(guest, inquiry) -> list[str]:
     return missing
 
 
-def is_qualified(guest, inquiry) -> bool:
+def is_qualified(guest, inquiry, details: Optional[dict] = None) -> bool:
     """True when enough is known to hand the lead to an agent.
 
     Special requests are explicitly not required -- waiting for a guest to
     volunteer an occasion would stall otherwise-ready handoffs.
     """
-    blocking = set(missing_lead_details(guest, inquiry)) - {"any special requests or occasion"}
+    blocking = set(missing_lead_details(guest, inquiry, details)) - {"any special requests or occasion"}
     return not blocking
