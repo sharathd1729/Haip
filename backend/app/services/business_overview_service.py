@@ -247,9 +247,9 @@ def _pipeline(db: Session, p: Params) -> list[dict]:
 # ── sources, Meta Ads, agents ────────────────────────────────────────────────────────────────────────────────
 
 def _source_rows(db: Session, p: Params) -> list[dict]:
-    leads = defaultdict(lambda: {"leads": 0, "bookings": 0, "value": 0.0, "label": "Other"})
+    leads = defaultdict(lambda: {"leads": 0, "bookings": 0, "value": 0.0, "label": "Not recorded"})
     for source, n in db.query(Inquiry.source, func.count(Inquiry.id)).filter(*_lead_conditions(p, p.start, p.end)).group_by(Inquiry.source).all():
-        key, label = dashboard_service._SOURCE_GROUPS.get(str(getattr(source, "value", source) or "other"), ("other", "Other"))
+        key, label = dashboard_service._SOURCE_GROUPS.get(str(getattr(source, "value", source) or "other"), dashboard_service.UNKNOWN_SOURCE)
         leads[key]["leads"] += n
         leads[key]["label"] = label
     conds = _lead_conditions(p, p.start, p.end)
@@ -258,7 +258,7 @@ def _source_rows(db: Session, p: Params) -> list[dict]:
                              .join(Stay, Stay.inquiry_id == Inquiry.id)
                              .filter(*conds, Stay.tenant_id == p.tid, Stay.status.in_(list(kpi_metrics.OCCUPYING_STATUSES)))
                              .group_by(Inquiry.source).all()):
-            key, _ = dashboard_service._SOURCE_GROUPS.get(str(getattr(source, "value", source) or "other"), ("other", "Other"))
+            key, _ = dashboard_service._SOURCE_GROUPS.get(str(getattr(source, "value", source) or "other"), dashboard_service.UNKNOWN_SOURCE)
             leads[key]["bookings"] += n
             leads[key]["value"] += float(v or 0)
     return [{"key": k, "label": v["label"], "leads": v["leads"],

@@ -15,7 +15,7 @@ from app.models.inquiry import Inquiry, InquirySource
 from app.models.property import Stay
 from app.services import dashboard_service, kpi_metrics
 
-CHANNEL_KEYS = ("whatsapp", "instagram", "facebook", "call", "website", "other")
+CHANNEL_KEYS = ("whatsapp", "instagram", "facebook", "call", "organic_call", "website", "email", "walk_in", "referral", "ota", "other")
 CHANNEL_ALIASES = {"voice": "call", "phone": "call"}
 
 

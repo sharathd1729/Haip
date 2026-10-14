@@ -184,7 +184,7 @@ def test_get_or_create_from_call_answered_routes_active(db):
 
     inquiry = get_or_create_from_call(db, t.id, guest.id, direction="inbound", answered=True)
     assert inquiry.stage_id == valid_stage.id
-    assert inquiry.source == InquirySource.INBOUND_CALL
+    assert inquiry.source == InquirySource.ORGANIC_CALL   # an inbound call with no ad behind it
 
 
 def test_get_or_create_from_call_unanswered_routes_rnr(db):

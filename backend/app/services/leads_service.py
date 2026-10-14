@@ -63,6 +63,7 @@ _SOURCE_CHANNEL_MAP: dict[str, str] = {
     "inbound_call":  "phone",
     "outbound_call": "phone",
     "phone":         "phone",
+    "organic_call":  "phone",
     "ota_airbnb":    "airbnb",
     "ota_booking":   "booking_com",
     "ota_vrbo":      "vrbo",
@@ -844,7 +845,12 @@ def get_leads_pipeline(
     ]
 
     # Stage summary (count + potential revenue across ALL filtered leads, not just this page)
-    stage_meta = _build_stage_summary(db, tenant_id, stage, property_id, assigned_to, source, scope_user_id)
+    stage_meta = _build_stage_summary(
+        db, tenant_id, stage, property_id, assigned_to, source, scope_user_id,
+        occasion=occasion, date_from=date_from, date_to=date_to,
+        checkin_date_from=checkin_date_from, checkin_date_to=checkin_date_to,
+        booked_date_from=booked_date_from, booked_date_to=booked_date_to,
+    )
 
     return LeadsListResponse(
         total=total,
@@ -898,6 +904,13 @@ def _build_stage_summary(
     assigned_to: Optional[str],
     source: Optional[str],
     scope_user_id: Optional[str] = None,
+    occasion: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    checkin_date_from: Optional[str] = None,
+    checkin_date_to: Optional[str] = None,
+    booked_date_from: Optional[str] = None,
+    booked_date_to: Optional[str] = None,
 ) -> dict[str, PipelineStageMetaSchema]:
     """Compute count + potential_revenue per stage across all matching inquiries.
 
@@ -935,6 +948,20 @@ def _build_stage_summary(
         q = q.filter(Inq.assigned_to == assigned_to)
     if source:
         q = q.filter(Inq.source == source)
+    # The chips must count exactly what the list below them shows: every filter the list applies is applied here too
+    # (they used to be ignored, so with a date range set a stage chip said 40 while the column held 12).
+    if occasion:
+        q = q.filter(Inq.occasion.ilike(f"%{occasion}%"))
+    if date_from:
+        q = q.filter(Inq.created_at >= date_from)
+    if date_to:
+        q = q.filter(Inq.created_at <= date_to)
+    if checkin_date_from:
+        q = q.filter(Inq.check_in >= checkin_date_from)
+    if checkin_date_to:
+        q = q.filter(Inq.check_in <= checkin_date_to)
+    if booked_date_from or booked_date_to:
+        q = q.filter(Inq.id.in_(_booked_inquiry_ids(db, tenant_id, booked_date_from, booked_date_to)))
 
     rows = q.group_by(PS.key).all()
 

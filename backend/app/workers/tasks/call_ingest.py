@@ -16,6 +16,7 @@ from app.models.inquiry import Inquiry, InquiryStage, InquirySource
 from app.models.conversation import Conversation, ChannelType
 from app.adapters.ivr import get_ivr_adapter
 from app.services import identity_service
+from app.services import inquiry_service as _inquiry_service
 from app.models.call import RecordingStatus
 from app.workers.celery_app import celery_app
 from app.core.cache import get_cached, set_cached
@@ -537,6 +538,7 @@ def _find_or_create_inquiry(db: Session, tenant_id: str, guest: Guest) -> Inquir
             tenant_id=tenant_id,
             guest_id=guest.id,
             stage=InquiryStage.NEW,
+            stage_id=_inquiry_service._stage_id_for(db, tenant_id, InquiryStage.NEW),
             source=InquirySource.PHONE,
         )
         db.add(inquiry)

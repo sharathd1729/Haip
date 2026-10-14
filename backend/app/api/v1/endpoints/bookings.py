@@ -29,6 +29,7 @@ from app.api.v1.deps import get_current_user, require_roles
 from app.services.authz_service import require_capability
 from app.models.property import Property, RatePlan, Stay
 from app.models.guest import Guest
+from app.models.inquiry import Inquiry as _Inquiry
 from app.models.user import User, UserRole
 from app.services.date_presets import VALID_PRESETS, resolve_range
 from app.models.base import gen_uuid
@@ -337,6 +338,9 @@ class BookingCreateRequest(BaseModel):
     adults: int = Field(1, ge=1)
     children: int = Field(0, ge=0)
 
+    # The lead this booking came from (Leads360 "Create booking"). Omitted = HAIP looks for the guest's one open lead.
+    inquiry_id: Optional[str] = None
+
     total_amount: Optional[float] = None
     special_requests: Optional[str] = None
     occasion: Optional[str] = None
@@ -414,11 +418,33 @@ def create_booking(
         check_out_time=payload.check_out_time,
         internal_notes=payload.internal_notes,
     )
+    if payload.inquiry_id:
+        lead = db.query(_Inquiry).filter_by(id=payload.inquiry_id, tenant_id=tenant_id).first()
+        if lead is None or lead.guest_id != guest_id:
+            raise HTTPException(status_code=422, detail="That lead does not belong to this guest")
+        if db.query(Stay.id).filter(Stay.tenant_id == tenant_id, Stay.inquiry_id == lead.id, Stay.status != "cancelled").first():
+            raise HTTPException(status_code=409, detail="That lead already has a booking")
+        stay.inquiry_id = lead.id
     db.add(stay)
     db.flush()
+    # A booking keeps the source and agent of the lead it came from: tie it to the lead (and mark that lead Sold through the
+    # audited stage move) so reports never show it as "Other" / "Unassigned" when the attribution exists. When the guest has no
+    # single open lead, nothing is guessed and the booking stays unattributed.
+    from app.services import ical_booking_service as _lead_link
+    if stay.inquiry_id is None:
+        _lead_link.link_lead(db, stay, date.today(), reason="Booked in HAIP")
+    else:
+        from app.models.pipeline_stage import PipelineStage
+        from app.services import inquiry_service as _inq
+        won = db.query(PipelineStage).filter_by(tenant_id=tenant_id, is_closed_won=True).order_by(PipelineStage.order).first()
+        lead = db.query(_Inquiry).filter_by(id=stay.inquiry_id, tenant_id=tenant_id).first()
+        if won is not None and lead is not None and lead.stage_id != won.id:
+            _inq.update_stage_by_id(db, tenant_id=tenant_id, inquiry_id=lead.id, new_stage_id=won.id,
+                                    actor_user_id=current_user.id, actor_role=current_user.role.value, reason="Booked in HAIP")
     append_audit(db, tenant_id=tenant_id, actor_user_id=current_user.id, action="booking.created",
                  target_type="booking", target_id=stay.id,
-                 payload={"property_id": prop.id, "check_in": payload.check_in, "check_out": payload.check_out})
+                 payload={"property_id": prop.id, "check_in": payload.check_in, "check_out": payload.check_out,
+                          "inquiry_id": stay.inquiry_id})
     db.commit()
     db.refresh(stay)
 
