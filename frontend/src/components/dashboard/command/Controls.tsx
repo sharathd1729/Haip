@@ -1,17 +1,8 @@
 "use client";
 // Period, channel, property and agent. The selected period is always spelled out next to the controls, with its
 // time zone, so a number can never be read without knowing what it covers.
-import { Tabs } from "@/components/ui/kit";
 import { cn } from "@/lib/utils";
 import { periodLabel } from "./types";
-
-export const PRESETS = [
-  { value: "today", label: "Today" },
-  { value: "last_7d", label: "Last 7 days" },
-  { value: "this_month", label: "This month" },
-  { value: "last_month", label: "Last month" },
-  { value: "custom", label: "Custom" },
-] as const;
 
 export const CHANNELS = [
   { value: "", label: "All channels" },
@@ -39,7 +30,6 @@ export function Controls({ value, onChange, properties, agents, from, to, tenant
   const customReady = value.customFrom && value.customTo && value.customFrom <= value.customTo;
   return (
     <div className="space-y-3">
-      <Tabs label="Period" value={value.preset} onChange={v => set({ preset: v })} items={PRESETS.map(p => ({ value: p.value, label: p.label }))} className="max-w-full sm:w-fit [&_button]:min-h-11 lg:[&_button]:min-h-9" />
       <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
         <label className="sr-only" htmlFor="oc-channel">Channel</label>
         <select id="oc-channel" className={select} value={value.channel} onChange={e => set({ channel: e.target.value })}>
@@ -73,12 +63,6 @@ export function Controls({ value, onChange, properties, agents, from, to, tenant
         </div>
       )}
 
-      {from && to && (
-        <p className="text-[12.5px] text-[var(--haip-fg-subtle)]">
-          <span className="font-semibold text-[var(--haip-fg-2)]">{periodLabel(from, to)}</span>
-          {" · "}India time (IST), full days{" · compared with the equal period before it"}
-        </p>
-      )}
     </div>
   );
 }

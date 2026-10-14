@@ -406,6 +406,9 @@ export default function LeadDetailPage() {
       const res = await api.get(`/leads/${inquiryId}`);
       return res.data;
     },
+    refetchOnWindowFocus: true,       // an owner, stage or source changed on another device shows when this one is picked up
+    refetchOnReconnect: true,
+    staleTime: 10_000,
   });
 
   // M5+ WS3: same approve-and-queue endpoint LeadCard's one-click send uses.

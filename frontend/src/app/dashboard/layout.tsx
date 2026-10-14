@@ -86,10 +86,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
           {/* Page content — flex column so children can use h-full */}
           <main
             className="flex-1 overflow-hidden flex flex-col"
-            style={{ paddingBottom: "calc(env(safe-area-inset-bottom))" }}
           >
-            {/* Scroll wrapper — flex-1 gives it a defined height for h-full children */}
-            <div className="flex-1 overflow-y-auto md:pb-0 pb-20 min-h-0">
+            {/* Scroll wrapper — flex-1 gives it a defined height for h-full children. On phones the fixed bottom tab bar
+                (56px + the device's safe-area inset) sits over the bottom of the viewport, so the content ends above it. */}
+            <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">
               {children}
             </div>
           </main>

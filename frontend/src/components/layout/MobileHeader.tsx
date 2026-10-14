@@ -11,7 +11,11 @@ import { useNotificationsStore } from "@/store/useNotificationsStore";
 import api from "@/lib/api";
 
 const ROUTE_LABELS: Record<string, string> = {
-  dashboard:    "Dashboard",
+  dashboard:    "Home",
+  "my-day":     "My day",
+  portfolio:    "Portfolio",
+  calendar:     "Calendar",
+  marketing:    "Marketing",
   inbox:        "Inbox",
   calls:        "Calls",
   leads:        "Leads360",
@@ -108,10 +112,14 @@ export function MobileHeader({ user }: MobileHeaderProps) {
 
   return (
     <header
-      className="h-14 flex items-center justify-between px-4 flex-shrink-0 bg-background"
+      className="flex items-center justify-between px-4 flex-shrink-0 bg-background shadow-[0_1px_0_var(--haip-border),0_2px_8px_rgba(0,0,0,0.05)]"
       style={{
-        borderBottom: "1px solid var(--haip-border)",
+        // Fixed (does not scroll). The device's top inset (notch, camera cut-out, foldable cover display) is added to the
+        // 56px bar instead of eating into it, so the logo and title are never clipped.
+        minHeight: "calc(3.5rem + env(safe-area-inset-top))",
         paddingTop: "env(safe-area-inset-top)",
+        paddingLeft: "max(1rem, env(safe-area-inset-left))",
+        paddingRight: "max(1rem, env(safe-area-inset-right))",
       }}
     >
       {/* Logo mark + page title */}

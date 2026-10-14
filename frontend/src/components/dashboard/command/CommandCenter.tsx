@@ -1,7 +1,7 @@
 "use client";
 // Owner Command Center: the landing page for owners and managers. Composes ONE server response
 // (GET /dashboard/business-overview); nothing on this page computes a business figure.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
@@ -17,6 +17,8 @@ import { ChannelPanels } from "./ChannelPanels";
 import { KpiGrid } from "./KpiGrid";
 import { Team } from "./Team";
 import { Controls, type Filters } from "./Controls";
+import { PeriodBar, usePersistedPeriod, type PeriodValue } from "../PeriodBar";
+import { periodLabel } from "./types";
 import { JourneyBand } from "./JourneyBand";
 import { Ledger } from "./Ledger";
 import { Trends } from "./Trends";
@@ -66,6 +68,10 @@ export function CommandCenter() {
   const { data: session } = useSession();
   const firstName = (session?.user?.name || "").split(" ")[0];
   const [filters, setFilters] = useState<Filters>(INITIAL);
+  const [remembered, remember] = usePersistedPeriod("this_month");
+  // The remembered period applies once it has been read from this device; "custom" is never remembered.
+  useEffect(() => { setFilters(f => (f.preset === "custom" || f.preset === remembered ? f : { ...f, preset: remembered })); }, [remembered]);
+  const pickPeriod = (v: string) => { setFilters(f => ({ ...f, preset: v })); if (v !== "custom") remember(v as PeriodValue); };
   const qc = useQueryClient();
   const { toast } = useToast();
 
@@ -101,6 +107,9 @@ export function CommandCenter() {
             <Link href="/dashboard/operations" className="inline-flex min-h-11 items-center font-semibold text-primary hover:underline lg:min-h-0">Team, calls and response times</Link>
           </div>
         </header>
+
+        <PeriodBar custom value={filters.preset} onChange={pickPeriod}
+          caption={data ? <><span className="font-semibold text-[var(--haip-fg-2)]">{periodLabel(data.period.date_from, data.period.date_to)}</span> · India time (IST), full days · compared with the equal period before it</> : undefined} />
 
         <Controls value={filters} onChange={setFilters} properties={properties} agents={agents}
           from={data?.period.date_from} to={data?.period.date_to} tenantWide={tenantWide} />

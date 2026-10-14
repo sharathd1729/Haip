@@ -19,14 +19,13 @@ interface MobileNavProps {
   user?: { name?: string | null; email?: string | null; role?: string };
 }
 
-// The 4 bottom-tab items (always visible). Leads360 sits here rather than
-// Guests because it's the flagship M4 pipeline view and had zero mobile
-// entry point before this — Guests is still one tap away under Sales below.
+// The primary modules, always one tap away (the same four the desktop rail leads with). Calls, Today and everything else
+// live under "More". Calendar used to hide there; it is a daily tool for the team, so it is a tab now.
 const BOTTOM_TABS = [
-  { label: "Home",     href: "/dashboard",       icon: Home,   resource: "dashboard" as Resource },
-  { label: "Inbox",    href: "/dashboard/inbox", icon: Inbox,  resource: "inbox"     as Resource },
-  { label: "Calls",    href: "/dashboard/calls", icon: Phone,  resource: "calls"     as Resource },
-  { label: "Leads360", href: "/dashboard/leads", icon: Target, resource: "guests"    as Resource },
+  { label: "Home",     href: "/dashboard",                    icon: Home,     resource: "dashboard"  as Resource },
+  { label: "Inbox",    href: "/dashboard/inbox",              icon: Inbox,    resource: "inbox"      as Resource },
+  { label: "Leads",    href: "/dashboard/leads",              icon: Target,   resource: "guests"     as Resource },
+  { label: "Calendar", href: "/dashboard/portfolio/calendar", icon: Calendar, resource: "properties" as Resource },
 ];
 
 // Full nav for the "More" sheet — mirrors Sidebar's NAV_ITEMS/sections so
@@ -128,11 +127,17 @@ export function MobileNav({ user }: MobileNavProps) {
     <>
       {/* ── Bottom tab bar ───────────────────────────────────────────── */}
       <nav
+        aria-label="Primary"
         className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-stretch"
         style={{
           backgroundColor: "var(--brand-sidebar-bg, #0a1b30)",
-          borderTop: "1px solid rgba(255,255,255,0.07)",
+          borderTop: "1px solid rgba(255,255,255,0.16)",
+          boxShadow: "0 -6px 16px rgba(0,0,0,0.22)",
+          // The home indicator on iPhones and the gesture bar on foldables sit inside this inset; side insets keep the
+          // first and last tab clear of a notch or a hinge cut-out in landscape.
           paddingBottom: "env(safe-area-inset-bottom)",
+          paddingLeft: "env(safe-area-inset-left)",
+          paddingRight: "env(safe-area-inset-right)",
         }}
       >
         {BOTTOM_TABS.filter(t => canSeeNav(role, t.resource)).map((tab) => {
@@ -145,12 +150,13 @@ export function MobileNav({ user }: MobileNavProps) {
             <Link
               key={tab.href}
               href={tab.href}
-              className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 min-h-[52px] relative transition-opacity active:opacity-60"
+              aria-current={active ? "page" : undefined}
+              className="flex-1 min-w-0 flex flex-col items-center justify-center py-2 gap-0.5 min-h-[56px] relative transition-opacity active:opacity-60"
             >
               <span className="relative">
                 <Icon
                   size={22}
-                  style={{ color: active ? primary : "rgba(255,255,255,0.35)" }}
+                  style={{ color: active ? primary : "rgba(255,255,255,0.6)" }}
                 />
                 {badge && (
                   <span
@@ -162,8 +168,8 @@ export function MobileNav({ user }: MobileNavProps) {
                 )}
               </span>
               <span
-                className="text-[10px] font-medium"
-                style={{ color: active ? primary : "rgba(255,255,255,0.30)" }}
+                className="text-[11px] font-medium"
+                style={{ color: active ? primary : "rgba(255,255,255,0.6)" }}
               >
                 {tab.label}
               </span>
@@ -180,10 +186,11 @@ export function MobileNav({ user }: MobileNavProps) {
         {/* More button */}
         <button
           onClick={() => setSheetOpen(true)}
-          className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 min-h-[52px] transition-opacity active:opacity-60"
+          aria-haspopup="dialog" aria-expanded={sheetOpen}
+          className="flex-1 min-w-0 flex flex-col items-center justify-center py-2 gap-0.5 min-h-[56px] transition-opacity active:opacity-60"
         >
-          <Menu size={22} style={{ color: "rgba(255,255,255,0.35)" }} />
-          <span className="text-[10px] font-medium" style={{ color: "rgba(255,255,255,0.30)" }}>
+          <Menu size={22} style={{ color: "rgba(255,255,255,0.6)" }} />
+          <span className="text-[11px] font-medium" style={{ color: "rgba(255,255,255,0.6)" }}>
             More
           </span>
         </button>
@@ -200,8 +207,10 @@ export function MobileNav({ user }: MobileNavProps) {
 
           {/* Sheet panel */}
           <div
-            className="relative ml-auto w-72 h-full flex flex-col overflow-y-auto"
+            role="dialog" aria-modal="true" aria-label="Menu"
+            className="relative ml-auto w-[min(20rem,88vw)] h-full flex flex-col overflow-y-auto overscroll-contain"
             style={{
+              paddingTop: "env(safe-area-inset-top)",
               backgroundColor: "var(--brand-sidebar-bg, #0a1b30)",
               borderLeft: "1px solid rgba(255,255,255,0.07)",
             }}
@@ -214,7 +223,8 @@ export function MobileNav({ user }: MobileNavProps) {
               <span className="font-bold text-white text-base">{theme.companyName ?? "HAIP"}</span>
               <button
                 onClick={() => setSheetOpen(false)}
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition-colors"
+                aria-label="Close menu"
+                className="w-11 h-11 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/5 transition-colors"
               >
                 <X size={18} />
               </button>
@@ -249,7 +259,7 @@ export function MobileNav({ user }: MobileNavProps) {
                           key={item.href + item.label}
                           href={item.href}
                           onClick={() => setSheetOpen(false)}
-                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors mb-0.5"
+                          className="flex items-center gap-3 px-3 min-h-11 rounded-xl text-sm font-medium transition-colors mb-0.5"
                           style={{
                             backgroundColor: active ? `rgba(${hexToRgb(primary)}, 0.12)` : "transparent",
                             color: active ? "#ffffff" : "rgba(255,255,255,0.55)",

@@ -74,6 +74,11 @@ function useStageLeads(stageKey: string, filters: LeadsFilters, onStagesMeta: (m
       return loaded < lastPage.total ? lastPage.page + 1 : undefined;
     },
     refetchInterval: 30_000,
+    // Changes made on another device (a stage, an owner, a source) must show up when this one is picked up again: the app-wide
+    // default turns these off, which left a phone showing an old board after returning to the tab.
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    staleTime: 10_000,
   });
 
   const lastPage = query.data?.pages[query.data.pages.length - 1];
@@ -381,8 +386,16 @@ function StageTable({
 type LeadsView = "action" | "pipeline";
 
 export default function Leads360Page() {
-  // "Needs action" is the default for every role -- the board is one tab away.
-  const [view, setView] = useState<LeadsView>("action");
+  // The pipeline is the default for every role ("Needs action" is one tab away). The last choice is remembered on this
+  // device; it is read after mount so the first render matches the server.
+  const [view, setViewState] = useState<LeadsView>("pipeline");
+  useEffect(() => {
+    try { if (localStorage.getItem("haip_leads_view") === "action") setViewState("action"); } catch { /* storage unavailable */ }
+  }, []);
+  const setView = (v: LeadsView) => {
+    setViewState(v);
+    try { localStorage.setItem("haip_leads_view", v); } catch { /* ignore */ }
+  };
   const [stageFilter, setStageFilter] = useState(ALL_STAGES_ID);
   // Board (columns) or Table (rows grouped by stage). Remembered on this device.
   const [layout, setLayout] = useState<"board" | "table">("board");
@@ -501,10 +514,10 @@ export default function Leads360Page() {
             ))}
           </div>
           {/* Stage filter pills — scrollable on mobile */}
-          <div className="flex items-center gap-1 overflow-x-auto haip-scrollbar-x pb-0.5 max-w-xs sm:max-w-md">
+          <div className="flex items-center gap-1 overflow-x-auto haip-scrollbar-x pb-0.5 max-w-full sm:max-w-md">
             <button
               onClick={() => setStageFilter(ALL_STAGES_ID)}
-              className="lx-stage-pill flex-shrink-0 text-[10px] px-2.5 py-1 transition-colors duration-150"
+              className="lx-stage-pill flex-shrink-0 text-xs px-3 min-h-11 lg:min-h-0 lg:py-1 lg:text-[10px] transition-colors duration-150"
               style={
                 stageFilter === ALL_STAGES_ID
                   ? { background: "var(--lx-iris)", color: "#fff" }
@@ -520,7 +533,7 @@ export default function Leads360Page() {
                 <button
                   key={s.key}
                   onClick={() => setStageFilter(s.key)}
-                  className="lx-stage-pill flex-shrink-0 text-[10px] px-2.5 py-1 transition-colors duration-150"
+                  className="lx-stage-pill flex-shrink-0 text-xs px-3 min-h-11 lg:min-h-0 lg:py-1 lg:text-[10px] transition-colors duration-150"
                   style={
                     active
                       ? { background: `color-mix(in srgb, ${s.color} 18%, transparent)`, color: s.color, border: `1.5px solid ${s.color}` }
@@ -541,7 +554,7 @@ export default function Leads360Page() {
           {currentUserId && (
             <button
               onClick={() => setFilters(f => ({ ...f, assigned_to: assignedToMe ? undefined : currentUserId }))}
-              className="lx-stage-pill flex-shrink-0 flex items-center gap-1 text-[10px] px-2.5 py-1 transition-colors duration-150"
+              className="lx-stage-pill flex-shrink-0 flex items-center gap-1 text-xs px-3 min-h-11 lg:min-h-0 lg:py-1 lg:text-[10px] transition-colors duration-150"
               style={
                 assignedToMe
                   ? { background: "var(--lx-iris)", color: "#fff" }

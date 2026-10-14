@@ -57,7 +57,7 @@ const NAV_GROUPS: NavGroup[] = [
     section: "Today",
     items: [
       { label: "My day", href: "/dashboard/my-day", icon: ListChecks, resource: "inbox" },
-      { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, resource: "dashboard" },
+      { label: "Home", href: "/dashboard", icon: LayoutDashboard, resource: "dashboard" },
     ],
   },
   {
@@ -101,6 +101,8 @@ const NAV_GROUPS: NavGroup[] = [
     section: "Sales",
     items: [
       { label: "Leads360", href: "/dashboard/leads", icon: Target, resource: "guests" },
+      // Calendar is a daily tool, so it is a main item (it was the second child of Portfolio).
+      { label: "Calendar", href: "/dashboard/portfolio/calendar", icon: Calendar, resource: "properties" },
       { label: "Bookings", href: "/dashboard/bookings", icon: BookmarkIcon, resource: "guests", onlyRoles: BOOKING_READ_ROLES },
       { label: "Targets", href: "/dashboard/targets", icon: TrendingUp, resource: "guests", onlyRoles: REVENUE_READ_ROLES },
       {
@@ -108,9 +110,9 @@ const NAV_GROUPS: NavGroup[] = [
         href: "/dashboard/properties",
         icon: Home,
         resource: "properties",
+        hideForBusinessTypes: ["caravan"],     // its only children (Properties, Rate Calculator) are hidden for caravan workspaces
         children: [
           { label: "Properties",      href: "/dashboard/properties",         hideForBusinessTypes: ["caravan"] },
-          { label: "Calendar",        href: "/dashboard/portfolio/calendar" },
           { label: "Rate Calculator", href: "/dashboard/calculator",         hideForBusinessTypes: ["caravan"] },
         ],
       },
@@ -157,8 +159,8 @@ const NAV_GROUPS: NavGroup[] = [
 // it plainly. Universal like Support -- no resource gate, every role has
 // their own profile.
 const BOTTOM_ITEMS = [
-  { label: "Profile", href: "/dashboard/profile", icon: User },
-  { label: "Support", href: "/dashboard/help",    icon: HelpCircle },
+  { label: "Profile", href: "/dashboard/profile", icon: User, kind: "account" as const },
+  { label: "Support", href: "/dashboard/help",    icon: HelpCircle, kind: "support" as const },
 ];
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -468,13 +470,16 @@ export function Sidebar({ user }: SidebarProps) {
               prefetch={false}
               onMouseEnter={() => prefetchOnHover(item.href)}
               onFocus={() => prefetchOnHover(item.href)}
-              className={cn("haip-nav-item", active && "active", collapsed && "justify-center")}
+              className={cn("haip-nav-item", active && "active", collapsed && "justify-center",
+                // Support is help, Profile is you: they must not read as the same kind of row.
+                item.kind === "support" && "mt-1 border border-dashed border-[var(--haip-sidebar-border)]")}
               title={collapsed ? item.label : undefined}
+              aria-label={item.kind === "support" ? "Support and help" : "Your profile"}
             >
-              <span>
+              <span style={item.kind === "support" ? { color: "var(--haip-sidebar-accent)" } : undefined}>
                 <Icon size={14} />
               </span>
-              {!collapsed && <span>{item.label}</span>}
+              {!collapsed && <span>{item.kind === "support" ? "Help & support" : "My profile"}</span>}
             </Link>
           );
         })}

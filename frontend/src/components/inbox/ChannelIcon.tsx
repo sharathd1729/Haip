@@ -95,7 +95,7 @@ const FALLBACK: ChannelConfig = {
 const LABELS: Record<string, string> = {
   wa_direct: "WhatsApp", whatsapp: "WhatsApp", click_to_wa: "WhatsApp",
   meta_ig: "Instagram", instagram: "Instagram",
-  inbound_call: "Call", outbound_call: "Call", call: "Call", voice: "Call",
+  inbound_call: "Call", outbound_call: "Call", call: "Call", voice: "Call", phone: "Call", organic_call: "Organic call",
   ota_airbnb: "Airbnb", airbnb: "Airbnb",
   ota_mmt: "MakeMyTrip", ota_booking: "Booking.com", ota_vrbo: "Vrbo", ota_goibibo: "Goibibo",
   channel_manager: "Channel Manager", referral: "Referral", walk_in: "Walk-in",
