@@ -76,6 +76,7 @@ function MobileThemeToggle() {
   return (
     <button
       onClick={cycle}
+      aria-label="Change theme"
       className="w-9 h-9 rounded-lg flex items-center justify-center transition-colors duration-150 active:bg-muted"
       style={{ color: "var(--haip-fg-subtle)" }}
     >
@@ -115,8 +116,8 @@ export function MobileHeader({ user }: MobileHeaderProps) {
       className="flex items-center justify-between px-4 flex-shrink-0 bg-background shadow-[0_1px_0_var(--haip-border),0_2px_8px_rgba(0,0,0,0.05)]"
       style={{
         // Fixed (does not scroll). The device's top inset (notch, camera cut-out, foldable cover display) is added to the
-        // 56px bar instead of eating into it, so the logo and title are never clipped.
-        minHeight: "calc(3.5rem + env(safe-area-inset-top))",
+        // 44px bar instead of eating into it, so the logo and title are never clipped.
+        minHeight: "calc(2.75rem + env(safe-area-inset-top))",
         paddingTop: "env(safe-area-inset-top)",
         paddingLeft: "max(1rem, env(safe-area-inset-left))",
         paddingRight: "max(1rem, env(safe-area-inset-right))",
@@ -129,7 +130,7 @@ export function MobileHeader({ user }: MobileHeaderProps) {
             <img
               src={theme.logoDarkUrl ?? theme.logoUrl}
               alt={theme.companyName}
-              className="h-8 w-auto object-contain"
+              className="h-6 w-auto object-contain"
             />
           ) : (
             <div
@@ -154,6 +155,7 @@ export function MobileHeader({ user }: MobileHeaderProps) {
         <div className="relative">
           <button
             onClick={() => setBellOpen(!bellOpen)}
+            aria-label="Notifications" aria-expanded={bellOpen}
             className="relative w-9 h-9 rounded-lg flex items-center justify-center transition-colors duration-150 active:bg-muted"
             style={{ color: "var(--haip-fg-subtle)" }}
           >

@@ -151,11 +151,11 @@ export function MobileNav({ user }: MobileNavProps) {
               key={tab.href}
               href={tab.href}
               aria-current={active ? "page" : undefined}
-              className="flex-1 min-w-0 flex flex-col items-center justify-center py-2 gap-0.5 min-h-[56px] relative transition-opacity active:opacity-60"
+              className="flex-1 min-w-0 flex flex-col items-center justify-center py-1.5 gap-0 min-h-[48px] relative transition-opacity active:opacity-60"
             >
               <span className="relative">
                 <Icon
-                  size={22}
+                  size={20}
                   style={{ color: active ? primary : "rgba(255,255,255,0.6)" }}
                 />
                 {badge && (
@@ -187,9 +187,9 @@ export function MobileNav({ user }: MobileNavProps) {
         <button
           onClick={() => setSheetOpen(true)}
           aria-haspopup="dialog" aria-expanded={sheetOpen}
-          className="flex-1 min-w-0 flex flex-col items-center justify-center py-2 gap-0.5 min-h-[56px] transition-opacity active:opacity-60"
+          className="flex-1 min-w-0 flex flex-col items-center justify-center py-1.5 gap-0 min-h-[48px] transition-opacity active:opacity-60"
         >
-          <Menu size={22} style={{ color: "rgba(255,255,255,0.6)" }} />
+          <Menu size={20} style={{ color: "rgba(255,255,255,0.6)" }} />
           <span className="text-[11px] font-medium" style={{ color: "rgba(255,255,255,0.6)" }}>
             More
           </span>

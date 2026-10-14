@@ -533,8 +533,6 @@ def test_promising_leads_at_risk_come_from_the_work_queue_and_the_ai_reading(cli
     assert {"key": "high_intent_risk", "label": "Promising enquiries at risk", "count": 1, "oldest_at": None, "href": "/dashboard/leads",
             "people": 1} in j["attention"]
 
-    assert {"key": "high_intent_risk", "label": "Promising leads at risk", "count": 1, "oldest_at": None, "href": "/dashboard/leads"} in j["attention"]
-
 
 # ── why a 403 happened must be readable: the page shows a different message for each cause ─────────────────
 

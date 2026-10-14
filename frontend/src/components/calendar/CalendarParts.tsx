@@ -1,10 +1,12 @@
 "use client";
-// Calendar pieces shared by the timeline (desktop) and the agenda (phones): the sheet that opens when an entry is tapped, and the
-// agenda list itself. A booking opens its booking page and, when it came from a lead, that lead; a block shows why dates are held.
+// Calendar pieces shared by the timeline (desktop) and the month grid (phones): the types and colours, and the sheet that opens
+// when an entry is tapped. A booking opens its booking page and, when it came from a lead, that lead; a block shows why dates are held.
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
-import { Drawer, EmptyState, StatusPill } from "@/components/ui/kit";
+import { canViewBookings } from "@/lib/permissions";
+import { Drawer, StatusPill } from "@/components/ui/kit";
 
 export interface StayLite {
   id: string; check_in: string; check_out: string; status: string; guest_id?: string | null; guest_name: string; guest_phone?: string;
@@ -38,6 +40,8 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 }
 
 export function EntrySheet({ entry, onClose, channelLabel }: { entry: Entry | null; onClose: () => void; channelLabel: (src: string) => string }) {
+  const { data: session } = useSession();
+  const canOpenBooking = canViewBookings(session?.user?.role);   // the booking page needs bookings.read: don't offer a link that ends in "no access"
   const stay = entry?.kind === "stay" ? entry.stay : null;
   const block = entry?.kind === "block" ? entry.block : null;
   const nights = stay
@@ -55,7 +59,7 @@ export function EntrySheet({ entry, onClose, channelLabel }: { entry: Entry | nu
           {stay.inquiry_id && (
             <Link href={`/dashboard/leads/${stay.inquiry_id}`} className={cn(link, "border border-[var(--haip-border)] hover:bg-[var(--haip-surface)]")}>Open lead</Link>
           )}
-          <Link href={`/dashboard/bookings/${stay.id}`} className={cn(link, "bg-primary text-primary-foreground")}>Open booking</Link>
+          {canOpenBooking && <Link href={`/dashboard/bookings/${stay.id}`} className={cn(link, "bg-primary text-primary-foreground")}>Open booking</Link>}
         </div>
       )}
     >
@@ -92,60 +96,5 @@ export function EntrySheet({ entry, onClose, channelLabel }: { entry: Entry | nu
         </dl>
       )}
     </Drawer>
-  );
-}
-
-/** Phones get a list, not a 30-column grid: each property's bookings and holds in date order, each row a full-width tap target. */
-export function AgendaView({ rows, from, to, onOpen, chColor, channelLabel }: {
-  rows: RowLite[]; from: string; to: string; onOpen: (e: Entry) => void;
-  chColor: (src: string) => { bg: string; text: string }; channelLabel: (src: string) => string;
-}) {
-  if (rows.length === 0) return <EmptyState title="No properties to show" hint="Clear the filters or add a property." />;
-  return (
-    <div className="divide-y divide-[var(--haip-border)]">
-      {rows.map(r => {
-        const items = [
-          ...r.stays
-            .filter(s => s.status !== "cancelled" && s.check_out > from && s.check_in <= to)
-            .map(s => ({ key: `s${s.id}`, at: s.check_in, entry: { kind: "stay", stay: s, propertyName: r.property_name } as Entry })),
-          ...r.blocks
-            .filter(b => b.blocked_to > from && b.blocked_from <= to)
-            .map(b => ({ key: `b${b.id}`, at: b.blocked_from, entry: { kind: "block", block: b, propertyName: r.property_name } as Entry })),
-        ].sort((a, b) => a.at.localeCompare(b.at));
-        return (
-          <section key={r.property_id} aria-label={r.property_name}>
-            <h3 className="sticky top-0 z-10 bg-[var(--haip-surface)] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[var(--haip-fg-subtle)] shadow-[0_1px_0_var(--haip-border)]">
-              {r.property_name}
-            </h3>
-            {items.length === 0 ? (
-              <p className="px-4 py-3 text-sm text-[var(--haip-fg-subtle)]">Free for the whole period.</p>
-            ) : (
-              <ul>
-                {items.map(({ key, entry }) => {
-                  const isStay = entry.kind === "stay";
-                  const tone = isStay ? chColor(entry.stay.channel_source) : BLOCK_TONE(entry.block.reason);
-                  const a = isStay ? entry.stay.check_in : entry.block.blocked_from;
-                  const b = isStay ? entry.stay.check_out : entry.block.blocked_to;
-                  const title = isStay ? (entry.stay.guest_name || "Guest") : (entry.block.event?.details.guest_name || BLOCK_TONE(entry.block.reason).label);
-                  const sub = isStay ? channelLabel(entry.stay.channel_source) : BLOCK_TONE(entry.block.reason).label;
-                  return (
-                    <li key={key}>
-                      <button type="button" onClick={() => onOpen(entry)} className="flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left active:bg-[var(--haip-surface)]">
-                        <span className={cn("h-10 w-1.5 shrink-0 rounded-full", tone.bg)} aria-hidden />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-semibold">{title}</span>
-                          <span className="block text-xs text-[var(--haip-fg-subtle)]">{day(a)} → {day(b)} · {sub}</span>
-                        </span>
-                        <span className="text-[var(--haip-fg-subtle)]" aria-hidden>›</span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-        );
-      })}
-    </div>
   );
 }

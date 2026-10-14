@@ -246,7 +246,7 @@ export function LeadsFilterBar({
 
       {/* Mobile: compact trigger, controls live in a bottom sheet instead of
           wrapping across several lines inline. */}
-      <div className="md:hidden px-4 py-2" style={{ borderBottom: "1px solid var(--haip-border)" }}>
+      <div className="md:hidden px-3 py-1" style={{ borderBottom: "1px solid var(--haip-border)" }}>
         <MobileFilterTrigger onClick={() => setSheetOpen(true)} hasActiveFilters={activeCount > 0} />
       </div>
       <MobileFilterSheet open={sheetOpen} onOpenChange={setSheetOpen} hasActiveFilters={activeCount > 0}>
