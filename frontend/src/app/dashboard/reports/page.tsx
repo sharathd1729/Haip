@@ -638,13 +638,13 @@ export default function ReportsPage() {
               {/* Table */}
               {preview.length > 0 && (
               <>
-              {/* Phones: each row as a card (first column as the title), so nothing scrolls sideways */}
-              <ul className="divide-y divide-gray-100 sm:hidden">
+              {/* Phones and tablets: each row as a card (first column as the title), so nothing scrolls sideways; the table from lg up */}
+              <ul className="divide-y divide-gray-100 lg:hidden">
                 {preview.map((row, i) => (
                   <li key={i} className="px-4 py-3">
                     <p className="text-sm font-semibold text-gray-900 break-words">{String(row[previewCols[0]] ?? "—")}</p>
-                    <dl className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
-                      {previewCols.slice(1).map(c => (
+                    <dl className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs md:grid-cols-4">
+                      {previewCols.slice(1).filter(c => row[c] != null && row[c] !== "").map(c => (
                         <div key={c} className="min-w-0">
                           <dt className="text-[10px] uppercase tracking-wide text-gray-400">{selectedReport?.fields.find(f => f.key === c)?.label ?? c}</dt>
                           <dd className="text-gray-700 break-words">{String(row[c] ?? "—")}</dd>
@@ -654,7 +654,7 @@ export default function ReportsPage() {
                   </li>
                 ))}
               </ul>
-              <div className="hidden sm:block overflow-x-auto">
+              <div className="hidden lg:block overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead className="bg-gray-50 border-b border-gray-100">
                     <tr>
