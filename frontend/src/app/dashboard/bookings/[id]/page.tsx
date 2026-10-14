@@ -16,7 +16,7 @@ import { DepositPanel } from "@/components/bookings/DepositPanel";
 import { ServiceRequestsPanel } from "@/components/bookings/ServiceRequestsPanel";
 import { ChangeGuestDialog } from "@/components/bookings/ChangeGuestDialog";
 import {
-  STATUS_OPTIONS, STATUS_STYLE, describeActivity, errorMessage, fmtDate,
+  STATUS_OPTIONS, STATUS_STYLE, LOAD_FAILURES, describeActivity, errorMessage, fmtDate, httpStatus, loadFailure,
   type BookingDetail,
 } from "@/lib/bookings";
 
@@ -44,9 +44,11 @@ export default function BookingPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: booking, isLoading, isError } = useQuery<BookingDetail>({
+  const { data: booking, isLoading, isError, error, refetch, isFetching } = useQuery<BookingDetail>({
     queryKey: ["booking", id],
     queryFn: () => api.get(`/bookings/${id}`).then(r => r.data),
+    // a definite answer (not found, no permission, signed out) will not change on retry; a network or server error might
+    retry: (count, err) => !LOAD_FAILURES.has(httpStatus(err) ?? 0) && count < 2,
     // pick up a Razorpay payment that arrives while the page is open
     refetchInterval: q => (q.state.data?.payment_links.some(l => l.status === "created") ? 20_000 : false),
   });
@@ -92,11 +94,24 @@ export default function BookingPage() {
   if (isLoading || !booking || !draft) {
     return (
       <div className="p-6 max-w-5xl mx-auto space-y-4">
-        {isError ? (
-          <div className="text-center py-20 text-sm text-gray-500">
-            Booking not found. <Link href="/dashboard/bookings" className="text-teal-600 font-medium hover:underline">Back to bookings</Link>
-          </div>
-        ) : (
+        {isError ? (() => {
+          const f = loadFailure(error);
+          return (
+            <div role="alert" className="py-16 text-center">
+              <p className="text-base font-semibold text-gray-800">{f.title}</p>
+              <p className="mt-1 text-sm text-gray-500">{f.body}</p>
+              <div className="mt-4 flex items-center justify-center gap-4">
+                {f.retry && (
+                  <button type="button" onClick={() => refetch()} disabled={isFetching}
+                    className="min-h-11 rounded-lg bg-teal-600 px-4 text-sm font-semibold text-white disabled:opacity-60">
+                    {isFetching ? "Trying…" : "Try again"}
+                  </button>
+                )}
+                <Link href="/dashboard/bookings" className="inline-flex min-h-11 items-center text-sm font-medium text-teal-600 hover:underline">Back to bookings</Link>
+              </div>
+            </div>
+          );
+        })() : (
           <>
             <Skeleton className="h-10 w-72" />
             <Skeleton className="h-64 rounded-xl" />

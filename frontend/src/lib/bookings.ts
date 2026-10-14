@@ -138,6 +138,20 @@ export const PRICE_TYPE_LABEL: Record<string, string> = {
   per_stay: "per stay", per_night: "per night", per_person: "per person", per_unit: "each",
 };
 
+/** Answers that will not change on retry: signed out, no permission, no such booking. */
+export const LOAD_FAILURES = new Set([401, 403, 404]);
+export const httpStatus = (e: unknown): number | undefined => (e as { response?: { status?: number } })?.response?.status;
+
+/** Say what actually went wrong when a booking will not open: only a 404 means it is missing. */
+export function loadFailure(e: unknown): { title: string; body: string; retry: boolean } {
+  const status = httpStatus(e);
+  if (status === 404) return { title: "Booking not found", body: "It may have been deleted, or the link belongs to another workspace.", retry: false };
+  if (status === 403) return { title: "You don't have access to bookings", body: "Ask an owner or manager to give your role the Bookings permission.", retry: false };
+  if (status === 401) return { title: "You've been signed out", body: "Sign in again to open this booking.", retry: false };
+  if (status === undefined) return { title: "Couldn't reach the server", body: "Check your connection and try again.", retry: true };
+  return { title: "Couldn't load this booking", body: `The server answered with an error (${status}). Try again in a moment.`, retry: true };
+}
+
 export function errorMessage(e: unknown, fallback: string): string {
   const d = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
   if (typeof d === "string") return d;

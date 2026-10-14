@@ -303,8 +303,8 @@ export default function ReportsPage() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="px-6 py-5 bg-white border-b border-gray-100 flex-shrink-0">
-        <div className="flex items-center justify-between">
+      <div className="px-3 py-2 sm:px-6 sm:py-5 bg-white border-b border-gray-100 flex-shrink-0">
+        <div className="hidden items-center justify-between sm:flex">
           <div>
             <h1 className="haip-page-title">Reports</h1>
             <p className="text-sm text-gray-400 mt-0.5">
@@ -314,7 +314,7 @@ export default function ReportsPage() {
         </div>
 
         {/* Step tracker */}
-        <div className="flex items-center gap-2 mt-4">
+        <div className="flex items-center gap-2 sm:mt-4">
           {[
             { n: 1, label: "Choose type" },
             { n: 2, label: "Date range" },
@@ -337,8 +337,8 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-4xl space-y-5">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-6">
+        <div className="max-w-4xl space-y-4 sm:space-y-5">
 
           {/* Quick reports */}
           {presets.length > 0 && (

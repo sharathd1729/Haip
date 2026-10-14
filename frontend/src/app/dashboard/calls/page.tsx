@@ -214,9 +214,9 @@ export default function CallsPage() {
   <div className="haip-calls-v2 h-full flex overflow-hidden bg-background">
   <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
   {/* Header */}
-  <div className="px-4 sm:px-5 pt-4 pb-3 space-y-3 flex-shrink-0">
+  <div className="px-3 sm:px-5 pt-2 sm:pt-4 pb-2 sm:pb-3 space-y-2 sm:space-y-3 flex-shrink-0">
   <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-  <h1 className="haip-page-title">Calls</h1>
+  <h1 className="haip-page-title hidden sm:block">Calls</h1>
   <div className="flex items-center gap-2">
   <div className="relative flex-1 sm:w-64 sm:flex-none">
   <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--haip-fg-subtle)" }} />

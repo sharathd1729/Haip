@@ -465,20 +465,21 @@ export default function Leads360Page() {
           on mobile -- forced onto one row, the stage-pill scroller crowded
           the title with almost no breathing room at 375px. */}
       <div
-        className="flex-shrink-0 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between px-5 py-3.5"
+        className="flex-shrink-0 flex flex-col gap-1.5 sm:gap-2.5 sm:flex-row sm:items-center sm:justify-between px-3 py-2 sm:px-5 sm:py-3.5"
         style={{
           background: "var(--haip-card)",
           borderBottom: "1px solid var(--haip-border)",
         }}
       >
         {/* Title */}
-        <div className="flex items-center gap-2.5">
+        {/* On a phone the top bar already names the page, so the title (and its description) only show from sm up */}
+        <div className="hidden items-center gap-2.5 sm:flex">
           <Target size={16} style={{ color: "var(--primary)" }} />
           <div>
             <h1 className="haip-page-title">
               Leads360
             </h1>
-            <p className="text-xs" style={{ color: "var(--haip-fg-muted)" }}>
+            <p className="hidden text-xs sm:block" style={{ color: "var(--haip-fg-muted)" }}>
               {view === "action" ? "What to do next, most urgent first" : `${total} lead${total === 1 ? "" : "s"} on the board${stageFilter === ALL_STAGES_ID ? "" : " in this stage"}`}
             </p>
           </div>
@@ -486,7 +487,7 @@ export default function Leads360Page() {
 
         {/* Controls: wrap on narrow screens instead of running off the edge */}
         <div className="flex flex-wrap items-center gap-2">
-          <div role="tablist" aria-label="Leads view" className="flex flex-shrink-0 rounded-lg p-0.5" style={{ background: "var(--muted)" }}>
+          <div role="tablist" aria-label="Leads view" className="order-1 sm:order-none flex flex-shrink-0 rounded-lg p-0.5" style={{ background: "var(--muted)" }}>
             {([["action", "Needs action"], ["pipeline", "Pipeline"]] as const).map(([key, label]) => (
               <button
                 key={key}
@@ -504,7 +505,7 @@ export default function Leads360Page() {
           </div>
 
           {view === "pipeline" && (<>
-          <div role="group" aria-label="Layout" className="flex flex-shrink-0 rounded-lg p-0.5" style={{ background: "var(--muted)" }}>
+          <div role="group" aria-label="Layout" className={cn("order-5 sm:order-none flex-shrink-0 rounded-lg p-0.5", layout === "board" ? "hidden md:flex" : "flex")} style={{ background: "var(--muted)" }}>
             {(["board", "table"] as const).map(l => (
               <button key={l} type="button" aria-pressed={layout === l} onClick={() => chooseLayout(l)}
                 className={cn("rounded-md px-3 min-h-11 sm:min-h-0 sm:py-1.5 text-xs font-semibold capitalize transition-colors",
@@ -514,7 +515,7 @@ export default function Leads360Page() {
             ))}
           </div>
           {/* Stage filter pills — scrollable on mobile */}
-          <div className="flex items-center gap-1 overflow-x-auto haip-scrollbar-x pb-0.5 max-w-full sm:max-w-md">
+          <div className="order-6 flex w-full items-center gap-1 overflow-x-auto haip-scrollbar-x pb-0.5 sm:order-none sm:w-auto sm:max-w-md">
             <button
               onClick={() => setStageFilter(ALL_STAGES_ID)}
               className="lx-stage-pill flex-shrink-0 text-xs px-3 min-h-11 lg:min-h-0 lg:py-1 lg:text-[10px] transition-colors duration-150"
@@ -544,8 +545,6 @@ export default function Leads360Page() {
                 </button>
               );
             })}
-          </div>
-
           {/* Assign-to-me visibility fix: one-click "mine" toggle, same
               quick-filter-chip idiom as ConversationList.tsx's "Assigned to
               Me" in the Inbox -- previously the only way to see your own
@@ -566,12 +565,14 @@ export default function Leads360Page() {
               Assigned to me
             </button>
           )}
+          </div>
+
           </>)}
 
           {/* Add lead manually */}
           <button
             onClick={() => setAddLeadOpen(true)}
-            className="lx-btn-add flex items-center gap-1.5 text-xs font-semibold px-3 min-h-11 sm:min-h-0 sm:py-1.5 transition-colors duration-150"
+            className="lx-btn-add order-2 sm:order-none flex items-center gap-1.5 text-xs font-semibold px-3 min-h-11 sm:min-h-0 sm:py-1.5 transition-colors duration-150"
             title="Add a lead manually"
           >
             <Plus size={12} />
@@ -581,7 +582,7 @@ export default function Leads360Page() {
           {/* Pipeline settings */}
           <button
             onClick={() => setSettingsOpen(true)}
-            className="lx-icon-btn w-7 h-7 flex items-center justify-center border transition-colors duration-150"
+            className="lx-icon-btn order-3 sm:order-none w-7 h-7 flex items-center justify-center border transition-colors duration-150"
             style={{ borderColor: "var(--haip-border)", color: "var(--haip-fg-subtle)" }}
             title="Configure pipeline stages"
           >
@@ -591,7 +592,7 @@ export default function Leads360Page() {
           {/* Refresh */}
           <button
             onClick={refetchAll}
-            className="lx-icon-btn w-7 h-7 flex items-center justify-center border transition-colors duration-150"
+            className="lx-icon-btn order-4 sm:order-none w-7 h-7 flex items-center justify-center border transition-colors duration-150"
             style={{ borderColor: "var(--haip-border)", color: isFetching ? "var(--lx-iris)" : "var(--haip-fg-subtle)" }}
             title="Refresh"
           >

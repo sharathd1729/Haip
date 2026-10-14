@@ -14,10 +14,11 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { addDays, format, parseISO, isToday } from "date-fns";
+import { addDays, addMonths, format, parseISO, isToday, startOfMonth, startOfWeek } from "date-fns";
 import { ChevronLeft, ChevronRight, Calendar, Users, TrendingUp, RefreshCw, CloudDownload, CheckCircle2, AlertCircle, LogIn, LogOut, Home, DollarSign, BarChart2, Eye, Phone, Hash } from "@/lib/icons";
 import { Bed } from "lucide-react";
-import { AgendaView, EntrySheet, type Entry } from "@/components/calendar/CalendarParts";
+import { EntrySheet, type Entry } from "@/components/calendar/CalendarParts";
+import { MonthGrid } from "@/components/calendar/MonthGrid";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useBusinessType } from "@/components/providers/WorkspaceProvider";
@@ -869,7 +870,8 @@ export default function PortfolioCalendarPage() {
   const isCaravan = businessType === "caravan";
   const LEGEND = useMemo(() => buildLegend(isCaravan), [isCaravan]);
   const CHANNEL_OPTS = useMemo(() => buildChannelOpts(isCaravan), [isCaravan]);
-  const [startDate, setStartDate]     = useState<Date>(() => { const d = new Date(); d.setDate(1); return d; });
+  // Opens a few days before today so the coming bookings are in view, not the days of this month already gone
+  const [startDate, setStartDate]     = useState<Date>(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return addDays(d, -3); });
   const [viewWindow, setViewWindow]   = useState<ViewWindow>("30");
   const [mode, setMode]               = useState<CalendarMode>("bookings");
   const [search, setSearch]           = useState("");
@@ -877,11 +879,13 @@ export default function PortfolioCalendarPage() {
   const [hovered, setHovered]         = useState<{ stay: StayBar; pos: { x: number; y: number } } | null>(null);
   const [opened, setOpened]           = useState<Entry | null>(null);
   const [fullscreen, setFullscreen]   = useState(false);
-  // Phones get the agenda list (a 30-column grid is unusable at 375px); tablets and up keep the timeline.
+  // Phones get a month grid for one property (a 30-column timeline is unusable at 375px); tablets and up keep the timeline.
   const [isPhone, setIsPhone]         = useState(false);
+  const [monthStart, setMonthStart]   = useState<Date>(() => startOfMonth(new Date()));
+  const [propertyId, setPropertyId]   = useState("");
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
-    const apply = () => { setIsPhone(mq.matches); if (mq.matches) { setViewWindow("14"); setStartDate(new Date()); } };   // a phone opens on today, not on the 1st
+    const apply = () => setIsPhone(mq.matches);
     apply();
     mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
@@ -898,9 +902,12 @@ export default function PortfolioCalendarPage() {
   const headerRef    = useRef<HTMLDivElement>(null);   // header date columns (x sync)
 
   // Date range
-  const numDays  = VIEW_DAYS[viewWindow];
-  const fromDate = format(startDate, "yyyy-MM-dd");
-  const toDate   = format(addDays(startDate, numDays), "yyyy-MM-dd");
+  // Phone: the six weeks of the shown month (starting on the Monday before the 1st); desktop: the chosen window.
+  const gridStart = useMemo(() => startOfWeek(monthStart, { weekStartsOn: 1 }), [monthStart]);
+  const numDays  = isPhone ? 42 : VIEW_DAYS[viewWindow];
+  const rangeStart = isPhone ? gridStart : startDate;
+  const fromDate = format(rangeStart, "yyyy-MM-dd");
+  const toDate   = format(addDays(rangeStart, numDays), "yyyy-MM-dd");
 
   // Data
   const { data, isLoading, isError, refetch, isFetching } = useQuery<CalendarResponse>({
@@ -935,6 +942,9 @@ export default function PortfolioCalendarPage() {
     }
     return list;
   }, [data?.properties, search, channelFilter]);
+
+  // Phone grid shows one property at a time: the chosen one, else the first
+  const selected = properties.find(p => p.property_id === propertyId) ?? properties[0];
 
   // Max rate (for revenue mode heatmap scale)
   const maxRate = useMemo(() =>
@@ -999,8 +1009,38 @@ export default function PortfolioCalendarPage() {
       )}
 
       {/* ── Controls ─────────────────────────────────────────── */}
-      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-4 py-2.5 space-y-2">
-        <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-3 py-2 md:px-4 md:py-2.5 space-y-2">
+        {/* Phone: month navigation + property + channel in two short rows */}
+        {isPhone && (
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-1.5">
+              <button onClick={() => setMonthStart(m => addMonths(m, -1))} aria-label="Previous month"
+                className="flex h-11 w-11 items-center justify-center rounded-xl bg-gray-100 text-gray-700 active:bg-gray-200"><ChevronLeft size={18} /></button>
+              <h2 className="min-w-0 flex-1 text-center text-base font-bold text-gray-800" aria-live="polite">{format(monthStart, "MMMM yyyy")}</h2>
+              <button onClick={() => setMonthStart(m => addMonths(m, 1))} aria-label="Next month"
+                className="flex h-11 w-11 items-center justify-center rounded-xl bg-gray-100 text-gray-700 active:bg-gray-200"><ChevronRight size={18} /></button>
+              <button onClick={() => setMonthStart(startOfMonth(new Date()))}
+                className="h-11 rounded-xl bg-gray-100 px-3 text-xs font-semibold text-gray-700 active:bg-gray-200">Today</button>
+              <button onClick={() => refetch()} aria-label="Refresh" className="flex h-11 w-11 items-center justify-center rounded-xl text-gray-500 active:bg-gray-100">
+                <RefreshCw size={14} className={isFetching ? "animate-spin" : ""} />
+              </button>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <select value={selected?.property_id ?? ""} onChange={e => setPropertyId(e.target.value)} aria-label="Property"
+                className="min-h-11 min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-2 text-base text-gray-800 outline-none focus:ring-2 focus:ring-teal-300">
+                {properties.length === 0 && <option value="">No properties</option>}
+                {properties.map(p => <option key={p.property_id} value={p.property_id}>{p.property_name}</option>)}
+              </select>
+              {!isCaravan && (
+                <select value={channelFilter} onChange={e => setChan(e.target.value)} aria-label="Channel"
+                  className="min-h-11 w-32 rounded-xl border border-gray-200 bg-white px-2 text-base text-gray-700 outline-none focus:ring-2 focus:ring-teal-300">
+                  {CHANNEL_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              )}
+            </div>
+          </div>
+        )}
+        <div className={cn("flex items-center gap-2 flex-wrap", isPhone && "hidden")}>
 
           {/* Mode tabs (timeline only: the phone agenda has nothing to switch) */}
           <div className="hidden md:flex items-center bg-gray-100 rounded-xl p-0.5">
@@ -1129,9 +1169,11 @@ export default function PortfolioCalendarPage() {
               <span className="text-[10px] text-gray-500">{l.label}</span>
             </div>
           ))}
-          <span className="text-[10px] text-gray-400 ml-auto tabular-nums">
-            {properties.length} {properties.length === 1 ? "property" : "properties"} · {days.length} days
-          </span>
+          {!isPhone && (
+            <span className="text-[10px] text-gray-400 ml-auto tabular-nums">
+              {properties.length} {properties.length === 1 ? "property" : "properties"} · {days.length} days
+            </span>
+          )}
         </div>
       </div>
 
@@ -1147,9 +1189,13 @@ export default function PortfolioCalendarPage() {
         <div className="flex-1 overflow-y-auto overscroll-contain">
           {isLoading ? (
             <div className="space-y-2 p-4">{[0, 1, 2].map(i => <div key={i} className="h-14 animate-pulse rounded-xl bg-gray-100" />)}</div>
+          ) : !selected ? (
+            <p className="px-4 py-10 text-center text-sm text-gray-500">
+              {search || channelFilter ? "No property matches this channel. Choose “All channels”." : "No properties yet. Add them in Portfolio settings."}
+            </p>
           ) : (
-            <AgendaView
-              rows={properties} from={fromDate} to={toDate} onOpen={setOpened}
+            <MonthGrid
+              row={selected} monthStart={monthStart} gridStart={gridStart} onOpen={setOpened}
               chColor={src => { const c = chConfig(src); return { bg: c.bg, text: c.text }; }}
               channelLabel={src => chConfig(src).label}
             />
