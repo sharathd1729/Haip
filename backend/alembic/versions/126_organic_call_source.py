@@ -3,12 +3,16 @@
 An inbound call that arrived with no ad or campaign behind it. Existing rows are NOT re-labelled: a lead keeps the source it
 was recorded with. PostgreSQL only; SQLite stores the enum as text and needs nothing.
 
-Revision ID: 122
+Revision ID: 126
 Revises: 121
+
+Numbering: 122-125 belong to the lead-identification, knowledge and business-data branches (feat/mai3-reliability,
+feat/ratha-business-data). This revision is 126 so it sorts after them; until those branches merge it hangs off 121, and the
+merge needs alembic/proposed/127_merge_heads.py (two heads: 125 and 126).
 """
 from alembic import op
 
-revision = "122"
+revision = "126"
 down_revision = "121"
 branch_labels = None
 depends_on = None

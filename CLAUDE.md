@@ -1,5 +1,5 @@
 # HAIP — Claude Code Working Instructions
-**Version**: 2.3 · **Owner**: Sharath D. · **Updated**: 14 Oct 2026 (Alembic head `122`)
+**Version**: 2.3 · **Owner**: Sharath D. · **Updated**: 14 Oct 2026 (Alembic head `126`)
 **Reference docs**: HAIP_FULL_BUILD_PLAN.md · architecture-delta.md · execution-plan.md · docs/HAIP_Module_Audit_M0.md (module status matrix, 11 Oct 2026 — update statuses as gaps close)
 
 **KEEP THIS FILE CURRENT — standing rule from the owner.** When a change adds or alters a
@@ -39,7 +39,7 @@ replies, unified lead record across every touchpoint.
   links). Overlap with a HAIP booking raises a high-priority task. (Two-way Google Calendar: planned, not built.)
   **Shared calendar** [120]: one link, several vehicles (`ical_feed_vehicles` keywords, whole-word; no match = all held + a "Which vehicle?" task).
   Trip dates in the description widen the block (`ical_event_details.py`); details show on the calendar (amounts: `revenue.read`).
-  **Lead attribution (Oct 14)**: `inquiry_service._stage_id_for` resolves legacy stages by meaning (valid-entry / closed-won / closed-lost), never to a gone key; the stage chips apply the list's filters; a manual booking links to the guest's one open lead (or `inquiry_id`) and marks it Sold; `organic_call` source [122] = inbound call with no ad behind it (older call leads keep their source); no source = "Not recorded". **Mobile shell**: bottom tabs Home/Inbox/Leads/Calendar/More; one `PeriodBar` (Today/7d/This month/Last month, per-device) on both Home views; calendar = agenda on phones, timeline above 768px, entries open booking/lead (`/calendar` returns `inquiry_id`). Campaign report has Replied (inbox match, 7 days).
+  **Lead attribution (Oct 14)**: `inquiry_service._stage_id_for` resolves legacy stages by meaning (valid-entry / closed-won / closed-lost), never to a gone key; the stage chips apply the list's filters; a manual booking links to the guest's one open lead (or `inquiry_id`) and marks it Sold; `organic_call` source [126] = inbound call with no ad behind it (older call leads keep their source); no source = "Not recorded". **Mobile shell**: bottom tabs Home/Inbox/Leads/Calendar/More; one `PeriodBar` (Today/7d/This month/Last month, per-device) on both Home views; calendar = agenda on phones, timeline above 768px, entries open booking/lead (`/calendar` returns `inquiry_id`). Campaign report has Replied (inbox match, 7 days).
   **Calendar bookings** [121]: a complete event becomes a `Stay` (`ical_booking_service.py`), tied to the guest's one open lead (marked Sold); no vehicle = "Unassigned", picked at check-in (`vehicle_pool.py`); a CRM edit locks it.
 - **Public API + webhooks** [112, 113]: `/api/public/v1` is a *separate* FastAPI app (`app/public_api/`). Scoped API keys (SHA-256 only, shown once, lookup via
   SECURITY DEFINER fn). Signed outbound webhooks (HMAC-SHA256 over `timestamp.body`, outbox written
@@ -405,7 +405,7 @@ commit, 10 s bounded wait; failures log `audit_chain_lock_failed`) and stamps `c
 writers form one chain. A transaction must never audit several tenants (deadlock): use one transaction per tenant.
 Row-level security: `alembic/proposed/118_*` is NOT applied; check the DB role with `backend/scripts/verify_rls_isolation.py`
 (read-only) and `docs/HAIP_Phase0_Production_Checklist.md` before assuming RLS protects anything. Migration 117 widens
-`calls.ai_score_status`; 119 grants foh `conversations.send` to existing tenants unless the owner edited that cell; 120-121 add the iCal vehicle/booking tables (new tables only); 122 (head) adds the `organic_call` source value. 118 is reserved for the proposed RLS file (re-parent on 122 when promoted). Roll code back with `alembic downgrade 116` first (checklist 11).
+`calls.ai_score_status`; 119 grants foh `conversations.send` to existing tenants unless the owner edited that cell; 120-121 add the iCal vehicle/booking tables (new tables only); 126 (head) adds the `organic_call` source value (hangs off 121; merging the 122-125 branches needs `alembic/proposed/127_merge_heads.py`). 118 is reserved for the proposed RLS file (re-parent on 126 when promoted). Roll code back with `alembic downgrade 116` first (checklist 11).
 **Sending needs `conversations.send`** (owner, manager, reservations, concierge, foh by default): `send_message`, `send_template`, `retry`,
 `approve` and both AI-rewrite POSTs use `require_capability`. A new default grant only reaches NEW tenants; existing ones need a data migration.
 **AI-rewrite tasks are bounded** (`rewrite_draft.py`): one provider request <= `REWRITE_TIMEOUT_SECONDS` (30 s, `asyncio.wait_for`), a timeout is never retried, the draft task retries a
