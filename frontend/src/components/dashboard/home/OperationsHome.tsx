@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import api from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { PeriodBar, PERIOD_PRESETS, usePersistedPeriod } from "@/components/dashboard/PeriodBar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { NeedsYouNowCards } from "@/components/dashboard/home/NeedsYouNowCards";
@@ -17,12 +17,7 @@ import { KpiTiles } from "@/components/dashboard/home/KpiTiles";
 import { RevenueChart, LeadFunnel, TeamTable, LeadSources, AiNoticed } from "@/components/dashboard/home/Panels";
 import type { OverviewResponse } from "@/components/dashboard/home/types";
 
-const RANGES = [
-  { value: "today", label: "Today" },
-  { value: "last_7d", label: "Last 7 days" },
-  { value: "this_month", label: "This month" },
-] as const;
-type RangeValue = (typeof RANGES)[number]["value"];
+const RANGES = PERIOD_PRESETS;
 
 const CHANNELS = [
   { value: "", label: "All channels" },
@@ -48,21 +43,19 @@ export function OperationsHome() {
   const qc = useQueryClient();
   const { toast } = useToast();
 
-  const [range, setRange] = useState<RangeValue>("last_7d");
+  const [range, setRange] = usePersistedPeriod("last_7d");
   const [channel, setChannel] = useState("");
 
-  // Remember the last range and channel on this device. Read after mount (not in the initial state)
-  // so the first render matches the server.
+  // The channel is remembered per device too (the period is remembered by usePersistedPeriod, shared with the owner view).
   useEffect(() => {
     try {
       const saved = JSON.parse(window.localStorage.getItem("haip_dashboard_filters") || "{}");
-      if (RANGES.some(r => r.value === saved.range)) setRange(saved.range);
       if (CHANNELS.some(c => c.value === saved.channel)) setChannel(saved.channel);
     } catch { /* storage unavailable: keep defaults */ }
   }, []);
   useEffect(() => {
-    try { window.localStorage.setItem("haip_dashboard_filters", JSON.stringify({ range, channel })); } catch { /* ignore */ }
-  }, [range, channel]);
+    try { window.localStorage.setItem("haip_dashboard_filters", JSON.stringify({ channel })); } catch { /* ignore */ }
+  }, [channel]);
   const [agentId, setAgentId] = useState("");
   const rangeLabel = RANGES.find(r => r.value === range)?.label ?? "";
 
@@ -121,18 +114,10 @@ export function OperationsHome() {
                 {team.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             )}
-            <div className="flex gap-1 p-1 rounded-xl" style={{ background: "var(--muted)" }} role="tablist" aria-label="Date range">
-              {RANGES.map(r => (
-                <button key={r.value} type="button" role="tab" aria-selected={range === r.value} onClick={() => setRange(r.value)}
-                  className={cn("text-xs font-bold px-3 py-1.5 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-teal-600",
-                    range === r.value ? "shadow-sm" : "hover:bg-[color:var(--haip-card)]")}
-                  style={range === r.value ? { background: "var(--haip-card)", color: "var(--primary)" } : { color: "var(--haip-fg-muted)" }}>
-                  {r.label}
-                </button>
-              ))}
-            </div>
           </div>
         </header>
+
+        <PeriodBar value={range} onChange={v => setRange(v as typeof range)} />
 
         {isError ? (
           <div className="haip-card p-8 text-center text-sm" style={{ color: "var(--haip-fg-muted)" }}>

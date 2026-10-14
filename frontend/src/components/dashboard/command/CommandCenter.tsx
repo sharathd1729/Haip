@@ -1,7 +1,7 @@
 "use client";
 // Owner Command Center: the landing page for owners and managers. Composes ONE server response
 // (GET /dashboard/business-overview); nothing on this page computes a business figure.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
@@ -18,6 +18,8 @@ import { KpiGrid } from "./KpiGrid";
 import { LeadFlow } from "./LeadFlow";
 import { Team } from "./Team";
 import { Controls, type Filters } from "./Controls";
+import { PeriodBar, usePersistedPeriod, type PeriodValue } from "../PeriodBar";
+import { periodLabel } from "./types";
 import { JourneyBand } from "./JourneyBand";
 import { Ledger } from "./Ledger";
 import { Trends } from "./Trends";
@@ -51,6 +53,22 @@ export function useBusinessOverview(f: Filters, enabled = true) {
   });
 }
 
+/** Why the overview did not load, in the words that fit the cause (a 403 can be the workspace's plan or the person's role). */
+export function overviewProblem(error: unknown): { title: string; body: string; canRetry: boolean } {
+  const res = (error as { response?: { status?: number; data?: { detail?: unknown } } } | null)?.response;
+  const detail = res?.data?.detail;
+  if (res?.status === 403 && detail && typeof detail === "object" && (detail as { error?: string }).error === "module_not_enabled") {
+    return { title: "Analytics isn’t switched on for this workspace.", body: "Ask your HAIP account manager to enable it. Your team’s work queue and calls are still available below.", canRetry: false };
+  }
+  if (res?.status === 403) {
+    return { title: "Your role doesn’t include the business overview.", body: "You can still see your own work queue, calls and leads. Ask an owner if you need the overview.", canRetry: false };
+  }
+  if (res?.status === 401) {
+    return { title: "You’ve been signed out.", body: "Sign in again to see the overview.", canRetry: false };
+  }
+  return { title: "The business overview didn’t load.", body: "Check your connection and try again.", canRetry: true };
+}
+
 function Loading() {
   return (
     <div className="space-y-5" aria-busy="true" aria-label="Loading the business overview">
@@ -67,10 +85,14 @@ export function CommandCenter() {
   const { data: session } = useSession();
   const firstName = (session?.user?.name || "").split(" ")[0];
   const [filters, setFilters] = useState<Filters>(INITIAL);
+  const [remembered, remember] = usePersistedPeriod("this_month");
+  // The remembered period applies once it has been read from this device; "custom" is never remembered.
+  useEffect(() => { setFilters(f => (f.preset === "custom" || f.preset === remembered ? f : { ...f, preset: remembered })); }, [remembered]);
+  const pickPeriod = (v: string) => { setFilters(f => ({ ...f, preset: v })); if (v !== "custom") remember(v as PeriodValue); };
   const qc = useQueryClient();
   const { toast } = useToast();
 
-  const { data, isLoading, isError, isFetching, isPlaceholderData, refetch } = useBusinessOverview(filters);
+  const { data, error, isLoading, isError, isFetching, isPlaceholderData, refetch } = useBusinessOverview(filters);
   const tenantWide = data?.access.tenant_wide ?? true;
 
   const { data: properties = [] } = useQuery<{ id: string; name: string }[]>({
@@ -103,6 +125,9 @@ export function CommandCenter() {
           </div>
         </header>
 
+        <PeriodBar custom value={filters.preset} onChange={pickPeriod}
+          caption={data ? <><span className="font-semibold text-[var(--haip-fg-2)]">{periodLabel(data.period.date_from, data.period.date_to)}</span> · India time (IST), full days · compared with the equal period before it</> : undefined} />
+
         <Controls value={filters} onChange={setFilters} properties={properties} agents={agents}
           from={data?.period.date_from} to={data?.period.date_to} tenantWide={tenantWide} />
 
@@ -114,13 +139,21 @@ export function CommandCenter() {
           </p>
         )}
 
-        {isError && !data ? (
-          <div className="haip-card px-6 py-10 text-center" role="alert">
-            <p className="text-[15px] font-semibold text-[var(--haip-fg)]">The business overview didn’t load.</p>
-            <p className="mt-1 text-[13px] text-[var(--haip-fg-subtle)]">Check your connection and try again. If it keeps failing, your role may not include analytics.</p>
-            <button type="button" onClick={() => refetch()} className="mt-4 inline-flex h-10 items-center rounded-lg bg-primary px-4 text-[13px] font-semibold text-primary-foreground active:scale-[0.98]">Try again</button>
-          </div>
-        ) : isLoading || !data ? (
+        {isError && !data ? (() => {
+          const problem = overviewProblem(error);
+          return (
+            <div className="haip-card px-6 py-10 text-center" role="alert">
+              <p className="text-[15px] font-semibold text-[var(--haip-fg)]">{problem.title}</p>
+              <p className="mt-1 text-[13px] text-[var(--haip-fg-subtle)]">{problem.body}</p>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                {problem.canRetry && (
+                  <button type="button" onClick={() => refetch()} className="inline-flex min-h-11 items-center rounded-lg bg-primary px-4 text-[13px] font-semibold text-primary-foreground active:scale-[0.98]">Try again</button>
+                )}
+                <Link href="/dashboard/operations" className="inline-flex min-h-11 items-center rounded-lg border border-[var(--haip-border)] px-4 text-[13px] font-semibold">Open my team and calls view</Link>
+              </div>
+            </div>
+          );
+        })() : isLoading || !data ? (
           <Loading />
         ) : (
           <div className={isPlaceholderData ? "space-y-4 opacity-60 motion-safe:transition-opacity motion-safe:duration-150 sm:space-y-5" : "space-y-4 motion-safe:transition-opacity motion-safe:duration-150 sm:space-y-5"}>

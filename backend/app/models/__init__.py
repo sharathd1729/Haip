@@ -24,6 +24,7 @@ from app.models.wa_campaign_recipient import WACampaignRecipient
 from app.models.ad_metrics import AdMetric
 from app.models.ad_entity import AdEntity
 from app.models.guest_merge_event import GuestMergeEvent
+from app.models.business_record import BusinessRecord
 from app.models.ical_feed import ICalEventBooking, ICalEventDetail, ICalFeed, ICalFeedVehicle
 from app.models.api_key import ApiKey
 from app.models.webhook import WebhookDelivery, WebhookEndpoint
@@ -38,6 +39,7 @@ from app.models.lead_attribution import LeadAttribution
 from app.models.whatsapp_personal_session import WhatsAppPersonalSession, WhatsAppPersonalSessionStatus
 
 __all__ = [
+    "BusinessRecord",
     "Tenant", "User", "RefreshToken", "UserInvitation",
     "Guest", "Property", "RatePlan", "Stay",
     "Inquiry", "InquiryStageLog", "InquiryQuote",

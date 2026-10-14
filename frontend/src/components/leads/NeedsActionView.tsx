@@ -343,8 +343,10 @@ export function NeedsActionView({ onOpenPipeline }: { onOpenPipeline?: (f: Leads
     // hook's invalidation refresh this view too.
     queryKey: ["leads", "needs-action"],
     queryFn: () => api.get("/leads/needs-action").then(r => r.data),
-    staleTime: 30_000,
+    staleTime: 10_000,
     refetchInterval: 60_000,
+    refetchOnWindowFocus: true,       // see the pipeline query: pick-up on another device must show the latest
+    refetchOnReconnect: true,
   });
 
   const flat = useMemo(

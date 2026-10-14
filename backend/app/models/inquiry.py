@@ -39,6 +39,8 @@ class InquirySource(str, enum.Enum):
     OTA_GOIBIBO     = "ota_goibibo"
     CHANNEL_MANAGER = "channel_manager"
     WEB_CHAT        = "web_chat"
+    # An inbound call with no ad or campaign behind it (migration 122). Older call leads keep the source they were recorded with.
+    ORGANIC_CALL    = "organic_call"
 
 
 class LostReason(str, enum.Enum):

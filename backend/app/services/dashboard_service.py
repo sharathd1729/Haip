@@ -35,12 +35,28 @@ _SOURCE_GROUPS = {
     "meta_fb": ("facebook", "Facebook"),
     "wa_direct": ("whatsapp", "WhatsApp"),
     "click_to_wa": ("whatsapp", "WhatsApp"),
+    # Calls: "organic_call" is an inbound call that arrived with no ad or campaign behind it (set when HAIP creates the lead
+    # from the call). Older call leads keep their recorded source and stay under "Phone calls": they are not re-labelled.
+    "organic_call": ("organic_call", "Organic calls"),
     "phone": ("call", "Phone calls"),
     "inbound_call": ("call", "Phone calls"),
     "outbound_call": ("call", "Phone calls"),
     "website": ("website", "Website"),
     "google": ("website", "Website"),
+    "web_chat": ("website", "Website"),
+    "email": ("email", "Email"),
+    "walk_in": ("walk_in", "Walk-in"),
+    "referral": ("referral", "Referral & agents"),
+    "travel_agent": ("referral", "Referral & agents"),
+    "ota_airbnb": ("ota", "OTAs & channel managers"),
+    "ota_booking": ("ota", "OTAs & channel managers"),
+    "ota_vrbo": ("ota", "OTAs & channel managers"),
+    "ota_mmt": ("ota", "OTAs & channel managers"),
+    "ota_goibibo": ("ota", "OTAs & channel managers"),
+    "channel_manager": ("ota", "OTAs & channel managers"),
 }
+# A lead with no recorded source is shown as such. It is never guessed into a real channel.
+UNKNOWN_SOURCE = ("other", "Not recorded")
 
 
 def _aware(dt: Optional[datetime]) -> Optional[datetime]:
@@ -157,7 +173,7 @@ def lead_sources(db: Session, tid: str, scope_user_id: Optional[str], range_star
     grouped: dict[str, list] = {}
     for source, n in q.group_by(Inquiry.source).all():
         raw = str(getattr(source, "value", source) or "other")
-        key, label = _SOURCE_GROUPS.get(raw, ("other", "Other"))
+        key, label = _SOURCE_GROUPS.get(raw, UNKNOWN_SOURCE)
         if key not in grouped:
             grouped[key] = [label, 0]
         grouped[key][1] += n

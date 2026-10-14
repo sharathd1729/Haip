@@ -152,7 +152,7 @@ def find_lead(db: Session, stay: Stay, today: date) -> tuple[Optional[Inquiry], 
     return (close[0], False) if len(close) == 1 else (None, True)
 
 
-def link_lead(db: Session, stay: Stay, today: date) -> Optional[str]:
+def link_lead(db: Session, stay: Stay, today: date, reason: str = "Booked through Google Calendar") -> Optional[str]:
     """Tie the booking to its lead and mark the lead Sold. Returns the lead id, or None. Never raises: the booking stands."""
     try:
         lead, ambiguous = find_lead(db, stay, today)
@@ -169,7 +169,7 @@ def link_lead(db: Session, stay: Stay, today: date) -> Optional[str]:
         if won is not None:
             from app.services import inquiry_service
             inquiry_service.update_stage_by_id(db, tenant_id=stay.tenant_id, inquiry_id=lead.id, new_stage_id=won.id,
-                                               actor_user_id=None, actor_role="system", reason="Booked through Google Calendar")
+                                               actor_user_id=None, actor_role="system", reason=reason)
         return lead.id
     except Exception as exc:  # noqa: BLE001
         log.warning("ical_booking_lead_link_failed", stay_id=stay.id, error=str(exc)[:200])

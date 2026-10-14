@@ -1,14 +1,16 @@
+import hashlib
 import uuid
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy import update
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from app.core.database import get_db
 from app.api.v1.deps import get_current_user
 from app.services.authz_service import require_capability
 from app.models.user import User
-from app.models.conversation import Conversation, Message, MessageDeliveryState
-from app.schemas.conversation import MessageOut, SendMessageRequest, AIDraftRequest, ConversationOut, SendTemplateRequest, ApproveDraftRequest, RewriteDraftRequest, ComposerRewriteRequest
+from app.models.conversation import Conversation, Message, MessageDeliveryState, MessageDirection
+from app.schemas.conversation import MessageOut, SendMessageRequest, AIDraftRequest, ConversationOut, SendTemplateRequest, ApproveDraftRequest, RejectDraftRequest, RewriteDraftRequest, ComposerRewriteRequest
 from app.workers.tasks.concierge_draft import concierge_draft
 from app.services import ai_draft_outcomes_service
 import structlog
@@ -391,6 +393,22 @@ def get_conversation_timeline_endpoint(
     return result
 
 
+def _refresh_lead_summary(db, conv, tenant_id: str) -> None:
+    """A message the team sends changes the lead's analysis too (what has been answered, what to do next).
+
+    Only inbound messages used to refresh it -- and only when an AI draft was written for them -- so the analysis could go on
+    describing a question the team had already answered. Debounced like every message-triggered refresh; never blocks a send.
+    """
+    inquiry_id = getattr(conv, "inquiry_id", None)
+    if not inquiry_id:
+        return
+    try:
+        from app.services.leads_service import trigger_summary_refresh
+        trigger_summary_refresh(db, str(inquiry_id), tenant_id, source="message")
+    except Exception as exc:
+        log.warning("send_summary_refresh_skipped", conversation_id=str(conv.id), error=str(exc))
+
+
 @router.post("/{conversation_id}/messages", response_model=MessageOut, status_code=201)
 def send_message(
     conversation_id: str,
@@ -474,6 +492,8 @@ def send_message(
         claim_on_first_touch(db, current_user.tenant_id, conv.guest_id, current_user.id)
     db.commit()
     db.refresh(msg)
+    if not body.is_internal:
+        _refresh_lead_summary(db, conv, current_user.tenant_id)
 
     log.info(
         "send_message_created",
@@ -615,6 +635,8 @@ def request_ai_draft(
     body: AIDraftRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    # A draft request spends provider credit, so it needs the same capability as sending a message (as the rewrite endpoints do).
+    _cap=Depends(require_capability("conversations.send")),
 ):
     conv = db.query(Conversation).filter_by(id=conversation_id, tenant_id=current_user.tenant_id).first()
     if not conv:
@@ -626,6 +648,7 @@ def request_ai_draft(
         conversation_id=conversation_id,
         tenant_id=current_user.tenant_id,
         tone=body.tone,
+        force=True,   # an agent asked for a draft: write one even if the guest's last message already has one
     )
     return {"status": "draft_queued", "draft_id": draft_id}
 
@@ -1002,6 +1025,43 @@ def get_conversation_detail(
     }
 
 
+def _body_sha256(text: Optional[str]) -> str:
+    return hashlib.sha256((text or "").encode("utf-8")).hexdigest()
+
+
+def _draft_error(status: int, code: str, message: str, **extra) -> HTTPException:
+    return HTTPException(status_code=status, detail={"code": code, "message": message, **extra})
+
+
+def _load_ai_draft(db: Session, tenant_id: str, conversation_id: str, message_id: str) -> Message:
+    """The message, if it is an AI-written outbound message of THIS tenant and conversation. 404 otherwise; 409 for any other
+    message (inbound, or written by a person): approve/reject must never touch those."""
+    msg = db.query(Message).filter_by(id=message_id, conversation_id=conversation_id, tenant_id=tenant_id).first()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if msg.direction != MessageDirection.OUTBOUND or not msg.is_ai_generated:
+        raise _draft_error(409, "not_a_draft", "Only an AI draft can be approved or rejected.")
+    return msg
+
+
+def _pending_draft_conditions(tenant_id: str, conversation_id: str, message_id: str) -> tuple:
+    """A draft that nobody has acted on and that has not been sent. Used as the WHERE of the guarded UPDATE that approve and
+    reject run: the database, not a read in Python, decides who wins when two requests arrive together."""
+    return (
+        Message.id == message_id, Message.tenant_id == tenant_id, Message.conversation_id == conversation_id,
+        Message.direction == MessageDirection.OUTBOUND, Message.is_ai_generated.is_(True),
+        Message.was_approved.is_(None), Message.channel_message_id.is_(None),
+    )
+
+
+def _not_pending_error(msg: Message) -> HTTPException:
+    if msg.was_approved is False:
+        return _draft_error(409, "draft_rejected", "This draft was rejected.", state="rejected")
+    if msg.was_approved is True:
+        return _draft_error(409, "draft_already_approved", "This draft was already approved.", state="approved")
+    return _draft_error(409, "draft_not_pending", "This draft can no longer be changed.", state="sent")
+
+
 @router.post("/{conversation_id}/messages/{message_id}/approve")
 def approve_ai_draft(
     conversation_id: str,
@@ -1013,75 +1073,104 @@ def approve_ai_draft(
     # Checked as a dependency, i.e. before the body runs and before anything is queued or delivered.
     _cap=Depends(require_capability("conversations.send")),
 ):
-    msg = db.query(Message).filter_by(
-        id=message_id, conversation_id=conversation_id, tenant_id=current_user.tenant_id
-    ).first()
-    if not msg:
-        raise HTTPException(status_code=404, detail="Message not found")
+    """Approve a pending AI draft, optionally with edited text, and queue exactly one send.
 
-    # This unconditionally dispatched send_whatsapp regardless of the
-    # conversation's actual channel -- confirmed live: approving a draft on
-    # an Instagram (or any non-WhatsApp) conversation queued a WhatsApp send
-    # against a guest who often has no phone signal at all, which failed
-    # silently in the background task while the UI had already shown
-    # "Draft approved & sent". Route by the conversation's real channel and
-    # fail loudly for channels with no outbound-send task built yet, rather
-    # than misdispatching through WhatsApp.
-    conversation = db.query(Conversation).filter_by(
-        id=conversation_id, tenant_id=current_user.tenant_id
-    ).first()
+    The state change is a single guarded UPDATE (draft is AI-written, outbound, not yet approved/rejected, not sent, and its
+    text is still the text the caller saw). Of two simultaneous approvals exactly one updates a row and queues the send; the
+    other is answered from the stored state (the same person re-approving the same text gets 200 `already_approved`, anything
+    else 409). Messages that are not AI drafts, and drafts that were already sent or rejected, are refused and left untouched.
+    """
+    tenant_id = current_user.tenant_id
+    msg = _load_ai_draft(db, tenant_id, conversation_id, message_id)
+
+    seen_body = msg.body
+    if body.expected_body_sha256 and body.expected_body_sha256.lower() != _body_sha256(seen_body):
+        raise _draft_error(409, "draft_changed", "The draft changed after you opened it. Review the new text and approve again.")
+    new_body = body.text if body.text is not None else seen_body
+    if not (new_body or "").strip():
+        raise HTTPException(status_code=422, detail="Cannot send an empty message")
+    was_edited = body.text is not None and body.text != seen_body
+
+    # This used to dispatch send_whatsapp regardless of the conversation's actual channel -- confirmed live: approving a draft
+    # on an Instagram (or any non-WhatsApp) conversation queued a WhatsApp send against a guest who often has no phone signal.
+    # Route by the conversation's real channel and fail loudly for channels with no outbound-send task.
+    conversation = db.query(Conversation).filter_by(id=conversation_id, tenant_id=tenant_id).first()
     channel = conversation.channel.value if conversation and hasattr(conversation.channel, "value") else (
         conversation.channel if conversation else None
     )
 
-    original_body = msg.body
-    was_edited = body.text is not None and body.text != original_body
-    if body.text is not None:
-        msg.body = body.text
+    # The text is part of the guard: if rewrite_draft (or anyone) changed it since it was read above, nothing is updated.
+    body_matches = Message.body.is_(None) if seen_body is None else (Message.body == seen_body)
+    claimed = db.execute(
+        update(Message)
+        .where(*_pending_draft_conditions(tenant_id, conversation_id, message_id), body_matches)
+        .values(was_approved=True, sender_id=current_user.id, delivery_state=MessageDeliveryState.QUEUED, body=new_body)
+        .execution_options(synchronize_session=False)
+    ).rowcount
+    if claimed != 1:
+        db.expire_all()      # nothing was updated; re-read the committed state (no rollback: it would also discard the caller's own work)
+        msg = _load_ai_draft(db, tenant_id, conversation_id, message_id)
+        if msg.was_approved is True and msg.sender_id == current_user.id and msg.body == new_body:
+            return {"status": "already_approved"}      # a double click or a retry: no second send
+        if msg.was_approved is None and msg.channel_message_id is None and msg.body != seen_body:
+            raise _draft_error(409, "draft_changed", "The draft changed after you opened it. Review the new text and approve again.")
+        raise _not_pending_error(msg)
+    db.refresh(msg)
 
-    msg.was_approved = True
-    msg.sender_id = current_user.id
-    msg.delivery_state = MessageDeliveryState.QUEUED
-    # Real bug, reported live: this used to set conversation.human_owned =
-    # True unconditionally, which permanently downgraded the conversation
-    # to manual-only for every future guest message -- even on tenants
-    # configured for full autonomous mode, and even though approving a
-    # draft isn't a human "taking over," it's a human reviewing one reply.
-    # Confirmed product decision: the bot should keep answering every
-    # query autonomously through the whole info-gathering phase regardless
-    # of how many drafts get approved -- see ai_mode_service.py's
-    # docstring for the real handoff signals this no longer includes.
-
+    # Real bug, reported live: this used to set conversation.human_owned = True, permanently downgrading the conversation to
+    # manual-only. Approving a draft is one human reviewing one reply, not taking over -- see ai_mode_service.py.
     ai_draft_outcomes_service.record_outcome(
-        db, tenant_id=current_user.tenant_id, draft=msg,
+        db, tenant_id=tenant_id, draft=msg,
         outcome="sent_edited" if was_edited else "sent_verbatim",
-        original_body=original_body if was_edited else None,
+        original_body=seen_body if was_edited else None,
         sent_body=msg.body if was_edited else None,
         actor_user_id=current_user.id,
-        # Per-intent verbatim rate is the number the autonomy decision hangs
-        # on -- it needs the human-reviewed outcomes most of all.
+        # Per-intent verbatim rate is the number the autonomy decision hangs on -- it needs the human-reviewed outcomes most.
         intent=msg.ai_intent,
     )
+    from app.core.audit import append_audit
+    append_audit(
+        db, tenant_id=tenant_id, action="ai_draft.approved", actor_user_id=current_user.id,
+        target_type="message", target_id=msg.id,
+        payload={
+            "conversation_id": conversation_id, "channel": str(channel), "edited": was_edited,
+            "body_sha256": _body_sha256(msg.body),
+            **({"original_body_sha256": _body_sha256(seen_body)} if was_edited else {}),
+        },
+    )
     from app.services.lead_assignment_service import claim_on_first_touch
-    _conv = db.query(Conversation).filter_by(id=conversation_id, tenant_id=current_user.tenant_id).first()
-    if _conv:
-        claim_on_first_touch(db, current_user.tenant_id, _conv.guest_id, current_user.id)
+    if conversation:
+        claim_on_first_touch(db, tenant_id, conversation.guest_id, current_user.id)
     db.commit()
+    if conversation:
+        _refresh_lead_summary(db, conversation, tenant_id)
 
-    if channel == "instagram":
-        from app.workers.tasks.send_instagram_dm import send_instagram_dm
-        send_instagram_dm.delay(message_id=message_id, tenant_id=current_user.tenant_id)
-    elif channel == "whatsapp":
-        from app.workers.tasks.send_whatsapp import send_whatsapp
-        send_whatsapp.delay(message_id=message_id, tenant_id=current_user.tenant_id)
-    else:
+    # Only the request that won the guarded UPDATE gets here, so the send is queued once.
+    try:
+        if channel == "instagram":
+            from app.workers.tasks.send_instagram_dm import send_instagram_dm
+            send_instagram_dm.delay(message_id=message_id, tenant_id=tenant_id)
+        elif channel == "whatsapp":
+            from app.workers.tasks.send_whatsapp import send_whatsapp
+            send_whatsapp.delay(message_id=message_id, tenant_id=tenant_id)
+        else:
+            msg.delivery_state = MessageDeliveryState.FAILED
+            msg.delivery_error = f"Sending an approved draft isn't supported for the '{channel}' channel yet."
+            db.commit()
+            raise HTTPException(
+                status_code=400,
+                detail=f"Sending an approved draft isn't supported for the '{channel}' channel yet.",
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        # The broker is down: the draft is approved but nothing will send it. Say so on the message (it shows as failed and can
+        # be retried) rather than leaving it "queued" forever.
+        log.error("approve_draft_enqueue_failed", message_id=message_id, tenant_id=tenant_id, error=str(exc))
         msg.delivery_state = MessageDeliveryState.FAILED
-        msg.delivery_error = f"Sending an approved draft isn't supported for the '{channel}' channel yet."
+        msg.delivery_error = "Could not queue the message for sending. Retry it in a moment."
         db.commit()
-        raise HTTPException(
-            status_code=400,
-            detail=f"Sending an approved draft isn't supported for the '{channel}' channel yet.",
-        )
+        raise HTTPException(status_code=503, detail="Could not queue the message for sending. Retry it in a moment.")
 
     return {"status": "approved_and_queued"}
 
@@ -1090,26 +1179,42 @@ def approve_ai_draft(
 def reject_ai_draft(
     conversation_id: str,
     message_id: str,
+    body: RejectDraftRequest = RejectDraftRequest(),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    # Rejecting is a decision about what goes to a guest; it was open to every signed-in role, including read-only.
+    _cap=Depends(require_capability("conversations.send")),
 ):
-    """Was previously missing entirely -- the inbox UI's reject button has
-    called this exact path since it was built, always 404ing silently
-    (caught and swallowed client-side), so a rejected draft never actually
-    got was_approved=False and never left any record of the rejection."""
-    msg = db.query(Message).filter_by(
-        id=message_id, conversation_id=conversation_id, tenant_id=current_user.tenant_id
-    ).first()
-    if not msg:
-        raise HTTPException(status_code=404, detail="Message not found")
+    """Reject a pending AI draft. Same guarded UPDATE as approve: only an AI draft that nobody has approved, rejected or sent can
+    be rejected; a sent human message, an inbound message or an already-approved draft is refused and left untouched. Rejecting
+    twice is idempotent."""
+    tenant_id = current_user.tenant_id
+    msg = _load_ai_draft(db, tenant_id, conversation_id, message_id)
 
-    msg.was_approved = False
-    msg.delivery_state = None
+    claimed = db.execute(
+        update(Message)
+        .where(*_pending_draft_conditions(tenant_id, conversation_id, message_id))
+        .values(was_approved=False, delivery_state=None)
+        .execution_options(synchronize_session=False)
+    ).rowcount
+    if claimed != 1:
+        db.expire_all()      # nothing was updated; re-read the committed state (no rollback: it would also discard the caller's own work)
+        msg = _load_ai_draft(db, tenant_id, conversation_id, message_id)
+        if msg.was_approved is False:
+            return {"status": "already_rejected"}
+        raise _not_pending_error(msg)
+    db.refresh(msg)
 
     ai_draft_outcomes_service.record_outcome(
-        db, tenant_id=current_user.tenant_id, draft=msg, outcome="rejected",
+        db, tenant_id=tenant_id, draft=msg, outcome="rejected",
         actor_user_id=current_user.id,
         intent=msg.ai_intent,
+    )
+    from app.core.audit import append_audit
+    append_audit(
+        db, tenant_id=tenant_id, action="ai_draft.rejected", actor_user_id=current_user.id,
+        target_type="message", target_id=msg.id,
+        payload={"conversation_id": conversation_id, "body_sha256": _body_sha256(msg.body), "reason": body.reason},
     )
     db.commit()
 

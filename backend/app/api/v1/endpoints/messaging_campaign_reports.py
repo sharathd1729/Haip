@@ -27,7 +27,7 @@ router = APIRouter(prefix="/messaging", tags=["messaging"])
 log = structlog.get_logger()
 
 _MARKETERS = (UserRole.OWNER, UserRole.MANAGER, UserRole.MARKETING)
-_STATUS_FILTER = "^(queued|sent|delivered|read|failed)$"
+_STATUS_FILTER = "^(queued|sent|delivered|read|failed|replied)$"
 
 
 def _campaign_or_404(db: Session, tenant_id: str, campaign_id: str) -> WACampaign:
@@ -104,7 +104,10 @@ def campaign_report(
     tmpl = db.query(WATemplate).filter_by(id=campaign.template_id, tenant_id=current_user.tenant_id).first() if campaign.template_id else None
 
     counts = delivery.cumulative(delivery.status_counts(db, campaign_id))
+    replied = delivery.replies(db, current_user.tenant_id, campaign_id)
     query = delivery.recipients_query(db, current_user.tenant_id, campaign_id, status, search)
+    if status == "replied":
+        query = query.filter(delivery.Recipient.id.in_(list(replied) or [""]))
     total_matching = query.count()
     rows = query.order_by(delivery.Recipient.created_at.asc(), delivery.Recipient.id.asc()).offset(offset).limit(limit).all()
 
@@ -119,9 +122,12 @@ def campaign_report(
             "delivery_rate": _rate(counts["delivered"], counts["sent"]),
             "read_rate": _rate(counts["read"], counts["delivered"]),
             "failure_rate": _rate(counts["failed"], attempted),
+            # "sent" is what WhatsApp accepted; "replied" is guests who wrote back within a week (read from the inbox).
+            "replied": len(replied),
+            "reply_rate": _rate(len(replied), counts["sent"]),
         },
         "failures": delivery.failure_breakdown(db, campaign_id),
-        "recipients": [delivery.recipient_dict(r) for r in rows],
+        "recipients": [delivery.recipient_dict(r, replied.get(r.id)) for r in rows],
         "total_matching": total_matching,
         "limit": limit,
         "offset": offset,
@@ -143,17 +149,20 @@ def campaign_recipients_csv(
     db: Session = Depends(get_db),
 ):
     campaign = _campaign_or_404(db, current_user.tenant_id, campaign_id)
-    rows = delivery.recipients_query(db, current_user.tenant_id, campaign_id, status).order_by(
-        delivery.Recipient.created_at.asc(), delivery.Recipient.id.asc()
-    ).limit(100_000).all()
+    replied = delivery.replies(db, current_user.tenant_id, campaign_id)
+    query = delivery.recipients_query(db, current_user.tenant_id, campaign_id, status)
+    if status == "replied":
+        query = query.filter(delivery.Recipient.id.in_(list(replied) or [""]))
+    rows = query.order_by(delivery.Recipient.created_at.asc(), delivery.Recipient.id.asc()).limit(100_000).all()
 
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["Phone", "Name", "Status", "Reason", "Sent at", "Delivered at", "Read at"])
+    writer.writerow(["Phone", "Name", "Status", "Reason", "Sent at", "Delivered at", "Read at", "Replied", "Replied at"])
     for r in rows:
-        d = delivery.recipient_dict(r)
+        d = delivery.recipient_dict(r, replied.get(r.id))
         writer.writerow([_safe(x) if x is not None else "" for x in (
             d["phone"], d["name"], d["status"], d["error_reason"], d["sent_at"], d["delivered_at"], d["read_at"],
+            "yes" if d["replied"] else "", d["replied_at"],
         )])
 
     # Phone numbers leave the system: on the audit trail, like report downloads.

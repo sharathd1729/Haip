@@ -58,7 +58,21 @@ interface AiAnalysis {
   objection?: string | null;
   reply_urgency?: string | null;
   next_action?: string | null;
+  unanswered_questions?: string[];
+  requirements?: string[];
+  inferences?: string[];
+  follow_up?: string | null;
+  booking_status?: { state: string; payment?: string | null; stays?: number } | null;
 }
+
+const BOOKING_STATE_LABEL: Record<string, string> = {
+  none: "No booking yet",
+  confirmed: "Booked",
+  checked_in: "Checked in",
+  checked_out: "Stay completed",
+  cancelled: "Booking cancelled",
+};
+const BOOKING_PAYMENT_LABEL: Record<string, string> = { unpaid: "no payment yet", partial: "part-paid", paid: "fully paid" };
 
 function formatFieldValue(f: FieldValue): string {
   if (f.value === null || f.value === undefined || f.value === "") return "—";
@@ -353,6 +367,34 @@ function AiAnalysisTab({
           <AnalysisRow label="Next action">
             <span className="text-[12px] font-medium text-primary">{analysis.next_action || "—"}</span>
           </AnalysisRow>
+          {!!analysis.unanswered_questions?.length && (
+            <AnalysisRow label="Not answered yet">
+              <span className="text-[12px] text-[var(--haip-fg)]">{analysis.unanswered_questions.join(" · ")}</span>
+            </AnalysisRow>
+          )}
+          {!!analysis.requirements?.length && (
+            <AnalysisRow label="Asked for">
+              <span className="text-[12px] text-[var(--haip-fg)]">{analysis.requirements.join(" · ")}</span>
+            </AnalysisRow>
+          )}
+          {analysis.follow_up && (
+            <AnalysisRow label="Follow up">
+              <span className="text-[12px] text-[var(--haip-fg)]">{analysis.follow_up}</span>
+            </AnalysisRow>
+          )}
+          {analysis.booking_status && (
+            <AnalysisRow label="Booking">
+              <span className="text-[12px] text-[var(--haip-fg)]">
+                {BOOKING_STATE_LABEL[analysis.booking_status.state] ?? analysis.booking_status.state}
+                {analysis.booking_status.payment ? ` — ${BOOKING_PAYMENT_LABEL[analysis.booking_status.payment] ?? analysis.booking_status.payment}` : ""}
+              </span>
+            </AnalysisRow>
+          )}
+          {!!analysis.inferences?.length && (
+            <AnalysisRow label="Inferred, not stated">
+              <span className="text-[12px] italic text-[var(--haip-fg-subtle)]">{analysis.inferences.join(" · ")}</span>
+            </AnalysisRow>
+          )}
         </div>
       ) : (
         <div className="bg-[var(--haip-card)] rounded-xl border border-dashed border-[var(--haip-border)] p-5 text-center space-y-2">
@@ -406,6 +448,9 @@ export default function LeadDetailPage() {
       const res = await api.get(`/leads/${inquiryId}`);
       return res.data;
     },
+    refetchOnWindowFocus: true,       // an owner, stage or source changed on another device shows when this one is picked up
+    refetchOnReconnect: true,
+    staleTime: 10_000,
   });
 
   // M5+ WS3: same approve-and-queue endpoint LeadCard's one-click send uses.

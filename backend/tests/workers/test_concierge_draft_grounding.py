@@ -5,6 +5,12 @@ import uuid
 from unittest.mock import MagicMock, patch
 
 import pytest
+from datetime import date as _date, timedelta as _td
+
+# Dates relative to today: the concierge refuses to check availability for dates that have already passed.
+FUTURE_IN = (_date.today() + _td(days=60)).isoformat()
+FUTURE_OUT_1 = (_date.today() + _td(days=61)).isoformat()
+FUTURE_OUT = (_date.today() + _td(days=62)).isoformat()
 
 from tests.conftest import *  # noqa: F401,F403
 
@@ -102,7 +108,7 @@ class TestGroundReply:
             async def complete(self, **kwargs):
                 return {"tool_use": {
                     "intent": "availability_check",
-                    "check_in": "2026-12-10", "check_out": "2026-12-12",
+                    "check_in": FUTURE_IN, "check_out": FUTURE_OUT,
                     "adults": 2, "children": 0,
                 }}
 
@@ -127,7 +133,7 @@ class TestGroundReply:
             async def complete(self, **kwargs):
                 return {"tool_use": {
                     "intent": "price_quote",
-                    "check_in": "2026-12-10", "check_out": "2026-12-12",
+                    "check_in": FUTURE_IN, "check_out": FUTURE_OUT,
                     "adults": 2, "children": 0,
                 }}
 
@@ -190,7 +196,7 @@ class TestConciergeDraftEndToEnd:
             async def complete(self, **kwargs):
                 return {"tool_use": {
                     "intent": "availability_check",
-                    "check_in": "2026-12-10", "check_out": "2026-12-12", "adults": 2, "children": 0,
+                    "check_in": FUTURE_IN, "check_out": FUTURE_OUT, "adults": 2, "children": 0,
                 }}
 
         class _FakeConciergeLLM:
@@ -270,7 +276,7 @@ class TestConciergeDraftEndToEnd:
             async def complete(self, **kwargs):
                 import asyncio
                 await asyncio.sleep(0.2)
-                return {"tool_use": {"intent": "availability_check", "check_in": "2026-12-10", "check_out": "2026-12-12"}}
+                return {"tool_use": {"intent": "availability_check", "check_in": FUTURE_IN, "check_out": FUTURE_OUT}}
 
         class _FakeConciergeLLM:
             async def complete(self, **kwargs):

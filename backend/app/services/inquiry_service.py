@@ -26,6 +26,20 @@ _ENUM_TO_STAGE_KEY: dict[InquiryStage, str] = {
 }
 
 
+# Legacy enum member -> the meaning-flag on the tenant's own pipeline_stages (used when the legacy key is gone).
+_ENUM_TO_STAGE_FLAG: dict[InquiryStage, str] = {
+    InquiryStage.NEW: "is_valid_lead_entry",
+    InquiryStage.RESPONDING: "is_valid_lead_entry",
+    InquiryStage.QUOTED: "is_valid_lead_entry",
+    InquiryStage.SITE_VISIT: "is_valid_lead_entry",
+    InquiryStage.SITE_VISIT_SCHEDULED: "is_valid_lead_entry",
+    InquiryStage.SITE_VISIT_DONE: "is_valid_lead_entry",
+    InquiryStage.BOOKED: "is_closed_won",
+    InquiryStage.LOST: "is_closed_lost",
+    InquiryStage.GHOSTED: "is_closed_lost",
+}
+
+
 def _stage_id_for(db: Session, tenant_id: str, stage: InquiryStage) -> Optional[str]:
     """Resolve the pipeline_stages row matching a legacy enum value, for
     keeping stage_id in sync while call sites are migrated incrementally.
@@ -42,6 +56,22 @@ def _stage_id_for(db: Session, tenant_id: str, stage: InquiryStage) -> Optional[
             .filter_by(tenant_id=tenant_id, key=key)
             .first()
         )
+        if row:
+            return row[0]
+        # The taxonomy was replaced wholesale (migration 049: active / unsuitable / lost / sold ...), so the legacy keys above
+        # no longer exist for a migrated tenant. Resolve by what the stage MEANS (the flags the tenant owns) instead of
+        # returning None, which left the inquiry off the board and out of every stage count.
+        flag = _ENUM_TO_STAGE_FLAG.get(stage)
+        if flag is None:
+            return None
+        row = (
+            db.query(PipelineStage.id)
+            .filter(PipelineStage.tenant_id == tenant_id, getattr(PipelineStage, flag).is_(True))
+            .order_by(PipelineStage.order)
+            .first()
+        )
+        if row is None and flag == "is_valid_lead_entry":
+            row = db.query(PipelineStage.id).filter_by(tenant_id=tenant_id, is_default_entry=True).first()
         return row[0] if row else None
     except Exception as exc:
         log.warning("stage_id_sync_failed", tenant_id=tenant_id, stage=stage.value, error=str(exc))
@@ -221,7 +251,9 @@ def get_or_create_from_call(
     if inquiry:
         return inquiry
 
-    src = InquirySource.INBOUND_CALL if direction == "inbound" else InquirySource.OUTBOUND_CALL
+    # An inbound call that starts a lead is an organic call: nothing in the call itself says an ad or a campaign sent it, and
+    # a click-to-call from an ad would arrive through the attributed channel instead. Older call leads keep their source.
+    src = InquirySource.ORGANIC_CALL if direction == "inbound" else InquirySource.OUTBOUND_CALL
     stage_id = resolve_call_entry_stage_id(db, tenant_id, answered=answered)
 
     inquiry = Inquiry(
@@ -671,6 +703,14 @@ def _apply_stage_by_id(
     now = datetime.now(timezone.utc)
     inquiry.stage_id = new_stage.id
     inquiry.current_stage_entered_at = now
+    # Keep the legacy enum in step: code that still reads it (open-inquiry lookups, closed filters) must not see a Lost or
+    # Sold lead as open, nor a re-opened one as closed.
+    if new_stage.is_closed_won:
+        inquiry.stage = InquiryStage.BOOKED
+    elif new_stage.is_closed_lost:
+        inquiry.stage = InquiryStage.LOST
+    elif inquiry.stage in (InquiryStage.BOOKED, InquiryStage.LOST, InquiryStage.GHOSTED):
+        inquiry.stage = InquiryStage.RESPONDING if new_stage.category == "valid" else InquiryStage.NEW
 
     try:
         from app.models.inquiry_360 import InquiryStageLog

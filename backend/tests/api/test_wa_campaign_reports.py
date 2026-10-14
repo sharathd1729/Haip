@@ -127,7 +127,7 @@ def test_export_csv_is_audited_and_defuses_formulas(client, db, tenant_and_user)
     assert r.status_code == 200 and r.headers["content-type"].startswith("text/csv")
     assert "Diwali-push-recipients.csv" in r.headers["content-disposition"]
     lines = r.content.decode("utf-8-sig").strip().splitlines()
-    assert lines[0] == "Phone,Name,Status,Reason,Sent at,Delivered at,Read at" and len(lines) == 4
+    assert lines[0] == "Phone,Name,Status,Reason,Sent at,Delivered at,Read at,Replied,Replied at" and len(lines) == 4
     everything = client.get(f"/api/v1/messaging/campaigns/{c.id}/recipients.csv", headers=_h(tenant_and_user)).content.decode("utf-8-sig")
     assert "'=HYPERLINK" in everything and ",=HYPERLINK" not in everything
     ev = db.query(AuditEvent).filter_by(tenant_id=tid, action="campaigns.recipients_export").first()
@@ -398,3 +398,78 @@ def test_subscriber_audiences_are_unchanged(client, db, tenant_and_user):
     r = client.post("/api/v1/messaging/campaigns", json={"name": "Old style", "template_id": t.id, "variable_map": {},
                                                           "audience_filter": {"tags": ["vip"]}}, headers=_h(tenant_and_user))
     assert r.status_code == 201 and r.json()["audience_filter"] == {"tags": ["vip"]}
+
+
+# ─── replies and counter consistency ─────────────────────────────────────────
+
+def _guest_with_chat(db, tid, phone, *, replied_after=None):
+    """A guest with a WhatsApp conversation; `replied_after` = a datetime for one inbound message (None = they never wrote)."""
+    from app.models.conversation import ChannelType, Conversation, Message
+    from app.models.guest import Guest
+    g = Guest(id=str(uuid.uuid4()), tenant_id=tid, name="G", phone=phone)
+    db.add(g); db.flush()
+    conv = Conversation(id=str(uuid.uuid4()), tenant_id=tid, guest_id=g.id, channel=ChannelType.WHATSAPP, is_open=True)
+    db.add(conv); db.flush()
+    if replied_after is not None:
+        db.add(Message(id=str(uuid.uuid4()), tenant_id=tid, conversation_id=conv.id, direction="inbound", channel="whatsapp",
+                       body="Yes please", created_at=replied_after))
+    db.commit()
+
+
+def test_report_shows_who_replied_within_a_week_and_filters_and_exports_it(client, db, tenant_and_user):
+    tid = _tid(tenant_and_user)
+    c = _campaign(db, tid, _template(db, tid).id)
+    sent = datetime(2026, 10, 1, 9, 0, tzinfo=timezone.utc)
+    spec = [("+919800000011", "read", 1), ("+919800000012", "delivered", 3), ("+919800000013", "delivered", 12),
+            ("+919800000014", "delivered", None), ("+919800000015", "failed", None)]
+    for phone, status, reply_days in spec:
+        db.add(Recipient(id=str(uuid.uuid4()), tenant_id=tid, campaign_id=c.id, phone=phone, name=phone[-2:], status=status,
+                         sent_at=None if status == "failed" else sent, wa_message_id=f"w{phone[-2:]}"))
+        _guest_with_chat(db, tid, phone, replied_after=(sent + timedelta(days=reply_days)) if reply_days is not None else None)
+    # a reply BEFORE the campaign message is not a reply to it
+    before = "+919800000016"
+    db.add(Recipient(id=str(uuid.uuid4()), tenant_id=tid, campaign_id=c.id, phone=before, name="early", status="read", sent_at=sent, wa_message_id="w16"))
+    _guest_with_chat(db, tid, before, replied_after=sent - timedelta(days=1))
+    db.commit()
+
+    r = client.get(f"/api/v1/messaging/campaigns/{c.id}/report", headers=_h(tenant_and_user))
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["summary"]["replied"] == 2                                              # day 1 and day 3 only: day 12 is too late, "before" does not count
+    assert body["summary"]["reply_rate"] == round(2 / body["summary"]["sent"] * 100, 1)
+    by = {x["phone"]: x for x in body["recipients"]}
+    assert by["+919800000011"]["replied"] is True and by["+919800000013"]["replied"] is False and by["+919800000016"]["replied"] is False
+
+    only = client.get(f"/api/v1/messaging/campaigns/{c.id}/report", params={"status": "replied"}, headers=_h(tenant_and_user)).json()
+    assert {x["phone"] for x in only["recipients"]} == {"+919800000011", "+919800000012"} and only["total_matching"] == 2
+
+    csv_text = client.get(f"/api/v1/messaging/campaigns/{c.id}/recipients.csv", params={"status": "replied"}, headers=_h(tenant_and_user)).content.decode("utf-8-sig")
+    assert csv_text.splitlines()[0].endswith("Replied,Replied at") and csv_text.count("yes") == 2
+
+
+def test_replies_never_leak_across_tenants(client, db, tenant_and_user):
+    tid = _tid(tenant_and_user)
+    other = _other_tenant(db)
+    c = _campaign(db, tid, _template(db, tid).id)
+    sent = datetime(2026, 10, 1, 9, 0, tzinfo=timezone.utc)
+    db.add(Recipient(id=str(uuid.uuid4()), tenant_id=tid, campaign_id=c.id, phone="+919800000021", name="A", status="read", sent_at=sent, wa_message_id="w21"))
+    db.commit()
+    _guest_with_chat(db, other, "+919800000021", replied_after=sent + timedelta(hours=2))      # same number, ANOTHER workspace's guest
+    r = client.get(f"/api/v1/messaging/campaigns/{c.id}/report", headers=_h(tenant_and_user)).json()
+    assert r["summary"]["replied"] == 0
+
+
+def test_stored_campaign_counters_match_the_recipient_rows(db, tenant_and_user):
+    """accepted (sent) >= delivered >= read, failed apart, and the counters on the campaign equal what the rows say."""
+    from app.services import wa_campaign_delivery as d
+    tid = _tid(tenant_and_user)
+    c = _campaign(db, tid, _template(db, tid).id)
+    for i, st in enumerate(["queued", "sent", "sent", "delivered", "delivered", "delivered", "read", "read", "failed"]):
+        db.add(Recipient(id=str(uuid.uuid4()), tenant_id=tid, campaign_id=c.id, phone=f"+91980000003{i}", status=st))
+    db.commit()
+    d.refresh_campaign_counters(db, tid, c.id)
+    db.flush()
+    counts = d.cumulative(d.status_counts(db, c.id))
+    assert counts == {"total": 9, "sent": 7, "delivered": 5, "read": 2, "failed": 1, "queued": 1}
+    assert (c.sent_count, c.delivered_count, c.read_count, c.failed_count) == ("7", "5", "2", "1")
+    assert counts["sent"] >= counts["delivered"] >= counts["read"]

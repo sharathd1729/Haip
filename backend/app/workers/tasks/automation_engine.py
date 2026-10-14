@@ -365,6 +365,8 @@ def _action_move_followup(db, cfg: dict, context: dict, tenant_id: str) -> str:
         return f"skipped — inquiry already in {inq.stage.value}"
 
     inq.stage = InquiryStage.RESPONDING
+    from app.services import inquiry_service as _inquiry_service
+    inq.stage_id = _inquiry_service._stage_id_for(db, tenant_id, InquiryStage.RESPONDING) or inq.stage_id
     db.commit()
     return f"Inquiry moved to RESPONDING"
 

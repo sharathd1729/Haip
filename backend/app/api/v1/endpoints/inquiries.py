@@ -9,6 +9,7 @@ from app.models.user import User
 from app.models.inquiry import Inquiry, InquiryStage
 from app.models.conversation import Conversation, Message
 from app.schemas.inquiry import InquiryOut, InquiryCreateRequest, InquiryUpdateRequest
+from app.services import inquiry_service
 from app.services.inquiry_service import get_or_create, update_stage, update_stage_by_id, InvalidStageTransition
 from pydantic import BaseModel
 
@@ -55,6 +56,7 @@ def create_inquiry(
         property_id=body.property_id,
         source=body.source or "web",
         stage=InquiryStage.NEW,
+        stage_id=inquiry_service._stage_id_for(db, current_user.tenant_id, InquiryStage.NEW),
         check_in=body.check_in,
         check_out=body.check_out,
         adults=body.adults,

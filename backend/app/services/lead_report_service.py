@@ -44,6 +44,7 @@ SOURCE_LABELS: dict[str, tuple[str, str]] = {
     "website": ("Website form", "Website"),
     "google": ("Google", "Website"),
     "email": ("Email", "Email"),
+    "organic_call": ("Organic call", "Call"),
     "phone": ("Phone call", "Call"),
     "inbound_call": ("Phone call (IVR)", "Call"),
     "outbound_call": ("Outbound call", "Call"),

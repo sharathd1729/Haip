@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional, Literal, List
 from pydantic import BaseModel, Field, model_validator
 
@@ -49,6 +49,8 @@ class KnowledgeEntryUpdate(BaseModel):
     # Generated automatically; editable so a tenant can delete one that
     # misses the point. Sending [] clears them without triggering regeneration.
     alt_phrasings: Optional[List[str]] = Field(default=None, max_length=20)
+    # True = "keep this passage even though the page/file it came from no longer contains it".
+    keep_out_of_date: Optional[bool] = None
 
 
 class KnowledgeEntryOut(BaseModel):
@@ -67,7 +69,10 @@ class KnowledgeEntryOut(BaseModel):
     is_active: bool
     review_status: str
     embedding_status: str
+    embedding_error: Optional[str] = None
+    embedding_attempts: int = 0
     embedded_at: Optional[datetime] = None
+    stale_since: Optional[datetime] = None
     created_by: Optional[str] = None
     created_at: datetime
     updated_at: datetime
@@ -88,12 +93,44 @@ class KnowledgeSearchHit(BaseModel):
     question: Optional[str] = None
     content: str
     source: str
+    property_id: Optional[str] = None
     score: float
+
+
+class KnowledgeSearchRequest(BaseModel):
+    """`conversation_id`, when given, makes the test use that conversation's property -- exactly what a real reply would use."""
+    query: str = Field(min_length=1, max_length=1000)
+    property_id: Optional[str] = None
+    conversation_id: Optional[str] = None
+    top_k: int = Field(default=5, ge=1, le=20)
 
 
 class KnowledgeSearchResponse(BaseModel):
     query: str
     hits: List[KnowledgeSearchHit]
+    # ok | no_match | embedding_unavailable | search_failed | unsupported -- a failed lookup is not "no answer".
+    status: str = "ok"
+    message: str = ""
+    property_id: Optional[str] = None
+    retrievable_count: int = 0
+
+
+class KnowledgeRollbackRequest(BaseModel):
+    event_id: str = Field(min_length=1, max_length=64)
+
+
+class KnowledgeTestDetails(BaseModel):
+    """What the classifier would have read from the guest's message. The test box does not call a model: you state it."""
+    check_in: Optional[date] = None
+    check_out: Optional[date] = None
+    adults: Optional[int] = Field(default=None, ge=1, le=100)
+    children: Optional[int] = Field(default=None, ge=0, le=100)
+    destination: Optional[str] = Field(default=None, max_length=120)
+    property_hint: Optional[str] = Field(default=None, max_length=120)
+
+
+class KnowledgeTestRequest(KnowledgeSearchRequest):
+    details: Optional[KnowledgeTestDetails] = None
 
 
 class WebsiteIngestRequest(BaseModel):
@@ -124,3 +161,5 @@ class KnowledgeCrawlRequest(BaseModel):
 class KnowledgeIngestResult(BaseModel):
     entries_created: int
     message: str
+    unchanged: int = 0
+    marked_out_of_date: int = 0

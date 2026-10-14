@@ -34,6 +34,7 @@ from app.models.call import Call, CallDirection, RecordingStatus
 from app.models.inquiry import Inquiry, InquirySource, InquiryStage
 from app.models.transcript import Transcript
 from app.services import identity_service, ivr_service
+from app.services import inquiry_service as _inquiry_service
 from app.workers.celery_app import celery_app
 from app.workers.tasks.generate_ai_summary import generate_ai_summary
 
@@ -130,6 +131,7 @@ def _process(task_self, db: Session, tenant_id: str, payload: dict) -> None:
             guest_id=guest_id,
             source=InquirySource.INBOUND_CALL,
             stage=InquiryStage.RESPONDING,
+            stage_id=_inquiry_service._stage_id_for(db, tenant_id, InquiryStage.RESPONDING),
             current_stage_entered_at=_now(),
         )
         db.add(inquiry)
@@ -209,6 +211,7 @@ def _process(task_self, db: Session, tenant_id: str, payload: dict) -> None:
 
     if intent == "booking" and inquiry.stage == InquiryStage.NEW:
         inquiry.stage = InquiryStage.RESPONDING
+        inquiry.stage_id = _inquiry_service._stage_id_for(db, tenant_id, InquiryStage.RESPONDING) or inquiry.stage_id
         inquiry.current_stage_entered_at = _now()
 
     # Populate extracted booking fields. A voice-call date is more

@@ -532,3 +532,39 @@ def test_promising_leads_at_risk_come_from_the_work_queue_and_the_ai_reading(cli
     assert risk["count"] == 1 and risk["items"][0]["inquiry_id"] == l4.id and risk["items"][0]["reason"] == "nobody owns it"
     assert {"key": "high_intent_risk", "label": "Promising enquiries at risk", "count": 1, "oldest_at": None, "href": "/dashboard/leads",
             "people": 1} in j["attention"]
+
+    assert {"key": "high_intent_risk", "label": "Promising leads at risk", "count": 1, "oldest_at": None, "href": "/dashboard/leads"} in j["attention"]
+
+
+# ── why a 403 happened must be readable: the page shows a different message for each cause ─────────────────
+
+def test_a_missing_module_is_reported_as_such_and_a_missing_capability_is_not(client, db, world):
+    t = _tenant(db, modules=())
+    _, owner_h = _user(db, t.id, UserRole.OWNER)
+    r = _get(client, owner_h)
+    assert r.status_code == 403
+    assert r.json()["detail"]["error"] == "module_not_enabled" and r.json()["detail"]["missing_modules"] == ["analytics"]
+
+    _, compliance_h = _user(db, world["tid"], UserRole.COMPLIANCE)
+    r = _get(client, compliance_h)
+    assert r.status_code == 403 and isinstance(r.json()["detail"], str)                   # a role problem, not a workspace one
+
+
+def test_a_workspace_with_no_capability_matrix_is_refused_not_opened(client, db):
+    t = Tenant(id=str(uuid.uuid4()), name="T", slug=f"bo-{uuid.uuid4().hex[:6]}", plan="growth")
+    db.add(t); db.commit()
+    m = db.query(Module).filter_by(code="analytics").first() or Module(id=str(uuid.uuid4()), code="analytics", name="analytics")
+    db.add(m); db.flush()
+    db.add(WorkspaceModule(id=str(uuid.uuid4()), workspace_id=t.id, module_id=m.id, enabled=True)); db.commit()
+    _, h = _user(db, t.id, UserRole.OWNER)
+    assert _get(client, h).status_code == 403                                             # fails closed: never an open door
+
+
+@pytest.mark.parametrize("role", [UserRole.RESERVATIONS, UserRole.CONCIERGE, UserRole.FOH])
+def test_operations_roles_get_their_own_numbers_and_no_workspace_wide_view(client, db, world, role):
+    _, h = _user(db, world["tid"], role)
+    r = _get(client, h)
+    assert r.status_code == 200, r.text
+    j = r.json()
+    assert j["access"]["tenant_wide"] is False
+    assert j["revenue"].get("restricted") is True and "999999" not in json.dumps(j)

@@ -17,13 +17,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { addDays, format, parseISO, isToday } from "date-fns";
 import { ChevronLeft, ChevronRight, Calendar, Users, TrendingUp, RefreshCw, CloudDownload, CheckCircle2, AlertCircle, LogIn, LogOut, Home, DollarSign, BarChart2, Eye, Phone, Hash } from "@/lib/icons";
 import { Bed } from "lucide-react";
+import { AgendaView, EntrySheet, type Entry } from "@/components/calendar/CalendarParts";
 import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useBusinessType } from "@/components/providers/WorkspaceProvider";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const SIDEBAR_W = 224;   // px — sticky property sidebar column
+const SIDEBAR_W = 132;   // px — sticky property sidebar column (was 224: the name and the occupancy bar are all it needs)
 
 const DAY_W     = 40;    // px — each day column
 
@@ -62,7 +63,7 @@ const CH: Record<string, ChConfig> = {
 };
 const CH_DEFAULT: ChConfig = { bg:"bg-gray-500", text:"text-white", border:"border-gray-600", dot:"bg-gray-400", label:"Other",       short:"OTH" };
 const CH_BLOCKED: ChConfig = { bg:"bg-gray-300", text:"text-gray-700", border:"border-gray-400", dot:"bg-gray-300", label:"Blocked", short:"BLK" };
-const CH_MAINT:   ChConfig = { bg:"bg-red-200",  text:"text-red-700",  border:"border-red-300",  dot:"bg-red-200",  label:"Maint.",  short:"MNT" };
+const CH_MAINT:   ChConfig = { bg:"bg-red-500",  text:"text-white",  border:"border-red-600",  dot:"bg-red-500",  label:"Maint.",  short:"MNT" };
 
 function chConfig(src?: string | null): ChConfig {
   if (!src) return CH.direct;
@@ -78,8 +79,8 @@ const AVAIL_BG: Record<string, string> = {
   quoted:          "bg-amber-100",
   inquiry:         "bg-sky-100",
   blocked:         "bg-gray-300",
-  maintenance:     "bg-red-200",
-  owner_use:       "bg-amber-200",
+  maintenance:     "bg-red-400",
+  owner_use:       "bg-gray-300",
   offline_booking: "bg-slate-300",
   other:           "bg-gray-200",
 };
@@ -115,6 +116,7 @@ interface StayBar {
   total_amount?: number | null;
   paid_amount?: number | null;
   channel_source: string;
+  inquiry_id?: string | null;   // the lead this booking came from
 }
 
 interface BlockBar {
@@ -395,35 +397,14 @@ const PropertySidebarCell = memo(function PropertySidebarCell({
 
   return (
     <div
-      className="flex-shrink-0 flex items-center gap-2.5 px-2.5 bg-white border-r border-gray-200 sticky left-0 z-20"
+      className="flex-shrink-0 flex items-center gap-2 px-2 bg-white border-r border-gray-300 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)] sticky left-0 z-20"
       style={{ width: SIDEBAR_W, height: rowH }}
     >
-      {/* Thumbnail */}
-      <div className="flex-shrink-0 w-10 h-10 rounded-xl overflow-hidden bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center shadow-sm">
-        {row.image_url ? (
-          <img src={row.image_url} alt={row.property_name} className="w-full h-full object-cover" loading="lazy" />
-        ) : (
-          <span className="text-lg leading-none">{typeIcon}</span>
-        )}
-      </div>
-
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <p className="text-[12px] font-bold text-gray-900 truncate leading-tight">
+      {/* Info -- the thumbnail, type and bedroom line are gone: at 132px the name needs the room */}
+      <div className="flex-1 min-w-0" title={`${row.property_name} · ${row.property_type} · ${row.bedrooms} BR · up to ${row.max_adults} guests`}>
+        <p className="text-[12px] font-bold text-gray-900 leading-tight line-clamp-2">
           {row.property_name}
         </p>
-        <div className="flex items-center gap-1.5 mt-0.5">
-          <span className="text-[10px] text-gray-400 flex items-center gap-0.5 capitalize">
-            {row.property_type}
-          </span>
-          <span className="text-gray-200">·</span>
-          <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
-            <Bed size={9} className="inline" />{row.bedrooms}BR
-          </span>
-          <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
-            <Users size={9} className="inline" />{row.max_adults}
-          </span>
-        </div>
 
         {/* Occupancy bar */}
         <div className="mt-1.5 flex items-center gap-1.5">
@@ -455,11 +436,12 @@ const PropertySidebarCell = memo(function PropertySidebarCell({
 // ── BookingBar ─────────────────────────────────────────────────────────────────
 
 const BookingBar = memo(function BookingBar({
-  stay, days, onHover, onLeave,
+  stay, days, onHover, onLeave, onOpen,
 }: {
   stay: StayBar; days: string[];
   onHover: (stay: StayBar, e: React.MouseEvent) => void;
   onLeave: () => void;
+  onOpen: (stay: StayBar) => void;
 }) {
   if (!days.length) return null;
   const winStart = days[0];
@@ -496,6 +478,10 @@ const BookingBar = memo(function BookingBar({
       }}
       onMouseEnter={e => onHover(stay, e)}
       onMouseLeave={onLeave}
+      role="button" tabIndex={0}
+      aria-label={`${stay.guest_name || "Guest"}, ${stay.check_in} to ${stay.check_out}. Open details`}
+      onClick={() => { onLeave(); onOpen(stay); }}
+      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(stay); } }}
     >
       {/* Content */}
       <div className="flex-1 min-w-0 px-2.5 flex items-center justify-between gap-1">
@@ -542,15 +528,16 @@ const BookingBar = memo(function BookingBar({
 
 // ── BlockBar ───────────────────────────────────────────────────────────────────
 
+// Agreed colours: gray = blocked (owner use, offline, other), red = maintenance.
 const BLOCK_CLS: Record<string, string> = {
-  maintenance:      "bg-red-100 border-red-300 text-red-600",
-  personal:         "bg-amber-100 border-amber-300 text-amber-700",
-  owner_use:        "bg-amber-100 border-amber-300 text-amber-700",
-  offline_booking:  "bg-slate-200 border-slate-300 text-slate-600",
-  other:            "bg-gray-200 border-gray-300 text-gray-600",
+  maintenance:      "bg-red-500 border-red-600 text-white",
+  personal:         "bg-gray-300 border-gray-400 text-gray-800",
+  owner_use:        "bg-gray-300 border-gray-400 text-gray-800",
+  offline_booking:  "bg-gray-300 border-gray-400 text-gray-800",
+  other:            "bg-gray-300 border-gray-400 text-gray-800",
 };
 
-const BlockBar = memo(function BlockBar({ block, days }: { block: BlockBar; days: string[] }) {
+const BlockBar = memo(function BlockBar({ block, days, onOpen }: { block: BlockBar; days: string[]; onOpen: (block: BlockBar) => void }) {
   const winStart = days[0];
   const winEnd   = days[days.length - 1];
   if (block.blocked_to <= winStart || block.blocked_from > winEnd) return null;
@@ -575,9 +562,12 @@ const BlockBar = memo(function BlockBar({ block, days }: { block: BlockBar; days
 
   return (
     <div
-      className={cn("absolute rounded-md border flex items-center overflow-hidden select-none", cls, ev?.needs_vehicle && "border-dashed")}
+      className={cn("absolute rounded-md border flex items-center overflow-hidden select-none cursor-pointer", cls, ev?.needs_vehicle && "border-dashed")}
       style={{ left: startIdx * DAY_W + 2, width: spanDays * DAY_W - 4, top: 8, height: 38, zIndex: 2 }}
       title={tip}
+      role="button" tabIndex={0}
+      onClick={() => onOpen(block)}
+      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(block); } }}
     >
       <span className={cn("px-2 text-[9px] font-bold tracking-wide truncate", !ev && "uppercase")}>
         {ev?.needs_vehicle ? `? ${label}` : label}
@@ -589,11 +579,12 @@ const BlockBar = memo(function BlockBar({ block, days }: { block: BlockBar; days
 // ── PropertyCalendarRow ────────────────────────────────────────────────────────
 
 const PropertyCalendarRow = memo(function PropertyCalendarRow({
-  row, days, mode, onHover, onLeave, isEven, maxRate,
+  row, days, mode, onHover, onLeave, onOpen, isEven, maxRate,
 }: {
   row: CalendarRow; days: string[]; mode: CalendarMode; isEven: boolean; maxRate: number;
   onHover: (stay: StayBar, e: React.MouseEvent) => void;
   onLeave: () => void;
+  onOpen: (entry: Entry) => void;
 }) {
   const rowH = ROW_H[mode];
   const today = format(new Date(), "yyyy-MM-dd");
@@ -692,12 +683,12 @@ const PropertyCalendarRow = memo(function PropertyCalendarRow({
 
             {/* Block bars (z-index 2) */}
             {row.blocks.map(block => (
-              <BlockBar key={block.id} block={block} days={days} />
+              <BlockBar key={block.id} block={block} days={days} onOpen={b => onOpen({ kind: "block", block: b, propertyName: row.property_name })} />
             ))}
 
             {/* Booking bars (z-index 3) */}
             {row.stays.map(stay => (
-              <BookingBar key={stay.id} stay={stay} days={days} onHover={onHover} onLeave={onLeave} />
+              <BookingBar key={stay.id} stay={stay} days={days} onHover={onHover} onLeave={onLeave} onOpen={st => onOpen({ kind: "stay", stay: st, propertyName: row.property_name })} />
             ))}
 
             {/* Rate sub-row (Rates mode only) */}
@@ -844,7 +835,7 @@ function buildLegend(isCaravan: boolean) {
     { dot: "bg-emerald-500", label: "Direct" },
     ...(isCaravan ? [] : OTA_LEGEND_ITEMS),
     { dot: "bg-gray-300",    label: "Blocked" },
-    { dot: "bg-red-200",     label: "Maintenance" },
+    { dot: "bg-red-500",     label: "Maintenance" },
   ];
 }
 
@@ -884,6 +875,23 @@ export default function PortfolioCalendarPage() {
   const [search, setSearch]           = useState("");
   const [channelFilter, setChan]      = useState("");
   const [hovered, setHovered]         = useState<{ stay: StayBar; pos: { x: number; y: number } } | null>(null);
+  const [opened, setOpened]           = useState<Entry | null>(null);
+  const [fullscreen, setFullscreen]   = useState(false);
+  // Phones get the agenda list (a 30-column grid is unusable at 375px); tablets and up keep the timeline.
+  const [isPhone, setIsPhone]         = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const apply = () => { setIsPhone(mq.matches); if (mq.matches) { setViewWindow("14"); setStartDate(new Date()); } };   // a phone opens on today, not on the 1st
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+  useEffect(() => {
+    if (!fullscreen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setFullscreen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [fullscreen]);
 
   const queryClient  = useQueryClient();
   const gridRef      = useRef<HTMLDivElement>(null);   // main scroll container (x + y)
@@ -973,10 +981,13 @@ export default function PortfolioCalendarPage() {
   const goToToday  = useCallback(() => { setStartDate(new Date()); }, []);
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div
+      className={cn("flex flex-col overflow-hidden bg-white", fullscreen ? "fixed inset-0 z-[70]" : "h-full")}
+      style={fullscreen ? { paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" } : undefined}
+    >
 
       {/* ── Top summary bar ──────────────────────────────────── */}
-      {stats && todaySummary && (
+      {stats && todaySummary && !isPhone && (
         <TopSummaryBar
           revenue={(stats.revenue_locked ?? 0) + (stats.revenue_quoted ?? 0)}
           occupancy={stats.occupancy_pct ?? 0}
@@ -991,8 +1002,8 @@ export default function PortfolioCalendarPage() {
       <div className="flex-shrink-0 bg-white border-b border-gray-200 px-4 py-2.5 space-y-2">
         <div className="flex items-center gap-2 flex-wrap">
 
-          {/* Mode tabs */}
-          <div className="flex items-center bg-gray-100 rounded-xl p-0.5">
+          {/* Mode tabs (timeline only: the phone agenda has nothing to switch) */}
+          <div className="hidden md:flex items-center bg-gray-100 rounded-xl p-0.5">
             {MODE_TABS.map(t => (
               <button
                 key={t.key}
@@ -1013,18 +1024,18 @@ export default function PortfolioCalendarPage() {
               onClick={prevPeriod}
               title={`Previous ${numDays} days`}
               aria-label={`Previous ${numDays} days`}
-              className="flex items-center gap-1 px-2 h-7 rounded-lg hover:bg-white text-gray-600 text-[11px] font-medium"
+              className="flex items-center gap-1 px-2 min-h-11 md:min-h-0 md:h-7 rounded-lg hover:bg-white text-gray-600 text-[11px] font-medium"
             >
               <ChevronLeft size={14} /> Past
             </button>
-            <button onClick={goToToday} className="px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-white rounded-lg">
+            <button onClick={goToToday} className="px-3 min-h-11 md:min-h-0 md:py-1 text-xs font-semibold text-gray-700 hover:bg-white rounded-lg">
               Today
             </button>
             <button
               onClick={nextPeriod}
               title={`Next ${numDays} days`}
               aria-label={`Next ${numDays} days`}
-              className="flex items-center gap-1 px-2 h-7 rounded-lg hover:bg-white text-gray-600 text-[11px] font-medium"
+              className="flex items-center gap-1 px-2 min-h-11 md:min-h-0 md:h-7 rounded-lg hover:bg-white text-gray-600 text-[11px] font-medium"
             >
               Future <ChevronRight size={14} />
             </button>
@@ -1035,7 +1046,7 @@ export default function PortfolioCalendarPage() {
           </span>
 
           {/* Window */}
-          <div className="flex items-center gap-0.5 bg-gray-100 rounded-xl p-0.5">
+          <div className="hidden md:flex items-center gap-0.5 bg-gray-100 rounded-xl p-0.5">
             {(["14","30","60","90"] as ViewWindow[]).map(v => (
               <button
                 key={v}
@@ -1054,7 +1065,7 @@ export default function PortfolioCalendarPage() {
           <select
             value={channelFilter}
             onChange={e => setChan(e.target.value)}
-            className="text-xs border border-gray-200 rounded-xl px-2 py-1.5 bg-white text-gray-700 outline-none focus:ring-2 focus:ring-teal-300 cursor-pointer"
+            className="text-base md:text-xs border border-gray-200 rounded-xl px-2 min-h-11 md:min-h-0 md:py-1.5 bg-white text-gray-700 outline-none focus:ring-2 focus:ring-teal-300 cursor-pointer"
           >
             {CHANNEL_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -1067,7 +1078,7 @@ export default function PortfolioCalendarPage() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search properties…"
-              className="text-xs border border-gray-200 rounded-xl px-3 py-1.5 outline-none focus:ring-2 focus:ring-teal-300 w-36"
+              className="text-base md:text-xs border border-gray-200 rounded-xl px-3 min-h-11 md:min-h-0 md:py-1.5 outline-none focus:ring-2 focus:ring-teal-300 w-full md:w-36"
             />
           )}
 
@@ -1099,8 +1110,14 @@ export default function PortfolioCalendarPage() {
               </button>
             </>
           )}
-          <button onClick={() => refetch()} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-500">
+          <button onClick={() => refetch()} aria-label="Refresh" className="w-11 h-11 md:w-8 md:h-8 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-500">
             <RefreshCw size={14} className={isFetching ? "animate-spin" : ""} />
+          </button>
+          <button
+            onClick={() => setFullscreen(f => !f)} aria-pressed={fullscreen}
+            className="min-h-11 md:min-h-8 px-3 rounded-xl text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200"
+          >
+            {fullscreen ? "Exit full screen" : "Full screen"}
           </button>
         </div>
 
@@ -1125,6 +1142,18 @@ export default function PortfolioCalendarPage() {
             <p className="text-sm font-semibold text-red-500">Failed to load calendar</p>
             <button onClick={() => refetch()} className="mt-2 text-sm text-teal-600 hover:underline">Try again</button>
           </div>
+        </div>
+      ) : isPhone ? (
+        <div className="flex-1 overflow-y-auto overscroll-contain">
+          {isLoading ? (
+            <div className="space-y-2 p-4">{[0, 1, 2].map(i => <div key={i} className="h-14 animate-pulse rounded-xl bg-gray-100" />)}</div>
+          ) : (
+            <AgendaView
+              rows={properties} from={fromDate} to={toDate} onOpen={setOpened}
+              chColor={src => { const c = chConfig(src); return { bg: c.bg, text: c.text }; }}
+              channelLabel={src => chConfig(src).label}
+            />
+          )}
         </div>
       ) : (
         <div className="flex-1 overflow-hidden flex flex-col">
@@ -1169,6 +1198,7 @@ export default function PortfolioCalendarPage() {
                     mode={mode}
                     onHover={handleHover}
                     onLeave={handleLeave}
+                    onOpen={setOpened}
                     isEven={(start + relIdx) % 2 === 0}
                     maxRate={maxRate}
                   />
@@ -1182,6 +1212,9 @@ export default function PortfolioCalendarPage() {
 
       {/* Hover card (fixed portal — escapes overflow containers) */}
       {hovered && <HoverCard stay={hovered.stay} pos={hovered.pos} />}
+
+      {/* Tap or click an entry: details, plus the booking and the lead it came from */}
+      <EntrySheet entry={opened} onClose={() => setOpened(null)} channelLabel={src => chConfig(src).label} />
     </div>
   );
 }

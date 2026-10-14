@@ -343,13 +343,47 @@ def failure_breakdown(db: Session, campaign_id: str) -> list[dict]:
     return sorted(out, key=lambda r: -r["count"])
 
 
-def recipient_dict(r: Recipient) -> dict:
+# A guest's WhatsApp message counts as a reply to the campaign when it arrives after the campaign message went out and within this
+# many days. Later messages are ordinary conversation, not a response to the campaign.
+REPLY_WINDOW_DAYS = 7
+
+
+def replies(db: Session, tenant_id: str, campaign_id: str) -> dict[str, datetime]:
+    """recipient id -> when that guest first wrote back on WhatsApp after the campaign message (within REPLY_WINDOW_DAYS).
+
+    Read from the inbox, which is where replies land, matched on the guest's phone number; no extra tracking is stored.
+    A recipient whose number matches no guest, or who never wrote, simply has no entry."""
+    from datetime import timedelta
+    from app.models.conversation import ChannelType, Conversation, Message
+    from app.models.guest import Guest
+
+    db.flush()
+    rows = (
+        db.query(Recipient.id, Recipient.sent_at, func.min(Message.created_at))
+        .join(Guest, (Guest.tenant_id == Recipient.tenant_id) & (Guest.phone == Recipient.phone))
+        .join(Conversation, (Conversation.guest_id == Guest.id) & (Conversation.tenant_id == Recipient.tenant_id) & (Conversation.channel == ChannelType.WHATSAPP))
+        .join(Message, (Message.conversation_id == Conversation.id) & (Message.direction == "inbound") & (Message.created_at >= Recipient.sent_at))
+        .filter(Recipient.tenant_id == tenant_id, Recipient.campaign_id == campaign_id, Recipient.sent_at.isnot(None))
+        .group_by(Recipient.id, Recipient.sent_at)
+        .all()
+    )
+    out: dict[str, datetime] = {}
+    for rid, sent_at, first in rows:
+        a = sent_at if sent_at.tzinfo else sent_at.replace(tzinfo=timezone.utc)
+        b = first if first.tzinfo else first.replace(tzinfo=timezone.utc)
+        if b - a <= timedelta(days=REPLY_WINDOW_DAYS):
+            out[rid] = b
+    return out
+
+
+def recipient_dict(r: Recipient, replied_at: Optional[datetime] = None) -> dict:
     def iso(v): return v.isoformat() if v else None
     return {
         "id": r.id, "phone": r.phone, "name": r.name, "status": r.status,
         "error_code": r.error_code, "error_reason": r.error_reason,
         "sent_at": iso(r.sent_at), "delivered_at": iso(r.delivered_at),
         "read_at": iso(r.read_at), "failed_at": iso(r.failed_at),
+        "replied": replied_at is not None, "replied_at": iso(replied_at),
     }
 
 
@@ -359,6 +393,8 @@ def recipients_query(db: Session, tenant_id: str, campaign_id: str, status: Opti
         q = q.filter(Recipient.status.in_(("delivered", "read")))
     elif status == "sent":
         q = q.filter(Recipient.status.in_(("sent", "delivered", "read")))
+    elif status == "replied":       # needs the reply map: the caller filters by id (see campaign_report)
+        pass
     elif status:
         q = q.filter(Recipient.status == status)
     if search:

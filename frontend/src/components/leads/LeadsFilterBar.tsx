@@ -47,7 +47,7 @@ const CHECKIN_PRESETS = [
 ];
 
 const SOURCE_OPTIONS = [
-  "wa_direct", "click_to_wa", "meta_ig", "inbound_call", "outbound_call",
+  "wa_direct", "click_to_wa", "meta_ig", "organic_call", "inbound_call", "outbound_call", "phone",
   "ota_airbnb", "ota_booking", "ota_vrbo", "ota_mmt", "ota_goibibo",
   "channel_manager", "walk_in", "web_chat", "website", "referral", "email",
 ];

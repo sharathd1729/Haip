@@ -377,7 +377,8 @@ def _approve_and_send_draft(db: Session, user: User, tenant_id: str, args: dict)
             conversation_id=args["conversation_id"], message_id=args["message_id"], current_user=user, db=db,
         )
     except HTTPException as exc:
-        raise ToolError(exc.detail) from exc
+        detail = exc.detail
+        raise ToolError(detail.get("message") if isinstance(detail, dict) else detail) from exc
 
 
 def _move_lead_stage(db: Session, user: User, tenant_id: str, args: dict) -> Any:

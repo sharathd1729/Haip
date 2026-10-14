@@ -41,7 +41,11 @@ respond with ONLY a JSON object (no markdown fences, no other text):
     "sentiment": "<one of: positive | neutral | hesitant | negative>",
     "objection": "<the guest's main objection/blocker in one short phrase, or null if none>",
     "reply_urgency": "<one of: high | medium | low — how urgently the team should reply>",
-    "next_action": "<one specific action for the sales agent>"
+    "next_action": "<one specific action for the sales agent>",
+    "unanswered_questions": ["<each question the GUEST asked that the team has NOT yet answered in this conversation, as a short phrase; [] if none>"],
+    "requirements": ["<each amenity/need the guest stated (pets, kitchen, wheelchair access ...), as a short phrase; [] if none>"],
+    "inferences": ["<anything you CONCLUDED but the guest did NOT say, e.g. 'likely price-sensitive'; [] if none. Never put an inference anywhere else>"],
+    "follow_up": "<when/how to follow up if a follow-up is due (e.g. 'call back tomorrow morning'), else null>"
   },
   "extracted": {
     "check_in": "<ISO date YYYY-MM-DD ONLY if the guest explicitly stated a check-in/travel date, else null. If the guest gave a date with no year (e.g. 'sept 16-18', 'the 20th'), resolve the year using the 'Reference date' given in the lead context below -- pick the nearest occurrence of that month/day ON OR AFTER the reference date, never a year already in the past relative to it, and never guess a year with no anchor.>",
@@ -59,6 +63,14 @@ respond with ONLY a JSON object (no markdown fences, no other text):
   "lead_analysis": "<2-3 sentences, YOUR OWN synthesis (unlike 'extracted' above, this is not a literal readback): what's the real state of this lead, what's stalling it or drove the outcome, and one concrete next step. Ground it strictly in what's actually in this conversation/call data -- never invent facts not present.>"
 }
 
+Rules for using the lead context:
+- If a PREVIOUS SUMMARY is given, UPDATE it: keep what is still true, change only what the newer messages changed, and never
+  contradict the conversation. Details the guest gave earlier still count even if they are not in the newest messages.
+- The lead's STAGE and BOOKING STATUS are facts. Make "next_action" consistent with them: for a Sold lead the next action is
+  about the stay/after-sales, for a Lost lead there is no sales push, and if a quote was already sent do not recommend sending
+  one -- recommend following it up. Never describe a booking differently from BOOKING STATUS.
+- Messages marked [outbound] are what the team actually sent. Only an [outbound] message can have answered a question.
+
 Be specific and concise. If data is missing, state what's unknown rather than
 inventing it. "extracted" fields are a strict, literal readback of what the
 guest actually said in this conversation -- never infer, guess, or estimate
@@ -68,7 +80,33 @@ grounded strictly in this conversation's actual content. When in doubt, use
 null. Output only the JSON object."""
 
 
-_ANALYSIS_KEYS = ("intent", "sentiment", "objection", "reply_urgency", "next_action")
+_ANALYSIS_KEYS = ("intent", "sentiment", "objection", "reply_urgency", "next_action",
+                  "unanswered_questions", "requirements", "inferences", "follow_up")
+_SENTIMENTS = ("positive", "neutral", "hesitant", "negative")
+_URGENCIES = ("high", "medium", "low")
+_LIST_KEYS = ("unanswered_questions", "requirements", "inferences")
+
+
+def _clean_analysis(raw: dict) -> dict:
+    """Keep only values the rest of the product understands.
+
+    The model returns free text for fields other code branches on (sentiment drives call-back urgency, reply_urgency drives the
+    work queue). "mostly positive" or "ASAP" used to be stored as-is and silently matched nothing; an unknown value is now
+    dropped (None), and list fields are lists of short strings.
+    """
+    out: dict = {}
+    for key in _ANALYSIS_KEYS:
+        val = raw.get(key)
+        if key in _LIST_KEYS:
+            items = val if isinstance(val, list) else []
+            out[key] = [str(x).strip()[:160] for x in items if isinstance(x, (str, int, float)) and str(x).strip()][:6]
+        elif key == "sentiment":
+            out[key] = val.strip().lower() if isinstance(val, str) and val.strip().lower() in _SENTIMENTS else None
+        elif key == "reply_urgency":
+            out[key] = val.strip().lower() if isinstance(val, str) and val.strip().lower() in _URGENCIES else None
+        else:
+            out[key] = val.strip()[:300] if isinstance(val, str) and val.strip() else None
+    return out
 _EXTRACTED_KEYS = (
     "check_in", "check_out", "adults", "children", "occasion", "budget", "special_requests",
     "route_mentioned", "quoted_amount", "upsell_offered", "upsell_accepted",
@@ -107,7 +145,7 @@ def _parse_summary_response(raw: str) -> tuple[str, dict | None, dict | None, st
         analysis_raw = parsed.get("analysis")
         analysis = None
         if isinstance(analysis_raw, dict):
-            analysis = {k: analysis_raw.get(k) for k in _ANALYSIS_KEYS}
+            analysis = _clean_analysis(analysis_raw)
         extracted_raw = parsed.get("extracted")
         extracted = None
         if isinstance(extracted_raw, dict):
@@ -200,24 +238,31 @@ def _apply_extracted_fields(inquiry, extracted: dict) -> list[str]:
     # (dograh_call_processor.py, dates_from_chat left False/null) still
     # never gets overwritten by a chat-text guess.
     check_in = _valid_iso_date(extracted.get("check_in"))
+    check_out = _valid_iso_date(extracted.get("check_out"))
+    # A stay cannot end before it starts. Two dates that contradict each other (or contradict the one on file) are a misreading,
+    # not a new fact: write neither rather than storing an impossible trip.
+    effective_in = check_in or (str(inquiry.check_in) if inquiry.check_in else None)
+    effective_out = check_out or (str(inquiry.check_out) if inquiry.check_out else None)
+    if effective_in and effective_out and effective_out < effective_in:
+        log.warning("generate_ai_summary_dates_inverted", inquiry_id=getattr(inquiry, "id", None))
+        check_in = check_out = None
     if check_in and (not inquiry.check_in or inquiry.dates_from_chat) and check_in != inquiry.check_in:
         inquiry.check_in = check_in
         inquiry.dates_from_chat = True
         written.append("check_in")
 
-    check_out = _valid_iso_date(extracted.get("check_out"))
     if check_out and (not inquiry.check_out or inquiry.dates_from_chat) and check_out != inquiry.check_out:
         inquiry.check_out = check_out
         inquiry.dates_from_chat = True
         written.append("check_out")
 
     adults = _coerce_number(extracted.get("adults"))
-    if adults is not None and adults > 0 and int(adults) != inquiry.adults:
+    if adults is not None and 0 < adults <= 100 and int(adults) != inquiry.adults:
         inquiry.adults = int(adults)
         written.append("adults")
 
     children = _coerce_number(extracted.get("children"))
-    if children is not None and children >= 0 and int(children) != inquiry.children:
+    if children is not None and 0 <= children <= 100 and int(children) != inquiry.children:
         inquiry.children = int(children)
         written.append("children")
 
@@ -229,7 +274,7 @@ def _apply_extracted_fields(inquiry, extracted: dict) -> list[str]:
             written.append("occasion")
 
     budget = _coerce_number(extracted.get("budget"))
-    if budget is not None and budget > 0:
+    if budget is not None and 0 < budget < 100_000_000:
         from decimal import Decimal
         new_budget = Decimal(str(budget))
         if new_budget != inquiry.budget:
@@ -279,6 +324,71 @@ def _apply_extracted_fields(inquiry, extracted: dict) -> list[str]:
     return written
 
 
+MESSAGE_CHAR_BUDGET = 7000
+
+
+def _stage_label(inquiry) -> str:
+    """The lead's current stage as the tenant sees it (the pipeline_stages catalog), falling back to the legacy enum."""
+    stage = getattr(inquiry, "pipeline_stage", None)
+    if stage is not None and getattr(stage, "label", None):
+        flags = []
+        if getattr(stage, "is_closed_won", False):
+            flags.append("closed - won")
+        if getattr(stage, "is_closed_lost", False):
+            flags.append("closed - lost")
+        return stage.label + (f" ({', '.join(flags)})" if flags else "")
+    legacy = getattr(inquiry, "stage", None)
+    return legacy.value if legacy is not None and hasattr(legacy, "value") else (str(legacy) if legacy else "new")
+
+
+def _linked_stays(db, tenant_id: str, inquiry) -> list:
+    from app.models.property import Stay
+    return (
+        db.query(Stay)
+        .filter(Stay.tenant_id == tenant_id, Stay.inquiry_id == inquiry.id)
+        .order_by(Stay.check_in.asc())
+        .all()
+    )
+
+
+def _booking_status_struct(db, tenant_id: str, inquiry) -> dict:
+    """{"state": none|confirmed|checked_in|checked_out|cancelled, "payment": unpaid|partial|paid|None, "stays": n}"""
+    try:
+        from app.services import booking_service as bsvc
+        stays = _linked_stays(db, tenant_id, inquiry)
+        if not stays:
+            return {"state": "none", "payment": None, "stays": 0}
+        active = [s for s in stays if s.status in bsvc.ACTIVE_STATUSES] or [s for s in stays if s.status != "cancelled"] or stays
+        main = active[0]
+        fin = bsvc.financials_for(db, tenant_id, [main]).get(main.id) or {}
+        return {"state": main.status, "payment": None if main.status == "cancelled" else fin.get("payment_status"), "stays": len(stays)}
+    except Exception as exc:
+        log.warning("generate_ai_summary_booking_status_failed", inquiry_id=getattr(inquiry, "id", None), error=str(exc))
+        return {"state": "unknown", "payment": None, "stays": 0}
+
+
+def _booking_status_text(db, tenant_id: str, inquiry) -> str:
+    b = _booking_status_struct(db, tenant_id, inquiry)
+    if b["state"] == "none":
+        return "no booking exists for this enquiry yet"
+    if b["state"] == "unknown":
+        return "unknown"
+    pay = {"unpaid": "no payment received", "partial": "part-paid", "paid": "fully paid"}.get(b["payment"] or "", "")
+    return f"{b['state']}" + (f", {pay}" if pay else "")
+
+
+def _previous_analysis_text(inquiry) -> str:
+    """Last run's summary and analysis, so the new run updates them instead of starting from the last 30 messages alone."""
+    parts = []
+    if inquiry.ai_summary:
+        parts.append(f"PREVIOUS SUMMARY (update it, do not start over): {inquiry.ai_summary[:700]}")
+    prev = inquiry.ai_analysis if isinstance(inquiry.ai_analysis, dict) else {}
+    kept = {k: prev.get(k) for k in ("intent", "objection", "unanswered_questions", "requirements") if prev.get(k)}
+    if kept:
+        parts.append("PREVIOUS ANALYSIS: " + str(kept)[:500])
+    return "\n".join(parts)
+
+
 def _run_async(coro):
     loop = asyncio.new_event_loop()
     try:
@@ -300,11 +410,13 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
     """
     db = SessionLocal()
     try:
+        from app.core.database import set_tenant_context
+        set_tenant_context(db, tenant_id)
         from app.models.inquiry import Inquiry
         from app.models.conversation import Message
         from app.models.call import Call
         from app.models.conversation import Conversation
-        from sqlalchemy import desc
+        from sqlalchemy import desc, or_
 
         inquiry = db.query(Inquiry).filter_by(id=inquiry_id, tenant_id=tenant_id).first()
         if not inquiry:
@@ -314,7 +426,8 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
         # ── Build context ──────────────────────────────────────────────────────
         lines = [
             f"Inquiry source: {inquiry.source.value if inquiry.source else 'unknown'}",
-            f"Stage: {inquiry.stage.value if inquiry.stage else 'new'}",
+            f"Stage: {_stage_label(inquiry)}",
+            f"Booking status: {_booking_status_text(db, tenant_id, inquiry)}",
             f"Occasion: {inquiry.occasion or 'not specified'}",
             f"Intent: {inquiry.intent_tag or 'not classified'}",
             f"Check-in: {inquiry.check_in or '?'} · Check-out: {inquiry.check_out or '?'}",
@@ -336,7 +449,12 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
             if next_action:
                 lines.append(f"Call {i} next action: {next_action[:100]}")
 
-        # Last 10 messages
+        previous = _previous_analysis_text(inquiry)
+        if previous:
+            lines.append(previous)
+
+        # The real conversation, newest 30 real messages within a size budget (was: last 10, cut at 150 characters each -- an
+        # early message with the dates fell off the end of a long chat and the regenerated summary forgot them).
         conv_ids = [
             r.id for r in
             db.query(Conversation.id)
@@ -356,19 +474,31 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
                 .filter(
                     Message.tenant_id == tenant_id,
                     Message.conversation_id.in_(conv_ids),
+                    # An AI draft nobody sent is not part of the conversation: counting it made "the team told the guest X" true
+                    # of something the guest never saw (and could write a quoted amount nobody quoted).
+                    or_(Message.is_ai_generated.is_(None), Message.is_ai_generated.is_(False), Message.was_approved.is_(True)),
                 )
                 .order_by(desc(Message.created_at))
-                .limit(10)
+                .limit(30)
                 .all()
             )
             for body, direction, created_at in messages:
                 dir_label = direction.value if hasattr(direction, "value") else str(direction)
                 if reference_date is None and dir_label == "inbound":
                     reference_date = created_at
-            for body, direction, created_at in reversed(messages):
-                if body:
-                    dir_label = direction.value if hasattr(direction, "value") else str(direction)
-                    lines.append(f"[{dir_label}] {body[:150]}")
+            budget_left = MESSAGE_CHAR_BUDGET
+            kept: list[str] = []
+            for body, direction, created_at in messages:                       # newest first, so the budget keeps the newest
+                if not body:
+                    continue
+                dir_label = direction.value if hasattr(direction, "value") else str(direction)
+                stamp_ = created_at.date().isoformat() if created_at else "?"
+                line = f"[{dir_label}] {stamp_}: {body[:300]}"
+                if budget_left - len(line) < 0 and kept:
+                    break
+                budget_left -= len(line)
+                kept.append(line)
+            lines.extend(reversed(kept))
 
         if reference_date is None:
             reference_date = inquiry.created_at or datetime.now(timezone.utc)
@@ -410,6 +540,8 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
         # ── Write to DB ────────────────────────────────────────────────────────
         inquiry.ai_summary = summary_text
         if analysis is not None:
+            # Booking state is read from the bookings themselves, never from the model's account of them.
+            analysis["booking_status"] = _booking_status_struct(db, tenant_id, inquiry)
             inquiry.ai_analysis = analysis
         if lead_analysis is not None:
             inquiry.ai_lead_analysis = lead_analysis

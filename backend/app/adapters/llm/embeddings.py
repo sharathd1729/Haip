@@ -51,6 +51,9 @@ _MAX_CHARS = 1800
 
 InputType = Literal["passage", "query"]
 
+QUERY_TIMEOUT_SECONDS = 8.0
+PASSAGE_TIMEOUT_SECONDS = 30.0
+
 
 class EmbeddingError(RuntimeError):
     """Raised when embeddings could not be produced. Callers are expected to
@@ -86,7 +89,13 @@ async def embed_texts(texts: Sequence[str], input_type: InputType) -> list[list[
     except ImportError:  # pragma: no cover - dependency is declared
         raise EmbeddingError("openai package not installed. Run: pip install openai")
 
-    client = openai.AsyncOpenAI(api_key=api_key, base_url=_BASE_URL)
+    # The SDK default is a 10-minute timeout with 2 silent retries. A search query runs inside the reply path while the guest waits,
+    # so it gets a short bound; indexing runs in a background task and gets longer. Failing fast raises EmbeddingError, which
+    # callers already treat as "knowledge unavailable" (the reply is drafted without it and says the team will confirm).
+    client = openai.AsyncOpenAI(
+        api_key=api_key, base_url=_BASE_URL, max_retries=0,
+        timeout=QUERY_TIMEOUT_SECONDS if input_type == "query" else PASSAGE_TIMEOUT_SECONDS,
+    )
     cleaned = [(t or "").strip()[:_MAX_CHARS] or " " for t in texts]
 
     out: list[list[float]] = []

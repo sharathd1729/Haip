@@ -6,7 +6,9 @@ PATCH  /knowledge/{id}            update an entry
 DELETE /knowledge/{id}            delete an entry (and its vector)
 POST   /knowledge/{id}/reembed    force re-embedding
 POST   /knowledge/search          retrieval preview -- "what would the AI find?"
-GET    /knowledge/stats           counts by status, for the settings header
+POST   /knowledge/test            full test box: knowledge + published structured data + quote, with sources, versions and flags
+GET    /knowledge/stats           counts by status + indexing health, for the settings header
+POST   /knowledge/reindex         retry every entry that is waiting or failed
 POST   /knowledge/upload          ingest a document (PDF/Word/text) -- pending review
 POST   /knowledge/crawl           ingest website page(s) by URL -- pending review
 """
@@ -29,15 +31,27 @@ from app.schemas.knowledge import (
     KnowledgeEntryOut,
     KnowledgeEntryUpdate,
     KnowledgeSearchHit,
+    KnowledgeSearchRequest,
+    KnowledgeTestRequest,
+    KnowledgeRollbackRequest,
     KnowledgeSearchResponse,
     KnowledgeCrawlRequest,
     KnowledgeIngestResult,
 )
-from app.services import knowledge_service, knowledge_ingest
+from app.services import knowledge_service, knowledge_ingest, kb_test_service
 
 log = structlog.get_logger()
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
+
+
+def _require_own_property(db: Session, tenant_id: str, property_id: Optional[str]) -> None:
+    """An entry may only be scoped to one of THIS tenant's properties (the column is a plain foreign key)."""
+    if not property_id:
+        return
+    from app.models.property import Property
+    if db.query(Property.id).filter_by(id=property_id, tenant_id=tenant_id).first() is None:
+        raise HTTPException(status_code=422, detail="Unknown property")
 
 
 def _queue_embed(tenant_id: str, entry_id: str) -> None:
@@ -93,21 +107,32 @@ def knowledge_stats(
     db: Session = Depends(get_db),
     _module=Depends(require_module("ai_concierge")),
 ):
-    tid = current_user.tenant_id
-    base = db.query(KnowledgeEntry).filter(KnowledgeEntry.tenant_id == tid)
-    return {
-        "total": base.count(),
-        "active": base.filter(KnowledgeEntry.is_active.is_(True)).count(),
-        "pending_review": base.filter(KnowledgeEntry.review_status == "pending").count(),
-        "embedding_pending": base.filter(KnowledgeEntry.embedding_status == "pending").count(),
-        "embedding_failed": base.filter(KnowledgeEntry.embedding_status == "failed").count(),
-        # The number that actually matters: what the concierge can retrieve.
-        "retrievable": base.filter(
-            KnowledgeEntry.is_active.is_(True),
-            KnowledgeEntry.review_status == "approved",
-            KnowledgeEntry.embedding_status == "done",
-        ).count(),
-    }
+    return knowledge_service.index_health(db, current_user.tenant_id)
+
+
+@router.post("/reindex")
+def reindex_all(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _cap=Depends(require_capability("settings.manage")),
+    _module=Depends(require_module("ai_concierge")),
+):
+    """Retry every entry that is waiting to be indexed or failed. Runs in the background; the stats show progress."""
+    waiting = db.query(KnowledgeEntry).filter(
+        KnowledgeEntry.tenant_id == current_user.tenant_id,
+        KnowledgeEntry.is_active.is_(True),
+        KnowledgeEntry.embedding_status.in_(["pending", "failed"]),
+    ).count()
+    if waiting:
+        knowledge_service.audit_change(db, current_user.tenant_id, current_user.id, "reindex_requested", "all", entries=waiting)
+        db.commit()
+        try:
+            from app.workers.tasks.embed_knowledge import embed_pending
+            embed_pending.apply_async(kwargs={"tenant_id": current_user.tenant_id, "limit": 200, "force": True})
+        except Exception as exc:
+            log.warning("kb_reindex_enqueue_failed", tenant_id=current_user.tenant_id, error=str(exc))
+            raise HTTPException(status_code=503, detail="Could not start indexing right now. Try again in a minute.")
+    return {"queued": waiting}
 
 
 @router.post("", response_model=KnowledgeEntryOut, status_code=status.HTTP_201_CREATED)
@@ -118,6 +143,7 @@ def create_entry(
     _cap=Depends(require_capability("settings.manage")),
     _module=Depends(require_module("ai_concierge")),
 ):
+    _require_own_property(db, current_user.tenant_id, body.property_id)
     entry = KnowledgeEntry(
         tenant_id=current_user.tenant_id,
         category=body.category,
@@ -135,6 +161,8 @@ def create_entry(
         created_by=current_user.id,
     )
     db.add(entry)
+    db.flush()
+    knowledge_service.audit_change(db, entry.tenant_id, current_user.id, "created", entry.id, after=knowledge_service.snapshot(entry), source="manual")
     db.commit()
     db.refresh(entry)
     _queue_embed(entry.tenant_id, entry.id)
@@ -190,15 +218,21 @@ async def upload_knowledge_document(
         current_user.tenant_id, upload_id, content, file.content_type or "application/octet-stream", filename,
     )
 
-    entries = knowledge_ingest.ingest_chunks(
+    report = knowledge_ingest.ingest_chunks_report(
         db, current_user.tenant_id, text,
         source="document", source_ref=filename, file_s3_key=file_key,
         created_by=current_user.id,
     )
-    log.info("kb_document_uploaded", tenant_id=current_user.tenant_id, filename=filename, chunk_count=len(entries))
+    n = len(report.created)
+    knowledge_service.audit_change(db, current_user.tenant_id, current_user.id, "ingested", upload_id, source="document", filename=filename,
+                                   entries_created=n, unchanged=report.unchanged, marked_out_of_date=report.marked_out_of_date)
+    db.commit()
+    log.info("kb_document_uploaded", tenant_id=current_user.tenant_id, filename=filename, chunk_count=n, unchanged=report.unchanged)
     return KnowledgeIngestResult(
-        entries_created=len(entries),
-        message=f"Added {len(entries)} entr{'y' if len(entries) == 1 else 'ies'} from \"{filename}\" -- review and approve them below before the AI uses this content.",
+        entries_created=n,
+        unchanged=report.unchanged,
+        marked_out_of_date=report.marked_out_of_date,
+        message=_ingest_message(f"\"{filename}\"", report),
     )
 
 
@@ -219,7 +253,7 @@ def crawl_knowledge_urls(
     if not urls:
         raise HTTPException(status_code=422, detail="At least one URL is required.")
 
-    total_entries = 0
+    total_entries = unchanged = out_of_date = fetched = 0
     failures: list[str] = []
     for url in urls:
         try:
@@ -227,23 +261,32 @@ def crawl_knowledge_urls(
         except knowledge_ingest.IngestError as exc:
             failures.append(str(exc))
             continue
-        entries = knowledge_ingest.ingest_chunks(
+        report = knowledge_ingest.ingest_chunks_report(
             db, current_user.tenant_id, text,
             source="website", source_url=url, created_by=current_user.id,
         )
-        total_entries += len(entries)
+        fetched += 1
+        total_entries += len(report.created)
+        unchanged += report.unchanged
+        out_of_date += report.marked_out_of_date
 
-    if total_entries == 0:
+    if fetched == 0:
         raise HTTPException(status_code=400, detail="; ".join(failures) or "Couldn't ingest any of the given URLs.")
+    knowledge_service.audit_change(db, current_user.tenant_id, current_user.id, "ingested", urls[0], source="website", urls=urls,
+                                   entries_created=total_entries, unchanged=unchanged, marked_out_of_date=out_of_date)
+    db.commit()
 
     log.info(
         "kb_urls_crawled", tenant_id=current_user.tenant_id, url_count=len(urls),
         entries_created=total_entries, failure_count=len(failures),
     )
-    message = f"Added {total_entries} entr{'y' if total_entries == 1 else 'ies'} from {len(urls) - len(failures)} page(s) -- review and approve them below before the AI uses this content."
+    message = _ingest_message(f"{fetched} page(s)", knowledge_ingest.IngestReport(
+        created=[None] * total_entries, unchanged=unchanged, marked_out_of_date=out_of_date))
     if failures:
         message += f" {len(failures)} page(s) failed: {'; '.join(failures)}"
-    return KnowledgeIngestResult(entries_created=total_entries, message=message)
+    return KnowledgeIngestResult(
+        entries_created=total_entries, message=message, unchanged=unchanged, marked_out_of_date=out_of_date,
+    )
 
 
 @router.patch("/{entry_id}", response_model=KnowledgeEntryOut)
@@ -263,10 +306,20 @@ def update_entry(
     if not entry:
         raise HTTPException(status_code=404, detail="Knowledge entry not found")
 
-    for field in ("category", "question", "content", "property_id", "priority", "is_active", "review_status"):
+    before = knowledge_service.snapshot(entry)
+    sent = body.model_fields_set
+    if "property_id" in sent:
+        # Explicit null = "applies to every property". Anything else must be one of this tenant's properties.
+        _require_own_property(db, current_user.tenant_id, body.property_id)
+        entry.property_id = body.property_id or None
+    if "question" in sent:
+        entry.question = (body.question or "").strip() or None
+    for field in ("category", "content", "priority", "is_active", "review_status"):
         val = getattr(body, field)
         if val is not None:
             setattr(entry, field, val.strip() if field == "content" else val)
+    if body.keep_out_of_date:
+        entry.stale_since = None
 
     # Editing phrasings is an explicit override -- the entry keeps exactly
     # what the tenant left, and _ensure_phrasings won't regenerate over it
@@ -284,7 +337,16 @@ def update_entry(
     # phrasing would keep matching from its stale vector.
     stale = knowledge_service.needs_reembed(entry) or phrasings_changed
     if stale:
+        # From here until indexing finishes the entry is NOT retrievable (retrieval requires "done"), so the AI can never
+        # answer from the old wording after an edit; it simply does not use the entry until the new wording is indexed.
         entry.embedding_status = "pending"
+        entry.embedding_error = None
+        entry.embedding_attempts = 0
+        if "content" in sent or "question" in sent:
+            entry.stale_since = None      # the owner just touched it: it is current by definition
+    knowledge_service.audit_change(db, entry.tenant_id, current_user.id, "updated", entry.id, before=before, after=knowledge_service.snapshot(entry))
+    if body.keep_out_of_date:
+        knowledge_service.audit_change(db, entry.tenant_id, current_user.id, "kept_out_of_date_entry", entry.id)
     db.commit()
     db.refresh(entry)
     if stale:
@@ -307,11 +369,51 @@ def delete_entry(
     )
     if not entry:
         raise HTTPException(status_code=404, detail="Knowledge entry not found")
+    knowledge_service.audit_change(db, entry.tenant_id, current_user.id, "deleted", entry.id, before=knowledge_service.snapshot(entry))
     knowledge_service.delete_vector(db, entry.tenant_id, entry.id)
     db.delete(entry)
     db.commit()
     log.info("kb_entry_deleted", entry_id=entry_id, tenant_id=current_user.tenant_id)
     return None
+
+
+@router.get("/{entry_id}/history")
+def entry_history(
+    entry_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _cap=Depends(require_capability("settings.manage")),
+    _module=Depends(require_module("ai_concierge")),
+):
+    """Who changed this entry, when, and what it said before. Backed by the audit trail, so it survives edits and deletion."""
+    return knowledge_service.entry_history(db, current_user.tenant_id, entry_id)
+
+
+@router.post("/{entry_id}/rollback", response_model=KnowledgeEntryOut)
+def rollback_entry(
+    entry_id: str,
+    body: KnowledgeRollbackRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _cap=Depends(require_capability("settings.manage")),
+    _module=Depends(require_module("ai_concierge")),
+):
+    """Undo one earlier edit: put every field that change touched back to its previous value. It goes through the normal edit path,
+    so the restored wording is audited and re-indexed before the AI uses it, exactly like any other edit."""
+    entry = db.query(KnowledgeEntry).filter_by(id=entry_id, tenant_id=current_user.tenant_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Knowledge entry not found")
+    event = next((h for h in knowledge_service.entry_history(db, current_user.tenant_id, entry_id, limit=500) if h["id"] == body.event_id), None)
+    if event is None or event["action"] != "updated" or not event["changes"]:
+        raise HTTPException(status_code=404, detail="That change was not found for this entry")
+    previous = {f: c["from"] for f, c in event["changes"].items()}
+    if any(knowledge_service.is_clipped(v) for v in previous.values()):
+        raise HTTPException(status_code=409, detail="That earlier wording was too long to keep in full, so it cannot be restored automatically.")
+    update = KnowledgeEntryUpdate(**{k: v for k, v in previous.items() if k in KnowledgeEntryUpdate.model_fields})
+    result = update_entry(entry_id, update, current_user=current_user, db=db, _cap=None, _module=None)
+    knowledge_service.audit_change(db, current_user.tenant_id, current_user.id, "rolled_back", entry_id, restored_event=body.event_id)
+    db.commit()
+    return result
 
 
 @router.post("/{entry_id}/reembed", response_model=KnowledgeEntryOut)
@@ -331,32 +433,98 @@ def reembed_entry(
         raise HTTPException(status_code=404, detail="Knowledge entry not found")
     entry.embedding_status = "pending"
     entry.embedding_error = None
+    entry.embedding_attempts = 0
+    knowledge_service.audit_change(db, entry.tenant_id, current_user.id, "reindex_requested", entry.id)
     db.commit()
     db.refresh(entry)
     _queue_embed(entry.tenant_id, entry.id)
     return KnowledgeEntryOut.model_validate(entry)
 
 
+_SEARCH_MESSAGES = {
+    "no_match": "Nothing in your active, indexed knowledge matches this question.",
+    "embedding_unavailable": "The search service did not respond, so this could not be checked. Try again in a minute.",
+    "search_failed": "The knowledge search failed. The AI would answer without knowledge until this is fixed.",
+    "unsupported": "Knowledge search is not available on this deployment (needs PostgreSQL with pgvector).",
+}
+
+
+def _ingest_message(what: str, report) -> str:
+    n = len(report.created)
+    parts = []
+    if n:
+        parts.append(f"Added {n} new entr{'y' if n == 1 else 'ies'} from {what} -- review and approve them below before the AI uses this content.")
+    else:
+        parts.append(f"Nothing new in {what}.")
+    if report.unchanged:
+        parts.append(f"{report.unchanged} passage(s) were already in your knowledge base and were not added again.")
+    if report.marked_out_of_date:
+        parts.append(
+            f"{report.marked_out_of_date} earlier passage(s) from the same source are no longer in it; they are marked out of "
+            "date and the AI will not use them (keep any you still want)."
+        )
+    return " ".join(parts)
+
+
 @router.post("/search", response_model=KnowledgeSearchResponse)
 def search_knowledge(
-    body: dict,
+    body: KnowledgeSearchRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     _module=Depends(require_module("ai_concierge")),
 ):
-    """Retrieval preview: shows exactly what the concierge would pull for a
-    given guest question. This is the tenant's way to sanity-check the KB
-    without waiting for a real guest to ask."""
-    query = (body or {}).get("query", "")
-    if not str(query).strip():
-        raise HTTPException(status_code=422, detail="query is required")
-    property_id = (body or {}).get("property_id")
-    top_k = int((body or {}).get("top_k") or 5)
+    """Retrieval preview: shows exactly what the concierge would pull for a given guest question. It calls the SAME retrieval
+    function a real reply uses; pass `conversation_id` to also use that conversation's property, as a reply does."""
+    property_id = body.property_id
+    if body.conversation_id:
+        from app.models.conversation import Conversation
+        conv = db.query(Conversation).filter_by(id=body.conversation_id, tenant_id=current_user.tenant_id).first()
+        if conv is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        property_id = conv.property_id
+    else:
+        _require_own_property(db, current_user.tenant_id, property_id)
 
-    hits = knowledge_service.search(
-        db, current_user.tenant_id, str(query), property_id=property_id, top_k=max(1, min(top_k, 20))
+    outcome = knowledge_service.search_detailed(
+        db, current_user.tenant_id, body.query, property_id=property_id, top_k=body.top_k,
     )
+    health = knowledge_service.index_health(db, current_user.tenant_id)
+    message = _SEARCH_MESSAGES.get(outcome.status, "")
+    if outcome.status == "no_match" and (health["embedding_pending"] or health["embedding_failed"]):
+        message += (
+            f" {health['embedding_pending']} entr{'y is' if health['embedding_pending'] == 1 else 'ies are'} still being indexed"
+            f" and {health['embedding_failed']} failed to index; those cannot be found until indexing succeeds."
+        )
     return KnowledgeSearchResponse(
-        query=str(query),
-        hits=[KnowledgeSearchHit(**h) for h in hits],
+        query=body.query,
+        hits=[KnowledgeSearchHit(**h) for h in outcome.hits],
+        status=outcome.status,
+        message=message,
+        property_id=property_id,
+        retrievable_count=health["retrievable"],
     )
+
+
+@router.post("/test")
+def test_knowledge(
+    body: KnowledgeTestRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _cap=Depends(require_capability("settings.manage")),
+    _module=Depends(require_module("ai_concierge")),
+):
+    """What the concierge would be given for this question: the knowledge passages AND the published structured data (packages,
+    routes, itineraries, policies, a quote when a package, dates and party are stated), each with its source and version, and flags
+    for anything missing or contradictory. Runs the code a real reply runs; published data only; read-only. Needs `settings.manage`
+    because it shows exact rates."""
+    property_id = body.property_id
+    if body.conversation_id:
+        from app.models.conversation import Conversation
+        conv = db.query(Conversation).filter_by(id=body.conversation_id, tenant_id=current_user.tenant_id).first()
+        if conv is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        property_id = conv.property_id
+    else:
+        _require_own_property(db, current_user.tenant_id, property_id)
+    details = body.details.model_dump(mode="json") if body.details else {}
+    return kb_test_service.run(db, current_user.tenant_id, body.query, property_id=property_id, details=details, top_k=body.top_k)
