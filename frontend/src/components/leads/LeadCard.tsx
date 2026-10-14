@@ -88,7 +88,7 @@ export function ResponseTimeBadge({ seconds, status }: { seconds?: number | null
     : { bg: "rgba(244,63,94,0.12)", fg: "#e11d48" };
   return (
     <span
-      className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold whitespace-nowrap"
+      className="rounded-full px-1.5 py-0.5 text-[11px] sm:text-[9px] font-semibold whitespace-nowrap"
       style={{ background: tone.bg, color: tone.fg }}
       title={waiting ? "Guest is waiting for a reply" : "Time to first reply"}
     >
@@ -101,7 +101,7 @@ export function NeedsFollowupBadge({ reason }: { reason?: string | null }) {
   if (!reason) return null;
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold whitespace-nowrap"
+      className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] sm:text-[9px] font-semibold whitespace-nowrap"
       style={{ background: "color-mix(in srgb, var(--haip-amber) 15%, transparent)", color: "var(--haip-amber)" }}
       title={`AI replied automatically -- needs your follow-up: ${reason}`}
     >
@@ -168,7 +168,7 @@ function AgentAvatar({ name, photoUrl }: { name: string; photoUrl?: string | nul
 function Pill({ label }: { label: string }) {
   return (
     <span
-      className="rounded-full px-2 py-0.5 text-[10px] font-medium capitalize"
+      className="rounded-full px-2 py-0.5 text-[11px] sm:text-[10px] font-medium capitalize"
       style={{
         background: "var(--muted)",
         color: "var(--haip-fg-muted)",
@@ -216,7 +216,7 @@ function StageSelect({ lead }: { lead: LeadCard }) {
         value={current?.id ?? ""}
         disabled={saving}
         onChange={e => handleChange(e.target.value)}
-        className="appearance-none text-[10px] font-medium rounded-full pl-2.5 pr-6 py-1 cursor-pointer disabled:opacity-50"
+        className="appearance-none text-xs sm:text-[10px] font-medium rounded-full pl-3 pr-7 min-h-11 sm:min-h-0 py-1 cursor-pointer disabled:opacity-50"
         style={{
           background: current?.color ? `color-mix(in srgb, ${current.color} 15%, transparent)` : "var(--muted)",
           color: current?.color ?? "var(--haip-fg-subtle)",
@@ -270,7 +270,7 @@ function AssignToMeButton({ lead }: { lead: LeadCard }) {
     <button
       onClick={handleAssign}
       disabled={saving}
-      className="text-[10px] font-medium rounded-full px-2 py-0.5 disabled:opacity-50"
+      className="text-xs sm:text-[10px] font-medium rounded-full px-3 sm:px-2 min-h-11 sm:min-h-0 py-0.5 disabled:opacity-50"
       style={{ background: "var(--muted)", color: "var(--primary)" }}
     >
       Assign to me
@@ -390,7 +390,7 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
 
       {/* Row 5: Last activity + response time */}
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[10px] flex items-center gap-1" style={{ color: "var(--haip-fg-subtle)" }}>
+        <p className="text-[11px] sm:text-[10px] flex items-center gap-1" style={{ color: "var(--haip-fg-subtle)" }}>
           <Clock size={9} />
           {lead.last_touch_at ? timeAgo(lead.last_touch_at) : "—"}
         </p>
@@ -407,13 +407,13 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
         {lead.assigned_agent_name ? (
           <>
             <AgentAvatar name={lead.assigned_agent_name} photoUrl={lead.assigned_agent_avatar_url} />
-            <span className="text-[10px] truncate flex-1" style={{ color: "var(--haip-fg-subtle)" }}>
+            <span className="text-xs sm:text-[10px] truncate flex-1" style={{ color: "var(--haip-fg-subtle)" }}>
               {lead.assigned_agent_name}
             </span>
           </>
         ) : (
           <>
-            <span className="text-[10px]" style={{ color: "var(--haip-fg-subtle)" }}>Unassigned</span>
+            <span className="text-xs sm:text-[10px] font-semibold" style={{ color: "var(--haip-gold, var(--haip-fg-subtle))" }}>Unassigned</span>
             <AssignToMeButton lead={lead} />
           </>
         )}
@@ -425,7 +425,7 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
           className="lx-draft-card flex items-center justify-between gap-2 px-2 py-1.5"
           onClick={e => e.stopPropagation()}
         >
-          <p className="text-[10px] truncate flex-1" style={{ color: "var(--haip-fg-2)" }} title={lead.pending_draft.preview}>
+          <p className="text-xs sm:text-[10px] truncate flex-1" style={{ color: "var(--haip-fg-2)" }} title={lead.pending_draft.preview}>
             {lead.pending_draft.preview}
           </p>
           <button
@@ -435,7 +435,7 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
               messageId: lead.pending_draft!.message_id,
             })}
             disabled={approveAndSend.isPending}
-            className="lx-draft-send-btn inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold flex-shrink-0 transition-colors disabled:opacity-60"
+            className="lx-draft-send-btn inline-flex items-center gap-1 px-3 sm:px-2 min-h-11 sm:min-h-0 py-1 text-xs sm:text-[10px] font-semibold flex-shrink-0 transition-colors disabled:opacity-60"
           >
             {approveAndSend.isPending ? <Loader2 size={10} className="animate-spin" /> : <MessageSquare size={10} />}
             Send

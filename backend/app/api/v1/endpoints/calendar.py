@@ -200,6 +200,8 @@ def get_calendar(
                 "check_out":    s.check_out.isoformat(),
                 "status":       s.status,
                 "guest_id":     str(s.guest_id) if s.guest_id else None,
+                # The lead this booking came from, so the calendar can open it (None = the booking has no lead).
+                "inquiry_id":   str(s.inquiry_id) if getattr(s, "inquiry_id", None) else None,
                 "guest_name":   guest_names.get(str(s.guest_id), "")  if s.guest_id else "",
                 "guest_phone":  guest_phones.get(str(s.guest_id), "") if s.guest_id else "",
                 # getattr guards for columns that may not exist in older DB schemas

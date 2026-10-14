@@ -183,6 +183,8 @@ def world(db, tenant_and_user):
     t = tenant_and_user["tenant"]
     tid = t["id"] if isinstance(t, dict) else t.id
     s = taxonomy(db, tid)
+    from tests.conftest import seed_capabilities
+    seed_capabilities(db, tid)                         # the real default role matrix: endpoints behind require_capability need it
     prop = Property(id=str(uuid.uuid4()), tenant_id=tid, name="Caravan A", slug="caravan-a", type="caravan", max_adults=4, max_children=0)
     manager = User(id=str(uuid.uuid4()), tenant_id=tid, name="Mgr", email=f"m-{uuid.uuid4().hex[:6]}@t.com", hashed_password="x", role=UserRole.MANAGER, is_active=True)
     db.add_all([prop, manager])
@@ -245,3 +247,17 @@ def test_the_booking_resolves_to_its_leads_source_and_agent_in_the_report_join(d
     assert book(client, w, prop, g).status_code == 201
     row = (db.query(Inquiry.source, Inquiry.assigned_to).join(Stay, Stay.inquiry_id == Inquiry.id).filter(Stay.tenant_id == w.tid).one())
     assert row[0] == InquirySource.ORGANIC_CALL and row[1] == w.mgr.id                  # what the source and agent reports group on
+
+
+def test_the_calendar_payload_names_the_lead_each_booking_came_from(db, client, world):
+    w, s, prop = world
+    g = guest(db, w.tid)
+    q = lead(db, w.tid, s["active"], g=g, assigned_to=w.mgr.id)
+    db.commit()
+    assert book(client, w, prop, g).status_code == 201
+    today = date.today()
+    r = client.get("/api/v1/calendar", params={"from_date": today.isoformat(), "to_date": (today + timedelta(days=45)).isoformat()},
+                   headers={"Authorization": f"Bearer {w.token}"})
+    assert r.status_code == 200, r.text
+    stays = [st for row in r.json()["properties"] for st in row["stays"]]
+    assert len(stays) == 1 and stays[0]["inquiry_id"] == q.id                           # the calendar can open the lead
