@@ -587,7 +587,7 @@ export default function ReportsPage() {
                   <button
                     onClick={() => downloadMutation.mutate("xlsx")}
                     disabled={downloadMutation.isPending || preview.length === 0}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white rounded-xl text-xs font-semibold hover:bg-green-700 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-4 min-h-11 sm:min-h-0 sm:py-2 bg-green-600 text-white rounded-xl text-xs font-semibold hover:bg-green-700 transition-colors disabled:opacity-50"
                   >
                     {downloadMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <FileSpreadsheet size={12} />}
                     Excel
@@ -595,7 +595,7 @@ export default function ReportsPage() {
                   <button
                     onClick={() => downloadMutation.mutate("csv")}
                     disabled={downloadMutation.isPending || preview.length === 0}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-teal-500 text-white rounded-xl text-xs font-semibold hover:bg-teal-600 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-4 min-h-11 sm:min-h-0 sm:py-2 bg-teal-500 text-white rounded-xl text-xs font-semibold hover:bg-teal-600 transition-colors disabled:opacity-50"
                   >
                     {downloadMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
                     CSV
@@ -603,7 +603,7 @@ export default function ReportsPage() {
                   <button
                     onClick={() => downloadMutation.mutate("json")}
                     disabled={downloadMutation.isPending || preview.length === 0}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-xl text-xs font-semibold hover:border-gray-300 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-4 min-h-11 sm:min-h-0 sm:py-2 bg-white border border-gray-200 text-gray-600 rounded-xl text-xs font-semibold hover:border-gray-300 transition-colors disabled:opacity-50"
                   >
                     JSON
                   </button>
@@ -637,7 +637,24 @@ export default function ReportsPage() {
 
               {/* Table */}
               {preview.length > 0 && (
-              <div className="overflow-x-auto">
+              <>
+              {/* Phones: each row as a card (first column as the title), so nothing scrolls sideways */}
+              <ul className="divide-y divide-gray-100 sm:hidden">
+                {preview.map((row, i) => (
+                  <li key={i} className="px-4 py-3">
+                    <p className="text-sm font-semibold text-gray-900 break-words">{String(row[previewCols[0]] ?? "—")}</p>
+                    <dl className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                      {previewCols.slice(1).map(c => (
+                        <div key={c} className="min-w-0">
+                          <dt className="text-[10px] uppercase tracking-wide text-gray-400">{selectedReport?.fields.find(f => f.key === c)?.label ?? c}</dt>
+                          <dd className="text-gray-700 break-words">{String(row[c] ?? "—")}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </li>
+                ))}
+              </ul>
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead className="bg-gray-50 border-b border-gray-100">
                     <tr>
@@ -661,6 +678,7 @@ export default function ReportsPage() {
                   </tbody>
                 </table>
               </div>
+              </>
               )}
 
               <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">

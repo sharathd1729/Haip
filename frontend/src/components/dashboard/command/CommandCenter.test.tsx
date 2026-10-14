@@ -268,3 +268,16 @@ describe("Team", () => {
     expect(screen.getByText("No agent activity in this period.")).toBeTruthy();
   });
 });
+
+describe("why the overview did not load", () => {
+  it("tells a missing module, a missing role, a signed-out session and a network failure apart", async () => {
+    const { overviewProblem } = await import("./CommandCenter");
+    const http = (status: number, detail: unknown) => ({ response: { status, data: { detail } } });
+    expect(overviewProblem(http(403, { error: "module_not_enabled", missing_modules: ["analytics"] })).title).toMatch(/switched on for this workspace/);
+    expect(overviewProblem(http(403, "Insufficient permissions")).title).toMatch(/role doesn.t include/);
+    expect(overviewProblem(http(401, "x")).title).toMatch(/signed out/);
+    const net = overviewProblem(new Error("Network Error"));
+    expect(net.canRetry).toBe(true);
+    expect(overviewProblem(http(403, "no")).canRetry).toBe(false);          // retrying a refusal never helps
+  });
+});

@@ -116,7 +116,27 @@ export function TeamTable({ agents, rangeLabel }: { agents: AgentRow[]; rangeLab
   return (
     <Panel title="Team" meta={rangeLabel} className="lg:col-span-3">
       {rows.length === 0 ? <Empty text="No active agents." /> : (
-        <div className="overflow-x-auto">
+        <>
+        {/* Phones: one card per agent, figures labelled, no sideways scrolling */}
+        <ul className="divide-y sm:hidden" style={{ borderColor: "var(--haip-border)" }}>
+          {rows.map(a => (
+            <li key={a.agent_id} className="py-3">
+              <p className="mb-2 flex items-center gap-2.5 text-[14px] font-semibold" style={{ color: "var(--haip-fg)" }}>
+                <span className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold bg-teal-50 text-teal-800 dark:bg-teal-950 dark:text-teal-200">
+                  {a.agent_name?.[0]?.toUpperCase() ?? "?"}
+                </span>
+                <span className="truncate">{a.agent_name}</span>
+              </p>
+              <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-[13px] tabular-nums">
+                <div><dt className="text-[11px]" style={{ color: "var(--haip-fg-subtle)" }}>Leads</dt><dd>{a.leads_handled}</dd></div>
+                <div><dt className="text-[11px]" style={{ color: "var(--haip-fg-subtle)" }}>Booked</dt><dd className="font-bold text-violet-700 dark:text-violet-300">{a.conversions}</dd></div>
+                <div><dt className="text-[11px]" style={{ color: "var(--haip-fg-subtle)" }}>First reply</dt><dd>{a.response_count ? formatSeconds(a.avg_response_seconds) : "—"}</dd></div>
+                <div><dt className="text-[11px]" style={{ color: "var(--haip-fg-subtle)" }}>Calls answered</dt><dd>{a.calls_answered}{a.calls_missed > 0 && <span className="text-red-600 text-xs"> · {a.calls_missed} missed</span>}</dd></div>
+              </dl>
+            </li>
+          ))}
+        </ul>
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-sm min-w-[480px]">
             <thead>
               <tr className="text-[11px] uppercase tracking-wider" style={{ color: "var(--haip-fg-subtle)" }}>
@@ -150,6 +170,7 @@ export function TeamTable({ agents, rangeLabel }: { agents: AgentRow[]; rangeLab
             </tbody>
           </table>
         </div>
+        </>
       )}
     </Panel>
   );

@@ -8,6 +8,17 @@ cannot be authorised from here. Nothing was read, copied or moved. The steps bel
 Connect the Google Drive connector in your Claude settings (or share the export folder as a ZIP / paste its link and a file list).
 Read-only access to the folder holding the LeadSquared and Zoho exports is enough.
 
+
+## Exactly what is needed to start (checklist)
+
+1. Google Drive access: connect the Google Drive connector in Claude (read-only is enough), **or** share the folder as a ZIP, **or** paste the folder link and a file listing (name, size, modified date).
+2. Which folder(s) hold the LeadSquared exports and which hold Zoho; the account that owns them.
+3. Confirmation of the provider names behind the telephony (who recorded the calls), if known.
+4. Permission to download files to a local, access-controlled folder (nothing is uploaded anywhere or imported into HAIP).
+5. For recordings: vendor contact details, contract end dates and any retention notices received.
+
+Status: **blocked on 1.** Nothing has been inventoried, no historical rows exist in HAIP, and no recordings have been recovered.
+
 ## Inventory (run first, read-only)
 
 For every file, record: path, size, format, export source (LeadSquared or Zoho), entity (leads, activities, calls, notes, users),
