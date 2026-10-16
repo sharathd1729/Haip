@@ -53,6 +53,7 @@ replies, unified lead record across every touchpoint.
   Chat-extracted trip fields can be re-stated by later messages; `quoted_amount` stays write-once. Missed-call callback reminders.
 - **WhatsApp**: template editor + Meta sync, campaigns (schedule, CSV import, CRM audiences, reports), health check, overview dashboard.
   **Instagram**: per-channel verify tokens (never shown in page), hourly alert if message access is off, referral-only events handled.
+  **Personal WhatsApp bridge** (`bridge/whatsapp-personal`, Go/whatsmeow, unofficial, read-only; egress via `WHATSAPP_PROXY_URL` = a residential SOCKS proxy, otherwise WhatsApp removes the device): the QR channel MUST use `context.Background()`, never the HTTP request ctx (request end cancelled it and killed the socket 0.4s after the QR showed: phone said "Couldn't link device"). Debug: `docker logs haip_whatsapp_bridge`.
 - **Reply safety net**: `concierge.recover_missed_replies` (beat every 10 min, queue `whatsapp`, `workers/tasks/reply_recovery.py`) re-queues `concierge_draft` for a guest message 4 min–6 h old with no outbound after it (once/hour/message, ≤25/tenant). `scripts/diagnose_bot_replies.py` (read-only) explains why a guest got no reply: mode, drafts by outcome, held-back reasons, Meta delivery errors.
 - **Integration health**: one rule (`integration_health.py`) for the bar, insights and Integrations page.
 - **AI reliability (mAI3, Oct 2026) [123]**: inventory + gaps `docs/ai/AI_FEATURE_MATRIX.md`; sales-agent roadmap `docs/ai/SALES_AGENT_*.md` (proposal only, nothing built). **KB**: ONE
