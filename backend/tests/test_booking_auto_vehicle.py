@@ -115,12 +115,15 @@ def test_the_unassigned_placeholder_is_never_offered_in_the_caravan_picker(clien
     assert names == ["Ratha 1"] and r1.id
 
 
-def test_the_calendar_hides_the_empty_placeholder_row_but_shows_it_while_it_holds_a_booking(client, db, tenant_and_user):
+def test_the_calendar_hides_the_placeholder_row_unless_it_holds_a_real_booking(client, db, tenant_and_user):
     from app.models.guest import Guest
     tid = tenant_and_user["tenant"].id
     ph = _prop(db, tid, "Unassigned (legacy bookings -- reassign manually)")
     _prop(db, tid, "Ratha 1")
     url = f"/api/v1/calendar?from_date={_d(0).isoformat()}&to_date={_d(30).isoformat()}"
+    # the shared calendar's own record of an event is a block on the placeholder: that alone must not bring the row back
+    db.add(BlockedDate(id=gen_uuid(), tenant_id=tid, property_id=ph.id, blocked_from=_d(3).isoformat(), blocked_to=_d(4).isoformat(), reason="other", is_active=True))
+    db.commit()
     rows = client.get(url, headers=_h(tenant_and_user)).json()["properties"]
     assert [r["property_name"] for r in rows] == ["Ratha 1"]
     g = Guest(id=gen_uuid(), tenant_id=tid, name="Overflow", phone=f"+9199{uuid.uuid4().int % 10**8:08d}")
