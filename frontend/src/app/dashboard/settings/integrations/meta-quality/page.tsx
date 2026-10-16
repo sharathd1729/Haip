@@ -160,7 +160,7 @@ export default function MetaQualityPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="haip-page-title flex items-center gap-2.5">
+          <h1 className="haip-page-title haip-page-title--keep flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-[#1877F2]/10 flex items-center justify-center">
               <Wifi size={16} className="text-[#1877F2]" />
             </div>

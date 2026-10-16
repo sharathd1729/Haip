@@ -11,9 +11,11 @@ import { Drawer, StatusPill } from "@/components/ui/kit";
 export interface StayLite {
   id: string; check_in: string; check_out: string; status: string; guest_id?: string | null; guest_name: string; guest_phone?: string;
   adults: number; total_amount?: number | null; channel_source: string; inquiry_id?: string | null;
+  notes?: string;      // staff notes: the agent writes which caravan it is (Black / White)
+  vehicle?: string;    // set when several vehicles are drawn on one grid
 }
 export interface BlockLite {
-  id: string; blocked_from: string; blocked_to: string; reason: string; notes?: string;
+  id: string; blocked_from: string; blocked_to: string; reason: string; notes?: string; vehicle?: string;
   event?: { title: string; needs_vehicle: boolean; details: { guest_name?: string; phone?: string; destination?: string; package?: string; guests?: string } } | null;
 }
 export interface RowLite { property_id: string; property_name: string; stays: StayLite[]; blocks: BlockLite[] }
@@ -72,6 +74,7 @@ export function EntrySheet({ entry, onClose, channelLabel }: { entry: Entry | nu
           </Row>
           <Row label="Booked through">{channelLabel(stay.channel_source)}</Row>
           <Row label="Guests">{stay.adults}</Row>
+          {stay.notes && <Row label="Notes">{stay.notes}</Row>}
           {money(stay.total_amount) && <Row label="Total">{money(stay.total_amount)}</Row>}
           {!stay.inquiry_id && (
             <p className="rounded-lg bg-[var(--haip-surface)] p-3 text-xs text-[var(--haip-fg-subtle)]">This booking is not tied to a lead, so there is no lead to open.</p>

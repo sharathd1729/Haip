@@ -8,6 +8,12 @@ import { cn } from "@/lib/utils";
 import { BLOCK_TONE, type Entry, type RowLite } from "./CalendarParts";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+/** A short tag for the bar when several vehicles share the grid: "Ratha 1" -> "R1", "Caravan White" -> "CW". */
+const tag = (name?: string) => {
+  const words = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  const digits = (name ?? "").match(/\d+/)?.[0];
+  return digits ? `${(words[0] ?? "").charAt(0).toUpperCase()}${digits}` : words.map(w => w.charAt(0).toUpperCase()).join("").slice(0, 3);
+};
 const LANE_H = 20;           // px per bar
 const DAY_NUM_H = 22;        // px reserved for the date number above the bars
 
@@ -46,15 +52,16 @@ export function MonthGrid({ row, monthStart, gridStart, onOpen, chColor, channel
         if (s.status === "cancelled") continue;
         const a = differenceInCalendarDays(parseISO(s.check_in), start), b = differenceInCalendarDays(parseISO(s.check_out), start);
         const [f, t] = a === b ? [a + 0.1, a + 0.9] : [a + 0.5, b + 0.5];            // a same-day stay still gets a bar
-        place(`s${s.id}`, { kind: "stay", stay: s, propertyName: row?.property_name ?? "" }, f, t, (s.guest_name || "Guest").split(" ")[0] || "Guest",
+        place(`s${s.id}`, { kind: "stay", stay: s, propertyName: s.vehicle ?? row?.property_name ?? "" }, f, t,
+          `${s.vehicle ? `${tag(s.vehicle)} · ` : ""}${(s.guest_name || "Guest").split(" ")[0] || "Guest"}`,
           chColor(s.channel_source), { faded: s.status === "quoted", dashed: s.status === "quoted", mark: s.status === "checked_in" ? "✓ " : "" });
       }
       for (const b of row?.blocks ?? []) {
         const a = differenceInCalendarDays(parseISO(b.blocked_from), start);
         const z = Math.max(differenceInCalendarDays(parseISO(b.blocked_to), start), a + 1);   // a one-day hold still shows
         const tone = BLOCK_TONE(b.reason);
-        place(`b${b.id}`, { kind: "block", block: b, propertyName: row?.property_name ?? "" }, a, z,
-          b.event?.details.guest_name?.split(" ")[0] || tone.label, { bg: tone.bg, text: tone.text });
+        place(`b${b.id}`, { kind: "block", block: b, propertyName: b.vehicle ?? row?.property_name ?? "" }, a, z,
+          `${b.vehicle ? `${tag(b.vehicle)} · ` : ""}${b.event?.details.guest_name?.split(" ")[0] || tone.label}`, { bg: tone.bg, text: tone.text });
       }
       const { segs, lanes } = layout(raw);
       out.push({ days, segs, lanes });

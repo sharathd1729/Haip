@@ -527,6 +527,16 @@
   letter-spacing: -0.02em;
   color: var(--haip-fg);
 }
+/* Phones: the top bar already names the page, so a static page title and its one-line description only push the content down.
+   The <h1> stays for screen readers. A page whose title is DATA (a guest, a call, an agent) adds .haip-page-title--keep. */
+@media (max-width: 639px) {
+  .haip-page-title { font-size: 17px; }
+  .haip-page-title:not(.haip-page-title--keep) {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+  .haip-page-title:not(.haip-page-title--keep) + p { display: none; }
+  :is(div, header).flex-shrink-0:has(h1.haip-page-title) { padding: 8px 12px; }
+}
 .haip-label {
   font-size: 0.6875rem;
   font-weight: 600;

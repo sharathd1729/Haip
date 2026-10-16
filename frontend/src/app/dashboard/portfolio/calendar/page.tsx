@@ -118,6 +118,7 @@ interface StayBar {
   paid_amount?: number | null;
   channel_source: string;
   inquiry_id?: string | null;   // the lead this booking came from
+  notes?: string;               // staff notes (which caravan: Black / White)
 }
 
 interface BlockBar {
@@ -944,7 +945,18 @@ export default function PortfolioCalendarPage() {
   }, [data?.properties, search, channelFilter]);
 
   // Phone grid shows one property at a time: the chosen one, else the first
-  const selected = properties.find(p => p.property_id === propertyId) ?? properties[0];
+  // "all" draws every vehicle on one grid (Ratha 1 and Ratha 2 side by side); otherwise the chosen one
+  const showAll = propertyId === "all" || (propertyId === "" && properties.length > 1 && properties.length <= 4);
+  const selected = useMemo(() => {
+    if (showAll && properties.length > 0) {
+      return {
+        property_id: "all", property_name: "All vehicles",
+        stays: properties.flatMap(p => p.stays.map(s => ({ ...s, vehicle: p.property_name }))),
+        blocks: properties.flatMap(p => p.blocks.map(b => ({ ...b, vehicle: p.property_name }))),
+      };
+    }
+    return properties.find(p => p.property_id === propertyId) ?? properties[0];
+  }, [showAll, properties, propertyId]);
 
   // Max rate (for revenue mode heatmap scale)
   const maxRate = useMemo(() =>
@@ -1026,9 +1038,10 @@ export default function PortfolioCalendarPage() {
               </button>
             </div>
             <div className="flex items-center gap-1.5">
-              <select value={selected?.property_id ?? ""} onChange={e => setPropertyId(e.target.value)} aria-label="Property"
+              <select value={showAll ? "all" : (selected?.property_id ?? "")} onChange={e => setPropertyId(e.target.value)} aria-label="Property"
                 className="min-h-11 min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-2 text-base text-gray-800 outline-none focus:ring-2 focus:ring-teal-300">
                 {properties.length === 0 && <option value="">No properties</option>}
+                {properties.length > 1 && <option value="all">All vehicles</option>}
                 {properties.map(p => <option key={p.property_id} value={p.property_id}>{p.property_name}</option>)}
               </select>
               {!isCaravan && (

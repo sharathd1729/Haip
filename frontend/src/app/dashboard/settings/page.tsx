@@ -1070,7 +1070,7 @@ function MFACard() {
 function SectionHeader({ title, sub }: { title: string; sub: string }) {
   return (
     <div>
-      <h1 className="haip-page-title">{title}</h1>
+      <h1 className="haip-page-title haip-page-title--keep">{title}</h1>
       <p className="text-sm text-gray-400 mt-0.5">{sub}</p>
     </div>
   );

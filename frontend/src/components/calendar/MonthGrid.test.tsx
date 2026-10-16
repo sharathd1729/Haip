@@ -61,4 +61,20 @@ describe("MonthGrid", () => {
     expect(screen.getAllByRole("gridcell")).toHaveLength(42);
     expect(screen.queryAllByRole("button")).toHaveLength(0);
   });
+
+  it("tags each bar with its vehicle when several vehicles share the grid, and shows the staff notes field to the sheet", () => {
+    const both: RowLite = {
+      property_id: "all", property_name: "All vehicles", blocks: [],
+      stays: [
+        { ...row.stays[0], id: "r1", vehicle: "Ratha 1", notes: "Black Ratha" },
+        { ...row.stays[0], id: "r2", vehicle: "Ratha 2", guest_name: "Arjun Rao", check_in: "2026-10-06", check_out: "2026-10-08" },
+      ],
+    };
+    const onOpen = vi.fn();
+    render(<MonthGrid row={both} monthStart={monthStart} gridStart={gridStart} onOpen={onOpen} chColor={tone} channelLabel={() => "Direct"} />);
+    expect(screen.getAllByText(/R1 · Priya/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/R2 · Arjun/).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: /Arjun Rao/ }));
+    expect(onOpen.mock.calls[0][0]).toMatchObject({ kind: "stay", propertyName: "Ratha 2" });
+  });
 });

@@ -60,6 +60,8 @@ celery_app = Celery(
         "app.workers.tasks.agent_worklist_email",
         # Recovers calls whose classify->judge chain-dispatch silently stalled
         "app.workers.tasks.call_recovery",
+        # Safety net: a guest message that never got an AI reply is handed to the concierge again
+        "app.workers.tasks.reply_recovery",
         # iCal calendar links (Airbnb / Booking.com / Google): read outside calendars
         "app.workers.tasks.ical_sync",
         # Public API: signed webhook deliveries + retries
@@ -244,6 +246,9 @@ celery_app.conf.update(
         "reports.agent_worklist_email_all_tenants": {"queue": "ai_scoring"},
         "calls.recover_stalled_scoring":              {"queue": "ai_scoring"},
         "calls.recover_stalled_scoring_all_tenants":  {"queue": "ai_scoring"},
+        # Same queue as concierge_draft itself ("whatsapp"): if that queue is not consumed, neither is the draft it would trigger.
+        "concierge.recover_missed_replies":              {"queue": "whatsapp"},
+        "concierge.recover_missed_replies_all_tenants":  {"queue": "whatsapp"},
         "tasks.daily_briefing.generate":              {"queue": "ai_scoring"},
         "backfill_missing_instagram_inquiries":       {"queue": "ai_scoring"},
     },
@@ -251,6 +256,12 @@ celery_app.conf.update(
 
 # Scheduled tasks (Celery Beat)
 celery_app.conf.beat_schedule = {
+    # Safety net for guest replies: a message with no AI draft and no reply after 4 minutes is queued for the concierge again (see
+    # reply_recovery.py). Minutes 3/13/23/...: clear of the :00/:05/:10/:20/:30/:40 jobs.
+    "concierge-missed-reply-recovery-10min": {
+        "task": "concierge.recover_missed_replies_all_tenants",
+        "schedule": crontab(minute="3,13,23,33,43,53"),
+    },
     # Re-dispatches AI call scoring that stalled or failed. The task and its
     # docstring ("Beat fires this every 30 minutes") existed since Aug 2026
     # but this entry never did, so a provider incident left calls "failed"/

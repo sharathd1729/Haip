@@ -120,20 +120,11 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # key's own /v1beta/models listing, and verified live against all 4
     # real prompt shapes (price/capacity/greeting/off-topic) -- complete,
     # correctly-grounded replies, no truncation, no price leaks.
-    # EMERGENCY, TEMPORARY (2026-09-27): Gemini billing account went to a
-    # negative balance and Google is refusing every call ("switched to
-    # prepay, credit balance above $0 required to resume service") -- every
-    # concierge_draft call was failing, and guests on WhatsApp/Instagram got
-    # no real reply for hours. Routed back to NVIDIA on openai/gpt-oss-20b,
-    # NOT nemotron-49b (the model that made this task leave NVIDIA in the
-    # first place, see the comment below) -- gpt-oss-20b is the small tier
-    # already proven reliable and tool-call-correct for every other task
-    # above, and concierge_draft.py already has a tight 20s NVIDIA timeout
-    # + safe holding-reply fallback built in for exactly this provider.
-    # Revert to ("gemini", "gemini-3.6-flash") once the GCP billing account
-    # shows a positive credit balance again -- check
-    # https://console.cloud.google.com/billing/payment before flipping back.
-    "concierge_draft": ("nvidia",  "openai/gpt-oss-20b"),
+    # Back on Gemini (2026-10-16) after a 2026-09-27 emergency detour to NVIDIA gpt-oss-20b: the Gemini billing account had gone
+    # negative and Google refused every call ("credit balance above $0 required"), so guests got only the holding reply.
+    # The owner topped the account up. If Google starts refusing again (billing, quota), reroute to ("nvidia",
+    # "openai/gpt-oss-20b") and see concierge_draft.py's per-provider timeout + safe holding-reply fallback.
+    "concierge_draft": ("gemini",  "gemini-3.6-flash"),
     # Agent-attribution dashboard/reports: a short narrative on how one
     # agent handled guests over a period, synthesized from their own
     # scorecard numbers + call summaries + lead outcomes. Internal

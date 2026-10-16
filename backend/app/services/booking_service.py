@@ -6,6 +6,7 @@ Outstanding  = owed - paid (never below zero; an overpayment shows as paid)
 """
 from __future__ import annotations
 
+import re
 from datetime import date
 from decimal import Decimal
 from typing import Iterable, Optional
@@ -88,8 +89,9 @@ def catalog_for_property(db: Session, tenant_id: str, property_id: str) -> list[
 
 
 def find_conflicts(db: Session, tenant_id: str, property_id: str, check_in: date, check_out: date,
-                   exclude_stay_id: Optional[str] = None) -> list[dict]:
-    """Other bookings and blocks that overlap [check_in, check_out) on this property."""
+                   exclude_stay_id: Optional[str] = None, ignore_unassigned: bool = False) -> list[dict]:
+    """Other bookings and blocks that overlap [check_in, check_out) on this property. ``ignore_unassigned`` skips the "bookings
+    with no vehicle yet already need the other vehicles" rule (used when those bookings are being given a vehicle one by one)."""
     prop = db.query(Property.name).filter(Property.id == property_id, Property.tenant_id == tenant_id).first()
     if prop and vehicle_pool.is_placeholder_name(prop[0]):
         return []                                  # the "Unassigned" holder takes any number of bookings
@@ -111,12 +113,32 @@ def find_conflicts(db: Session, tenant_id: str, property_id: str, check_in: date
     ).all():
         out.append({"type": "block", "id": b.id, "from": b.blocked_from, "to": b.blocked_to, "reason": b.reason})
     # Vehicles sharing a calendar: bookings with no vehicle yet use up one of them (see vehicle_pool).
-    if not out:
+    if not out and not ignore_unassigned:
         short = vehicle_pool.shortage_days(db, tenant_id, property_id, check_in, check_out, exclude_stay_id)
         if short:
             out.append({"type": "unassigned_bookings", "from": short[0], "to": short[-1],
                         "message": "Bookings that have no vehicle yet already need the other vehicles on these days."})
     return out
+
+
+def _natural(name: str):
+    """"Ratha 2" sorts before "Ratha 10"."""
+    return [int(t) if t.isdigit() else t.lower() for t in re.split(r"(\d+)", name or "")]
+
+
+def pick_free_property(db: Session, tenant_id: str, check_in: date, check_out: date, candidate_ids: Optional[Iterable[str]] = None,
+                       exclude_stay_id: Optional[str] = None, ignore_unassigned: bool = False) -> Optional[Property]:
+    """The first vehicle (by name: Ratha 1, then Ratha 2) with nothing booked or blocked on these dates, or None when all are taken.
+
+    This is how a booking made without choosing a vehicle is assigned: the first booking lands on Ratha 1, an overlapping one
+    falls through to Ratha 2. The "Unassigned" placeholder is never a candidate."""
+    q = db.query(Property).filter(Property.tenant_id == tenant_id, Property.is_active.is_(True))
+    if candidate_ids is not None:
+        q = q.filter(Property.id.in_(list(candidate_ids)))
+    for prop in sorted((p for p in q.all() if not vehicle_pool.is_placeholder_name(p.name)), key=lambda p: _natural(p.name)):
+        if not find_conflicts(db, tenant_id, prop.id, check_in, check_out, exclude_stay_id, ignore_unassigned):
+            return prop
+    return None
 
 
 # ── Payment schedule ─────────────────────────────────────────────────────────

@@ -45,20 +45,15 @@ async def test_complete_without_explicit_model_uses_the_routed_default():
         assert call_kwargs["model"] == "nvidia/nemotron-3-ultra-550b-a55b"
 
 
-def test_concierge_draft_routes_to_nvidia_emergency_reroute():
-    """EMERGENCY, TEMPORARY (2026-09-27): concierge_draft was on Gemini
-    (migrated 2026-08-25, after nemotron-49b was confirmed to hang
-    indefinitely on certain guest replies) but Google billing went negative
-    and started refusing every call, so guests got no real reply for hours.
-    Rerouted to NVIDIA's openai/gpt-oss-20b -- not nemotron-49b, the model
-    that made this task leave NVIDIA in the first place. Revert this test
-    (and _TASK_ROUTES) back to gemini-3.6-flash once the GCP billing account
-    shows a positive credit balance again."""
-    from app.adapters.llm.nvidia_nim import NvidiaNIMAdapter
+def test_concierge_draft_routes_to_gemini():
+    """concierge_draft runs on Gemini (moved off NVIDIA 2026-08-25 after nemotron-49b hung on certain guest replies; detoured to
+    NVIDIA 2026-09-27 to 2026-10-16 while the Google billing balance was negative). gemini-3.6-flash, not flash-lite (truncated
+    replies at confidence 0.9) or 2.5-flash (blocked for new-project API keys). Every other task stays on NVIDIA."""
+    from app.adapters.llm.gemini import GeminiAdapter
 
     adapter = get_llm("concierge_draft")
-    assert isinstance(adapter, NvidiaNIMAdapter)
-    assert adapter._default_model == "openai/gpt-oss-20b"
+    assert isinstance(adapter, GeminiAdapter)
+    assert adapter._default_model == "gemini-3.6-flash"
 
 
 @pytest.mark.asyncio
