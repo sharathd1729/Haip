@@ -276,7 +276,12 @@ func onlyDigits(s string) string {
 
 func (m *sessionManager) startQRPairing(ctx context.Context, sessionID string, ac *activeClient) ([]byte, string, error) {
 	client := ac.client
-	qrChan, err := client.GetQRChannel(ctx)
+	// NOT the request's ctx: whatsmeow ties the QR channel (and the websocket behind it) to the context it is given, and the
+	// HTTP request that asked for the QR returns, and cancels its context, right after the FIRST code is sent back. With the
+	// request ctx the connection to WhatsApp was torn down ~0.4s after the QR appeared (bridge log: "Error sending close to
+	// websocket ... EOF" at the same instant as the pairing request), so every scan hit a dead session and the phone said
+	// "Couldn't link device". The pairing session must outlive the request; it ends on its own ("timeout" event) or on Logout.
+	qrChan, err := client.GetQRChannel(context.Background())
 	if err != nil {
 		return nil, "", fmt.Errorf("get qr channel: %w", err)
 	}
