@@ -184,6 +184,12 @@ def get_calendar(
     except Exception:
         pass
 
+    # The "Unassigned" placeholder is only the overflow when every vehicle is taken (vehicle_pool): show its row only while it actually
+    # holds a booking or block in this window, never as an empty permanent row.
+    from app.services import vehicle_pool
+    properties = [p for p in properties
+                  if not vehicle_pool.is_placeholder_name(p.name) or stays_by_prop.get(p.id) or blocks_by_prop.get(p.id)]
+
     for prop in properties:
         stays_raw = stays_by_prop.get(prop.id, [])
 
@@ -577,7 +583,9 @@ def get_occupancy_summary(
     end = date.fromisoformat(to_date)
     days = _date_range(start, end)
 
-    properties = db.query(Property).filter_by(tenant_id=tenant_id, is_active=True).all()
+    from app.services import vehicle_pool
+    properties = [p for p in db.query(Property).filter_by(tenant_id=tenant_id, is_active=True).all()
+                  if not vehicle_pool.is_placeholder_name(p.name)]      # the "Unassigned" holder is not capacity
     all_pids = [p.id for p in properties]
     total_properties = len(all_pids)
 

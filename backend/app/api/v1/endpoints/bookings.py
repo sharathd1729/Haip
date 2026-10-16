@@ -282,12 +282,13 @@ def list_bookable_properties(
 ):
     """Active properties + their active rate plans, for the Create Booking form's pickers."""
     tenant_id = current_user.tenant_id
-    props = (
+    # The "Unassigned" placeholder is never offered: leave the caravan empty ("Auto: first free") and HAIP picks one.
+    props = [p for p in (
         db.query(Property)
         .filter_by(tenant_id=tenant_id, is_active=True)
         .order_by(Property.name)
         .all()
-    )
+    ) if not bsvc.vehicle_pool.is_placeholder_name(p.name)]
     plans = (
         db.query(RatePlan)
         .filter_by(tenant_id=tenant_id, is_active=True)
