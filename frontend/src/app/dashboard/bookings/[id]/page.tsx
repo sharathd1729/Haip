@@ -155,7 +155,7 @@ export default function BookingPage() {
 
         <header className="flex flex-wrap items-start gap-3">
           <div className="min-w-0">
-            <h1 className="haip-page-title truncate">{guest?.name || (guest ? formatPhone(guest.phone) : "Booking")}</h1>
+            <h1 className="haip-page-title haip-page-title--keep truncate">{guest?.name || (guest ? formatPhone(guest.phone) : "Booking")}</h1>
             <p className="text-sm text-gray-500">
               {booking.property?.name ?? "No property"} · {fmtDate(booking.check_in, false)} to {fmtDate(booking.check_out)} · {booking.nights} night{booking.nights === 1 ? "" : "s"}
             </p>
@@ -251,7 +251,7 @@ export default function BookingPage() {
                   <textarea rows={2} className={cn(field, "mt-1 resize-none")} value={draft.special_requests} onChange={set("special_requests")} />
                 </label>
                 <label className={cn(label, "col-span-2")}>Notes <span className="text-gray-400 font-normal">(staff only)</span>
-                  <textarea rows={2} className={cn(field, "mt-1 resize-none")} value={draft.internal_notes} onChange={set("internal_notes")} />
+                  <textarea rows={2} className={cn(field, "mt-1 resize-none")} placeholder="Which caravan: Black Ratha / White Ratha. Anything the team should know." value={draft.internal_notes} onChange={set("internal_notes")} />
                 </label>
                 <label className={cn(label, "col-span-2")}>Concierge notes <span className="text-gray-400 font-normal">(for the on-site team)</span>
                   <textarea rows={2} className={cn(field, "mt-1 resize-none")} placeholder="Gate code, arrival time, preferences..." value={draft.concierge_notes} onChange={set("concierge_notes")} />

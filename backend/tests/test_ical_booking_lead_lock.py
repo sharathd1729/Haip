@@ -210,7 +210,7 @@ def test_the_activity_view_lists_bookings_and_why_other_events_were_not_booked(d
     _sync(db, shared["feed"], _ev(), _event("x@g", "Ravi| Jishanth", _desc(phone=None), start=_d(20), end=_d(23)))
     out = client.get(f"/api/v1/ical-feeds/{shared['feed'].id}/activity", headers=_auth(shared["tu"])).json()
     (b,) = out["bookings"]
-    assert b["guest_name"] and b["vehicle"] is None and b["locked"] is False and b["status"] == "confirmed"
+    assert b["guest_name"] and b["vehicle"] == "Ratha Black" and b["locked"] is False and b["status"] == "confirmed"
     (s,) = out["skipped"]
     assert s["title"] == "Ravi| Jishanth" and s["reasons"] == ["no phone number"]
     assert "98000" not in str(out) and "30000" not in str(out)                        # no phone, no money

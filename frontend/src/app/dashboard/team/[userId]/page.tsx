@@ -112,7 +112,7 @@ export default function AgentProfilePage() {
             </Link>
           )}
           <div>
-            <h1 className="haip-page-title">{scorecardLoading ? "Loading…" : scorecard?.agent_name || "Agent"}</h1>
+            <h1 className="haip-page-title haip-page-title--keep">{scorecardLoading ? "Loading…" : scorecard?.agent_name || "Agent"}</h1>
             <p className="text-sm text-gray-400 mt-0.5">{isSelf ? "Your calls, messages and leads" : "Calls, messages and leads handled"}</p>
           </div>
         </div>

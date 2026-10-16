@@ -1,7 +1,7 @@
-"""A complete event of a shared Google Calendar becomes a real booking (vehicle chosen later, like a hotel room).
+"""A complete event of a shared Google Calendar becomes a real booking, put on the first free vehicle.
 
-Pinned here: which events qualify; the booking lands on the "Unassigned" property when no vehicle is named and holds one
-vehicle until a real one is picked; the advance becomes one payment; edits and deletes in Google update or cancel the
+Pinned here: which events qualify; a booking that names no vehicle goes to the first free one (the next overlapping one to the
+next vehicle), and only when every vehicle is taken does it sit on the "Unassigned" placeholder; the advance becomes one payment; edits and deletes in Google update or cancel the
 booking but never undo a human's choice (checked in, cancelled, vehicle picked); two vehicles in one event stay a block;
 a link without vehicle keywords never makes bookings; bookings without a vehicle count against the vehicles that are free.
 """
@@ -47,19 +47,38 @@ def _ev(uid="b1@g", summary="Asha| Jishanth", n=10, nights=2, **kw):
 
 # ── which events qualify ─────────────────────────────────────────────────────
 
-def test_a_complete_event_with_no_vehicle_becomes_an_unassigned_booking(db, shared):
+def _park_on_placeholder(db, shared, stay):
+    """A legacy booking that still sits on the "Unassigned" placeholder."""
+    stay.property_id = shared["placeholder"].id
+    db.commit()
+
+
+def test_a_complete_event_with_no_vehicle_is_booked_on_the_first_free_vehicle(db, shared):
     r = _sync(db, shared["feed"], _ev())
     assert r["bookings_created"] == 1 and r["needs_vehicle"] == 0
     (stay,) = _stays(db, shared["tid"])
-    assert stay.property_id == shared["placeholder"].id and stay.status == "confirmed"
+    assert stay.property_id == shared["black"].id and stay.status == "confirmed"          # first by name; no placeholder, no task
     assert (stay.check_in.isoformat(), stay.check_out.isoformat()) == (_d(10), _d(12))
     assert float(stay.total_amount) == 30000.0 and (stay.adults, stay.children) == (2, 1)
     assert stay.channel_source == "google_calendar"
     (pay,) = db.query(StayPayment).filter_by(stay_id=stay.id).all()
     assert float(pay.amount) == 10000.0 and pay.kind == "payment"
     assert db.query(BlockedDate).filter(BlockedDate.notes.like("ical:%")).count() == 0       # a booking, not a block
-    (task,) = _open_tasks(db, shared["tid"], ibs.ASSIGN_PREFIX)
-    assert "Asha" in task.title and task.guest_id == stay.guest_id
+    assert _open_tasks(db, shared["tid"], ibs.ASSIGN_PREFIX) == []
+
+
+def test_overlapping_events_with_no_vehicle_fill_the_vehicles_in_order_then_the_placeholder(db, shared):
+    evs = [_ev(f"u{i}@g", f"G{i}| Jishanth", name=f"G{i}", phone=f"+91 9800{i}00000") for i in range(3)]
+    _sync(db, shared["feed"], *evs)
+    by_guest = sorted(_stays(db, shared["tid"]), key=lambda s: s.created_at)
+    assert sorted(s.property_id for s in by_guest[:2]) == sorted([shared["black"].id, shared["white"].id])
+    assert by_guest[2].property_id == shared["placeholder"].id                         # nothing free: visible, with a task
+    assert len(_open_tasks(db, shared["tid"], ibs.ASSIGN_PREFIX)) == 1
+
+
+def test_non_overlapping_events_each_take_the_first_vehicle(db, shared):
+    _sync(db, shared["feed"], _ev("a@g", "A| x", n=10, name="A"), _ev("b@g", "B| x", n=20, name="B", phone="+91 98111 22222"))
+    assert {s.property_id for s in _stays(db, shared["tid"])} == {shared["black"].id}
 
 
 def test_syncing_again_changes_nothing(db, shared):
@@ -68,7 +87,7 @@ def test_syncing_again_changes_nothing(db, shared):
     assert r["bookings_created"] == 0 and r["bookings_updated"] == 0
     (stay,) = _stays(db, shared["tid"])
     assert db.query(StayPayment).filter_by(stay_id=stay.id).count() == 1
-    assert len(_open_tasks(db, shared["tid"], ibs.ASSIGN_PREFIX)) == 1
+    assert _open_tasks(db, shared["tid"], ibs.ASSIGN_PREFIX) == []
     assert db.query(ICalEventBooking).count() == 1
 
 
@@ -107,18 +126,19 @@ def test_a_named_vehicle_is_booked_directly_with_no_assign_task(db, shared):
     assert _open_tasks(db, shared["tid"], ibs.ASSIGN_PREFIX) == []
 
 
-def test_a_named_vehicle_that_is_taken_falls_back_to_unassigned_and_says_so(db, shared):
+def test_a_named_vehicle_that_is_taken_goes_to_the_other_vehicle_and_says_so(db, shared):
     _sync(db, shared["feed"], _ev("one@g", "Asha| white ratha"))
     _sync(db, shared["feed"], _ev("one@g", "Asha| white ratha"), _ev("two@g", "Ravi| white ratha", phone="+91 98111 22222", name="Ravi"))
     stays = {s.guest_id: s for s in _stays(db, shared["tid"])}
     assert len(stays) == 2
-    assert sorted(s.property_id for s in stays.values()) == sorted([shared["white"].id, shared["placeholder"].id])
-    assert len(_open_tasks(db, shared["tid"], "Vehicle taken")) == 1
+    assert sorted(s.property_id for s in stays.values()) == sorted([shared["white"].id, shared["black"].id])
+    assert len(_open_tasks(db, shared["tid"], "Vehicle changed")) == 1
 
 
 def test_picking_the_vehicle_at_check_in_sticks_and_closes_the_task(db, shared, client):
     _sync(db, shared["feed"], _ev())
     (stay,) = _stays(db, shared["tid"])
+    _park_on_placeholder(db, shared, stay)
     r = client.patch(f"/api/v1/bookings/{stay.id}", json={"property_id": shared["black"].id}, headers=_auth(shared["tu"]))
     assert r.status_code == 200, r.text
     _sync(db, shared["feed"], _ev())                                  # the calendar still names no vehicle
@@ -129,8 +149,19 @@ def test_picking_the_vehicle_at_check_in_sticks_and_closes_the_task(db, shared, 
 
 def test_the_event_naming_a_vehicle_later_moves_an_unassigned_booking_only_if_it_is_free(db, shared):
     _sync(db, shared["feed"], _ev())
-    _sync(db, shared["feed"], _ev(summary="Asha| black ratha"))
     (stay,) = _stays(db, shared["tid"])
+    _park_on_placeholder(db, shared, stay)                                 # a legacy booking on the placeholder
+    _sync(db, shared["feed"], _ev(summary="Asha| white ratha"))
+    db.refresh(stay)
+    assert stay.property_id == shared["white"].id
+
+
+def test_a_legacy_unassigned_booking_takes_a_vehicle_as_soon_as_one_is_free(db, shared):
+    _sync(db, shared["feed"], _ev())
+    (stay,) = _stays(db, shared["tid"])
+    _park_on_placeholder(db, shared, stay)
+    _sync(db, shared["feed"], _ev())                                       # the next sync finds a free vehicle
+    db.refresh(stay)
     assert stay.property_id == shared["black"].id
 
 
@@ -138,6 +169,7 @@ def test_the_event_naming_a_vehicle_later_moves_an_unassigned_booking_only_if_it
 
 def test_an_unassigned_booking_keeps_one_vehicle_free_for_itself(db, shared):
     _sync(db, shared["feed"], _ev())
+    _park_on_placeholder(db, shared, _stays(db, shared["tid"])[0])
     ci, co = _stays(db, shared["tid"])[0].check_in, _stays(db, shared["tid"])[0].check_out
     tid, white, black = shared["tid"], shared["white"], shared["black"]
     assert bsvc.find_conflicts(db, tid, white.id, ci, co) == []                     # one vehicle can still go to someone else
@@ -152,6 +184,7 @@ def test_an_unassigned_booking_keeps_one_vehicle_free_for_itself(db, shared):
 def test_the_unassigned_booking_itself_can_take_the_last_free_vehicle(db, shared):
     _sync(db, shared["feed"], _ev())
     (stay,) = _stays(db, shared["tid"])
+    _park_on_placeholder(db, shared, stay)
     assert bsvc.find_conflicts(db, shared["tid"], shared["white"].id, stay.check_in, stay.check_out, exclude_stay_id=stay.id) == []
 
 
@@ -242,7 +275,8 @@ def test_the_feed_list_reports_how_many_bookings_the_calendar_made(db, shared, c
 
 def test_a_clash_when_picking_the_vehicle_is_refused_like_any_other_booking(db, shared, client):
     _sync(db, shared["feed"], _ev("one@g", "Asha| white ratha"))
-    _sync(db, shared["feed"], _ev("one@g", "Asha| white ratha"), _ev("two@g", "Ravi", phone="+91 98111 22222", name="Ravi"))
+    _sync(db, shared["feed"], _ev("one@g", "Asha| white ratha"), _ev("two@g", "Ravi| black ratha", phone="+91 98111 22222", name="Ravi"),
+          _ev("three@g", "Meera", phone="+91 98222 33333", name="Meera"))        # both vehicles taken: the third is parked
     unassigned = next(s for s in _stays(db, shared["tid"]) if s.property_id == shared["placeholder"].id)
     r = client.patch(f"/api/v1/bookings/{unassigned.id}", json={"property_id": shared["white"].id}, headers=_auth(shared["tu"]))
     assert r.status_code == 409 and r.json()["detail"]["code"] == "date_conflict"

@@ -39,6 +39,25 @@ const ROUTE_LABELS: Record<string, string> = {
   campaigns:    "Campaigns",
   subscribers:  "Subscribers",
   flows:        "Flow Builder",
+  // Static page titles are hidden on phones (this bar names the page), so every route needs its own name here.
+  automations:  "Automations",
+  calculator:   "Rate calculator",
+  "calendar-sync": "Calendar sync",
+  "channel-manager": "Channel manager",
+  developers:   "Developers",
+  "instagram-insights": "Instagram insights",
+  ivr:          "Call routing",
+  knowledge:    "AI knowledge base",
+  "lead-assignment": "Lead assignment",
+  "leads-activity": "Lead activity",
+  "mcp-access": "AI assistants",
+  "meta-quality": "Meta quality",
+  operations:   "Operations",
+  payments:     "Payments",
+  permissions:  "Roles & permissions",
+  "saved-replies": "Saved replies",
+  targets:      "Targets",
+  "whatsapp-personal": "Personal WhatsApp",
 };
 
 function PageTitle() {

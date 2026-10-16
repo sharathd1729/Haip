@@ -208,6 +208,8 @@ def get_calendar(
                 "adults":       getattr(s, "adults", None) or 1,
                 "total_amount": (float(s.total_amount) if s.total_amount else None) if can_revenue else None,
                 "channel_source": getattr(s, "channel_source", None) or "direct",
+                # Staff notes (the agent writes which caravan it is: Black / White). Same audience as the guest name and phone above.
+                "notes":        (getattr(s, "internal_notes", None) or "")[:300],
             }
             for s in stays_raw
         ]

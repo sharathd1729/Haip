@@ -1,5 +1,5 @@
 # HAIP — Claude Code Working Instructions
-**Version**: 2.3 · **Owner**: Sharath D. · **Updated**: 14 Oct 2026 (Alembic head `127`)
+**Version**: 2.3 · **Owner**: Sharath D. · **Updated**: 16 Oct 2026 (Alembic head `127`)
 **Reference docs**: HAIP_FULL_BUILD_PLAN.md · architecture-delta.md · execution-plan.md · docs/HAIP_Module_Audit_M0.md (module status matrix, 11 Oct 2026 — update statuses as gaps close)
 
 **KEEP THIS FILE CURRENT — standing rule from the owner.** When a change adds or alters a
@@ -38,7 +38,8 @@ replies, unified lead record across every touchpoint.
   every 30 min into date blocks, re-exported to the other links). Overlap with a HAIP booking raises a task. (Two-way Google Calendar: not built.)
   **Shared calendar** [120]: one link, several vehicles (`ical_feed_vehicles` keywords, whole-word; no match = all held + a "Which vehicle?" task).
   Trip dates in the description widen the block (`ical_event_details.py`); details show on the calendar (amounts: `revenue.read`).
-  **Lead attribution (Oct 14)**: `inquiry_service._stage_id_for` resolves legacy stages by meaning (valid-entry / closed-won / closed-lost), never to a gone key; the stage chips apply the list's filters; a manual booking links to the guest's one open lead (or `inquiry_id`) and marks it Sold; `organic_call` source [126] = inbound call with no ad behind it (older call leads keep their source); no source = "Not recorded". **Mobile shell**: bottom tabs Home/Inbox/Leads/Calendar/More; one `PeriodBar` (Today/7d/This month/Last month, per-device) on both Home views; calendar = agenda on phones, timeline above 768px, entries open booking/lead (`/calendar` returns `inquiry_id`). Campaign report has Replied (inbox match, 7 days).
+  **Lead attribution (Oct 14)**: `inquiry_service._stage_id_for` resolves legacy stages by meaning (valid-entry / closed-won / closed-lost), never to a gone key; the stage chips apply the list's filters; a manual booking links to the guest's one open lead (or `inquiry_id`) and marks it Sold; `organic_call` source [126] = inbound call with no ad behind it (older call leads keep their source); no source = "Not recorded". **Mobile shell**: bottom tabs Home/Inbox/Leads/Calendar/More; one `PeriodBar` (Today/7d/This month/Last month, per-device) on both Home views; calendar = month grid on phones, timeline above 768px, entries open booking/lead (`/calendar` returns `inquiry_id`). Campaign report has Replied (inbox match, 7 days).
+  **Vehicles (Oct 16)**: caravans are named "Ratha 1"/"Ratha 2"; a booking with no vehicle goes to the FIRST FREE one (`booking_service.pick_free_property`, natural name order; manual `POST /bookings` may omit `property_id`, calendar events too; 409 when all taken). The "Unassigned" placeholder is now only the overflow when every vehicle is taken (+ task). Black/White lives in the booking's staff Notes (`internal_notes`, shown on the calendar sheet). One-off `scripts/ratha_vehicles.py` (dry-run default) renames + moves legacy placeholder bookings.
   **Calendar bookings** [121]: a complete event becomes a `Stay` (`ical_booking_service.py`), tied to the guest's one open lead (marked Sold); no vehicle = "Unassigned", picked at check-in (`vehicle_pool.py`); a CRM edit locks it.
 - **Public API + webhooks** [112, 113]: `/api/public/v1` is a *separate* FastAPI app (`app/public_api/`). Scoped API keys (SHA-256 only, shown once, lookup via
   SECURITY DEFINER fn). Signed outbound webhooks (HMAC-SHA256 over `timestamp.body`, outbox written
@@ -52,6 +53,7 @@ replies, unified lead record across every touchpoint.
   Chat-extracted trip fields can be re-stated by later messages; `quoted_amount` stays write-once. Missed-call callback reminders.
 - **WhatsApp**: template editor + Meta sync, campaigns (schedule, CSV import, CRM audiences, reports), health check, overview dashboard.
   **Instagram**: per-channel verify tokens (never shown in page), hourly alert if message access is off, referral-only events handled.
+- **Reply safety net**: `concierge.recover_missed_replies` (beat every 10 min, queue `whatsapp`, `workers/tasks/reply_recovery.py`) re-queues `concierge_draft` for a guest message 4 min–6 h old with no outbound after it (once/hour/message, ≤25/tenant). `scripts/diagnose_bot_replies.py` (read-only) explains why a guest got no reply: mode, drafts by outcome, held-back reasons, Meta delivery errors.
 - **Integration health**: one rule (`integration_health.py`) for the bar, insights and Integrations page.
 - **AI reliability (mAI3, Oct 2026) [123]**: inventory + gaps `docs/ai/AI_FEATURE_MATRIX.md`; sales-agent roadmap `docs/ai/SALES_AGENT_*.md` (proposal only, nothing built). **KB**: ONE
   retrieval path, `knowledge_service.search_detailed`; an entry is used only if active + approved + indexed + not `stale_since` + in scope; an edit makes it `pending`
@@ -91,14 +93,10 @@ Active clients:
 
 ## LLM ROUTING TABLE — ALWAYS USE ROUTER, NEVER IMPORT DIRECTLY
 
-Routing is **NVIDIA NIM-first**. `concierge_draft` went NVIDIA → Gemini (2026-08-25, nemotron-49b
-hung with no timeout/exception), then **back to NVIDIA `openai/gpt-oss-20b` on 2026-09-27
-because the Gemini billing account went negative** and Google refused every call (guests got
-only the safe holding reply for hours). **Temporary**: revert `_TASK_ROUTES["concierge_draft"]`
-and `tests/adapters/test_llm_routing.py` to `("gemini", "gemini-3.6-flash")` once GCP shows
-positive credit. Its NVIDIA time bound is 45s (Gemini 40s); a ~20s ceiling was a false hang
-signature. No Claude in the live table, and no direct OpenAI key — `openai/gpt-oss-20b` is
-served through NVIDIA NIM on the existing `NVIDIA_API_KEY`.
+Routing is **NVIDIA NIM-first**, except `concierge_draft` (guest replies): **Gemini `gemini-3.6-flash`** again since 2026-10-16.
+It detoured to NVIDIA `openai/gpt-oss-20b` 2026-09-27 → 10-16 because the Gemini billing balance went negative and Google refused
+every call (guests got only the holding reply). If that recurs, reroute `_TASK_ROUTES["concierge_draft"]` + `tests/adapters/test_llm_routing.py`
+back to NVIDIA. Its NVIDIA time bound is 45s (Gemini 40s). No Claude in the live table; `openai/gpt-oss-20b` runs on `NVIDIA_API_KEY`.
 
 **Gemini fallback** (`adapters/llm/fallback.py`): internal-analysis tasks (`call_analysis`,
 `call_scoring`, `lead_summary`, `daily_briefing`, `quick_classify`, `agent_*`, `deep_reason`)
@@ -124,7 +122,7 @@ truth; if this table and the code disagree, the code wins and this table is stal
 | `quick_classify` · `bulk_batch` | NVIDIA | openai/gpt-oss-20b |
 | `concierge_rewrite` | NVIDIA | openai/gpt-oss-20b |
 | `fallback` | NVIDIA | mistralai/mistral-nemotron |
-| `concierge_draft` | NVIDIA *(temporary — Gemini billing blocked)* | openai/gpt-oss-20b |
+| `concierge_draft` | Gemini | gemini-3.6-flash |
 
 Unknown task keys route to `fallback` (they previously defaulted to Claude,
 which fails in prod — no `ANTHROPIC_API_KEY` is provisioned there).
@@ -469,8 +467,8 @@ Direction lives in `PRODUCT.md` and `docs/DESIGN.md` §5 ("Calm operations room"
 - Colours come from tokens (`--haip-*`, status triplets `--haip-status-*`). No new hex literals, no raw Tailwind grays/reds/greens for state, no new inline `style={{}}`.
 - Every list needs loading, empty and error states. Every number says what period it covers; no `-100%` against an empty baseline.
 - Money in lakh/crore (`₹1,25,000`), times in the workspace timezone (IST).
-- Phone first: nothing scrolls sideways at 375px, tap targets ≥ 44px on touch, inputs ≥ 16px. Chrome is small on purpose: 44px top bar, 48px bottom tabs (`MobileHeader`, `MobileNav`, `dashboard/layout.tsx` padding must match). The top bar already names the page, so a page's own `<h1>`/description is `hidden sm:block` on phones; secondary filters go behind a Filters button.
-- **Calendar** (`portfolio/calendar/page.tsx`): phones (<768px) get `components/calendar/MonthGrid.tsx`, a 7-column month grid for ONE property (property picker, month arrows, bars span check-in→check-out, split per week, green direct / gray blocked / red maintenance); tablets and up keep the multi-property timeline. Both open `EntrySheet` (booking details; "Open booking" only for `canViewBookings` roles). Phone fetches 42 days from the Monday before the 1st.
+- Phone first: nothing scrolls sideways at 375px, tap targets ≥ 44px on touch, inputs ≥ 16px. Chrome is small on purpose: 44px top bar, 48px bottom tabs (`MobileHeader`, `MobileNav`, `dashboard/layout.tsx` padding must match). The top bar names the page (every route needs a `ROUTE_LABELS` entry in `MobileHeader.tsx`), so `globals.css` visually hides every `.haip-page-title` + its next `<p>` and tightens header padding under 640px; a title that is DATA (guest, call, agent) adds `haip-page-title--keep`. Secondary filters go behind a Filters button.
+- **Calendar** (`portfolio/calendar/page.tsx`): phones (<768px) get `components/calendar/MonthGrid.tsx`, a 7-column month grid for ONE property (property picker incl. "All vehicles" with R1/R2 tags, month arrows, bars span check-in→check-out, split per week, green direct / gray blocked / red maintenance); tablets and up keep the multi-property timeline. Both open `EntrySheet` (booking details; "Open booking" only for `canViewBookings` roles). Phone fetches 42 days from the Monday before the 1st.
 - **Booking page errors** (`lib/bookings.ts::loadFailure`): only HTTP 404 says "Booking not found"; 403 = no access, 401 = signed out, anything else = couldn't load + Try again. Never collapse these into one message.
 - Touching a page for any reason: move it onto the kit only if the task asks for it. No drive-by redesigns.
 

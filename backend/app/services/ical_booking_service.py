@@ -3,9 +3,9 @@
 Rules (only for links that have vehicle keywords, i.e. a shared calendar):
   * An event becomes a booking when it gives a guest name, a phone number, a total and trip dates it can trust. Anything
     less stays a calendar block, as before.
-  * The vehicle is NOT needed. An event that names no vehicle is booked on the "Unassigned" property and a task asks for a
-    vehicle to be picked at check-in (the booking page's property field does that, with the usual clash check). Meanwhile it
-    uses up one of the vehicles (vehicle_pool). An event naming two vehicles stays a block on both.
+  * The vehicle is NOT needed. An event that names no vehicle (or one that is already taken) is booked on the FIRST FREE vehicle:
+    Ratha 1, or Ratha 2 when Ratha 1 is busy on those dates. Only when every vehicle is taken does it sit on the "Unassigned"
+    placeholder, with a task, so nothing is lost and the overbooking is visible. An event naming two vehicles stays a block on both.
   * If the guest already has a booking on those dates (someone entered it in the CRM first) the event is LINKED to it and
     locked, never booked a second time.
   * Google is the source for dates, total, advance and guest count while the booking is still "confirmed" and unlocked.
@@ -25,7 +25,7 @@ import structlog
 from sqlalchemy.orm import Session
 
 from app.core.audit import append_audit
-from app.models.ical_feed import ICalEventBooking
+from app.models.ical_feed import ICalEventBooking, ICalFeedVehicle
 from app.models.inquiry import Inquiry
 from app.models.pipeline_stage import PipelineStage
 from app.models.property import Stay
@@ -188,6 +188,16 @@ def _existing_booking(db: Session, tenant_id: str, guest_id: str, start: date, e
     return None
 
 
+def _choose_vehicle(db: Session, feed, hits: list[str], check_in: date, check_out: date, exclude_stay_id: Optional[str] = None):
+    """(property id or None, the event's own vehicle was taken, the Property chosen instead). The vehicle the event names when it
+    is free, else the first free vehicle of the shared calendar; None when every vehicle is taken."""
+    if hits and not bsvc.find_conflicts(db, feed.tenant_id, hits[0], check_in, check_out, exclude_stay_id=exclude_stay_id):
+        return hits[0], False, None
+    ids = [r[0] for r in db.query(ICalFeedVehicle.property_id).filter_by(feed_id=feed.id, tenant_id=feed.tenant_id).all()]
+    free = bsvc.pick_free_property(db, feed.tenant_id, check_in, check_out, candidate_ids=ids, exclude_stay_id=exclude_stay_id) if ids else None
+    return (free.id if free else None), bool(hits), free
+
+
 def apply(db: Session, feed, key: str, ev: dict, details: dict, start: str, end: str, source: str,
           hits: list[str], today: date) -> Optional[str]:
     """Create or update the booking for one event. Returns "created", "linked", "updated", "unchanged", or None when the
@@ -207,13 +217,11 @@ def apply(db: Session, feed, key: str, ev: dict, details: dict, start: str, end:
             append_audit(db, tenant_id=feed.tenant_id, action="booking.linked_to_calendar", target_type="booking", target_id=mine.id,
                          payload={"feed_id": feed.id})
             return "linked"
-        holder = vehicle_pool.placeholder_property(db, feed.tenant_id, feed.property_id)
-        target, taken = holder.id, False
-        if hits:
-            if bsvc.find_conflicts(db, feed.tenant_id, hits[0], check_in, check_out):
-                taken = True                                   # they asked for a vehicle that is not free: decide later
-            else:
-                target = hits[0]
+        target, taken, free = _choose_vehicle(db, feed, hits, check_in, check_out)
+        holder = None
+        if target is None:                                     # every vehicle is taken: park it on the placeholder and say so
+            holder = vehicle_pool.placeholder_property(db, feed.tenant_id, feed.property_id)
+            target = holder.id
         stay = Stay(tenant_id=feed.tenant_id, guest_id=guest_id, property_id=target, check_in=check_in, check_out=check_out,
                     adults=cand["adults"], children=cand["children"], status="confirmed", total_amount=cand["total"],
                     currency="INR", special_requests=[], channel_source=SOURCE,
@@ -226,10 +234,10 @@ def apply(db: Session, feed, key: str, ev: dict, details: dict, start: str, end:
         lead_id = link_lead(db, stay, today)
         append_audit(db, tenant_id=feed.tenant_id, action="booking.created_from_calendar", target_type="booking", target_id=stay.id,
                      payload={"feed_id": feed.id, "property_id": target, "check_in": start, "check_out": end, "inquiry_id": lead_id})
-        if target == holder.id and check_out >= today:
+        if holder is not None and check_out >= today:
             _task(db, feed.tenant_id, _assign_title(cand["name"], start, end), stay, check_in)
-        if taken and check_out >= today:
-            _task(db, feed.tenant_id, f"Vehicle taken: {cand['name']} asked for a vehicle that is not free ({start} to {end})"[:255], stay, check_in)
+        elif taken and free is not None and check_out >= today:
+            _task(db, feed.tenant_id, f"Vehicle changed: {cand['name']} asked for a vehicle that is not free, booked on {free.name} ({start} to {end})"[:255], stay, check_in)
         return "created"
 
     stay = db.query(Stay).filter_by(id=link.stay_id, tenant_id=feed.tenant_id).first()
@@ -249,9 +257,10 @@ def apply(db: Session, feed, key: str, ev: dict, details: dict, start: str, end:
         if (float(current) if field == "total_amount" and current is not None else current) != value:
             setattr(stay, field, value)
             changed = True
-    if hits and stay.property_id in vehicle_pool.placeholder_ids(db, feed.tenant_id) \
-            and not bsvc.find_conflicts(db, feed.tenant_id, hits[0], check_in, check_out, exclude_stay_id=stay.id):
-        stay.property_id, changed = hits[0], True              # the event now names a free vehicle
+    if stay.property_id in vehicle_pool.placeholder_ids(db, feed.tenant_id):
+        target, _taken, _free = _choose_vehicle(db, feed, hits, check_in, check_out, exclude_stay_id=stay.id)
+        if target is not None:                                 # a vehicle is free now (or the event names one): take it
+            stay.property_id, changed = target, True
     if moved_dates and bsvc.find_conflicts(db, feed.tenant_id, stay.property_id, check_in, check_out, exclude_stay_id=stay.id):
         _task(db, feed.tenant_id, f"Dates changed in Google overlap another booking ({start} to {end})"[:255], stay, check_in)
     _advance(db, link, stay, cand["advance"], today)

@@ -103,6 +103,7 @@ export function CreateBookingModal({
   const [totalEdited, setTotalEdited] = useState(isEditing);
   const [occasion, setOccasion] = useState(""); // RWBooking doesn't expose occasion -- edit mode leaves this blank rather than guessing
   const [specialRequests, setSpecialRequests] = useState("");
+  const [notes, setNotes] = useState("");   // staff-only: which caravan it really is (Black / White), anything the team should know
   const [status, setStatus] = useState<string>(editBooking?.status || "confirmed");
 
   const selectedProperty = properties.find(p => p.id === propertyId);
@@ -135,7 +136,7 @@ export function CreateBookingModal({
             guest_id: selectedGuest?.id || undefined,
             guest_name: selectedGuest ? undefined : (newGuestName || undefined),
             guest_phone: selectedGuest ? undefined : (newGuestPhone || undefined),
-            property_id: propertyId,
+            property_id: propertyId || undefined,          // empty = the first free caravan (Ratha 1, else Ratha 2)
             rate_plan_id: ratePlanId || undefined,
             check_in: checkIn,
             check_out: checkOut,
@@ -144,6 +145,7 @@ export function CreateBookingModal({
             total_amount: totalAmount ? Number(totalAmount) : undefined,
             occasion: occasion || undefined,
             special_requests: specialRequests || undefined,
+            internal_notes: notes || undefined,
           }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["local-bookings"] });
@@ -152,7 +154,7 @@ export function CreateBookingModal({
   });
 
   const guestValid = isEditing || !!selectedGuest || (newGuestName.trim() && newGuestPhone.trim());
-  const canSubmit = guestValid && propertyId && checkIn && checkOut && !mutation.isPending;
+  const canSubmit = guestValid && (isEditing ? !!propertyId : true) && checkIn && checkOut && !mutation.isPending;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -247,14 +249,14 @@ export function CreateBookingModal({
 
           {/* Property */}
           <div>
-            <label className="block text-[12.5px] font-semibold mb-1.5" style={{ color: "var(--haip-fg)" }}>Caravan / Property *</label>
+            <label className="block text-[12.5px] font-semibold mb-1.5" style={{ color: "var(--haip-fg)" }}>Caravan / Property{isEditing ? " *" : ""}</label>
             <select
-              required
+              required={isEditing}
               value={propertyId}
               onChange={e => { setPropertyId(e.target.value); setRatePlanId(""); setTotalEdited(false); }}
               className={inputCls + " appearance-none cursor-pointer"} style={inputStyle}
             >
-              <option value="">{loadingProperties ? "Loading…" : "Select…"}</option>
+              <option value="">{loadingProperties ? "Loading…" : isEditing ? "Select…" : "Auto: first free caravan"}</option>
               {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
@@ -331,6 +333,18 @@ export function CreateBookingModal({
               className={inputCls} style={inputStyle} {...focusHandlers}
             />
           </div>
+
+          {/* Notes (staff only) -- the agent writes which caravan it is, e.g. "Black Ratha" */}
+          {!isEditing && (
+            <div>
+              <label className="block text-[12.5px] font-semibold mb-1.5" style={{ color: "var(--haip-fg)" }}>Notes <span className="font-normal text-gray-400">(staff only)</span></label>
+              <textarea
+                rows={2} value={notes} onChange={e => setNotes(e.target.value)}
+                placeholder="Which caravan: Black Ratha / White Ratha. Anything the team should know."
+                className={inputCls + " resize-none"} style={inputStyle} {...focusHandlers}
+              />
+            </div>
+          )}
 
           {/* Status -- only meaningful once a booking already exists */}
           {isEditing && (

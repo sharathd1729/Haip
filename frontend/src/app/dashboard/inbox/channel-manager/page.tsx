@@ -658,7 +658,7 @@ export default function ChannelManagerPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1
-              className="haip-page-title leading-tight"
+              className="haip-page-title haip-page-title--keep leading-tight"
             >
               Channel Manager
             </h1>

@@ -330,7 +330,8 @@ class BookingCreateRequest(BaseModel):
     guest_name: Optional[str] = None
     guest_phone: Optional[str] = None
 
-    property_id: str
+    # Omitted = the first free vehicle on these dates (Ratha 1, else Ratha 2); 409 when every vehicle is taken.
+    property_id: Optional[str] = None
     rate_plan_id: Optional[str] = None
 
     check_in: str   # YYYY-MM-DD
@@ -366,9 +367,14 @@ def create_booking(
     if check_out_date < check_in_date:
         raise HTTPException(status_code=422, detail="check_out cannot be before check_in")
 
-    prop = db.query(Property).filter_by(id=payload.property_id, tenant_id=tenant_id).first()
-    if not prop:
-        raise HTTPException(status_code=404, detail="Property not found")
+    if payload.property_id:
+        prop = db.query(Property).filter_by(id=payload.property_id, tenant_id=tenant_id).first()
+        if not prop:
+            raise HTTPException(status_code=404, detail="Property not found")
+    else:
+        prop = bsvc.pick_free_property(db, tenant_id, check_in_date, check_out_date)
+        if prop is None:
+            raise HTTPException(status_code=409, detail="Every vehicle is already booked or blocked on these dates")
 
     rate_plan = None
     if payload.rate_plan_id:
