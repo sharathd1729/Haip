@@ -21,7 +21,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.core.database import SessionLocal  # noqa: E402
-from app.models.conversation import ChannelType, Conversation  # noqa: E402
+from app.models.conversation import ChannelType, Conversation, Message  # noqa: E402
 from app.models.guest import Guest  # noqa: E402
 from app.models.tenant import Tenant  # noqa: E402
 from app.services import whatsapp_personal_service as svc  # noqa: E402
@@ -60,7 +60,7 @@ def resolve(jid: str, lid_to_pn: dict[str, str], names: dict[str, str]) -> tuple
 
 
 def run(db, tenant_id: str, lid_to_pn: dict[str, str], names: dict[str, str]) -> dict:
-    out = {"chats": 0, "phone_set": 0, "name_set": 0, "moved_to_existing_guest": 0, "unresolved": 0}
+    out = {"chats": 0, "phone_set": 0, "name_set": 0, "moved_to_existing_guest": 0, "merged_into_open_conversation": 0, "unresolved": 0}
     convs = (db.query(Conversation).filter(Conversation.tenant_id == tenant_id, Conversation.channel == ChannelType.WHATSAPP,
                                            Conversation.source == "personal_bridge", Conversation.channel_conversation_id.isnot(None),
                                            ~Conversation.channel_conversation_id.like("%@g.us")).all())
@@ -75,8 +75,23 @@ def run(db, tenant_id: str, lid_to_pn: dict[str, str], names: dict[str, str]) ->
             continue
         known = svc._existing_guest_by_phone(db, tenant_id, phone)
         if known and known != guest.id:
-            conv.guest_id = known                                     # one person, one record
+            # One person, one record. A guest can have only ONE open WhatsApp conversation, so when that lead already has one the
+            # imported messages are merged into it (chronological, by their own timestamps) and the emptied imported thread is closed.
+            target = (db.query(Conversation).filter(Conversation.tenant_id == tenant_id, Conversation.guest_id == known,
+                                                    Conversation.channel == ChannelType.WHATSAPP, Conversation.is_open.is_(True),
+                                                    Conversation.id != conv.id).first())
+            if target is None:
+                conv.guest_id = known
+            else:
+                db.query(Message).filter(Message.conversation_id == conv.id, Message.tenant_id == tenant_id).update(
+                    {"conversation_id": target.id}, synchronize_session=False)
+                if conv.last_message_at and (not target.last_message_at or target.last_message_at < conv.last_message_at):
+                    target.last_message_at = conv.last_message_at
+                conv.is_open = False
+                conv.channel_conversation_id = None                   # a later live message finds the lead's own thread, not this one
+                out["merged_into_open_conversation"] += 1
             out["moved_to_existing_guest"] += 1
+            db.flush()
             continue
         before_name = guest.name
         svc.fill_mirror_identity(guest, phone, name)
