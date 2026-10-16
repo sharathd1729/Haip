@@ -273,3 +273,66 @@ async def test_transcribe_raises_on_failed_job():
     with patch("app.adapters.transcription.sarvam.SarvamAI", return_value=fake_client):
         with pytest.raises(RuntimeError, match="corrupt audio"):
             await _adapter().transcribe(b"fake-wav-bytes", language_hint="hi-IN")
+
+
+# ── model switch: saaras:v3 (default) vs saaras:v4 (opt-in) ─────────────────────
+
+def _fake_client():
+    client = MagicMock()
+    return client
+
+
+def test_default_model_is_v3_on_the_translate_job_exactly_as_before():
+    client = _fake_client()
+    with patch("app.adapters.transcription.sarvam.settings") as st:
+        st.SARVAM_STT_MODEL = "saaras:v3"
+        st.SARVAM_KEYTERMS = ""
+        SarvamAdapter._create_job(client)
+    client.speech_to_text_translate_job.create_job.assert_called_once_with(model="saaras:v3", with_diarization=True, num_speakers=2)
+    client.speech_to_text_job.create_job.assert_not_called()
+
+
+def test_an_unset_or_blank_model_falls_back_to_v3():
+    client = _fake_client()
+    with patch("app.adapters.transcription.sarvam.settings") as st:
+        st.SARVAM_STT_MODEL = ""
+        st.SARVAM_KEYTERMS = ""
+        SarvamAdapter._create_job(client)
+    assert client.speech_to_text_translate_job.create_job.called
+
+
+def test_v4_uses_the_plain_job_in_translate_mode_with_the_key_terms():
+    client = _fake_client()
+    with patch("app.adapters.transcription.sarvam.settings") as st:
+        st.SARVAM_STT_MODEL = "saaras:v4"
+        st.SARVAM_KEYTERMS = "Ratha, Coorg , ,Kabini"
+        SarvamAdapter._create_job(client)
+    client.speech_to_text_job.create_job.assert_called_once_with(
+        model="saaras:v4", mode="translate", with_diarization=True, num_speakers=2, keyterms=["Ratha", "Coorg", "Kabini"])
+    client.speech_to_text_translate_job.create_job.assert_not_called()
+
+
+def test_v4_without_key_terms_sends_none():
+    client = _fake_client()
+    with patch("app.adapters.transcription.sarvam.settings") as st:
+        st.SARVAM_STT_MODEL = "saaras:v4"
+        st.SARVAM_KEYTERMS = ""
+        SarvamAdapter._create_job(client)
+    assert "keyterms" not in client.speech_to_text_job.create_job.call_args.kwargs
+
+
+def test_key_terms_are_capped_at_fifty():
+    client = _fake_client()
+    with patch("app.adapters.transcription.sarvam.settings") as st:
+        st.SARVAM_STT_MODEL = "saaras:v4"
+        st.SARVAM_KEYTERMS = ",".join(f"t{i}" for i in range(80))
+        SarvamAdapter._create_job(client)
+    assert len(client.speech_to_text_job.create_job.call_args.kwargs["keyterms"]) == 50
+
+
+def test_a_bare_list_of_diarized_entries_is_understood():
+    payload = {"transcript": "hello there", "language_code": "hi-IN", "diarized_transcript": [
+        {"speaker_id": "speaker_1", "transcript": "hello", "start_time_seconds": 0.0, "end_time_seconds": 1.0},
+        {"speaker_id": "speaker_2", "transcript": "there", "start_time_seconds": 1.0, "end_time_seconds": 2.0}]}
+    r = _adapter()._parse(payload, "en-IN")
+    assert [t.speaker for t in r.turns] == ["agent", "guest"] and r.turns[1].text == "there"

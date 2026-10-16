@@ -60,7 +60,7 @@ sqlglot==25.34.1
 # batch job flow (create/upload/start/poll/download) requires presigned
 # blob uploads and job-status polling that aren't worth hand-rolling
 # against undocumented exact field names when an official client exists.
-sarvamai==0.1.28
+sarvamai==0.1.33
 
 # ── Knowledge base ingestion (website + document upload) ───────────────────────
 # pypdf — pure-Python PDF text extraction, no system deps (no poppler/etc to

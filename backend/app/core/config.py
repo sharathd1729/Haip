@@ -66,6 +66,11 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = ""
     DEEPGRAM_API_KEY: str = ""
     SARVAM_API_KEY: str = ""   # Sarvam AI — best for Hindi/Indic/code-switched calls
+    # Speech-to-text model for call transcription: "saaras:v3" (the translate batch job, proven in production) or "saaras:v4" (Sarvam's
+    # newest: plain STT job in "translate" mode). Default stays v3 until v4 has been compared on real calls
+    # (scripts/compare_sarvam_models.py). SARVAM_KEYTERMS = comma-separated names/brands to bias v4 toward (max 50; v4 only).
+    SARVAM_STT_MODEL: str = "saaras:v3"
+    SARVAM_KEYTERMS: str = ""
     # Operational kill switch: when true, new call recordings are stored but
     # NOT enqueued for transcription. Existing in-flight jobs are unaffected.
     TRANSCRIPTION_PAUSED: bool = False
