@@ -98,32 +98,7 @@ class SarvamAdapter(TranscriptionAdapter):
             with open(audio_path, "wb") as f:
                 f.write(audio_bytes)
 
-            job = client.speech_to_text_translate_job.create_job(
-                # Confirmed live: this was the actual root cause of every
-                # "Agent"/"Guest" showing as "Unknown" -- saaras:v2.5 is
-                # Sarvam's own docs' explicitly named legacy model ("legacy
-                # and being phased out, not a version choice to replicate"),
-                # and diarization on it consistently collapsed a real,
-                # clearly-alternating 30-minute two-person call onto a
-                # single speaker id. Re-ran the identical audio through
-                # saaras:v3 (the current model) and diarization worked
-                # correctly -- real, alternating speaker_1/speaker_2 turns
-                # with real timestamps. v3 also changed the diarized entry
-                # field names (see _turns_from_diarized below).
-                model="saaras:v3",
-                with_diarization=True,
-                # Every HAIP call is a 2-party conversation (agent + guest).
-                # Left unset, the diarization model has to guess the speaker
-                # count itself -- confirmed live: on shorter/noisier
-                # recordings it frequently guessed 1, collapsing the whole
-                # call onto a single raw speaker id, which
-                # _turns_from_diarized's diarization_worked check then
-                # (correctly) reports as "unknown" rather than lying about
-                # who said what. Pinning the known speaker count gives the
-                # model the one piece of information it was missing instead
-                # of just being more honest about its failure to find it.
-                num_speakers=2,
-            )
+            job = self._create_job(client)
             job.upload_files([audio_path])
             job.start()
             job.wait_until_complete(
@@ -147,6 +122,29 @@ class SarvamAdapter(TranscriptionAdapter):
                 payload = json.load(f)
 
         return self._parse(payload, "en-IN", direction=direction)
+
+    @staticmethod
+    def _create_job(client):
+        """Create the batch job on the configured model (settings.SARVAM_STT_MODEL).
+
+        saaras:v3 (default, proven in production): the speech-to-text-TRANSLATE batch job; it auto-detects the spoken language and
+        always returns English. Confirmed live: saaras:v2.5 collapsed a clearly two-person call onto one speaker id, v3 diarized it
+        correctly; num_speakers is pinned to 2 because every HAIP call is agent + guest (left unset the model guessed 1 on short or noisy
+        recordings).
+
+        saaras:v4 (opt-in): v4 is served by the plain speech-to-text job, with translation as a MODE (mode="translate" = English out),
+        and it accepts key terms (names, places, brands) to transcribe accurately. Not the default until compared on real calls.
+        """
+        model = (settings.SARVAM_STT_MODEL or "saaras:v3").strip()
+        if model == "saaras:v4":
+            kwargs: dict = {}
+            terms = [t.strip() for t in (settings.SARVAM_KEYTERMS or "").split(",") if t.strip()][:50]
+            if terms:
+                kwargs["keyterms"] = terms
+            return client.speech_to_text_job.create_job(
+                model="saaras:v4", mode="translate", with_diarization=True, num_speakers=2, **kwargs,
+            )
+        return client.speech_to_text_translate_job.create_job(model="saaras:v3", with_diarization=True, num_speakers=2)
 
     def _parse(self, payload: dict, language: str, direction: str = "inbound") -> TranscriptResult:
         """
@@ -179,7 +177,13 @@ class SarvamAdapter(TranscriptionAdapter):
 
         # Prefer diarized entries if available
         diarized = payload.get("diarized_transcript", {})
-        entries = diarized.get("entries", []) if isinstance(diarized, dict) else []
+        if isinstance(diarized, dict):
+            entries = diarized.get("entries", [])
+        elif isinstance(diarized, list):                   # tolerate a bare list of entries (a newer model's response shape)
+            entries = diarized
+        else:
+            entries = []
+        log.info("sarvam_output_shape", model=settings.SARVAM_STT_MODEL, keys=sorted(payload.keys())[:12], diarized_entries=len(entries))
 
         if entries:
             turns = self._turns_from_diarized(entries, direction=direction)

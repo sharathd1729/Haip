@@ -83,7 +83,7 @@ Active clients:
 | Database | PostgreSQL 16 + pgvector + RLS |
 | Queue | Celery + Redis |
 | Storage | AWS S3 + KMS (Mumbai ap-south-1) |
-| Transcription | Provider chosen by `TRANSCRIPTION_PROVIDER` or by which key is set (Sarvam, then Groq, then Deepgram, else local Whisper). **No runtime failover**: a failed call only retries the same provider (5×, backoff) |
+| Transcription | Provider chosen by `TRANSCRIPTION_PROVIDER` or by which key is set (Sarvam, then Groq, then Deepgram, else local Whisper). **No runtime failover**: a failed call only retries the same provider (5×, backoff). Sarvam model = `SARVAM_STT_MODEL` (default `saaras:v3` translate job; `saaras:v4` = plain job in translate mode + `SARVAM_KEYTERMS`, opt-in after `scripts/compare_sarvam_models.py` on a real call); SDK `sarvamai==0.1.33` |
 | LLM | Router pattern — see LLM routing table below |
 | Auth | NextAuth.js + JWT (15m) + refresh token |
 | IVR | Vobiz (Ratha) + Acefone (Jade) — CallerDesk/Mcube adapters still exist in code (historical Ratha providers, not currently active for any tenant) |
