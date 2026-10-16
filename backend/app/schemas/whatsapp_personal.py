@@ -41,14 +41,31 @@ class WhatsAppPersonalPairingOut(BaseModel):
 
 
 class WhatsAppPersonalInboundMessageIn(BaseModel):
-    """Posted by the bridge service for every inbound message it receives
-    on a paired personal number. Auth is a per-session secret, not JWT --
-    see webhooks_whatsapp_personal.py."""
+    """Posted by the bridge service for every message it sees on a paired personal number: guest messages, the agent's own
+    replies, group messages, and (with ``history``) older messages WhatsApp hands over when the phone is linked. Auth is a
+    per-session secret, not JWT -- see webhooks_whatsapp_personal.py.
+
+    The first five fields are the original contract (kept so an older bridge keeps working); everything after is optional."""
     bridge_message_id: str
-    from_phone: str
-    from_name: Optional[str] = None
+    from_phone: str = ""              # 1:1 chat: the OTHER person's number (both directions). Group: the sender's number.
+    from_name: Optional[str] = None   # the other person's / the group sender's WhatsApp name
     body: str = ""
     occurred_at: Optional[datetime] = None
+    chat_jid: Optional[str] = None    # WhatsApp's id of the chat ("...@s.whatsapp.net", "...@g.us", "...@lid")
+    chat_type: str = "user"           # "user" | "group"
+    chat_name: Optional[str] = None   # group subject / contact name
+    direction: str = "inbound"        # "inbound" | "outbound" (the agent's own message)
+    history: bool = False             # older message: never a push, a lead or an AI draft
+    media_kind: Optional[str] = None  # image | video | audio | document | sticker
+    media_mime: Optional[str] = None
+    media_filename: Optional[str] = None
+    media_base64: Optional[str] = None  # the file itself; the backend stores it in object storage (Cloudflare R2)
+    media_skipped: Optional[str] = None  # why the file was not sent ("too_large", "download_failed")
+
+
+class WhatsAppPersonalHistoryIn(BaseModel):
+    """A batch of older messages from the history WhatsApp sends right after linking (no media files)."""
+    messages: list[WhatsAppPersonalInboundMessageIn]
 
 
 class WhatsAppPersonalStatusUpdateIn(BaseModel):

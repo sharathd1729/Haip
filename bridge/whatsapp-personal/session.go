@@ -15,7 +15,6 @@ import (
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
-	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
@@ -402,7 +401,10 @@ func (m *sessionManager) registerHandlers(sessionID string, ac *activeClient) {
 	ac.client.AddEventHandler(func(rawEvt interface{}) {
 		switch evt := rawEvt.(type) {
 		case *events.Message:
-			m.handleMessage(sessionID, ac, evt)
+			// Ordered, off WhatsApp's event loop: a file download must never stall the connection (mirror.go).
+			ac.enqueue(sessionID, func() { m.handleMessage(sessionID, ac, evt) })
+		case *events.HistorySync:
+			ac.enqueue(sessionID, func() { m.handleHistory(sessionID, ac, evt) })
 		case *events.PairSuccess:
 			jid := evt.ID.String()
 			_ = m.backend.setJID(context.Background(), sessionID, jid)
@@ -432,52 +434,6 @@ func (m *sessionManager) registerHandlers(sessionID string, ac *activeClient) {
 	})
 }
 
-func (m *sessionManager) handleMessage(sessionID string, ac *activeClient, evt *events.Message) {
-	if evt.Info.IsFromMe || evt.Info.IsGroup {
-		// Phase 1 scope: inbound 1:1 guest messages only. The agent's own
-		// outgoing messages (sent from their own WhatsApp app) and group
-		// chats are out of scope -- HAIP's Inbox/Leads360 model is guest
-		// conversations, not arbitrary group traffic.
-		return
-	}
-
-	body := evt.Message.GetConversation()
-	if body == "" {
-		if ext := evt.Message.GetExtendedTextMessage(); ext != nil {
-			body = ext.GetText()
-		}
-	}
-	if body == "" {
-		return // media-only message with no caption -- nothing to capture yet
-	}
-
-	payload := map[string]interface{}{
-		"bridge_message_id": evt.Info.ID,
-		"from_phone":        "+" + senderPhoneUser(evt.Info.Sender, evt.Info.SenderAlt),
-		"from_name":         evt.Info.PushName,
-		"body":              body,
-		"occurred_at":       evt.Info.Timestamp.UTC().Format(time.RFC3339),
-	}
-	postJSON(ac.messageCallbackURL, ac.webhookSecret, payload)
-}
-
-// senderPhoneUser returns the real phone-number digits for a message
-// sender. WhatsApp's newer "LID" addressing can put a @lid identifier
-// (not a phone number at all) in Sender, with the real phone-number JID
-// only in SenderAlt -- a real message from a LID-addressed sender was
-// stored with garbage in Guest.phone (e.g. "+46463425978582", not a
-// real number) before this fix, because Sender.User was used
-// unconditionally regardless of which JID it actually was.
-func senderPhoneUser(sender, senderAlt types.JID) string {
-	if sender.Server == types.DefaultUserServer {
-		return sender.User
-	}
-	if senderAlt.Server == types.DefaultUserServer {
-		return senderAlt.User
-	}
-	return sender.User
-}
-
 func postStatus(ac *activeClient, status, jid, phoneUser string) {
 	payload := map[string]interface{}{"status": status}
 	if jid != "" {
@@ -489,7 +445,10 @@ func postStatus(ac *activeClient, status, jid, phoneUser string) {
 	postJSON(ac.statusCallbackURL, ac.webhookSecret, payload)
 }
 
-func postJSON(url, secret string, payload map[string]interface{}) {
+// httpClient has a timeout: files are posted inline and a stuck HAIP must not hang the session's worker forever.
+var httpClient = &http.Client{Timeout: 120 * time.Second}
+
+func postJSON(url, secret string, payload interface{}) {
 	if url == "" {
 		return
 	}
@@ -505,7 +464,7 @@ func postJSON(url, secret string, payload map[string]interface{}) {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Bridge-Secret", secret)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		fmt.Printf("postJSON to %s failed: %v\n", url, err)
 		return

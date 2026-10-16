@@ -144,7 +144,7 @@ export function ThreadBody({
                         isAiDraft={!!(row.msg.ai_drafted && row.msg.direction === "outbound" && row.msg.was_approved == null)}
                         isInternal={row.msg.is_internal}
                         aiConfidence={row.msg.ai_confidence}
-                        senderName={row.msg.direction === "outbound" ? row.msg.sender_name : (detail?.guest_name || detail?.guest_phone)}
+                        senderName={row.msg.direction === "outbound" ? row.msg.sender_name : (row.msg.sender_name || detail?.guest_name || detail?.guest_phone)}   /* a group message names its own sender */
                         channel={row.msg.channel}
                         mediaUrl={row.msg.media_url}
                         mediaType={row.msg.media_type}

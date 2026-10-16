@@ -167,6 +167,11 @@ type activeClient struct {
 	webhookSecret      string
 	messageCallbackURL string
 	statusCallbackURL  string
+
+	// One ordered worker per session (see mirror.go) and a cache of group subjects.
+	once  sync.Once
+	queue chan func()
+	names sync.Map
 }
 
 type sessionManager struct {
