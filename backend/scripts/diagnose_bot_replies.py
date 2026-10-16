@@ -79,10 +79,10 @@ def main() -> int:
 
         print("AI mode")
         print(f"  kill switch: {'ON (bot never sends)' if getattr(tenant, 'ai_kill_switch', False) else 'off'}")
-        for ch in ("whatsapp", "instagram"):
-            mode = getattr(tenant, f"{ch}_ai_mode_default", None)
-            thr = getattr(tenant, f"{ch}_ai_confidence_threshold", None)
-            print(f"  {ch:10} mode={mode or 'default'}  confidence floor={thr if thr is not None else 'default'}")
+        for ch, col in (("whatsapp", "wa"), ("instagram", "ig")):
+            mode = getattr(tenant, f"{col}_ai_mode_default", None)
+            thr = getattr(tenant, f"{col}_ai_confidence_threshold", None)
+            print(f"  {ch:10} mode={mode or 'shadow'}  confidence floor={thr if thr is not None else 0.78}")
         print("  (shadow = every reply waits for a person; autonomous = the bot sends when confident and no guard fired)\n")
 
         drafts = (db.query(Message).filter(Message.tenant_id == tid, Message.is_ai_generated.is_(True), Message.direction == MessageDirection.OUTBOUND,

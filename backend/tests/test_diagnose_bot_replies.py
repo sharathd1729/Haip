@@ -63,6 +63,7 @@ def test_it_names_the_guests_still_waiting_and_why_and_changes_nothing(db, tenan
     assert dbr.main() == 0
     out = capsys.readouterr().out
     assert "Guests still waiting for a reply: 2" in out                      # "Waiting" and "Failed" (its reply never delivered)
+    assert "whatsapp   mode=shadow  confidence floor=0.78" in out                  # the real wa_/ig_ columns, not "default"
     assert "AI reply generation failed" in out and "access token expired" in out
     assert "generic holding reply  : 1" in out and "waiting for review     : 1" in out
     assert not spy.commit.called and spy.rollback.called and db.query(Message).count() == before    # read-only
