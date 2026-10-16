@@ -86,6 +86,10 @@ function MediaContent({ url, type }: { url: string; type?: string | null }) {
       <img src={url} alt="Attachment" className="rounded-xl max-w-full max-h-72 object-contain" />
     );
   }
+  if (kind === "sticker") {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={url} alt="Sticker" className="max-h-40 max-w-[10rem] object-contain" />;
+  }
   if (kind.startsWith("video") || kind === "video" || kind === "ig_reel" || kind === "reel" || kind === "share") {
     return <video src={url} controls className="rounded-xl max-w-full max-h-72" />;
   }

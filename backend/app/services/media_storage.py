@@ -52,6 +52,24 @@ def upload_media(tenant_id: str, message_id: str, content: bytes, content_type: 
     return s3_key
 
 
+def upload_personal_whatsapp_media(
+    tenant_id: str, session_id: str, message_id: str, content: bytes, content_type: str, extension: str = "",
+) -> str:
+    """Store a photo/video/voice note/document that came through an agent's personal WhatsApp bridge, return the storage key.
+    Same bucket and Cloudflare R2 endpoint as every other file (AWS_S3_ENDPOINT_URL), tenant-prefixed, one object per message
+    so a re-delivered message simply overwrites itself. Read it back with get_presigned_media_url."""
+    safe_id = "".join(c for c in message_id if c.isalnum() or c in "-_")[:80] or "msg"
+    suffix = f".{extension}" if extension else ""
+    s3_key = f"{tenant_id}/whatsapp_personal/{session_id}/{safe_id}{suffix}"
+    put_kwargs = dict(Bucket=settings.S3_BUCKET_NAME, Key=s3_key, Body=content, ContentType=content_type)
+    if settings.KMS_KEY_ID and not settings.AWS_S3_ENDPOINT_URL:
+        put_kwargs["ServerSideEncryption"] = "aws:kms"
+        put_kwargs["SSEKMSKeyId"] = settings.KMS_KEY_ID
+    _s3_client().put_object(**put_kwargs)
+    log.info("whatsapp_personal_media_stored", tenant_id=tenant_id, session_id=session_id, s3_key=s3_key, bytes=len(content))
+    return s3_key
+
+
 def upload_ivr_greeting(
     tenant_id: str, content: bytes, content_type: str, extension: str = "mp3", kind: str = "greeting",
 ) -> str:

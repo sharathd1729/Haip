@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models.whatsapp_personal_session import WhatsAppPersonalSession
-from app.schemas.whatsapp_personal import WhatsAppPersonalInboundMessageIn, WhatsAppPersonalStatusUpdateIn
+from app.schemas.whatsapp_personal import WhatsAppPersonalHistoryIn, WhatsAppPersonalInboundMessageIn, WhatsAppPersonalStatusUpdateIn
 from app.services import whatsapp_personal_service as svc
 import structlog
 
@@ -38,14 +38,33 @@ def bridge_inbound_message(
     db: Session = Depends(get_db),
 ):
     session = _resolve_session_or_401(db, session_id, request)
-    svc.ingest_inbound_message(
-        db, session,
-        bridge_message_id=body.bridge_message_id,
-        from_phone=body.from_phone,
-        from_name=body.from_name,
-        body=body.body,
-    )
+    svc.ingest_chat_message(db, session, **body.model_dump())
     return {"status": "ok"}
+
+
+# Older messages WhatsApp sends right after a phone is linked. One batch per request; capped so a huge history cannot hold a worker.
+MAX_HISTORY_BATCH = 200
+
+
+@router.post("/{session_id}/history")
+def bridge_history(
+    session_id: str,
+    body: WhatsAppPersonalHistoryIn,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    session = _resolve_session_or_401(db, session_id, request)
+    stored = 0
+    for m in body.messages[:MAX_HISTORY_BATCH]:
+        fields = m.model_dump()
+        fields.update(history=True, media_base64=None)          # history never carries files
+        try:
+            if svc.ingest_chat_message(db, session, **fields) is not None:
+                stored += 1
+        except Exception as exc:  # noqa: BLE001  one bad message must not lose the batch
+            db.rollback()
+            log.warning("wa_personal_history_message_failed", session_id=session_id, error=str(exc)[:200])
+    return {"status": "ok", "stored": stored, "received": min(len(body.messages), MAX_HISTORY_BATCH)}
 
 
 @router.post("/{session_id}/status")

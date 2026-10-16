@@ -1,4 +1,4 @@
-"""Personal/Business-app WhatsApp bridge -- Phase 1: read-only capture.
+"""Personal/Business-app WhatsApp bridge -- read-only capture (Phase 1, widened Oct 2026 to a WhatsApp-Web-style mirror).
 
 Session lifecycle (pairing, QR, status) and inbound-message ingestion for
 agents who keep guest conversations on their own personal WhatsApp /
@@ -6,12 +6,15 @@ WhatsApp Business app instead of the tenant's official Cloud API number.
 
 Deliberately unofficial (whatsmeow's multi-device protocol, not Meta's
 Business API) -- see CLAUDE.md's WhatsApp integration notes on ban risk.
-Phase 1 scope only: capture into HAIP's Inbox/Leads360 for visibility and
-tracking. No AI drafting and no send-through-bridge yet (Phase 2/3).
+Mirrors guest messages, the agent's own replies, group chats, media and recent history into HAIP's Inbox. Read-only: HAIP never
+sends through it and there is no AI drafting on these threads. Only a LIVE inbound 1:1 message makes a lead; mirrored chats
+(history, own messages, groups) are guests with no phone signal, so they never count as leads.
 """
 import hashlib
 import secrets
 import uuid
+import base64
+import binascii
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -23,9 +26,10 @@ from sqlalchemy.orm import Session
 from app.core.cache import get_cached, set_cached
 from app.core.config import settings
 from app.core.encryption import encrypt_credentials, decrypt_credentials
-from app.models.conversation import Conversation, Message, ChannelType, MessageDirection
+from app.models.conversation import Conversation, Message, ChannelType, MessageDeliveryState, MessageDirection
 from app.models.guest import Guest
 from app.models.inquiry import InquirySource
+from app.models.user import User
 from app.models.whatsapp_personal_session import WhatsAppPersonalSession, WhatsAppPersonalSessionStatus
 from app.services.identity_service import resolve_gid
 from app.services.leads_service import trigger_summary_refresh
@@ -189,69 +193,160 @@ def apply_status_update(
     log.info("wa_personal_status_updated", session_id=session.id, status=status)
 
 
-def ingest_inbound_message(
+MEDIA_KINDS = ("image", "video", "audio", "document", "sticker")
+MAX_MEDIA_BYTES = 16 * 1024 * 1024
+_EXT = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif", "video/mp4": "mp4", "video/3gpp": "3gp",
+        "audio/ogg": "ogg", "audio/mpeg": "mp3", "audio/mp4": "m4a", "audio/aac": "aac", "application/pdf": "pdf"}
+_PLACEHOLDER = {"image": "[photo]", "video": "[video]", "audio": "[voice message]", "document": "[document]", "sticker": "[sticker]"}
+
+
+def _thread_value(chat_jid: str) -> str:
+    return f"wapersonal:{chat_jid}".lower()
+
+
+def _existing_guest_by_phone(db: Session, tenant_id: str, phone: str) -> Optional[str]:
+    """A guest already known by this number, WITHOUT creating one (creating a guest with a phone makes them a lead)."""
+    from app.models.guest_identity import GuestIdentity
+    from app.services import phone_identity
+
+    good = phone_identity.normalize(phone, phone_identity.region_for_tenant(db, tenant_id))
+    if not good:
+        return None
+    row = (db.query(GuestIdentity).filter(GuestIdentity.tenant_id == tenant_id, GuestIdentity.identity_value == good,
+                                          GuestIdentity.identity_type.in_(["phone", "whatsapp_number"])).first())
+    return row.guest_id if row else None
+
+
+def _store_media(session: WhatsAppPersonalSession, message_id: str, kind: str, mime: Optional[str], data_b64: str) -> tuple[Optional[str], Optional[str]]:
+    """(storage key, kind) or (None, None). Never raises: a failed file must not cost the message."""
+    try:
+        raw = base64.b64decode(data_b64, validate=False)
+    except (binascii.Error, ValueError):
+        return None, None
+    if not raw or len(raw) > MAX_MEDIA_BYTES:
+        return None, None
+    try:
+        from app.services.media_storage import upload_personal_whatsapp_media
+        ext = _EXT.get((mime or "").split(";")[0].strip().lower(), "")
+        key = upload_personal_whatsapp_media(session.tenant_id, session.id, message_id, raw, mime or "application/octet-stream", ext)
+        return key, kind
+    except Exception as exc:  # noqa: BLE001
+        log.warning("wa_personal_media_store_failed", session_id=session.id, error=str(exc)[:200])
+        return None, None
+
+
+def ingest_chat_message(
     db: Session, session: WhatsAppPersonalSession, *,
-    bridge_message_id: str, from_phone: str, from_name: Optional[str], body: str,
+    bridge_message_id: str, from_phone: str = "", from_name: Optional[str] = None, body: str = "",
+    occurred_at: Optional[datetime] = None, chat_jid: Optional[str] = None, chat_type: str = "user", chat_name: Optional[str] = None,
+    direction: str = "inbound", history: bool = False, media_kind: Optional[str] = None, media_mime: Optional[str] = None,
+    media_filename: Optional[str] = None, media_base64: Optional[str] = None, media_skipped: Optional[str] = None,
 ) -> Optional[Message]:
-    """Mirrors whatsapp.py's `_handle_inbound_message` (the official Cloud
-    API path) as closely as possible so Inbox/Leads360/Guest 360 all behave
-    identically regardless of which pipe a message came through. The only
-    real differences: tenant/agent come from the paired session (not a
-    Meta phone_number_id lookup), and no concierge_draft trigger -- Phase 1
-    is read-only capture, HAIP has no send capability on this pipe yet.
-    """
-    existing = db.query(Message).filter_by(channel_message_id=bridge_message_id).first()
+    """One message from the paired phone: a guest's, the agent's own, a group's, or an older one from the history sync.
+
+    Mirrors whatsapp.py's `_handle_inbound_message` (the official Cloud API path) so Inbox/Leads360/Guest 360 behave the same
+    whichever pipe a message came through. What differs: tenant and agent come from the paired session, nothing is ever sent or
+    AI-drafted, and a chat is only treated as a LEAD when the guest messages live (see the module docstring)."""
+    existing = db.query(Message).filter_by(channel_message_id=bridge_message_id, tenant_id=session.tenant_id).first()
     if existing:
         return None
 
-    guest_id, _created = resolve_gid(
-        db=db,
-        tenant_id=session.tenant_id,
-        signal_type="phone",
-        value=from_phone,
-        source="whatsapp_personal",
-        guest_fields={"name": from_name or "Unknown", "phone": from_phone},
-    )
+    outbound = direction == "outbound"
+    is_group = chat_type == "group"
+    # A lead needs a usable phone number: WhatsApp sometimes shows only an internal @lid id, and that chat is mirrored, not a lead.
+    live_guest_message = (not outbound) and (not history) and (not is_group) and bool(from_phone)
+    chat_jid = chat_jid or (f"{from_phone.lstrip('+')}@s.whatsapp.net" if from_phone else None)
+    if not chat_jid and not from_phone:
+        log.warning("wa_personal_message_without_chat", session_id=session.id)
+        return None
+
+    # -- which guest (a person, or for a group the group itself) -----------------
+    conversation = None
+    if chat_jid:
+        conversation = (db.query(Conversation).filter_by(tenant_id=session.tenant_id, channel=ChannelType.WHATSAPP, source="personal_bridge",
+                                                         channel_conversation_id=chat_jid).first())
+    promoted = False
+    if conversation is not None:
+        guest_id = conversation.guest_id
+        if live_guest_message and from_phone:
+            guest_row = db.query(Guest).filter_by(id=guest_id, tenant_id=session.tenant_id).first()
+            if guest_row is not None and guest_row.lead_identified_at is None:
+                # A chat we only mirrored so far: this person has now written to the agent, so they become a lead (the same
+                # as every first live message always did).
+                from app.services.identity_service import add_signal
+                try:
+                    add_signal(db, session.tenant_id, guest_id, "phone", from_phone, source="whatsapp_personal")
+                    promoted = True
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("wa_personal_promote_failed", session_id=session.id, error=str(exc)[:200])
+    else:
+        if is_group:
+            guest_id, _ = resolve_gid(db=db, tenant_id=session.tenant_id, signal_type="channel_thread_id", value=_thread_value(chat_jid),
+                                      source="whatsapp_personal", guest_fields={"name": chat_name or "WhatsApp group"})
+        elif live_guest_message:
+            guest_id, _ = resolve_gid(db=db, tenant_id=session.tenant_id, signal_type="phone", value=from_phone, source="whatsapp_personal",
+                                      guest_fields={"name": from_name or "Unknown", "phone": from_phone})
+        else:
+            guest_id = _existing_guest_by_phone(db, session.tenant_id, from_phone) if from_phone else None
+            if guest_id is None:
+                guest_id, _ = resolve_gid(db=db, tenant_id=session.tenant_id, signal_type="channel_thread_id", value=_thread_value(chat_jid or from_phone),
+                                          source="whatsapp_personal", guest_fields={"name": chat_name or from_name or from_phone or "WhatsApp contact"})
     guest = db.query(Guest).filter_by(id=guest_id, tenant_id=session.tenant_id).first()
 
-    conversation = (
-        db.query(Conversation)
-        .filter_by(tenant_id=session.tenant_id, guest_id=guest_id, channel=ChannelType.WHATSAPP, is_open=True)
-        .first()
-    )
+    if conversation is None and live_guest_message:
+        conversation = (db.query(Conversation).filter_by(tenant_id=session.tenant_id, guest_id=guest_id, channel=ChannelType.WHATSAPP, is_open=True).first())
     is_new_conversation = conversation is None
-    if not conversation:
+    if conversation is None:
         conversation = Conversation(
-            id=str(uuid.uuid4()),
-            tenant_id=session.tenant_id,
-            guest_id=guest_id,
-            channel=ChannelType.WHATSAPP,
-            source="personal_bridge",
-            is_open=True,
-            assigned_to=session.user_id,
-            # "shadow" (never auto-sent), not the tenant's wa_ai_mode_default --
-            # HAIP has no way to send on this number at all in Phase 1, and
-            # even once Phase 2 adds AI-drafted suggestions, they're read by
-            # the agent and sent from their own WhatsApp app, never
-            # autonomously -- this must never resolve to "autonomous".
-            ai_mode="shadow",
+            id=str(uuid.uuid4()), tenant_id=session.tenant_id, guest_id=guest_id, channel=ChannelType.WHATSAPP,
+            source="personal_bridge", channel_conversation_id=chat_jid, is_open=True, assigned_to=session.user_id,
+            # Never autonomous and never drafting: HAIP cannot send on this number. Live guest chats stay "shadow" as before;
+            # mirrored chats (own messages, groups, history) are "off" so the concierge is never asked about them.
+            ai_mode="shadow" if live_guest_message else "off",
         )
         db.add(conversation)
         db.flush()
+    elif conversation.source == "personal_bridge" and not conversation.channel_conversation_id and chat_jid:
+        conversation.channel_conversation_id = chat_jid
 
-    conversation.last_message_at = datetime.now(timezone.utc).isoformat()
+    when = occurred_at if occurred_at is not None else datetime.now(timezone.utc)
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    previous = conversation.last_message_at
+    if not previous or previous < when.isoformat():
+        conversation.last_message_at = when.isoformat()
+    if outbound and not history and not conversation.first_response_at:
+        conversation.first_response_at = when.isoformat()          # a reply typed on the agent's own phone is a reply
 
+    # -- the message ---------------------------------------------------------------
+    media_key = media_type = None
+    if media_kind in MEDIA_KINDS and media_base64:
+        media_key, media_type = _store_media(session, bridge_message_id, media_kind, media_mime, media_base64)
+    text = body or ""
+    if media_kind in MEDIA_KINDS and not text:
+        text = _PLACEHOLDER[media_kind] if (media_key is None or media_skipped) else ""
+    meta = {"source": "personal_bridge", "session_id": session.id, "chat_jid": chat_jid, "chat_type": chat_type}
+    if is_group:
+        meta.update({"sender_name": from_name, "sender_phone": from_phone or None})
+    if media_filename:
+        meta["filename"] = media_filename[:200]
+    if media_skipped:
+        meta["media_skipped"] = media_skipped
+    if history:
+        meta["history"] = True
     message = Message(
-        id=str(uuid.uuid4()),
-        tenant_id=session.tenant_id,
-        conversation_id=conversation.id,
-        direction=MessageDirection.INBOUND,
-        channel=ChannelType.WHATSAPP,
-        body=body,
-        channel_message_id=bridge_message_id,
-        channel_status="received",
-        channel_metadata={"source": "personal_bridge", "session_id": session.id},
+        id=str(uuid.uuid4()), tenant_id=session.tenant_id, conversation_id=conversation.id,
+        direction=MessageDirection.OUTBOUND if outbound else MessageDirection.INBOUND, channel=ChannelType.WHATSAPP,
+        body=text, media_url=media_key, media_type=media_type, channel_message_id=bridge_message_id,
+        channel_status="sent" if outbound else "received", channel_metadata=meta, created_at=when,
     )
+    if outbound:
+        message.sender_id = session.user_id
+        message.sender_name = (db.query(User.name).filter_by(id=session.user_id).scalar() or "Agent") if session.user_id else "Agent"
+        message.delivery_state = MessageDeliveryState.SENT
+        message.is_ai_generated = False
+    elif is_group:
+        message.sender_name = from_name or from_phone or "Member"
     db.add(message)
     try:
         db.flush()
@@ -260,17 +355,14 @@ def ingest_inbound_message(
         log.info("wa_personal_message_duplicate_skipped", bridge_message_id=bridge_message_id)
         return None
 
-    log.info(
-        "wa_personal_message_stored",
-        guest_token=_phone_token(from_phone), conversation=conversation.id, session_id=session.id,
-    )
+    log.info("wa_personal_message_stored", guest_token=_phone_token(from_phone or chat_jid or ""), conversation=conversation.id,
+             session_id=session.id, direction=direction, group=is_group, history=history, media=bool(media_key))
 
-    if is_new_conversation and body:
+    # -- lead, summary and push: only for a live guest message ------------------------
+    if live_guest_message and (is_new_conversation or promoted) and text:
         try:
             from app.services.inquiry_service import get_or_create_from_chat
-            lead_inquiry = get_or_create_from_chat(
-                db, session.tenant_id, guest_id, source=InquirySource.WA_DIRECT.value, message_text=body,
-            )
+            lead_inquiry = get_or_create_from_chat(db, session.tenant_id, guest_id, source=InquirySource.WA_DIRECT.value, message_text=text)
             conversation.inquiry_id = lead_inquiry.id
             if not lead_inquiry.assigned_to:
                 lead_inquiry.assigned_to = session.user_id
@@ -278,24 +370,33 @@ def ingest_inbound_message(
         except Exception as exc:
             log.warning("wa_personal_lead_auto_create_failed", tenant_id=session.tenant_id, error=str(exc))
 
-    if conversation.inquiry_id:
+    if live_guest_message and conversation.inquiry_id:
         try:
             trigger_summary_refresh(db, conversation.inquiry_id, session.tenant_id, source="message")
         except Exception as exc:
             log.warning("wa_personal_summary_refresh_failed", error=str(exc))
 
-    try:
-        from app.services.push_service import send_to_tenant
-        send_to_tenant(
-            db=db, tenant_id=session.tenant_id,
-            title="New WhatsApp message (personal)",
-            body=f"{guest.name or 'Guest'}: {(body or '')[:80]}",
-            url=f"/dashboard/inbox?id={conversation.id}",
-            tag="haip-message",
-            user_id=session.user_id,
-        )
-    except Exception as exc:
-        log.warning("wa_personal_push_notify_failed", error=str(exc))
+    if live_guest_message:
+        try:
+            from app.services.push_service import send_to_tenant
+            send_to_tenant(
+                db=db, tenant_id=session.tenant_id,
+                title="New WhatsApp message (personal)",
+                body=f"{(guest.name if guest else None) or 'Guest'}: {(text or '')[:80]}",
+                url=f"/dashboard/inbox?id={conversation.id}",
+                tag="haip-message",
+                user_id=session.user_id,
+            )
+        except Exception as exc:
+            log.warning("wa_personal_push_notify_failed", error=str(exc))
 
     db.commit()
     return message
+
+
+def ingest_inbound_message(
+    db: Session, session: WhatsAppPersonalSession, *,
+    bridge_message_id: str, from_phone: str, from_name: Optional[str], body: str,
+) -> Optional[Message]:
+    """The original Phase 1 entry point (a live 1:1 guest text), kept for older callers and tests."""
+    return ingest_chat_message(db, session, bridge_message_id=bridge_message_id, from_phone=from_phone, from_name=from_name, body=body)
