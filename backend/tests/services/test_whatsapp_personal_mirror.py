@@ -47,7 +47,7 @@ def test_the_agents_own_reply_is_an_outbound_message_and_not_a_lead(db, world):
     assert conv.source == "personal_bridge" and conv.ai_mode == "off" and conv.channel_conversation_id == "919811122233@s.whatsapp.net"
     assert conv.first_response_at is not None
     guest = db.query(Guest).filter_by(id=conv.guest_id).one()
-    assert guest.lead_identified_at is None and not guest.phone                   # a mirrored chat is not a lead
+    assert guest.lead_identified_at is None and guest.phone == "+919811122233"    # the number is shown, but a mirrored chat is not a lead
     assert db.query(Inquiry).filter_by(tenant_id=world["t"].id).count() == 0
     push.assert_not_called()
 

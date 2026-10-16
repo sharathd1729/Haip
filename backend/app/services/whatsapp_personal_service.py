@@ -217,6 +217,21 @@ def _existing_guest_by_phone(db: Session, tenant_id: str, phone: str) -> Optiona
     return row.guest_id if row else None
 
 
+_GENERIC_NAMES = ("", "unknown", "whatsapp contact", "whatsapp group")
+
+
+def fill_mirror_identity(guest: Optional[Guest], phone: Optional[str], name: Optional[str]) -> None:
+    """Show what we know about a MIRRORED contact (a chat that is not a lead): its number for display and its real name. The phone
+    goes on the guest row only, never as an identity signal, so the contact does not become a lead. Never overwrites a real value."""
+    if guest is None:
+        return
+    if phone and not (guest.phone or "").strip():
+        guest.phone = phone
+    n = (guest.name or "").strip()
+    if name and (n.lower() in _GENERIC_NAMES or n.lstrip("+").isdigit()):
+        guest.name = name[:255]
+
+
 def _store_media(session: WhatsAppPersonalSession, message_id: str, kind: str, mime: Optional[str], data_b64: str) -> tuple[Optional[str], Optional[str]]:
     """(storage key, kind) or (None, None). Never raises: a failed file must not cost the message."""
     try:
@@ -292,6 +307,8 @@ def ingest_chat_message(
                 guest_id, _ = resolve_gid(db=db, tenant_id=session.tenant_id, signal_type="channel_thread_id", value=_thread_value(chat_jid or from_phone),
                                           source="whatsapp_personal", guest_fields={"name": chat_name or from_name or from_phone or "WhatsApp contact"})
     guest = db.query(Guest).filter_by(id=guest_id, tenant_id=session.tenant_id).first()
+    if not live_guest_message and not is_group:
+        fill_mirror_identity(guest, from_phone, chat_name or from_name)
 
     if conversation is None and live_guest_message:
         conversation = (db.query(Conversation).filter_by(tenant_id=session.tenant_id, guest_id=guest_id, channel=ChannelType.WHATSAPP, is_open=True).first())
