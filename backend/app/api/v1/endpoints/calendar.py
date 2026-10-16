@@ -184,11 +184,12 @@ def get_calendar(
     except Exception:
         pass
 
-    # The "Unassigned" placeholder is only the overflow when every vehicle is taken (vehicle_pool): show its row only while it actually
-    # holds a booking or block in this window, never as an empty permanent row.
+    # The "Unassigned" placeholder is only the overflow when every vehicle is taken (vehicle_pool): show its row only while it holds a
+    # real BOOKING in this window. Its calendar blocks are just the shared Google Calendar's own record of each event (the vehicles carry
+    # the real hold), so they alone never bring the row back.
     from app.services import vehicle_pool
     properties = [p for p in properties
-                  if not vehicle_pool.is_placeholder_name(p.name) or stays_by_prop.get(p.id) or blocks_by_prop.get(p.id)]
+                  if not vehicle_pool.is_placeholder_name(p.name) or stays_by_prop.get(p.id)]
 
     for prop in properties:
         stays_raw = stays_by_prop.get(prop.id, [])

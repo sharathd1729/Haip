@@ -5,8 +5,10 @@ What it does (a DRY RUN unless you pass --apply; nothing is written in a dry run
      as "black") or, without it, by their current name (alphabetical).
   2. Appends "Caravan: <old name>" to the staff notes of every booking on a renamed vehicle, so the colour is not lost
      (new bookings: the agent writes Black or White in the booking's Notes).
-  3. Moves bookings that still sit on an "Unassigned" placeholder to the first free vehicle, oldest check-in first. A booking
-     that fits nowhere stays where it is and is listed.
+  3. Moves bookings that still sit on an "Unassigned" placeholder to the first free vehicle, oldest check-in first (so the first
+     booking takes Ratha 1 and an overlapping one takes Ratha 2). A booking that fits nowhere stays where it is and is listed.
+     Bookings that already ended are left alone unless you pass --include-past; a cancelled / checked-out one never blocks a
+     vehicle, so it simply takes the first.
 
 The vehicles are the properties of the tenant's shared Google Calendar link (the ones that have vehicle keywords); if there is no
 such link, every active non-placeholder property of the tenant. The keywords ("white", "black") are NOT changed, so a calendar
@@ -54,7 +56,7 @@ def order(vehicles: list[Property], first: str | None) -> list[Property]:
     return ranked
 
 
-def run(db, tenant_id: str, first: str | None, today: date | None = None) -> dict:
+def run(db, tenant_id: str, first: str | None, today: date | None = None, include_past: bool = False) -> dict:
     """Perform the rename and the move in the session and report them. The caller commits (--apply) or rolls back (dry run), so a
     dry run shows exactly what a real run would do, including which vehicle each booking would take."""
     today = today or date.today()
@@ -82,12 +84,18 @@ def run(db, tenant_id: str, first: str | None, today: date | None = None) -> dic
     db.flush()
     holders = vehicle_pool.placeholder_ids(db, tenant_id)
     moved, stuck = [], []
-    q = (db.query(Stay).filter(Stay.tenant_id == tenant_id, Stay.property_id.in_(holders), Stay.status.in_(bsvc.ACTIVE_STATUSES),
-                               Stay.check_out >= today).order_by(Stay.check_in, Stay.created_at)) if holders else None
+    q = None
+    if holders:
+        q = db.query(Stay).filter(Stay.tenant_id == tenant_id, Stay.property_id.in_(holders))
+        if not include_past:
+            q = q.filter(Stay.status.in_(bsvc.ACTIVE_STATUSES), Stay.check_out >= today)
+        q = q.order_by(Stay.check_in, Stay.created_at)
     for stay in (q.all() if q is not None else []):
         free = bsvc.pick_free_property(db, tenant_id, stay.check_in, stay.check_out, candidate_ids=[p.id for p in vehicles], exclude_stay_id=stay.id,
                                        ignore_unassigned=True)
         row = {"stay_id": stay.id, "check_in": stay.check_in.isoformat(), "check_out": stay.check_out.isoformat()}
+        if free is None and stay.status not in bsvc.ACTIVE_STATUSES:
+            free = vehicles[0]                                   # cancelled / checked out: occupies nothing, so it just takes the first
         if free is None:
             stuck.append(row)
             continue
@@ -104,13 +112,14 @@ def main() -> int:
     ap.add_argument("--tenant-slug", required=True)
     ap.add_argument("--first", help='name fragment of the caravan that becomes "Ratha 1" (default: alphabetical)')
     ap.add_argument("--apply", action="store_true", help="write the changes (default: dry run)")
+    ap.add_argument("--include-past", action="store_true", help="also assign bookings that have already ended (oldest first)")
     args = ap.parse_args()
     db = SessionLocal()
     try:
         tenant = db.query(Tenant).filter_by(slug=args.tenant_slug).first()
         if tenant is None:
             raise SystemExit(f"No tenant with slug {args.tenant_slug!r}")
-        out = run(db, tenant.id, args.first)
+        out = run(db, tenant.id, args.first, include_past=args.include_past)
         print("APPLIED" if args.apply else "DRY RUN (nothing written; add --apply)")
         for r in out["renames"]:
             print(f"  rename  {r['old']!r:30} -> {r['new']!r}")

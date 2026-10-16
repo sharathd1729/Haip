@@ -109,9 +109,33 @@ def test_running_twice_changes_nothing_more(db, world):
     assert again["renames"] == [] and again["stays_noted"] == 0 and again["moved"] == []
 
 
-def test_past_bookings_on_the_placeholder_are_left_alone(db, world):
+def test_past_bookings_on_the_placeholder_are_left_alone_by_default(db, world):
     s = _stay(db, world["tid"], world["ph"], -10, -8)
     out = rv.run(db, world["tid"], None)
     db.commit()
     db.refresh(s)
     assert s.property_id == world["ph"].id and out["moved"] == [] and out["stuck"] == []
+
+
+def test_include_past_assigns_oldest_first_ratha_1_then_ratha_2_for_overlaps(db, world):
+    a = _stay(db, world["tid"], world["ph"], -40, -37)
+    b = _stay(db, world["tid"], world["ph"], -39, -36)       # overlaps a: takes the other vehicle
+    c = _stay(db, world["tid"], world["ph"], -20, -18)       # later, free again: back to Ratha 1
+    out = rv.run(db, world["tid"], None, include_past=True)
+    db.commit()
+    for s in (a, b, c):
+        db.refresh(s)
+    names = {p.id: p.name for p in db.query(Property).filter_by(tenant_id=world["tid"]).all()}
+    assert [names[s.property_id] for s in (a, b, c)] == ["Ratha 1", "Ratha 2", "Ratha 1"] and out["stuck"] == []
+
+
+def test_include_past_puts_a_cancelled_booking_on_ratha_1_even_when_both_are_busy(db, world):
+    _stay(db, world["tid"], world["black"], -30, -28)
+    _stay(db, world["tid"], world["white"], -30, -28)
+    dead = _stay(db, world["tid"], world["ph"], -29, -27)
+    dead.status = "cancelled"
+    db.commit()
+    rv.run(db, world["tid"], None, include_past=True)
+    db.commit()
+    db.refresh(dead)
+    assert db.query(Property).filter_by(id=dead.property_id).one().name == "Ratha 1"
