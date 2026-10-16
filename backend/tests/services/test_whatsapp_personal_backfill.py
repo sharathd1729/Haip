@@ -49,20 +49,48 @@ def test_the_backfill_resolves_hidden_ids_from_the_bridge_tables(db, world):
     lid_to_pn = {"1234567890123": "919822200002"}
     names = {"919822200002@s.whatsapp.net": "Arun (saved)", "1234567890123@lid": "arun push"}
     out = bf.run(db, world["t"].id, lid_to_pn, names)
-    assert out == {"chats": 2, "phone_set": 1, "name_set": 1, "moved_to_existing_guest": 0, "unresolved": 1}
+    assert out == {"chats": 2, "phone_set": 1, "name_set": 1, "moved_to_existing_guest": 0, "merged_into_open_conversation": 0, "unresolved": 1}
     conv = db.query(Conversation).filter_by(tenant_id=world["t"].id, channel_conversation_id="1234567890123@lid").one()
     g = db.query(Guest).filter_by(id=conv.guest_id).one()
     assert g.phone == "+919822200002" and g.name == "Arun (saved)" and g.lead_identified_at is None
 
 
-def test_a_chat_with_a_known_lead_is_moved_onto_that_lead(db, world):
+def test_a_chat_with_a_known_lead_whose_thread_is_closed_is_moved_onto_that_lead(db, world):
     lead = svc.ingest_chat_message(db, world["s"], bridge_message_id="live1", from_phone="+919833300003", from_name="Known Lead", body="Hi",
                                    chat_jid="919833300003@s.whatsapp.net")
-    lead_guest = db.query(Conversation).filter_by(id=lead.conversation_id).one().guest_id
+    lead_conv = db.query(Conversation).filter_by(id=lead.conversation_id).one()
+    lead_guest = lead_conv.guest_id
+    lead_conv.is_open = False                                                     # no open thread to clash with: the chat just moves across
+    db.commit()
     _hist(db, world, "9988776655@lid")                                            # imported under a hidden id: looks like a stranger
     out = bf.run(db, world["t"].id, {"9988776655": "919833300003"}, {})
-    assert out["moved_to_existing_guest"] == 1
+    assert out["moved_to_existing_guest"] == 1 and out["merged_into_open_conversation"] == 0
     assert db.query(Conversation).filter_by(channel_conversation_id="9988776655@lid").one().guest_id == lead_guest
+
+
+def test_an_imported_chat_is_merged_into_the_leads_open_conversation_instead_of_clashing(db, world):
+    """The unique index allows ONE open WhatsApp conversation per guest: moving the chat across must merge, not fail."""
+    from app.models.conversation import Message
+
+    lead = svc.ingest_chat_message(db, world["s"], bridge_message_id="live2", from_phone="+919844400004", from_name="Lead", body="Hi",
+                                   chat_jid="919844400004@s.whatsapp.net")
+    lead_conv = db.query(Conversation).filter_by(id=lead.conversation_id).one()
+    m = _hist(db, world, "4455667788@lid")                                         # imported under a hidden id: a separate stranger
+    imported_conv = db.query(Conversation).filter_by(id=m.conversation_id).one()
+    out = bf.run(db, world["t"].id, {"4455667788": "919844400004"}, {})
+    db.expire_all()
+    assert out["merged_into_open_conversation"] == 1
+    assert {x.conversation_id for x in db.query(Message).filter(Message.id == m.id)} == {lead_conv.id}
+    assert imported_conv.is_open is False and imported_conv.channel_conversation_id is None
+
+
+def test_history_for_a_known_lead_joins_the_leads_open_conversation(db, world):
+    """Importing history for someone who already has an open conversation must not create a second one (the unique index refuses it)."""
+    live = svc.ingest_chat_message(db, world["s"], bridge_message_id="live3", from_phone="+919855500005", from_name="Lead", body="Hi",
+                                   chat_jid="919855500005@s.whatsapp.net")
+    old = svc.ingest_chat_message(db, world["s"], bridge_message_id="hist-lead", from_phone="+919855500005", body="older message",
+                                  chat_jid="99887766@lid", history=True, occurred_at=datetime.now(timezone.utc))
+    assert old.conversation_id == live.conversation_id
 
 
 def test_resolve_handles_each_jid_kind():

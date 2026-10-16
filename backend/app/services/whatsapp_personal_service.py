@@ -310,7 +310,9 @@ def ingest_chat_message(
     if not live_guest_message and not is_group:
         fill_mirror_identity(guest, from_phone, chat_name or from_name)
 
-    if conversation is None and live_guest_message:
+    if conversation is None and not is_group:
+        # A guest can have only ONE open WhatsApp conversation (unique index): a known lead's own thread is reused, for history and
+        # own replies too, never a second one beside it.
         conversation = (db.query(Conversation).filter_by(tenant_id=session.tenant_id, guest_id=guest_id, channel=ChannelType.WHATSAPP, is_open=True).first())
     is_new_conversation = conversation is None
     if conversation is None:
