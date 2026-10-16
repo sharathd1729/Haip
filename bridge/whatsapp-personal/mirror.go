@@ -114,6 +114,44 @@ func firstPhone(js ...types.JID) string {
 	return ""
 }
 
+// phoneOf is the "+digits" phone number for the first JID that has one. A @lid ("hidden") id is not a number, but WhatsApp
+// also tells the phone which number it belongs to, and the library keeps that lookup: use it before giving up.
+func (ac *activeClient) phoneOf(js ...types.JID) string {
+	if p := firstPhone(js...); p != "" {
+		return p
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	for _, j := range js {
+		if j.Server != types.HiddenUserServer || ac.client.Store == nil || ac.client.Store.LIDs == nil {
+			continue
+		}
+		if pn, err := ac.client.Store.LIDs.GetPNForLID(ctx, j); err == nil && pn.User != "" {
+			return "+" + pn.User
+		}
+	}
+	return ""
+}
+
+// contactName is the name the phone has for this person (saved contact name, else their WhatsApp name, else business name).
+func (ac *activeClient) contactName(j types.JID) string {
+	if ac.client.Store == nil || ac.client.Store.Contacts == nil {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	info, err := ac.client.Store.Contacts.GetContact(ctx, j)
+	if err != nil {
+		return ""
+	}
+	for _, n := range []string{info.FullName, info.PushName, info.BusinessName, info.FirstName} {
+		if n != "" {
+			return n
+		}
+	}
+	return ""
+}
+
 // skippableChat: status updates, broadcast lists and channels are not conversations.
 func skippableChat(j types.JID) bool {
 	return j.Server == types.BroadcastServer || j.Server == types.NewsletterServer || j.User == "status"
@@ -139,7 +177,7 @@ func (ac *activeClient) groupName(jid types.JID) string {
 
 // buildChatMessage turns one WhatsApp message into the payload HAIP expects; ok=false means "not worth forwarding".
 // withMedia=false (history) never downloads files: the message carries only a kind, and HAIP shows a placeholder.
-func (m *sessionManager) buildChatMessage(ac *activeClient, evt *events.Message, history bool, withMedia bool, chatName string) (chatMessage, bool) {
+func (m *sessionManager) buildChatMessage(ac *activeClient, evt *events.Message, history bool, withMedia bool, chatName string, pnHint string) (chatMessage, bool) {
 	info := evt.Info
 	if skippableChat(info.Chat) {
 		return chatMessage{}, false
@@ -167,15 +205,27 @@ func (m *sessionManager) buildChatMessage(ac *activeClient, evt *events.Message,
 		if out.ChatName == "" && !history {
 			out.ChatName = ac.groupName(info.Chat)
 		}
-		out.FromPhone = firstPhone(info.Sender, info.SenderAlt)
+		out.FromPhone = ac.phoneOf(info.Sender, info.SenderAlt)
 		out.FromName = info.PushName
+		if out.FromName == "" {
+			out.FromName = ac.contactName(info.Sender)
+		}
 	} else if info.IsFromMe {
-		out.FromPhone = firstPhone(info.Chat, info.RecipientAlt) // the OTHER person
+		out.FromPhone = ac.phoneOf(info.Chat, info.RecipientAlt) // the OTHER person
 		out.ChatName = chatName
+		if out.ChatName == "" {
+			out.ChatName = ac.contactName(info.Chat)
+		}
 	} else {
-		out.FromPhone = firstPhone(info.Sender, info.SenderAlt, info.Chat)
+		out.FromPhone = ac.phoneOf(info.Sender, info.SenderAlt, info.Chat)
 		out.FromName = info.PushName
+		if out.FromName == "" {
+			out.FromName = ac.contactName(info.Sender)
+		}
 		out.ChatName = chatName
+	}
+	if out.FromPhone == "" && pnHint != "" && !info.IsGroup {
+		out.FromPhone = pnHint // history gives the chat's phone-number id next to its hidden id
 	}
 
 	if media != nil {
@@ -207,7 +257,7 @@ func (m *sessionManager) buildChatMessage(ac *activeClient, evt *events.Message,
 
 // handleMessage forwards one live message (guest, the agent's own, or group), in arrival order.
 func (m *sessionManager) handleMessage(sessionID string, ac *activeClient, evt *events.Message) {
-	msg, ok := m.buildChatMessage(ac, evt, false, true, "")
+	msg, ok := m.buildChatMessage(ac, evt, false, true, "", "")
 	if !ok {
 		return
 	}
@@ -243,6 +293,10 @@ func (m *sessionManager) handleHistory(sessionID string, ac *activeClient, evt *
 		if name == "" {
 			name = conv.GetName()
 		}
+		pnHint := ""
+		if pn, err := types.ParseJID(conv.GetPnJID()); err == nil {
+			pnHint = firstPhone(pn)
+		}
 		var parsed []*events.Message
 		for _, hm := range conv.GetMessages() {
 			wm := hm.GetMessage()
@@ -260,7 +314,7 @@ func (m *sessionManager) handleHistory(sessionID string, ac *activeClient, evt *
 			parsed = parsed[:perChat]
 		}
 		for _, pe := range parsed {
-			if cm, ok := m.buildChatMessage(ac, pe, true, false, name); ok {
+			if cm, ok := m.buildChatMessage(ac, pe, true, false, name, pnHint); ok {
 				batch = append(batch, cm)
 				total++
 				if len(batch) >= historyBatchSize {
