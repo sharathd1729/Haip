@@ -105,3 +105,28 @@ def test_a_chosen_vehicle_is_still_honoured(client, db, tenant_and_user):
     assert s.status_code == 201
     row = db.query(Stay).filter_by(id=s.json()["id"]).one()
     assert row.property_id == r2.id and row.internal_notes == "Black Ratha"
+
+
+def test_the_unassigned_placeholder_is_never_offered_in_the_caravan_picker(client, db, tenant_and_user):
+    tid = tenant_and_user["tenant"].id
+    _prop(db, tid, "Unassigned (legacy bookings -- reassign manually)")
+    r1 = _prop(db, tid, "Ratha 1")
+    names = [p["name"] for p in client.get("/api/v1/bookings/properties", headers=_h(tenant_and_user)).json()]
+    assert names == ["Ratha 1"] and r1.id
+
+
+def test_the_calendar_hides_the_empty_placeholder_row_but_shows_it_while_it_holds_a_booking(client, db, tenant_and_user):
+    from app.models.guest import Guest
+    tid = tenant_and_user["tenant"].id
+    ph = _prop(db, tid, "Unassigned (legacy bookings -- reassign manually)")
+    _prop(db, tid, "Ratha 1")
+    url = f"/api/v1/calendar?from_date={_d(0).isoformat()}&to_date={_d(30).isoformat()}"
+    rows = client.get(url, headers=_h(tenant_and_user)).json()["properties"]
+    assert [r["property_name"] for r in rows] == ["Ratha 1"]
+    g = Guest(id=gen_uuid(), tenant_id=tid, name="Overflow", phone=f"+9199{uuid.uuid4().int % 10**8:08d}")
+    db.add(g)
+    db.flush()
+    db.add(Stay(id=gen_uuid(), tenant_id=tid, guest_id=g.id, property_id=ph.id, check_in=_d(5), check_out=_d(7), adults=2, status="confirmed"))
+    db.commit()
+    rows = client.get(url, headers=_h(tenant_and_user)).json()["properties"]
+    assert sorted(r["property_name"] for r in rows) == ["Ratha 1", "Unassigned (legacy bookings -- reassign manually)"]
