@@ -212,7 +212,7 @@ export function Sidebar({ user }: SidebarProps) {
   // How many things are waiting on this person (same source as the My day page, so the badge and
   // the list always agree). Only fetched for roles that can see My day.
   const canSeeMyDay = canSeeNav(role, "inbox");
-  const { data: queue } = useQuery<{ total: number }>({
+  const { data: queue } = useQuery<{ total: number; severity?: { stale?: number } }>({
     queryKey: ["work-queue", ""],
     queryFn: () => api.get("/work-queue").then(r => r.data),
     staleTime: 30_000,
@@ -220,7 +220,7 @@ export function Sidebar({ user }: SidebarProps) {
     enabled: canSeeMyDay,
   });
   const badgeFor = (href: string): number =>
-    href === "/dashboard/inbox" ? unreadCount : href === "/dashboard/my-day" ? (queue?.total ?? 0) : 0;
+    href === "/dashboard/inbox" ? unreadCount : href === "/dashboard/my-day" ? Math.max(0, (queue?.total ?? 0) - (queue?.severity?.stale ?? 0)) : 0;   // not the cold tail
 
   function isActive(href: string) {
     if (href === "/dashboard") return pathname === "/dashboard";

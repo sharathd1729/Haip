@@ -64,8 +64,8 @@ function overview(patch: Partial<BusinessOverview> = {}): BusinessOverview {
     agents: [{ agent_id: "u1", name: "Asha", leads: 40, qualified: 30, bookings: 8, booking_value: 500000, calls_answered: 20, calls_missed: 5, callbacks_waiting: 3,
       avg_response_seconds: 540, messages_sent: 120, followups_total: 20, followups_completed: 15, followups_overdue: 2, ai_drafts_approved: 9, ai_drafts_total: 12, avg_call_score: 82.5 }],
     attention: [
-      { key: "unassigned", label: "Enquiries nobody owns", count: 3, oldest_at: null, href: "/dashboard/my-day", people: 2 },
-      { key: "waiting_reply", label: "Conversations waiting for a reply", count: 0, oldest_at: null, href: "/dashboard/my-day", people: null },
+      { key: "new_leads", label: "New leads nobody has contacted", count: 3, oldest_at: null, href: "/dashboard/my-day?kind=new_lead", people: 2 },
+      { key: "waiting_reply", label: "Leads waiting for a reply", count: 0, oldest_at: null, href: "/dashboard/my-day", people: null },
       { key: "payment_overdue", label: "Bookings with an overdue payment", count: 2, oldest_at: null, href: "/dashboard/bookings", people: null },
     ],
     stale_integrations: [], insights: [],
@@ -122,7 +122,7 @@ describe("Ledger", () => {
     const hrefs = screen.getAllByRole("link").map(a => a.getAttribute("href"));
     expect(hrefs).toContain("/dashboard/bookings?quick=due");
     expect(hrefs).toContain("/dashboard/bookings?quick=upcoming");
-    expect(hrefs).toContain("/dashboard/my-day?kind=unassigned");
+    expect(hrefs).toContain("/dashboard/my-day?kind=new_lead");
   });
 });
 
@@ -158,10 +158,10 @@ describe("JourneyBand", () => {
 describe("AttentionStrip", () => {
   it("lists only what needs attention", () => {
     render(<AttentionStrip data={overview()} />);
-    expect(screen.getByText("Enquiries nobody owns")).toBeTruthy();
+    expect(screen.getByText("New leads nobody has contacted")).toBeTruthy();
     expect(screen.getByText("2 people")).toBeTruthy();                       // 3 enquiries from 2 different people
     expect(screen.getByText("Bookings with an overdue payment")).toBeTruthy();
-    expect(screen.queryByText("Conversations waiting for a reply")).toBeNull();     // count 0: not listed
+    expect(screen.queryByText("Leads waiting for a reply")).toBeNull();     // count 0: not listed
   });
   it("is quiet and says so when nothing is waiting", () => {
     render(<AttentionStrip data={overview({ attention: [], stale_integrations: [] })} />);
@@ -248,13 +248,15 @@ describe("KpiGrid", () => {
 });
 
 describe("LeadFlow", () => {
-  it("keeps conversations, contacts, leads and enquiries apart, each with its own definition", () => {
+  it("shows leads and enquiries apart, each with its own definition, and no DM or conversation counts", () => {
     render(<LeadFlow data={overview()} />);
-    for (const label of ["New conversations", "Contacts without a number", "New leads", "Leads active in the period", "Qualified leads", "Enquiries"]) {
+    for (const label of ["New leads", "Leads active in the period", "Qualified leads", "Enquiries"]) {
       expect(screen.getByText(label)).toBeTruthy();
     }
-    expect(screen.getByText("210")).toBeTruthy();       // conversations
-    expect(screen.getByText("55")).toBeTruthy();        // contacts without a number
+    expect(screen.queryByText("New conversations")).toBeNull();
+    expect(screen.queryByText("Contacts without a number")).toBeNull();
+    expect(screen.queryByText("210")).toBeNull();       // conversations are not a headline number
+    expect(screen.queryByText("55")).toBeNull();        // nor are contacts without a number
     expect(screen.getByText("124")).toBeTruthy();       // people who became leads
     expect(screen.getByText("160")).toBeTruthy();       // enquiry records
     expect(screen.getByText(/36 came from someone who had enquired before/)).toBeTruthy();

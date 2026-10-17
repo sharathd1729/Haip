@@ -316,14 +316,14 @@ def _people_in(work: dict, kinds: tuple[str, ...], total: int) -> Optional[int]:
 
 
 def _attention(q: dict, bookings: Optional[dict], at_risk: dict, work: dict) -> list[dict]:
-    """Actionable WORKLOAD, not unique leads: each row counts the things to do (conversations, calls, follow-ups, bookings).
-    ``people`` is how many different people they are about, when that is known. Nothing is hidden: an overdue follow-up, a
+    """Actionable WORKLOAD: each row counts the people to contact (new leads, missed calls, leads waiting) and the follow-ups and
+    bookings to deal with. ``people`` is how many different people they are about, when that is known. Nothing is hidden: an overdue follow-up, a
     missed call or an unpaid booking always shows."""
     items = [
-        ("unassigned", "Enquiries nobody owns", q["unassigned"], None, "/dashboard/my-day", ("unassigned",)),
-        ("waiting_reply", "Conversations waiting for a reply", q["waiting_reply"], q["waiting_oldest_at"], "/dashboard/my-day", ("reply",)),
-        ("missed_calls", "Missed calls not called back", q["missed_not_called_back"], q["missed_oldest_at"], "/dashboard/calls", ("callback",)),
-        ("followups", "Follow-ups overdue", q["followups_overdue"], q["followups_oldest_due"], "/dashboard/my-day", ("followup",)),
+        ("new_leads", "New leads nobody has contacted", q["new_leads"], q["new_leads_oldest_at"], "/dashboard/my-day?kind=new_lead", ("new_lead",)),
+        ("missed_calls", "Missed calls not called back", q["missed_not_called_back"], q["missed_oldest_at"], "/dashboard/my-day?kind=callback", ("callback",)),
+        ("waiting_reply", "Leads waiting for a reply", q["waiting_reply"], q["waiting_oldest_at"], "/dashboard/my-day?kind=reply", ("reply",)),
+        ("followups", "Follow-ups overdue", q["followups_overdue"], q["followups_oldest_due"], "/dashboard/my-day?kind=followup", ("followup",)),
     ]
     out = [{"key": k, "label": label, "count": n, "oldest_at": oldest, "href": href, "people": _people_in(work, kinds, n)}
            for k, label, n, oldest, href, kinds in items]

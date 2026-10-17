@@ -1,7 +1,7 @@
 "use client";
-// Conversations, contacts, leads and enquiries side by side, each saying exactly what it counts. They are DIFFERENT things and
-// are never added up: a conversation is a chat thread, a contact is a person we have no phone number for yet, a lead is a person we
-// hold a phone number for, an enquiry is a record (one person can have several). Lead numbers are unique people.
+// Leads and enquiries side by side, each saying exactly what it counts. They are DIFFERENT things and are never added up: a lead
+// is a person we hold a phone number for, an enquiry is a record (one person can have several). Lead numbers are unique people.
+// Chat threads and DMs without a number are deliberately NOT shown here: they are the Inbox's business, not the owner's headline.
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { Info } from "@/lib/icons";
@@ -28,13 +28,9 @@ export function LeadFlow({ data }: { data: BusinessOverview }) {
   return (
     <section aria-labelledby="leadflow-title" className="haip-card px-4 py-4 sm:px-6 sm:py-5">
       <SectionTitle sub="Each figure counts something different; none of them is a sum of the others">
-        <span id="leadflow-title">Conversations and leads</span>
+        <span id="leadflow-title">Leads</span>
       </SectionTitle>
-      <ul className="grid grid-cols-1 gap-px overflow-hidden rounded-[var(--radius)] border border-[var(--haip-border)] bg-[var(--haip-border)] sm:grid-cols-2 xl:grid-cols-3">
-        <Item label="New conversations" value={num(leads.conversations_new.count)} change={leads.conversations_new.change} href="/dashboard/inbox"
-          basis="Chat threads opened in the period. One person can have several." />
-        <Item label="Contacts without a number" value={num(leads.unidentified_contacts.count)} change={leads.unidentified_contacts.change} href="/dashboard/inbox"
-          basis="New people with no phone number yet. Not leads until we have one." />
+      <ul className="grid grid-cols-1 gap-px overflow-hidden rounded-[var(--radius)] border border-[var(--haip-border)] bg-[var(--haip-border)] sm:grid-cols-2 xl:grid-cols-4">
         <Item label="New leads" value={num(leads.identified_new.count)} change={leads.identified_new.change} href="/dashboard/leads"
           basis="People whose phone number was captured in the period. Each counted once, across every channel." />
         <Item label="Leads active in the period" value={num(leads.identified_active.count)} href="/dashboard/leads"

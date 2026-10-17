@@ -1,5 +1,5 @@
 "use client";
-// One chart, five questions (new leads, conversations, bookings, booked value, cash). One chart at a time keeps a single hue and a
+// One chart, four questions (new leads, bookings, booked value, cash). One chart at a time keeps a single hue and a
 // single scale; days before the selected period are drawn muted so the period itself reads first. Beside it, where
 // the period's leads sit in the pipeline.
 import { useMemo, useState } from "react";
@@ -10,10 +10,9 @@ import { cn } from "@/lib/utils";
 import { Empty, SectionTitle } from "./parts";
 import { inr, inrShort, num, type BusinessOverview, type PipelineRow, type Trend } from "./types";
 
-type Measure = "leads" | "conversations" | "bookings" | "booking_value" | "net_collected";
+type Measure = "leads" | "bookings" | "booking_value" | "net_collected";
 const MEASURES: { value: Measure; label: string; money: boolean; unit: string }[] = [
   { value: "leads", label: "New leads", money: false, unit: "people became leads" },
-  { value: "conversations", label: "Conversations", money: false, unit: "conversations opened" },
   { value: "bookings", label: "Bookings", money: false, unit: "bookings made" },
   { value: "booking_value", label: "Booked value", money: true, unit: "stay charge booked" },
   { value: "net_collected", label: "Cash in", money: true, unit: "collected less refunds" },

@@ -116,7 +116,7 @@ export function CommandCenter() {
             <h1 className="font-[family-name:var(--font-display)] text-xl font-semibold tracking-tight text-[var(--haip-fg)] sm:text-[26px]">
               {greeting()}{firstName ? `, ${firstName}` : ""}
             </h1>
-            <p className="mt-0.5 hidden text-[13px] text-[var(--haip-fg-subtle)] sm:block">Conversations, leads, bookings and revenue across the business.</p>
+            <p className="mt-0.5 hidden text-[13px] text-[var(--haip-fg-subtle)] sm:block">Leads, bookings and revenue across the business.</p>
           </div>
           <div className="flex items-center gap-3 text-xs text-[var(--haip-fg-subtle)]" aria-live="polite">
             {isFetching && <span className="inline-flex items-center gap-1.5"><RefreshCw size={13} className="motion-safe:animate-spin" aria-hidden />Updating…</span>}
@@ -179,7 +179,7 @@ export function CommandCenter() {
 function Definitions({ data }: { data: BusinessOverview }) {
   const rows = [
     ["Lead", data.leads.definition],
-    ["Counts", "Conversations are chat threads, contacts are people without a phone number yet, leads are people with one (each counted once, whichever channel they used), enquiries are records. They are never added together."],
+    ["Counts", "Leads are people we hold a phone number for (each counted once, whichever channel they used); enquiries are records, and one person can have several. They are never added together."],
     ["Journey", data.funnel.note],
     ...(!isRestricted(data.bookings) ? [["Bookings", data.bookings.basis]] : []),
     ...(!isRestricted(data.revenue) ? [["Revenue", data.revenue.basis]] : []),

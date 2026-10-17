@@ -1,8 +1,8 @@
 """The one work queue (work_queue_service).
 
-The point of this service is that every screen agrees, so these tests pin
-both halves: each kind counts what its own screen counts, and the dashboard
-cards read the same numbers as the queue.
+It is organised around PEOPLE we hold a phone number for (a lead), so these tests pin: who counts as "nobody has contacted them
+yet" (a person did, the bot alone did not), that a person is listed once, how urgent each item is, and that the dashboard cards
+read the same numbers as the queue.
 """
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -11,6 +11,7 @@ from app.models.call import Call, CallDirection
 from app.models.conversation import ChannelType, Conversation, Message
 from app.models.guest import Guest
 from app.models.inquiry import Inquiry, InquirySource, InquiryStage
+from app.models.pipeline_stage import PipelineStage
 from app.models.task import Task
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
@@ -31,177 +32,301 @@ def _user(db, tid):
     db.add(u); db.flush(); return u
 
 
-def _guest(db, tid, name="Guest"):
-    g = Guest(id=str(uuid.uuid4()), tenant_id=tid, name=name, phone=f"+9198{uuid.uuid4().int % 10**8:08d}")
+def _guest(db, tid, name="Guest", lead_minutes_ago=None, channel="whatsapp"):
+    """A lead when lead_minutes_ago is given (the number arrived that long ago); a plain contact (no number yet) otherwise."""
+    g = Guest(id=str(uuid.uuid4()), tenant_id=tid, name=name, phone=f"+9198{uuid.uuid4().int % 10**8:08d}",
+              first_touch_channel=channel,
+              lead_identified_at=(NOW - timedelta(minutes=lead_minutes_ago)) if lead_minutes_ago is not None else None)
     db.add(g); db.flush(); return g
 
 
-def _waiting(db, tid, assigned_to=None, minutes=30, name="Waiting Guest"):
-    g = _guest(db, tid, name)
-    c = Conversation(id=str(uuid.uuid4()), tenant_id=tid, guest_id=g.id, channel=ChannelType.INSTAGRAM,
-                     is_open=True, assigned_to=assigned_to)
-    db.add(c); db.flush()
-    db.add(Message(id=str(uuid.uuid4()), tenant_id=tid, conversation_id=c.id, direction="inbound",
-                   channel=ChannelType.INSTAGRAM, body="hello?", created_at=NOW - timedelta(minutes=minutes)))
+def _inquiry(db, tid, guest, assigned_to=None, stage=InquiryStage.NEW, **kw):
+    i = Inquiry(id=str(uuid.uuid4()), tenant_id=tid, guest_id=guest.id, stage=stage, assigned_to=assigned_to,
+                source=InquirySource.WA_DIRECT, created_at=NOW - timedelta(days=1), **kw)
+    db.add(i); db.flush(); return i
+
+
+def _conv(db, tid, guest, channel=ChannelType.WHATSAPP, assigned_to=None):
+    c = Conversation(id=str(uuid.uuid4()), tenant_id=tid, guest_id=guest.id, channel=channel, is_open=True, assigned_to=assigned_to)
+    db.add(c); db.flush(); return c
+
+
+def _msg(db, tid, conv, direction, minutes_ago, body="hello?", **kw):
+    m = Message(id=str(uuid.uuid4()), tenant_id=tid, conversation_id=conv.id, direction=direction, channel=conv.channel,
+                body=body, created_at=NOW - timedelta(minutes=minutes_ago), **kw)
+    db.add(m); db.flush(); return m
+
+
+def _lead(db, tid, minutes=30, name="Lead", assigned_to=None, **kw):
+    """A lead whose number arrived `minutes` ago, with an open enquiry and a WhatsApp chat saying hello."""
+    g = _guest(db, tid, name, lead_minutes_ago=minutes)
+    inq = _inquiry(db, tid, g, assigned_to=assigned_to, **kw)
+    c = _conv(db, tid, g, assigned_to=assigned_to)
+    _msg(db, tid, c, "inbound", minutes, body="Is the caravan free this weekend?")
+    return g, inq, c
+
+
+def _call(db, tid, guest, direction, status, minutes_ago=5, duration=60):
+    db.add(Call(id=str(uuid.uuid4()), tenant_id=tid, guest_id=guest.id, ivr_provider="vobiz",
+                ivr_call_id=f"c-{uuid.uuid4().hex[:8]}", direction=direction, from_number=guest.phone, to_number="+918000000000",
+                duration_seconds=duration, ivr_dial_status=status, created_at=NOW - timedelta(minutes=minutes_ago)))
     db.flush()
-    return c
 
 
-def _missed(db, tid, minutes=20):
-    g = _guest(db, tid, "Caller")
-    db.add(Call(id=str(uuid.uuid4()), tenant_id=tid, guest_id=g.id, ivr_provider="vobiz",
-                ivr_call_id=f"c-{uuid.uuid4().hex[:8]}", direction=CallDirection.INBOUND,
-                from_number=g.phone, to_number="+918000000000", duration_seconds=0,
-                created_at=NOW - timedelta(minutes=minutes)))
-    db.flush()
+def _missed(db, tid, minutes=20, guest=None):
+    g = guest or _guest(db, tid, "Caller")
+    _call(db, tid, g, CallDirection.INBOUND, "no-answer", minutes_ago=minutes, duration=0)
+    return g
 
 
-def test_queue_collects_every_kind(db):
+def _kinds(res):
+    return {i["title"]: i["kind"] for i in res["items"]}
+
+
+# ── new leads ────────────────────────────────────────────────────────────────
+
+def test_a_lead_nobody_has_contacted_is_a_new_lead_with_what_they_said(db):
     t = _tenant(db)
-    me = _user(db, t.id)
-    _waiting(db, t.id, assigned_to=me.id)
-    _missed(db, t.id)
-    db.add(Task(id=str(uuid.uuid4()), tenant_id=t.id, title="Call Anand back", is_done=False,
-                assigned_to=me.id, due_date=NOW - timedelta(hours=3)))
-    g = _guest(db, t.id, "Unowned Lead")
-    db.add(Inquiry(id=str(uuid.uuid4()), tenant_id=t.id, guest_id=g.id, stage=InquiryStage.NEW,
-                   source=InquirySource.WA_DIRECT, created_at=NOW - timedelta(hours=2)))
+    g, inq, _ = _lead(db, t.id, minutes=10, name="Asha", check_in="2026-12-12", check_out="2026-12-14", adults=2)
     db.commit()
 
     res = wq.build(db, t, scope_user_id=None)
-    assert res["counts"]["reply"] == 1
-    assert res["counts"]["callback"] == 1
-    assert res["counts"]["followup"] == 1
-    assert res["counts"]["unassigned"] == 1
-    assert res["total"] == sum(res["counts"].values())
-    kinds = [i["kind"] for i in res["items"]]
-    assert kinds[0] == "followup"          # overdue sorts first
-    assert set(kinds) == {"reply", "callback", "followup", "unassigned"}
-    assert all(i["action"] and i["href"] for i in res["items"])
+    item = next(i for i in res["items"] if i["title"] == "Asha")
+    assert item["kind"] == "new_lead" and item["action"] == "Call"
+    assert "free this weekend" in item["detail"]
+    assert item["guest_phone"] == g.phone and item["inquiry_id"] == inq.id
+    assert item["facts"] == ["12–14 Dec", "2 adults"]
+    assert item["channels"] == ["whatsapp"]
+    assert res["counts"]["new_lead"] == 1 and res["unowned"] == 1
 
 
-def test_unassigned_shows_what_the_guest_actually_said(db):
-    """Real gap (Ratha, Sep 2026, "autopilot" pass): a brand-new WhatsApp/
-    Instagram lead with nobody assigned yet showed only a static "No owner
-    yet" on My Day -- an agent had to open the Inbox to know a lead had come
-    in on WhatsApp at all. worklist_service.new_dms() already had this
-    preview logic; it was wired only into the daily email, never here."""
+def test_a_contact_without_a_number_is_not_a_lead(db):
+    """An Instagram DM that never produced a number is a conversation, not someone to chase."""
     t = _tenant(db)
-    g = _guest(db, t.id, "New Lead")
-    c = Conversation(id=str(uuid.uuid4()), tenant_id=t.id, guest_id=g.id, channel=ChannelType.WHATSAPP, is_open=True)
-    db.add(c); db.flush()
-    db.add(Message(id=str(uuid.uuid4()), tenant_id=t.id, conversation_id=c.id, direction="inbound",
-                   channel=ChannelType.WHATSAPP, body="Hi, are you free this weekend for 4 people?",
-                   created_at=NOW - timedelta(minutes=5)))
-    db.add(Inquiry(id=str(uuid.uuid4()), tenant_id=t.id, guest_id=g.id, stage=InquiryStage.NEW,
-                   source=InquirySource.WA_DIRECT, created_at=NOW - timedelta(minutes=5)))
+    g = _guest(db, t.id, "DM only", lead_minutes_ago=None, channel="instagram")
+    c = _conv(db, t.id, g, ChannelType.INSTAGRAM)
+    _msg(db, t.id, c, "inbound", 120)
+    db.commit()
+    res = wq.build(db, t, scope_user_id=None)
+    assert res["total"] == 0 and res["items"] == []
+
+
+def test_a_message_a_person_sent_clears_the_lead(db):
+    t = _tenant(db)
+    g, _, c = _lead(db, t.id, minutes=60)
+    _msg(db, t.id, c, "outbound", 5, body="Hi, calling you shortly", is_internal=False)
+    db.commit()
+    assert wq.build(db, t, scope_user_id=None)["counts"]["new_lead"] == 0
+
+
+def test_the_bots_own_reply_does_not_count_as_contact(db):
+    """The AI answered by itself: the guest got an answer, but no person has reached out, so the lead stays open."""
+    t = _tenant(db)
+    g, _, c = _lead(db, t.id, minutes=60)
+    _msg(db, t.id, c, "outbound", 55, body="Thanks for reaching out!", is_ai_generated=True, was_approved=True, sent_autonomously=True)
+    db.commit()
+    res = wq.build(db, t, scope_user_id=None)
+    assert res["counts"]["new_lead"] == 1
+    assert res["counts"]["reply"] == 0          # ...but nobody is "waiting for a reply": the bot answered
+
+
+def test_an_ai_draft_a_person_approved_counts_as_contact(db):
+    t = _tenant(db)
+    g, _, c = _lead(db, t.id, minutes=60)
+    _msg(db, t.id, c, "outbound", 5, is_ai_generated=True, was_approved=True, sent_autonomously=False)
+    db.commit()
+    assert wq.build(db, t, scope_user_id=None)["counts"]["new_lead"] == 0
+
+
+def test_an_answered_call_clears_the_lead_but_an_unanswered_attempt_does_not(db):
+    t = _tenant(db)
+    tried, _, _ = _lead(db, t.id, minutes=120, name="Tried")
+    spoke, _, _ = _lead(db, t.id, minutes=120, name="Spoke")
+    heard, _, _ = _lead(db, t.id, minutes=120, name="Heard")
+    _call(db, t.id, tried, CallDirection.OUTBOUND, "no-answer", minutes_ago=30, duration=22)
+    _call(db, t.id, tried, CallDirection.OUTBOUND, "no-answer", minutes_ago=10, duration=18)
+    _call(db, t.id, spoke, CallDirection.OUTBOUND, "completed", minutes_ago=30, duration=140)
+    _call(db, t.id, heard, CallDirection.INBOUND, "completed", minutes_ago=30, duration=90)
     db.commit()
 
     res = wq.build(db, t, scope_user_id=None)
-    item = next(i for i in res["items"] if i["kind"] == "unassigned")
-    assert "free this weekend for 4 people" in item["detail"]
+    assert _kinds(res) == {"Tried": "new_lead"}
+    item = res["items"][0]
+    assert item["attempts"] == 2 and item["detail"].startswith("Tried 2×, no answer")
 
 
-def test_unassigned_falls_back_when_the_guest_never_actually_messaged(db):
-    """A manually-created lead with no chat history at all must not crash
-    the preview lookup -- keeps the old generic detail text."""
+def test_contact_from_before_the_number_arrived_does_not_count(db):
     t = _tenant(db)
-    g = _guest(db, t.id, "No Chat Yet")
-    db.add(Inquiry(id=str(uuid.uuid4()), tenant_id=t.id, guest_id=g.id, stage=InquiryStage.NEW,
-                   source=InquirySource.WA_DIRECT, created_at=NOW))
+    g, _, c = _lead(db, t.id, minutes=30)
+    _msg(db, t.id, c, "outbound", 90, body="An older chat message")          # before lead_identified_at
+    db.commit()
+    assert wq.build(db, t, scope_user_id=None)["counts"]["new_lead"] == 1
+
+
+def test_closed_unsuitable_and_old_leads_are_left_out(db):
+    t = _tenant(db)
+    _lead(db, t.id, minutes=60, name="Lost one", stage=InquiryStage.LOST)
+    stage = PipelineStage(id=str(uuid.uuid4()), tenant_id=t.id, key="unsuitable", label="Unsuitable", category="valid")
+    db.add(stage); db.flush()
+    _lead(db, t.id, minutes=60, name="Unsuitable one", stage_id=stage.id)
+    _lead(db, t.id, minutes=60 * 24 * 20, name="Three weeks ago")
+    _lead(db, t.id, minutes=60, name="Spam", qualification_status="unqualified")
+    _lead(db, t.id, minutes=60, name="Keeper")
+    db.commit()
+    assert list(_kinds(wq.build(db, t, scope_user_id=None))) == ["Keeper"]
+
+
+def test_a_lead_with_no_enquiry_yet_is_still_listed(db):
+    t = _tenant(db)
+    g = _guest(db, t.id, "No enquiry", lead_minutes_ago=3, channel="call")
+    db.commit()
+    item = wq.build(db, t, scope_user_id=None)["items"][0]
+    assert item["kind"] == "new_lead" and item["inquiry_id"] is None and item["channels"] == ["call"]
+
+
+# ── urgency ──────────────────────────────────────────────────────────────────
+
+def test_severity_follows_the_sla_and_sorts_worst_first(db):
+    t = _tenant(db)
+    _lead(db, t.id, minutes=5, name="Fresh")
+    _lead(db, t.id, minutes=40, name="Late")
+    _lead(db, t.id, minutes=150, name="Urgent")
+    _lead(db, t.id, minutes=60 * 10, name="Critical")
+    _lead(db, t.id, minutes=60 * 24 * 5, name="Cold")
     db.commit()
 
     res = wq.build(db, t, scope_user_id=None)
-    item = next(i for i in res["items"] if i["kind"] == "unassigned")
-    assert item["detail"] == "No owner yet"
+    sev = {i["title"]: i["severity"] for i in res["items"]}
+    assert sev == {"Fresh": "fresh", "Late": "late", "Urgent": "urgent", "Critical": "critical", "Cold": "stale"}
+    assert [i["title"] for i in res["items"]] == ["Critical", "Urgent", "Late", "Fresh", "Cold"]   # cold goes last
+    assert res["severity"]["critical"] == 1 and res["severity"]["stale"] == 1
+    assert [i["overdue"] for i in res["items"]] == [True, True, True, False, True]
 
 
-def test_unassigned_uses_each_guests_own_latest_message_not_a_stray_join(db):
-    """Two unowned leads on the same page must each get their own preview,
-    not one guest's message leaking onto another's card."""
+# ── one row per person ───────────────────────────────────────────────────────
+
+def test_a_person_is_listed_once_under_the_most_specific_reason(db):
     t = _tenant(db)
-    for name, text in [("Lead A", "Question about pricing for a family trip"), ("Lead B", "Do you allow pets?")]:
-        g = _guest(db, t.id, name)
-        c = Conversation(id=str(uuid.uuid4()), tenant_id=t.id, guest_id=g.id, channel=ChannelType.INSTAGRAM, is_open=True)
-        db.add(c); db.flush()
-        db.add(Message(id=str(uuid.uuid4()), tenant_id=t.id, conversation_id=c.id, direction="inbound",
-                       channel=ChannelType.INSTAGRAM, body=text, created_at=NOW - timedelta(minutes=5)))
-        db.add(Inquiry(id=str(uuid.uuid4()), tenant_id=t.id, guest_id=g.id, stage=InquiryStage.NEW,
-                       source=InquirySource.META_IG, created_at=NOW - timedelta(minutes=5)))
+    g, _, c = _lead(db, t.id, minutes=90, name="Everything")
+    _missed(db, t.id, minutes=60, guest=g)
     db.commit()
 
     res = wq.build(db, t, scope_user_id=None)
-    items = {i["title"]: i["detail"] for i in res["items"] if i["kind"] == "unassigned"}
-    assert "pricing for a family trip" in items["Lead A"]
-    assert "allow pets" in items["Lead B"]
+    assert [(i["title"], i["kind"]) for i in res["items"]] == [("Everything", "callback")]
+    assert res["total"] == 1 and res["people"] == 1
 
 
-def test_dashboard_cards_read_the_same_numbers(db):
+def test_three_missed_calls_from_one_person_is_one_callback(db):
     t = _tenant(db)
-    _waiting(db, t.id)
-    _waiting(db, t.id, minutes=90)
-    _missed(db, t.id)
+    g = _missed(db, t.id, minutes=300)
+    _missed(db, t.id, minutes=200, guest=g)
+    _missed(db, t.id, minutes=100, guest=g)
+    db.commit()
+    assert wq.build(db, t, scope_user_id=None)["counts"]["callback"] == 1
+
+
+# ── waiting replies ──────────────────────────────────────────────────────────
+
+def test_a_lead_waiting_on_a_person_is_a_reply_and_shows_a_waiting_ai_draft(db):
+    t = _tenant(db)
+    g, inq, c = _lead(db, t.id, minutes=200, name="Waiting")
+    _call(db, t.id, g, CallDirection.OUTBOUND, "completed", minutes_ago=100, duration=120)   # a person already spoke to them
+    _msg(db, t.id, c, "inbound", 20, body="Hello? anyone there?")
+    _msg(db, t.id, c, "outbound", 19, body="Draft: yes it is free", is_ai_generated=True, was_approved=None)   # held, unsent
     db.commit()
 
-    q = wq.counts(db, t, None)
-    cards = dashboard_service.needs_you_now(db, t, scope_user_id=None)
-    assert cards["waiting_reply"] == q["counts"]["reply"] == 2
-    assert cards["missed_not_called_back"] == q["counts"]["callback"] == 1
-    assert cards["waiting_oldest_at"] == q["oldest"]["reply"]
+    res = wq.build(db, t, scope_user_id=None)
+    item = next(i for i in res["items"] if i["title"] == "Waiting")
+    assert item["kind"] == "reply" and item["has_draft"] is True and "anyone there" in item["detail"]
 
 
-def test_an_agent_sees_only_their_own_work(db):
+def test_the_bot_gets_a_few_minutes_before_a_person_is_asked(db):
+    t = _tenant(db)
+    g, _, c = _lead(db, t.id, minutes=1, name="Just wrote")
+    _call(db, t.id, g, CallDirection.OUTBOUND, "completed", minutes_ago=0, duration=60)   # keep them out of new_lead
+    db.commit()
+    assert wq.build(db, t, scope_user_id=None)["counts"]["reply"] == 0
+
+
+def test_a_chat_without_a_number_is_never_a_waiting_reply(db):
+    t = _tenant(db)
+    g = _guest(db, t.id, "Just a DM", lead_minutes_ago=None, channel="instagram")
+    c = _conv(db, t.id, g, ChannelType.INSTAGRAM)
+    _msg(db, t.id, c, "inbound", 600)
+    db.commit()
+    assert wq.build(db, t, scope_user_id=None)["counts"]["reply"] == 0
+
+
+# ── scope, tenants, followups ────────────────────────────────────────────────
+
+def test_an_agent_sees_their_own_leads_and_unowned_ones_only(db):
     t = _tenant(db)
     me, peer = _user(db, t.id), _user(db, t.id)
-    _waiting(db, t.id, assigned_to=me.id)
-    _waiting(db, t.id, assigned_to=peer.id)
+    _lead(db, t.id, name="Mine", assigned_to=me.id)
+    _lead(db, t.id, name="Peers", assigned_to=peer.id)
+    _lead(db, t.id, name="Nobodys")
     db.add(Task(id=str(uuid.uuid4()), tenant_id=t.id, title="peer task", is_done=False,
                 assigned_to=peer.id, due_date=NOW - timedelta(hours=1)))
     db.commit()
 
     mine = wq.build(db, t, scope_user_id=me.id)
-    assert mine["counts"]["reply"] == 1
-    assert mine["counts"]["followup"] == 0
-    assert mine["scope"] == "mine"
-    assert wq.build(db, t, scope_user_id=None)["counts"]["reply"] == 2
+    assert set(_kinds(mine)) == {"Mine", "Nobodys"}
+    assert mine["counts"]["followup"] == 0 and mine["scope"] == "mine"
+    team = wq.build(db, t, scope_user_id=None)
+    assert {i["title"] for i in team["items"] if i["kind"] == "new_lead"} == {"Mine", "Peers", "Nobodys"}
 
 
-def test_future_tasks_and_old_calls_stay_out(db):
+def test_followups_overdue_and_due_soon_but_not_future_or_done(db):
     t = _tenant(db)
     me = _user(db, t.id)
-    db.add(Task(id=str(uuid.uuid4()), tenant_id=t.id, title="next week", is_done=False,
-                assigned_to=me.id, due_date=NOW + timedelta(days=5)))
-    db.add(Task(id=str(uuid.uuid4()), tenant_id=t.id, title="done already", is_done=True,
-                assigned_to=me.id, due_date=NOW - timedelta(hours=2)))
-    _missed(db, t.id, minutes=60 * 24 * 10)   # older than the call-back window
+    for title, due, done in [("overdue", NOW - timedelta(days=3), False), ("soon", NOW + timedelta(minutes=20), False),
+                             ("next week", NOW + timedelta(days=5), False), ("done", NOW - timedelta(hours=2), True)]:
+        db.add(Task(id=str(uuid.uuid4()), tenant_id=t.id, title=title, is_done=done, assigned_to=me.id, due_date=due))
+    _missed(db, t.id, minutes=60 * 24 * 10)           # older than the call-back window
     db.commit()
     res = wq.build(db, t, scope_user_id=me.id)
-    assert res["counts"]["followup"] == 0 and res["counts"]["callback"] == 0
+    assert {i["title"]: i["severity"] for i in res["items"]} == {"overdue": "critical", "soon": "fresh"}
+    assert res["counts"]["callback"] == 0
 
 
-def test_kinds_filter_and_other_tenants(db):
+def test_kinds_narrows_the_items_but_not_the_counts_and_tenants_are_separate(db):
     t, other = _tenant(db), _tenant(db)
-    _waiting(db, t.id)
+    _lead(db, t.id, name="Mine")
     _missed(db, t.id)
-    _waiting(db, other.id)
+    _lead(db, other.id, name="Theirs")
     _missed(db, other.id)
     db.commit()
 
     only_calls = wq.build(db, t, scope_user_id=None, kinds=["callback"])
-    assert only_calls["counts"]["callback"] == 1
     assert {i["kind"] for i in only_calls["items"]} == {"callback"}
-    assert wq.build(db, t, scope_user_id=None)["counts"]["reply"] == 1   # not the other tenant's
+    assert only_calls["counts"]["callback"] == 1 and only_calls["counts"]["new_lead"] == 1
+    assert "Theirs" not in {i["title"] for i in wq.build(db, t, scope_user_id=None)["items"]}
+
+
+def test_dashboard_cards_read_the_same_numbers(db):
+    t = _tenant(db)
+    _lead(db, t.id, minutes=90)
+    _lead(db, t.id, minutes=5)
+    _missed(db, t.id, minutes=40)
+    db.commit()
+
+    q = wq.counts(db, t, None)
+    cards = dashboard_service.needs_you_now(db, t, scope_user_id=None)
+    assert cards["new_leads"] == q["counts"]["new_lead"] == 2
+    assert cards["missed_not_called_back"] == q["counts"]["callback"] == 1
+    assert cards["new_leads_oldest_at"] == q["oldest"]["new_lead"]
+    assert cards["breached"] == 2 and cards["people"] == 3 and cards["unassigned"] == 2
 
 
 def test_endpoint_returns_the_queue(client, db, tenant_and_user):
     tid = tenant_and_user["tenant"].id
-    _waiting(db, tid)
+    _lead(db, tid, minutes=45, name="Via API")
     db.commit()
     h = {"Authorization": f"Bearer {tenant_and_user['access_token']}"}
     r = client.get("/api/v1/work-queue", headers=h)
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["counts"]["reply"] == 1 and body["scope"] == "team"
+    assert body["counts"]["new_lead"] == 1 and body["scope"] == "team" and body["items"][0]["severity"] == "late"
     assert client.get("/api/v1/work-queue?mine_only=true", headers=h).json()["scope"] == "mine"
-    assert client.get("/api/v1/work-queue/counts", headers=h).json()["counts"]["reply"] == 1
-    assert client.get("/api/v1/work-queue?kinds=nonsense", headers=h).status_code == 422
+    assert client.get("/api/v1/work-queue/counts", headers=h).json()["counts"]["new_lead"] == 1
+    assert client.get("/api/v1/work-queue?kinds=unassigned", headers=h).status_code == 422
