@@ -102,3 +102,42 @@ class TestCallbackTaskOnUnansweredOutbound:
 
         tasks = db.query(Task).filter_by(tenant_id=tenant_id).all()
         assert len(tasks) == 1
+
+
+class TestUnansweredCallbackDoesNotRecoverMissedCall:
+    """The recording of an outbound call includes the guest's ringing time, so
+    its duration is above zero even when nobody answered. The provider's
+    DialStatus decides; a ring-out must not mark the missed call as returned."""
+
+    def _missed_inbound(self, db, tenant_id):
+        from datetime import datetime, timezone, timedelta
+        from app.models.call import CallDirection
+        guest = call_ingest._dedup_guest(db, tenant_id, "+917249066854")   # same resolver the ingest uses
+        db.commit()
+        missed = Call(
+            id=str(uuid.uuid4()), tenant_id=tenant_id, guest_id=guest.id, ivr_provider="vobiz",
+            ivr_call_id=f"in-{uuid.uuid4().hex[:8]}", direction=CallDirection.INBOUND,
+            from_number="+917249066854", to_number="+912271264296", duration_seconds=40, ivr_dial_status="no-answer",
+        )
+        db.add(missed); db.flush()
+        missed.created_at = datetime.now(timezone.utc) - timedelta(hours=1)
+        db.commit()
+        return missed
+
+    def test_ring_out_with_positive_duration_leaves_the_missed_call_open(self, db, tenant_and_user, monkeypatch):
+        tenant_id = _tenant_id(tenant_and_user)
+        missed = self._missed_inbound(db, tenant_id)
+        result = _run_ingest(monkeypatch, db, tenant_id, _payload(ivr_dial_status="no-answer", duration_seconds=21))
+
+        db.refresh(missed)
+        assert missed.recovered_by_call_id is None
+        call = db.query(Call).filter_by(id=result["call_id"]).one()
+        assert db.query(Task).filter_by(tenant_id=tenant_id, guest_id=call.guest_id).first() is not None
+
+    def test_an_answered_callback_still_recovers_the_missed_call(self, db, tenant_and_user, monkeypatch):
+        tenant_id = _tenant_id(tenant_and_user)
+        missed = self._missed_inbound(db, tenant_id)
+        result = _run_ingest(monkeypatch, db, tenant_id, _payload(ivr_dial_status="completed", duration_seconds=90))
+
+        db.refresh(missed)
+        assert missed.recovered_by_call_id == result["call_id"]
