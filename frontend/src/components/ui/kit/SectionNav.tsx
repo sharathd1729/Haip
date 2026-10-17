@@ -17,11 +17,11 @@ export function SectionNav({ items, value, onChange, label, className }: {
         return (
           <button key={it.value} type="button" aria-current={on ? "page" : undefined} onClick={() => onChange(it.value)}
             className={cn(
-              "flex min-h-9 shrink-0 flex-col items-start justify-center rounded-lg px-3 py-1.5 text-left transition-colors",
-              on ? "bg-primary/10 text-primary" : "text-[var(--haip-fg-2)] hover:bg-[var(--haip-surface)]",
+              "flex min-h-10 shrink-0 flex-col items-start justify-center rounded-xl px-3 py-1.5 text-left transition-colors max-md:min-h-11",
+              on ? "bg-[var(--haip-primary-tint)] text-primary" : "text-[var(--haip-fg-2)] hover:bg-[var(--hover-bg)]",
             )}>
-            <span className="text-[13px] font-semibold">{it.label}</span>
-            {it.hint && <span className="hidden text-[11px] font-normal text-[var(--haip-fg-subtle)] lg:block">{it.hint}</span>}
+            <span className="text-[14px] font-semibold">{it.label}</span>
+            {it.hint && <span className="hidden text-[12px] font-normal text-[var(--haip-fg-subtle)] lg:block">{it.hint}</span>}
           </button>
         );
       })}

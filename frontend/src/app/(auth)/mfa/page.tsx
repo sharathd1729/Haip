@@ -85,9 +85,9 @@ function MFAForm() {
             onChange={e => handleChange(i, e.target.value)}
             onKeyDown={e => handleKeyDown(i, e)}
             className={`w-11 h-14 text-center text-xl font-bold border rounded-xl
-              focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500
-              transition-all ${error ? "border-red-400 bg-red-50" : "border-gray-200 bg-gray-50"}
-              ${digit ? "text-gray-900 bg-white border-gray-400" : "text-gray-400"}`}
+              focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary
+              transition-all ${error ? "border-red-400 bg-red-50" : "border-[var(--haip-border)] bg-[var(--haip-surface)]"}
+              ${digit ? "text-[var(--haip-fg)] bg-white border-[var(--haip-border-strong)]" : "text-[var(--haip-fg-subtle)]"}`}
           />
         ))}
       </div>
@@ -102,7 +102,7 @@ function MFAForm() {
       <button
         type="submit"
         disabled={loading || code.join("").length < 6}
-        className="w-full py-3 bg-[#0E1210] hover:bg-[#1B2419] disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+        className="w-full py-3 bg-primary hover:bg-[var(--haip-primary-hover)] disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
       >
         {loading && <Loader2 size={16} className="animate-spin" />}
         Verify
@@ -113,16 +113,16 @@ function MFAForm() {
 
 export default function MFAPage() {
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[var(--haip-surface)] flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-lg w-full max-w-sm p-8">
         <div className="text-center mb-8">
-          <div className="w-14 h-14 bg-[#0E1210] rounded-2xl flex items-center justify-center mx-auto mb-5">
-            <Shield size={26} className="text-teal-400" />
+          <div className="w-14 h-14 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-5">
+            <Shield size={26} className="text-primary" />
           </div>
-          <h1 className="text-xl font-black text-gray-900 mb-2">
+          <h1 className="text-xl font-black text-[var(--haip-fg)] mb-2">
             Two-factor authentication
           </h1>
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-[var(--haip-fg-subtle)]">
             Enter the 6-digit code from your authenticator app
           </p>
         </div>
@@ -131,9 +131,9 @@ export default function MFAPage() {
           <MFAForm />
         </Suspense>
 
-        <p className="text-center text-xs text-gray-400 mt-6">
+        <p className="text-center text-xs text-[var(--haip-fg-subtle)] mt-6">
           Lost access to your authenticator?{" "}
-          <a href="mailto:support@haip.app" className="text-[#3D9E7E] hover:underline">
+          <a href="mailto:support@haip.app" className="text-primary hover:underline">
             Contact support
           </a>
         </p>

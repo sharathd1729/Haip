@@ -128,8 +128,8 @@ function LoginForm() {
       </div>
 
       {successMsg && (
-        <div className="mb-5 p-3.5 bg-teal-500/10 border border-teal-500/30 rounded-xl text-teal-400 text-sm flex items-start gap-2">
-          <svg className="w-4 h-4 mt-0.5 flex-shrink-0 fill-teal-400" viewBox="0 0 20 20">
+        <div className="mb-5 p-3.5 bg-primary/10 border border-primary/30 rounded-xl text-primary text-sm flex items-start gap-2">
+          <svg className="w-4 h-4 mt-0.5 flex-shrink-0 fill-primary" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
           </svg>
           {successMsg}
@@ -145,7 +145,7 @@ function LoginForm() {
       {/* ── MFA challenge step ── */}
       {mfaRequired && (
         <form onSubmit={handleVerifyMfa} className="space-y-4">
-          <div className="p-4 bg-teal-500/10 border border-teal-500/30 rounded-xl text-sm text-teal-400 text-center">
+          <div className="p-4 bg-primary/10 border border-primary/30 rounded-xl text-sm text-primary text-center">
             <Shield size={18} className="mx-auto mb-1.5" />
             Enter the 6-digit code from your authenticator app.
           </div>
@@ -160,14 +160,14 @@ function LoginForm() {
               autoFocus
               value={mfaCode}
               onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              className="w-full px-4 py-3 border border-border rounded-xl text-sm bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow text-center tracking-widest text-xl font-mono"
+              className="w-full px-4 py-3 border border-border rounded-xl text-sm bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow text-center tracking-widest text-xl font-mono"
               placeholder="______"
             />
           </div>
           <button
             type="submit"
             disabled={loading || mfaCode.length !== 6}
-            className="w-full py-3 bg-teal-600 hover:bg-teal-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
+            className="w-full py-3 bg-primary hover:bg-primary disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
           >
             {loading ? "Verifying…" : <>Verify <ArrowRight size={15} /></>}
           </button>
@@ -194,7 +194,7 @@ function LoginForm() {
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 border border-border rounded-xl text-sm bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
+              className="w-full px-4 py-3 border border-border rounded-xl text-sm bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow"
               placeholder="you@company.com"
             />
           </div>
@@ -202,7 +202,7 @@ function LoginForm() {
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-sm font-medium text-foreground">Password</label>
-              <Link href="/forgot-password" className="text-xs text-teal-500 hover:text-teal-400 font-medium">
+              <Link href="/forgot-password" className="text-xs text-primary hover:text-primary font-medium">
                 Forgot password?
               </Link>
             </div>
@@ -213,7 +213,7 @@ function LoginForm() {
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 pr-11 border border-border rounded-xl text-sm bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
+                className="w-full px-4 py-3 pr-11 border border-border rounded-xl text-sm bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow"
                 placeholder="••••••••"
               />
               <button
@@ -232,7 +232,7 @@ function LoginForm() {
               type="checkbox"
               checked={remember}
               onChange={(e) => setRemember(e.target.checked)}
-              className="w-4 h-4 rounded border-border text-teal-500 focus:ring-teal-500 cursor-pointer accent-teal-500"
+              className="w-4 h-4 rounded border-border text-primary focus:ring-primary cursor-pointer accent-primary"
             />
             <label htmlFor="remember" className="text-sm text-muted-foreground cursor-pointer select-none">
               Keep me signed in
@@ -242,7 +242,7 @@ function LoginForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-teal-600 hover:bg-teal-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
+            className="w-full py-3 bg-primary hover:bg-primary disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm"
           >
             {loading ? (
               <>
@@ -261,7 +261,7 @@ function LoginForm() {
 
       <div className="mt-6 pt-6 border-t border-border text-center text-sm text-muted-foreground">
         Don&apos;t have an account?{" "}
-        <Link href="/register" className="text-teal-500 font-semibold hover:text-teal-400 transition-colors">
+        <Link href="/register" className="text-primary font-semibold hover:text-primary transition-colors">
           Start free trial
         </Link>
       </div>
@@ -273,10 +273,10 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex">
       {/* ── Left panel: always-dark brand marketing ── */}
-      <div className="hidden lg:flex lg:w-[52%] flex-col justify-between bg-[#0a1422] p-12 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-[52%] flex-col justify-between bg-[var(--haip-brand-panel)] p-12 relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-[-80px] right-[-80px] w-[360px] h-[360px] rounded-full bg-teal-500/10 blur-3xl" />
-          <div className="absolute bottom-[-60px] left-[-60px] w-[280px] h-[280px] rounded-full bg-blue-500/10 blur-3xl" />
+          <div className="absolute top-[-80px] right-[-80px] w-[360px] h-[360px] rounded-full bg-[var(--haip-panel-accent)]/10 blur-3xl" />
+          <div className="absolute bottom-[-60px] left-[-60px] w-[280px] h-[280px] rounded-full bg-white/5 blur-3xl" />
         </div>
 
         <div className="relative">
@@ -291,9 +291,9 @@ export default function LoginPage() {
           <div>
             <h1 className="text-4xl font-bold text-white leading-tight mb-4">
               Your hospitality team,<br />
-              <span className="text-teal-400">supercharged by AI</span>
+              <span className="text-[var(--haip-panel-accent)]">supercharged by AI</span>
             </h1>
-            <p className="text-blue-200/80 text-lg leading-relaxed max-w-sm">
+            <p className="text-white/75 text-lg leading-relaxed max-w-sm">
               Every call answered, every guest remembered, every opportunity captured — automatically.
             </p>
           </div>
@@ -302,9 +302,9 @@ export default function LoginPage() {
             {SELLING_POINTS.map(({ icon: Icon, text }) => (
               <div key={text} className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
-                  <Icon size={15} className="text-teal-400" />
+                  <Icon size={15} className="text-[var(--haip-panel-accent)]" />
                 </div>
-                <span className="text-blue-100/80 text-sm">{text}</span>
+                <span className="text-white/80 text-sm">{text}</span>
               </div>
             ))}
           </div>
@@ -323,12 +323,12 @@ export default function LoginPage() {
               &ldquo;HAIP cut our missed-call rate to zero. The AI handles guest queries before we even wake up.&rdquo;
             </p>
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-teal-500/20 border border-teal-500/30 flex items-center justify-center text-teal-300 text-xs font-bold">
+              <div className="w-8 h-8 rounded-full bg-[var(--haip-panel-accent)]/15 border border-[var(--haip-panel-accent)]/30 flex items-center justify-center text-[var(--haip-panel-accent)] text-xs font-bold">
                 RK
               </div>
               <div>
                 <p className="text-white text-xs font-semibold">Rahul K.</p>
-                <p className="text-blue-300/60 text-xs">Villa manager, Goa</p>
+                <p className="text-white/60 text-xs">Villa manager, Goa</p>
               </div>
             </div>
           </div>

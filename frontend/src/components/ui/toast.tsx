@@ -56,7 +56,7 @@ export function useToast() {
 
 const ICONS: Record<ToastVariant, React.ReactNode> = {
   default: null,
-  success: <CheckCircle2 size={16} className="text-teal-500 flex-shrink-0" />,
+  success: <CheckCircle2 size={16} className="text-primary flex-shrink-0" />,
   error:   <AlertCircle size={16} className="text-red-500 flex-shrink-0" />,
   warning: <AlertTriangle size={16} className="text-amber-500 flex-shrink-0" />,
   info:    <Info size={16} className="text-blue-500 flex-shrink-0" />,
@@ -64,7 +64,7 @@ const ICONS: Record<ToastVariant, React.ReactNode> = {
 
 const BORDER: Record<ToastVariant, string> = {
   default: "border-border",
-  success: "border-teal-200",
+  success: "border-[color-mix(in_srgb,var(--primary)_25%,transparent)]",
   error:   "border-red-200",
   warning: "border-amber-200",
   info:    "border-blue-200",

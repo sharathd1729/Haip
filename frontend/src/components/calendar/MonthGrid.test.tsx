@@ -45,7 +45,7 @@ describe("MonthGrid", () => {
     const onOpen = show();
     expect(screen.queryByRole("button", { name: /Gone Guest/ })).toBeNull();
     const hold = screen.getByRole("button", { name: /Maintenance, 2026-10-12 to 2026-10-14/ });
-    expect(hold.className).toContain("bg-red-500");
+    expect(hold.className).toContain("bg-[var(--haip-cal-maint)]");
     fireEvent.click(hold);
     expect(onOpen.mock.calls[0][0]).toMatchObject({ kind: "block", block: { id: "b1" } });
   });

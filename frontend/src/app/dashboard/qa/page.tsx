@@ -72,20 +72,20 @@ export default function QAPage() {
   });
 
   const TrendIcon = ({ t }: { t: "up" | "down" | "neutral" }) =>
-    t === "up" ? <TrendingUp size={13} className="text-teal-500" /> :
+    t === "up" ? <TrendingUp size={13} className="text-primary" /> :
     t === "down" ? <TrendingDown size={13} className="text-red-400" /> :
-    <span className="w-3 h-0.5 bg-gray-300 inline-block" />;
+    <span className="w-3 h-0.5 bg-[var(--haip-border-strong)] inline-block" />;
 
   return (
     <div className="h-full flex flex-col bg-white">
-      <div className="px-5 py-4 border-b border-gray-100 flex-shrink-0">
+      <div className="px-5 py-4 border-b border-[var(--haip-border)] flex-shrink-0">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center">
             <Star size={18} className="text-amber-500" />
           </div>
           <div>
             <h1 className="haip-page-title">QA & Coaching</h1>
-            <p className="text-xs text-gray-400">Agent leaderboard · rubric editor · coaching nudges</p>
+            <p className="text-xs text-[var(--haip-fg-subtle)]">Agent leaderboard · rubric editor · coaching nudges</p>
           </div>
         </div>
         <div className="flex gap-1">
@@ -95,7 +95,7 @@ export default function QAPage() {
               onClick={() => setTab(t)}
               className={cn(
                 "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors capitalize",
-                tab === t ? "bg-[#0F766E] text-white" : "text-gray-500 hover:bg-gray-100"
+                tab === t ? "bg-primary text-white" : "text-[var(--haip-fg-subtle)] hover:bg-[var(--haip-status-neutral-bg)]"
               )}
             >
               {t}
@@ -112,8 +112,8 @@ export default function QAPage() {
               {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-2xl" />)}
             </div>
           ) : agents.length === 0 ? (
-            <div className="py-16 text-center text-sm text-gray-400">
-              <Award size={32} className="text-gray-300 mx-auto mb-3" />
+            <div className="py-16 text-center text-sm text-[var(--haip-fg-subtle)]">
+              <Award size={32} className="text-[var(--haip-fg-subtle)]/70 mx-auto mb-3" />
               No QA data yet — scores will appear after calls are analyzed
             </div>
           ) : (
@@ -127,9 +127,9 @@ export default function QAPage() {
                   <div className={cn(
                     "w-8 h-8 rounded-full flex items-center justify-center text-sm font-black flex-shrink-0",
                     idx === 0 ? "bg-amber-100 text-amber-600" :
-                    idx === 1 ? "bg-gray-100 text-gray-600" :
+                    idx === 1 ? "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)]" :
                     idx === 2 ? "bg-orange-50 text-orange-600" :
-                    "bg-gray-50 text-gray-500"
+                    "bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)]"
                   )}>
                     {idx + 1}
                   </div>
@@ -137,13 +137,13 @@ export default function QAPage() {
                   {/* Agent info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-semibold text-gray-900">{agent.agent_name}</span>
+                      <span className="text-sm font-semibold text-[var(--haip-fg)]">{agent.agent_name}</span>
                       <TrendIcon t={agent.trend} />
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-gray-500">
+                    <div className="flex items-center gap-3 text-xs text-[var(--haip-fg-subtle)]">
                       <span>{agent.call_count} calls scored</span>
                       {agent.top_criteria[0] && (
-                        <span className="text-teal-600">✓ {agent.top_criteria[0]}</span>
+                        <span className="text-primary">✓ {agent.top_criteria[0]}</span>
                       )}
                       {agent.weak_criteria[0] && (
                         <span className="text-amber-500">↗ {agent.weak_criteria[0]}</span>
@@ -163,7 +163,7 @@ export default function QAPage() {
       {tab === "rubric" && (
         <div className="flex-1 overflow-y-auto p-5">
           <div className="flex items-center justify-between mb-4">
-            <p className="text-sm text-gray-500">hospitality_v1 rubric · {rubric.length} criteria · {rubric.reduce((s, c) => s + c.max_score, 0)} total points</p>
+            <p className="text-sm text-[var(--haip-fg-subtle)]">hospitality_v1 rubric · {rubric.length} criteria · {rubric.reduce((s, c) => s + c.max_score, 0)} total points</p>
           </div>
           {rubricLoading ? (
             <div className="space-y-3">
@@ -172,13 +172,13 @@ export default function QAPage() {
           ) : (
             <div className="space-y-2">
               {rubric.map((c, i) => (
-                <div key={c.id || i} className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <div key={c.id || i} className="flex items-center gap-4 p-4 bg-[var(--haip-surface)] rounded-xl border border-[var(--haip-border)]">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-800 capitalize">{c.name.replace(/_/g, " ")}</p>
-                    {c.description && <p className="text-xs text-gray-500 mt-0.5">{c.description}</p>}
+                    <p className="text-sm font-semibold text-[var(--haip-fg)] capitalize">{c.name.replace(/_/g, " ")}</p>
+                    {c.description && <p className="text-xs text-[var(--haip-fg-subtle)] mt-0.5">{c.description}</p>}
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">
-                    <span className="text-xs text-gray-500">Weight: {c.weight}</span>
+                    <span className="text-xs text-[var(--haip-fg-subtle)]">Weight: {c.weight}</span>
                     <Badge variant="outline" className="text-xs font-mono">{c.max_score} pts</Badge>
                   </div>
                 </div>
@@ -198,15 +198,15 @@ export default function QAPage() {
                   <div className="flex items-center gap-3 mb-3">
                     <ScoreRing score={agent.avg_score} size={40} strokeWidth={4} />
                     <div>
-                      <p className="text-sm font-semibold text-gray-900">{agent.agent_name}</p>
-                      <p className="text-xs text-gray-400">{agent.call_count} calls scored</p>
+                      <p className="text-sm font-semibold text-[var(--haip-fg)]">{agent.agent_name}</p>
+                      <p className="text-xs text-[var(--haip-fg-subtle)]">{agent.call_count} calls scored</p>
                     </div>
                   </div>
                   <div>
                     <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-2">Focus areas</p>
                     <ul className="space-y-1.5">
                       {agent.weak_criteria.map((c, i) => (
-                        <li key={i} className="flex items-start gap-2 text-xs text-gray-700">
+                        <li key={i} className="flex items-start gap-2 text-xs text-[var(--haip-fg-2)]">
                           <span className="text-amber-400 flex-shrink-0 mt-0.5">→</span>
                           <span className="capitalize">{c.replace(/_/g, " ")}</span>
                         </li>
@@ -217,7 +217,7 @@ export default function QAPage() {
               )
             ))}
             {agents.length === 0 && (
-              <div className="col-span-2 py-16 text-center text-sm text-gray-400">
+              <div className="col-span-2 py-16 text-center text-sm text-[var(--haip-fg-subtle)]">
                 Coaching nudges will appear after agents have been scored on 3+ calls.
               </div>
             )}

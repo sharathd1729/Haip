@@ -20,8 +20,8 @@ import {
   type BookingDetail,
 } from "@/lib/bookings";
 
-const field = "w-full text-sm border border-gray-200 rounded-lg px-2.5 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:bg-gray-50 disabled:text-gray-400";
-const label = "block text-xs font-medium text-gray-500";
+const field = "w-full text-sm border border-[var(--haip-border)] rounded-lg px-2.5 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-[var(--haip-surface)] disabled:text-[var(--haip-fg-subtle)]";
+const label = "block text-xs font-medium text-[var(--haip-fg-subtle)]";
 
 interface Draft {
   property_id: string; check_in: string; check_out: string; check_in_time: string; check_out_time: string;
@@ -98,16 +98,16 @@ export default function BookingPage() {
           const f = loadFailure(error);
           return (
             <div role="alert" className="py-16 text-center">
-              <p className="text-base font-semibold text-gray-800">{f.title}</p>
-              <p className="mt-1 text-sm text-gray-500">{f.body}</p>
+              <p className="text-base font-semibold text-[var(--haip-fg)]">{f.title}</p>
+              <p className="mt-1 text-sm text-[var(--haip-fg-subtle)]">{f.body}</p>
               <div className="mt-4 flex items-center justify-center gap-4">
                 {f.retry && (
                   <button type="button" onClick={() => refetch()} disabled={isFetching}
-                    className="min-h-11 rounded-lg bg-teal-600 px-4 text-sm font-semibold text-white disabled:opacity-60">
+                    className="min-h-11 rounded-lg bg-primary px-4 text-sm font-semibold text-white disabled:opacity-60">
                     {isFetching ? "Trying…" : "Try again"}
                   </button>
                 )}
-                <Link href="/dashboard/bookings" className="inline-flex min-h-11 items-center text-sm font-medium text-teal-600 hover:underline">Back to bookings</Link>
+                <Link href="/dashboard/bookings" className="inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline">Back to bookings</Link>
               </div>
             </div>
           );
@@ -149,14 +149,14 @@ export default function BookingPage() {
   return (
     <div className="h-full overflow-y-auto bg-[#F8FAFC]">
       <div className="max-w-5xl mx-auto p-4 sm:p-6 space-y-5">
-        <Link href="/dashboard/bookings" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800">
+        <Link href="/dashboard/bookings" className="inline-flex items-center gap-1.5 text-sm text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg)]">
           <ArrowLeft size={14} /> Bookings
         </Link>
 
         <header className="flex flex-wrap items-start gap-3">
           <div className="min-w-0">
             <h1 className="haip-page-title haip-page-title--keep truncate">{guest?.name || (guest ? formatPhone(guest.phone) : "Booking")}</h1>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-[var(--haip-fg-subtle)]">
               {booking.property?.name ?? "No property"} · {fmtDate(booking.check_in, false)} to {fmtDate(booking.check_out)} · {booking.nights} night{booking.nights === 1 ? "" : "s"}
             </p>
           </div>
@@ -164,7 +164,7 @@ export default function BookingPage() {
             <span className={cn("inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold", st.cls)}>{st.label}</span>
             {digits && (
               <a href={`https://wa.me/${digits}`} target="_blank" rel="noopener noreferrer"
-                className="text-xs font-semibold border border-gray-200 bg-white px-3 py-1.5 rounded-lg hover:bg-gray-50">Messaging</a>
+                className="text-xs font-semibold border border-[var(--haip-border)] bg-white px-3 py-1.5 rounded-lg hover:bg-[var(--haip-surface)]">Messaging</a>
             )}
             {booking.status !== "cancelled" && (
               <button onClick={() => setStatus("cancelled")} disabled={save.isPending}
@@ -175,7 +175,7 @@ export default function BookingPage() {
               value={booking.status}
               onChange={e => setStatus(e.target.value)}
               disabled={save.isPending}
-              className="text-xs border border-gray-200 rounded-lg bg-white px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-teal-500"
+              className="text-xs border border-[var(--haip-border)] rounded-lg bg-white px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary"
             >
               {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
@@ -189,7 +189,7 @@ export default function BookingPage() {
         )}
 
         {booking.calendar_sync && (
-          <div className="flex flex-wrap items-center gap-2 text-xs rounded-lg px-3 py-2 border border-gray-200 bg-white text-gray-700">
+          <div className="flex flex-wrap items-center gap-2 text-xs rounded-lg px-3 py-2 border border-[var(--haip-border)] bg-white text-[var(--haip-fg-2)]">
             <span className="min-w-0 flex-1">
               {booking.calendar_sync.locked
                 ? "Linked to a Google Calendar event. You changed this booking here, so the calendar no longer overwrites it."
@@ -197,7 +197,7 @@ export default function BookingPage() {
             </span>
             {role !== "foh" && (
               <button onClick={() => calendarSync.mutate(!booking.calendar_sync!.locked)} disabled={calendarSync.isPending}
-                className="min-h-11 sm:min-h-0 font-semibold border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 disabled:opacity-50">
+                className="min-h-11 sm:min-h-0 font-semibold border border-[var(--haip-border)] px-3 py-1.5 rounded-lg hover:bg-[var(--haip-surface)] disabled:opacity-50">
                 {booking.calendar_sync.locked ? "Follow the calendar again" : "Keep as it is here"}
               </button>
             )}
@@ -205,7 +205,7 @@ export default function BookingPage() {
         )}
 
         {booking.next_due && booking.status !== "cancelled" && (
-          <p className={cn("text-xs rounded-lg px-3 py-2 border", booking.next_due.overdue ? "text-red-800 bg-red-50 border-red-100" : "text-gray-700 bg-white border-gray-200")}>
+          <p className={cn("text-xs rounded-lg px-3 py-2 border", booking.next_due.overdue ? "text-red-800 bg-red-50 border-red-100" : "text-[var(--haip-fg-2)] bg-white border-[var(--haip-border)]")}>
             {booking.next_due.overdue ? "Overdue: " : "Next payment: "}
             <b>{formatINR(booking.next_due.amount)}</b> ({booking.next_due.label}) {booking.next_due.overdue ? "was due" : "due"} {fmtDate(booking.next_due.due_date)}
           </p>
@@ -250,10 +250,10 @@ export default function BookingPage() {
                 <label className={cn(label, "col-span-2")}>Guest message
                   <textarea rows={2} className={cn(field, "mt-1 resize-none")} value={draft.special_requests} onChange={set("special_requests")} />
                 </label>
-                <label className={cn(label, "col-span-2")}>Notes <span className="text-gray-400 font-normal">(staff only)</span>
+                <label className={cn(label, "col-span-2")}>Notes <span className="text-[var(--haip-fg-subtle)] font-normal">(staff only)</span>
                   <textarea rows={2} className={cn(field, "mt-1 resize-none")} placeholder="Which caravan: Black Ratha / White Ratha. Anything the team should know." value={draft.internal_notes} onChange={set("internal_notes")} />
                 </label>
-                <label className={cn(label, "col-span-2")}>Concierge notes <span className="text-gray-400 font-normal">(for the on-site team)</span>
+                <label className={cn(label, "col-span-2")}>Concierge notes <span className="text-[var(--haip-fg-subtle)] font-normal">(for the on-site team)</span>
                   <textarea rows={2} className={cn(field, "mt-1 resize-none")} placeholder="Gate code, arrival time, preferences..." value={draft.concierge_notes} onChange={set("concierge_notes")} />
                 </label>
               </div>
@@ -261,11 +261,11 @@ export default function BookingPage() {
                 <button
                   onClick={submit}
                   disabled={!dirty || save.isPending}
-                  className="text-sm font-semibold bg-teal-500 hover:bg-teal-600 disabled:opacity-40 text-white px-4 py-2 rounded-lg"
+                  className="text-sm font-semibold bg-primary hover:bg-primary disabled:opacity-40 text-white px-4 py-2 rounded-lg"
                 >
                   {save.isPending ? "Saving..." : "Save changes"}
                 </button>
-                {dirty && <button onClick={() => setDraft(toDraft(booking))} className="text-sm text-gray-500 hover:text-gray-800">Discard</button>}
+                {dirty && <button onClick={() => setDraft(toDraft(booking))} className="text-sm text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg)]">Discard</button>}
               </div>
             </section>
 
@@ -275,13 +275,13 @@ export default function BookingPage() {
             <section className="haip-card">
               <div className="haip-card-head"><h2 className="haip-card-title">Activity</h2></div>
               <ol className="p-4 space-y-3">
-                {booking.activity.length === 0 && <li className="text-sm text-gray-400">No changes recorded yet.</li>}
+                {booking.activity.length === 0 && <li className="text-sm text-[var(--haip-fg-subtle)]">No changes recorded yet.</li>}
                 {booking.activity.map(a => (
                   <li key={a.id} className="flex gap-3 text-sm">
-                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-teal-400 flex-shrink-0" aria-hidden />
+                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" aria-hidden />
                     <div className="min-w-0">
-                      <p className="text-gray-800">{describeActivity(a)}</p>
-                      <p className="text-xs text-gray-400">{a.by ?? "System"}{a.at ? ` · ${new Date(a.at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : ""}</p>
+                      <p className="text-[var(--haip-fg)]">{describeActivity(a)}</p>
+                      <p className="text-xs text-[var(--haip-fg-subtle)]">{a.by ?? "System"}{a.at ? ` · ${new Date(a.at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : ""}</p>
                     </div>
                   </li>
                 ))}
@@ -293,39 +293,39 @@ export default function BookingPage() {
             <section className="haip-card">
               <div className="haip-card-head">
                 <h2 className="haip-card-title">Guest</h2>
-                {guest && <button onClick={() => setChangingGuest(true)} className="ml-auto text-xs font-semibold text-teal-700 hover:underline">Change</button>}
+                {guest && <button onClick={() => setChangingGuest(true)} className="ml-auto text-xs font-semibold text-primary hover:underline">Change</button>}
               </div>
               <div className="p-4 space-y-3 text-sm">
                 {guest ? (
                   <>
                     <div>
-                      <p className="font-semibold text-gray-900">{guest.name || "Unnamed guest"}</p>
-                      <p className="text-gray-500">{guest.phone ? formatPhone(guest.phone) : "No phone"}</p>
-                      {guest.email && <p className="text-gray-500 truncate">{guest.email}</p>}
+                      <p className="font-semibold text-[var(--haip-fg)]">{guest.name || "Unnamed guest"}</p>
+                      <p className="text-[var(--haip-fg-subtle)]">{guest.phone ? formatPhone(guest.phone) : "No phone"}</p>
+                      {guest.email && <p className="text-[var(--haip-fg-subtle)] truncate">{guest.email}</p>}
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {guest.phone && (
-                        <a href={`tel:${guest.phone}`} className="inline-flex items-center gap-1.5 text-xs font-semibold border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50">
+                        <a href={`tel:${guest.phone}`} className="inline-flex items-center gap-1.5 text-xs font-semibold border border-[var(--haip-border)] px-3 py-1.5 rounded-lg hover:bg-[var(--haip-surface)]">
                           <Phone size={12} /> Call
                         </a>
                       )}
                       {digits && (
-                        <a href={`https://wa.me/${digits}`} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50">
+                        <a href={`https://wa.me/${digits}`} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold border border-[var(--haip-border)] px-3 py-1.5 rounded-lg hover:bg-[var(--haip-surface)]">
                           WhatsApp
                         </a>
                       )}
-                      <Link href={`/dashboard/bookings?guest=${guest.id}`} className="text-xs font-semibold border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50">
+                      <Link href={`/dashboard/bookings?guest=${guest.id}`} className="text-xs font-semibold border border-[var(--haip-border)] px-3 py-1.5 rounded-lg hover:bg-[var(--haip-surface)]">
                         All their bookings
                       </Link>
                       {booking.inquiry_id && (
-                        <Link href={`/dashboard/leads/${booking.inquiry_id}`} className="text-xs font-semibold border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50">
+                        <Link href={`/dashboard/leads/${booking.inquiry_id}`} className="text-xs font-semibold border border-[var(--haip-border)] px-3 py-1.5 rounded-lg hover:bg-[var(--haip-surface)]">
                           Original lead
                         </Link>
                       )}
                     </div>
                   </>
-                ) : <p className="text-gray-400">Guest details are not available.</p>}
-                <p className="text-xs text-gray-400">
+                ) : <p className="text-[var(--haip-fg-subtle)]">Guest details are not available.</p>}
+                <p className="text-xs text-[var(--haip-fg-subtle)]">
                   Source: {booking.channel ?? "direct"}{booking.created_at ? ` · created ${fmtDate(booking.created_at)}` : ""}
                 </p>
               </div>
@@ -338,7 +338,7 @@ export default function BookingPage() {
             {canErase && guest && (
               <section className="rounded-xl border border-red-100 bg-white p-4">
                 <h2 className="text-xs font-semibold text-red-700 uppercase tracking-wide">Guest data</h2>
-                <p className="text-xs text-gray-500 mt-1">Start a DPDP erasure request. The guest is hidden now and their data is permanently deleted after 30 days.</p>
+                <p className="text-xs text-[var(--haip-fg-subtle)] mt-1">Start a DPDP erasure request. The guest is hidden now and their data is permanently deleted after 30 days.</p>
                 <button
                   onClick={async () => {
                     if (!confirm(`Request erasure of all data for ${guest.name || "this guest"}? This also removes their bookings.`)) return;

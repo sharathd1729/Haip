@@ -135,41 +135,41 @@ export default function CalendarSyncPage() {
         <button
           onClick={() => setForm({ property_id: properties[0]?.id ?? "", name: "Airbnb", import_url: "", keywords: {} })}
           disabled={properties.length === 0}
-          className="flex items-center gap-1.5 text-xs bg-teal-500 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-teal-600 disabled:opacity-40 transition-colors"
+          className="flex items-center gap-1.5 text-xs bg-primary text-white px-3 py-1.5 rounded-lg font-medium hover:bg-primary disabled:opacity-40 transition-colors"
         >
           <Plus size={13} /> Add calendar link
         </button>
         }
       />
 
-      <div className="bg-teal-50 border border-teal-100 rounded-xl p-4 text-xs text-teal-900 space-y-1.5">
+      <div className="bg-[var(--haip-primary-tint)] border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] rounded-xl p-4 text-xs text-[var(--accent-foreground)] space-y-1.5">
         <p className="font-semibold">How it works</p>
         <p><b>Their calendar into HAIP:</b> paste the calendar (iCal) link from Airbnb or Booking.com. Their reservations block those dates here, so nobody books them twice.</p>
         <p><b>HAIP into their calendar:</b> copy the HAIP link below and add it in Airbnb, Booking.com or Google Calendar (&ldquo;import calendar&rdquo; or &ldquo;from URL&rdquo;). Your bookings then block those dates there.</p>
-        <p className="text-teal-700">Calendar links share dates only, never guest names or prices. Each side refreshes on its own schedule, usually every few hours, so a new booking can take a while to appear. For Google, use the calendar&apos;s &ldquo;secret address in iCal format&rdquo;.</p>
+        <p className="text-primary">Calendar links share dates only, never guest names or prices. Each side refreshes on its own schedule, usually every few hours, so a new booking can take a while to appear. For Google, use the calendar&apos;s &ldquo;secret address in iCal format&rdquo;.</p>
       </div>
 
       {isLoading ? (
         <div className="space-y-3">{Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</div>
       ) : feeds.length === 0 ? (
-        <div className="text-center py-14 text-gray-400 text-sm">
+        <div className="text-center py-14 text-[var(--haip-fg-subtle)] text-sm">
           No calendar links yet. Click &ldquo;Add calendar link&rdquo; to connect your first one.
         </div>
       ) : (
         byProperty.map(({ p, items }) => (
           <section key={p.id} className="space-y-2">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{p.name}</h2>
+            <h2 className="text-xs font-semibold text-[var(--haip-fg-subtle)] uppercase tracking-wide">{p.name}</h2>
             {items.map(f => (
-              <div key={f.id} className="bg-white border border-gray-100 rounded-xl p-4 space-y-3">
+              <div key={f.id} className="bg-white border border-[var(--haip-border)] rounded-xl p-4 space-y-3">
                 <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-gray-900">{f.name}</p>
-                  {!f.is_active && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">Paused</span>}
+                  <p className="text-sm font-semibold text-[var(--haip-fg)]">{f.name}</p>
+                  {!f.is_active && <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-subtle)]">Paused</span>}
                   <div className="ml-auto flex items-center gap-1">
                     {f.has_import && (
                       <button
                         onClick={() => syncMutation.mutate(f.id)}
                         disabled={syncMutation.isPending}
-                        className="flex items-center gap-1 text-[11px] text-gray-600 border border-gray-200 hover:bg-gray-50 px-2 py-1 rounded-lg"
+                        className="flex items-center gap-1 text-[11px] text-[var(--haip-fg-muted)] border border-[var(--haip-border)] hover:bg-[var(--haip-surface)] px-2 py-1 rounded-lg"
                       >
                         <RefreshCw size={11} /> Sync now
                       </button>
@@ -179,20 +179,20 @@ export default function CalendarSyncPage() {
                         property_id: f.property_id, name: f.name, import_url: "", feedId: f.id,
                         keywords: Object.fromEntries(f.vehicles.map(v => [v.property_id, v.keywords.join(", ")])),
                       })}
-                      className="text-[11px] text-gray-600 border border-gray-200 hover:bg-gray-50 px-2 py-1 rounded-lg"
+                      className="text-[11px] text-[var(--haip-fg-muted)] border border-[var(--haip-border)] hover:bg-[var(--haip-surface)] px-2 py-1 rounded-lg"
                     >
                       Edit
                     </button>
                     <button
                       onClick={() => toggleMutation.mutate(f)}
-                      className="text-[11px] text-gray-600 border border-gray-200 hover:bg-gray-50 px-2 py-1 rounded-lg"
+                      className="text-[11px] text-[var(--haip-fg-muted)] border border-[var(--haip-border)] hover:bg-[var(--haip-surface)] px-2 py-1 rounded-lg"
                     >
                       {f.is_active ? "Pause" : "Resume"}
                     </button>
                     <button
                       onClick={() => { if (confirm(`Remove ${f.name}? Dates it blocked in HAIP will be freed.`)) deleteMutation.mutate(f.id); }}
                       aria-label={`Remove ${f.name}`}
-                      className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50"
+                      className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--haip-fg-subtle)] hover:text-red-500 hover:bg-red-50"
                     >
                       <Trash2 size={13} />
                     </button>
@@ -200,26 +200,26 @@ export default function CalendarSyncPage() {
                 </div>
 
                 <div className="text-xs">
-                  <p className="text-gray-500 font-medium mb-1">Their calendar into HAIP</p>
+                  <p className="text-[var(--haip-fg-subtle)] font-medium mb-1">Their calendar into HAIP</p>
                   {f.has_import ? (
                     <div className="flex items-center gap-2 flex-wrap">
                       {f.last_status === "ok" && <CheckCircle2 size={13} className="text-green-600" />}
                       {f.last_status === "error" && <AlertCircle size={13} className="text-red-500" />}
-                      <span className="text-gray-600">Reading {f.import_hint}</span>
-                      <span className="text-gray-400">· last read {ago(f.last_synced_at)}</span>
-                      {f.last_status === "ok" && <span className="text-gray-400">· {f.last_event_count ?? 0} reservations</span>}
+                      <span className="text-[var(--haip-fg-muted)]">Reading {f.import_hint}</span>
+                      <span className="text-[var(--haip-fg-subtle)]">· last read {ago(f.last_synced_at)}</span>
+                      {f.last_status === "ok" && <span className="text-[var(--haip-fg-subtle)]">· {f.last_event_count ?? 0} reservations</span>}
                     </div>
                   ) : (
-                    <p className="text-gray-400">No link added. Edit this entry to paste the calendar link from {f.name}.</p>
+                    <p className="text-[var(--haip-fg-subtle)]">No link added. Edit this entry to paste the calendar link from {f.name}.</p>
                   )}
                   {f.last_status === "error" && f.last_error && <p className="text-red-600 mt-1">{f.last_error}</p>}
                   {f.vehicles.length > 0 && (
-                    <p className="text-gray-500 mt-1">
+                    <p className="text-[var(--haip-fg-subtle)] mt-1">
                       Shared calendar: {f.vehicles.map(v => `${v.property_name ?? "Vehicle"} (${v.keywords.join(", ")})`).join(" · ")}
                     </p>
                   )}
                   {f.vehicles.length > 0 && (
-                    <p className="text-gray-500 mt-1">
+                    <p className="text-[var(--haip-fg-subtle)] mt-1">
                       {f.bookings} booking{f.bookings === 1 ? "" : "s"} made from this calendar. An event with a guest name, phone, total and dates becomes a booking;
                       if it names no vehicle it waits on the &ldquo;Unassigned&rdquo; vehicle until you pick one at check-in.
                     </p>
@@ -238,20 +238,20 @@ export default function CalendarSyncPage() {
                 </div>
 
                 <div className="text-xs">
-                  <p className="text-gray-500 font-medium mb-1">HAIP calendar for {f.name} to read</p>
+                  <p className="text-[var(--haip-fg-subtle)] font-medium mb-1">HAIP calendar for {f.name} to read</p>
                   <div className="flex items-center gap-2">
                     <input
                       readOnly
                       value={f.export_url}
                       onFocus={e => e.currentTarget.select()}
-                      className="flex-1 min-w-0 text-[11px] font-mono bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-gray-600"
+                      className="flex-1 min-w-0 text-[11px] font-mono bg-[var(--haip-surface)] border border-[var(--haip-border)] rounded-lg px-2 py-1.5 text-[var(--haip-fg-muted)]"
                     />
-                    <button onClick={() => copy(f.export_url)} className="flex items-center gap-1 text-[11px] text-gray-600 border border-gray-200 hover:bg-gray-50 px-2 py-1.5 rounded-lg">
+                    <button onClick={() => copy(f.export_url)} className="flex items-center gap-1 text-[11px] text-[var(--haip-fg-muted)] border border-[var(--haip-border)] hover:bg-[var(--haip-surface)] px-2 py-1.5 rounded-lg">
                       <Copy size={11} /> Copy
                     </button>
                     <button
                       onClick={() => { if (confirm("Create a new link? The current one stops working, so you must paste the new one into the other calendar.")) regenMutation.mutate(f.id); }}
-                      className="text-[11px] text-gray-600 border border-gray-200 hover:bg-gray-50 px-2 py-1.5 rounded-lg"
+                      className="text-[11px] text-[var(--haip-fg-muted)] border border-[var(--haip-border)] hover:bg-[var(--haip-surface)] px-2 py-1.5 rounded-lg"
                     >
                       New link
                     </button>
@@ -267,64 +267,64 @@ export default function CalendarSyncPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-gray-900">{form.feedId ? "Edit calendar link" : "Add calendar link"}</h3>
-              <button onClick={() => setForm(null)} aria-label="Close"><X size={16} className="text-gray-400" /></button>
+              <h3 className="font-bold text-[var(--haip-fg)]">{form.feedId ? "Edit calendar link" : "Add calendar link"}</h3>
+              <button onClick={() => setForm(null)} aria-label="Close"><X size={16} className="text-[var(--haip-fg-subtle)]" /></button>
             </div>
             <div className="space-y-3 mb-5">
               {!form.feedId && (
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">Property</label>
+                  <label className="block text-xs font-semibold text-[var(--haip-fg-subtle)] mb-1">Property</label>
                   <select
                     value={form.property_id}
                     onChange={e => setForm(f => f ? { ...f, property_id: e.target.value } : f)}
-                    className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    className="w-full text-sm border border-[var(--haip-border)] rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
                   >
                     {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
               )}
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">Which calendar is this?</label>
+                <label className="block text-xs font-semibold text-[var(--haip-fg-subtle)] mb-1">Which calendar is this?</label>
                 <input
                   list="ical-presets"
                   value={form.name}
                   onChange={e => setForm(f => f ? { ...f, name: e.target.value } : f)}
                   maxLength={80}
-                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full text-sm border border-[var(--haip-border)] rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 <datalist id="ical-presets">{PRESETS.map(p => <option key={p} value={p} />)}</datalist>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">
+                <label className="block text-xs font-semibold text-[var(--haip-fg-subtle)] mb-1">
                   Their calendar link (iCal / .ics){form.feedId ? " - leave blank to keep the saved one" : ""}
                 </label>
                 <input
                   value={form.import_url}
                   onChange={e => setForm(f => f ? { ...f, import_url: e.target.value } : f)}
                   placeholder="https://www.airbnb.com/calendar/ical/....ics"
-                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full text-sm border border-[var(--haip-border)] rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
                 />
-                <p className="text-[11px] text-gray-400 mt-1">
+                <p className="text-[11px] text-[var(--haip-fg-subtle)] mt-1">
                   Optional. Leave empty if you only want to send HAIP bookings to this calendar. Treat the link like a password.
                 </p>
               </div>
               {properties.length > 1 && (
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">One calendar for several vehicles? (optional)</label>
-                  <p className="text-[11px] text-gray-400 mb-2">
+                  <label className="block text-xs font-semibold text-[var(--haip-fg-subtle)] mb-1">One calendar for several vehicles? (optional)</label>
+                  <p className="text-[11px] text-[var(--haip-fg-subtle)] mb-2">
                     Type the words that appear in an event for each vehicle, separated by commas, e.g. &ldquo;white, white ratha&rdquo;. Leave a vehicle blank if it is not in this calendar.
                     An event that names no vehicle holds all of them and adds a task.
                   </p>
                   <div className="space-y-2">
                     {properties.map(p => (
                       <div key={p.id} className="flex items-center gap-2">
-                        <span className="w-28 shrink-0 text-xs text-gray-600 truncate" title={p.name}>{p.name}</span>
+                        <span className="w-28 shrink-0 text-xs text-[var(--haip-fg-muted)] truncate" title={p.name}>{p.name}</span>
                         <input
                           value={form.keywords[p.id] ?? ""}
                           onChange={e => setForm(f => f ? { ...f, keywords: { ...f.keywords, [p.id]: e.target.value } } : f)}
                           aria-label={`Words for ${p.name}`}
                           placeholder="white, white ratha"
-                          className="flex-1 min-w-0 text-base sm:text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                          className="flex-1 min-w-0 text-base sm:text-sm border border-[var(--haip-border)] rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
                         />
                       </div>
                     ))}
@@ -333,13 +333,13 @@ export default function CalendarSyncPage() {
               )}
             </div>
             <div className="flex gap-2">
-              <button onClick={() => setForm(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+              <button onClick={() => setForm(null)} className="flex-1 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)]">Cancel</button>
               <button
                 onClick={() => saveMutation.mutate(
                   form.feedId && !form.import_url.trim() ? { ...form, import_url: undefined as unknown as string } : form,
                 )}
                 disabled={!form.name.trim() || !form.property_id || saveMutation.isPending}
-                className="flex-1 py-2.5 bg-teal-500 hover:bg-teal-600 disabled:opacity-40 text-white font-semibold rounded-xl text-sm"
+                className="flex-1 py-2.5 bg-primary hover:bg-primary disabled:opacity-40 text-white font-semibold rounded-xl text-sm"
               >
                 {saveMutation.isPending ? "Saving..." : "Save"}
               </button>

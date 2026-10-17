@@ -18,7 +18,7 @@ interface Delivery {
 }
 interface ListResponse { endpoints: Endpoint[]; events: { event: string; description: string }[] }
 
-const field = "w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500";
+const field = "w-full text-sm border border-[var(--haip-border)] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary";
 const DELIVERY_STYLE: Record<string, string> = {
   success: "bg-emerald-50 text-emerald-700 border-emerald-100",
   pending: "bg-amber-50 text-amber-800 border-amber-100",
@@ -40,19 +40,19 @@ function Deliveries({ endpoint, canRetry }: { endpoint: Endpoint; canRetry: bool
   });
   if (isLoading) return <Skeleton className="h-16 rounded-lg" />;
   const rows = data?.deliveries ?? [];
-  if (rows.length === 0) return <p className="text-xs text-gray-400">Nothing sent to this endpoint yet.</p>;
+  if (rows.length === 0) return <p className="text-xs text-[var(--haip-fg-subtle)]">Nothing sent to this endpoint yet.</p>;
   return (
-    <ul className="divide-y divide-gray-100 text-xs">
+    <ul className="divide-y divide-[var(--haip-border)] text-xs">
       {rows.map(d => (
         <li key={d.id} className="py-2 flex items-center gap-2">
           <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-semibold", DELIVERY_STYLE[d.status])}>{d.status}</span>
-          <span className="font-mono text-gray-700">{d.event_type}</span>
-          <span className="text-gray-400 truncate">
+          <span className="font-mono text-[var(--haip-fg-2)]">{d.event_type}</span>
+          <span className="text-[var(--haip-fg-subtle)] truncate">
             {d.response_status ? `HTTP ${d.response_status}` : ""}{d.error ? ` ${d.error}` : ""} · {d.attempts} attempt{d.attempts === 1 ? "" : "s"}
           </span>
-          <span className="ml-auto text-gray-400 whitespace-nowrap">{d.created_at ? new Date(d.created_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : ""}</span>
+          <span className="ml-auto text-[var(--haip-fg-subtle)] whitespace-nowrap">{d.created_at ? new Date(d.created_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : ""}</span>
           {canRetry && d.status !== "success" && (
-            <button onClick={() => retry.mutate(d.id)} disabled={retry.isPending} className="font-semibold text-teal-700 hover:underline">Retry</button>
+            <button onClick={() => retry.mutate(d.id)} disabled={retry.isPending} className="font-semibold text-primary hover:underline">Retry</button>
           )}
         </li>
       ))}
@@ -112,70 +112,70 @@ export function WebhooksSection({ isOwner }: { isOwner: boolean }) {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-sm font-semibold text-gray-900">Webhooks</h2>
-        <p className="text-xs text-gray-500">HAIP calls your server the moment a booking, payment or message changes, so you never have to poll.</p>
+        <h2 className="text-sm font-semibold text-[var(--haip-fg)]">Webhooks</h2>
+        <p className="text-xs text-[var(--haip-fg-subtle)]">HAIP calls your server the moment a booking, payment or message changes, so you never have to poll.</p>
       </div>
 
       {secret && (
         <div className="haip-card p-4 space-y-3 border-amber-200">
-          <p className="text-sm font-semibold text-gray-900">Copy the signing secret now, it won&apos;t be shown again</p>
+          <p className="text-sm font-semibold text-[var(--haip-fg)]">Copy the signing secret now, it won&apos;t be shown again</p>
           <div className="flex gap-2">
-            <input readOnly value={secret.secret} onFocus={e => e.currentTarget.select()} className="flex-1 min-w-0 text-xs font-mono bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-2" />
-            <button onClick={() => copy(secret.secret)} className="flex items-center gap-1 text-xs font-semibold border border-gray-200 px-3 rounded-lg hover:bg-gray-50"><Copy size={12} /> Copy</button>
+            <input readOnly value={secret.secret} onFocus={e => e.currentTarget.select()} className="flex-1 min-w-0 text-xs font-mono bg-[var(--haip-surface)] border border-[var(--haip-border)] rounded-lg px-2.5 py-2" />
+            <button onClick={() => copy(secret.secret)} className="flex items-center gap-1 text-xs font-semibold border border-[var(--haip-border)] px-3 rounded-lg hover:bg-[var(--haip-surface)]"><Copy size={12} /> Copy</button>
           </div>
-          <p className="text-xs text-gray-500">Your server uses it to check that a request really came from HAIP. The documentation shows how.</p>
-          <button onClick={() => setSecret(null)} className="text-xs font-semibold text-teal-700 hover:underline">I have saved it</button>
+          <p className="text-xs text-[var(--haip-fg-subtle)]">Your server uses it to check that a request really came from HAIP. The documentation shows how.</p>
+          <button onClick={() => setSecret(null)} className="text-xs font-semibold text-primary hover:underline">I have saved it</button>
         </div>
       )}
 
       {isLoading ? <Skeleton className="h-24 rounded-xl" /> : (
         <>
-          <div className="haip-card divide-y divide-gray-100">
-            {(data?.endpoints ?? []).length === 0 && <p className="p-4 text-sm text-gray-400">No webhook endpoints yet.</p>}
+          <div className="haip-card divide-y divide-[var(--haip-border)]">
+            {(data?.endpoints ?? []).length === 0 && <p className="p-4 text-sm text-[var(--haip-fg-subtle)]">No webhook endpoints yet.</p>}
             {(data?.endpoints ?? []).map(ep => (
               <div key={ep.id} className="p-4 space-y-2">
                 <div className="flex items-start gap-2">
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-gray-900 break-all">{ep.url}</p>
-                    {ep.description && <p className="text-xs text-gray-500">{ep.description}</p>}
+                    <p className="text-sm font-semibold text-[var(--haip-fg)] break-all">{ep.url}</p>
+                    {ep.description && <p className="text-xs text-[var(--haip-fg-subtle)]">{ep.description}</p>}
                   </div>
                   <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap",
-                    ep.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-gray-100 text-gray-600 border-gray-200")}>
+                    ep.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)] border-[var(--haip-border)]")}>
                     {ep.is_active ? "Active" : "Off"}
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-1">
-                  {ep.events.map(e => <span key={e} className="text-[11px] font-mono bg-gray-100 text-gray-600 rounded px-1.5 py-0.5">{e}</span>)}
+                  {ep.events.map(e => <span key={e} className="text-[11px] font-mono bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)] rounded px-1.5 py-0.5">{e}</span>)}
                 </div>
                 {ep.disabled_reason && <p className="text-xs text-red-600">{ep.disabled_reason}</p>}
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-[var(--haip-fg-subtle)]">
                   {ep.last_success_at ? `Last success ${fmtDate(ep.last_success_at)}` : "No successful delivery yet"}
                   {ep.consecutive_failures > 0 ? ` · ${ep.consecutive_failures} failed in a row` : ""}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {isOwner && ep.is_active && (
-                    <button onClick={() => test.mutate(ep.id)} disabled={test.isPending} className="text-xs font-semibold border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 disabled:opacity-50">
+                    <button onClick={() => test.mutate(ep.id)} disabled={test.isPending} className="text-xs font-semibold border border-[var(--haip-border)] px-3 py-1.5 rounded-lg hover:bg-[var(--haip-surface)] disabled:opacity-50">
                       {test.isPending && test.variables === ep.id ? "Sending..." : "Send test event"}
                     </button>
                   )}
-                  <button onClick={() => setOpen(open === ep.id ? null : ep.id)} className="text-xs font-semibold border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50">
+                  <button onClick={() => setOpen(open === ep.id ? null : ep.id)} className="text-xs font-semibold border border-[var(--haip-border)] px-3 py-1.5 rounded-lg hover:bg-[var(--haip-surface)]">
                     {open === ep.id ? "Hide deliveries" : "Recent deliveries"}
                   </button>
                   {isOwner && (
                     <>
-                      <button onClick={() => patch.mutate({ id: ep.id, body: { is_active: !ep.is_active } })} className="text-xs font-semibold border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50">
+                      <button onClick={() => patch.mutate({ id: ep.id, body: { is_active: !ep.is_active } })} className="text-xs font-semibold border border-[var(--haip-border)] px-3 py-1.5 rounded-lg hover:bg-[var(--haip-surface)]">
                         {ep.is_active ? "Turn off" : "Turn on"}
                       </button>
                       <button
                         onClick={() => { if (confirm("Create a new signing secret? Your server must use the new one straight away.")) patch.mutate({ id: ep.id, body: { rotate_secret: true } }); }}
-                        className="text-xs font-semibold border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50"
+                        className="text-xs font-semibold border border-[var(--haip-border)] px-3 py-1.5 rounded-lg hover:bg-[var(--haip-surface)]"
                       >
                         New secret
                       </button>
                       <button
                         aria-label="Delete endpoint"
                         onClick={() => { if (confirm("Delete this endpoint and its delivery history?")) remove.mutate(ep.id); }}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--haip-fg-subtle)] hover:text-red-500 hover:bg-red-50"
                       >
                         <Trash2 size={14} />
                       </button>
@@ -189,26 +189,26 @@ export function WebhooksSection({ isOwner }: { isOwner: boolean }) {
 
           {isOwner && (
             <div className="haip-card p-4 space-y-4">
-              <p className="text-sm font-semibold text-gray-900">Add an endpoint</p>
-              <label className="block text-xs font-semibold text-gray-500">URL (HTTPS)
+              <p className="text-sm font-semibold text-[var(--haip-fg)]">Add an endpoint</p>
+              <label className="block text-xs font-semibold text-[var(--haip-fg-subtle)]">URL (HTTPS)
                 <input className={cn(field, "mt-1")} placeholder="https://ops.example.com/haip-webhook" value={url} onChange={e => setUrl(e.target.value)} />
               </label>
-              <label className="block text-xs font-semibold text-gray-500">Note (optional)
+              <label className="block text-xs font-semibold text-[var(--haip-fg-subtle)]">Note (optional)
                 <input className={cn(field, "mt-1")} placeholder="e.g. Ratha operations platform" value={description} onChange={e => setDescription(e.target.value)} maxLength={200} />
               </label>
               <fieldset className="space-y-2">
-                <legend className="text-xs font-semibold text-gray-500 mb-1">Send me</legend>
+                <legend className="text-xs font-semibold text-[var(--haip-fg-subtle)] mb-1">Send me</legend>
                 {(data?.events ?? []).map(e => (
                   <label key={e.event} className="flex items-start gap-2.5 text-sm cursor-pointer">
-                    <input type="checkbox" checked={events.includes(e.event)} onChange={() => toggle(e.event)} className="mt-1 h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500" />
-                    <span><span className="font-mono text-xs text-gray-800">{e.event}</span><span className="block text-xs text-gray-500">{e.description}</span></span>
+                    <input type="checkbox" checked={events.includes(e.event)} onChange={() => toggle(e.event)} className="mt-1 h-4 w-4 rounded border-[var(--haip-border-strong)] text-primary focus:ring-primary" />
+                    <span><span className="font-mono text-xs text-[var(--haip-fg)]">{e.event}</span><span className="block text-xs text-[var(--haip-fg-subtle)]">{e.description}</span></span>
                   </label>
                 ))}
               </fieldset>
               <button
                 onClick={() => create.mutate()}
                 disabled={!url.trim() || events.length === 0 || create.isPending}
-                className="text-sm font-semibold bg-teal-500 hover:bg-teal-600 disabled:opacity-40 text-white px-4 py-2 rounded-lg"
+                className="text-sm font-semibold bg-primary hover:bg-primary disabled:opacity-40 text-white px-4 py-2 rounded-lg"
               >
                 {create.isPending ? "Adding..." : "Add endpoint"}
               </button>

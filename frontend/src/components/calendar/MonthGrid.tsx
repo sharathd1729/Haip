@@ -1,7 +1,8 @@
 "use client";
 // A month calendar for ONE property, the way a booking site shows availability: a 7-column date grid, bookings and holds as bars
 // that span their dates (a stay runs from the afternoon of check-in to the morning of check-out), tap a bar for its details.
-// Colours come from the caller (green direct, gray blocked, red maintenance, one colour per other channel).
+// Colours come from the caller (green direct, gray blocked, red maintenance, one colour per other channel). Hospitality Hybrid:
+// bars are pills with the guest's initial at the start, today is a marigold dot.
 import { useMemo } from "react";
 import { addDays, differenceInCalendarDays, format, isSameMonth, isToday, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -14,8 +15,8 @@ const tag = (name?: string) => {
   const digits = (name ?? "").match(/\d+/)?.[0];
   return digits ? `${(words[0] ?? "").charAt(0).toUpperCase()}${digits}` : words.map(w => w.charAt(0).toUpperCase()).join("").slice(0, 3);
 };
-const LANE_H = 20;           // px per bar
-const DAY_NUM_H = 22;        // px reserved for the date number above the bars
+const LANE_H = 26;           // px per bar
+const DAY_NUM_H = 26;        // px reserved for the date number above the bars
 
 interface Seg { key: string; entry: Entry; col: number; end: number; lane: number; startsHere: boolean; endsHere: boolean; label: string; tone: { bg: string; text: string }; faded: boolean; dashed: boolean; mark: string }
 
@@ -71,20 +72,20 @@ export function MonthGrid({ row, monthStart, gridStart, onOpen, chColor, channel
 
   return (
     <div role="grid" aria-label={`${format(monthStart, "MMMM yyyy")} availability`} className="select-none">
-      <div role="row" className="sticky top-0 z-10 grid grid-cols-7 border-b border-gray-200 bg-white text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-        {WEEKDAYS.map(d => <div key={d} role="columnheader" className="py-1.5 text-center">{d}</div>)}
+      <div role="row" className="sticky top-0 z-10 grid grid-cols-7 border-b border-[var(--haip-border)] bg-[var(--haip-card)] text-[12px] font-semibold text-[var(--haip-fg-subtle)]">
+        {WEEKDAYS.map(d => <div key={d} role="columnheader" className="py-2 text-center">{d}</div>)}
       </div>
       {weeks.map((w, wi) => {
         const height = DAY_NUM_H + w.lanes * LANE_H + 8;
         return (
-          <div key={wi} role="row" className="relative grid grid-cols-7 border-b border-gray-100" style={{ minHeight: Math.max(64, height) }}>
+          <div key={wi} role="row" className="relative grid grid-cols-7 border-b border-[var(--haip-border)]" style={{ minHeight: Math.max(72, height) }}>
             {w.days.map(d => {
               const inMonth = isSameMonth(d, monthStart);
               return (
                 <div key={d.toISOString()} role="gridcell" aria-label={format(d, "EEEE d MMMM")}
-                  className={cn("border-r border-gray-100 px-1 pt-1 last:border-r-0", !inMonth && "bg-gray-50")}>
-                  <span className={cn("inline-flex h-5 min-w-5 items-center justify-center rounded-full text-[11px] tabular-nums",
-                    isToday(d) ? "bg-teal-600 font-bold text-white" : inMonth ? "text-gray-700" : "text-gray-300")}>
+                  className={cn("border-r border-[var(--haip-border)] px-1 pt-1 last:border-r-0", !inMonth && "bg-[var(--haip-surface)]")}>
+                  <span className={cn("inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[12px] tabular-nums",
+                    isToday(d) ? "bg-[var(--haip-accent)] font-bold text-[var(--haip-on-accent)]" : inMonth ? "font-medium text-[var(--haip-fg)]" : "text-[var(--haip-fg-subtle)] opacity-60")}>
                     {d.getDate() === 1 ? format(d, "d MMM") : d.getDate()}
                   </span>
                 </div>
@@ -96,18 +97,23 @@ export function MonthGrid({ row, monthStart, gridStart, onOpen, chColor, channel
                 : `${BLOCK_TONE(e.block.reason).label}, ${e.block.blocked_from} to ${e.block.blocked_to}`;
               return (
                 <button key={s.key} type="button" onClick={() => onOpen(s.entry)} aria-label={`${name}. Open details`}
-                  className={cn("absolute flex items-center overflow-hidden border px-1.5 text-left text-[11px] font-semibold leading-none shadow-sm active:brightness-95",
-                    s.tone.bg, s.tone.text, s.faded && "opacity-60", s.dashed ? "border-dashed border-gray-600" : "border-transparent",
+                  className={cn("absolute flex items-center gap-1 overflow-hidden border pl-0.5 pr-2 text-left text-[12px] font-semibold leading-none shadow-[var(--haip-shadow-sm)] active:brightness-95",
+                    s.tone.bg, s.tone.text, s.faded && "opacity-60", s.dashed ? "border-dashed border-[var(--haip-fg-muted)]" : "border-transparent",
                     s.startsHere ? "rounded-l-full" : "rounded-l-none", s.endsHere ? "rounded-r-full" : "rounded-r-none")}
                   style={{ left: `calc(${(s.col / 7) * 100}% + 1px)`, width: `calc(${((s.end - s.col) / 7) * 100}% - 2px)`, top: DAY_NUM_H + s.lane * LANE_H, height: LANE_H - 2 }}>
-                  <span className="truncate">{s.mark}{s.startsHere || s.col === 0 ? s.label : ""}</span>
+                  {s.startsHere && e.kind === "stay" && (
+                    <span aria-hidden className="flex size-[20px] shrink-0 items-center justify-center rounded-full bg-[rgb(255_255_255/0.25)] text-[10.5px] font-bold">
+                      {(e.stay.guest_name || "G").trim().charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                  <span className={cn("truncate", !(s.startsHere && e.kind === "stay") && "pl-1.5")}>{s.mark}{s.startsHere || s.col === 0 ? s.label : ""}</span>
                 </button>
               );
             })}
           </div>
         );
       })}
-      <p className="px-3 py-2 text-[11px] text-gray-500">
+      <p className="px-3 py-2.5 text-[12px] text-[var(--haip-fg-subtle)]">
         A stay runs from the afternoon of check-in to the morning of check-out. Dashed = a quote, ✓ = checked in.
         {row ? "" : " No property selected."}
       </p>

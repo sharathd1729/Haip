@@ -89,12 +89,12 @@ export default function IVRPage() {
     <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-teal-50 flex items-center justify-center">
-          <Phone size={18} className="text-teal-600" />
+        <div className="w-9 h-9 rounded-xl bg-[var(--haip-primary-tint)] flex items-center justify-center">
+          <Phone size={18} className="text-primary" />
         </div>
         <div>
           <h1 className="haip-page-title">IVR Call Routing</h1>
-          <p className="text-xs text-gray-500">Who calls ring, and what plays before they connect</p>
+          <p className="text-xs text-[var(--haip-fg-subtle)]">Who calls ring, and what plays before they connect</p>
         </div>
       </div>
 
@@ -128,22 +128,22 @@ function CallRoutingSection() {
   if (isLoading) {
     return (
       <div className="haip-card p-5 flex items-center justify-center">
-        <Loader2 className="animate-spin text-teal-500" size={20} />
+        <Loader2 className="animate-spin text-primary" size={20} />
       </div>
     );
   }
 
   return (
     <Section title="Call Routing" icon={<GitBranch size={14} />}>
-      <p className="text-xs text-gray-400 -mt-1">
+      <p className="text-xs text-[var(--haip-fg-subtle)] -mt-1">
         Who an inbound call rings, and what plays before it connects. Agents
         opt in from{" "}
-        <Link href="/dashboard/settings/team" className="text-teal-600 hover:underline">
+        <Link href="/dashboard/settings/team" className="text-primary hover:underline">
           Settings → Team
         </Link>
         {" "}(needs a phone number on file). Your Vobiz auth (Auth ID, Auth
         Secret, forward number) is set separately on the{" "}
-        <Link href="/dashboard/settings/integrations" className="text-teal-600 hover:underline">
+        <Link href="/dashboard/settings/integrations" className="text-primary hover:underline">
           Vobiz card under Integrations
         </Link>.
       </p>
@@ -168,15 +168,15 @@ function CallRoutingSection() {
             </p>
           </div>
         ) : (
-          <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 flex items-start gap-2.5">
-            <Users size={14} className="text-teal-600 mt-0.5 flex-shrink-0" />
-            <div className="text-xs text-teal-800">
+          <div className="bg-[var(--haip-primary-tint)] border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] rounded-xl p-3 flex items-start gap-2.5">
+            <Users size={14} className="text-primary mt-0.5 flex-shrink-0" />
+            <div className="text-xs text-[var(--accent-foreground)]">
               <span className="font-medium">
                 {data.eligible_agents.length} agent{data.eligible_agents.length === 1 ? "" : "s"} in the routing pool:
               </span>{" "}
               {data.eligible_agents.map(a => a.name).join(", ")}
               {" · "}
-              <Link href="/dashboard/settings/team" className="underline hover:text-teal-900">
+              <Link href="/dashboard/settings/team" className="underline hover:text-[var(--accent-foreground)]">
                 manage in Team
               </Link>
             </div>
@@ -190,19 +190,19 @@ function CallRoutingSection() {
             key={s.id}
             className={cn(
               "flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-colors",
-              data?.ivr_routing_strategy === s.id ? "border-teal-500 bg-teal-50" : "border-gray-200 hover:border-gray-300"
+              data?.ivr_routing_strategy === s.id ? "border-primary bg-[var(--haip-primary-tint)]" : "border-[var(--haip-border)] hover:border-[var(--haip-border-strong)]"
             )}
           >
             <input
-              type="radio" name="ivr_strategy" className="mt-0.5 accent-teal-500"
+              type="radio" name="ivr_strategy" className="mt-0.5 accent-primary"
               checked={data?.ivr_routing_strategy === s.id}
               disabled={saveStrategy.isPending}
               onChange={() => saveStrategy.mutate(s.id)}
             />
-            <span className="text-teal-500 mt-0.5">{s.icon}</span>
+            <span className="text-primary mt-0.5">{s.icon}</span>
             <div>
-              <div className="text-sm font-semibold text-gray-900">{s.label}</div>
-              <div className="text-xs text-gray-500">{s.desc}</div>
+              <div className="text-sm font-semibold text-[var(--haip-fg)]">{s.label}</div>
+              <div className="text-xs text-[var(--haip-fg-subtle)]">{s.desc}</div>
             </div>
           </label>
         ))}
@@ -297,13 +297,13 @@ function AudioSlotEditor({
 
   return (
     <>
-      <div className="pt-2 border-t border-gray-100">
+      <div className="pt-2 border-t border-[var(--haip-border)]">
         <Field label={title}>
           <div className="flex items-center gap-3">
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={upload.isPending}
-              className="flex items-center gap-1.5 text-xs font-medium text-gray-600 bg-white hover:bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 text-xs font-medium text-[var(--haip-fg-muted)] bg-white hover:bg-[var(--haip-surface)] border border-[var(--haip-border)] px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
             >
               {upload.isPending ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
               {hasAudio ? `Replace ${uploadLabel}` : `Upload ${uploadLabel}`}
@@ -315,13 +315,13 @@ function AudioSlotEditor({
               onChange={e => { const f = e.target.files?.[0]; if (f) upload.mutate(f); e.target.value = ""; }}
             />
             {hasAudio && !upload.isPending && (
-              <span className="flex items-center gap-1 text-xs text-teal-600">
+              <span className="flex items-center gap-1 text-xs text-primary">
                 <CheckCircle2 size={13} /> Configured
               </span>
             )}
             {hasAudio && <PlayAudioButton slot={slot} />}
           </div>
-          <p className="text-xs text-gray-400 mt-1">{description}</p>
+          <p className="text-xs text-[var(--haip-fg-subtle)] mt-1">{description}</p>
           {uploadError && (
             <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
               <AlertCircle size={12} /> {uploadError}
@@ -330,7 +330,7 @@ function AudioSlotEditor({
         </Field>
       </div>
 
-      <div className="pt-2 border-t border-gray-100">
+      <div className="pt-2 border-t border-[var(--haip-border)]">
         <Field label="Or generate it with an AI voice">
           <textarea
             value={ttsText}
@@ -338,13 +338,13 @@ function AudioSlotEditor({
             rows={4}
             maxLength={2000}
             placeholder={placeholder}
-            className="w-full text-xs px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-teal-400 resize-y"
+            className="w-full text-xs px-3 py-2 rounded-lg border border-[var(--haip-border)] focus:outline-none focus:ring-1 focus:ring-primary resize-y"
           />
           <div className="flex items-center gap-3 mt-2">
             <select
               value={ttsSpeaker}
               onChange={e => setTtsSpeaker(e.target.value)}
-              className="text-xs px-2 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-teal-400"
+              className="text-xs px-2 py-2 rounded-lg border border-[var(--haip-border)] focus:outline-none focus:ring-1 focus:ring-primary"
             >
               {TTS_VOICES.map(v => (
                 <option key={v.id} value={v.id}>{v.label}</option>
@@ -353,18 +353,18 @@ function AudioSlotEditor({
             <button
               onClick={() => generate.mutate()}
               disabled={generate.isPending || !ttsText.trim()}
-              className="flex items-center gap-1.5 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 text-xs font-medium text-white bg-primary hover:bg-[var(--haip-primary-hover)] px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
             >
               {generate.isPending ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
               {actionLabel}
             </button>
           </div>
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-[var(--haip-fg-subtle)] mt-1">
             Generates with Sarvam AI and sets it as the recording above,
             replacing whatever's there. Takes a few seconds.
           </p>
           {generate.isSuccess && !ttsError && (
-            <p className="text-xs text-teal-600 mt-1 flex items-center gap-1">
+            <p className="text-xs text-primary mt-1 flex items-center gap-1">
               <CheckCircle2 size={12} /> Generated and set above — use "Play" to hear it.
             </p>
           )}
@@ -400,7 +400,7 @@ function PlayAudioButton({ slot }: { slot: "greeting" | "voicemail" }) {
         onClick={() => fetchUrl.mutate()}
         disabled={fetchUrl.isPending}
         title={`Play the current ${slot}`}
-        className="flex items-center gap-1 text-xs font-medium text-teal-600 hover:text-teal-700 transition-colors disabled:opacity-50"
+        className="flex items-center gap-1 text-xs font-medium text-primary hover:text-primary transition-colors disabled:opacity-50"
       >
         {fetchUrl.isPending ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
         Play
@@ -417,8 +417,8 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
   return (
     <div className="haip-card p-5 space-y-4">
       <div className="flex items-center gap-2">
-        <span className="text-teal-500">{icon}</span>
-        <h2 className="text-sm font-semibold text-gray-800">{title}</h2>
+        <span className="text-primary">{icon}</span>
+        <h2 className="text-sm font-semibold text-[var(--haip-fg)]">{title}</h2>
       </div>
       {children}
     </div>
@@ -428,7 +428,7 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
-      <label className="text-xs font-medium text-gray-500">{label}</label>
+      <label className="text-xs font-medium text-[var(--haip-fg-subtle)]">{label}</label>
       {children}
     </div>
   );

@@ -49,15 +49,15 @@ function Toggle({ id, checked, onChange, label, desc, children }: {
         {checked && children && <div className="mt-3">{children}</div>}
       </div>
       <button id={id} type="button" role="switch" aria-checked={checked} onClick={() => onChange(!checked)}
-        className={cn("relative w-10 h-6 rounded-full flex-shrink-0 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-teal-600",
-          checked ? "bg-teal-600" : "bg-gray-300 dark:bg-gray-600")}>
+        className={cn("relative w-10 h-6 rounded-full flex-shrink-0 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary",
+          checked ? "bg-primary" : "bg-[var(--haip-border-strong)] dark:bg-[var(--haip-status-neutral-bg)]")}>
         <span className={cn("absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform", checked ? "translate-x-[18px]" : "translate-x-0.5")} />
       </button>
     </div>
   );
 }
 
-const inputCls = "text-sm rounded-lg px-2.5 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-teal-600";
+const inputCls = "text-sm rounded-lg px-2.5 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-primary";
 const inputStyle = { background: "var(--haip-card)", border: "1px solid var(--haip-border)", color: "var(--haip-fg)" };
 
 export default function LeadAssignmentPage() {
@@ -149,7 +149,7 @@ export default function LeadAssignmentPage() {
               const Icon = m.icon;
               return (
                 <button key={m.id} type="button" role="radio" aria-checked={on} onClick={() => set({ mode: m.id })}
-                  className="text-left flex gap-3 rounded-xl px-4 py-3 border transition-colors outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+                  className="text-left flex gap-3 rounded-xl px-4 py-3 border transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   style={on
                     ? { background: "color-mix(in srgb, var(--primary) 10%, var(--haip-card))", borderColor: "var(--primary)" }
                     : { background: "var(--haip-card)", borderColor: "var(--haip-border)" }}>
@@ -211,7 +211,7 @@ export default function LeadAssignmentPage() {
               <li key={a.id} className="flex items-center gap-3 py-2.5">
                 <input id={`la-agent-${a.id}`} type="checkbox" checked={!!takes[a.id]}
                   onChange={e => setTakes(t => ({ ...t, [a.id]: e.target.checked }))}
-                  className="w-4 h-4 accent-teal-600" />
+                  className="w-4 h-4 accent-primary" />
                 <label htmlFor={`la-agent-${a.id}`} className="flex-1 min-w-0 cursor-pointer">
                   <span className="block text-sm font-semibold truncate" style={{ color: "var(--haip-fg)" }}>{a.name}</span>
                   <span className="block text-xs capitalize" style={{ color: "var(--haip-fg-subtle)" }}>{a.role}</span>
@@ -226,7 +226,7 @@ export default function LeadAssignmentPage() {
 
         <div className="sticky bottom-0 py-3 flex justify-end" style={{ background: "var(--haip-bg, var(--background))" }}>
           <button type="button" onClick={() => save.mutate()} disabled={save.isPending}
-            className="inline-flex items-center gap-2 text-sm font-bold px-5 py-2.5 rounded-xl bg-teal-700 text-white hover:bg-teal-800 disabled:opacity-60 outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">
+            className="inline-flex items-center gap-2 text-sm font-bold px-5 py-2.5 rounded-xl bg-[var(--haip-primary-hover)] text-white hover:bg-[var(--haip-primary-hover)] disabled:opacity-60 outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">
             {save.isPending && <Loader2 size={14} className="animate-spin" />} Save
           </button>
         </div>

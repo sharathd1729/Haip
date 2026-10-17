@@ -633,19 +633,62 @@ async def vobiz_outbound_answer_webhook(
 
     base = (settings.API_BASE_URL or str(request.base_url).rstrip("/")).rstrip("/")
     recording_callback_url = f"{base}/api/v1/webhooks/vobiz/{tenant_slug}/{url_secret}/recording"
+    # The session recording starts when the AGENT picks up, so it already
+    # contains the time the guest's phone rings: an outbound call nobody
+    # answered still has a duration above zero (29 of 63 outbound calls in 30
+    # days were "no answer" per the AI, only 2 had duration 0). The guest
+    # leg's DialStatus is the only reliable "did the guest pick up" signal,
+    # so ask Vobiz for it, exactly as the inbound Dial does.
+    dial_status_url = f"{base}/api/v1/webhooks/vobiz/{tenant_slug}/{url_secret}/outbound-dial-status"
 
     xml = (
         '<?xml version="1.0" encoding="UTF-8"?>'
         "<Response>"
         f'<Record fileFormat="mp3" recordSession="true" maxLength="3600" '
         f'callbackUrl="{recording_callback_url}" redirect="false" playBeep="false"/>'
-        f'<Dial callerId="{caller_id}" timeout="30" timeLimit="1800" redirect="false">'
+        f'<Dial callerId="{caller_id}" timeout="30" timeLimit="1800" redirect="false" '
+        f'action="{dial_status_url}">'
         f"<Number>{guest_e164}</Number>"
         "</Dial>"
         "<Hangup/>"
         "</Response>"
     )
     return Response(content=xml, media_type="application/xml")
+
+
+@router.post("/vobiz/{tenant_slug}/{url_secret}/outbound-dial-status")
+async def vobiz_outbound_dial_status_webhook(
+    tenant_slug: str,
+    url_secret: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Dial `action` URL of the click-to-call guest leg: only records the
+    terminal DialStatus (completed / no-answer / busy / failed / cancel /
+    timeout) so vobiz_recording_webhook can merge it into the Call.
+
+    Deliberately separate from the inbound dial-status handler: that one
+    treats DialBLegTo as an agent's number and promotes it to the call's
+    agent. Here the B leg is the GUEST, and the agent is already known from
+    click_to_call, so it must never touch agent attribution (an agent
+    calling a colleague's number would otherwise be overwritten). Best
+    effort: if this never arrives the call keeps the old duration-based
+    guess.
+    """
+    tenant, _creds = _resolve_tenant_and_creds(db, tenant_slug, url_secret)
+    form = await request.form()
+    data = dict(form)
+    log.info("vobiz_outbound_dial_status_raw_payload", tenant=tenant_slug, raw_form=data)
+
+    call_uuid = data.get("CallUUID", "")
+    dial_status = data.get("DialStatus", "")
+    if call_uuid and dial_status:
+        set_cached(_dial_status_cache_key(tenant.id, call_uuid), dial_status, ttl=_CACHE_TTL)
+
+    return Response(
+        content='<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>',
+        media_type="application/xml",
+    )
 
 
 @router.post("/vobiz/{tenant_slug}/{url_secret}/recording")

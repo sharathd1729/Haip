@@ -1,343 +1,115 @@
 "use client";
-
-import api, { clearTokenCache } from "@/lib/api";
-import { useState } from "react";
+// Phone navigation, Hospitality Hybrid. A light bottom bar with four destinations around a raised "Now" button that opens
+// My day (with how many people are waiting), and a full menu sheet opened from the header's menu button. Both read the one
+// nav model (components/layout/nav.ts), so nothing reachable on desktop is phone-only-by-URL or the other way round.
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
 import { signOut } from "next-auth/react";
-import { Inbox, Phone, Users, Menu, X, Home, Target, Calendar, Calculator, MessageSquare, Megaphone, FileDown, Star, Shield, Zap, Settings, CreditCard, UserCircle, HelpCircle, Palette, FileText, LogOut, ListChecks, BookmarkIcon, Shuffle, Key } from "@/lib/icons";
-import { UserCheck, GitBranch, Plug2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import api, { clearTokenCache } from "@/lib/api";
+import { LogOut, X, Zap } from "@/lib/icons";
 import { cn } from "@/lib/utils";
-import { BOOKING_READ_ROLES, canSeeNav, type Resource } from "@/lib/permissions";
-import { useBrandTheme } from "@/components/providers/BrandThemeProvider";
-import { useBusinessType } from "@/components/providers/WorkspaceProvider";
-import { useInboxStore } from "@/store/inbox";
 import { AppVersionRow } from "@/components/AppVersionRow";
+import { UserAvatar } from "@/components/crm/UserAvatar";
+import { useBrandTheme } from "@/components/providers/BrandThemeProvider";
+import { NOW_HREF, PHONE_TABS, useNav } from "./nav";
 
 interface MobileNavProps {
   user?: { name?: string | null; email?: string | null; role?: string };
 }
 
-// The primary modules, always one tap away (the same four the desktop rail leads with). Calls, Today and everything else
-// live under "More". Calendar used to hide there; it is a daily tool for the team, so it is a tab now.
-const BOTTOM_TABS = [
-  { label: "Home",     href: "/dashboard",                    icon: Home,     resource: "dashboard"  as Resource },
-  { label: "Inbox",    href: "/dashboard/inbox",              icon: Inbox,    resource: "inbox"      as Resource },
-  { label: "Leads",    href: "/dashboard/leads",              icon: Target,   resource: "guests"     as Resource },
-  { label: "Calendar", href: "/dashboard/portfolio/calendar", icon: Calendar, resource: "properties" as Resource },
-];
-
-// Full nav for the "More" sheet — mirrors Sidebar's NAV_ITEMS/sections so
-// nothing reachable on desktop is mobile-only-via-URL.
-const ALL_SECTIONS = [
-  {
-    // "Dashboard"/"My Dashboards" reactivated 2026-08-16 (migration 077) --
-    // "Home" bottom-tab (below) already points at /dashboard, which is now
-    // the real role-aware dashboard page instead of a redirect.
-    label: "Workspace",
-    items: [
-      { label: "Today",         href: "/dashboard/my-day",    icon: ListChecks,     resource: "inbox"     as Resource },
-      { label: "Inbox",         href: "/dashboard/inbox",       icon: Inbox,          resource: "inbox"     as Resource, live: "inbox" as const },
-      { label: "Calls",         href: "/dashboard/calls",       icon: Phone,          resource: "calls"     as Resource },
-    ],
-  },
-  {
-    label: "Sales",
-    items: [
-      { label: "Leads360",  href: "/dashboard/leads",      icon: Target,   resource: "guests"     as Resource },
-      { label: "Bookings",  href: "/dashboard/bookings",   icon: Users,    resource: "guests"     as Resource, onlyRoles: BOOKING_READ_ROLES as string[] },
-    ],
-  },
-  {
-    label: "Portfolio",
-    items: [
-      { label: "Properties",      href: "/dashboard/properties",          icon: Home,  resource: "properties" as Resource, hideForBusinessTypes: ["caravan"] },
-      { label: "Calendar",        href: "/dashboard/portfolio/calendar",  icon: Calendar,   resource: "properties" as Resource },
-      { label: "Rate Calculator", href: "/dashboard/calculator",          icon: Calculator, resource: "properties" as Resource, hideForBusinessTypes: ["caravan"] },
-    ],
-  },
-  {
-    label: "Messaging",
-    items: [
-      { label: "Templates",    href: "/dashboard/messaging/templates",   icon: MessageSquare, resource: "templates"   as Resource },
-      { label: "Campaigns",    href: "/dashboard/messaging/campaigns",   icon: Megaphone,     resource: "campaigns"   as Resource },
-      { label: "Subscribers",  href: "/dashboard/messaging/subscribers", icon: UserCheck,     resource: "subscribers" as Resource },
-      { label: "Flow Builder", href: "/dashboard/messaging/flows",       icon: GitBranch,     resource: "flows"       as Resource },
-      { label: "Saved Replies", href: "/dashboard/settings/saved-replies", icon: BookmarkIcon, resource: "templates"  as Resource },
-    ],
-  },
-  {
-    // "Analytics" reactivated 2026-08-16 (migration 077) via the new
-    // /dashboard page, which now includes an AI Intelligence section --
-    // the standalone "AI Insights" entry that lived here 2026-08-15 through
-    // 08-16 is folded into that page instead of a separate nav item.
-    label: "Intelligence",
-    items: [
-      { label: "Reports",     href: "/dashboard/reports",       icon: FileDown,  resource: "reports"     as Resource },
-      { label: "QA & Scores", href: "/dashboard/qa",            icon: Star,      resource: "qa"          as Resource },
-      { label: "Compliance",  href: "/dashboard/compliance",    icon: Shield,    resource: "compliance"  as Resource },
-    ],
-  },
-  {
-    label: "Configure",
-    items: [
-      { label: "Automations",  href: "/dashboard/automations",           icon: Zap,     resource: "settings"     as Resource },
-      { label: "Integrations", href: "/dashboard/settings/integrations", icon: Plug2,   resource: "integrations" as Resource },
-      { label: "Settings",     href: "/dashboard/settings",              icon: Settings, resource: "settings"    as Resource },
-    ],
-  },
-  {
-    label: "Account",
-    items: [
-      { label: "Team",           href: "/dashboard/settings/team",     icon: Users,      resource: "users"    as Resource },
-      { label: "Lead assignment", href: "/dashboard/settings/lead-assignment", icon: Shuffle, resource: "settings" as Resource },
-      { label: "Calendar sync",  href: "/dashboard/settings/calendar-sync", icon: Calendar, resource: "settings" as Resource },
-      { label: "Payments",       href: "/dashboard/settings/payments",      icon: CreditCard, resource: "settings" as Resource },
-      { label: "Developers",     href: "/dashboard/settings/developers",    icon: Key,        resource: "settings" as Resource },
-      { label: "Branding",       href: "/dashboard/settings/branding", icon: Palette,    resource: "branding" as Resource },
-      { label: "Billing",        href: "/dashboard/billing",           icon: CreditCard, resource: "billing"  as Resource },
-      { label: "Profile",        href: "/dashboard/profile",           icon: UserCircle, resource: "profile"  as Resource },
-      { label: "Help & Support", href: "/dashboard/help",              icon: HelpCircle, resource: "help"     as Resource },
-    ],
-  },
-];
+const SHORT: Record<string, string> = { "/dashboard": "Home", "/dashboard/portfolio/calendar": "Calendar" };
 
 export function MobileNav({ user }: MobileNavProps) {
-  const pathname = usePathname();
-  const role = user?.role ?? "";
-  const businessType = useBusinessType();
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const { theme } = useBrandTheme();
-  const { conversations } = useInboxStore();
-  const { data: me } = useQuery({
-    queryKey: ["users", "me"],
-    queryFn: () => api.get("/users/me").then(r => r.data),
-    staleTime: 60_000,
-  });
-
-  const primary = theme.primaryColor || "#14b8a6";
-  const unreadCount = conversations.filter(c => (c as any).unread_count > 0).length;
-
-  function isActive(href: string) {
-    return pathname === href || (href !== "/dashboard" && pathname.startsWith(href + "/"));
-  }
+  const nav = useNav(user?.role ?? "");
+  const tabs = PHONE_TABS.map(h => nav.byHref.get(h)).filter(Boolean) as NonNullable<ReturnType<typeof nav.byHref.get>>[];
+  const now = nav.byHref.get(NOW_HREF);
+  const slots: (typeof tabs[number] | "now")[] = now ? [...tabs.slice(0, 2), "now", ...tabs.slice(2)] : tabs;
+  const nowActive = nav.isActive(NOW_HREF);
 
   return (
-    <>
-      {/* ── Bottom tab bar ───────────────────────────────────────────── */}
-      <nav
-        aria-label="Primary"
-        className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-stretch"
-        style={{
-          backgroundColor: "var(--brand-sidebar-bg, #0a1b30)",
-          borderTop: "1px solid rgba(255,255,255,0.16)",
-          boxShadow: "0 -6px 16px rgba(0,0,0,0.22)",
-          // The home indicator on iPhones and the gesture bar on foldables sit inside this inset; side insets keep the
-          // first and last tab clear of a notch or a hinge cut-out in landscape.
-          paddingBottom: "env(safe-area-inset-bottom)",
-          paddingLeft: "env(safe-area-inset-left)",
-          paddingRight: "env(safe-area-inset-right)",
-        }}
-      >
-        {BOTTOM_TABS.filter(t => canSeeNav(role, t.resource)).map((tab) => {
-          const Icon = tab.icon;
-          const active = isActive(tab.href);
-          const badge = tab.href === "/dashboard/inbox" && unreadCount > 0
-            ? (unreadCount > 9 ? "9+" : String(unreadCount))
-            : null;
+    <nav aria-label="Primary"
+      className="fixed inset-x-0 bottom-0 z-50 flex items-stretch border-t border-[var(--haip-border)] bg-[var(--haip-card)] md:hidden"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)", paddingLeft: "env(safe-area-inset-left)", paddingRight: "env(safe-area-inset-right)" }}>
+      {slots.map(slot => {
+        if (slot === "now") {
           return (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              aria-current={active ? "page" : undefined}
-              className="flex-1 min-w-0 flex flex-col items-center justify-center py-1.5 gap-0 min-h-[48px] relative transition-opacity active:opacity-60"
-            >
-              <span className="relative">
-                <Icon
-                  size={20}
-                  style={{ color: active ? primary : "rgba(255,255,255,0.6)" }}
-                />
-                {badge && (
-                  <span
-                    className="absolute -top-1 -right-2 text-[9px] font-bold px-1 rounded-full leading-tight"
-                    style={{ backgroundColor: primary, color: "#0a1b30" }}
-                  >
-                    {badge}
-                  </span>
-                )}
+            <Link key="now" href={NOW_HREF} aria-current={nowActive ? "page" : undefined}
+              aria-label={nav.waiting ? `Now: ${nav.waiting} people waiting` : "Now: nobody waiting"}
+              className="relative flex min-h-[60px] flex-1 flex-col items-center justify-end pb-1.5">
+              <span className={cn("absolute -top-5 flex size-14 flex-col items-center justify-center rounded-2xl text-primary-foreground ring-4 ring-[var(--haip-app-bg)] transition-transform active:scale-95",
+                "bg-primary shadow-[0_8px_20px_-6px_color-mix(in_srgb,var(--primary)_70%,transparent)]")}>
+                <Zap size={20} />
+                <span className="num text-[11px] font-bold leading-none">{nav.waiting > 99 ? "99+" : nav.waiting}</span>
               </span>
-              <span
-                className="text-[11px] font-medium"
-                style={{ color: active ? primary : "rgba(255,255,255,0.6)" }}
-              >
-                {tab.label}
-              </span>
-              {active && (
-                <span
-                  className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full"
-                  style={{ backgroundColor: primary }}
-                />
-              )}
+              <span className={cn("text-[11px] font-semibold", nowActive ? "text-primary" : "text-[var(--haip-fg-muted)]")}>Now</span>
             </Link>
           );
-        })}
-
-        {/* More button */}
-        <button
-          onClick={() => setSheetOpen(true)}
-          aria-haspopup="dialog" aria-expanded={sheetOpen}
-          className="flex-1 min-w-0 flex flex-col items-center justify-center py-1.5 gap-0 min-h-[48px] transition-opacity active:opacity-60"
-        >
-          <Menu size={20} style={{ color: "rgba(255,255,255,0.6)" }} />
-          <span className="text-[11px] font-medium" style={{ color: "rgba(255,255,255,0.6)" }}>
-            More
-          </span>
-        </button>
-      </nav>
-
-      {/* ── Full-screen nav sheet ─────────────────────────────────────── */}
-      {sheetOpen && (
-        <div className="md:hidden fixed inset-0 z-[60] flex">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setSheetOpen(false)}
-          />
-
-          {/* Sheet panel */}
-          <div
-            role="dialog" aria-modal="true" aria-label="Menu"
-            className="relative ml-auto w-[min(20rem,88vw)] h-full flex flex-col overflow-y-auto overscroll-contain"
-            style={{
-              paddingTop: "env(safe-area-inset-top)",
-              backgroundColor: "var(--brand-sidebar-bg, #0a1b30)",
-              borderLeft: "1px solid rgba(255,255,255,0.07)",
-            }}
-          >
-            {/* Header */}
-            <div
-              className="flex items-center justify-between px-5 py-4 flex-shrink-0"
-              style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}
-            >
-              <span className="font-bold text-white text-base">{theme.companyName ?? "HAIP"}</span>
-              <button
-                onClick={() => setSheetOpen(false)}
-                aria-label="Close menu"
-                className="w-11 h-11 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/5 transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Nav sections */}
-            <nav className="flex-1 py-2 overflow-y-auto">
-              {ALL_SECTIONS.map((section) => {
-                const visible = section.items.filter(
-                  (item: { resource: Resource; hideForBusinessTypes?: string[]; onlyRoles?: string[] }) =>
-                    canSeeNav(role, item.resource) &&
-                    (!item.onlyRoles || item.onlyRoles.includes(role as string)) &&
-                    (!businessType || !item.hideForBusinessTypes?.includes(businessType))
-                );
-                if (visible.length === 0) return null;
-                return (
-                  <div key={section.label} className="px-3 py-1">
-                    <div
-                      className="text-[10px] uppercase tracking-widest font-bold px-2 py-2"
-                      style={{ color: "rgba(255,255,255,0.25)" }}
-                    >
-                      {section.label}
-                    </div>
-                    {visible.map((item) => {
-                      const Icon = item.icon;
-                      const active = isActive(item.href);
-                      const badge = "live" in item && item.live === "inbox" && unreadCount > 0
-                        ? (unreadCount > 9 ? "9+" : String(unreadCount))
-                        : null;
-                      return (
-                        <Link
-                          key={item.href + item.label}
-                          href={item.href}
-                          onClick={() => setSheetOpen(false)}
-                          className="flex items-center gap-3 px-3 min-h-11 rounded-xl text-sm font-medium transition-colors mb-0.5"
-                          style={{
-                            backgroundColor: active ? `rgba(${hexToRgb(primary)}, 0.12)` : "transparent",
-                            color: active ? "#ffffff" : "rgba(255,255,255,0.55)",
-                          }}
-                        >
-                          <Icon
-                            size={17}
-                            style={{ color: active ? primary : "rgba(255,255,255,0.30)" }}
-                          />
-                          <span className="flex-1">{item.label}</span>
-                          {badge && (
-                            <span
-                              className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
-                              style={{ backgroundColor: `rgba(${hexToRgb(primary)}, 0.2)`, color: primary }}
-                            >
-                              {badge}
-                            </span>
-                          )}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </nav>
-
-            {/* User footer */}
-            <div
-              className="p-4 flex-shrink-0"
-              style={{
-                borderTop: "1px solid rgba(255,255,255,0.07)",
-                paddingBottom: "calc(1rem + env(safe-area-inset-bottom))",
-              }}
-            >
-              <div className="flex items-center gap-3 mb-3">
-                {me?.avatar_url ? (
-                  <img
-                    src={me.avatar_url}
-                    alt={user?.name ?? "User"}
-                    className="w-9 h-9 rounded-full object-cover flex-shrink-0"
-                  />
-                ) : (
-                  <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
-                    style={{ backgroundColor: primary, color: "#0a1b30" }}
-                  >
-                    {user?.name?.[0]?.toUpperCase() ?? "U"}
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="text-white text-sm font-semibold truncate">{user?.name ?? "User"}</div>
-                  <div className="text-[11px] text-white/35 truncate">{user?.email ?? ""}</div>
-                </div>
-              </div>
-              <button
-                onClick={() => { clearTokenCache(); signOut({ callbackUrl: "/login" }); }}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/8 rounded-xl transition-colors"
-              >
-                <LogOut size={15} />
-                Sign out
-              </button>
-              <div className="mt-1 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
-                <AppVersionRow dark />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+        }
+        const active = nav.isActive(slot.href);
+        const n = nav.badge(slot.href);
+        return (
+          <Link key={slot.href} href={slot.href} aria-current={active ? "page" : undefined}
+            className="relative flex min-h-[60px] min-w-0 flex-1 flex-col items-center justify-center gap-1 transition-opacity active:opacity-70">
+            <span className="relative">
+              <slot.icon size={21} className={active ? "text-primary" : "text-[var(--haip-icon-neutral)]"} />
+              {n > 0 && <span className="num absolute -right-2.5 -top-1.5 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] font-bold leading-4 text-primary-foreground">{n > 9 ? "9+" : n}</span>}
+            </span>
+            <span className={cn("text-[11px] font-semibold", active ? "text-primary" : "text-[var(--haip-fg-muted)]")}>{SHORT[slot.href] ?? slot.label}</span>
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
 
-// Utility: hex → "r, g, b" string for rgba()
-function hexToRgb(hex: string): string {
-  const cleaned = hex.replace("#", "");
-  const r = parseInt(cleaned.substring(0, 2), 16);
-  const g = parseInt(cleaned.substring(2, 4), 16);
-  const b = parseInt(cleaned.substring(4, 6), 16);
-  if (isNaN(r) || isNaN(g) || isNaN(b)) return "20, 184, 166"; // teal fallback
-  return `${r}, ${g}, ${b}`;
+/** The full menu on phones: every page the person can open, grouped like the desktop "More" menu, plus their account. */
+export function MobileMenuSheet({ open, onClose, user }: { open: boolean; onClose: () => void; user?: MobileNavProps["user"] }) {
+  const nav = useNav(user?.role ?? "");
+  const { theme } = useBrandTheme();
+  const { data: me } = useQuery({ queryKey: ["users", "me"], queryFn: () => api.get("/users/me").then(r => r.data), staleTime: 60_000 });
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[60] flex md:hidden">
+      <button type="button" aria-label="Close menu" onClick={onClose} className="absolute inset-0 bg-[rgb(28_25_23/0.45)] backdrop-blur-[2px]" />
+      <div role="dialog" aria-modal="true" aria-label="Menu"
+        className="relative flex h-full w-[min(21rem,88vw)] flex-col overflow-y-auto overscroll-contain bg-[var(--haip-card)] shadow-[var(--haip-shadow-lg)] animate-in slide-in-from-left duration-200"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}>
+        <div className="flex items-center justify-between px-5 py-3">
+          <span className="font-[family-name:var(--font-display)] text-[18px] font-semibold">{theme.companyName ?? "HAIP"}</span>
+          <button type="button" onClick={onClose} aria-label="Close menu" className="flex size-11 items-center justify-center rounded-xl text-[var(--haip-icon-neutral)] hover:bg-[var(--hover-bg)]"><X size={19} /></button>
+        </div>
+        <nav aria-label="All pages" className="flex-1 px-3 pb-3">
+          {nav.sections.map(section => (
+            <div key={section.title} className="mb-3">
+              <p className="px-2 pb-1 pt-2 text-[12px] font-semibold text-[var(--haip-fg-subtle)]">{section.title}</p>
+              {section.links.map(link => {
+                const active = nav.isActive(link.href);
+                const n = nav.badge(link.href);
+                return (
+                  <Link key={link.href} href={link.href} onClick={onClose} aria-current={active ? "page" : undefined}
+                    className={cn("mb-0.5 flex min-h-11 items-center gap-3 rounded-xl px-3 text-[15px] transition-colors",
+                      active ? "bg-[var(--haip-primary-tint)] font-semibold text-primary" : "text-[var(--haip-fg)] active:bg-[var(--hover-bg)]")}>
+                    <link.icon size={18} className={active ? "text-primary" : "text-[var(--haip-icon-neutral)]"} />
+                    <span className="flex-1">{link.label}</span>
+                    {n > 0 && <span className="num rounded-full bg-primary px-2 text-[11px] font-bold leading-5 text-primary-foreground">{n > 99 ? "99+" : n}</span>}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
+        </nav>
+        <div className="border-t border-[var(--haip-border)] p-4" style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}>
+          <div className="mb-3 flex items-center gap-3">
+            <UserAvatar name={user?.name} photoUrl={me?.avatar_url} size="md" className="size-10" />
+            <div className="min-w-0 flex-1"><p className="truncate text-[15px] font-semibold">{user?.name ?? "User"}</p><p className="truncate text-[12.5px] text-[var(--haip-fg-subtle)]">{user?.email ?? ""}</p></div>
+          </div>
+          <button type="button" onClick={() => { clearTokenCache(); signOut({ callbackUrl: "/login" }); }}
+            className="flex min-h-11 w-full items-center gap-2.5 rounded-xl px-3 text-[15px] font-semibold text-[var(--haip-status-danger-fg)] hover:bg-[var(--haip-status-danger-bg)]">
+            <LogOut size={17} />Sign out
+          </button>
+          <div className="mt-1 border-t border-[var(--haip-border)] pt-2"><AppVersionRow /></div>
+        </div>
+      </div>
+    </div>
+  );
 }

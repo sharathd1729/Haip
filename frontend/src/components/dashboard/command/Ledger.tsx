@@ -59,11 +59,9 @@ export function Ledger({ data }: { data: BusinessOverview }) {
           hint={leads.qualified_new.rate_of_new == null ? "of the new leads" : `${pct(leads.qualified_new.rate_of_new)} of the new leads`} />
         <Row label="Booked so far" value={num(leads.conversion.numerator)}
           hint={leads.conversion.rate == null ? "no new leads in this period" : `${pct(leads.conversion.rate)} of the ${num(leads.conversion.denominator)} new leads`} />
-        <Row label="Conversations opened" value={num(leads.conversations_new.count)} hint="one person can have several" />
-        <Row label="Contacts without a number" value={num(leads.unidentified_contacts.count)} muted hint="not leads yet" />
         <Row label="Enquiries" value={num(leads.enquiries.created)} hint={`${num(leads.enquiries.repeat)} repeat from the same person`} />
-        <Row label="Enquiries nobody owns now" value={num(leads.unassigned_now)} tone={leads.unassigned_now > 0 ? "warning" : undefined}
-          hint="open, not limited to this period" href="/dashboard/my-day?kind=unassigned" />
+        <Row label="New leads nobody owns now" value={num(leads.unassigned_now)} tone={leads.unassigned_now > 0 ? "warning" : undefined}
+          hint="not contacted yet, not limited to this period" href="/dashboard/my-day?kind=new_lead" />
         <Row label="Lost enquiries" value={num(leads.enquiries.lost)} hint="moved to a closed-lost stage" />
         <Row label="Marked as spam, left out" value={num(leads.enquiries.marked_spam_excluded)} muted />
       </Column>

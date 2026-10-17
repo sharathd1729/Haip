@@ -28,7 +28,7 @@ export function Drawer({ open, onOpenChange, title, description, footer, childre
         )}
       >
         <SheetHeader className="border-b border-[var(--haip-border)] px-5 py-4 pr-12 text-left">
-          <SheetTitle className="text-[15px] font-bold">{title}</SheetTitle>
+          <SheetTitle className="font-[family-name:var(--font-display)] text-[18px] font-semibold tracking-[-0.01em]">{title}</SheetTitle>
           {description && <SheetDescription>{description}</SheetDescription>}
         </SheetHeader>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>

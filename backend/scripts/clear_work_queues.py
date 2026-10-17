@@ -7,9 +7,8 @@ Clear a workspace's "Needs you now" queues so the dashboard shows zero. Nothing 
   Follow-ups overdue / due today  -> the task is marked done
                                      (a service request linked to the task is marked done too)
 
-Not touched here: "AI draft ready", "Shared a phone, not called" and "Unassigned" come from the
-lead pipeline. They clear when the leads leave the open pipeline, so run
-scripts/bulk_move_leads_to_lost.py first. The final report says what is still counted.
+Not touched here: "New leads to contact" comes from the lead pipeline. It clears when a person contacts the lead or
+the lead leaves the open pipeline, so run scripts/bulk_move_leads_to_lost.py first. The final report says what is still counted.
 
 Historical data (calls, messages, leads, bookings, analytics) is left exactly as it is.
 
@@ -36,9 +35,8 @@ from app.models.tenant import Tenant  # noqa: E402
 from app.services import call_status_service, inbox_service, work_queue_service  # noqa: E402
 
 CHUNK = 500
-LABEL = {"reply": "Guests waiting for a reply", "callback": "Missed calls not called back",
-         "followup": "Follow-ups overdue / due today", "draft": "AI draft ready",
-         "call_new": "Shared a phone, not called", "unassigned": "Unassigned leads"}
+LABEL = {"reply": "Leads waiting for a reply", "callback": "Missed calls not called back",
+         "followup": "Follow-ups overdue / due soon", "new_lead": "New leads to contact"}
 
 
 def _chunks(items, n=CHUNK):
@@ -87,7 +85,7 @@ def main() -> int:
 
         task_ids = [r[0] for r in db.query(Task.id).filter(
             Task.tenant_id == tenant.id, Task.is_done.is_(False), Task.due_date.isnot(None),
-            Task.due_date <= now + timedelta(hours=12)).all()]
+            Task.due_date <= now + timedelta(hours=1)).all()]
 
         print(f"\nWould close {len(conv_ids)} conversations, dismiss {len(call_ids)} missed calls, "
               f"mark {len(task_ids)} follow-ups done." if not args.apply else

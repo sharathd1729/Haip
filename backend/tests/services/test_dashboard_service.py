@@ -23,7 +23,8 @@ def _tenant(db):
 
 
 def _guest(db, tid):
-    g = Guest(id=str(uuid.uuid4()), tenant_id=tid, name="G", phone=f"+9197{uuid.uuid4().int % 10**8:08d}")
+    g = Guest(id=str(uuid.uuid4()), tenant_id=tid, name="G", phone=f"+9197{uuid.uuid4().int % 10**8:08d}",
+              lead_identified_at=NOW - timedelta(days=3))     # a lead: the number has been on file for days
     db.add(g); db.flush(); return g
 
 
@@ -40,6 +41,10 @@ def _waiting_conv(db, tid, assigned_to=None, minutes_ago=30):
     db.add(c); db.flush()
     db.add(Message(id=str(uuid.uuid4()), tenant_id=tid, conversation_id=c.id, direction="inbound",
                    channel=ChannelType.INSTAGRAM, body="hi", created_at=NOW - timedelta(minutes=minutes_ago)))
+    # A person already spoke to this lead on the phone, so only the unanswered message is outstanding (not a "new lead").
+    db.add(Call(id=str(uuid.uuid4()), tenant_id=tid, guest_id=g.id, ivr_provider="vobiz", ivr_call_id=f"o-{uuid.uuid4().hex[:10]}",
+                direction=CallDirection.OUTBOUND, from_number="+918000000000", to_number=g.phone, duration_seconds=90,
+                ivr_dial_status="completed", created_at=NOW - timedelta(days=2)))
     db.flush()
     return c
 

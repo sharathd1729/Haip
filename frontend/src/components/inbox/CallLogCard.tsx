@@ -55,13 +55,13 @@ export function CallLogCard({ call }: { call: CallTimelineItem }) {
               <Phone size={14} />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-gray-900">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--haip-fg)]">
 Call · {call.direction}
                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100">
                   Sarvam AI
                 </span>
               </div>
-              <p className="text-[11px] text-gray-400">{formatDuration(call.duration_seconds)}</p>
+              <p className="text-[11px] text-[var(--haip-fg-subtle)]">{formatDuration(call.duration_seconds)}</p>
             </div>
           </div>
           {call.conversion_probability != null && (
@@ -78,25 +78,25 @@ Call · {call.direction}
         )}
 
         {call.ai_summary && (
-          <p className="mt-2 text-xs text-gray-600 leading-relaxed">{call.ai_summary}</p>
+          <p className="mt-2 text-xs text-[var(--haip-fg-muted)] leading-relaxed">{call.ai_summary}</p>
         )}
 
         {call.turns.length > 0 && (
-          <div className="mt-2 pt-2 border-t border-gray-100">
+          <div className="mt-2 pt-2 border-t border-[var(--haip-border)]">
             <button
               type="button"
               onClick={() => setExpanded(v => !v)}
-              className="text-[11px] font-bold text-teal-600 flex items-center justify-between w-full"
+              className="text-[11px] font-bold text-primary flex items-center justify-between w-full"
             >
               <span>View transcript</span>
               <ChevronDown size={13} className={expanded ? "rotate-180 transition-transform" : "transition-transform"} />
             </button>
             {expanded && (
-              <div className="mt-2 p-2.5 rounded-xl bg-gray-50 space-y-1.5 text-[11px] font-mono max-h-56 overflow-y-auto">
+              <div className="mt-2 p-2.5 rounded-xl bg-[var(--haip-surface)] space-y-1.5 text-[11px] font-mono max-h-56 overflow-y-auto">
                 {call.turns.map((t, i) => (
-                  <div key={i} className="flex gap-1.5 text-gray-700">
-                    <span className="font-bold text-teal-600 flex-shrink-0">{t.speaker}:</span>
-                    <span className="font-sans text-gray-600">{t.text}</span>
+                  <div key={i} className="flex gap-1.5 text-[var(--haip-fg-2)]">
+                    <span className="font-bold text-primary flex-shrink-0">{t.speaker}:</span>
+                    <span className="font-sans text-[var(--haip-fg-muted)]">{t.text}</span>
                   </div>
                 ))}
               </div>
@@ -104,10 +104,10 @@ Call · {call.direction}
           </div>
         )}
 
-        <div className="mt-2 pt-2 border-t border-gray-100">
+        <div className="mt-2 pt-2 border-t border-[var(--haip-border)]">
           <Link
             href={`/dashboard/calls/${call.id}`}
-            className="text-[11px] font-semibold text-teal-600 hover:underline"
+            className="text-[11px] font-semibold text-primary hover:underline"
           >
             View full call detail →
           </Link>

@@ -181,7 +181,7 @@ def test_the_leads_block_counts_people_not_enquiries(client, world):
     c = leads["conversion"]
     assert (c["numerator"], c["denominator"], c["rate"]) == (2, 5, 40.0)    # l1 and l2 booked; the cancelled one does not count
     assert "cohort" in c["basis"]
-    assert leads["unassigned_now"] >= 1                    # l4 (and l5/l6 may count as open too); the work queue owns that rule
+    assert isinstance(leads["unassigned_now"], int)        # new leads nobody owns: the work queue owns that rule (tested there)
 
 
 def test_the_funnel_is_a_cohort_with_a_rate_from_the_stated_base(client, world):
@@ -415,7 +415,7 @@ def test_a_stale_polled_integration_is_surfaced_for_the_owner(client, db, world)
 def test_the_response_says_when_it_was_made(client, world):
     j = _get(client, world["h_owner"]).json()
     assert datetime.fromisoformat(j["generated_at"]).tzinfo is not None
-    assert [a["key"] for a in j["attention"]][:4] == ["unassigned", "waiting_reply", "missed_calls", "followups"]
+    assert [a["key"] for a in j["attention"]][:4] == ["new_leads", "missed_calls", "waiting_reply", "followups"]
 
 
 # ── the fuller owner view: lost leads, expected check-in, breakdowns, trend, Meta detail, agents, at-risk ──────
@@ -526,10 +526,12 @@ def test_promising_leads_at_risk_come_from_the_work_queue_and_the_ai_reading(cli
     l4 = world["leads"][3]                                   # unassigned and open
     l4.ai_analysis = {"sentiment": "positive"}
     world["leads"][0].ai_analysis = {"sentiment": "neutral"}
+    # Its number arrived two hours ago and nobody has contacted them: the queue's "new lead" rule.
+    db.query(Guest).filter(Guest.id == l4.guest_id).update({Guest.lead_identified_at: datetime.now(timezone.utc) - timedelta(hours=2)})
     db.commit()
     j = _get(client, world["h_owner"]).json()
     risk = j["leads"]["high_intent_at_risk"]
-    assert risk["count"] == 1 and risk["items"][0]["inquiry_id"] == l4.id and risk["items"][0]["reason"] == "nobody owns it"
+    assert risk["count"] == 1 and risk["items"][0]["inquiry_id"] == l4.id and risk["items"][0]["reason"] == "nobody has contacted them"
     assert {"key": "high_intent_risk", "label": "Promising enquiries at risk", "count": 1, "oldest_at": None, "href": "/dashboard/leads",
             "people": 1} in j["attention"]
 

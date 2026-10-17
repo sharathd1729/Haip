@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { Users, UserPlus, Mail, Shield, Eye, Clock, CheckCircle2, XCircle, ChevronDown, Copy, Trash2, Loader2, AlertCircle, X, Settings, RefreshCw, MoreHorizontal, MessageSquare, PhoneCall, ShieldAlert, Pencil } from "@/lib/icons";
 import { Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { avatarInitials, avatarTintClass } from "@/lib/avatarTint";
 import api from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -42,28 +43,28 @@ interface Invitation {
 const ROLES = [
   { value: "owner",        label: "Owner",        description: "Full access to all features and billing", icon: <Crown size={13} className="text-amber-500" /> },
   { value: "manager",      label: "Manager",       description: "Manage team, guests, and operations", icon: <Shield size={13} className="text-blue-500" /> },
-  { value: "concierge",    label: "Concierge",     description: "Handle calls, inbox, and guest requests", icon: <Users size={13} className="text-teal-500" /> },
+  { value: "concierge",    label: "Concierge",     description: "Handle calls, inbox, and guest requests", icon: <Users size={13} className="text-primary" /> },
   { value: "reservations", label: "Reservations",  description: "Manage inquiries and guest bookings", icon: <Settings size={13} className="text-purple-500" /> },
   { value: "marketing",    label: "Marketing",     description: "Campaigns, templates, and messaging", icon: <Mail size={13} className="text-pink-500" /> },
-  { value: "compliance",   label: "Compliance",    description: "Audit logs and data compliance only", icon: <Eye size={13} className="text-gray-500" /> },
-  { value: "read_only",    label: "Read Only",     description: "View-only access to all data", icon: <Eye size={13} className="text-gray-400" /> },
+  { value: "compliance",   label: "Compliance",    description: "Audit logs and data compliance only", icon: <Eye size={13} className="text-[var(--haip-fg-subtle)]" /> },
+  { value: "read_only",    label: "Read Only",     description: "View-only access to all data", icon: <Eye size={13} className="text-[var(--haip-fg-subtle)]" /> },
 ];
 
 const ROLE_COLORS: Record<string, string> = {
   owner:        "bg-amber-50 text-amber-700 border-amber-200",
   manager:      "bg-blue-50 text-blue-700 border-blue-200",
-  concierge:    "bg-teal-50 text-teal-700 border-teal-200",
+  concierge:    "bg-[var(--haip-primary-tint)] text-primary border-[color-mix(in_srgb,var(--primary)_25%,transparent)]",
   reservations: "bg-purple-50 text-purple-700 border-purple-200",
   marketing:    "bg-pink-50 text-pink-700 border-pink-200",
-  compliance:   "bg-gray-50 text-gray-700 border-gray-200",
-  read_only:    "bg-gray-50 text-gray-500 border-gray-200",
+  compliance:   "bg-[var(--haip-surface)] text-[var(--haip-fg-2)] border-[var(--haip-border)]",
+  read_only:    "bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)] border-[var(--haip-border)]",
   foh:          "bg-indigo-50 text-indigo-700 border-indigo-200",
 };
 
 // ─── Role badge ───────────────────────────────────────────────────────────────
 
 function RoleBadge({ role }: { role: string }) {
-  const cls = ROLE_COLORS[role] ?? "bg-gray-50 text-gray-600 border-gray-200";
+  const cls = ROLE_COLORS[role] ?? "bg-[var(--haip-surface)] text-[var(--haip-fg-muted)] border-[var(--haip-border)]";
   return (
     <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border capitalize", cls)}>
       {role.replace("_", " ")}
@@ -74,9 +75,8 @@ function RoleBadge({ role }: { role: string }) {
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
 function Avatar({ name, size = "md", photoUrl }: { name: string; size?: "sm" | "md"; photoUrl?: string | null }) {
-  const initials = name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
-  const colors = ["bg-teal-500", "bg-blue-500", "bg-purple-500", "bg-amber-500", "bg-pink-500"];
-  const color = colors[name.charCodeAt(0) % colors.length];
+  const initials = avatarInitials(name);
+  const color = avatarTintClass(name);
   const sizeCls = size === "sm" ? "w-7 h-7 text-[10px]" : "w-9 h-9 text-xs";
   const [imgFailed, setImgFailed] = useState(false);
 
@@ -93,7 +93,7 @@ function Avatar({ name, size = "md", photoUrl }: { name: string; size?: "sm" | "
 
   return (
     <div className={cn(
-      "rounded-full flex items-center justify-center text-white font-bold flex-shrink-0",
+      "rounded-full flex items-center justify-center font-bold flex-shrink-0",
       color, sizeCls
     )}>
       {initials}
@@ -141,39 +141,39 @@ function InviteModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
-        <div className="px-6 pt-6 pb-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="px-6 pt-6 pb-4 border-b border-[var(--haip-border)] flex items-center justify-between">
           <div>
-            <h2 className="text-base font-bold text-gray-900">Invite team member</h2>
-            <p className="text-xs text-gray-400 mt-0.5">They'll receive an invitation link to join your workspace.</p>
+            <h2 className="text-base font-bold text-[var(--haip-fg)]">Invite team member</h2>
+            <p className="text-xs text-[var(--haip-fg-subtle)] mt-0.5">They'll receive an invitation link to join your workspace.</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+          <button onClick={onClose} className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)]"><X size={18} /></button>
         </div>
 
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-gray-700 block mb-1.5">Full name <span className="text-red-500">*</span></label>
+              <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Full name <span className="text-red-500">*</span></label>
               <input
                 value={form.name}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                 placeholder="Ravi Kumar"
-                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                className="w-full px-3 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-700 block mb-1.5">Work email <span className="text-red-500">*</span></label>
+              <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Work email <span className="text-red-500">*</span></label>
               <input
                 type="email"
                 value={form.email}
                 onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                 placeholder="ravi@villaname.com"
-                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                className="w-full px-3 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
               />
             </div>
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-gray-700 block mb-1.5">Role <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Role <span className="text-red-500">*</span></label>
             <div className="grid grid-cols-1 gap-1.5">
               {ROLES.map(r => (
                 <label
@@ -181,23 +181,23 @@ function InviteModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
                   className={cn(
                     "flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all",
                     form.role === r.value
-                      ? "border-teal-400 bg-teal-50/50"
-                      : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                      ? "border-primary bg-[var(--haip-primary-tint)]"
+                      : "border-[var(--haip-border)] hover:border-[var(--haip-border-strong)] hover:bg-[var(--haip-surface)]"
                   )}
                 >
                   <input type="radio" name="role" value={r.value} checked={form.role === r.value}
                     onChange={() => setForm(f => ({ ...f, role: r.value }))} className="sr-only" />
                   <div className={cn("w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0",
-                    form.role === r.value ? "border-teal-500" : "border-gray-300"
+                    form.role === r.value ? "border-primary" : "border-[var(--haip-border-strong)]"
                   )}>
-                    {form.role === r.value && <div className="w-2 h-2 rounded-full bg-teal-500" />}
+                    {form.role === r.value && <div className="w-2 h-2 rounded-full bg-primary" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       {r.icon}
-                      <span className="text-xs font-semibold text-gray-800">{r.label}</span>
+                      <span className="text-xs font-semibold text-[var(--haip-fg)]">{r.label}</span>
                     </div>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{r.description}</p>
+                    <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-0.5">{r.description}</p>
                   </div>
                 </label>
               ))}
@@ -211,13 +211,13 @@ function InviteModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
           )}
 
           <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)] transition-colors">
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="flex-1 py-2.5 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex-1 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {submitting ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
               Send Invitation
@@ -255,18 +255,18 @@ function InvitationLinkModal({ invitation, onClose }: { invitation: Invitation; 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-        <div className="px-6 pt-6 pb-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="px-6 pt-6 pb-4 border-b border-[var(--haip-border)] flex items-center justify-between">
           <div>
-            <h2 className="text-base font-bold text-gray-900">Invitation created!</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Share this link with {invitation.name}</p>
+            <h2 className="text-base font-bold text-[var(--haip-fg)]">Invitation created!</h2>
+            <p className="text-xs text-[var(--haip-fg-subtle)] mt-0.5">Share this link with {invitation.name}</p>
           </div>
-          <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
+          <button onClick={onClose}><X size={18} className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)]" /></button>
         </div>
         <div className="px-6 py-5 space-y-4">
-          <div className="bg-teal-50 rounded-xl p-4 text-center">
-            <CheckCircle2 size={28} className="text-teal-500 mx-auto mb-2" />
-            <p className="text-sm font-semibold text-gray-800">{invitation.name} has been invited as <span className="capitalize">{invitation.role.replace("_", " ")}</span></p>
-            <p className="text-xs text-gray-500 mt-1">Link expires in 7 days</p>
+          <div className="bg-[var(--haip-primary-tint)] rounded-xl p-4 text-center">
+            <CheckCircle2 size={28} className="text-primary mx-auto mb-2" />
+            <p className="text-sm font-semibold text-[var(--haip-fg)]">{invitation.name} has been invited as <span className="capitalize">{invitation.role.replace("_", " ")}</span></p>
+            <p className="text-xs text-[var(--haip-fg-subtle)] mt-1">Link expires in 7 days</p>
           </div>
 
           {/* O10 — WhatsApp share button */}
@@ -281,26 +281,26 @@ function InvitationLinkModal({ invitation, onClose }: { invitation: Invitation; 
           </a>
 
           <div>
-            <p className="text-xs font-semibold text-gray-700 mb-1.5">Or copy the link</p>
-            <div className="flex items-center gap-2 bg-gray-50 rounded-xl border border-gray-200 px-3 py-2.5">
-              <code className="text-[11px] text-gray-600 flex-1 truncate font-mono">{link}</code>
+            <p className="text-xs font-semibold text-[var(--haip-fg-2)] mb-1.5">Or copy the link</p>
+            <div className="flex items-center gap-2 bg-[var(--haip-surface)] rounded-xl border border-[var(--haip-border)] px-3 py-2.5">
+              <code className="text-[11px] text-[var(--haip-fg-muted)] flex-1 truncate font-mono">{link}</code>
               <button
                 onClick={copy}
                 className={cn("flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-lg transition-colors flex-shrink-0",
-                  copied ? "text-green-600 bg-green-50" : "text-teal-600 hover:bg-teal-50"
+                  copied ? "text-green-600 bg-green-50" : "text-primary hover:bg-[var(--haip-primary-tint)]"
                 )}
               >
                 {copied ? <CheckCircle2 size={12} /> : <Copy size={12} />}
                 {copied ? "Copied!" : "Copy"}
               </button>
             </div>
-            <p className="text-[10px] text-gray-400 mt-1.5">
+            <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1.5">
               You can also find this link in the Pending Invitations section below.
             </p>
           </div>
         </div>
         <div className="px-6 pb-5">
-          <button onClick={onClose} className="w-full py-2.5 bg-[#0F766E] text-white rounded-xl text-sm font-semibold hover:bg-[#0d6660] transition-colors">
+          <button onClick={onClose} className="w-full py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-[var(--haip-primary-hover)] transition-colors">
             Done
           </button>
         </div>
@@ -339,7 +339,7 @@ function RoleDropdown({ currentRole, userId, onChanged }: {
     <div className="relative">
       <button
         onClick={() => { setOpen(v => !v); setRoleError(""); }}
-        className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+        className="flex items-center gap-1 text-xs text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-2)] transition-colors"
         disabled={loading}
       >
         <RoleBadge role={currentRole} />
@@ -353,22 +353,22 @@ function RoleDropdown({ currentRole, userId, onChanged }: {
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-1.5 z-20 bg-white border border-gray-200 rounded-xl shadow-lg w-52 py-1 overflow-hidden">
+          <div className="absolute right-0 top-full mt-1.5 z-20 bg-white border border-[var(--haip-border)] rounded-xl shadow-lg w-52 py-1 overflow-hidden">
             {ROLES.map(r => (
               <button
                 key={r.value}
                 onClick={() => changeRole(r.value)}
                 className={cn(
-                  "w-full text-left px-3 py-2 text-xs hover:bg-gray-50 flex items-center gap-2 transition-colors",
-                  r.value === currentRole && "bg-teal-50"
+                  "w-full text-left px-3 py-2 text-xs hover:bg-[var(--haip-surface)] flex items-center gap-2 transition-colors",
+                  r.value === currentRole && "bg-[var(--haip-primary-tint)]"
                 )}
               >
                 {r.icon}
                 <div>
-                  <div className="font-semibold text-gray-800">{r.label}</div>
-                  <div className="text-[10px] text-gray-400">{r.description}</div>
+                  <div className="font-semibold text-[var(--haip-fg)]">{r.label}</div>
+                  <div className="text-[10px] text-[var(--haip-fg-subtle)]">{r.description}</div>
                 </div>
-                {r.value === currentRole && <CheckCircle2 size={11} className="text-teal-500 ml-auto" />}
+                {r.value === currentRole && <CheckCircle2 size={11} className="text-primary ml-auto" />}
               </button>
             ))}
           </div>
@@ -487,9 +487,9 @@ export default function TeamPage() {
   if (role && role !== "owner" && role !== "manager") {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6">
-        <ShieldAlert size={32} className="text-gray-300" />
-        <p className="text-sm font-semibold text-gray-600">Owner/manager access only</p>
-        <p className="text-xs text-gray-400 max-w-xs">
+        <ShieldAlert size={32} className="text-[var(--haip-fg-subtle)]/70" />
+        <p className="text-sm font-semibold text-[var(--haip-fg-muted)]">Owner/manager access only</p>
+        <p className="text-xs text-[var(--haip-fg-subtle)] max-w-xs">
           Team management is only available to account owners and managers.
         </p>
       </div>
@@ -499,23 +499,23 @@ export default function TeamPage() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="px-6 py-5 bg-white border-b border-gray-100 flex-shrink-0">
+      <div className="px-6 py-5 bg-white border-b border-[var(--haip-border)] flex-shrink-0">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="haip-page-title">Team</h1>
-            <p className="text-sm text-gray-400 mt-0.5">
+            <p className="text-sm text-[var(--haip-fg-subtle)] mt-0.5">
               {activeMembers.length} active member{activeMembers.length !== 1 ? "s" : ""}
               {pendingInvitations.length > 0 && ` · ${pendingInvitations.length} pending invite${pendingInvitations.length !== 1 ? "s" : ""}`}
             </p>
           </div>
           <div className="flex items-center gap-2">
           <Link href="/dashboard/settings/lead-assignment"
-            className="flex items-center gap-2 border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-50 transition-colors">
+            className="flex items-center gap-2 border border-[var(--haip-border)] text-[var(--haip-fg-2)] px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-[var(--haip-surface)] transition-colors">
             Lead assignment
           </Link>
           <button
             onClick={() => setShowInviteModal(true)}
-            className="flex items-center gap-2 bg-teal-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors shadow-sm shadow-teal-200"
+            className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-primary transition-colors shadow-sm shadow-[color-mix(in_srgb,var(--primary)_18%,transparent)]"
           >
             <UserPlus size={15} /> Invite member
           </button>
@@ -529,8 +529,8 @@ export default function TeamPage() {
               key={t}
               onClick={() => setTab(t)}
               className={cn(
-                "px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors",
-                tab === t ? "bg-[#0F766E] text-white" : "text-gray-500 hover:bg-gray-100"
+                "rounded-full px-4 py-1.5 text-[13.5px] font-semibold capitalize transition-colors",
+                tab === t ? "bg-[var(--haip-primary-tint)] text-primary" : "text-[var(--haip-fg-muted)] hover:bg-[var(--haip-status-neutral-bg)]"
               )}
             >
               {t === "invitations" ? `Pending Invites ${pendingInvitations.length > 0 ? `(${pendingInvitations.length})` : ""}` : "Members"}
@@ -546,15 +546,15 @@ export default function TeamPage() {
             {membersLoading ? (
               Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-2xl" />)
             ) : members.length === 0 ? (
-              <div className="py-16 text-center text-sm text-gray-400">
-                <Users size={32} className="mx-auto mb-3 text-gray-300" />
+              <div className="py-16 text-center text-sm text-[var(--haip-fg-subtle)]">
+                <Users size={32} className="mx-auto mb-3 text-[var(--haip-fg-subtle)]/70" />
                 No team members yet — invite your first member above.
               </div>
             ) : (
               <>
                 {activeMembers.length > 0 && (
                   <div>
-                    <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold mb-2">Active ({activeMembers.length})</p>
+                    <p className="text-[10px] uppercase tracking-widest text-[var(--haip-fg-subtle)] font-bold mb-2">Active ({activeMembers.length})</p>
                     <div className="space-y-2">
                       {activeMembers.map(member => (
                         <MemberRow
@@ -574,7 +574,7 @@ export default function TeamPage() {
                 )}
                 {inactiveMembers.length > 0 && (
                   <div className="mt-6">
-                    <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold mb-2">Deactivated ({inactiveMembers.length})</p>
+                    <p className="text-[10px] uppercase tracking-widest text-[var(--haip-fg-subtle)] font-bold mb-2">Deactivated ({inactiveMembers.length})</p>
                     <div className="space-y-2">
                       {inactiveMembers.map(member => (
                         <MemberRow
@@ -603,8 +603,8 @@ export default function TeamPage() {
             {invitationsLoading ? (
               Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-2xl mb-2" />)
             ) : invitations.length === 0 ? (
-              <div className="py-16 text-center text-sm text-gray-400">
-                <Mail size={32} className="mx-auto mb-3 text-gray-300" />
+              <div className="py-16 text-center text-sm text-[var(--haip-fg-subtle)]">
+                <Mail size={32} className="mx-auto mb-3 text-[var(--haip-fg-subtle)]/70" />
                 No invitations sent yet.
               </div>
             ) : (
@@ -623,14 +623,14 @@ export default function TeamPage() {
 
         {/* Role guide */}
         <div className="mt-8 haip-card p-5">
-          <p className="text-xs font-bold text-gray-700 mb-3">Role permissions guide</p>
+          <p className="text-xs font-bold text-[var(--haip-fg-2)] mb-3">Role permissions guide</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
             {ROLES.map(r => (
-              <div key={r.value} className="flex items-start gap-2.5 p-2.5 rounded-xl bg-gray-50">
+              <div key={r.value} className="flex items-start gap-2.5 p-2.5 rounded-xl bg-[var(--haip-surface)]">
                 <div className="mt-0.5">{r.icon}</div>
                 <div>
-                  <p className="text-xs font-semibold text-gray-800">{r.label}</p>
-                  <p className="text-[10px] text-gray-500 mt-0.5 leading-relaxed">{r.description}</p>
+                  <p className="text-xs font-semibold text-[var(--haip-fg)]">{r.label}</p>
+                  <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-0.5 leading-relaxed">{r.description}</p>
                 </div>
               </div>
             ))}
@@ -666,15 +666,16 @@ function MemberRow({ member, onRoleChanged, onToggleActive, onToggleIvrRouting, 
 
   return (
     <div className={cn(
-      "haip-card px-4 py-3.5 flex items-center gap-4 hover:shadow-sm transition-shadow",
+      // Wraps on narrow screens: the controls drop to a second line instead of squeezing the name to nothing.
+      "haip-card px-4 py-3.5 flex flex-wrap items-center gap-x-4 gap-y-2 hover:shadow-sm transition-shadow",
       !member.is_active && "opacity-60"
     )}>
       <Avatar name={member.name} photoUrl={member.avatar_url} />
-      <div className="flex-1 min-w-0">
+      <div className="min-w-[11rem] flex-1">
         <div className="flex items-center gap-2 mb-0.5">
           <NameEditor name={member.name} memberId={member.id} onSave={onUpdateName} />
           {member.is_mfa_enabled && (
-            <span title="MFA enabled"><Shield size={11} className="text-teal-500 flex-shrink-0" /></span>
+            <span title="MFA enabled"><Shield size={11} className="text-primary flex-shrink-0" /></span>
           )}
         </div>
         <EmailEditor email={member.email} onSave={onUpdateEmail} />
@@ -695,10 +696,10 @@ function MemberRow({ member, onRoleChanged, onToggleActive, onToggleIvrRouting, 
         className={cn(
           "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors flex-shrink-0",
           !hasPhone
-            ? "text-gray-300 border-gray-100 cursor-not-allowed"
+            ? "text-[var(--haip-fg-subtle)]/70 border-[var(--haip-border)] cursor-not-allowed"
             : member.ivr_call_routing_enabled
-              ? "text-teal-700 bg-teal-50 border-teal-200 hover:bg-teal-100"
-              : "text-gray-400 bg-white border-gray-200 hover:border-gray-300"
+              ? "text-primary bg-[var(--haip-primary-tint)] border-[color-mix(in_srgb,var(--primary)_25%,transparent)] hover:bg-[var(--haip-primary-tint)]"
+              : "text-[var(--haip-fg-subtle)] bg-[var(--haip-card)] border-[var(--haip-border)] hover:border-[var(--haip-border-strong)]"
         )}
       >
         <PhoneCall size={12} />
@@ -710,24 +711,24 @@ function MemberRow({ member, onRoleChanged, onToggleActive, onToggleIvrRouting, 
       <div className="relative flex-shrink-0">
         <button
           onClick={() => setMenuOpen(v => !v)}
-          className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-lg hover:bg-gray-100"
+          className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)] transition-colors p-1 rounded-lg hover:bg-[var(--haip-status-neutral-bg)]"
         >
           <MoreHorizontal size={15} />
         </button>
         {menuOpen && (
           <>
             <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-            <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg w-48 py-1 overflow-hidden">
+            <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-[var(--haip-border)] rounded-xl shadow-lg w-48 py-1 overflow-hidden">
               <button
                 onClick={() => { onSendPasswordReset(); setMenuOpen(false); }}
                 title="Emails a password-reset link to this member's current email address"
-                className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                className="w-full text-left px-3 py-2 text-xs hover:bg-[var(--haip-surface)] flex items-center gap-2 transition-colors"
               >
-                <Mail size={13} className="text-teal-500" /> Send reset link
+                <Mail size={13} className="text-primary" /> Send reset link
               </button>
               <button
                 onClick={() => { onToggleActive(!member.is_active); setMenuOpen(false); }}
-                className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                className="w-full text-left px-3 py-2 text-xs hover:bg-[var(--haip-surface)] flex items-center gap-2 transition-colors"
               >
                 {member.is_active ? (
                   <><XCircle size={13} className="text-red-400" /> Deactivate</>
@@ -781,7 +782,7 @@ function PhoneEditor({ phone, onSave }: { phone: string | null; onSave: (phone: 
         }}
         disabled={saving}
         placeholder="+91XXXXXXXXXX"
-        className="w-32 text-xs px-2 py-1.5 rounded-lg border border-teal-300 focus:outline-none focus:ring-1 focus:ring-teal-400 flex-shrink-0"
+        className="w-32 text-xs px-2 py-1.5 rounded-lg border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] focus:outline-none focus:ring-1 focus:ring-primary flex-shrink-0"
       />
     );
   }
@@ -791,8 +792,8 @@ function PhoneEditor({ phone, onSave }: { phone: string | null; onSave: (phone: 
       onClick={() => { setValue(phone ?? ""); setEditing(true); }}
       title="Click to edit phone number"
       className={cn(
-        "text-xs px-2 py-1.5 rounded-lg border border-transparent hover:border-gray-200 hover:bg-gray-50 transition-colors flex-shrink-0 text-left w-32 truncate",
-        phone ? "text-gray-600" : "text-gray-300 italic"
+        "text-xs px-2 py-1.5 rounded-lg border border-transparent hover:border-[var(--haip-border)] hover:bg-[var(--haip-surface)] transition-colors flex-shrink-0 text-left w-32 truncate",
+        phone ? "text-[var(--haip-fg-muted)]" : "text-[var(--haip-fg-subtle)]/70 italic"
       )}
     >
       {phone || "Add phone"}
@@ -840,7 +841,7 @@ function NameEditor({ name, memberId, onSave }: { name: string; memberId: string
             if (e.key === "Escape") { setValue(name); setError(""); setEditing(false); }
           }}
           disabled={saving}
-          className="text-sm font-semibold px-2 py-1 rounded-lg border border-teal-300 focus:outline-none focus:ring-1 focus:ring-teal-400 w-44"
+          className="text-sm font-semibold px-2 py-1 rounded-lg border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] focus:outline-none focus:ring-1 focus:ring-primary w-44"
         />
         {error && <span className="text-[10px] text-red-500">{error}</span>}
       </div>
@@ -851,7 +852,7 @@ function NameEditor({ name, memberId, onSave }: { name: string; memberId: string
     <span className="flex items-center gap-1 min-w-0">
       <Link
         href={`/dashboard/team/${memberId}`}
-        className="text-sm font-semibold text-gray-900 truncate hover:text-teal-700 hover:underline"
+        className="text-sm font-semibold text-[var(--haip-fg)] truncate hover:text-primary hover:underline"
         title="View calls, messages and leads handled by this member"
       >
         {name}
@@ -859,7 +860,7 @@ function NameEditor({ name, memberId, onSave }: { name: string; memberId: string
       <button
         onClick={() => { setValue(name); setEditing(true); }}
         title="Edit name"
-        className="text-gray-300 hover:text-gray-500 flex-shrink-0 p-0.5"
+        className="text-[var(--haip-fg-subtle)]/70 hover:text-[var(--haip-fg-subtle)] flex-shrink-0 p-0.5"
       >
         <Pencil size={11} />
       </button>
@@ -908,7 +909,7 @@ function EmailEditor({ email, onSave }: { email: string; onSave: (email: string)
             if (e.key === "Escape") { setValue(email); setError(""); setEditing(false); }
           }}
           disabled={saving}
-          className="text-xs px-2 py-1 rounded-lg border border-teal-300 focus:outline-none focus:ring-1 focus:ring-teal-400 w-52"
+          className="text-xs px-2 py-1 rounded-lg border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] focus:outline-none focus:ring-1 focus:ring-primary w-52"
         />
         {error && <span className="text-[10px] text-red-500">{error}</span>}
       </div>
@@ -919,7 +920,7 @@ function EmailEditor({ email, onSave }: { email: string; onSave: (email: string)
     <button
       onClick={() => { setValue(email); setEditing(true); }}
       title="Click to edit email"
-      className="text-xs text-gray-400 truncate hover:text-gray-600 hover:underline text-left"
+      className="text-xs text-[var(--haip-fg-subtle)] truncate hover:text-[var(--haip-fg-muted)] hover:underline text-left"
     >
       {email}
     </button>
@@ -944,22 +945,22 @@ function InvitationRow({ invitation, onRevoke }: { invitation: Invitation; onRev
   const statusInfo = invitation.is_accepted
     ? { label: "Accepted", cls: "bg-green-50 text-green-700 border-green-200", icon: <CheckCircle2 size={10} /> }
     : invitation.is_revoked
-    ? { label: "Revoked", cls: "bg-gray-50 text-gray-500 border-gray-200", icon: <XCircle size={10} /> }
+    ? { label: "Revoked", cls: "bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)] border-[var(--haip-border)]", icon: <XCircle size={10} /> }
     : isExpired
     ? { label: "Expired", cls: "bg-red-50 text-red-600 border-red-200", icon: <Clock size={10} /> }
     : { label: "Pending", cls: "bg-amber-50 text-amber-700 border-amber-200", icon: <Clock size={10} /> };
 
   return (
     <div className="haip-card px-4 py-3.5 flex items-center gap-4 hover:shadow-sm transition-shadow">
-      <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-        <Mail size={14} className="text-gray-400" />
+      <div className="w-9 h-9 rounded-full bg-[var(--haip-status-neutral-bg)] flex items-center justify-center flex-shrink-0">
+        <Mail size={14} className="text-[var(--haip-fg-subtle)]" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
-          <span className="text-sm font-semibold text-gray-900 truncate">{invitation.name}</span>
+          <span className="text-sm font-semibold text-[var(--haip-fg)] truncate">{invitation.name}</span>
           <RoleBadge role={invitation.role} />
         </div>
-        <div className="flex items-center gap-3 text-xs text-gray-400">
+        <div className="flex items-center gap-3 text-xs text-[var(--haip-fg-subtle)]">
           <span className="truncate">{invitation.email}</span>
           {invitation.invited_by_name && <span>· invited by {invitation.invited_by_name}</span>}
         </div>
@@ -984,7 +985,7 @@ function InvitationRow({ invitation, onRevoke }: { invitation: Invitation; onRev
           </a>
           <button
             onClick={copy}
-            className="text-xs text-teal-600 hover:text-teal-800 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-teal-50 transition-colors"
+            className="text-xs text-primary hover:text-[var(--accent-foreground)] flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[var(--haip-primary-tint)] transition-colors"
             title="Copy invitation link"
           >
             {copied ? <CheckCircle2 size={12} /> : <Copy size={12} />}

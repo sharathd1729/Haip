@@ -25,10 +25,14 @@ export interface OverviewResponse {
 }
 
 export interface NeedsYouNow {
+  new_leads: number; new_leads_oldest_at: string | null;
   waiting_reply: number; waiting_oldest_at: string | null;
   missed_not_called_back: number; missed_oldest_at: string | null;
-  phone_not_called: number;
   followups_overdue: number; followups_oldest_due: string | null;
+  /** New leads nobody owns. */
+  unassigned: number;
+  /** Different people waiting across all queues, and how many of them are past their target time. */
+  people: number; breached: number;
 }
 
 export interface Series {

@@ -33,7 +33,7 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
   return (
     <button type="button" onClick={onClick} aria-pressed={on}
       className={cn("px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors text-left",
-        on ? "bg-teal-500 text-white border-teal-500" : "bg-white text-gray-600 border-gray-200 hover:border-teal-300")}>
+        on ? "bg-primary text-white border-primary" : "bg-white text-[var(--haip-fg-muted)] border-[var(--haip-border)] hover:border-[color-mix(in_srgb,var(--primary)_25%,transparent)]")}>
       {children}
     </button>
   );
@@ -50,9 +50,9 @@ function Pick({ label, value, onChange, options }: {
 }) {
   return (
     <label className="block">
-      <span className="text-[11px] font-medium text-gray-600 block mb-1">{label}</span>
+      <span className="text-[11px] font-medium text-[var(--haip-fg-muted)] block mb-1">{label}</span>
       <select value={value ?? ""} onChange={e => onChange(e.target.value ? Number(e.target.value) : undefined)}
-        className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+        className="w-full px-2.5 py-2 border border-[var(--haip-border)] rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary/30">
         <option value="">Any</option>
         {options.map(n => <option key={n} value={n}>{n} days</option>)}
       </select>
@@ -88,16 +88,16 @@ export function LeadAudiencePicker({ filter, onChange, consent, onConsent, onPre
   return (
     <div className="space-y-4">
       {opts && (
-        <p className="text-xs text-gray-500 flex items-center gap-1.5">
-          <Users size={13} className="text-gray-400" />
-          <span><strong className="text-gray-800">{opts.totals.leads.toLocaleString()}</strong> leads in your CRM ·{" "}
-            <strong className="text-gray-800">{opts.totals.with_phone.toLocaleString()}</strong> have a phone number</span>
+        <p className="text-xs text-[var(--haip-fg-subtle)] flex items-center gap-1.5">
+          <Users size={13} className="text-[var(--haip-fg-subtle)]" />
+          <span><strong className="text-[var(--haip-fg)]">{opts.totals.leads.toLocaleString()}</strong> leads in your CRM ·{" "}
+            <strong className="text-[var(--haip-fg)]">{opts.totals.with_phone.toLocaleString()}</strong> have a phone number</span>
         </p>
       )}
 
       {/* Ready-made segments */}
       <div>
-        <p className="text-[11px] font-semibold text-gray-700 mb-1.5">Start from a segment</p>
+        <p className="text-[11px] font-semibold text-[var(--haip-fg-2)] mb-1.5">Start from a segment</p>
         <div className="flex flex-wrap gap-1.5">
           <Chip on={Object.keys(filter).filter(k => k !== "not_messaged_days").length === 0} onClick={() => onChange({ not_messaged_days: filter.not_messaged_days })}>
             Everyone with a phone
@@ -112,22 +112,22 @@ export function LeadAudiencePicker({ filter, onChange, consent, onConsent, onPre
       </div>
 
       {/* Filters */}
-      <details className="group border border-gray-200 rounded-xl" open>
-        <summary className="cursor-pointer select-none px-3 py-2 text-xs font-semibold text-gray-700">Narrow it down</summary>
+      <details className="group border border-[var(--haip-border)] rounded-xl" open>
+        <summary className="cursor-pointer select-none px-3 py-2 text-xs font-semibold text-[var(--haip-fg-2)]">Narrow it down</summary>
         <div className="px-3 pb-3 space-y-3">
           <div>
-            <p className="text-[11px] font-medium text-gray-600 mb-1">How warm the lead is</p>
+            <p className="text-[11px] font-medium text-[var(--haip-fg-muted)] mb-1">How warm the lead is</p>
             <div className="flex gap-1.5">
               {["hot", "warm", "cold"].map(h => (
                 <Chip key={h} on={!!filter.heat?.includes(h)} onClick={() => set({ heat: toggle(filter.heat, h) })}><span className="capitalize">{h}</span></Chip>
               ))}
             </div>
-            <p className="text-[10px] text-gray-400 mt-1">From mood, urgency, trip dates, group size, quote and how much they've chatted.</p>
+            <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">From mood, urgency, trip dates, group size, quote and how much they've chatted.</p>
           </div>
 
           {opts && opts.stages.length > 0 && (
             <div>
-              <p className="text-[11px] font-medium text-gray-600 mb-1">Stage</p>
+              <p className="text-[11px] font-medium text-[var(--haip-fg-muted)] mb-1">Stage</p>
               <div className="flex flex-wrap gap-1.5">
                 {opts.stages.filter(s => s.leads > 0).map(s => (
                   <Chip key={s.id} on={!!filter.stage_ids?.includes(s.id)} onClick={() => set({ stage_ids: toggle(filter.stage_ids, s.id) })}>
@@ -140,7 +140,7 @@ export function LeadAudiencePicker({ filter, onChange, consent, onConsent, onPre
 
           {opts && opts.sources.length > 0 && (
             <div>
-              <p className="text-[11px] font-medium text-gray-600 mb-1">Where they came from</p>
+              <p className="text-[11px] font-medium text-[var(--haip-fg-muted)] mb-1">Where they came from</p>
               <div className="flex flex-wrap gap-1.5">
                 {opts.sources.map(s => (
                   <Chip key={s.value} on={!!filter.sources?.includes(s.value)} onClick={() => set({ sources: toggle(filter.sources, s.value) })}>
@@ -153,7 +153,7 @@ export function LeadAudiencePicker({ filter, onChange, consent, onConsent, onPre
 
           {opts && opts.owners.length > 1 && (
             <div>
-              <p className="text-[11px] font-medium text-gray-600 mb-1">Owner</p>
+              <p className="text-[11px] font-medium text-[var(--haip-fg-muted)] mb-1">Owner</p>
               <div className="flex flex-wrap gap-1.5">
                 {opts.owners.map(o => (
                   <Chip key={o.id} on={!!filter.assigned_to?.includes(o.id)} onClick={() => set({ assigned_to: toggle(filter.assigned_to, o.id) })}>
@@ -171,25 +171,25 @@ export function LeadAudiencePicker({ filter, onChange, consent, onConsent, onPre
             <Pick label="Skip if messaged in the last" value={filter.not_messaged_days} onChange={v => set({ not_messaged_days: v })} options={[7, 14, 30, 60]} />
           </div>
 
-          <div className="flex flex-wrap gap-4 text-xs text-gray-700">
-            <label className="flex items-center gap-1.5"><input type="checkbox" className="accent-teal-600" checked={!!filter.quoted_open} onChange={e => set({ quoted_open: e.target.checked || undefined })} /> Has a quote, not booked</label>
-            <label className="flex items-center gap-1.5"><input type="checkbox" className="accent-teal-600" checked={!!filter.past_guests} onChange={e => set({ past_guests: e.target.checked || undefined })} /> Stayed before</label>
+          <div className="flex flex-wrap gap-4 text-xs text-[var(--haip-fg-2)]">
+            <label className="flex items-center gap-1.5"><input type="checkbox" className="accent-primary" checked={!!filter.quoted_open} onChange={e => set({ quoted_open: e.target.checked || undefined })} /> Has a quote, not booked</label>
+            <label className="flex items-center gap-1.5"><input type="checkbox" className="accent-primary" checked={!!filter.past_guests} onChange={e => set({ past_guests: e.target.checked || undefined })} /> Stayed before</label>
           </div>
         </div>
       </details>
 
       {/* Result */}
-      <div className="rounded-xl border border-gray-200 p-3" aria-live="polite">
+      <div className="rounded-xl border border-[var(--haip-border)] p-3" aria-live="polite">
         {isError ? (
           <p className="text-xs text-red-600 flex items-center gap-1.5"><AlertCircle size={13} /> Couldn't count the audience. Try again.</p>
         ) : !preview ? (
-          <p className="text-xs text-gray-400 flex items-center gap-1.5"><Loader2 size={13} className="animate-spin" /> Counting…</p>
+          <p className="text-xs text-[var(--haip-fg-subtle)] flex items-center gap-1.5"><Loader2 size={13} className="animate-spin" /> Counting…</p>
         ) : (
           <>
             <div className="flex items-baseline gap-2 flex-wrap">
-              <span className="text-2xl font-bold text-gray-900 tabular-nums">{preview.will_receive.toLocaleString()}</span>
-              <span className="text-sm text-gray-600">will receive this</span>
-              {isFetching && <Loader2 size={12} className="animate-spin text-gray-300" />}
+              <span className="text-2xl font-bold text-[var(--haip-fg)] tabular-nums">{preview.will_receive.toLocaleString()}</span>
+              <span className="text-sm text-[var(--haip-fg-muted)]">will receive this</span>
+              {isFetching && <Loader2 size={12} className="animate-spin text-[var(--haip-fg-subtle)]/70" />}
               {preview.will_receive > 0 && (
                 <span className="ml-auto flex gap-1">
                   {(["hot", "warm", "cold"] as const).map(h => preview.heat[h] > 0 && (
@@ -199,7 +199,7 @@ export function LeadAudiencePicker({ filter, onChange, consent, onConsent, onPre
               )}
             </div>
             {left > 0 && (
-              <p className="text-[11px] text-gray-500 mt-1">
+              <p className="text-[11px] text-[var(--haip-fg-subtle)] mt-1">
                 {preview.matched.toLocaleString()} matched, {left.toLocaleString()} left out:{" "}
                 {[
                   preview.no_phone && `${preview.no_phone.toLocaleString()} have no phone number`,
@@ -211,17 +211,17 @@ export function LeadAudiencePicker({ filter, onChange, consent, onConsent, onPre
             )}
             {preview.truncated && <p className="text-[11px] text-amber-700 mt-1">Very large audience: only the first 50,000 leads were considered.</p>}
             {preview.sample.length > 0 && (
-              <ul className="mt-3 divide-y divide-gray-50 border border-gray-100 rounded-lg">
+              <ul className="mt-3 divide-y divide-[var(--haip-border)] border border-[var(--haip-border)] rounded-lg">
                 {preview.sample.map((m, i) => (
                   <li key={i} className="px-3 py-1.5 flex items-center gap-2 text-xs">
-                    <span className="font-medium text-gray-800 truncate w-32 flex-shrink-0">{m.name || "—"}</span>
-                    <span className="font-mono text-[10px] text-gray-400 flex-shrink-0">{m.phone}</span>
+                    <span className="font-medium text-[var(--haip-fg)] truncate w-32 flex-shrink-0">{m.name || "—"}</span>
+                    <span className="font-mono text-[10px] text-[var(--haip-fg-subtle)] flex-shrink-0">{m.phone}</span>
                     {m.heat && <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-full border capitalize flex-shrink-0", HEAT_STYLE[m.heat])}>{m.heat}</span>}
-                    <span className="text-[10px] text-gray-500 truncate">{m.why.join(" · ")}</span>
+                    <span className="text-[10px] text-[var(--haip-fg-subtle)] truncate">{m.why.join(" · ")}</span>
                   </li>
                 ))}
                 {preview.will_receive > preview.sample.length && (
-                  <li className="px-3 py-1.5 text-[10px] text-gray-400">…and {(preview.will_receive - preview.sample.length).toLocaleString()} more, hottest first</li>
+                  <li className="px-3 py-1.5 text-[10px] text-[var(--haip-fg-subtle)]">…and {(preview.will_receive - preview.sample.length).toLocaleString()} more, hottest first</li>
                 )}
               </ul>
             )}
@@ -229,11 +229,11 @@ export function LeadAudiencePicker({ filter, onChange, consent, onConsent, onPre
         )}
       </div>
 
-      <label className={cn("flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer text-xs", consent ? "border-teal-300 bg-teal-50/50" : "border-gray-200")}>
-        <input type="checkbox" checked={consent} onChange={e => onConsent(e.target.checked)} className="mt-0.5 accent-teal-600" />
-        <span className="text-gray-700 leading-snug">
+      <label className={cn("flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer text-xs", consent ? "border-[color-mix(in_srgb,var(--primary)_25%,transparent)] bg-[var(--haip-primary-tint)]" : "border-[var(--haip-border)]")}>
+        <input type="checkbox" checked={consent} onChange={e => onConsent(e.target.checked)} className="mt-0.5 accent-primary" />
+        <span className="text-[var(--haip-fg-2)] leading-snug">
           These leads contacted us or gave us their number, and none have asked us to stop.
-          <span className="block text-[10px] text-gray-400 mt-0.5">Anyone who replied STOP is already left out. This confirmation is saved with the campaign.</span>
+          <span className="block text-[10px] text-[var(--haip-fg-subtle)] mt-0.5">Anyone who replied STOP is already left out. This confirmation is saved with the campaign.</span>
         </span>
       </label>
     </div>

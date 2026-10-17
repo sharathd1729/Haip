@@ -1,7 +1,6 @@
-import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { MobileHeader } from "@/components/layout/MobileHeader";
-import { TopBar } from "@/components/shell/TopBar";
+import { HybridTopNav } from "@/components/shell/HybridTopNav";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { isWithinRefreshErrorGrace } from "@/lib/authGrace";
@@ -43,7 +42,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <WorkspaceProvider>
       {/*
         Single layout — children render exactly once.
-        Shell elements (sidebar, topbar, bottom nav) are shown/hidden via CSS.
+        Shell elements (top bar, phone header, bottom bar) are shown/hidden via CSS.
       */}
       <div
         className="flex"
@@ -57,16 +56,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
           background: "var(--haip-app-bg)",
         }}
       >
-        {/* ── Sidebar (desktop only) ───────────────────────────────── */}
-        <div className="hidden md:flex flex-shrink-0">
-          <Sidebar user={user} />
-        </div>
-
-        {/* ── Main column ─────────────────────────────────────────── */}
+        {/* ── Main column (Hospitality Hybrid: no sidebar; a top bar on desktop, header + bottom bar on phones) ── */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          {/* Desktop topbar */}
+          {/* Desktop top bar */}
           <div className="hidden md:block">
-            <TopBar user={user} />
+            <HybridTopNav user={user} />
           </div>
 
           {/* Mobile header */}
@@ -88,8 +82,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
             className="flex-1 overflow-hidden flex flex-col"
           >
             {/* Scroll wrapper — flex-1 gives it a defined height for h-full children. On phones the fixed bottom tab bar
-                (48px + the device's safe-area inset) sits over the bottom of the viewport, so the content ends above it. */}
-            <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 pb-[calc(3rem+env(safe-area-inset-bottom))] md:pb-0">
+                (60px + the device's safe-area inset) sits over the bottom of the viewport, so the content ends above it. */}
+            <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 pb-[calc(3.75rem+env(safe-area-inset-bottom))] md:pb-0">
               {children}
             </div>
           </main>

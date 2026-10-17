@@ -35,7 +35,8 @@ def _tenant(db):
 
 
 def _guest(db, tid):
-    g = Guest(id=gen_uuid(), tenant_id=tid, name="Asha", phone=f"+9198{uuid.uuid4().int % 10**8:08d}")
+    g = Guest(id=gen_uuid(), tenant_id=tid, name="Asha", phone=f"+9198{uuid.uuid4().int % 10**8:08d}",
+              lead_identified_at=datetime.now(timezone.utc) - timedelta(days=3))
     db.add(g)
     db.flush()
     return g
@@ -50,6 +51,10 @@ def _waiting_conversation(db, tid, age=timedelta(hours=5)):
                 channel=ChannelType.WHATSAPP, body="Is it available?")
     m.created_at = datetime.now(timezone.utc) - age
     db.add(m)
+    # A person already spoke to this lead on the phone, so only the unanswered message is outstanding (not a "new lead").
+    db.add(Call(id=str(uuid.uuid4()), tenant_id=tid, guest_id=g.id, ivr_provider="vobiz", ivr_call_id=str(uuid.uuid4()),
+                direction=CallDirection.OUTBOUND, from_number="+910000000001", to_number=g.phone, duration_seconds=90,
+                ivr_dial_status="completed", created_at=datetime.now(timezone.utc) - timedelta(days=2)))
     return conv
 
 

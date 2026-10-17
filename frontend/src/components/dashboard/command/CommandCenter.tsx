@@ -23,6 +23,8 @@ import { periodLabel } from "./types";
 import { JourneyBand } from "./JourneyBand";
 import { Ledger } from "./Ledger";
 import { Trends } from "./Trends";
+import { TodayStrip } from "@/components/dashboard/today/TodayStrip";
+import { WaitingForYou } from "@/components/dashboard/today/WaitingForYou";
 import { isRestricted, type BusinessOverview } from "./types";
 
 const INITIAL: Filters = { preset: "this_month", customFrom: "", customTo: "", channel: "", propertyId: "", agentId: "", trend: "day" };
@@ -84,6 +86,7 @@ function Loading() {
 export function CommandCenter() {
   const { data: session } = useSession();
   const firstName = (session?.user?.name || "").split(" ")[0];
+  const role = session?.user?.role ?? "";
   const [filters, setFilters] = useState<Filters>(INITIAL);
   const [remembered, remember] = usePersistedPeriod("this_month");
   // The remembered period applies once it has been read from this device; "custom" is never remembered.
@@ -116,7 +119,7 @@ export function CommandCenter() {
             <h1 className="font-[family-name:var(--font-display)] text-xl font-semibold tracking-tight text-[var(--haip-fg)] sm:text-[26px]">
               {greeting()}{firstName ? `, ${firstName}` : ""}
             </h1>
-            <p className="mt-0.5 hidden text-[13px] text-[var(--haip-fg-subtle)] sm:block">Conversations, leads, bookings and revenue across the business.</p>
+            <p className="mt-0.5 hidden text-[13px] text-[var(--haip-fg-subtle)] sm:block">Leads, bookings and revenue across the business.</p>
           </div>
           <div className="flex items-center gap-3 text-xs text-[var(--haip-fg-subtle)]" aria-live="polite">
             {isFetching && <span className="inline-flex items-center gap-1.5"><RefreshCw size={13} className="motion-safe:animate-spin" aria-hidden />Updating…</span>}
@@ -125,8 +128,13 @@ export function CommandCenter() {
           </div>
         </header>
 
+        {/* Today first (what is happening on the ground, who is waiting), then the period numbers. */}
+        <TodayStrip role={role} />
+        <WaitingForYou role={role} />
+
+        <h2 className="sr-only">Business numbers</h2>
         <PeriodBar custom value={filters.preset} onChange={pickPeriod}
-          caption={data ? <><span className="font-semibold text-[var(--haip-fg-2)]">{periodLabel(data.period.date_from, data.period.date_to)}</span> · India time (IST), full days · compared with the equal period before it</> : undefined} />
+          caption={data ? <><span className="font-semibold text-[var(--haip-fg-2)]">{periodLabel(data.period.date_from, data.period.date_to)}</span><span className="hidden sm:inline"> · India time (IST), full days · compared with the equal period before it</span><span className="sm:hidden"> · IST · vs the period before</span></> : undefined} />
 
         <Controls value={filters} onChange={setFilters} properties={properties} agents={agents}
           from={data?.period.date_from} to={data?.period.date_to} tenantWide={tenantWide} />
@@ -179,7 +187,7 @@ export function CommandCenter() {
 function Definitions({ data }: { data: BusinessOverview }) {
   const rows = [
     ["Lead", data.leads.definition],
-    ["Counts", "Conversations are chat threads, contacts are people without a phone number yet, leads are people with one (each counted once, whichever channel they used), enquiries are records. They are never added together."],
+    ["Counts", "Leads are people we hold a phone number for (each counted once, whichever channel they used); enquiries are records, and one person can have several. They are never added together."],
     ["Journey", data.funnel.note],
     ...(!isRestricted(data.bookings) ? [["Bookings", data.bookings.basis]] : []),
     ...(!isRestricted(data.revenue) ? [["Revenue", data.revenue.basis]] : []),

@@ -82,8 +82,8 @@ export function SavedReplyMenu({ query, context, onSelect, onClose, anchorRef }:
 
   return (
     <div className="absolute bottom-full left-0 mb-1 w-80 haip-card shadow-xl overflow-hidden z-50">
-      <div className="px-3 py-2 border-b border-gray-100">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Saved replies</span>
+      <div className="px-3 py-2 border-b border-[var(--haip-border)]">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--haip-fg-subtle)]">Saved replies</span>
       </div>
       <div className="max-h-56 overflow-y-auto">
         {results.map((r, i) => (
@@ -91,17 +91,17 @@ export function SavedReplyMenu({ query, context, onSelect, onClose, anchorRef }:
             key={r.id}
             onMouseDown={e => { e.preventDefault(); pick(r); }}
             className={cn(
-              "w-full text-left px-3 py-2.5 transition-colors border-b border-gray-50 last:border-0",
-              i === activeIdx ? "bg-teal-50" : "hover:bg-gray-50"
+              "w-full text-left px-3 py-2.5 transition-colors border-b border-[var(--haip-border)] last:border-0",
+              i === activeIdx ? "bg-[var(--haip-primary-tint)]" : "hover:bg-[var(--haip-surface)]"
             )}
           >
-            <p className="text-xs font-semibold text-gray-800 truncate">{r.title}</p>
-            <p className="text-[11px] text-gray-400 truncate mt-0.5">{r.body}</p>
+            <p className="text-xs font-semibold text-[var(--haip-fg)] truncate">{r.title}</p>
+            <p className="text-[11px] text-[var(--haip-fg-subtle)] truncate mt-0.5">{r.body}</p>
           </button>
         ))}
       </div>
-      <div className="px-3 py-1.5 border-t border-gray-100 bg-gray-50">
-        <span className="text-[10px] text-gray-400">↑↓ navigate · Enter to insert · Esc to close</span>
+      <div className="px-3 py-1.5 border-t border-[var(--haip-border)] bg-[var(--haip-surface)]">
+        <span className="text-[10px] text-[var(--haip-fg-subtle)]">↑↓ navigate · Enter to insert · Esc to close</span>
       </div>
     </div>
   );

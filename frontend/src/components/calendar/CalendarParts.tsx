@@ -26,8 +26,8 @@ export type Entry =
 
 /** The three colours people were told to expect: green = direct booking, gray = blocked, red = maintenance. */
 export const BLOCK_TONE = (reason: string) => (reason === "maintenance"
-  ? { bg: "bg-red-500", text: "text-white", border: "border-red-600", label: "Maintenance" }
-  : { bg: "bg-gray-300", text: "text-gray-800", border: "border-gray-400", label: reason === "owner_use" || reason === "personal" ? "Owner use (blocked)" : "Blocked" });
+  ? { bg: "bg-[var(--haip-cal-maint)]", text: "text-white", border: "border-[var(--haip-cal-maint)]", label: "Maintenance" }
+  : { bg: "bg-[var(--haip-cal-block)]", text: "text-[var(--haip-cal-block-fg)]", border: "border-[var(--haip-border-strong)]", label: reason === "owner_use" || reason === "personal" ? "Owner use (blocked)" : "Blocked" });
 
 const day = (iso: string) => format(parseISO(iso), "EEE d MMM");
 const money = (n?: number | null) => (n != null ? `₹${Math.round(n).toLocaleString("en-IN")}` : null);

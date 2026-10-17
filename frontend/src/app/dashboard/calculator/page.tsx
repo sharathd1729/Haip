@@ -209,60 +209,60 @@ export default function CalculatorPage() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="px-5 py-4 bg-white border-b border-gray-100 flex-shrink-0">
+      <div className="px-5 py-4 bg-white border-b border-[var(--haip-border)] flex-shrink-0">
         <h1 className="haip-page-title">Rate Calculator</h1>
-        <p className="text-xs text-gray-400 mt-0.5">Calculate rates and share quotes instantly on WhatsApp</p>
+        <p className="text-xs text-[var(--haip-fg-subtle)] mt-0.5">Calculate rates and share quotes instantly on WhatsApp</p>
       </div>
 
       <div className="flex-1 overflow-hidden flex gap-0">
 
         {/* LEFT — Search + Results */}
-        <div className="w-[420px] flex-shrink-0 flex flex-col border-r border-gray-100 bg-white overflow-y-auto">
+        <div className="w-[420px] flex-shrink-0 flex flex-col border-r border-[var(--haip-border)] bg-white overflow-y-auto">
 
           {/* Search Form */}
-          <div className="p-4 border-b border-gray-100 space-y-3">
+          <div className="p-4 border-b border-[var(--haip-border)] space-y-3">
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Check-in</label>
+                <label className="block text-xs font-medium text-[var(--haip-fg-subtle)] mb-1">Check-in</label>
                 <input type="date" value={checkin} onChange={e => setCheckin(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                  className="w-full px-3 py-2 text-sm border border-[var(--haip-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Check-out</label>
+                <label className="block text-xs font-medium text-[var(--haip-fg-subtle)] mb-1">Check-out</label>
                 <input type="date" value={checkout} onChange={e => setCheckout(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                  className="w-full px-3 py-2 text-sm border border-[var(--haip-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" />
               </div>
             </div>
 
             {nights > 0 && (
-              <p className="text-xs text-teal-600 font-medium">{nights} night{nights > 1 ? "s" : ""}</p>
+              <p className="text-xs text-primary font-medium">{nights} night{nights > 1 ? "s" : ""}</p>
             )}
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Adults</label>
+                <label className="block text-xs font-medium text-[var(--haip-fg-subtle)] mb-1">Adults</label>
                 <div className="flex items-center gap-2">
                   <button onClick={() => setAdults(Math.max(1, adults - 1))}
-                    className="w-7 h-7 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50">
+                    className="w-7 h-7 rounded-full border border-[var(--haip-border)] flex items-center justify-center hover:bg-[var(--haip-surface)]">
                     <Minus size={12} />
                   </button>
                   <span className="text-sm font-medium w-4 text-center">{adults}</span>
                   <button onClick={() => setAdults(adults + 1)}
-                    className="w-7 h-7 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50">
+                    className="w-7 h-7 rounded-full border border-[var(--haip-border)] flex items-center justify-center hover:bg-[var(--haip-surface)]">
                     <Plus size={12} />
                   </button>
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Children</label>
+                <label className="block text-xs font-medium text-[var(--haip-fg-subtle)] mb-1">Children</label>
                 <div className="flex items-center gap-2">
                   <button onClick={() => setChildren(Math.max(0, children - 1))}
-                    className="w-7 h-7 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50">
+                    className="w-7 h-7 rounded-full border border-[var(--haip-border)] flex items-center justify-center hover:bg-[var(--haip-surface)]">
                     <Minus size={12} />
                   </button>
                   <span className="text-sm font-medium w-4 text-center">{children}</span>
                   <button onClick={() => setChildren(children + 1)}
-                    className="w-7 h-7 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50">
+                    className="w-7 h-7 rounded-full border border-[var(--haip-border)] flex items-center justify-center hover:bg-[var(--haip-surface)]">
                     <Plus size={12} />
                   </button>
                 </div>
@@ -270,16 +270,16 @@ export default function CalculatorPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Location (optional)</label>
+              <label className="block text-xs font-medium text-[var(--haip-fg-subtle)] mb-1">Location (optional)</label>
               <input value={city} onChange={e => setCity(e.target.value)}
                 placeholder="Goa, Coorg, Manali..."
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                className="w-full px-3 py-2 text-sm border border-[var(--haip-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" />
             </div>
 
             <button
               onClick={() => searchMutation.mutate()}
               disabled={!checkin || !checkout || searchMutation.isPending}
-              className="w-full py-2.5 bg-teal-500 hover:bg-teal-600 disabled:opacity-50 text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
+              className="w-full py-2.5 bg-primary hover:bg-primary disabled:opacity-50 text-white font-semibold rounded-xl text-sm transition-colors flex items-center justify-center gap-2"
             >
               {searchMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
               Search Properties
@@ -289,29 +289,29 @@ export default function CalculatorPage() {
           {/* Results */}
           {results.length > 0 && (
             <div className="flex-1 overflow-y-auto">
-              <p className="px-4 py-2 text-xs text-gray-400 font-medium">{results.length} properties available</p>
+              <p className="px-4 py-2 text-xs text-[var(--haip-fg-subtle)] font-medium">{results.length} properties available</p>
               {results.map(p => (
                 <button key={p.property_id} onClick={() => handleSelectProperty(p)}
                   className={cn(
-                    "w-full text-left px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors",
-                    selectedProperty?.property_id === p.property_id && "bg-teal-50 border-l-2 border-l-teal-500"
+                    "w-full text-left px-4 py-3 border-b border-[var(--haip-border)] hover:bg-[var(--haip-surface)] transition-colors",
+                    selectedProperty?.property_id === p.property_id && "bg-[var(--haip-primary-tint)] border-l-2 border-l-teal-500"
                   )}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 truncate">{p.property_name}</p>
-                      <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-400">
+                      <p className="text-sm font-semibold text-[var(--haip-fg)] truncate">{p.property_name}</p>
+                      <div className="flex items-center gap-2 mt-0.5 text-xs text-[var(--haip-fg-subtle)]">
                         {p.city && <span className="flex items-center gap-0.5"><MapPin size={10} />{p.city}</span>}
                         <span className="flex items-center gap-0.5"><BedDouble size={10} />{p.bedrooms}bd</span>
                         <span className="flex items-center gap-0.5"><Users size={10} />up to {p.max_adults}</span>
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className="text-sm font-bold text-teal-600">{fmt(p.price_per_night)}</p>
-                      <p className="text-xs text-gray-400">/night</p>
+                      <p className="text-sm font-bold text-primary">{fmt(p.price_per_night)}</p>
+                      <p className="text-xs text-[var(--haip-fg-subtle)]">/night</p>
                     </div>
                   </div>
                   <div className="mt-1.5 flex items-center justify-between">
-                    <span className="text-xs text-gray-500">{p.nights} nights = <span className="font-semibold text-gray-700">{fmt(p.subtotal_accommodation)}</span></span>
+                    <span className="text-xs text-[var(--haip-fg-subtle)]">{p.nights} nights = <span className="font-semibold text-[var(--haip-fg-2)]">{fmt(p.subtotal_accommodation)}</span></span>
                     {p.rate_name && <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded font-medium">{p.rate_name}</span>}
                   </div>
                 </button>
@@ -324,70 +324,70 @@ export default function CalculatorPage() {
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           {!selectedProperty ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
-              <div className="w-16 h-16 rounded-2xl bg-teal-50 flex items-center justify-center mb-4">
-                <Home size={28} className="text-teal-500" />
+              <div className="w-16 h-16 rounded-2xl bg-[var(--haip-primary-tint)] flex items-center justify-center mb-4">
+                <Home size={28} className="text-primary" />
               </div>
-              <p className="text-gray-600 font-medium">Search and select a property</p>
-              <p className="text-gray-400 text-sm mt-1">Enter dates and guests to see available rates</p>
+              <p className="text-[var(--haip-fg-muted)] font-medium">Search and select a property</p>
+              <p className="text-[var(--haip-fg-subtle)] text-sm mt-1">Enter dates and guests to see available rates</p>
             </div>
           ) : (
             <>
               {/* Property header */}
-              <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+              <div className="bg-white rounded-2xl p-4 border border-[var(--haip-border)] shadow-sm">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h2 className="font-bold text-gray-900">{selectedProperty.property_name}</h2>
-                    <p className="text-xs text-gray-400 mt-0.5">{selectedProperty.address || selectedProperty.city}</p>
-                    <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                    <h2 className="font-bold text-[var(--haip-fg)]">{selectedProperty.property_name}</h2>
+                    <p className="text-xs text-[var(--haip-fg-subtle)] mt-0.5">{selectedProperty.address || selectedProperty.city}</p>
+                    <div className="flex items-center gap-3 mt-2 text-xs text-[var(--haip-fg-subtle)]">
                       <span>{selectedProperty.bedrooms} bed · {selectedProperty.bathrooms} bath · up to {selectedProperty.max_adults} guests</span>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-lg font-bold text-teal-600">{fmt(selectedProperty.price_per_night)}</p>
-                    <p className="text-xs text-gray-400">per night</p>
+                    <p className="text-lg font-bold text-primary">{fmt(selectedProperty.price_per_night)}</p>
+                    <p className="text-xs text-[var(--haip-fg-subtle)]">per night</p>
                   </div>
                 </div>
-                <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-sm">
-                  <span className="text-gray-500">{nights} nights × {fmt(selectedProperty.price_per_night)}</span>
-                  <span className="font-bold text-gray-900">{fmt(selectedProperty.subtotal_accommodation)}</span>
+                <div className="mt-3 pt-3 border-t border-[var(--haip-border)] flex items-center justify-between text-sm">
+                  <span className="text-[var(--haip-fg-subtle)]">{nights} nights × {fmt(selectedProperty.price_per_night)}</span>
+                  <span className="font-bold text-[var(--haip-fg)]">{fmt(selectedProperty.subtotal_accommodation)}</span>
                 </div>
               </div>
 
               {/* Add-ons */}
               {selectedProperty.addons.length > 0 && (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                  <div className="px-4 py-3 border-b border-gray-50">
-                    <h3 className="text-sm font-semibold text-gray-900">Add-ons & Experiences</h3>
+                <div className="bg-white rounded-2xl border border-[var(--haip-border)] shadow-sm overflow-hidden">
+                  <div className="px-4 py-3 border-b border-[var(--haip-border)]">
+                    <h3 className="text-sm font-semibold text-[var(--haip-fg)]">Add-ons & Experiences</h3>
                   </div>
-                  <div className="divide-y divide-gray-50">
+                  <div className="divide-y divide-[var(--haip-border)]">
                     {selectedProperty.addons.map(addon => {
                       const total = addonTotal(addon, nights, adults + children);
                       const isSelected = selectedAddons.has(addon.id);
                       return (
                         <button key={addon.id} onClick={() => toggleAddon(addon.id)}
                           className={cn(
-                            "w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors text-left",
-                            isSelected && "bg-teal-50"
+                            "w-full px-4 py-3 flex items-center justify-between hover:bg-[var(--haip-surface)] transition-colors text-left",
+                            isSelected && "bg-[var(--haip-primary-tint)]"
                           )}>
                           <div className="flex items-center gap-3">
                             <div className={cn(
                               "w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors",
-                              isSelected ? "bg-teal-500 border-teal-500" : "border-gray-300"
+                              isSelected ? "bg-primary border-primary" : "border-[var(--haip-border-strong)]"
                             )}>
                               {isSelected && <Check size={11} className="text-white" />}
                             </div>
                             <div>
-                              <p className="text-sm font-medium text-gray-900">
+                              <p className="text-sm font-medium text-[var(--haip-fg)]">
                                 {categoryEmoji[addon.category] || "•"} {addon.name}
                               </p>
                               {addon.description && (
-                                <p className="text-xs text-gray-400 mt-0.5">{addon.description}</p>
+                                <p className="text-xs text-[var(--haip-fg-subtle)] mt-0.5">{addon.description}</p>
                               )}
-                              <p className="text-xs text-gray-400 mt-0.5 capitalize">{addon.price_type.replace("_", " ")}</p>
+                              <p className="text-xs text-[var(--haip-fg-subtle)] mt-0.5 capitalize">{addon.price_type.replace("_", " ")}</p>
                             </div>
                           </div>
                           <div className="text-right flex-shrink-0 ml-3">
-                            <p className="text-sm font-semibold text-gray-900">{fmt(total)}</p>
+                            <p className="text-sm font-semibold text-[var(--haip-fg)]">{fmt(total)}</p>
                           </div>
                         </button>
                       );
@@ -397,26 +397,26 @@ export default function CalculatorPage() {
               )}
 
               {/* Dynamic Pricing panel */}
-              <div className="bg-gradient-to-br from-teal-50 to-blue-50 rounded-2xl border border-teal-100 p-4 space-y-3">
+              <div className="bg-gradient-to-br from-[var(--haip-primary-tint)] to-blue-50 rounded-2xl border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] p-4 space-y-3">
                 <div className="flex items-center gap-2">
-                  <Zap size={14} className="text-teal-500" />
-                  <span className="text-sm font-semibold text-gray-900">Dynamic Pricing</span>
-                  <span className="text-[10px] bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded-full font-medium ml-auto">AI-powered</span>
+                  <Zap size={14} className="text-primary" />
+                  <span className="text-sm font-semibold text-[var(--haip-fg)]">Dynamic Pricing</span>
+                  <span className="text-[10px] bg-[var(--haip-primary-tint)] text-primary px-1.5 py-0.5 rounded-full font-medium ml-auto">AI-powered</span>
                 </div>
 
                 {/* Occupancy slider */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs text-gray-500">Portfolio occupancy</label>
-                    <span className="text-xs font-bold text-teal-600 tabular-nums">{occupancyOverride}%</span>
+                    <label className="text-xs text-[var(--haip-fg-subtle)]">Portfolio occupancy</label>
+                    <span className="text-xs font-bold text-primary tabular-nums">{occupancyOverride}%</span>
                   </div>
                   <input
                     type="range" min={0} max={100} step={5}
                     value={occupancyOverride}
                     onChange={e => { setOccupancyOverride(+e.target.value); setDynamicPrice(null); }}
-                    className="w-full accent-teal-500 h-1.5"
+                    className="w-full accent-primary h-1.5"
                   />
-                  <div className="flex justify-between text-[10px] text-gray-300 mt-0.5">
+                  <div className="flex justify-between text-[10px] text-[var(--haip-fg-subtle)]/70 mt-0.5">
                     <span>Low demand</span><span>High demand</span>
                   </div>
                 </div>
@@ -424,7 +424,7 @@ export default function CalculatorPage() {
                 <button
                   onClick={() => dynamicMutation.mutate()}
                   disabled={!selectedProperty || !checkin || !checkout || dynamicMutation.isPending}
-                  className="w-full py-2 bg-teal-500 hover:bg-teal-600 disabled:opacity-40 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2 transition-colors"
+                  className="w-full py-2 bg-primary hover:bg-primary disabled:opacity-40 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2 transition-colors"
                 >
                   {dynamicMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <TrendingUp size={13} />}
                   Get Smart Rate
@@ -434,11 +434,11 @@ export default function CalculatorPage() {
                 {showDynamic && dynamicPrice && (
                   <div className="space-y-2 pt-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500">Base rate / night</span>
-                      <span className="text-xs text-gray-700 font-medium">{fmt(dynamicPrice.base_rate)}</span>
+                      <span className="text-xs text-[var(--haip-fg-subtle)]">Base rate / night</span>
+                      <span className="text-xs text-[var(--haip-fg-2)] font-medium">{fmt(dynamicPrice.base_rate)}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500">Smart rate / night</span>
+                      <span className="text-xs text-[var(--haip-fg-subtle)]">Smart rate / night</span>
                       <div className="flex items-center gap-1">
                         {dynamicPrice.final_rate > dynamicPrice.base_rate
                           ? <TrendingUp size={11} className="text-green-500" />
@@ -450,25 +450,25 @@ export default function CalculatorPage() {
                         )}>
                           {fmt(dynamicPrice.final_rate)}
                         </span>
-                        <span className="text-[10px] text-gray-400">
+                        <span className="text-[10px] text-[var(--haip-fg-subtle)]">
                           ({dynamicPrice.aggregate_multiplier >= 1 ? "+" : ""}{Math.round((dynamicPrice.aggregate_multiplier - 1) * 100)}%)
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between border-t border-teal-100 pt-2">
-                      <span className="text-xs font-semibold text-gray-700">Total ({dynamicPrice.nights}n)</span>
-                      <span className="text-base font-bold text-teal-600">{fmt(dynamicPrice.total_price)}</span>
+                    <div className="flex items-center justify-between border-t border-[color-mix(in_srgb,var(--primary)_25%,transparent)] pt-2">
+                      <span className="text-xs font-semibold text-[var(--haip-fg-2)]">Total ({dynamicPrice.nights}n)</span>
+                      <span className="text-base font-bold text-primary">{fmt(dynamicPrice.total_price)}</span>
                     </div>
 
                     {/* Factors breakdown */}
                     <div className="bg-white/70 rounded-xl p-2.5 space-y-1.5">
-                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Pricing factors</p>
+                      <p className="text-[10px] font-semibold text-[var(--haip-fg-subtle)] uppercase tracking-wider mb-1">Pricing factors</p>
                       {Object.entries(dynamicPrice.factors).map(([k, v]) => (
                         <div key={k} className="flex items-center justify-between">
-                          <span className="text-[11px] text-gray-500 capitalize">{k.replace("_", " ")}</span>
+                          <span className="text-[11px] text-[var(--haip-fg-subtle)] capitalize">{k.replace("_", " ")}</span>
                           <span className={cn(
                             "text-[11px] font-semibold tabular-nums",
-                            v > 1 ? "text-green-600" : v < 1 ? "text-rose-500" : "text-gray-400"
+                            v > 1 ? "text-green-600" : v < 1 ? "text-rose-500" : "text-[var(--haip-fg-subtle)]"
                           )}>
                             {v > 1 ? "+" : ""}{Math.round((v - 1) * 100)}%
                           </span>
@@ -480,17 +480,17 @@ export default function CalculatorPage() {
                     <div className="space-y-1">
                       {dynamicPrice.insights.map((insight, i) => (
                         <div key={i} className="flex gap-1.5 items-start">
-                          <Info size={10} className="text-teal-400 flex-shrink-0 mt-0.5" />
-                          <p className="text-[11px] text-gray-600 leading-snug">{insight}</p>
+                          <Info size={10} className="text-primary flex-shrink-0 mt-0.5" />
+                          <p className="text-[11px] text-[var(--haip-fg-muted)] leading-snug">{insight}</p>
                         </div>
                       ))}
                     </div>
 
                     {/* Floor / ceiling */}
-                    <div className="flex gap-2 text-[10px] text-gray-400">
-                      <span>Floor: <span className="font-medium text-gray-500">{fmt(dynamicPrice.suggested_floor)}</span></span>
+                    <div className="flex gap-2 text-[10px] text-[var(--haip-fg-subtle)]">
+                      <span>Floor: <span className="font-medium text-[var(--haip-fg-subtle)]">{fmt(dynamicPrice.suggested_floor)}</span></span>
                       <span>·</span>
-                      <span>Ceiling: <span className="font-medium text-gray-500">{fmt(dynamicPrice.suggested_ceiling)}</span></span>
+                      <span>Ceiling: <span className="font-medium text-[var(--haip-fg-subtle)]">{fmt(dynamicPrice.suggested_ceiling)}</span></span>
                     </div>
                   </div>
                 )}
@@ -505,49 +505,49 @@ export default function CalculatorPage() {
 
               {/* Quote Breakdown */}
               {quote && (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                  <div className="px-4 py-3 border-b border-gray-50">
-                    <h3 className="text-sm font-semibold text-gray-900">Quote Breakdown</h3>
+                <div className="bg-white rounded-2xl border border-[var(--haip-border)] shadow-sm overflow-hidden">
+                  <div className="px-4 py-3 border-b border-[var(--haip-border)]">
+                    <h3 className="text-sm font-semibold text-[var(--haip-fg)]">Quote Breakdown</h3>
                   </div>
                   <div className="px-4 py-3 space-y-2 text-sm">
-                    <div className="flex justify-between text-gray-600">
+                    <div className="flex justify-between text-[var(--haip-fg-muted)]">
                       <span>Accommodation</span>
                       <span>{fmt(quote.breakdown.subtotal_accommodation)}</span>
                     </div>
                     {quote.selected_addons.map(a => (
-                      <div key={a.id} className="flex justify-between text-gray-600">
+                      <div key={a.id} className="flex justify-between text-[var(--haip-fg-muted)]">
                         <span>{a.name}</span>
                         <span>{fmt(a.total)}</span>
                       </div>
                     ))}
-                    <div className="flex justify-between text-gray-500 pt-2 border-t border-gray-100">
+                    <div className="flex justify-between text-[var(--haip-fg-subtle)] pt-2 border-t border-[var(--haip-border)]">
                       <span>GST (12%)</span>
                       <span>{fmt(quote.breakdown.gst)}</span>
                     </div>
-                    <div className="flex justify-between font-bold text-gray-900 text-base pt-1">
+                    <div className="flex justify-between font-bold text-[var(--haip-fg)] text-base pt-1">
                       <span>Total</span>
-                      <span className="text-teal-600">{fmt(quote.breakdown.total)}</span>
+                      <span className="text-primary">{fmt(quote.breakdown.total)}</span>
                     </div>
-                    <div className="flex justify-between text-gray-600 bg-amber-50 rounded-lg px-3 py-2 mt-2">
+                    <div className="flex justify-between text-[var(--haip-fg-muted)] bg-amber-50 rounded-lg px-3 py-2 mt-2">
                       <span className="font-medium">Advance ({quote.breakdown.advance_percent}%)</span>
                       <span className="font-bold">{fmt(quote.breakdown.advance_amount)}</span>
                     </div>
                   </div>
 
                   {/* Share section */}
-                  <div className="px-4 pb-4 pt-2 space-y-3 border-t border-gray-50">
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Send on WhatsApp</p>
+                  <div className="px-4 pb-4 pt-2 space-y-3 border-t border-[var(--haip-border)]">
+                    <p className="text-xs font-medium text-[var(--haip-fg-subtle)] uppercase tracking-wide">Send on WhatsApp</p>
                     <div className="grid grid-cols-2 gap-2">
                       <input value={guestName} onChange={e => setGuestName(e.target.value)}
                         placeholder="Guest name"
-                        className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                        className="px-3 py-2 text-sm border border-[var(--haip-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" />
                       <input value={guestPhone} onChange={e => setGuestPhone(e.target.value)}
                         placeholder="+91 98765 43210"
-                        className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                        className="px-3 py-2 text-sm border border-[var(--haip-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div className="flex gap-2">
                       <button onClick={handleCopy}
-                        className="flex-1 py-2.5 border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-colors">
+                        className="flex-1 py-2.5 border border-[var(--haip-border)] text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)] rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-colors">
                         {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
                         {copied ? "Copied!" : "Copy"}
                       </button>
@@ -561,9 +561,9 @@ export default function CalculatorPage() {
                     </div>
 
                     {/* Message preview */}
-                    <div className="bg-gray-50 rounded-xl p-3">
-                      <p className="text-xs text-gray-400 font-medium mb-2">Preview</p>
-                      <pre className="text-xs text-gray-600 whitespace-pre-wrap font-sans leading-relaxed">
+                    <div className="bg-[var(--haip-surface)] rounded-xl p-3">
+                      <p className="text-xs text-[var(--haip-fg-subtle)] font-medium mb-2">Preview</p>
+                      <pre className="text-xs text-[var(--haip-fg-muted)] whitespace-pre-wrap font-sans leading-relaxed">
                         {quote.whatsapp_message}
                       </pre>
                     </div>

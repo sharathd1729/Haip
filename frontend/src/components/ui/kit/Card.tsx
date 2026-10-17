@@ -11,10 +11,10 @@ export function CardHeader({ title, description, actions, className }: {
   title: ReactNode; description?: ReactNode; actions?: ReactNode; className?: string;
 }) {
   return (
-    <div className={cn("flex flex-wrap items-start gap-x-3 gap-y-2 border-b border-[var(--haip-border)] px-4 py-3 sm:px-5", className)}>
+    <div className={cn("flex flex-wrap items-start gap-x-3 gap-y-2 px-4 pb-1 pt-4 sm:px-5", className)}>
       <div className="min-w-0 flex-1">
-        <h2 className="truncate text-[13.5px] font-bold text-[var(--haip-fg)]">{title}</h2>
-        {description && <p className="mt-0.5 text-xs text-[var(--haip-fg-subtle)]">{description}</p>}
+        <h2 className="truncate font-[family-name:var(--font-display)] text-[16px] font-semibold tracking-[-0.01em] text-[var(--haip-fg)]">{title}</h2>
+        {description && <p className="mt-0.5 text-[13px] text-[var(--haip-fg-subtle)]">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
@@ -22,5 +22,5 @@ export function CardHeader({ title, description, actions, className }: {
 }
 
 export function CardBody({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("px-4 py-4 sm:px-5", className)} {...props} />;
+  return <div className={cn("px-4 pb-4 pt-3 sm:px-5", className)} {...props} />;
 }

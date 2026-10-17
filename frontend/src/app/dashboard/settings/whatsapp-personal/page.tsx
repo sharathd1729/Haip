@@ -36,7 +36,7 @@ function StatusDot({ status }: { status: string }) {
       "inline-block w-2 h-2 rounded-full flex-shrink-0",
       status === "connected" ? "bg-emerald-500" :
       status === "pending_pairing" ? "bg-amber-400" :
-      status === "disconnected" ? "bg-red-400" : "bg-gray-300"
+      status === "disconnected" ? "bg-red-400" : "bg-[var(--haip-border-strong)]"
     )} />
   );
 }
@@ -118,14 +118,14 @@ export default function WhatsAppPersonalPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="px-6 py-5 bg-white border-b border-gray-100 flex-shrink-0">
+      <div className="px-6 py-5 bg-white border-b border-[var(--haip-border)] flex-shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center">
-            <MessageCircle size={18} className="text-teal-600" />
+          <div className="w-10 h-10 rounded-xl bg-[var(--haip-primary-tint)] flex items-center justify-center">
+            <MessageCircle size={18} className="text-primary" />
           </div>
           <div>
             <h1 className="haip-page-title">Personal WhatsApp</h1>
-            <p className="text-sm text-gray-400 mt-0.5">
+            <p className="text-sm text-[var(--haip-fg-subtle)] mt-0.5">
               Bring guest conversations from your own WhatsApp into HAIP&apos;s Inbox.
             </p>
           </div>
@@ -145,16 +145,16 @@ export default function WhatsAppPersonalPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-          <div className="text-sm font-semibold text-gray-800 mb-4">My WhatsApp</div>
+        <div className="bg-white rounded-xl border border-[var(--haip-border)] shadow-sm p-5">
+          <div className="text-sm font-semibold text-[var(--haip-fg)] mb-4">My WhatsApp</div>
 
-          {isLoading && <p className="text-sm text-gray-400">Checking…</p>}
+          {isLoading && <p className="text-sm text-[var(--haip-fg-subtle)]">Checking…</p>}
 
           {!isLoading && (!mySession || status === "logged_out" || status === "pending_pairing") && !qr && !pairingCode && !showPhoneEntry && (
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm text-gray-700">{status === "pending_pairing" ? "Code expired." : "Not connected yet."}</p>
-                <p className="text-xs text-gray-400 mt-0.5">
+                <p className="text-sm text-[var(--haip-fg-2)]">{status === "pending_pairing" ? "Code expired." : "Not connected yet."}</p>
+                <p className="text-xs text-[var(--haip-fg-subtle)] mt-0.5">
                   {status === "pending_pairing"
                     ? "The window closed before it was used. Generate a new one to try again."
                     : "Pair your phone to start tracking these conversations in HAIP."}
@@ -163,14 +163,14 @@ export default function WhatsAppPersonalPage() {
               <div className="flex items-center gap-2 flex-shrink-0">
                 <button
                   onClick={() => setShowPhoneEntry(true)}
-                  className="text-xs font-medium text-gray-500 hover:text-gray-700"
+                  className="text-xs font-medium text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-2)]"
                 >
                   Use phone number
                 </button>
                 <button
                   onClick={() => pairMutation.mutate(undefined)}
                   disabled={pairMutation.isPending}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-60"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-primary hover:bg-[var(--haip-primary-hover)] disabled:opacity-60"
                 >
                   {pairMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <QrCode size={13} />}
                   {status === "pending_pairing" ? "Generate new QR" : "Pair my WhatsApp"}
@@ -181,26 +181,26 @@ export default function WhatsAppPersonalPage() {
 
           {!isLoading && (!mySession || status === "logged_out" || status === "pending_pairing") && !qr && !pairingCode && showPhoneEntry && (
             <div>
-              <p className="text-sm text-gray-700">Enter your WhatsApp number</p>
-              <p className="text-xs text-gray-400 mt-0.5 mb-3">Include country code, e.g. +919876543210. WhatsApp will show an 8-character code to enter on your phone instead of scanning.</p>
+              <p className="text-sm text-[var(--haip-fg-2)]">Enter your WhatsApp number</p>
+              <p className="text-xs text-[var(--haip-fg-subtle)] mt-0.5 mb-3">Include country code, e.g. +919876543210. WhatsApp will show an 8-character code to enter on your phone instead of scanning.</p>
               <div className="flex items-center gap-2">
                 <input
                   type="tel"
                   value={phoneInput}
                   onChange={(e) => setPhoneInput(e.target.value)}
                   placeholder="+919876543210"
-                  className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400"
+                  className="flex-1 px-3 py-2 rounded-lg border border-[var(--haip-border)] text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                 />
                 <button
                   onClick={() => setShowPhoneEntry(false)}
-                  className="text-xs font-medium text-gray-500 hover:text-gray-700 px-2"
+                  className="text-xs font-medium text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-2)] px-2"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => pairMutation.mutate(phoneInput)}
                   disabled={pairMutation.isPending || phoneInput.trim().length < 8}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-60 flex-shrink-0"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-primary hover:bg-[var(--haip-primary-hover)] disabled:opacity-60 flex-shrink-0"
                 >
                   {pairMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Phone size={13} />}
                   Get code
@@ -211,9 +211,9 @@ export default function WhatsAppPersonalPage() {
 
           {qr && status !== "connected" && (
             <div className="text-center py-2">
-              <img src={qr} alt="Scan with WhatsApp" className="mx-auto rounded-lg border border-gray-100 w-56 h-56 object-contain" />
-              <p className="text-sm text-gray-700 mt-3 font-medium">Scan with WhatsApp</p>
-              <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto">
+              <img src={qr} alt="Scan with WhatsApp" className="mx-auto rounded-lg border border-[var(--haip-border)] w-56 h-56 object-contain" />
+              <p className="text-sm text-[var(--haip-fg-2)] mt-3 font-medium">Scan with WhatsApp</p>
+              <p className="text-xs text-[var(--haip-fg-subtle)] mt-1 max-w-xs mx-auto">
                 On your phone: WhatsApp → Settings → Linked Devices → Link a Device, then scan this code.
               </p>
               <div className="flex items-center justify-center gap-1.5 mt-3 text-xs text-amber-600">
@@ -224,9 +224,9 @@ export default function WhatsAppPersonalPage() {
 
           {pairingCode && status !== "connected" && (
             <div className="text-center py-4">
-              <p className="text-3xl font-bold tracking-[0.2em] text-gray-800">{pairingCode}</p>
-              <p className="text-sm text-gray-700 mt-3 font-medium">Enter this code in WhatsApp</p>
-              <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto">
+              <p className="text-3xl font-bold tracking-[0.2em] text-[var(--haip-fg)]">{pairingCode}</p>
+              <p className="text-sm text-[var(--haip-fg-2)] mt-3 font-medium">Enter this code in WhatsApp</p>
+              <p className="text-xs text-[var(--haip-fg-subtle)] mt-1 max-w-xs mx-auto">
                 On your phone: WhatsApp → Settings → Linked Devices → Link a Device → Link with phone number instead.
               </p>
               <div className="flex items-center justify-center gap-1.5 mt-3 text-xs text-amber-600">
@@ -242,16 +242,16 @@ export default function WhatsAppPersonalPage() {
                   <Phone size={15} />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-700 flex items-center gap-1.5">
+                  <p className="text-sm text-[var(--haip-fg-2)] flex items-center gap-1.5">
                     <StatusDot status={status} /> Connected — {mySession?.phone_number}
                   </p>
-                  <p className="text-xs text-gray-400 mt-0.5">Guest messages here now appear in your Inbox.</p>
+                  <p className="text-xs text-[var(--haip-fg-subtle)] mt-0.5">Guest messages here now appear in your Inbox.</p>
                 </div>
               </div>
               <button
                 onClick={() => unpairMutation.mutate()}
                 disabled={unpairMutation.isPending}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-600 border border-gray-200 hover:bg-gray-50 disabled:opacity-60 flex-shrink-0"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-[var(--haip-fg-muted)] border border-[var(--haip-border)] hover:bg-[var(--haip-surface)] disabled:opacity-60 flex-shrink-0"
               >
                 {unpairMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <LogOut size={12} />}
                 Unpair
@@ -261,7 +261,7 @@ export default function WhatsAppPersonalPage() {
 
           {!qr && status === "disconnected" && (
             <div className="flex items-center justify-between gap-3">
-              <p className="text-sm text-gray-700 flex items-center gap-1.5">
+              <p className="text-sm text-[var(--haip-fg-2)] flex items-center gap-1.5">
                 <StatusDot status={status} /> Disconnected — {mySession?.phone_number}
               </p>
               <button
@@ -279,31 +279,31 @@ export default function WhatsAppPersonalPage() {
         </div>
 
         {isOwnerOrManager && (
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-            <div className="flex items-center gap-2 text-sm font-semibold text-gray-800 mb-1">
-              <Users size={14} className="text-gray-400" /> Team status
+          <div className="bg-white rounded-xl border border-[var(--haip-border)] shadow-sm p-5">
+            <div className="flex items-center gap-2 text-sm font-semibold text-[var(--haip-fg)] mb-1">
+              <Users size={14} className="text-[var(--haip-fg-subtle)]" /> Team status
             </div>
-            <p className="text-xs text-gray-400 mb-4">
+            <p className="text-xs text-[var(--haip-fg-subtle)] mb-4">
               Which agents have bridged their WhatsApp. Numbers are private to each agent — you see status, not the number.
             </p>
             {!directory || directory.length === 0 ? (
-              <p className="text-sm text-gray-400 py-4 text-center">No one has paired yet.</p>
+              <p className="text-sm text-[var(--haip-fg-subtle)] py-4 text-center">No one has paired yet.</p>
             ) : (
               <div className="space-y-1">
                 {directory.map(s => (
-                  <div key={s.id} className="flex items-center justify-between py-2.5 border-b border-gray-50 last:border-0">
+                  <div key={s.id} className="flex items-center justify-between py-2.5 border-b border-[var(--haip-border)] last:border-0">
                     <div className="flex items-center gap-2.5">
                       <StatusDot status={s.status} />
                       <div>
-                        <p className="text-sm text-gray-800">{s.agent_name ?? "Unknown agent"}</p>
-                        <p className="text-xs text-gray-400">{s.phone_number ?? "—"}</p>
+                        <p className="text-sm text-[var(--haip-fg)]">{s.agent_name ?? "Unknown agent"}</p>
+                        <p className="text-xs text-[var(--haip-fg-subtle)]">{s.phone_number ?? "—"}</p>
                       </div>
                     </div>
                     <span className={cn(
                       "text-xs font-medium px-2 py-0.5 rounded-full",
                       s.status === "connected" ? "bg-emerald-50 text-emerald-700" :
                       s.status === "pending_pairing" ? "bg-amber-50 text-amber-700" :
-                      s.status === "disconnected" ? "bg-red-50 text-red-700" : "bg-gray-50 text-gray-500"
+                      s.status === "disconnected" ? "bg-red-50 text-red-700" : "bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)]"
                     )}>
                       {STATUS_LABEL[s.status] ?? s.status}
                     </span>

@@ -11,6 +11,8 @@ import { ProfileCompletenessWidget } from "./ProfileCompletenessWidget";
 import { FollowUpTasksPanel } from "./FollowUpTasksPanel";
 import { useToast } from "@/components/ui/toast";
 import api from "@/lib/api";
+import { GuestAvatar } from "@/components/crm/GuestAvatar";
+import { StayCard } from "./StayCard";
 
 interface ConversationDetail {
   id: string;
@@ -185,7 +187,6 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
     staleTime: 60_000,
   });
 
-  const initial = (detail.guest_name ?? detail.guest_phone)?.[0]?.toUpperCase() ?? "?";
   const isVip = guest?.is_vip;
 
   return (
@@ -199,29 +200,16 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
     >
       {/* Header */}
       <div className="px-4 py-4 flex-shrink-0" style={{ borderBottom: "1px solid var(--haip-border)" }}>
-        <p className="text-[10px] font-medium uppercase tracking-widest mb-3" style={{ color: "var(--haip-fg-subtle)" }}>
-          Guest 360
-        </p>
         <div className="flex items-center gap-3">
-          <div
-            className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
-            style={{
-              background: isVip
-                ? "linear-gradient(135deg, #F59E0B, #D97706)"
-                : "var(--primary)",
-              color: "var(--primary-foreground)",
-            }}
-          >
-            {initial}
-          </div>
+          <GuestAvatar name={detail.guest_name} phone={detail.guest_phone} size="lg" className={isVip ? "size-11 ring-2 ring-[var(--haip-accent)] ring-offset-2 ring-offset-[var(--haip-card)]" : "size-11"} />
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <p className="text-[13px] font-semibold truncate" style={{ color: "var(--haip-fg)" }}>
+              <p className="truncate font-[family-name:var(--font-display)] text-[16px] font-semibold text-[var(--haip-fg)]">
                 {detail.guest_name || "Unknown"}
               </p>
-              {isVip && <Star size={10} className="flex-shrink-0" style={{ color: "#F59E0B" }} fill="#F59E0B" />}
+              {isVip && <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-[var(--haip-accent-light)] px-1.5 text-[11px] font-bold text-[var(--haip-accent-ink)]"><Star size={10} />VIP</span>}
             </div>
-            <p className="text-[10px] truncate" style={{ color: "var(--haip-fg-subtle)" }}>
+            <p className="num truncate text-[12.5px] text-[var(--haip-fg-subtle)]">
               ···{detail.guest_phone.slice(-4)}
             </p>
           </div>
@@ -251,6 +239,8 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
           </div>
         ) : (
           <>
+            {/* The stay that matters now (in progress, else next), when the viewer may see bookings. */}
+            <StayCard guestId={detail.guest_id ?? guest?.id} role={session?.user?.role} />
             {/* Trip Details -- same card as leads/[inquiryId]/page.tsx's
                 Overview tab: guests, dates, property/route, budget,
                 occasion, special requests. Reads the same /leads/{inquiry_id}

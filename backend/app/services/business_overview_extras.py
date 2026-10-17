@@ -242,7 +242,7 @@ def high_intent_at_risk(db: Session, p: Params, queue: dict) -> dict:
     """Open leads the AI read as positive ("hot", the lead-quality label already used on Leads activity) that nobody
     owns, that are waiting for a reply, or whose follow-up is overdue. Built from the shared work queue; no new rule."""
     reasons: dict[str, tuple[str, str, str]] = {}
-    labels = {"unassigned": "nobody owns it", "reply": "waiting for a reply", "followup": "follow-up overdue"}
+    labels = {"new_lead": "nobody has contacted them", "reply": "waiting for a reply", "followup": "follow-up overdue"}
     for item in queue.get("items", []):
         iid = item.get("inquiry_id")
         if iid and item["kind"] in labels and iid not in reasons:
