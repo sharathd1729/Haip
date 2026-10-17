@@ -12,11 +12,11 @@ import { GlobalSearch, NotificationBell, ThemeToggle, UserMenu } from "./TopBar"
 
 interface Props { user?: { name?: string | null; email?: string | null; role?: string; tenantId?: string } }
 
-function Count({ n, tone = "plum" }: { n: number; tone?: "plum" | "marigold" }) {
+function Count({ n, tone = "brand" }: { n: number; tone?: "brand" | "highlight" }) {
   if (!n) return null;
   return (
     <span className={cn("num min-w-5 rounded-full px-1.5 text-center text-[11px] font-bold leading-5",
-      tone === "plum" ? "bg-primary text-primary-foreground" : "bg-[var(--haip-accent)] text-[#1C1917]")}>
+      tone === "brand" ? "bg-primary text-primary-foreground" : "bg-[var(--haip-accent)] text-[var(--haip-on-accent)]")}>
       {n > 99 ? "99+" : n}
     </span>
   );

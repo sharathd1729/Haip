@@ -1,13 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Figtree } from "next/font/google";
 import "./globals.css";
-import "./palette-lab.css";
 import { Providers } from "@/components/providers";
 import { PWARegister } from "@/components/PWARegister";
 import { UpdateBanner } from "@/components/UpdateBanner";
 import { ConnectionBanner } from "@/components/ConnectionBanner";
 import { ResumeRevalidator } from "@/components/ResumeRevalidator";
-import { PaletteLab } from "@/components/PaletteLab";
 
 // Hospitality Hybrid type system (docs/DESIGN.md): Figtree for everything people read and operate, Bricolage Grotesque for
 // page titles, headline figures and section headings. Both self-hosted by next/font; --font-sans and --font-display in
@@ -33,7 +31,7 @@ export const viewport: Viewport = {
   userScalable: false,
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#FFFFFF" },
-    { media: "(prefers-color-scheme: dark)", color: "#141110" },
+    { media: "(prefers-color-scheme: dark)", color: "#111412" },
   ],
   viewportFit: "cover",
 };
@@ -89,9 +87,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 document.documentElement.classList.add('dark');
               }
             }
-            // Palette lab (components/PaletteLab.tsx): apply a palette picked in this browser before first paint.
-            var pal = new URLSearchParams(window.location.search).get('palette') || localStorage.getItem('haip_palette');
-            if (pal && /^(emerald|seagreen|cyan|lagoon)$/.test(pal)) document.documentElement.setAttribute('data-palette', pal);
           } catch(e) {}
         `}} />
       </head>
@@ -101,7 +96,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <UpdateBanner />
         <ConnectionBanner />
         <ResumeRevalidator />
-        <PaletteLab />
       </body>
     </html>
   );

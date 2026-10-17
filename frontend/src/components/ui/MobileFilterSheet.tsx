@@ -42,7 +42,7 @@ export function MobileFilterSheet({
   );
 }
 
-/** The phone "Filters" button: a pill like the kit's FilterChip, tinted plum while any filter is on, so it reads as the
+/** The phone "Filters" button: a pill like the kit's FilterChip, tinted with the brand colour while any filter is on, so it reads as the
  * same family of control everywhere it appears. */
 export function MobileFilterTrigger({
   onClick,
