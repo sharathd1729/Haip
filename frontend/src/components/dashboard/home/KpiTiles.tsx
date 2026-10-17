@@ -82,7 +82,7 @@ export function KpiTiles({ data, rangeLabel }: { data: OverviewResponse; rangeLa
               style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display)" }}>
               {t.value}
             </span>
-            {t.spark && <Sparkline values={t.spark} color="#0F766E" />}
+            {t.spark && <Sparkline values={t.spark} color="var(--primary)" />}
           </div>
           <span className="flex min-h-5 flex-wrap items-center gap-x-1.5 gap-y-0.5">
             {t.pill}

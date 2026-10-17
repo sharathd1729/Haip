@@ -81,7 +81,7 @@ export function DataTable<T>({
             <tr>
               {selectable && (
                 <th className="w-10 px-3 py-2">
-                  <input type="checkbox" aria-label="Select all rows" checked={allOn} onChange={toggleAll} className="size-4 accent-primary" />
+                  <label className="-m-2 flex size-11 cursor-pointer items-center justify-center"><input type="checkbox" aria-label="Select all rows" checked={allOn} onChange={toggleAll} className="size-4 accent-primary" /></label>
                 </th>
               )}
               {columns.map(c => (
@@ -120,7 +120,7 @@ export function DataTable<T>({
                     onRowClick && "cursor-pointer hover:bg-[var(--hover-bg)]", on && "bg-[var(--haip-primary-tint)]")}>
                   {selectable && (
                     <td className="w-10 px-3" onClick={e => e.stopPropagation()}>
-                      <input type="checkbox" aria-label="Select row" checked={!!on} onChange={() => toggleOne(k)} className="size-4 accent-primary" />
+                      <label className="-m-2 flex size-11 cursor-pointer items-center justify-center"><input type="checkbox" aria-label="Select row" checked={!!on} onChange={() => toggleOne(k)} className="size-4 accent-primary" /></label>
                     </td>
                   )}
                   {columns.map(c => (

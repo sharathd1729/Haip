@@ -57,7 +57,7 @@ export function RevenueChart({ series, rangeLabel }: { series: Series; rangeLabe
                     : [formatRupees(Number(v)), name]}
                 />
                 <Bar dataKey="previous" name="Previous" fill="#CBD5D1" radius={[3, 3, 0, 0]} maxBarSize={28} />
-                <Bar dataKey="revenue" name="This period" fill="#0F766E" radius={[3, 3, 0, 0]} maxBarSize={28} />
+                <Bar dataKey="revenue" name="This period" fill="var(--primary)" radius={[3, 3, 0, 0]} maxBarSize={28} />
               </BarChart>
             </ResponsiveContainer>
           </div>

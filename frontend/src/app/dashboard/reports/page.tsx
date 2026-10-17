@@ -170,7 +170,7 @@ function StepBadge({ step, current }: { step: number; current: number }) {
   return (
     <div className={cn(
       "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all flex-shrink-0",
-      done ? "bg-primary text-white" : active ? "bg-[#0F766E] text-white" : "bg-[var(--haip-border)] text-[var(--haip-fg-subtle)]"
+      done ? "bg-primary text-white" : active ? "bg-primary text-white" : "bg-[var(--haip-border)] text-[var(--haip-fg-subtle)]"
     )}>
       {done ? <Check size={13} /> : step}
     </div>

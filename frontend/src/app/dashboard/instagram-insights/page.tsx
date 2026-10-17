@@ -10,7 +10,7 @@ import { KpiCard } from "@/components/analytics/KpiCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import api from "@/lib/api";
 
-const TEAL = "#14b8a6"; const PINK = "#e1306c"; const AMBER = "#fbbf24"; const GRAY = "#e5e7eb";
+const TEAL = "var(--primary)"; const PINK = "#e1306c"; const AMBER = "#fbbf24"; const GRAY = "#e5e7eb";
 
 interface InstagramInsightPoint {
   date: string;

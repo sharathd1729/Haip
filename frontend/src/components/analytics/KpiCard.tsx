@@ -72,10 +72,10 @@ export const KpiCard = memo(function KpiCard({
   const iconBg =
     variant === "warning" ? "rgba(245,158,11,0.12)" :
     variant === "danger"  ? "rgba(248,113,113,0.12)" :
-    "rgba(20,184,166,0.10)";
+    "var(--haip-primary-tint)";
   const iconColor =
     variant === "warning" ? "#D97706" :
-    variant === "danger"  ? "#ef4444" : "#0F766E";
+    variant === "danger"  ? "#ef4444" : "var(--primary)";
 
   return (
     <div
@@ -111,7 +111,7 @@ export const KpiCard = memo(function KpiCard({
         </p>
       )}
       {onClick && (
-        <p className="text-[10px] mt-2 font-medium" style={{ color: "#14B8A6" }}>
+        <p className="text-[10px] mt-2 font-medium" style={{ color: "var(--primary)" }}>
           Drill down →
         </p>
       )}

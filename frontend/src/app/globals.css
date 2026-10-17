@@ -561,6 +561,14 @@
   .haip-page-title:not(.haip-page-title--keep) + p { display: none; }
   :is(div, header).flex-shrink-0:has(h1.haip-page-title) { padding: 8px 12px; }
 }
+/* Touch screens: every text-sized control inside the app is at least 44px tall, so pages built before the kit meet the
+   tap-target rule without per-page edits. Absolutely positioned controls (calendar bars, input adornments) and fixed-size
+   icon buttons keep their size; checkboxes and radios rely on their label row. */
+@media (hover: none) and (pointer: coarse) {
+  main :is(button, [role="button"], [role="tab"], select, input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"])):not(.absolute, [class*="size-"], [class*="w-5 "], [class*="w-6 "], [class*="w-7 "], [class*="w-8 "]) {
+    min-height: 44px;
+  }
+}
 .haip-label {
   font-size: 0.6875rem;
   font-weight: 600;

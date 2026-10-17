@@ -162,7 +162,7 @@ export default function TemplatesPage() {
           {FILTERS.map(f => (
             <button key={f} onClick={() => setFilter(f)}
               className={cn("px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors",
-                filter === f ? "bg-[#0F766E] text-white" : "text-[var(--haip-fg-subtle)] hover:bg-[var(--haip-status-neutral-bg)]")}>
+                filter === f ? "bg-primary text-white" : "text-[var(--haip-fg-subtle)] hover:bg-[var(--haip-status-neutral-bg)]")}>
               {f === "pending" ? "In review" : f} {f !== "all" && `(${countOf(f)})`}
             </button>
           ))}

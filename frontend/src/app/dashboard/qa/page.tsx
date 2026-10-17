@@ -95,7 +95,7 @@ export default function QAPage() {
               onClick={() => setTab(t)}
               className={cn(
                 "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors capitalize",
-                tab === t ? "bg-[#0F766E] text-white" : "text-[var(--haip-fg-subtle)] hover:bg-[var(--haip-status-neutral-bg)]"
+                tab === t ? "bg-primary text-white" : "text-[var(--haip-fg-subtle)] hover:bg-[var(--haip-status-neutral-bg)]"
               )}
             >
               {t}

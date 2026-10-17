@@ -321,7 +321,7 @@ export default function HelpPage() {
           )}
 
           {/* Contact section */}
-          <div className="rounded-2xl p-6 text-white" style={{ background: "linear-gradient(135deg, #0F766E, #0d9488)" }}>
+          <div className="rounded-2xl p-6 text-white" style={{ background: "var(--primary)" }}>
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
                 <Mail size={22} className="text-primary" />

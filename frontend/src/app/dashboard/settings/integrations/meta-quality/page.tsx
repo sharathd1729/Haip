@@ -346,10 +346,10 @@ export default function MetaQualityPage() {
                   <Line
                     type="stepAfter"
                     dataKey="score"
-                    stroke="#0f766e"
+                    stroke="var(--primary)"
                     strokeWidth={2}
                     dot={false}
-                    activeDot={{ r: 4, fill: "#0f766e" }}
+                    activeDot={{ r: 4, fill: "var(--primary)" }}
                   />
                 </LineChart>
               </ResponsiveContainer>

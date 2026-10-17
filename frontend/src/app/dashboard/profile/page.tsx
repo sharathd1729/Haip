@@ -239,7 +239,7 @@ function ChangePasswordCard() {
           <button
             onClick={handleSubmit}
             disabled={loading || !form.current || !form.next || !form.confirm}
-            className="flex items-center gap-2 px-5 py-2 bg-[#0F766E] text-white rounded-lg text-sm font-semibold hover:bg-[#0d6660] disabled:opacity-50 transition-colors"
+            className="flex items-center gap-2 px-5 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-[var(--haip-primary-hover)] disabled:opacity-50 transition-colors"
           >
             {loading ? <Loader2 size={14} className="animate-spin" /> : <Lock size={14} />}
             Update password

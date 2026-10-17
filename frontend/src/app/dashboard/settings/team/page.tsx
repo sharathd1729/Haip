@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { Users, UserPlus, Mail, Shield, Eye, Clock, CheckCircle2, XCircle, ChevronDown, Copy, Trash2, Loader2, AlertCircle, X, Settings, RefreshCw, MoreHorizontal, MessageSquare, PhoneCall, ShieldAlert, Pencil } from "@/lib/icons";
 import { Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { avatarInitials, avatarTintClass } from "@/lib/avatarTint";
 import api from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -74,9 +75,8 @@ function RoleBadge({ role }: { role: string }) {
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
 function Avatar({ name, size = "md", photoUrl }: { name: string; size?: "sm" | "md"; photoUrl?: string | null }) {
-  const initials = name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
-  const colors = ["bg-primary", "bg-blue-500", "bg-purple-500", "bg-amber-500", "bg-pink-500"];
-  const color = colors[name.charCodeAt(0) % colors.length];
+  const initials = avatarInitials(name);
+  const color = avatarTintClass(name);
   const sizeCls = size === "sm" ? "w-7 h-7 text-[10px]" : "w-9 h-9 text-xs";
   const [imgFailed, setImgFailed] = useState(false);
 
@@ -93,7 +93,7 @@ function Avatar({ name, size = "md", photoUrl }: { name: string; size?: "sm" | "
 
   return (
     <div className={cn(
-      "rounded-full flex items-center justify-center text-white font-bold flex-shrink-0",
+      "rounded-full flex items-center justify-center font-bold flex-shrink-0",
       color, sizeCls
     )}>
       {initials}
@@ -300,7 +300,7 @@ function InvitationLinkModal({ invitation, onClose }: { invitation: Invitation; 
           </div>
         </div>
         <div className="px-6 pb-5">
-          <button onClick={onClose} className="w-full py-2.5 bg-[#0F766E] text-white rounded-xl text-sm font-semibold hover:bg-[#0d6660] transition-colors">
+          <button onClick={onClose} className="w-full py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-[var(--haip-primary-hover)] transition-colors">
             Done
           </button>
         </div>
@@ -529,8 +529,8 @@ export default function TeamPage() {
               key={t}
               onClick={() => setTab(t)}
               className={cn(
-                "px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors",
-                tab === t ? "bg-[#0F766E] text-white" : "text-[var(--haip-fg-subtle)] hover:bg-[var(--haip-status-neutral-bg)]"
+                "rounded-full px-4 py-1.5 text-[13.5px] font-semibold capitalize transition-colors",
+                tab === t ? "bg-[var(--haip-primary-tint)] text-primary" : "text-[var(--haip-fg-muted)] hover:bg-[var(--haip-status-neutral-bg)]"
               )}
             >
               {t === "invitations" ? `Pending Invites ${pendingInvitations.length > 0 ? `(${pendingInvitations.length})` : ""}` : "Members"}
@@ -666,11 +666,12 @@ function MemberRow({ member, onRoleChanged, onToggleActive, onToggleIvrRouting, 
 
   return (
     <div className={cn(
-      "haip-card px-4 py-3.5 flex items-center gap-4 hover:shadow-sm transition-shadow",
+      // Wraps on narrow screens: the controls drop to a second line instead of squeezing the name to nothing.
+      "haip-card px-4 py-3.5 flex flex-wrap items-center gap-x-4 gap-y-2 hover:shadow-sm transition-shadow",
       !member.is_active && "opacity-60"
     )}>
       <Avatar name={member.name} photoUrl={member.avatar_url} />
-      <div className="flex-1 min-w-0">
+      <div className="min-w-[11rem] flex-1">
         <div className="flex items-center gap-2 mb-0.5">
           <NameEditor name={member.name} memberId={member.id} onSave={onUpdateName} />
           {member.is_mfa_enabled && (
@@ -698,7 +699,7 @@ function MemberRow({ member, onRoleChanged, onToggleActive, onToggleIvrRouting, 
             ? "text-[var(--haip-fg-subtle)]/70 border-[var(--haip-border)] cursor-not-allowed"
             : member.ivr_call_routing_enabled
               ? "text-primary bg-[var(--haip-primary-tint)] border-[color-mix(in_srgb,var(--primary)_25%,transparent)] hover:bg-[var(--haip-primary-tint)]"
-              : "text-[var(--haip-fg-subtle)] bg-white border-[var(--haip-border)] hover:border-[var(--haip-border-strong)]"
+              : "text-[var(--haip-fg-subtle)] bg-[var(--haip-card)] border-[var(--haip-border)] hover:border-[var(--haip-border-strong)]"
         )}
       >
         <PhoneCall size={12} />
