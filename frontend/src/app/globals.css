@@ -488,6 +488,10 @@
   --haip-cal-maint:  #B4322F;
   --haip-cal-block:  #D6D3D1; --haip-cal-block-fg: #292524;
   --haip-on-accent:  #1C1917;
+
+  /* Sign-in brand panel: always dark (deep jamun) in both themes, with a light marigold accent that passes AA on it. */
+  --haip-brand-panel:  #2A1433;
+  --haip-panel-accent: #F1C26B;
 }
 .dark {
   --haip-avatar-1-bg: rgba(201,162,217,0.16); --haip-avatar-1-fg: #DCC0E7;
