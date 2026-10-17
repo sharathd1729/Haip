@@ -19,7 +19,7 @@ export const QUERY_PERSIST_STORAGE_KEY = "haip-query-cache";
 
 // Module-level singleton so api.ts's response interceptor can invalidate
 // every query the instant connectivity is restored, without either module
-// importing the other (Providers still owns mounting <PersistQueryClientProvider>).
+// importing the other (Providers restores/persists it after mount).
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

@@ -1,5 +1,5 @@
 # HAIP — Claude Code Working Instructions
-**Version**: 2.3 · **Owner**: Sharath D. · **Updated**: 16 Oct 2026 (Alembic head `128`)
+**Version**: 2.3 · **Owner**: Sharath D. · **Updated**: 18 Oct 2026 (Alembic head `128`)
 **Reference docs**: HAIP_FULL_BUILD_PLAN.md · architecture-delta.md · execution-plan.md · docs/HAIP_Module_Audit_M0.md (module status matrix, 11 Oct 2026 — update statuses as gaps close)
 
 **KEEP THIS FILE CURRENT — standing rule from the owner.** When a change adds or alters a
@@ -396,7 +396,7 @@ Backend auth is custom JWT (HS256) via `backend/app/api/v1/endpoints/auth.py` �
 5. **Full SQLite AND PostgreSQL suites** only for: migration merges, a change touching >25 backend files or `conftest.py`/`requirements`/`config`/`main.py`, release checks, or when asked. Run them ONE AFTER THE OTHER, never together: SQLite uses one shared `./test.db`, so a second pytest run at the same time (even a single file) fails with `database is locked`; PG uses its own database per run (`CREATE DATABASE haip_x`, `alembic upgrade head`, `REQUIRE_POSTGRES_TESTS=1`, own Redis db index).
 6. Reuse a green result only if it is from this exact commit and environment. Never rerun green tests without a reason; do not chase unrelated failures (re-run that file alone first: a failure that vanishes was contention).
 Run on PostgreSQL before trusting a result (SQLite ignores foreign keys, widths, booleans, partial unique indexes; `docs/HAIP_Phase0_Failure_Register.md`). Defects awaiting a fix are strict `xfail` specs in `tests/test_increment1_defect_specs.py` (each names its PR; remove the marker in that PR). PG `db` fixture uses savepoints; on SQLite a `rollback()` in code under test erases the test's rows. pgvector SQL: `test_knowledge_pgvector_postgres.py` (PG only); SQLite uses `knowledge_service.PYTHON_VECTOR_FALLBACK`.
-Frontend: `tsc --noEmit --skipLibCheck` clean, vitest green (57); ESLint cannot run (no `eslint.config.*`). `tests/test_celery_task_routing.py`: every task routes to a consumed queue, every beat entry
+Frontend: `tsc --noEmit --skipLibCheck` clean, vitest green (88); ESLint cannot run (no `eslint.config.*`). `tests/test_celery_task_routing.py`: every task routes to a consumed queue, every beat entry
 names a registered task; pinned exceptions (`_KNOWN_UNROUTED`, `_KNOWN_DEAD_BEAT`) may only shrink. New tasks need an exact-name route. Tests default `ENCRYPTION_KEY` in `conftest.py`.
 `core/audit.py::append_audit` chains within one transaction and, on PostgreSQL, takes a per-tenant advisory lock (held until
 commit, 10 s bounded wait; failures log `audit_chain_lock_failed`) and stamps `created_at` strictly increasing, so concurrent
@@ -472,6 +472,7 @@ Direction lives in `PRODUCT.md` and `docs/DESIGN.md` §5 ("Calm operations room"
 - **Calendar** (`portfolio/calendar/page.tsx`): phones (<768px) get `components/calendar/MonthGrid.tsx`, a 7-column month grid for ONE property (property picker incl. "All vehicles" with R1/R2 tags, month arrows, bars span check-in→check-out, split per week, green direct / gray blocked / red maintenance); tablets and up keep the multi-property timeline. Both open `EntrySheet` (booking details; "Open booking" only for `canViewBookings` roles). Phone fetches 42 days from the Monday before the 1st.
 - **Booking page errors** (`lib/bookings.ts::loadFailure`): only HTTP 404 says "Booking not found"; 403 = no access, 401 = signed out, anything else = couldn't load + Try again. Never collapse these into one message.
 - Touching a page for any reason: move it onto the kit only if the task asks for it. No drive-by redesigns.
+- **Hydration (React #418)**: the first client render must equal the server render. No `localStorage`/`window`/`Date.now()` reads in render or `useState` initializers (read in an effect after mount). The query cache is restored from localStorage in an effect in `components/providers.tsx`, never via `<PersistQueryClientProvider>` (its "restoring" first render flips `isLoading` vs the server and broke ~30 pages).
 
 ## AVOID ALWAYS
 

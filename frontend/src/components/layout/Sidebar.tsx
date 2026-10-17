@@ -1,6 +1,6 @@
 "use client";
 import api, { clearTokenCache } from "@/lib/api";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
@@ -184,20 +184,20 @@ export function Sidebar({ user }: SidebarProps) {
     staleTime: 60_000,
   });
   const [expanded, setExpanded] = useState<string | null>(null);
-  // AppFlowy-inspired collapsible rail. Read synchronously from
-  // localStorage on mount (matching next-themes' own storageKey pattern,
-  // providers.tsx:23-28) rather than defaulting to false-then-flipping,
-  // which would flash the expanded sidebar on every reload for a user who
-  // collapsed it.
-  const [collapsed, setCollapsed] = useState(() => {
-    if (typeof window === "undefined") return false;
+  // AppFlowy-inspired collapsible rail. The first render must match the
+  // server's (expanded), so the saved choice is read after mount; reading
+  // localStorage in the useState initializer caused a hydration mismatch
+  // (React #418) for anyone who had collapsed it. The width transition is
+  // switched on only after that read, so the rail snaps instead of animating.
+  const [collapsed, setCollapsed] = useState(false);
+  const [railReady, setRailReady] = useState(false);
+  useEffect(() => {
     const saved = window.localStorage.getItem(COLLAPSE_STORAGE_KEY);
-    if (saved === "1") return true;
-    if (saved === "0") return false;
     // No choice made yet: on tablet widths (768-1023px, where the rail replaces the phone tab bar) start as the slim rail so
     // the page keeps the room; wider screens start expanded. Toggling stores the person's choice.
-    return window.innerWidth < 1024;
-  });
+    setCollapsed(saved === "1" ? true : saved === "0" ? false : window.innerWidth < 1024);
+    setRailReady(true);
+  }, []);
 
   function toggleCollapsed() {
     setCollapsed(c => {
@@ -260,7 +260,8 @@ export function Sidebar({ user }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "flex flex-col h-full flex-shrink-0 select-none transition-[width] duration-150 ease-out",
+        "flex flex-col h-full flex-shrink-0 select-none",
+        railReady && "transition-[width] duration-150 ease-out",
         collapsed ? "w-[64px]" : "w-[240px]",
       )}
       style={{
