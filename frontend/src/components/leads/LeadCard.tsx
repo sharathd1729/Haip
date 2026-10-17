@@ -216,7 +216,7 @@ function StageSelect({ lead }: { lead: LeadCard }) {
         value={current?.id ?? ""}
         disabled={saving}
         onChange={e => handleChange(e.target.value)}
-        className="appearance-none text-xs sm:text-[10px] font-medium rounded-full pl-3 pr-7 min-h-11 sm:min-h-0 py-1 cursor-pointer disabled:opacity-50"
+        className="appearance-none max-w-[10.5rem] truncate text-xs sm:text-[10px] font-medium rounded-full pl-3 pr-7 min-h-11 sm:min-h-0 py-1 cursor-pointer disabled:opacity-50"
         style={{
           background: current?.color ? `color-mix(in srgb, ${current.color} 15%, transparent)` : "var(--muted)",
           color: current?.color ?? "var(--haip-fg-subtle)",
@@ -353,8 +353,19 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
         <ChannelIcon channel={src} showLabel className="flex-shrink-0" />
       </div>
 
-      {/* Row 1b: stage dropdown on its own line so it never squeezes the name */}
-      <StageSelect lead={lead} />
+      {/* Row 1b: stage dropdown on its own line so it never squeezes the name, sharing it with "last touch" and the
+          reply-time badge (they used to take a row of their own further down, making every card one line taller). */}
+      <div className="flex items-center justify-between gap-2">
+        <StageSelect lead={lead} />
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="flex items-center gap-1 whitespace-nowrap text-[11px] sm:text-[10px]" style={{ color: "var(--haip-fg-subtle)" }}>
+            <Clock size={9} />
+            {lead.last_touch_at ? timeAgo(lead.last_touch_at) : "—"}
+          </span>
+          <NeedsFollowupBadge reason={lead.needs_agent_followup_reason} />
+          <ResponseTimeBadge seconds={lead.response_time_seconds} status={lead.response_time_status} />
+        </div>
+      </div>
 
       {/* Row 2: Occasion + group type pills */}
       {(lead.occasion || lead.group_type) && (
@@ -387,18 +398,6 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
 
       {/* Row 4: Completeness bar */}
       <CompletenessBar pct={lead.profile_completeness_pct} />
-
-      {/* Row 5: Last activity + response time */}
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] sm:text-[10px] flex items-center gap-1" style={{ color: "var(--haip-fg-subtle)" }}>
-          <Clock size={9} />
-          {lead.last_touch_at ? timeAgo(lead.last_touch_at) : "—"}
-        </p>
-        <div className="flex items-center gap-1">
-          <NeedsFollowupBadge reason={lead.needs_agent_followup_reason} />
-          <ResponseTimeBadge seconds={lead.response_time_seconds} status={lead.response_time_status} />
-        </div>
-      </div>
 
       {/* Row 6: Assigned agent — AI summary intentionally removed from this
           card (kept on the lead detail page); the card now stays scoped to

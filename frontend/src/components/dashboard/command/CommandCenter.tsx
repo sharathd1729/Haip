@@ -126,7 +126,7 @@ export function CommandCenter() {
         </header>
 
         <PeriodBar custom value={filters.preset} onChange={pickPeriod}
-          caption={data ? <><span className="font-semibold text-[var(--haip-fg-2)]">{periodLabel(data.period.date_from, data.period.date_to)}</span> · India time (IST), full days · compared with the equal period before it</> : undefined} />
+          caption={data ? <><span className="font-semibold text-[var(--haip-fg-2)]">{periodLabel(data.period.date_from, data.period.date_to)}</span><span className="hidden sm:inline"> · India time (IST), full days · compared with the equal period before it</span><span className="sm:hidden"> · IST · vs the period before</span></> : undefined} />
 
         <Controls value={filters} onChange={setFilters} properties={properties} agents={agents}
           from={data?.period.date_from} to={data?.period.date_to} tenantWide={tenantWide} />

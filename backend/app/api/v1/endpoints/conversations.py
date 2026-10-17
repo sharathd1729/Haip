@@ -116,6 +116,11 @@ def list_conversations(
         .distinct(Message.conversation_id)
         .all()
     )
+    # DISTINCT ON is PostgreSQL-only; elsewhere every row comes back newest first, so keep the first row per conversation.
+    _first: dict = {}
+    for row in latest_rows:
+        _first.setdefault(row.conversation_id, row)
+    latest_rows = list(_first.values())
     preview_by_conv = {row.conversation_id: row.body for row in latest_rows}
     msg_time_by_conv = {row.conversation_id: row.created_at for row in latest_rows}
     waiting_reply_by_conv = {
@@ -210,21 +215,19 @@ def list_conversations(
         ).all()
     }
 
-    def _sla_status(inquiry) -> "str | None":
-        """Same 30-min/80%-elapsed threshold as insight_detector.py's A2
-        detector -- never Inquiry.sla_breached, which is written nowhere."""
-        if not inquiry:
+    def _sla_status(conv) -> "str | None":
+        """30-min reply target, 80% = warning (same threshold as insight_detector.py's A2 detector), measured on the
+        guest's CURRENT wait: the time since their latest unanswered message. It used to read Inquiry.first_response_at,
+        which nothing writes, so every chat older than 30 minutes showed "SLA breached" forever, even after a person or
+        the bot had replied. A chat whose guest is not waiting is on time."""
+        if not conv.inquiry:
             return None
-        if inquiry.first_response_at:
+        if not waiting_reply_by_conv.get(conv.id, False):
             return "on_time"
-        created = inquiry.created_at
-        if created is None:
+        since = _parse_dt(msg_time_by_conv.get(conv.id))
+        if since is None:
             return None
-        if isinstance(created, str):
-            created = datetime.fromisoformat(created.replace("Z", "+00:00"))
-        if created.tzinfo is None:
-            created = created.replace(tzinfo=timezone.utc)
-        elapsed_minutes = (datetime.now(timezone.utc) - created).total_seconds() / 60
+        elapsed_minutes = (datetime.now(timezone.utc) - since).total_seconds() / 60
         sla_minutes = 30
         if elapsed_minutes >= sla_minutes:
             return "breached"
@@ -272,7 +275,7 @@ def list_conversations(
         if c.inquiry:
             if c.inquiry.stage_id and c.inquiry.stage_id in stage_by_id:
                 out.stage_key, out.stage_label = stage_by_id[c.inquiry.stage_id]
-            out.sla_status = _sla_status(c.inquiry)
+            out.sla_status = _sla_status(c)
         out.has_phone_decline_alert = c.id in phone_decline_conv_ids
         out.guest_channels = channels_by_guest.get(c.guest_id, [])
         if out.is_waiting_reply:
