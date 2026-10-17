@@ -97,7 +97,7 @@ export function TodayStrip({ role }: { role: string }) {
       </div>
 
       <div className={cn("mt-3 grid gap-px border-t border-[var(--haip-border)] bg-[var(--haip-border)] [&>*]:bg-[var(--haip-card)]", canSeeCalendar ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,1.7fr)]" : "grid-cols-1")}>
-        <Link href="/dashboard/my-day" className="group flex min-h-[92px] flex-col justify-between gap-1 px-4 py-3 transition-colors hover:bg-[var(--hover-bg)] sm:px-5">
+        <Link href="/dashboard/my-day" className={cn("group flex min-h-[92px] flex-col justify-between gap-1 px-4 py-3 transition-colors hover:bg-[var(--hover-bg)] sm:px-5", canSeeCalendar && "col-span-2 sm:col-span-1")}>
           <span className="text-[13px] font-medium text-[var(--haip-fg-muted)]">Waiting on the team</span>
           <span className="flex items-center gap-2">
             <span className="flex size-8 items-center justify-center rounded-xl bg-primary text-primary-foreground"><Zap size={16} /></span>

@@ -7,6 +7,7 @@
 // Bulk select, load more and the hover Call / Archive actions are unchanged.
 import { useState, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { avatarInitials, avatarTintClass } from "@/lib/avatarTint";
 import { ArrowUpDown, CheckSquare, Square, CheckCheck, Archive, X, Star, Phone, Loader2, Search, Reply, ChevronDown } from "@/lib/icons";
 import type { ConversationSummary } from "@/store/inbox";
 import { AvatarChannelBadges, toGuestChannel } from "./ChannelBadges";
@@ -54,16 +55,7 @@ interface ConversationListProps {
   isLoading?: boolean;
 }
 
-function nameColor(name: string | null | undefined): string {
-  const colors = [
-    "from-primary to-emerald-500", "from-blue-400 to-indigo-500", "from-violet-400 to-purple-500",
-    "from-rose-400 to-pink-500", "from-amber-400 to-orange-500", "from-primary to-sky-500",
-  ];
-  if (!name) return colors[0];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) & 0xffff;
-  return colors[hash % colors.length];
-}
+
 
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -372,9 +364,9 @@ export function ConversationList({
                   ) : (
                     <span
                       onClick={e => { if (e.shiftKey) toggleSelect(conv.id, e); }}
-                      className={cn("w-10 h-10 rounded-full bg-gradient-to-br flex items-center justify-center text-white text-sm font-bold", nameColor(displayName))}
+                      className={cn("w-10 h-10 rounded-full flex items-center justify-center text-[13px] font-bold", avatarTintClass(displayName || "?"))}
                     >
-                      {displayName[0]?.toUpperCase() ?? "?"}
+                      {avatarInitials(displayName || "?")}
                     </span>
                   )}
                   {!(isSelecting || isChecked) && <AvatarChannelBadges channels={channels} size={16} />}
