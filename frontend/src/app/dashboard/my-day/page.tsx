@@ -72,6 +72,7 @@ function Row({ item, active, index }: { item: Item; active: boolean; index: numb
   const { toast } = useToast();
   const channels = item.channels.map(toGuestChannel).filter(Boolean) as ReturnType<typeof toGuestChannel>[];
   const sev = SEVERITY[item.severity];
+  const late = item.severity !== "fresh" && item.severity !== "stale";
 
   // "Call" and "Call back" place the call -- the IVR rings your phone, then connects the guest (POST /calls/click-to-call) --
   // instead of opening a page and leaving you to dial by hand. A lead is named by its enquiry (the server holds the number);
@@ -108,6 +109,10 @@ function Row({ item, active, index }: { item: Item; active: boolean; index: numb
           <span className="truncate text-sm font-bold text-[var(--haip-fg)]">{item.title}</span>
           {channels.length > 0 && <ChannelBadges channels={channels as never} size={13} />}
           <StatusPill tone={sev.tone}>{sev.label}</StatusPill>
+          {/* Phones: the wait sits in this line, so the right-hand column (and its width) is not needed. */}
+          <span className={cn("text-[11.5px] font-bold tabular-nums sm:hidden", late ? "text-[var(--haip-status-danger-fg)]" : "text-[var(--haip-fg-subtle)]")}>
+            {ago(item.since)}
+          </span>
           {item.kind !== "new_lead" && <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--haip-fg-subtle)]">{KIND_LABEL[item.kind]}</span>}
         </span>
         <p className="mt-0.5 line-clamp-2 text-xs text-[var(--haip-fg-subtle)]">{item.detail}</p>
@@ -122,8 +127,8 @@ function Row({ item, active, index }: { item: Item; active: boolean; index: numb
           </p>
         )}
       </div>
-      <div className="flex min-w-12 flex-col items-end text-right">
-        <span className={cn("text-sm font-bold tabular-nums", item.severity === "fresh" || item.severity === "stale" ? "text-[var(--haip-fg-subtle)]" : "text-[var(--haip-status-danger-fg)]")}
+      <div className="hidden min-w-12 flex-col items-end text-right sm:flex">
+        <span className={cn("text-sm font-bold tabular-nums", late ? "text-[var(--haip-status-danger-fg)]" : "text-[var(--haip-fg-subtle)]")}
           title={item.since ? `Waiting since ${new Date(item.since).toLocaleString("en-IN")}` : undefined}>
           {ago(item.since)}
         </span>
