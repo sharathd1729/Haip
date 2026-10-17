@@ -67,7 +67,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
 
 const GRADIENT_MAP: Record<string, string> = {
   calls: "from-blue-500 to-blue-600",
-  inquiries: "from-teal-500 to-teal-600",
+  inquiries: "from-primary to-[var(--haip-primary-hover)]",
   guests: "from-violet-500 to-violet-600",
   qa_scores: "from-amber-500 to-amber-600",
   revenue: "from-green-500 to-green-600",
@@ -170,7 +170,7 @@ function StepBadge({ step, current }: { step: number; current: number }) {
   return (
     <div className={cn(
       "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all flex-shrink-0",
-      done ? "bg-teal-500 text-white" : active ? "bg-[#0F766E] text-white" : "bg-gray-200 text-gray-400"
+      done ? "bg-primary text-white" : active ? "bg-[#0F766E] text-white" : "bg-[var(--haip-border)] text-[var(--haip-fg-subtle)]"
     )}>
       {done ? <Check size={13} /> : step}
     </div>
@@ -303,11 +303,11 @@ export default function ReportsPage() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="px-3 py-2 sm:px-6 sm:py-5 bg-white border-b border-gray-100 flex-shrink-0">
+      <div className="px-3 py-2 sm:px-6 sm:py-5 bg-white border-b border-[var(--haip-border)] flex-shrink-0">
         <div className="hidden items-center justify-between sm:flex">
           <div>
             <h1 className="haip-page-title">Reports</h1>
-            <p className="text-sm text-gray-400 mt-0.5">
+            <p className="text-sm text-[var(--haip-fg-subtle)] mt-0.5">
               Pick what you need, filter it down to exactly the rows you want, and download it as Excel or CSV.
             </p>
           </div>
@@ -327,11 +327,11 @@ export default function ReportsPage() {
                 className={cn("flex items-center gap-1.5", step > s.n && "cursor-pointer hover:opacity-80")}
               >
                 <StepBadge step={s.n} current={step} />
-                <span className={cn("text-xs font-medium hidden sm:block", step === s.n ? "text-gray-900" : "text-gray-400")}>
+                <span className={cn("text-xs font-medium hidden sm:block", step === s.n ? "text-[var(--haip-fg)]" : "text-[var(--haip-fg-subtle)]")}>
                   {s.label}
                 </span>
               </button>
-              {i < arr.length - 1 && <ChevronRight size={13} className="text-gray-300 mx-1" />}
+              {i < arr.length - 1 && <ChevronRight size={13} className="text-[var(--haip-fg-subtle)]/70 mx-1" />}
             </div>
           ))}
         </div>
@@ -343,22 +343,22 @@ export default function ReportsPage() {
           {/* Quick reports */}
           {presets.length > 0 && (
             <div>
-              <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Quick reports</p>
+              <p className="text-xs font-semibold text-[var(--haip-fg-muted)] uppercase tracking-wider mb-2">Quick reports</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {presets.map(p => (
                   <button
                     key={p.id}
                     onClick={() => applyPreset(p)}
                     disabled={previewMutation.isPending}
-                    className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white text-left hover:border-teal-400 hover:shadow-sm transition-all disabled:opacity-60 outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                    className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-[var(--haip-border)] bg-white text-left hover:border-primary hover:shadow-sm transition-all disabled:opacity-60 outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   >
                     <span className="min-w-0">
-                      <span className="block text-sm font-semibold text-gray-900 truncate">{p.label}</span>
-                      <span className="block text-[11px] text-gray-500 mt-0.5">{p.hint}</span>
+                      <span className="block text-sm font-semibold text-[var(--haip-fg)] truncate">{p.label}</span>
+                      <span className="block text-[11px] text-[var(--haip-fg-subtle)] mt-0.5">{p.hint}</span>
                     </span>
                     {previewMutation.isPending && previewMutation.variables?.filters === p.filters
-                      ? <Loader2 size={14} className="animate-spin text-teal-600 flex-shrink-0" />
-                      : <ChevronRight size={14} className="text-gray-300 flex-shrink-0" />}
+                      ? <Loader2 size={14} className="animate-spin text-primary flex-shrink-0" />
+                      : <ChevronRight size={14} className="text-[var(--haip-fg-subtle)]/70 flex-shrink-0" />}
                   </button>
                 ))}
               </div>
@@ -383,7 +383,7 @@ export default function ReportsPage() {
             summary={selectedReport?.name}
           >
             {catalogLoading ? (
-              <div className="flex items-center gap-2 text-sm text-gray-400 py-6">
+              <div className="flex items-center gap-2 text-sm text-[var(--haip-fg-subtle)] py-6">
                 <Loader2 size={14} className="animate-spin" /> Loading report types…
               </div>
             ) : catalogIsError ? (
@@ -401,7 +401,7 @@ export default function ReportsPage() {
                 </button>
               </div>
             ) : REPORTS.length === 0 ? (
-              <p className="text-sm text-gray-500 py-4">No reports are available for your role. Ask an owner or manager for access.</p>
+              <p className="text-sm text-[var(--haip-fg-subtle)] py-4">No reports are available for your role. Ask an owner or manager for access.</p>
             ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               {REPORTS.map(r => (
@@ -411,16 +411,16 @@ export default function ReportsPage() {
                   className={cn(
                     "flex items-start gap-3 p-4 min-h-[64px] rounded-2xl border-2 text-left transition-all",
                     selectedReport?.id === r.id
-                      ? "border-teal-500 bg-teal-50 shadow-sm"
-                      : "bg-white border-gray-100 hover:border-teal-300 hover:shadow-sm"
+                      ? "border-primary bg-[var(--haip-primary-tint)] shadow-sm"
+                      : "bg-white border-[var(--haip-border)] hover:border-[color-mix(in_srgb,var(--primary)_25%,transparent)] hover:shadow-sm"
                   )}
                 >
                   <div className={cn("w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center text-white flex-shrink-0 shadow-sm", r.gradient)}>
                     {r.icon}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-gray-900">{r.name}</p>
-                    <p className="text-[11px] text-gray-500 leading-snug mt-0.5">{r.description}</p>
+                    <p className="text-sm font-bold text-[var(--haip-fg)]">{r.name}</p>
+                    <p className="text-[11px] text-[var(--haip-fg-subtle)] leading-snug mt-0.5">{r.description}</p>
                   </div>
                 </button>
               ))}
@@ -442,7 +442,7 @@ export default function ReportsPage() {
                   <button
                     key={r.label}
                     onClick={() => applyRange(r.range())}
-                    className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-600 hover:border-teal-400 hover:text-teal-700 transition-colors"
+                    className="px-3 py-1.5 bg-white border border-[var(--haip-border)] rounded-lg text-xs font-medium text-[var(--haip-fg-muted)] hover:border-primary hover:text-primary transition-colors"
                   >
                     {r.label}
                   </button>
@@ -450,23 +450,23 @@ export default function ReportsPage() {
               </div>
               <div className="flex items-center gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">From</label>
+                  <label className="block text-xs font-medium text-[var(--haip-fg-subtle)] mb-1">From</label>
                   <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white" />
+                    className="px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white" />
                 </div>
-                <span className="text-gray-400 mt-5">→</span>
+                <span className="text-[var(--haip-fg-subtle)] mt-5">→</span>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">To</label>
+                  <label className="block text-xs font-medium text-[var(--haip-fg-subtle)] mb-1">To</label>
                   <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white" />
+                    className="px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white" />
                 </div>
               </div>
               {selectedReport && DATE_HINT[selectedReport.id] && (
-                <p className="text-[11px] text-gray-400">{DATE_HINT[selectedReport.id]} Both days are included.</p>
+                <p className="text-[11px] text-[var(--haip-fg-subtle)]">{DATE_HINT[selectedReport.id]} Both days are included.</p>
               )}
               <button
                 onClick={() => setStep(3)}
-                className="flex items-center gap-2 px-5 py-2.5 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors"
+                className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary transition-colors"
               >
                 Continue <ChevronRight size={14} />
               </button>
@@ -487,9 +487,9 @@ export default function ReportsPage() {
                 {selectedReport.filters.length > 0 && (
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Filters <span className="font-normal text-gray-400 normal-case">(optional)</span></p>
+                      <p className="text-xs font-semibold text-[var(--haip-fg-muted)] uppercase tracking-wider">Filters <span className="font-normal text-[var(--haip-fg-subtle)] normal-case">(optional)</span></p>
                       {filterCount > 0 && (
-                        <button onClick={() => setFilterVals({})} className="text-[11px] text-gray-400 hover:text-gray-700 hover:underline">
+                        <button onClick={() => setFilterVals({})} className="text-[11px] text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-2)] hover:underline">
                           Clear all
                         </button>
                       )}
@@ -497,7 +497,7 @@ export default function ReportsPage() {
                     <div className="space-y-3">
                       {selectedReport.filters.map(f => (
                         <div key={f.key} className={cn(f.type === "boolean" && "flex items-center justify-between gap-3")}>
-                          <label className={cn("text-xs font-medium text-gray-600", f.type === "boolean" ? "" : "block mb-1.5")}>{f.label}</label>
+                          <label className={cn("text-xs font-medium text-[var(--haip-fg-muted)]", f.type === "boolean" ? "" : "block mb-1.5")}>{f.label}</label>
                           <FilterControl
                             def={f}
                             value={filterVals[f.key]}
@@ -512,13 +512,13 @@ export default function ReportsPage() {
                 {/* Columns */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Columns</p>
+                    <p className="text-xs font-semibold text-[var(--haip-fg-muted)] uppercase tracking-wider">Columns</p>
                     <div className="flex gap-2">
-                      <button onClick={() => setActiveFields(new Set(selectedReport.fields.map(f => f.key)))} className="text-[11px] text-teal-600 hover:underline">All</button>
-                      <span className="text-gray-300">|</span>
-                      <button onClick={() => setActiveFields(new Set(selectedReport.fields.filter(f => f.default).map(f => f.key)))} className="text-[11px] text-teal-600 hover:underline">Default</button>
-                      <span className="text-gray-300">|</span>
-                      <button onClick={() => setActiveFields(new Set())} className="text-[11px] text-gray-400 hover:underline">None</button>
+                      <button onClick={() => setActiveFields(new Set(selectedReport.fields.map(f => f.key)))} className="text-[11px] text-primary hover:underline">All</button>
+                      <span className="text-[var(--haip-fg-subtle)]/70">|</span>
+                      <button onClick={() => setActiveFields(new Set(selectedReport.fields.filter(f => f.default).map(f => f.key)))} className="text-[11px] text-primary hover:underline">Default</button>
+                      <span className="text-[var(--haip-fg-subtle)]/70">|</span>
+                      <button onClick={() => setActiveFields(new Set())} className="text-[11px] text-[var(--haip-fg-subtle)] hover:underline">None</button>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -530,10 +530,10 @@ export default function ReportsPage() {
                           onClick={() => toggleField(f.key)}
                           className={cn(
                             "flex items-center gap-2 px-3 min-h-11 sm:min-h-0 sm:py-2.5 rounded-xl border text-sm transition-all text-left",
-                            checked ? "border-teal-300 bg-teal-50 text-teal-800" : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                            checked ? "border-[color-mix(in_srgb,var(--primary)_25%,transparent)] bg-[var(--haip-primary-tint)] text-[var(--accent-foreground)]" : "border-[var(--haip-border)] bg-white text-[var(--haip-fg-muted)] hover:border-[var(--haip-border-strong)]"
                           )}
                         >
-                          {checked ? <CheckSquare size={13} className="text-teal-500 flex-shrink-0" /> : <Square size={13} className="text-gray-300 flex-shrink-0" />}
+                          {checked ? <CheckSquare size={13} className="text-primary flex-shrink-0" /> : <Square size={13} className="text-[var(--haip-fg-subtle)]/70 flex-shrink-0" />}
                           <span className="text-xs font-medium truncate">{f.label}</span>
                         </button>
                       );
@@ -544,7 +544,7 @@ export default function ReportsPage() {
                 <button
                   onClick={() => previewMutation.mutate(currentPayload())}
                   disabled={!canPreview || previewMutation.isPending}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors disabled:opacity-50"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary transition-colors disabled:opacity-50"
                 >
                   {previewMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
                   Preview & count
@@ -567,18 +567,18 @@ export default function ReportsPage() {
 
           {/* STEP 4 — Preview & download */}
           {step >= 4 && preview && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
+            <div className="bg-white rounded-2xl border border-[var(--haip-border)] shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-[var(--haip-border)] flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-gray-800">
+                  <p className="text-sm font-semibold text-[var(--haip-fg)]">
                     {total != null
                       ? `${total.toLocaleString("en-IN")} ${total === 1 ? noun.replace(/s$/, "") : noun} match`
                       : "4. Preview & download"}
                     {previewMeta.scope === "own" && (
-                      <span className="ml-2 text-[11px] font-medium text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full">Yours only</span>
+                      <span className="ml-2 text-[11px] font-medium text-primary bg-[var(--haip-primary-tint)] px-2 py-0.5 rounded-full">Yours only</span>
                     )}
                   </p>
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p className="text-xs text-[var(--haip-fg-subtle)] mt-0.5">
                     Showing the first {preview.length} · {previewCols.length} columns · {dateFrom} → {dateTo}
                     {filterCount > 0 && ` · ${filterCount} filter${filterCount === 1 ? "" : "s"}`}
                   </p>
@@ -595,7 +595,7 @@ export default function ReportsPage() {
                   <button
                     onClick={() => downloadMutation.mutate("csv")}
                     disabled={downloadMutation.isPending || preview.length === 0}
-                    className="flex items-center gap-1.5 px-4 min-h-11 sm:min-h-0 sm:py-2 bg-teal-500 text-white rounded-xl text-xs font-semibold hover:bg-teal-600 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-4 min-h-11 sm:min-h-0 sm:py-2 bg-primary text-white rounded-xl text-xs font-semibold hover:bg-primary transition-colors disabled:opacity-50"
                   >
                     {downloadMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
                     CSV
@@ -603,7 +603,7 @@ export default function ReportsPage() {
                   <button
                     onClick={() => downloadMutation.mutate("json")}
                     disabled={downloadMutation.isPending || preview.length === 0}
-                    className="flex items-center gap-1.5 px-4 min-h-11 sm:min-h-0 sm:py-2 bg-white border border-gray-200 text-gray-600 rounded-xl text-xs font-semibold hover:border-gray-300 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-4 min-h-11 sm:min-h-0 sm:py-2 bg-white border border-[var(--haip-border)] text-[var(--haip-fg-muted)] rounded-xl text-xs font-semibold hover:border-[var(--haip-border-strong)] transition-colors disabled:opacity-50"
                   >
                     JSON
                   </button>
@@ -630,7 +630,7 @@ export default function ReportsPage() {
               )}
 
               {preview.length === 0 && (
-                <div className="mx-5 my-4 px-4 py-6 text-center text-sm text-gray-400 bg-gray-50 rounded-xl">
+                <div className="mx-5 my-4 px-4 py-6 text-center text-sm text-[var(--haip-fg-subtle)] bg-[var(--haip-surface)] rounded-xl">
                   Nothing matches these dates and filters — try a wider date range or clear a filter.
                 </div>
               )}
@@ -639,15 +639,15 @@ export default function ReportsPage() {
               {preview.length > 0 && (
               <>
               {/* Phones and tablets: each row as a card (first column as the title), so nothing scrolls sideways; the table from lg up */}
-              <ul className="divide-y divide-gray-100 lg:hidden">
+              <ul className="divide-y divide-[var(--haip-border)] lg:hidden">
                 {preview.map((row, i) => (
                   <li key={i} className="px-4 py-3">
-                    <p className="text-sm font-semibold text-gray-900 break-words">{String(row[previewCols[0]] ?? "—")}</p>
+                    <p className="text-sm font-semibold text-[var(--haip-fg)] break-words">{String(row[previewCols[0]] ?? "—")}</p>
                     <dl className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs md:grid-cols-4">
                       {previewCols.slice(1).filter(c => row[c] != null && row[c] !== "").map(c => (
                         <div key={c} className="min-w-0">
-                          <dt className="text-[10px] uppercase tracking-wide text-gray-400">{selectedReport?.fields.find(f => f.key === c)?.label ?? c}</dt>
-                          <dd className="text-gray-700 break-words">{String(row[c] ?? "—")}</dd>
+                          <dt className="text-[10px] uppercase tracking-wide text-[var(--haip-fg-subtle)]">{selectedReport?.fields.find(f => f.key === c)?.label ?? c}</dt>
+                          <dd className="text-[var(--haip-fg-2)] break-words">{String(row[c] ?? "—")}</dd>
                         </div>
                       ))}
                     </dl>
@@ -656,20 +656,20 @@ export default function ReportsPage() {
               </ul>
               <div className="hidden lg:block overflow-x-auto">
                 <table className="w-full text-xs">
-                  <thead className="bg-gray-50 border-b border-gray-100">
+                  <thead className="bg-[var(--haip-surface)] border-b border-[var(--haip-border)]">
                     <tr>
                       {previewCols.map(c => (
-                        <th key={c} className="px-4 py-2.5 text-left font-semibold text-gray-500 whitespace-nowrap">
+                        <th key={c} className="px-4 py-2.5 text-left font-semibold text-[var(--haip-fg-subtle)] whitespace-nowrap">
                           {selectedReport?.fields.find(f => f.key === c)?.label ?? c}
                         </th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-[var(--haip-border)]">
                     {preview.map((row, i) => (
-                      <tr key={i} className="hover:bg-gray-50/50">
+                      <tr key={i} className="hover:bg-[var(--haip-surface)]/50">
                         {previewCols.map(c => (
-                          <td key={c} className="px-4 py-2.5 text-gray-700 whitespace-nowrap max-w-[200px] truncate">
+                          <td key={c} className="px-4 py-2.5 text-[var(--haip-fg-2)] whitespace-nowrap max-w-[200px] truncate">
                             {String(row[c] ?? "—")}
                           </td>
                         ))}
@@ -681,11 +681,11 @@ export default function ReportsPage() {
               </>
               )}
 
-              <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-                <p className="text-[11px] text-gray-400">The preview shows a few rows. The download has every matching row.</p>
+              <div className="px-5 py-3 bg-[var(--haip-surface)] border-t border-[var(--haip-border)] flex items-center justify-between">
+                <p className="text-[11px] text-[var(--haip-fg-subtle)]">The preview shows a few rows. The download has every matching row.</p>
                 <button
                   onClick={() => { setStep(1); setSelectedReport(null); setPreview(null); setFilterVals({}); }}
-                  className="text-xs text-gray-500 hover:text-gray-700"
+                  className="text-xs text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-2)]"
                 >
                   Start new report
                 </button>
@@ -708,20 +708,20 @@ function Section({
   return (
     <div className={cn(
       "bg-white rounded-2xl border shadow-sm transition-all",
-      done ? "border-teal-200" : open ? "border-gray-200" : "border-gray-100 opacity-50"
+      done ? "border-[color-mix(in_srgb,var(--primary)_25%,transparent)]" : open ? "border-[var(--haip-border)]" : "border-[var(--haip-border)] opacity-50"
     )}>
       <div className="px-5 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className={cn("w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0",
-            done ? "bg-teal-500" : "bg-gray-200"
+            done ? "bg-primary" : "bg-[var(--haip-border)]"
           )}>
             {done ? <Check size={11} className="text-white" /> : null}
           </div>
-          <p className={cn("text-sm font-semibold", done ? "text-gray-700" : "text-gray-900")}>{title}</p>
-          {summary && <span className="text-xs text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full font-medium">{summary}</span>}
+          <p className={cn("text-sm font-semibold", done ? "text-[var(--haip-fg-2)]" : "text-[var(--haip-fg)]")}>{title}</p>
+          {summary && <span className="text-xs text-primary bg-[var(--haip-primary-tint)] px-2 py-0.5 rounded-full font-medium">{summary}</span>}
         </div>
         {done && onEdit && (
-          <button onClick={onEdit} className="text-xs text-gray-400 hover:text-teal-600 transition-colors">Edit</button>
+          <button onClick={onEdit} className="text-xs text-[var(--haip-fg-subtle)] hover:text-primary transition-colors">Edit</button>
         )}
       </div>
       {open && !done && children && (

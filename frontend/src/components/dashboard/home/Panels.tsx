@@ -62,7 +62,7 @@ export function RevenueChart({ series, rangeLabel }: { series: Series; rangeLabe
             </ResponsiveContainer>
           </div>
           <div className="flex gap-5 mt-2 text-xs" style={{ color: "var(--haip-fg-muted)" }}>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-teal-700" />This period</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[var(--haip-primary-hover)]" />This period</span>
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: "#CBD5D1" }} />Previous period</span>
             <span className="ml-auto tabular-nums">{(series.bookings ?? []).reduce((a, b) => a + b, 0)} bookings</span>
           </div>
@@ -74,7 +74,7 @@ export function RevenueChart({ series, rangeLabel }: { series: Series; rangeLabe
 
 // ── Lead funnel ───────────────────────────────────────────────────────────────
 
-const FUNNEL_COLORS = ["bg-blue-600", "bg-teal-700", "bg-emerald-600", "bg-violet-600", "bg-amber-600", "bg-rose-600"];
+const FUNNEL_COLORS = ["bg-blue-600", "bg-[var(--haip-primary-hover)]", "bg-emerald-600", "bg-violet-600", "bg-amber-600", "bg-rose-600"];
 
 export function LeadFunnel({ data, rangeLabel }: { data: OverviewResponse; rangeLabel: string }) {
   const total = data.kpi.total_leads;
@@ -122,7 +122,7 @@ export function TeamTable({ agents, rangeLabel }: { agents: AgentRow[]; rangeLab
           {rows.map(a => (
             <li key={a.agent_id} className="py-3">
               <p className="mb-2 flex items-center gap-2.5 text-[14px] font-semibold" style={{ color: "var(--haip-fg)" }}>
-                <span className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold bg-teal-50 text-teal-800 dark:bg-teal-950 dark:text-teal-200">
+                <span className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold bg-[var(--haip-primary-tint)] text-[var(--accent-foreground)] dark:bg-[var(--haip-primary-tint)] dark:text-primary">
                   {a.agent_name?.[0]?.toUpperCase() ?? "?"}
                 </span>
                 <span className="truncate">{a.agent_name}</span>
@@ -152,7 +152,7 @@ export function TeamTable({ agents, rangeLabel }: { agents: AgentRow[]; rangeLab
                 <tr key={a.agent_id} style={{ borderTop: "1px solid var(--haip-border)" }}>
                   <td className="py-2.5">
                     <span className="flex items-center gap-2.5 min-w-0">
-                      <span className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold bg-teal-50 text-teal-800 dark:bg-teal-950 dark:text-teal-200">
+                      <span className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold bg-[var(--haip-primary-tint)] text-[var(--accent-foreground)] dark:bg-[var(--haip-primary-tint)] dark:text-primary">
                         {a.agent_name?.[0]?.toUpperCase() ?? "?"}
                       </span>
                       <span className="font-semibold truncate" style={{ color: "var(--haip-fg)" }}>{a.agent_name}</span>
@@ -200,7 +200,7 @@ export function LeadSources({ sources, rangeLabel, className }: { sources: Overv
                 <span className="font-bold tabular-nums" style={{ color: "var(--haip-fg)" }}>{s.pct}%</span>
               </div>
               <div className="h-1.5 rounded-full ml-[26px]" style={{ background: "var(--muted)" }}>
-                <div className="h-full rounded-full bg-teal-700" style={{ width: `${Math.max(2, s.pct)}%` }} />
+                <div className="h-full rounded-full bg-[var(--haip-primary-hover)]" style={{ width: `${Math.max(2, s.pct)}%` }} />
               </div>
             </div>
           ))}
@@ -216,8 +216,8 @@ const SEVERITY: Record<string, { label: string; dot: string; text: string }> = {
   critical: { label: "Act now", dot: "bg-red-600", text: "text-red-700" },
   high: { label: "Act now", dot: "bg-red-600", text: "text-red-700" },
   medium: { label: "Worth a look", dot: "bg-amber-600", text: "text-amber-700" },
-  low: { label: "Good to know", dot: "bg-teal-600", text: "text-teal-700" },
-  info: { label: "Good to know", dot: "bg-gray-500", text: "text-gray-600" },
+  low: { label: "Good to know", dot: "bg-primary", text: "text-primary" },
+  info: { label: "Good to know", dot: "bg-gray-500", text: "text-[var(--haip-fg-muted)]" },
 };
 
 export function AiNoticed({ insights, onDismiss, dismissing }: { insights: Insight[]; onDismiss: (id: string) => void; dismissing?: string | null }) {
@@ -239,7 +239,7 @@ export function AiNoticed({ insights, onDismiss, dismissing }: { insights: Insig
               <h3 className="text-sm font-bold" style={{ color: "var(--haip-fg)" }}>{i.title}</h3>
               <p className="text-[13px] leading-relaxed line-clamp-3" style={{ color: "var(--haip-fg-muted)" }}>{i.body}</p>
               <div className="flex items-center gap-4 mt-auto pt-2 text-xs font-semibold">
-                {i.cta_href && i.cta_label && <Link href={i.cta_href} className="text-teal-700 hover:underline">{i.cta_label}</Link>}
+                {i.cta_href && i.cta_label && <Link href={i.cta_href} className="text-primary hover:underline">{i.cta_label}</Link>}
                 <button type="button" onClick={() => onDismiss(i.id)} disabled={dismissing === i.id}
                   className="hover:underline disabled:opacity-50" style={{ color: "var(--haip-fg-subtle)" }}>
                   Dismiss

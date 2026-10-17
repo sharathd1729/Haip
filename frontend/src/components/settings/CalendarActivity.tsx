@@ -33,16 +33,16 @@ export function CalendarActivity({ feedId }: { feedId: string }) {
           {data && (
             <>
               <div>
-                <p className="font-medium text-gray-500 mb-1">Bookings made</p>
-                {data.bookings.length === 0 ? <p className="text-gray-400">None yet.</p> : (
-                  <ul className="divide-y divide-gray-100 border border-gray-100 rounded-lg">
+                <p className="font-medium text-[var(--haip-fg-subtle)] mb-1">Bookings made</p>
+                {data.bookings.length === 0 ? <p className="text-[var(--haip-fg-subtle)]">None yet.</p> : (
+                  <ul className="divide-y divide-[var(--haip-border)] border border-[var(--haip-border)] rounded-lg">
                     {data.bookings.map(b => (
                       <li key={b.stay_id} className="px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                        <Link href={`/dashboard/bookings/${b.stay_id}`} className="font-semibold text-gray-900 hover:underline">{b.guest_name || "Guest"}</Link>
-                        <span className="text-gray-500">{b.check_in} to {b.check_out}</span>
-                        <span className={b.vehicle ? "text-gray-700" : "text-amber-700"}>{b.vehicle ?? "Vehicle not chosen yet"}</span>
-                        {b.status !== "confirmed" && <span className="text-gray-500 capitalize">{b.status.replace("_", " ")}</span>}
-                        {b.locked && <span className="text-gray-500">Edited here</span>}
+                        <Link href={`/dashboard/bookings/${b.stay_id}`} className="font-semibold text-[var(--haip-fg)] hover:underline">{b.guest_name || "Guest"}</Link>
+                        <span className="text-[var(--haip-fg-subtle)]">{b.check_in} to {b.check_out}</span>
+                        <span className={b.vehicle ? "text-[var(--haip-fg-2)]" : "text-amber-700"}>{b.vehicle ?? "Vehicle not chosen yet"}</span>
+                        {b.status !== "confirmed" && <span className="text-[var(--haip-fg-subtle)] capitalize">{b.status.replace("_", " ")}</span>}
+                        {b.locked && <span className="text-[var(--haip-fg-subtle)]">Edited here</span>}
                         {b.lead_linked && <span className="text-green-700">Lead marked sold</span>}
                       </li>
                     ))}
@@ -50,13 +50,13 @@ export function CalendarActivity({ feedId }: { feedId: string }) {
                 )}
               </div>
               <div>
-                <p className="font-medium text-gray-500 mb-1">Upcoming events that are not bookings</p>
-                {data.skipped.length === 0 ? <p className="text-gray-400">None. Every upcoming event became a booking.</p> : (
-                  <ul className="divide-y divide-gray-100 border border-gray-100 rounded-lg">
+                <p className="font-medium text-[var(--haip-fg-subtle)] mb-1">Upcoming events that are not bookings</p>
+                {data.skipped.length === 0 ? <p className="text-[var(--haip-fg-subtle)]">None. Every upcoming event became a booking.</p> : (
+                  <ul className="divide-y divide-[var(--haip-border)] border border-[var(--haip-border)] rounded-lg">
                     {data.skipped.map((s, i) => (
                       <li key={`${s.title}-${i}`} className="px-3 py-2">
-                        <span className="font-semibold text-gray-900">{s.title || "Untitled event"}</span>
-                        <span className="text-gray-500"> · {s.from} to {s.to}</span>
+                        <span className="font-semibold text-[var(--haip-fg)]">{s.title || "Untitled event"}</span>
+                        <span className="text-[var(--haip-fg-subtle)]"> · {s.from} to {s.to}</span>
                         <p className="text-amber-700">Held as a block: {s.reasons.join(", ")}.</p>
                       </li>
                     ))}

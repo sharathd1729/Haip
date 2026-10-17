@@ -31,9 +31,9 @@ type Template = FullTemplate;
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const STATUS_CFG = {
-  draft:     { label: "Draft",     cls: "bg-gray-50 text-gray-600 border-gray-200",    icon: <Eye size={10} /> },
+  draft:     { label: "Draft",     cls: "bg-[var(--haip-surface)] text-[var(--haip-fg-muted)] border-[var(--haip-border)]",    icon: <Eye size={10} /> },
   scheduled: { label: "Scheduled", cls: "bg-blue-50 text-blue-700 border-blue-200",    icon: <Clock size={10} /> },
-  running:   { label: "Running",   cls: "bg-teal-50 text-teal-700 border-teal-200",    icon: <Play size={10} /> },
+  running:   { label: "Running",   cls: "bg-[var(--haip-primary-tint)] text-primary border-[color-mix(in_srgb,var(--primary)_25%,transparent)]",    icon: <Play size={10} /> },
   completed: { label: "Completed", cls: "bg-green-50 text-green-700 border-green-200", icon: <CheckCircle2 size={10} /> },
   paused:    { label: "Paused",    cls: "bg-amber-50 text-amber-700 border-amber-200", icon: <Pause size={10} /> },
 };
@@ -99,7 +99,7 @@ function AudienceFilterBuilder({
     <div className="space-y-3">
       {/* Tag filter */}
       <div>
-        <p className="text-xs font-semibold text-gray-700 mb-1.5 flex items-center gap-1">
+        <p className="text-xs font-semibold text-[var(--haip-fg-2)] mb-1.5 flex items-center gap-1">
           <Tag size={11} /> Filter by tags
         </p>
         {allTags.length > 0 && (
@@ -108,8 +108,8 @@ function AudienceFilterBuilder({
               <button key={t} onClick={() => toggleTag(t)}
                 className={cn("text-[11px] px-2.5 py-1 rounded-full border font-medium transition-colors",
                   filter.tags.includes(t)
-                    ? "bg-teal-500 text-white border-teal-500"
-                    : "bg-gray-50 text-gray-600 border-gray-200 hover:border-teal-300")}>
+                    ? "bg-primary text-white border-primary"
+                    : "bg-[var(--haip-surface)] text-[var(--haip-fg-muted)] border-[var(--haip-border)] hover:border-[color-mix(in_srgb,var(--primary)_25%,transparent)]")}>
                 {t}
               </button>
             ))}
@@ -119,9 +119,9 @@ function AudienceFilterBuilder({
           <input value={tagInput} onChange={e => setTagInput(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addTag(); } }}
             placeholder="Type a tag and press Enter…"
-            className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
+            className="flex-1 px-3 py-2 border border-[var(--haip-border)] rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-primary/30" />
           <button onClick={addTag}
-            className="px-3 py-2 bg-gray-100 text-gray-600 rounded-xl text-xs font-medium hover:bg-gray-200 transition-colors">
+            className="px-3 py-2 bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)] rounded-xl text-xs font-medium hover:bg-[var(--haip-border)] transition-colors">
             Add
           </button>
         </div>
@@ -129,7 +129,7 @@ function AudienceFilterBuilder({
 
       {/* Source filter */}
       <div>
-        <p className="text-xs font-semibold text-gray-700 mb-1.5 flex items-center gap-1">
+        <p className="text-xs font-semibold text-[var(--haip-fg-2)] mb-1.5 flex items-center gap-1">
           <Filter size={11} /> Filter by source
         </p>
         <div className="flex flex-wrap gap-1.5">
@@ -138,7 +138,7 @@ function AudienceFilterBuilder({
               className={cn("text-[11px] px-2.5 py-1 rounded-full border font-medium transition-colors",
                 filter.source.includes(s)
                   ? "bg-blue-500 text-white border-blue-500"
-                  : "bg-gray-50 text-gray-600 border-gray-200 hover:border-blue-300")}>
+                  : "bg-[var(--haip-surface)] text-[var(--haip-fg-muted)] border-[var(--haip-border)] hover:border-blue-300")}>
               {s.replace("_", " ")}
             </button>
           ))}
@@ -147,9 +147,9 @@ function AudienceFilterBuilder({
 
       {/* Estimated reach */}
       <div className={cn("rounded-xl px-3 py-2.5 flex items-center gap-2 text-xs",
-        isEmpty ? "bg-teal-50 border border-teal-100" : "bg-blue-50 border border-blue-100")}>
-        <Users size={13} className={isEmpty ? "text-teal-600" : "text-blue-600"} />
-        <span className={isEmpty ? "text-teal-700" : "text-blue-700"}>
+        isEmpty ? "bg-[var(--haip-primary-tint)] border border-[color-mix(in_srgb,var(--primary)_25%,transparent)]" : "bg-blue-50 border border-blue-100")}>
+        <Users size={13} className={isEmpty ? "text-primary" : "text-blue-600"} />
+        <span className={isEmpty ? "text-primary" : "text-blue-700"}>
           {subscriberCount === null ? (
             <span className="flex items-center gap-1"><Loader2 size={11} className="animate-spin" /> Calculating…</span>
           ) : isEmpty ? (
@@ -249,33 +249,33 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div className={cn("bg-white rounded-2xl shadow-2xl w-full overflow-hidden max-h-[90vh] flex flex-col", audienceKind === "leads" ? "max-w-3xl" : (selectedTemplate && templateSections(selectedTemplate).length > 0 ? "max-w-2xl" : "max-w-lg"))} style={{ maxHeight: "calc(100dvh - 2rem)" }}>
-        <div className="px-6 pt-6 pb-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+        <div className="px-6 pt-6 pb-4 border-b border-[var(--haip-border)] flex items-center justify-between flex-shrink-0">
           <div>
-            <h2 className="text-base font-bold text-gray-900">New campaign</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Send a template to your opted-in subscribers.</p>
+            <h2 className="text-base font-bold text-[var(--haip-fg)]">New campaign</h2>
+            <p className="text-xs text-[var(--haip-fg-subtle)] mt-0.5">Send a template to your opted-in subscribers.</p>
           </div>
-          <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
+          <button onClick={onClose}><X size={18} className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)]" /></button>
         </div>
 
         <div className="px-6 py-5 space-y-5 overflow-y-auto flex-1">
           {/* Name */}
           <div>
-            <label className="text-xs font-semibold text-gray-700 block mb-1.5">Campaign name <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Campaign name <span className="text-red-500">*</span></label>
             <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               placeholder="Diwali 2025 Offer"
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
+              className="w-full px-3 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
           </div>
 
           {/* Template */}
           <div>
-            <label className="text-xs font-semibold text-gray-700 block mb-1.5">Message template <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Message template <span className="text-red-500">*</span></label>
             {approvedTemplates.length === 0 ? (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700">
                 No approved templates yet. <a href="/dashboard/messaging/templates" className="underline font-medium">Create and submit a template</a> first.
               </div>
             ) : (
               <select value={form.template_id} onChange={e => chooseTemplate(e.target.value)}
-                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+                className="w-full px-3 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
                 <option value="">Select a template…</option>
                 {approvedTemplates.map(t => (
                   <option key={t.id} value={t.id}>{t.name} ({t.category.toLowerCase()})</option>
@@ -287,19 +287,19 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
           {/* What each {{n}} becomes for every recipient */}
           {selectedTemplate && templateSections(selectedTemplate).length > 0 && (
             <div>
-              <label className="text-xs font-semibold text-gray-700 block mb-2">What to fill in for each guest</label>
+              <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-2">What to fill in for each guest</label>
               <VariableMapping template={selectedTemplate} value={variableMap} onChange={setVariableMap} />
             </div>
           )}
 
           {/* Audience */}
           <div>
-            <label className="text-xs font-semibold text-gray-700 block mb-2">Who should get it?</label>
-            <div className="inline-flex rounded-xl bg-gray-100 p-0.5 mb-3" role="tablist" aria-label="Audience type">
+            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-2">Who should get it?</label>
+            <div className="inline-flex rounded-xl bg-[var(--haip-status-neutral-bg)] p-0.5 mb-3" role="tablist" aria-label="Audience type">
               {([["leads", "CRM leads"], ["list", "Imported list"]] as const).map(([k, label]) => (
                 <button key={k} type="button" role="tab" aria-selected={audienceKind === k} onClick={() => { setAudienceKind(k); setError(""); }}
                   className={cn("px-3.5 py-1.5 rounded-[10px] text-xs font-medium transition-colors",
-                    audienceKind === k ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700")}>
+                    audienceKind === k ? "bg-white text-[var(--haip-fg)] shadow-sm" : "text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-2)]")}>
                   {label}
                 </button>
               ))}
@@ -307,8 +307,8 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
             {audienceKind === "leads" ? (
               <LeadAudiencePicker filter={leadFilter} onChange={setLeadFilter} consent={leadConsent} onConsent={setLeadConsent} onPreview={setLeadPreview} />
             ) : (
-              <div className="border border-gray-200 rounded-xl p-4">
-                <p className="text-[11px] text-gray-400 mb-3">People you imported from a file or added under Subscribers. Leave everything blank to send to all of them.</p>
+              <div className="border border-[var(--haip-border)] rounded-xl p-4">
+                <p className="text-[11px] text-[var(--haip-fg-subtle)] mb-3">People you imported from a file or added under Subscribers. Leave everything blank to send to all of them.</p>
                 <AudienceFilterBuilder
                   filter={audienceFilter}
                   onChange={setAudienceFilter}
@@ -321,10 +321,10 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
 
           {/* Schedule */}
           <div>
-            <label className="text-xs font-semibold text-gray-700 block mb-1.5">Schedule for later <span className="text-gray-400 font-normal">(optional)</span></label>
+            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Schedule for later <span className="text-[var(--haip-fg-subtle)] font-normal">(optional)</span></label>
             <input type="datetime-local" value={form.scheduled_at} onChange={e => setForm(f => ({ ...f, scheduled_at: e.target.value }))}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
-            <p className="text-[10px] text-gray-400 mt-1">Leave blank to save as a draft and launch it yourself. Times are in your local time.</p>
+              className="w-full px-3 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Leave blank to save as a draft and launch it yourself. Times are in your local time.</p>
           </div>
 
           {error && (
@@ -334,10 +334,10 @@ function CreateCampaignModal({ templates, onClose, onCreated }: {
           )}
         </div>
 
-        <div className="px-6 pb-5 flex gap-3 flex-shrink-0 border-t border-gray-100 pt-4">
-          <button onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
+        <div className="px-6 pb-5 flex gap-3 flex-shrink-0 border-t border-[var(--haip-border)] pt-4">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)] transition-colors">Cancel</button>
           <button onClick={handleCreate} disabled={submitting}
-            className="flex-1 py-2.5 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+            className="flex-1 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
             {submitting ? <Loader2 size={14} className="animate-spin" /> : <Megaphone size={14} />}
             Create campaign
           </button>
@@ -366,13 +366,13 @@ function CampaignCard({ campaign, onLaunch, onDelete, onReport, onUnschedule }: 
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <h3 className="text-sm font-bold text-gray-900 truncate">{campaign.name}</h3>
+            <h3 className="text-sm font-bold text-[var(--haip-fg)] truncate">{campaign.name}</h3>
             <span className={cn("inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border flex-shrink-0", sc.cls)}>
               {sc.icon} {sc.label}
             </span>
           </div>
           {campaign.scheduled_at && (
-            <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
+            <div className="flex items-center gap-1.5 text-[11px] text-[var(--haip-fg-subtle)]">
               <Calendar size={10} />
               <span>{campaign.status === "scheduled" ? "Goes out" : "Scheduled for"} {new Date(campaign.scheduled_at).toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</span>
             </div>
@@ -381,24 +381,24 @@ function CampaignCard({ campaign, onLaunch, onDelete, onReport, onUnschedule }: 
         <div className="flex items-center gap-1.5 flex-shrink-0">
           {(sent > 0 || campaign.status === "running" || campaign.status === "completed" || campaign.status === "paused") && (
             <button onClick={() => onReport(campaign)}
-              className="flex items-center gap-1.5 text-xs border border-gray-200 text-gray-700 px-3 py-1.5 rounded-lg font-medium hover:bg-gray-50 transition-colors">
+              className="flex items-center gap-1.5 text-xs border border-[var(--haip-border)] text-[var(--haip-fg-2)] px-3 py-1.5 rounded-lg font-medium hover:bg-[var(--haip-surface)] transition-colors">
               <Eye size={11} /> Report
             </button>
           )}
           {campaign.status === "scheduled" && (
             <button onClick={() => onUnschedule(campaign.id)}
-              className="text-xs border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg font-medium hover:bg-gray-50 transition-colors">
+              className="text-xs border border-[var(--haip-border)] text-[var(--haip-fg-muted)] px-3 py-1.5 rounded-lg font-medium hover:bg-[var(--haip-surface)] transition-colors">
               Unschedule
             </button>
           )}
           {(campaign.status === "draft" || campaign.status === "paused" || campaign.status === "scheduled") && (
             <button onClick={() => onLaunch(campaign.id)}
-              className="flex items-center gap-1.5 text-xs bg-teal-500 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-teal-600 transition-colors">
+              className="flex items-center gap-1.5 text-xs bg-primary text-white px-3 py-1.5 rounded-lg font-medium hover:bg-primary transition-colors">
               <Play size={11} /> {campaign.status === "paused" ? "Resume" : campaign.status === "scheduled" ? "Send now" : "Launch"}
             </button>
           )}
           <button onClick={() => { if (confirm("Delete this campaign?")) onDelete(campaign.id); }}
-            className="text-gray-400 hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-50">
+            className="text-[var(--haip-fg-subtle)] hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-50">
             <Trash2 size={14} />
           </button>
         </div>
@@ -406,18 +406,18 @@ function CampaignCard({ campaign, onLaunch, onDelete, onReport, onUnschedule }: 
 
       {/* Stats */}
       {sent > 0 && (
-        <div className="grid grid-cols-4 gap-3 pt-3 border-t border-gray-100">
+        <div className="grid grid-cols-4 gap-3 pt-3 border-t border-[var(--haip-border)]">
           {[
-            { label: "Sent", value: sent, icon: <Send size={12} className="text-gray-400" /> },
+            { label: "Sent", value: sent, icon: <Send size={12} className="text-[var(--haip-fg-subtle)]" /> },
             { label: "Delivered", value: delivered, sub: rate(campaign.delivered_count, campaign.sent_count), icon: <CheckCircle2 size={12} className="text-blue-400" /> },
-            { label: "Read", value: read, sub: rate(campaign.read_count, campaign.sent_count), icon: <Eye size={12} className="text-teal-500" /> },
+            { label: "Read", value: read, sub: rate(campaign.read_count, campaign.sent_count), icon: <Eye size={12} className="text-primary" /> },
             { label: "Failed", value: parseInt(campaign.failed_count) || 0, icon: <AlertCircle size={12} className="text-red-400" /> },
           ].map(stat => (
             <div key={stat.label} className="text-center">
               <div className="flex items-center justify-center gap-1 mb-0.5">{stat.icon}</div>
-              <p className="text-base font-bold text-gray-900">{stat.value.toLocaleString()}</p>
-              {stat.sub && <p className="text-[10px] text-gray-400">{stat.sub}</p>}
-              <p className="text-[10px] text-gray-400">{stat.label}</p>
+              <p className="text-base font-bold text-[var(--haip-fg)]">{stat.value.toLocaleString()}</p>
+              {stat.sub && <p className="text-[10px] text-[var(--haip-fg-subtle)]">{stat.sub}</p>}
+              <p className="text-[10px] text-[var(--haip-fg-subtle)]">{stat.label}</p>
             </div>
           ))}
         </div>
@@ -428,7 +428,7 @@ function CampaignCard({ campaign, onLaunch, onDelete, onReport, onUnschedule }: 
         </p>
       )}
       {sent === 0 && campaign.status === "draft" && (
-        <p className="text-[11px] text-gray-400 pt-2 border-t border-gray-100">
+        <p className="text-[11px] text-[var(--haip-fg-subtle)] pt-2 border-t border-[var(--haip-border)]">
           Launch this campaign to start sending messages to your opted-in subscribers.
         </p>
       )}
@@ -487,14 +487,14 @@ export default function CampaignsPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="px-6 py-5 bg-white border-b border-gray-100 flex-shrink-0">
+      <div className="px-6 py-5 bg-white border-b border-[var(--haip-border)] flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="haip-page-title">Campaigns</h1>
-            <p className="text-sm text-gray-400 mt-0.5">Broadcast WhatsApp messages to opted-in guests using approved templates.</p>
+            <p className="text-sm text-[var(--haip-fg-subtle)] mt-0.5">Broadcast WhatsApp messages to opted-in guests using approved templates.</p>
           </div>
           <button onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 bg-teal-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors shadow-sm shadow-teal-200">
+            className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-primary transition-colors shadow-sm shadow-[color-mix(in_srgb,var(--primary)_18%,transparent)]">
             <Plus size={15} /> New campaign
           </button>
         </div>
@@ -503,15 +503,15 @@ export default function CampaignsPage() {
         {totalSent > 0 && (
           <div className="grid grid-cols-3 gap-4">
             {[
-              { label: "Total sent", value: totalSent.toLocaleString(), icon: <Send size={14} className="text-gray-500" /> },
-              { label: "Total read", value: totalRead.toLocaleString(), icon: <Eye size={14} className="text-teal-500" /> },
+              { label: "Total sent", value: totalSent.toLocaleString(), icon: <Send size={14} className="text-[var(--haip-fg-subtle)]" /> },
+              { label: "Total read", value: totalRead.toLocaleString(), icon: <Eye size={14} className="text-primary" /> },
               { label: "Read rate", value: rate(totalRead.toString(), totalSent.toString()), icon: <TrendingUp size={14} className="text-blue-500" /> },
             ].map(s => (
-              <div key={s.label} className="bg-gray-50 rounded-xl p-3 flex items-center gap-3">
+              <div key={s.label} className="bg-[var(--haip-surface)] rounded-xl p-3 flex items-center gap-3">
                 {s.icon}
                 <div>
-                  <p className="text-lg font-bold text-gray-900">{s.value}</p>
-                  <p className="text-[10px] text-gray-500">{s.label}</p>
+                  <p className="text-lg font-bold text-[var(--haip-fg)]">{s.value}</p>
+                  <p className="text-[10px] text-[var(--haip-fg-subtle)]">{s.label}</p>
                 </div>
               </div>
             ))}
@@ -523,12 +523,12 @@ export default function CampaignsPage() {
         {isError ? (
           <div className="py-20 text-center">
             <AlertCircle size={32} className="text-red-300 mx-auto mb-3" />
-            <p className="text-sm text-gray-700 font-medium">Couldn't load campaigns</p>
-            <p className="text-xs text-gray-400 mt-1">The server didn't respond — this isn't your saved campaign history.</p>
+            <p className="text-sm text-[var(--haip-fg-2)] font-medium">Couldn't load campaigns</p>
+            <p className="text-xs text-[var(--haip-fg-subtle)] mt-1">The server didn't respond — this isn't your saved campaign history.</p>
             <button
               onClick={() => refetch()}
               disabled={isFetching}
-              className="mt-4 text-xs font-semibold text-teal-600 border border-teal-200 bg-teal-50 hover:bg-teal-100 px-3 py-1.5 rounded-lg transition-colors"
+              className="mt-4 text-xs font-semibold text-primary border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] bg-[var(--haip-primary-tint)] hover:bg-[var(--haip-primary-tint)] px-3 py-1.5 rounded-lg transition-colors"
             >
               {isFetching ? "Retrying…" : "Retry"}
             </button>
@@ -537,11 +537,11 @@ export default function CampaignsPage() {
           <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}</div>
         ) : campaigns.length === 0 ? (
           <div className="py-20 text-center">
-            <Megaphone size={40} className="text-gray-200 mx-auto mb-3" />
-            <p className="text-sm text-gray-500 font-medium">No campaigns yet</p>
-            <p className="text-xs text-gray-400 mt-1">Create your first campaign to reach guests at scale via WhatsApp.</p>
+            <Megaphone size={40} className="text-[var(--haip-fg-subtle)]/70 mx-auto mb-3" />
+            <p className="text-sm text-[var(--haip-fg-subtle)] font-medium">No campaigns yet</p>
+            <p className="text-xs text-[var(--haip-fg-subtle)] mt-1">Create your first campaign to reach guests at scale via WhatsApp.</p>
             <button onClick={() => setShowCreate(true)}
-              className="mt-4 flex items-center gap-2 bg-teal-500 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-teal-600 transition-colors mx-auto">
+              className="mt-4 flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-primary transition-colors mx-auto">
               <Plus size={14} /> Create campaign
             </button>
           </div>

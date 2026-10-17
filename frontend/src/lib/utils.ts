@@ -49,7 +49,7 @@ export const DISPOSITION_COLORS: Record<string, string> = {
   hot: "bg-red-100 text-red-700",
   quoted: "bg-blue-100 text-blue-700",
   booked: "bg-green-100 text-green-700",
-  lost: "bg-gray-100 text-gray-600",
+  lost: "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)]",
   callback: "bg-amber-100 text-amber-700",
   no_answer: "bg-slate-100 text-slate-600",
   voicemail: "bg-purple-100 text-purple-700",
@@ -62,5 +62,5 @@ export const STAGE_COLORS: Record<string, string> = {
   site_visit: "bg-orange-100 text-orange-700",
   booked: "bg-green-100 text-green-700",
   lost: "bg-red-100 text-red-700",
-  ghosted: "bg-gray-100 text-gray-500",
+  ghosted: "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-subtle)]",
 };

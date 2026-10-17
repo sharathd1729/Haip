@@ -40,7 +40,7 @@ const BUCKETS: Record<BucketKey, {
 }> = {
   draft_ready: {
     title: "AI reply ready to send", hint: "The guest is waiting and a reply is already drafted — check it and send",
-    action: "Send reply", icon: Sparkles, bar: "bg-teal-600", chip: "bg-teal-50 text-teal-700", text: "text-teal-700",
+    action: "Send reply", icon: Sparkles, bar: "bg-primary", chip: "bg-[var(--haip-primary-tint)] text-primary", text: "text-primary",
   },
   waiting: {
     title: "Waiting for our reply", hint: "The guest messaged last and hasn't heard back",
@@ -107,9 +107,9 @@ function Kpis({
   // the last two open the Pipeline board with the matching filter.
   const tiles: { label: string; value: number; note: string; tone: string; dot: string; bucket?: BucketKey; filters?: LeadsFilters }[] = [
     { label: "Waiting on us", value: k.waiting, note: k.waiting_oldest_seconds ? `oldest ${formatDuration(k.waiting_oldest_seconds)}` : "all caught up", tone: "text-amber-700", dot: "bg-amber-500", bucket: "waiting" },
-    { label: "AI replies to send", value: k.drafts_ready, note: "ready now", tone: "text-teal-700", dot: "bg-teal-600", bucket: "draft_ready" },
+    { label: "AI replies to send", value: k.drafts_ready, note: "ready now", tone: "text-primary", dot: "bg-primary", bucket: "draft_ready" },
     { label: "Shared a phone", value: k.phone_not_called, note: "not called yet", tone: "text-emerald-700", dot: "bg-emerald-600", bucket: "call" },
-    { label: "Unassigned", value: k.unassigned_recent, note: "last 3 days", tone: "text-gray-700", dot: "bg-gray-400", filters: { assigned_to: "unassigned", date_from: istDate(2) } },
+    { label: "Unassigned", value: k.unassigned_recent, note: "last 3 days", tone: "text-[var(--haip-fg-2)]", dot: "bg-[var(--haip-border-strong)]", filters: { assigned_to: "unassigned", date_from: istDate(2) } },
     { label: "Sold this month", value: k.sold_this_month, note: "closed won", tone: "text-violet-700", dot: "bg-violet-500", filters: { booked_date_from: `${istDate().slice(0, 8)}01` } },
   ];
   return (
@@ -123,8 +123,8 @@ function Kpis({
         return (
         <button key={t.label} type="button" onClick={click} aria-pressed={t.bucket ? on : undefined}
           title={t.bucket ? (on ? "Show all groups" : `Show only “${t.label}”`) : "Open in Pipeline"}
-          className={cn("haip-card flex-shrink-0 min-w-[150px] px-4 py-3 text-left cursor-pointer transition-shadow hover:shadow-md outline-none focus-visible:ring-2 focus-visible:ring-teal-600",
-            on && "ring-2 ring-teal-600")}>
+          className={cn("haip-card flex-shrink-0 min-w-[150px] px-4 py-3 text-left cursor-pointer transition-shadow hover:shadow-md outline-none focus-visible:ring-2 focus-visible:ring-primary",
+            on && "ring-2 ring-primary")}>
           <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: "var(--haip-fg-subtle)" }}>
             <span className={cn("w-2 h-2 rounded-full", t.dot)} />
             {t.label}
@@ -199,8 +199,8 @@ function ActionRow({
       onClick={onSelect}
       onKeyDown={e => { if (e.key === "Enter") onSelect(); }}
       className={cn(
-        "haip-card px-4 py-3 flex items-center gap-3 cursor-pointer transition-shadow hover:shadow-md focus-visible:outline-2 focus-visible:outline-teal-600",
-        selected && "ring-2 ring-teal-600",
+        "haip-card px-4 py-3 flex items-center gap-3 cursor-pointer transition-shadow hover:shadow-md focus-visible:outline-2 focus-visible:outline-primary",
+        selected && "ring-2 ring-primary",
       )}
     >
       <div className="flex-1 min-w-0">
@@ -216,7 +216,7 @@ function ActionRow({
           <div className="flex flex-wrap gap-1.5 mt-1.5">
             {chips.map(c => (
               <span key={c} className={cn("text-[11px] font-medium px-2 py-0.5 rounded-full",
-                c === "Phone shared" ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-600")}>{c}</span>
+                c === "Phone shared" ? "bg-emerald-50 text-emerald-700" : "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)]")}>{c}</span>
             ))}
           </div>
         )}
@@ -229,7 +229,7 @@ function ActionRow({
           type="button"
           onClick={act}
           disabled={busy}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg bg-teal-700 text-white hover:bg-teal-800 disabled:opacity-60 whitespace-nowrap"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg bg-[var(--haip-primary-hover)] text-white hover:bg-[var(--haip-primary-hover)] disabled:opacity-60 whitespace-nowrap"
         >
           {busy ? <Loader2 size={12} className="animate-spin" /> : null}
           {callLead.isPending ? "Calling…" : meta.action}
@@ -267,9 +267,9 @@ function DetailPanel({ lead, bucket, stageLabel }: { lead: LeadCard; bucket: Buc
         </div>
       </div>
 
-      <div className="rounded-xl bg-teal-50 p-4">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-teal-800">What they want</p>
-        <p className="text-sm mt-1.5 leading-relaxed text-gray-800">{lead.ai_summary || intentOf(lead)}</p>
+      <div className="rounded-xl bg-[var(--haip-primary-tint)] p-4">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent-foreground)]">What they want</p>
+        <p className="text-sm mt-1.5 leading-relaxed text-[var(--haip-fg)]">{lead.ai_summary || intentOf(lead)}</p>
       </div>
 
       <dl className="grid grid-cols-2 gap-2">
@@ -290,14 +290,14 @@ function DetailPanel({ lead, bucket, stageLabel }: { lead: LeadCard; bucket: Buc
       {lead.pending_draft && bucket === "draft_ready" && (
         <div>
           <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--haip-fg-subtle)" }}>AI reply ready</p>
-          <p className="mt-1.5 rounded-xl border border-teal-200 bg-white p-3 text-sm leading-relaxed text-gray-700">
+          <p className="mt-1.5 rounded-xl border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] bg-white p-3 text-sm leading-relaxed text-[var(--haip-fg-2)]">
             {lead.pending_draft.preview}{lead.pending_draft.preview.length >= 140 ? "…" : ""}
           </p>
           <button
             type="button"
             onClick={() => send.mutate({ conversationId: lead.pending_draft!.conversation_id, messageId: lead.pending_draft!.message_id })}
             disabled={send.isPending}
-            className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-lg bg-teal-700 text-white hover:bg-teal-800 disabled:opacity-60"
+            className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-lg bg-[var(--haip-primary-hover)] text-white hover:bg-[var(--haip-primary-hover)] disabled:opacity-60"
           >
             {send.isPending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
             Send reply
@@ -310,7 +310,7 @@ function DetailPanel({ lead, bucket, stageLabel }: { lead: LeadCard; bucket: Buc
           type="button"
           onClick={() => callLead.mutate()}
           disabled={callLead.isPending}
-          className="inline-flex items-center justify-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-lg bg-teal-700 text-white hover:bg-teal-800 disabled:opacity-60"
+          className="inline-flex items-center justify-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-lg bg-[var(--haip-primary-hover)] text-white hover:bg-[var(--haip-primary-hover)] disabled:opacity-60"
         >
           {callLead.isPending ? <Loader2 size={14} className="animate-spin" /> : <PhoneCall size={14} />}
           {callLead.isPending ? "Calling…" : "Call now"}
@@ -320,7 +320,7 @@ function DetailPanel({ lead, bucket, stageLabel }: { lead: LeadCard; bucket: Buc
       <button
         type="button"
         onClick={() => router.push(`/dashboard/leads/${lead.inquiry_id}`)}
-        className="inline-flex items-center justify-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-lg border hover:bg-gray-50"
+        className="inline-flex items-center justify-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-lg border hover:bg-[var(--haip-surface)]"
         style={{ borderColor: "var(--haip-border)", color: "var(--haip-fg)" }}
       >
         Open full lead — chat, calls, timeline <ArrowRight size={14} />
@@ -380,7 +380,7 @@ export function NeedsActionView({ onOpenPipeline }: { onOpenPipeline?: (f: Leads
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-2 text-sm" style={{ color: "var(--haip-fg-subtle)" }}>
         Couldn&apos;t load leads that need action.
-        <button onClick={() => refetch()} className="font-semibold text-teal-700 underline">Try again</button>
+        <button onClick={() => refetch()} className="font-semibold text-primary underline">Try again</button>
       </div>
     );
   }

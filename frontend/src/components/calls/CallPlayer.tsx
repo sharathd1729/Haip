@@ -132,7 +132,7 @@ export function CallPlayer({
   onClick={handleSeekClick}
   >
   <div
-  className="absolute left-0 top-0 bottom-0 bg-teal-500/15 transition-none"
+  className="absolute left-0 top-0 bottom-0 bg-primary/15 transition-none"
   style={{ width: `${pct}%` }}
   />
   <div className="absolute inset-0 flex items-center gap-px px-2">

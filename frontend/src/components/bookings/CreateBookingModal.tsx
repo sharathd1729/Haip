@@ -174,7 +174,7 @@ export function CreateBookingModal({
           <h3 className="font-bold text-[15px]" style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}>
             {isEditing ? `Edit Booking #${editBooking!.external_id ?? editBooking!.id}` : "Create Booking"}
           </h3>
-          <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700">
+          <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-2)]">
             <X size={15} />
           </button>
         </div>
@@ -191,13 +191,13 @@ export function CreateBookingModal({
               <div className="flex items-center justify-between px-4 py-2.5 rounded-xl text-sm" style={{ border: "1px solid var(--haip-border)", background: "var(--haip-surface)" }}>
                 <span>{selectedGuest.name || "Unknown"} · {formatPhone(selectedGuest.phone)}</span>
                 {!isEditing && (
-                  <button type="button" onClick={() => setSelectedGuest(null)} className="text-xs text-teal-600 font-medium">Change</button>
+                  <button type="button" onClick={() => setSelectedGuest(null)} className="text-xs text-primary font-medium">Change</button>
                 )}
               </div>
             ) : (
               <div className="space-y-2">
                 <div className="relative">
-                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input
                     value={guestSearch}
                     onChange={e => setGuestSearch(e.target.value)}
@@ -210,16 +210,16 @@ export function CreateBookingModal({
                 {debouncedGuestSearch.length >= 2 && (
                   <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--haip-border)" }}>
                     {searchingGuests ? (
-                      <div className="px-4 py-2.5 text-xs text-gray-400">Searching…</div>
+                      <div className="px-4 py-2.5 text-xs text-[var(--haip-fg-subtle)]">Searching…</div>
                     ) : guestResults.length === 0 ? (
-                      <div className="px-4 py-2.5 text-xs text-gray-400">No matches — fill in a new guest below</div>
+                      <div className="px-4 py-2.5 text-xs text-[var(--haip-fg-subtle)]">No matches — fill in a new guest below</div>
                     ) : (
                       guestResults.map(g => (
                         <button
                           key={g.id}
                           type="button"
                           onClick={() => { setSelectedGuest(g); setGuestSearch(""); }}
-                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 border-b last:border-b-0"
+                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-[var(--haip-surface)] border-b last:border-b-0"
                           style={{ borderColor: "#F3F4F6" }}
                         >
                           {g.name || "Unknown"} · {formatPhone(g.phone)}
@@ -228,7 +228,7 @@ export function CreateBookingModal({
                     )}
                   </div>
                 )}
-                <p className="text-[11px] text-gray-400">— or fill in a new guest —</p>
+                <p className="text-[11px] text-[var(--haip-fg-subtle)]">— or fill in a new guest —</p>
                 <div className="grid grid-cols-2 gap-2">
                   <input
                     value={newGuestName}
@@ -337,7 +337,7 @@ export function CreateBookingModal({
           {/* Notes (staff only) -- the agent writes which caravan it is, e.g. "Black Ratha" */}
           {!isEditing && (
             <div>
-              <label className="block text-[12.5px] font-semibold mb-1.5" style={{ color: "var(--haip-fg)" }}>Notes <span className="font-normal text-gray-400">(staff only)</span></label>
+              <label className="block text-[12.5px] font-semibold mb-1.5" style={{ color: "var(--haip-fg)" }}>Notes <span className="font-normal text-[var(--haip-fg-subtle)]">(staff only)</span></label>
               <textarea
                 rows={2} value={notes} onChange={e => setNotes(e.target.value)}
                 placeholder="Which caravan: Black Ratha / White Ratha. Anything the team should know."

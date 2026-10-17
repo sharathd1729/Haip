@@ -74,7 +74,7 @@ function ProviderIcon({
   if (logo === "phone") return <Phone size={size} className={cn("text-blue-500", className)} />;
   if (logo === "ivr") {
     return (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className={cn("text-teal-600", className)}>
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className={cn("text-primary", className)}>
         <path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
       </svg>
     );
@@ -86,7 +86,7 @@ function ProviderIcon({
       </svg>
     );
   }
-  return <Plug size={size} className={cn("text-gray-400", className)} />;
+  return <Plug size={size} className={cn("text-[var(--haip-fg-subtle)]", className)} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -98,8 +98,8 @@ function StatusBadge({ status }: { status: Integration["status"] }) {
     active:       { label: "Connected",     icon: <Wifi size={10} />,        cls: "bg-green-50 text-green-700 border-green-200" },
     error:        { label: "Error",          icon: <AlertCircle size={10} />, cls: "bg-red-50 text-red-700 border-red-200" },
     pending:      { label: "Pending",        icon: <Clock size={10} />,       cls: "bg-amber-50 text-amber-700 border-amber-200" },
-    disconnected: { label: "Not connected",  icon: <WifiOff size={10} />,     cls: "bg-gray-50 text-gray-500 border-gray-200" },
-  }[status] ?? { label: status, icon: null, cls: "bg-gray-50 text-gray-500 border-gray-200" };
+    disconnected: { label: "Not connected",  icon: <WifiOff size={10} />,     cls: "bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)] border-[var(--haip-border)]" },
+  }[status] ?? { label: status, icon: null, cls: "bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)] border-[var(--haip-border)]" };
 
   return (
     <span className={cn("inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border", cfg.cls)}>
@@ -145,12 +145,12 @@ function CopyField({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div>
-      <p className="text-[10px] text-gray-400 mb-1 font-semibold uppercase tracking-wide">{label}</p>
-      <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5">
-        <code className="text-[11px] text-gray-700 flex-1 break-all font-mono">{value}</code>
+      <p className="text-[10px] text-[var(--haip-fg-subtle)] mb-1 font-semibold uppercase tracking-wide">{label}</p>
+      <div className="flex items-center gap-2 bg-[var(--haip-surface)] border border-[var(--haip-border)] rounded-lg px-2.5 py-1.5">
+        <code className="text-[11px] text-[var(--haip-fg-2)] flex-1 break-all font-mono">{value}</code>
         <button
           onClick={() => { navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-          className="text-gray-400 hover:text-gray-600 flex-shrink-0 transition-colors"
+          className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)] flex-shrink-0 transition-colors"
           title="Copy"
         >
           {copied ? <CheckCircle2 size={13} className="text-green-500" /> : <Copy size={13} />}
@@ -182,15 +182,15 @@ function VerifyTokenRow({ provider, info }: { provider: string; info: WebhookInf
 
   return (
     <div>
-      <p className="text-[10px] text-gray-400 mb-1 font-semibold uppercase tracking-wide">Verify Token</p>
-      <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5">
-        <code className="text-[11px] text-gray-700 flex-1 break-all font-mono">
+      <p className="text-[10px] text-[var(--haip-fg-subtle)] mb-1 font-semibold uppercase tracking-wide">Verify Token</p>
+      <div className="flex items-center gap-2 bg-[var(--haip-surface)] border border-[var(--haip-border)] rounded-lg px-2.5 py-1.5">
+        <code className="text-[11px] text-[var(--haip-fg-2)] flex-1 break-all font-mono">
           {token ?? (info.verify_token_set ? `••••••••••••${info.verify_token_hint ?? ""}` : "Not created yet")}
         </code>
         {token && (
           <button
             onClick={() => { navigator.clipboard.writeText(token); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-            className="text-gray-400 hover:text-gray-600 flex-shrink-0 transition-colors" title="Copy"
+            className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)] flex-shrink-0 transition-colors" title="Copy"
           >
             {copied ? <CheckCircle2 size={13} className="text-green-500" /> : <Copy size={13} />}
           </button>
@@ -199,19 +199,19 @@ function VerifyTokenRow({ provider, info }: { provider: string; info: WebhookInf
       {info.can_reveal ? (
         <div className="flex flex-wrap items-center gap-3 mt-1.5">
           <button onClick={() => (token ? setToken(null) : show.mutate("reveal"))} disabled={show.isPending}
-            className="text-[11px] font-semibold text-teal-700 hover:underline disabled:opacity-50">
+            className="text-[11px] font-semibold text-primary hover:underline disabled:opacity-50">
             {token ? "Hide" : info.verify_token_set ? "Show token" : "Create token"}
           </button>
           {info.verify_token_set && (
             <button
               onClick={() => { if (confirm("Create a new verify token? The current one stops working. Paste the new one into Meta the next time you save the webhook there.")) show.mutate("rotate"); }}
-              disabled={show.isPending} className="text-[11px] font-semibold text-gray-500 hover:underline disabled:opacity-50">
+              disabled={show.isPending} className="text-[11px] font-semibold text-[var(--haip-fg-subtle)] hover:underline disabled:opacity-50">
               Generate new token
             </button>
           )}
         </div>
       ) : (
-        <p className="text-[10px] text-gray-400 mt-1">Only the account owner can view or replace the verify token.</p>
+        <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Only the account owner can view or replace the verify token.</p>
       )}
       {failed && <p className="text-[10px] text-red-600 mt-1">{failed}</p>}
       {info.can_reveal && info.legacy_token_active && (
@@ -232,22 +232,22 @@ function WebhookInfoPanel({ provider }: { provider: string }) {
   const providerLabel = provider === "whatsapp_meta" ? "WhatsApp" : "Instagram";
 
   return (
-    <div className="border-t border-gray-100 pt-3 mt-1">
+    <div className="border-t border-[var(--haip-border)] pt-3 mt-1">
       <button
         onClick={() => setOpen(o => !o)}
         className="flex items-center justify-between w-full text-left"
       >
-        <p className="text-[10px] text-teal-700 font-semibold uppercase tracking-wide flex items-center gap-1">
+        <p className="text-[10px] text-primary font-semibold uppercase tracking-wide flex items-center gap-1">
           <Info size={10} />
           Configure {providerLabel} Webhook
         </p>
-        {open ? <ChevronUp size={12} className="text-gray-400" /> : <ChevronDown size={12} className="text-gray-400" />}
+        {open ? <ChevronUp size={12} className="text-[var(--haip-fg-subtle)]" /> : <ChevronDown size={12} className="text-[var(--haip-fg-subtle)]" />}
       </button>
 
       {open && (
         <div className="mt-2 space-y-3">
           {isLoading ? (
-            <div className="h-12 bg-gray-50 rounded-lg animate-pulse" />
+            <div className="h-12 bg-[var(--haip-surface)] rounded-lg animate-pulse" />
           ) : data ? (
             <>
               <CopyField label="Webhook URL" value={data.webhook_url} />
@@ -267,7 +267,7 @@ function WebhookInfoPanel({ provider }: { provider: string }) {
               )}
             </>
           ) : (
-            <p className="text-[10px] text-gray-400">Could not load webhook info.</p>
+            <p className="text-[10px] text-[var(--haip-fg-subtle)]">Could not load webhook info.</p>
           )}
         </div>
       )}
@@ -327,7 +327,7 @@ function ConnectModal({
     try { await onConnect(fields); } finally { setSubmitting(false); }
   };
 
-  const inputCls = "w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white";
+  const inputCls = "w-full pl-9 pr-4 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white";
 
   const subtitle = (() => {
     if (isWhatsApp)   return "Paste your WhatsApp Cloud API credentials from Meta Business Suite";
@@ -343,12 +343,12 @@ function ConnectModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden max-h-[90vh] flex flex-col" style={{ maxHeight: "calc(100dvh - 2rem)" }}>
         {/* Header */}
-        <div className="px-6 pt-6 pb-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+        <div className="px-6 pt-6 pb-4 border-b border-[var(--haip-border)] flex items-center justify-between flex-shrink-0">
           <div>
-            <h2 className="text-base font-bold text-gray-900">Connect {providerName}</h2>
-            <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>
+            <h2 className="text-base font-bold text-[var(--haip-fg)]">Connect {providerName}</h2>
+            <p className="text-xs text-[var(--haip-fg-subtle)] mt-0.5">{subtitle}</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+          <button onClick={onClose} className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)] transition-colors">
             <X size={18} />
           </button>
         </div>
@@ -358,73 +358,73 @@ function ConnectModal({
           {isWhatsApp ? (
             <>
               <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1.5">
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">
                   Phone Number ID <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
-                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input autoFocus type="text" value={fields.phone_number_id ?? ""} onChange={e => set("phone_number_id", e.target.value)} placeholder="e.g. 123456789012345" className={inputCls} />
                 </div>
-                <p className="text-[10px] text-gray-400 mt-1">Found in Meta Business Suite → WhatsApp → Getting Started.</p>
+                <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Found in Meta Business Suite → WhatsApp → Getting Started.</p>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1.5">
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">
                   WhatsApp Business Account ID (WABA ID) <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
-                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input type="text" value={fields.waba_id ?? ""} onChange={e => set("waba_id", e.target.value)} placeholder="e.g. 987654321098765" className={inputCls} />
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1.5">
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">
                   Access Token <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
-                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input type="password" value={fields.access_token ?? ""} onChange={e => set("access_token", e.target.value)} placeholder="Permanent or temporary user token" className={inputCls} />
                 </div>
-                <p className="text-[10px] text-gray-400 mt-1">Use a permanent System User token for production (never expires).</p>
+                <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Use a permanent System User token for production (never expires).</p>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1.5">
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">
                   App Secret <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
-                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input type="password" value={fields.app_secret ?? ""} onChange={e => set("app_secret", e.target.value)} placeholder="Meta App Secret (Settings → Basic)" className={inputCls} />
                 </div>
-                <p className="text-[10px] text-gray-400 mt-1">Needed to receive replies and delivery updates. Without it messages send, but they stay at “sent” and guests' replies never appear. Leave blank to keep the one already saved.</p>
+                <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Needed to receive replies and delivery updates. Without it messages send, but they stay at “sent” and guests' replies never appear. Leave blank to keep the one already saved.</p>
               </div>
             </>
           ) : isInstagram ? (
             <>
               <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1.5">
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">
                   App Secret <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
-                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input autoFocus type="password" value={fields.app_secret ?? ""} onChange={e => set("app_secret", e.target.value)} placeholder="Meta App Secret" className={inputCls} />
                 </div>
-                <p className="text-[10px] text-gray-400 mt-1">Required for webhook signature verification and to bootstrap the Instagram Login connection.</p>
+                <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Required for webhook signature verification and to bootstrap the Instagram Login connection.</p>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1.5">
-                  Instagram Business Account ID <span className="text-gray-400 font-normal">(optional)</span>
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">
+                  Instagram Business Account ID <span className="text-[var(--haip-fg-subtle)] font-normal">(optional)</span>
                 </label>
                 <div className="relative">
-                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input type="text" value={fields.instagram_business_account_id ?? ""} onChange={e => set("instagram_business_account_id", e.target.value)} placeholder="e.g. 17841234567890123" className={inputCls} />
                 </div>
-                <p className="text-[10px] text-gray-400 mt-1">Found in Meta Business Suite → Instagram → Account settings.</p>
+                <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Found in Meta Business Suite → Instagram → Account settings.</p>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1.5">
-                  Access Token <span className="text-gray-400 font-normal">(not needed — use Instagram Login instead)</span>
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">
+                  Access Token <span className="text-[var(--haip-fg-subtle)] font-normal">(not needed — use Instagram Login instead)</span>
                 </label>
                 <div className="relative">
-                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input type="password" value={fields.access_token ?? ""} onChange={e => set("access_token", e.target.value)} placeholder="Leave blank — use Connect via Instagram Login after saving" className={inputCls} />
                 </div>
               </div>
@@ -432,18 +432,18 @@ function ConnectModal({
           ) : isRentalWise ? (
             <>
               {/* Auth mode toggle */}
-              <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
+              <div className="flex gap-1 p-1 bg-[var(--haip-status-neutral-bg)] rounded-xl">
                 <button
                   type="button"
                   onClick={() => setRwAuthMode("token")}
-                  className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${rwAuthMode === "token" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                  className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${rwAuthMode === "token" ? "bg-white text-[var(--haip-fg)] shadow-sm" : "text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-2)]"}`}
                 >
                   API Token
                 </button>
                 <button
                   type="button"
                   onClick={() => setRwAuthMode("basic")}
-                  className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${rwAuthMode === "basic" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                  className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${rwAuthMode === "basic" ? "bg-white text-[var(--haip-fg)] shadow-sm" : "text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-2)]"}`}
                 >
                   Username / Password
                 </button>
@@ -451,11 +451,11 @@ function ConnectModal({
 
               {rwAuthMode === "token" ? (
                 <div>
-                  <label className="text-xs font-semibold text-gray-700 block mb-1.5">
+                  <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">
                     API Token <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
-                    <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                     <input
                       autoFocus
                       type="password"
@@ -465,21 +465,21 @@ function ConnectModal({
                       className={inputCls}
                     />
                   </div>
-                  <p className="text-[10px] text-gray-400 mt-1">Provided by your RentalWise Engagement Manager during onboarding.</p>
+                  <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Provided by your RentalWise Engagement Manager during onboarding.</p>
                 </div>
               ) : (
                 <>
                   <div>
-                    <label className="text-xs font-semibold text-gray-700 block mb-1.5">Username <span className="text-red-500">*</span></label>
+                    <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Username <span className="text-red-500">*</span></label>
                     <div className="relative">
-                      <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                       <input autoFocus type="text" value={fields.username ?? ""} onChange={e => set("username", e.target.value)} placeholder="Your RentalWise username" className={inputCls} />
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-gray-700 block mb-1.5">Password <span className="text-red-500">*</span></label>
+                    <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Password <span className="text-red-500">*</span></label>
                     <div className="relative">
-                      <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                       <input type="password" value={fields.password ?? ""} onChange={e => set("password", e.target.value)} placeholder="Your RentalWise password" className={inputCls} />
                     </div>
                   </div>
@@ -487,27 +487,27 @@ function ConnectModal({
               )}
 
               <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1.5">API Base URL <span className="text-gray-400 font-normal">(optional)</span></label>
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">API Base URL <span className="text-[var(--haip-fg-subtle)] font-normal">(optional)</span></label>
                 <div className="relative">
-                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input type="text" value={fields.base_url ?? ""} onChange={e => set("base_url", e.target.value)} placeholder="https://app.rentalwise.io" className={inputCls} />
                 </div>
-                <p className="text-[11px] text-gray-400 mt-1">Leave blank to use the default production URL.</p>
+                <p className="text-[11px] text-[var(--haip-fg-subtle)] mt-1">Leave blank to use the default production URL.</p>
               </div>
             </>
           ) : isBasicAuth ? (
             <>
               <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1.5">Username <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Username <span className="text-red-500">*</span></label>
                 <div className="relative">
-                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input autoFocus type="text" value={fields.username ?? ""} onChange={e => set("username", e.target.value)} placeholder="Username" className={inputCls} />
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1.5">Password <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Password <span className="text-red-500">*</span></label>
                 <div className="relative">
-                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input type="password" value={fields.password ?? ""} onChange={e => set("password", e.target.value)} placeholder="Password" className={inputCls} />
                 </div>
               </div>
@@ -515,44 +515,44 @@ function ConnectModal({
           ) : isVobiz ? (
             <>
               <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1.5">Auth ID <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Auth ID <span className="text-red-500">*</span></label>
                 <div className="relative">
-                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input autoFocus type="text" value={fields.api_key ?? ""} onChange={e => set("api_key", e.target.value)} placeholder="e.g. MA_K8PLCAKA" className={inputCls} />
                 </div>
-                <p className="text-[10px] text-gray-400 mt-1">From the Vobiz Console → Basic Information → Auth ID.</p>
+                <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">From the Vobiz Console → Basic Information → Auth ID.</p>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1.5">Auth Secret <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Auth Secret <span className="text-red-500">*</span></label>
                 <div className="relative">
-                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input type="password" value={fields.api_secret ?? ""} onChange={e => set("api_secret", e.target.value)} placeholder="From Vobiz Console → Basic Information → Auth Secret" className={inputCls} />
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1.5">Agent Forwarding Number <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Agent Forwarding Number <span className="text-red-500">*</span></label>
                 <div className="relative">
-                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input type="text" value={fields.forward_number ?? ""} onChange={e => set("forward_number", e.target.value)} placeholder="+9198XXXXXXXX" className={inputCls} />
                 </div>
-                <p className="text-[10px] text-gray-400 mt-1">Every inbound call rings this mobile number while the whole session records. E.164 format.</p>
+                <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Every inbound call rings this mobile number while the whole session records. E.164 format.</p>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1.5">Vobiz Phone Number (DID)</label>
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Vobiz Phone Number (DID)</label>
                 <div className="relative">
-                  <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input type="text" value={fields.did_number ?? ""} onChange={e => set("did_number", e.target.value)} placeholder="+9122XXXXXXXX" className={inputCls} />
                 </div>
-                <p className="text-[10px] text-gray-400 mt-1">
+                <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">
                   Optional for inbound — required for agents to click-to-call guests. From the Vobiz Console → Numbers.
                 </p>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1.5">
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">
                   Webhook Secret <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
-                  <Shield size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Shield size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input
                     type="password"
                     value={fields.webhook_secret ?? ""}
@@ -562,7 +562,7 @@ function ConnectModal({
                     onKeyDown={e => { if (e.key === "Enter") handleSubmit(); }}
                   />
                 </div>
-                <p className="text-[11px] text-gray-400 mt-1">
+                <p className="text-[11px] text-[var(--haip-fg-subtle)] mt-1">
                   Generate any random string — it becomes part of the Answer URL you'll copy after connecting.
                 </p>
               </div>
@@ -570,16 +570,16 @@ function ConnectModal({
           ) : isHostaway ? (
             <>
               <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1.5">Account ID <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Account ID <span className="text-red-500">*</span></label>
                 <div className="relative">
-                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input autoFocus type="text" value={fields.account_id ?? ""} onChange={e => set("account_id", e.target.value)} placeholder="Your Hostaway Account ID" className={inputCls} />
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1.5">API Secret <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">API Secret <span className="text-red-500">*</span></label>
                 <div className="relative">
-                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input type="password" value={fields.api_secret ?? ""} onChange={e => set("api_secret", e.target.value)} placeholder="Your Hostaway API Secret" className={inputCls} />
                 </div>
               </div>
@@ -587,11 +587,11 @@ function ConnectModal({
           ) : (
             <>
               <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1.5">
+                <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">
                   API Key <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
-                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                   <input
                     autoFocus
                     type="password"
@@ -605,11 +605,11 @@ function ConnectModal({
               </div>
               {isIvr && (
                 <div>
-                  <label className="text-xs font-semibold text-gray-700 block mb-1.5">
+                  <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">
                     Webhook Secret <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
-                    <Shield size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <Shield size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                     <input
                       type="password"
                       value={fields.webhook_secret ?? ""}
@@ -619,7 +619,7 @@ function ConnectModal({
                       onKeyDown={e => { if (e.key === "Enter") handleSubmit(); }}
                     />
                   </div>
-                  <p className="text-[11px] text-gray-400 mt-1">
+                  <p className="text-[11px] text-[var(--haip-fg-subtle)] mt-1">
                     {provider === "mcube"
                       ? "Generate any random string — it becomes part of the webhook URL you'll copy after connecting."
                       : `Generate any random string, then paste the same value into your ${providerName} dashboard → Webhooks → Secret.`}
@@ -629,7 +629,7 @@ function ConnectModal({
             </>
           )}
 
-          <p className="text-[11px] text-gray-400 flex items-center gap-1">
+          <p className="text-[11px] text-[var(--haip-fg-subtle)] flex items-center gap-1">
             <Shield size={10} />
             Encrypted with AES-256 before storage — never visible after saving.
           </p>
@@ -643,14 +643,14 @@ function ConnectModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 pb-5 pt-3 flex items-center gap-3 justify-end border-t border-gray-100 flex-shrink-0">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">
+        <div className="px-6 pb-5 pt-3 flex items-center gap-3 justify-end border-t border-[var(--haip-border)] flex-shrink-0">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-[var(--haip-fg-muted)] hover:text-[var(--haip-fg)] transition-colors">
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={!canSubmit || submitting}
-            className="px-4 py-2 bg-teal-500 text-white rounded-xl text-sm font-medium hover:bg-teal-600 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+            className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary transition-colors disabled:opacity-50 flex items-center gap-1.5"
           >
             {submitting ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
             Connect
@@ -709,20 +709,20 @@ function WebhookUrlCopy({ provider }: { provider: string }) {
   };
 
   return (
-    <div className="border-t border-gray-100 pt-3">
-      <p className="text-[10px] text-gray-400 mb-1.5 font-semibold uppercase tracking-wide">Webhook URL</p>
+    <div className="border-t border-[var(--haip-border)] pt-3">
+      <p className="text-[10px] text-[var(--haip-fg-subtle)] mb-1.5 font-semibold uppercase tracking-wide">Webhook URL</p>
       {isLoading ? (
-        <p className="text-[10px] text-gray-400">Loading…</p>
+        <p className="text-[10px] text-[var(--haip-fg-subtle)]">Loading…</p>
       ) : url ? (
         <>
-          <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-2.5 py-1.5">
-            <code className="text-[10px] text-gray-600 flex-1 truncate font-mono">{url}</code>
-            <button onClick={copy} className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0" title="Copy">
+          <div className="flex items-center gap-2 bg-[var(--haip-surface)] rounded-lg px-2.5 py-1.5">
+            <code className="text-[10px] text-[var(--haip-fg-muted)] flex-1 truncate font-mono">{url}</code>
+            <button onClick={copy} className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)] transition-colors flex-shrink-0" title="Copy">
               {copied ? <CheckCircle2 size={11} className="text-green-500" /> : <Copy size={11} />}
             </button>
           </div>
           {data?.instructions?.map((line, i) => (
-            <p key={i} className="text-[10px] text-gray-400 mt-1">{line}</p>
+            <p key={i} className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">{line}</p>
           ))}
         </>
       ) : (
@@ -758,9 +758,9 @@ function VobizDidNumberEditor() {
   });
 
   return (
-    <div className="bg-teal-50/60 border border-teal-100 rounded-xl p-3 space-y-2">
-      <p className="text-[11px] font-semibold text-gray-700">Vobiz Phone Number (DID)</p>
-      <p className="text-[10px] text-gray-500 leading-relaxed">
+    <div className="bg-[var(--haip-primary-tint)] border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] rounded-xl p-3 space-y-2">
+      <p className="text-[11px] font-semibold text-[var(--haip-fg-2)]">Vobiz Phone Number (DID)</p>
+      <p className="text-[10px] text-[var(--haip-fg-subtle)] leading-relaxed">
         Required for agents to click-to-call guests. Not needed for inbound. From the Vobiz Console → Numbers.
       </p>
       <div className="flex gap-2">
@@ -769,19 +769,19 @@ function VobizDidNumberEditor() {
           value={value}
           onChange={e => { setValue(e.target.value); setSavedMsg(null); }}
           placeholder="+9122XXXXXXXX"
-          className="flex-1 px-2.5 py-1.5 rounded-lg text-xs border border-gray-200 outline-none focus:border-teal-400"
+          className="flex-1 px-2.5 py-1.5 rounded-lg text-xs border border-[var(--haip-border)] outline-none focus:border-primary"
         />
         <button
           type="button"
           onClick={() => value.trim() && save.mutate(value.trim())}
           disabled={save.isPending || !value.trim()}
-          className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-teal-500 hover:bg-teal-600 disabled:opacity-50"
+          className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-primary hover:bg-primary disabled:opacity-50"
         >
           {save.isPending ? <Loader2 size={12} className="animate-spin" /> : "Save"}
         </button>
       </div>
       {savedMsg && (
-        <p className={cn("text-[10px]", save.isError ? "text-red-600" : "text-teal-700")}>{savedMsg}</p>
+        <p className={cn("text-[10px]", save.isError ? "text-red-600" : "text-primary")}>{savedMsg}</p>
       )}
     </div>
   );
@@ -821,39 +821,39 @@ function IntegrationCard({
   return (
     <div className={cn(
       "bg-white rounded-2xl border transition-all duration-200 p-5 flex flex-col gap-4",
-      isConnected ? "border-teal-200 shadow-sm shadow-teal-50" : "border-gray-100 hover:border-gray-200 hover:shadow-sm"
+      isConnected ? "border-[color-mix(in_srgb,var(--primary)_25%,transparent)] shadow-sm shadow-[color-mix(in_srgb,var(--primary)_18%,transparent)]" : "border-[var(--haip-border)] hover:border-[var(--haip-border)] hover:shadow-sm"
     )}>
       {/* Header */}
       <div className="flex items-start gap-4">
         <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0",
-          isConnected ? "bg-teal-50" : "bg-gray-50"
+          isConnected ? "bg-[var(--haip-primary-tint)]" : "bg-[var(--haip-surface)]"
         )}>
           <ProviderIcon logo={item.logo} size={24} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-0.5">
-            <span className="text-sm font-bold text-gray-900">{item.name}</span>
+            <span className="text-sm font-bold text-[var(--haip-fg)]">{item.name}</span>
             {item.popular && (
-              <span className="text-[9px] bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wide">Popular</span>
+              <span className="text-[9px] bg-[var(--haip-primary-tint)] text-primary px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wide">Popular</span>
             )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <StatusBadge status={status} />
-            <span className="text-[10px] text-gray-400 capitalize">{item.category}</span>
+            <span className="text-[10px] text-[var(--haip-fg-subtle)] capitalize">{item.category}</span>
             <TokenExpiryBadge expiry={integration?.config?.token_expires_at ?? integration?.config?.token_expiry} />
           </div>
         </div>
       </div>
 
       {/* Description */}
-      <p className="text-xs text-gray-500 leading-relaxed">{item.description}</p>
+      <p className="text-xs text-[var(--haip-fg-subtle)] leading-relaxed">{item.description}</p>
 
       {/* Metadata (when connected) */}
       {isConnected && integration?.config && Object.keys(integration.config).length > 0 && (
-        <div className="bg-gray-50 rounded-xl p-3 text-[11px] text-gray-600 space-y-1.5">
+        <div className="bg-[var(--haip-surface)] rounded-xl p-3 text-[11px] text-[var(--haip-fg-muted)] space-y-1.5">
           {integration.config.display_phone && (
             <div className="flex items-center gap-2">
-              <Phone size={11} className="text-gray-400" />
+              <Phone size={11} className="text-[var(--haip-fg-subtle)]" />
               <span className="font-mono font-medium">{integration.config.display_phone}</span>
             </div>
           )}
@@ -865,29 +865,29 @@ function IntegrationCard({
           )}
           {integration.config.username && (
             <div className="flex items-center gap-2">
-              <AtSign size={11} className="text-gray-400" />
+              <AtSign size={11} className="text-[var(--haip-fg-subtle)]" />
               <span>@{integration.config.username}</span>
             </div>
           )}
           {integration.config.account_name && (
             <div className="flex items-center gap-2">
-              <Zap size={11} className="text-gray-400" />
+              <Zap size={11} className="text-[var(--haip-fg-subtle)]" />
               <span>{integration.config.account_name}</span>
             </div>
           )}
           {integration.config.token_expires_at && (
             <div className="flex items-center gap-2">
-              <Clock size={11} className="text-gray-400" />
+              <Clock size={11} className="text-[var(--haip-fg-subtle)]" />
               <span>Access token ends {new Date(integration.config.token_expires_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
             </div>
           )}
           {integration.config.waba_id && (
-            <div className="flex items-center gap-2 text-gray-400">
+            <div className="flex items-center gap-2 text-[var(--haip-fg-subtle)]">
               <span className="font-mono text-[10px]">WABA: {integration.config.waba_id}</span>
             </div>
           )}
           {integration.last_health_at && (
-            <div className="flex items-center gap-2 text-gray-400 pt-0.5 border-t border-gray-100">
+            <div className="flex items-center gap-2 text-[var(--haip-fg-subtle)] pt-0.5 border-t border-[var(--haip-border)]">
               <Clock size={10} />
               <span>Last verified {new Date(integration.last_health_at).toLocaleString()}</span>
             </div>
@@ -943,7 +943,7 @@ function IntegrationCard({
               href={igOAuthUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-teal-500 text-white rounded-xl text-xs font-semibold hover:bg-teal-600 transition-colors shadow-sm shadow-teal-200"
+              className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-primary text-white rounded-xl text-xs font-semibold hover:bg-primary transition-colors shadow-sm shadow-[color-mix(in_srgb,var(--primary)_18%,transparent)]"
             >
               <Plug size={13} />
               Reconnect via Instagram Login
@@ -954,7 +954,7 @@ function IntegrationCard({
               onClick={() => onConnect(item.provider)}
               disabled={isConnecting}
               title="Update credentials without disconnecting — e.g. a rotated token or the wrong number pasted the first time"
-              className="flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-200 rounded-xl text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              className="flex items-center justify-center gap-1.5 px-3 py-2 border border-[var(--haip-border)] rounded-xl text-xs font-medium text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)] transition-colors disabled:opacity-50"
             >
               {isConnecting ? <Loader2 size={12} className="animate-spin" /> : <Pencil size={12} />}
               Edit
@@ -962,7 +962,7 @@ function IntegrationCard({
             <button
               onClick={() => onVerify(item.provider)}
               disabled={isVerifying}
-              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-200 rounded-xl text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border border-[var(--haip-border)] rounded-xl text-xs font-medium text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)] transition-colors disabled:opacity-50"
             >
               {isVerifying ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
               Test connection
@@ -983,14 +983,14 @@ function IntegrationCard({
               href={igOAuthUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-teal-500 text-white rounded-xl text-xs font-semibold hover:bg-teal-600 transition-colors shadow-sm shadow-teal-200"
+              className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-primary text-white rounded-xl text-xs font-semibold hover:bg-primary transition-colors shadow-sm shadow-[color-mix(in_srgb,var(--primary)_18%,transparent)]"
             >
               <Plug size={13} />
               Connect via Instagram Login
             </a>
-            <p className="text-[10px] text-gray-400 text-center">
+            <p className="text-[10px] text-[var(--haip-fg-subtle)] text-center">
               First time connecting? An App Secret must be saved first —{" "}
-              <button onClick={() => onConnect(item.provider)} className="underline hover:text-gray-600">
+              <button onClick={() => onConnect(item.provider)} className="underline hover:text-[var(--haip-fg-muted)]">
                 save credentials manually
               </button>.
             </p>
@@ -999,7 +999,7 @@ function IntegrationCard({
           <button
             onClick={() => onConnect(item.provider)}
             disabled={isConnecting}
-            className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-teal-500 text-white rounded-xl text-xs font-semibold hover:bg-teal-600 transition-colors disabled:opacity-50 shadow-sm shadow-teal-200"
+            className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-primary text-white rounded-xl text-xs font-semibold hover:bg-primary transition-colors disabled:opacity-50 shadow-sm shadow-[color-mix(in_srgb,var(--primary)_18%,transparent)]"
           >
             {isConnecting ? <Loader2 size={13} className="animate-spin" /> : <Plug size={13} />}
             {item.provider === "haip_ivr" ? "Configure IVR" : `Connect ${item.name}`}
@@ -1180,11 +1180,11 @@ export default function IntegrationsPage() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="px-6 py-5 bg-white border-b border-gray-100 flex-shrink-0">
+      <div className="px-6 py-5 bg-white border-b border-[var(--haip-border)] flex-shrink-0">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="haip-page-title">Integrations</h1>
-            <p className="text-sm text-gray-400 mt-0.5">
+            <p className="text-sm text-[var(--haip-fg-subtle)] mt-0.5">
               Connect your tools directly — each client uses their own API credentials.
             </p>
           </div>
@@ -1204,7 +1204,7 @@ export default function IntegrationsPage() {
               onClick={() => setActiveCategory(cat)}
               className={cn(
                 "px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors",
-                activeCategory === cat ? "bg-teal-500 text-white" : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                activeCategory === cat ? "bg-primary text-white" : "text-[var(--haip-fg-subtle)] hover:bg-[var(--haip-status-neutral-bg)] hover:text-[var(--haip-fg-2)]"
               )}
             >
               {cat === "all" ? "All integrations" : cat}
@@ -1221,24 +1221,24 @@ export default function IntegrationsPage() {
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {[1, 2, 3, 4].map(i => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-100 p-5 animate-pulse">
+              <div key={i} className="bg-white rounded-2xl border border-[var(--haip-border)] p-5 animate-pulse">
                 <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 rounded-xl bg-gray-100" />
+                  <div className="w-12 h-12 rounded-xl bg-[var(--haip-status-neutral-bg)]" />
                   <div className="flex-1 space-y-2">
-                    <div className="h-3 bg-gray-100 rounded w-1/2" />
-                    <div className="h-2 bg-gray-100 rounded w-1/4" />
+                    <div className="h-3 bg-[var(--haip-status-neutral-bg)] rounded w-1/2" />
+                    <div className="h-2 bg-[var(--haip-status-neutral-bg)] rounded w-1/4" />
                   </div>
                 </div>
                 <div className="space-y-2 mb-4">
-                  <div className="h-2 bg-gray-100 rounded" />
-                  <div className="h-2 bg-gray-100 rounded w-4/5" />
+                  <div className="h-2 bg-[var(--haip-status-neutral-bg)] rounded" />
+                  <div className="h-2 bg-[var(--haip-status-neutral-bg)] rounded w-4/5" />
                 </div>
-                <div className="h-9 bg-gray-100 rounded-xl" />
+                <div className="h-9 bg-[var(--haip-status-neutral-bg)] rounded-xl" />
               </div>
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+          <div className="flex flex-col items-center justify-center py-20 text-[var(--haip-fg-subtle)]">
             <Plug size={40} className="mb-3 opacity-30" />
             <p className="text-sm">No integrations in this category</p>
           </div>
@@ -1247,7 +1247,7 @@ export default function IntegrationsPage() {
             {/* Popular */}
             {activeCategory === "all" && filtered.some(c => c.popular) && (
               <div className="mb-6">
-                <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Popular</h2>
+                <h2 className="text-xs font-bold text-[var(--haip-fg-subtle)] uppercase tracking-widest mb-3">Popular</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {filtered.filter(c => c.popular).map(item => (
                     <IntegrationCard
@@ -1270,7 +1270,7 @@ export default function IntegrationsPage() {
             {(activeCategory !== "all" || filtered.some(c => !c.popular)) && (
               <div>
                 {activeCategory === "all" && (
-                  <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">All</h2>
+                  <h2 className="text-xs font-bold text-[var(--haip-fg-subtle)] uppercase tracking-widest mb-3">All</h2>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {(activeCategory === "all" ? filtered.filter(c => !c.popular) : filtered).map(item => (
@@ -1294,12 +1294,12 @@ export default function IntegrationsPage() {
 
         {/* Security footer */}
         <div className="mt-8 haip-card p-4 flex items-start gap-3">
-          <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center flex-shrink-0 mt-0.5">
-            <Shield size={16} className="text-teal-600" />
+          <div className="w-8 h-8 rounded-lg bg-[var(--haip-primary-tint)] flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Shield size={16} className="text-primary" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-gray-700 mb-1">Enterprise-grade security</p>
-            <p className="text-xs text-gray-400 leading-relaxed">
+            <p className="text-xs font-semibold text-[var(--haip-fg-2)] mb-1">Enterprise-grade security</p>
+            <p className="text-xs text-[var(--haip-fg-subtle)] leading-relaxed">
               All credentials are encrypted at rest using AES-256 (Fernet) before being stored in the database.
               Tokens are never exposed to the frontend or API responses.
               Each organisation has fully isolated credentials — no cross-tenant data access.

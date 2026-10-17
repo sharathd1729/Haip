@@ -70,12 +70,12 @@ export function WhatsAppHealthCard() {
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {data.suggested_waba_id && (
               <button onClick={() => useWaba.mutate(data.suggested_waba_id as string)} disabled={useWaba.isPending}
-                className="text-xs font-semibold bg-teal-500 text-white px-3 py-1.5 rounded-lg hover:bg-teal-600 disabled:opacity-60">
+                className="text-xs font-semibold bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary disabled:opacity-60">
                 {useWaba.isPending ? "Saving…" : `Use account ${data.suggested_waba_id}`}
               </button>
             )}
             {useWaba.isError && <span className="text-xs text-red-700">Couldn&apos;t save that ID. Try Settings instead.</span>}
-            <Link href="/dashboard/settings/integrations" className="text-xs font-semibold bg-teal-500 text-white px-3 py-1.5 rounded-lg hover:bg-teal-600">Open WhatsApp settings</Link>
+            <Link href="/dashboard/settings/integrations" className="text-xs font-semibold bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary">Open WhatsApp settings</Link>
             <button onClick={() => refetch()} disabled={isFetching}
               className="flex items-center gap-1.5 text-xs font-medium border border-[var(--haip-border)] bg-[var(--haip-card)] px-3 py-1.5 rounded-lg hover:bg-[var(--haip-surface)] disabled:opacity-60">
               {isFetching ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Check again

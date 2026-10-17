@@ -37,17 +37,17 @@ interface DashboardHealth {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const STATUS_DOT: Record<HealthStatus, string> = {
-  green:   "bg-green-400",
-  yellow:  "bg-yellow-400",
-  red:     "bg-red-500 animate-pulse",
-  unknown: "bg-gray-400",
+  green:   "bg-[var(--haip-green)]",
+  yellow:  "bg-[var(--haip-amber)]",
+  red:     "bg-[var(--haip-red)] motion-safe:animate-pulse",
+  unknown: "bg-[var(--haip-border-strong)]",
 };
 
 const STATUS_ICON: Record<HealthStatus, React.ReactNode> = {
-  green:   <CheckCircle2 size={13} className="text-green-600" />,
-  yellow:  <AlertTriangle size={13} className="text-yellow-600" />,
-  red:     <AlertCircle size={13} className="text-red-600" />,
-  unknown: <AlertCircle size={13} className="text-gray-400" />,
+  green:   <CheckCircle2 size={15} className="text-[var(--haip-status-success-fg)]" />,
+  yellow:  <AlertTriangle size={15} className="text-[var(--haip-status-warning-fg)]" />,
+  red:     <AlertCircle size={15} className="text-[var(--haip-status-danger-fg)]" />,
+  unknown: <AlertCircle size={13} className="text-[var(--haip-fg-subtle)]" />,
 };
 
 function relativeTime(iso?: string | null): string {
@@ -84,7 +84,7 @@ export function StatusBar() {
         if (!existing) {
           const el = document.createElement("div");
           el.setAttribute("data-health-toast", name);
-          el.className = "fixed bottom-20 right-4 z-50 bg-red-600 text-white text-xs font-medium rounded-xl px-4 py-2.5 shadow-lg flex items-center gap-2";
+          el.className = "fixed bottom-20 right-4 z-50 bg-[var(--haip-cal-maint)] text-white text-[13px] font-semibold rounded-xl px-4 py-2.5 shadow-lg flex items-center gap-2";
           const svc = data.services.find(s => s.name === name);
           el.innerHTML = `<span>⚠️ ${svc?.label ?? name} is down — check integrations</span>`;
           document.body.appendChild(el);
@@ -104,42 +104,43 @@ export function StatusBar() {
 
   return (
     <>
-      <div className="border-b flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.06)", backgroundColor: "rgba(0,0,0,0.15)" }}>
-        <div className="px-4 py-1.5 flex items-center gap-3 overflow-x-auto">
+      <div className="flex-shrink-0 border-b border-[var(--haip-border)] bg-[var(--haip-card)]">
+        <div className="flex items-center gap-2 overflow-x-auto px-4 py-1.5 lg:px-6">
+          <span className="flex-shrink-0 text-[12.5px] font-semibold text-[var(--haip-fg-muted)]">Connections</span>
           {data.services.map(svc => (
             <button
               key={svc.name}
               onClick={() => setDetail(d => d?.name === svc.name ? null : svc)}
               className={cn(
-                "flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-medium transition-colors flex-shrink-0",
-                svc.status === "red"    ? "bg-red-500/15 text-red-300 hover:bg-red-500/25" :
-                svc.status === "yellow" ? "bg-yellow-500/15 text-yellow-300 hover:bg-yellow-500/25" :
-                                          "bg-white/5 text-white/40 hover:bg-white/8"
+                "flex min-h-8 flex-shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-[12px] font-semibold transition-colors",
+                svc.status === "red"    ? "border-[var(--haip-status-danger-border)] bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)]" :
+                svc.status === "yellow" ? "border-[var(--haip-status-warning-border)] bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)]" :
+                                          "border-[var(--haip-border)] bg-[var(--haip-card)] text-[var(--haip-fg-muted)] hover:bg-[var(--hover-bg)]"
               )}
             >
-              <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", STATUS_DOT[svc.status])} />
+              <span className={cn("size-2 flex-shrink-0 rounded-full", STATUS_DOT[svc.status])} />
               {svc.label}
             </button>
           ))}
           <button
             onClick={() => refetch()}
-            className="ml-auto text-white/25 hover:text-white/50 flex-shrink-0 transition-colors"
-            title="Refresh health"
+            className="ml-auto flex size-8 flex-shrink-0 items-center justify-center rounded-lg text-[var(--haip-icon-neutral)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--haip-fg)]"
+            title="Refresh health" aria-label="Refresh connection health"
           >
-            <RefreshCw size={11} />
+            <RefreshCw size={14} />
           </button>
         </div>
       </div>
 
       {/* Detail panel */}
       {detail && (
-        <div className="border-b px-4 py-3 flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.06)", backgroundColor: "rgba(0,0,0,0.1)" }}>
+        <div className="flex-shrink-0 border-b border-[var(--haip-border)] bg-[var(--haip-surface)] px-4 py-3 lg:px-6">
           <div className="flex items-start gap-3">
             {STATUS_ICON[detail.status]}
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-white/80">{detail.label}</p>
-              {detail.message && <p className="text-[11px] text-white/50 mt-0.5">{detail.message}</p>}
-              <div className="flex items-center gap-3 mt-1.5 text-[10px] text-white/35">
+              <p className="text-[13.5px] font-semibold text-[var(--haip-fg)]">{detail.label}</p>
+              {detail.message && <p className="mt-0.5 text-[13px] text-[var(--haip-fg-2)]">{detail.message}</p>}
+              <div className="mt-1.5 flex items-center gap-3 text-[12px] text-[var(--haip-fg-subtle)]">
                 <span>Last sync: {relativeTime(detail.last_sync)}</span>
                 {detail.queue_depth !== undefined && detail.queue_depth > 0 && (
                   <span>Queue: {detail.queue_depth} items</span>
@@ -150,13 +151,13 @@ export function StatusBar() {
               {detail.reconnect_href && (
                 <Link
                   href={detail.reconnect_href}
-                  className="text-[11px] font-semibold text-teal-400 hover:text-teal-300 flex items-center gap-1"
+                  className="flex min-h-9 items-center gap-1 rounded-lg bg-primary px-3 text-[13px] font-semibold text-primary-foreground hover:bg-[var(--haip-primary-hover)]"
                 >
-                  Fix <ExternalLink size={10} />
+                  Fix <ExternalLink size={12} />
                 </Link>
               )}
-              <button onClick={() => setDetail(null)} className="text-white/25 hover:text-white/60 transition-colors">
-                <X size={13} />
+              <button onClick={() => setDetail(null)} aria-label="Close details" className="flex size-9 items-center justify-center rounded-lg text-[var(--haip-icon-neutral)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--haip-fg)]">
+                <X size={15} />
               </button>
             </div>
           </div>

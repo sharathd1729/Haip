@@ -17,7 +17,7 @@ import { formFromTemplate, type Template } from "@/components/messaging/template
 type Status = Template["status"];
 
 const STATUS_CFG: Record<Status, { label: string; cls: string; icon: React.ReactNode }> = {
-  draft:             { label: "Draft",            cls: "bg-gray-50 text-gray-600 border-gray-200",    icon: <FileText size={10} /> },
+  draft:             { label: "Draft",            cls: "bg-[var(--haip-surface)] text-[var(--haip-fg-muted)] border-[var(--haip-border)]",    icon: <FileText size={10} /> },
   pending:           { label: "In review",        cls: "bg-amber-50 text-amber-700 border-amber-200", icon: <Clock size={10} /> },
   approved:          { label: "Approved",         cls: "bg-green-50 text-green-700 border-green-200", icon: <CheckCircle2 size={10} /> },
   rejected:          { label: "Rejected",         cls: "bg-red-50 text-red-600 border-red-200",       icon: <XCircle size={10} /> },
@@ -59,12 +59,12 @@ function PreviewModal({ template, onClose }: { template: Template; onClose: () =
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()} role="dialog" aria-label="Template preview">
-        <div className="px-5 pt-4 pb-3 border-b border-gray-100 flex items-center justify-between">
+        <div className="px-5 pt-4 pb-3 border-b border-[var(--haip-border)] flex items-center justify-between">
           <div className="min-w-0">
-            <p className="text-sm font-bold text-gray-900 font-mono truncate">{template.name}</p>
-            <p className="text-[10px] text-gray-400 capitalize">{template.category.toLowerCase()} · {template.language.toUpperCase()}</p>
+            <p className="text-sm font-bold text-[var(--haip-fg)] font-mono truncate">{template.name}</p>
+            <p className="text-[10px] text-[var(--haip-fg-subtle)] capitalize">{template.category.toLowerCase()} · {template.language.toUpperCase()}</p>
           </div>
-          <button onClick={onClose} aria-label="Close"><X size={16} className="text-gray-400 hover:text-gray-600" /></button>
+          <button onClick={onClose} aria-label="Close"><X size={16} className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)]" /></button>
         </div>
         <div className="p-4">
           <WhatsAppPreview form={formFromTemplate(template)} />
@@ -139,19 +139,19 @@ export default function TemplatesPage() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="px-6 py-5 bg-white border-b border-gray-100 flex-shrink-0">
+      <div className="px-6 py-5 bg-white border-b border-[var(--haip-border)] flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="haip-page-title">Message Templates</h1>
-            <p className="text-sm text-gray-400 mt-0.5">Create and manage WhatsApp Business templates for campaigns and automated messages.</p>
+            <p className="text-sm text-[var(--haip-fg-subtle)] mt-0.5">Create and manage WhatsApp Business templates for campaigns and automated messages.</p>
           </div>
           <div className="flex items-center gap-2">
           <button onClick={() => { setSyncNote(null); syncMutation.mutate(); }} disabled={syncMutation.isPending}
-            className="flex items-center gap-2 border border-gray-200 bg-white text-gray-700 px-3.5 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 disabled:opacity-60">
+            className="flex items-center gap-2 border border-[var(--haip-border)] bg-white text-[var(--haip-fg-2)] px-3.5 py-2.5 rounded-xl text-sm font-medium hover:bg-[var(--haip-surface)] disabled:opacity-60">
             {syncMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} Sync from Meta
           </button>
           <button onClick={() => setEditor({})}
-            className="flex items-center gap-2 bg-teal-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors shadow-sm shadow-teal-200">
+            className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-primary transition-colors shadow-sm shadow-[color-mix(in_srgb,var(--primary)_18%,transparent)]">
             <Plus size={15} /> New template
           </button>
           </div>
@@ -162,7 +162,7 @@ export default function TemplatesPage() {
           {FILTERS.map(f => (
             <button key={f} onClick={() => setFilter(f)}
               className={cn("px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors",
-                filter === f ? "bg-[#0F766E] text-white" : "text-gray-500 hover:bg-gray-100")}>
+                filter === f ? "bg-[#0F766E] text-white" : "text-[var(--haip-fg-subtle)] hover:bg-[var(--haip-status-neutral-bg)]")}>
               {f === "pending" ? "In review" : f} {f !== "all" && `(${countOf(f)})`}
             </button>
           ))}
@@ -174,10 +174,10 @@ export default function TemplatesPage() {
         {isError ? (
           <div className="py-20 text-center">
             <AlertCircle size={32} className="text-red-300 mx-auto mb-3" />
-            <p className="text-sm text-gray-700 font-medium">Couldn't load templates</p>
-            <p className="text-xs text-gray-400 mt-1">The server didn't respond — this isn't your saved template list.</p>
+            <p className="text-sm text-[var(--haip-fg-2)] font-medium">Couldn't load templates</p>
+            <p className="text-xs text-[var(--haip-fg-subtle)] mt-1">The server didn't respond — this isn't your saved template list.</p>
             <button onClick={() => refetch()} disabled={isFetching}
-              className="mt-4 text-xs font-semibold text-teal-600 border border-teal-200 bg-teal-50 hover:bg-teal-100 px-3 py-1.5 rounded-lg transition-colors">
+              className="mt-4 text-xs font-semibold text-primary border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] bg-[var(--haip-primary-tint)] hover:bg-[var(--haip-primary-tint)] px-3 py-1.5 rounded-lg transition-colors">
               {isFetching ? "Retrying…" : "Retry"}
             </button>
           </div>
@@ -185,11 +185,11 @@ export default function TemplatesPage() {
           <div className="space-y-3">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}</div>
         ) : filtered.length === 0 ? (
           <div className="py-20 text-center">
-            <MessageSquare size={40} className="text-gray-200 mx-auto mb-3" />
-            <p className="text-sm text-gray-500 font-medium">No templates here</p>
-            <p className="text-xs text-gray-400 mt-1">Create your first template to start sending WhatsApp messages at scale.</p>
+            <MessageSquare size={40} className="text-[var(--haip-fg-subtle)]/70 mx-auto mb-3" />
+            <p className="text-sm text-[var(--haip-fg-subtle)] font-medium">No templates here</p>
+            <p className="text-xs text-[var(--haip-fg-subtle)] mt-1">Create your first template to start sending WhatsApp messages at scale.</p>
             <button onClick={() => setEditor({})}
-              className="mt-4 flex items-center gap-2 bg-teal-500 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-teal-600 transition-colors mx-auto">
+              className="mt-4 flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-primary transition-colors mx-auto">
               <Plus size={14} /> Create template
             </button>
           </div>
@@ -213,36 +213,36 @@ export default function TemplatesPage() {
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <span className="text-sm font-bold text-gray-900 font-mono">{tmpl.name}</span>
+                        <span className="text-sm font-bold text-[var(--haip-fg)] font-mono">{tmpl.name}</span>
                         <span className={cn("inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border", sc.cls)}>
                           {sc.icon} {sc.label}
                         </span>
-                        <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize">{tmpl.category.toLowerCase()}</span>
-                        <span className="text-[10px] text-gray-400">{tmpl.language.toUpperCase()}</span>
+                        <span className="text-[10px] bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)] px-2 py-0.5 rounded-full capitalize">{tmpl.category.toLowerCase()}</span>
+                        <span className="text-[10px] text-[var(--haip-fg-subtle)]">{tmpl.language.toUpperCase()}</span>
                         {media && <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full capitalize">{media} header</span>}
                       </div>
-                      <p className="text-xs text-gray-500 truncate leading-relaxed">{extractBody(tmpl)}</p>
+                      <p className="text-xs text-[var(--haip-fg-subtle)] truncate leading-relaxed">{extractBody(tmpl)}</p>
                       {tmpl.rejection_reason && <p className="text-[10px] text-red-500 mt-1">Reason: {tmpl.rejection_reason}</p>}
-                      {tmpl.meta_template_id && <p className="text-[10px] text-gray-400 mt-0.5 font-mono">Meta ID: {tmpl.meta_template_id}</p>}
+                      {tmpl.meta_template_id && <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-0.5 font-mono">Meta ID: {tmpl.meta_template_id}</p>}
                     </div>
                     <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
                       <button onClick={() => setPreviewing(tmpl)} title="Preview" aria-label="Preview"
-                        className="text-gray-400 hover:text-teal-600 transition-colors p-1.5 rounded-lg hover:bg-teal-50"><Eye size={14} /></button>
+                        className="text-[var(--haip-fg-subtle)] hover:text-primary transition-colors p-1.5 rounded-lg hover:bg-[var(--haip-primary-tint)]"><Eye size={14} /></button>
                       {editable && (
                         <button onClick={() => setEditor({ template: tmpl })} title="Edit" aria-label="Edit"
-                          className="text-gray-400 hover:text-teal-600 transition-colors p-1.5 rounded-lg hover:bg-teal-50"><Pencil size={14} /></button>
+                          className="text-[var(--haip-fg-subtle)] hover:text-primary transition-colors p-1.5 rounded-lg hover:bg-[var(--haip-primary-tint)]"><Pencil size={14} /></button>
                       )}
                       <button onClick={() => setEditor({ duplicateOf: tmpl })} title="Duplicate" aria-label="Duplicate"
-                        className="text-gray-400 hover:text-teal-600 transition-colors p-1.5 rounded-lg hover:bg-teal-50"><Copy size={14} /></button>
+                        className="text-[var(--haip-fg-subtle)] hover:text-primary transition-colors p-1.5 rounded-lg hover:bg-[var(--haip-primary-tint)]"><Copy size={14} /></button>
                       {editable && (
                         <button onClick={() => submitMutation.mutate(tmpl.id)} disabled={submitMutation.isPending}
-                          className="flex items-center gap-1.5 text-xs bg-teal-500 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-teal-600 transition-colors disabled:opacity-50">
+                          className="flex items-center gap-1.5 text-xs bg-primary text-white px-3 py-1.5 rounded-lg font-medium hover:bg-primary transition-colors disabled:opacity-50">
                           {submitting ? <Loader2 size={11} className="animate-spin" /> : tmpl.status === "draft" ? <Send size={11} /> : <RotateCcw size={11} />}
                           {tmpl.status === "draft" ? "Submit" : "Resubmit"}
                         </button>
                       )}
                       <button onClick={() => { if (confirm("Delete this template?")) deleteMutation.mutate(tmpl.id); }} title="Delete" aria-label="Delete"
-                        className="text-gray-400 hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-50"><Trash2 size={14} /></button>
+                        className="text-[var(--haip-fg-subtle)] hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-50"><Trash2 size={14} /></button>
                     </div>
                   </div>
                 </div>
@@ -257,8 +257,8 @@ export default function TemplatesPage() {
             <Tag size={18} className="text-amber-600" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-gray-800 mb-1">How template approval works</p>
-            <ol className="text-xs text-gray-500 space-y-1 list-decimal list-inside leading-relaxed">
+            <p className="text-sm font-semibold text-[var(--haip-fg)] mb-1">How template approval works</p>
+            <ol className="text-xs text-[var(--haip-fg-subtle)] space-y-1 list-decimal list-inside leading-relaxed">
               <li>Create your template — add an image, video or PDF header, variables like {`{{1}}`}, and buttons.</li>
               <li>Click <strong>Submit</strong> — this sends it to Meta for review (usually 24–48 hours).</li>
               <li>If Meta rejects it, <strong>Edit</strong> it and <strong>Resubmit</strong>. An approved template is locked; <strong>Duplicate</strong> it to change it.</li>

@@ -38,7 +38,7 @@ function Toast({ msg, type, onDismiss }: { msg: string; type: "success" | "error
   return (
     <div className={cn(
       "fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium",
-      type === "success" ? "bg-teal-600 text-white" : "bg-red-600 text-white"
+      type === "success" ? "bg-primary text-white" : "bg-red-600 text-white"
     )}>
       {type === "success" ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />}
       {msg}
@@ -81,30 +81,30 @@ function CreateTokenModal({ onClose, onSuccess }: { onClose: () => void; onSucce
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-        <div className="px-6 pt-6 pb-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="px-6 pt-6 pb-4 border-b border-[var(--haip-border)] flex items-center justify-between">
           <div>
-            <h2 className="text-base font-bold text-gray-900">New access token</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Lets an external assistant read and act on your HAIP data.</p>
+            <h2 className="text-base font-bold text-[var(--haip-fg)]">New access token</h2>
+            <p className="text-xs text-[var(--haip-fg-subtle)] mt-0.5">Lets an external assistant read and act on your HAIP data.</p>
           </div>
-          <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
+          <button onClick={onClose}><X size={18} className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)]" /></button>
         </div>
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
           <div>
-            <label className="text-xs font-semibold text-gray-700 block mb-1.5">Name <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Name <span className="text-red-500">*</span></label>
             <input
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="Perisclaw"
               autoFocus
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+              className="w-full px-3 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-gray-700 block mb-1.5">Expires</label>
+            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Expires</label>
             <select
               value={expiryDays ?? ""}
               onChange={e => setExpiryDays(e.target.value === "" ? null : Number(e.target.value))}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white"
+              className="w-full px-3 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white"
             >
               {EXPIRY_OPTIONS.map(opt => (
                 <option key={opt.label} value={opt.days ?? ""}>{opt.label}</option>
@@ -112,12 +112,12 @@ function CreateTokenModal({ onClose, onSuccess }: { onClose: () => void; onSucce
             </select>
           </div>
           <div>
-            <p className="text-xs font-semibold text-gray-700 mb-1.5">What this token can do</p>
-            <div className="bg-gray-50 rounded-xl border border-gray-200 px-3 py-2.5 max-h-32 overflow-y-auto">
+            <p className="text-xs font-semibold text-[var(--haip-fg-2)] mb-1.5">What this token can do</p>
+            <div className="bg-[var(--haip-surface)] rounded-xl border border-[var(--haip-border)] px-3 py-2.5 max-h-32 overflow-y-auto">
               {capsLoading ? (
-                <p className="text-xs text-gray-400">Loading...</p>
+                <p className="text-xs text-[var(--haip-fg-subtle)]">Loading...</p>
               ) : myCapabilities.length === 0 ? (
-                <p className="text-xs text-gray-400">No capabilities granted to your role yet.</p>
+                <p className="text-xs text-[var(--haip-fg-subtle)]">No capabilities granted to your role yet.</p>
               ) : (
                 <div className="flex flex-wrap gap-1.5">
                   {myCapabilities.map(cap => (
@@ -126,7 +126,7 @@ function CreateTokenModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                       title={cap.key}
                       className={cn(
                         "text-[10px] font-medium px-2 py-1 rounded-full",
-                        cap.is_write ? "bg-amber-50 text-amber-700" : "bg-teal-50 text-teal-700"
+                        cap.is_write ? "bg-amber-50 text-amber-700" : "bg-[var(--haip-primary-tint)] text-primary"
                       )}
                     >
                       {cap.label}
@@ -135,7 +135,7 @@ function CreateTokenModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                 </div>
               )}
             </div>
-            <p className="text-[11px] text-gray-400 mt-1">Matches your own role's permissions -- this token can never do more than you can.</p>
+            <p className="text-[11px] text-[var(--haip-fg-subtle)] mt-1">Matches your own role's permissions -- this token can never do more than you can.</p>
           </div>
           {error && (
             <div className="flex items-center gap-2 text-xs text-red-700 bg-red-50 rounded-lg px-3 py-2">
@@ -143,13 +143,13 @@ function CreateTokenModal({ onClose, onSuccess }: { onClose: () => void; onSucce
             </div>
           )}
           <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)] transition-colors">
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="flex-1 py-2.5 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex-1 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {submitting ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
               Create Token
@@ -174,22 +174,22 @@ function TokenRevealModal({ token, mcpUrl, onClose }: { token: CreatedToken; mcp
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
-        <div className="px-6 pt-6 pb-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="px-6 pt-6 pb-4 border-b border-[var(--haip-border)] flex items-center justify-between">
           <div>
-            <h2 className="text-base font-bold text-gray-900">Token created</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Copy this now — it won't be shown again.</p>
+            <h2 className="text-base font-bold text-[var(--haip-fg)]">Token created</h2>
+            <p className="text-xs text-[var(--haip-fg-subtle)] mt-0.5">Copy this now — it won't be shown again.</p>
           </div>
-          <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
+          <button onClick={onClose}><X size={18} className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)]" /></button>
         </div>
         <div className="px-6 py-5 space-y-4">
           <div>
-            <p className="text-xs font-semibold text-gray-700 mb-1.5">Access token</p>
-            <div className="flex items-center gap-2 bg-gray-50 rounded-xl border border-gray-200 px-3 py-2.5">
-              <code className="text-[11px] text-gray-600 flex-1 truncate font-mono">{token.token}</code>
+            <p className="text-xs font-semibold text-[var(--haip-fg-2)] mb-1.5">Access token</p>
+            <div className="flex items-center gap-2 bg-[var(--haip-surface)] rounded-xl border border-[var(--haip-border)] px-3 py-2.5">
+              <code className="text-[11px] text-[var(--haip-fg-muted)] flex-1 truncate font-mono">{token.token}</code>
               <button
                 onClick={() => copy(token.token, setCopiedToken)}
                 className={cn("flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-lg transition-colors flex-shrink-0",
-                  copiedToken ? "text-green-600 bg-green-50" : "text-teal-600 hover:bg-teal-50"
+                  copiedToken ? "text-green-600 bg-green-50" : "text-primary hover:bg-[var(--haip-primary-tint)]"
                 )}
               >
                 {copiedToken ? <CheckCircle2 size={12} /> : <Copy size={12} />}
@@ -197,20 +197,20 @@ function TokenRevealModal({ token, mcpUrl, onClose }: { token: CreatedToken; mcp
             </div>
           </div>
           <div>
-            <p className="text-xs font-semibold text-gray-700 mb-1.5">MCP endpoint URL</p>
-            <div className="flex items-center gap-2 bg-gray-50 rounded-xl border border-gray-200 px-3 py-2.5">
-              <code className="text-[11px] text-gray-600 flex-1 truncate font-mono">{mcpUrl}</code>
+            <p className="text-xs font-semibold text-[var(--haip-fg-2)] mb-1.5">MCP endpoint URL</p>
+            <div className="flex items-center gap-2 bg-[var(--haip-surface)] rounded-xl border border-[var(--haip-border)] px-3 py-2.5">
+              <code className="text-[11px] text-[var(--haip-fg-muted)] flex-1 truncate font-mono">{mcpUrl}</code>
               <button
                 onClick={() => copy(mcpUrl, setCopiedUrl)}
                 className={cn("flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-lg transition-colors flex-shrink-0",
-                  copiedUrl ? "text-green-600 bg-green-50" : "text-teal-600 hover:bg-teal-50"
+                  copiedUrl ? "text-green-600 bg-green-50" : "text-primary hover:bg-[var(--haip-primary-tint)]"
                 )}
               >
                 {copiedUrl ? <CheckCircle2 size={12} /> : <Copy size={12} />}
               </button>
             </div>
           </div>
-          <div className="bg-teal-50 rounded-xl p-4 text-xs text-gray-600 leading-relaxed">
+          <div className="bg-[var(--haip-primary-tint)] rounded-xl p-4 text-xs text-[var(--haip-fg-muted)] leading-relaxed">
             In Perisclaw, add a custom connector with the URL above and paste this token as its access token. Perisclaw will confirm with you before taking any real action (sending a message, moving a lead, adding a note) — reading data doesn't need confirmation.
           </div>
         </div>
@@ -244,20 +244,20 @@ function TokenRow({ token, onRevoke, revoking }: { token: McpToken; onRevoke: ()
   return (
     <div className={cn(
       "flex items-center justify-between px-4 py-3 rounded-xl border",
-      isRevoked ? "border-gray-100 bg-gray-50 opacity-60" : "border-gray-200 bg-white"
+      isRevoked ? "border-[var(--haip-border)] bg-[var(--haip-surface)] opacity-60" : "border-[var(--haip-border)] bg-white"
     )}>
       <div className="flex items-center gap-3 min-w-0">
         <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
-          isRevoked ? "bg-gray-200 text-gray-400" : "bg-teal-50 text-teal-600"
+          isRevoked ? "bg-[var(--haip-border)] text-[var(--haip-fg-subtle)]" : "bg-[var(--haip-primary-tint)] text-primary"
         )}>
           <KeyRound size={14} />
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-gray-800 truncate">{token.name}</p>
-          <p className="text-xs text-gray-400 flex items-center gap-1.5">
+          <p className="text-sm font-semibold text-[var(--haip-fg)] truncate">{token.name}</p>
+          <p className="text-xs text-[var(--haip-fg-subtle)] flex items-center gap-1.5">
             <span className="flex items-center gap-1"><Clock size={11} />{isRevoked ? "Revoked" : timeAgo(token.last_used_at)}</span>
             {!isRevoked && expiryLabel(token.expires_at) && (
-              <span className="text-gray-300">·</span>
+              <span className="text-[var(--haip-fg-subtle)]/70">·</span>
             )}
             {!isRevoked && expiryLabel(token.expires_at) && <span>{expiryLabel(token.expires_at)}</span>}
           </p>
@@ -314,22 +314,22 @@ export default function McpAccessPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="px-6 py-5 bg-white border-b border-gray-100 flex-shrink-0">
+      <div className="px-6 py-5 bg-white border-b border-[var(--haip-border)] flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center">
-              <Bot size={18} className="text-teal-600" />
+            <div className="w-10 h-10 rounded-xl bg-[var(--haip-primary-tint)] flex items-center justify-center">
+              <Bot size={18} className="text-primary" />
             </div>
             <div>
               <h1 className="haip-page-title">AI Assistants</h1>
-              <p className="text-sm text-gray-400 mt-0.5">
+              <p className="text-sm text-[var(--haip-fg-subtle)] mt-0.5">
                 Connect Claude, ChatGPT or another AI assistant to your HAIP data via MCP.
               </p>
             </div>
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary transition-colors"
           >
             <Plus size={15} />
             New Token
@@ -342,18 +342,18 @@ export default function McpAccessPage() {
 
         <div>
         <div className="mb-3">
-          <h2 className="text-sm font-semibold text-gray-800">Access tokens</h2>
-          <p className="text-xs text-gray-400 mt-0.5">
+          <h2 className="text-sm font-semibold text-[var(--haip-fg)]">Access tokens</h2>
+          <p className="text-xs text-[var(--haip-fg-subtle)] mt-0.5">
             For tools that take a pasted token instead of signing in (Perisclaw, scripts). Claude and ChatGPT don't need one.
           </p>
         </div>
         {isLoading ? (
-          <p className="text-sm text-gray-400">Loading...</p>
+          <p className="text-sm text-[var(--haip-fg-subtle)]">Loading...</p>
         ) : tokens.length === 0 ? (
           <div className="text-center py-16">
-            <Bot size={32} className="text-gray-300 mx-auto mb-3" />
-            <p className="text-sm text-gray-500">No access tokens yet.</p>
-            <p className="text-xs text-gray-400 mt-1">Create one to connect an external AI assistant.</p>
+            <Bot size={32} className="text-[var(--haip-fg-subtle)]/70 mx-auto mb-3" />
+            <p className="text-sm text-[var(--haip-fg-subtle)]">No access tokens yet.</p>
+            <p className="text-xs text-[var(--haip-fg-subtle)] mt-1">Create one to connect an external AI assistant.</p>
           </div>
         ) : (
           <div className="space-y-2">

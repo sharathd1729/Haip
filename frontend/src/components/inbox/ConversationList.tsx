@@ -56,8 +56,8 @@ interface ConversationListProps {
 
 function nameColor(name: string | null | undefined): string {
   const colors = [
-    "from-teal-400 to-emerald-500", "from-blue-400 to-indigo-500", "from-violet-400 to-purple-500",
-    "from-rose-400 to-pink-500", "from-amber-400 to-orange-500", "from-cyan-400 to-sky-500",
+    "from-primary to-emerald-500", "from-blue-400 to-indigo-500", "from-violet-400 to-purple-500",
+    "from-rose-400 to-pink-500", "from-amber-400 to-orange-500", "from-primary to-sky-500",
   ];
   if (!name) return colors[0];
   let hash = 0;

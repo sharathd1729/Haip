@@ -76,11 +76,11 @@ const RATING_CONFIG = {
   UNKNOWN: {
     label: "Unknown",
     color: "#9ca3af",
-    bg: "bg-gray-50",
-    border: "border-gray-200",
-    text: "text-gray-600",
-    icon: <Info size={18} className="text-gray-400" />,
-    dot: "bg-gray-400",
+    bg: "bg-[var(--haip-surface)]",
+    border: "border-[var(--haip-border)]",
+    text: "text-[var(--haip-fg-muted)]",
+    icon: <Info size={18} className="text-[var(--haip-fg-subtle)]" />,
+    dot: "bg-[var(--haip-border-strong)]",
   },
 };
 
@@ -153,7 +153,7 @@ export default function MetaQualityPage() {
   })();
 
   const TrendIcon = trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus;
-  const trendColor = trend === "up" ? "text-green-600" : trend === "down" ? "text-red-500" : "text-gray-400";
+  const trendColor = trend === "up" ? "text-green-600" : trend === "down" ? "text-red-500" : "text-[var(--haip-fg-subtle)]";
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
@@ -166,20 +166,20 @@ export default function MetaQualityPage() {
             </div>
             Meta WABA Quality
           </h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <p className="text-sm text-[var(--haip-fg-subtle)] mt-0.5">
             WhatsApp Business API quality rating and messaging tier — polled hourly
           </p>
         </div>
         <div className="flex items-center gap-3">
           {current?.polled_at && (
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-[var(--haip-fg-subtle)]">
               Last polled {new Date(current.polled_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
             </span>
           )}
           <button
             onClick={() => refetch()}
             disabled={isFetching}
-            className="flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 border border-gray-200 hover:border-gray-300 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 text-xs font-medium text-[var(--haip-fg-muted)] hover:text-[var(--haip-fg)] border border-[var(--haip-border)] hover:border-[var(--haip-border-strong)] px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
           >
             <RefreshCw size={12} className={cn(isFetching && "animate-spin")} />
             Refresh
@@ -190,13 +190,13 @@ export default function MetaQualityPage() {
       {isLoading ? (
         <div className="grid sm:grid-cols-2 gap-4">
           {[1, 2].map(i => (
-            <div key={i} className="h-28 bg-gray-100 rounded-2xl animate-pulse" />
+            <div key={i} className="h-28 bg-[var(--haip-status-neutral-bg)] rounded-2xl animate-pulse" />
           ))}
         </div>
       ) : isError ? (
-        <div className="bg-gray-50 border border-gray-200 rounded-2xl p-8 text-center">
-          <p className="text-sm text-gray-500">Could not load quality data. Make sure WhatsApp is connected and the poll task is running.</p>
-          <Link href="/dashboard/settings/integrations" className="text-sm text-teal-600 hover:underline mt-2 inline-block">
+        <div className="bg-[var(--haip-surface)] border border-[var(--haip-border)] rounded-2xl p-8 text-center">
+          <p className="text-sm text-[var(--haip-fg-subtle)]">Could not load quality data. Make sure WhatsApp is connected and the poll task is running.</p>
+          <Link href="/dashboard/settings/integrations" className="text-sm text-primary hover:underline mt-2 inline-block">
             Check integrations →
           </Link>
         </div>
@@ -208,7 +208,7 @@ export default function MetaQualityPage() {
             <div className={cn("rounded-2xl border p-5 shadow-sm", ratingCfg.bg, ratingCfg.border)}>
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Quality Rating</p>
+                  <p className="text-xs font-semibold text-[var(--haip-fg-subtle)] uppercase tracking-wider mb-2">Quality Rating</p>
                   <div className="flex items-center gap-2">
                     {ratingCfg.icon}
                     <span className={cn("text-lg font-bold", ratingCfg.text)}>{ratingCfg.label}</span>
@@ -225,15 +225,15 @@ export default function MetaQualityPage() {
             </div>
 
             {/* Messaging tier */}
-            <div className="rounded-2xl border border-gray-200 p-5 bg-white shadow-sm">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Messaging Tier</p>
+            <div className="rounded-2xl border border-[var(--haip-border)] p-5 bg-white shadow-sm">
+              <p className="text-xs font-semibold text-[var(--haip-fg-subtle)] uppercase tracking-wider mb-2">Messaging Tier</p>
               <div className="flex items-center gap-2">
                 <Shield size={18} className="text-blue-500" />
-                <span className="text-lg font-bold text-gray-900">
+                <span className="text-lg font-bold text-[var(--haip-fg)]">
                   {formatTier(current?.messaging_limit_tier ?? null)}
                 </span>
               </div>
-              <p className="text-xs text-gray-400 mt-3">
+              <p className="text-xs text-[var(--haip-fg-subtle)] mt-3">
                 Maximum conversations per rolling 24-hour window.{" "}
                 <a
                   href="https://developers.facebook.com/docs/whatsapp/api/rate-limits#messaging"
@@ -304,13 +304,13 @@ export default function MetaQualityPage() {
 
           {/* ── 30-day trend chart ── */}
           <div className="haip-card p-5 shadow-sm">
-            <p className="text-sm font-semibold text-gray-800 mb-1">30-day Quality Trend</p>
-            <p className="text-xs text-gray-400 mb-5">
+            <p className="text-sm font-semibold text-[var(--haip-fg)] mb-1">30-day Quality Trend</p>
+            <p className="text-xs text-[var(--haip-fg-subtle)] mb-5">
               3 = Green · 2 = Yellow · 1 = Red · Polled hourly
             </p>
 
             {chartData.length < 2 ? (
-              <div className="h-40 flex items-center justify-center text-sm text-gray-400">
+              <div className="h-40 flex items-center justify-center text-sm text-[var(--haip-fg-subtle)]">
                 Not enough data yet — check back after the first few poll cycles.
               </div>
             ) : (
@@ -357,18 +357,18 @@ export default function MetaQualityPage() {
           </div>
 
           {/* ── How the rating works ── */}
-          <div className="bg-gray-50 border border-gray-200 rounded-2xl p-5">
-            <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-4 flex items-center gap-1.5">
+          <div className="bg-[var(--haip-surface)] border border-[var(--haip-border)] rounded-2xl p-5">
+            <p className="text-xs font-bold uppercase tracking-wider text-[var(--haip-fg-subtle)] mb-4 flex items-center gap-1.5">
               <Info size={12} />
               How Meta quality rating works
             </p>
-            <div className="grid sm:grid-cols-3 gap-4 text-xs text-gray-700">
+            <div className="grid sm:grid-cols-3 gap-4 text-xs text-[var(--haip-fg-2)]">
               <div className="space-y-1">
                 <div className="flex items-center gap-1.5 font-semibold text-green-700">
                   <span className="w-2 h-2 rounded-full bg-green-500" />
                   Green
                 </div>
-                <p className="text-gray-500 leading-relaxed">
+                <p className="text-[var(--haip-fg-subtle)] leading-relaxed">
                   Low block &amp; opt-out rates. Full messaging tier available. Keep it by maintaining relevant, opted-in audiences.
                 </p>
               </div>
@@ -377,7 +377,7 @@ export default function MetaQualityPage() {
                   <span className="w-2 h-2 rounded-full bg-yellow-400" />
                   Yellow
                 </div>
-                <p className="text-gray-500 leading-relaxed">
+                <p className="text-[var(--haip-fg-subtle)] leading-relaxed">
                   Moderate issues. Meta is monitoring. Tier may be reduced. Act within 7 days to avoid escalation to Red.
                 </p>
               </div>
@@ -386,12 +386,12 @@ export default function MetaQualityPage() {
                   <span className="w-2 h-2 rounded-full bg-red-500" />
                   Red
                 </div>
-                <p className="text-gray-500 leading-relaxed">
+                <p className="text-[var(--haip-fg-subtle)] leading-relaxed">
                   High violations. Tier already restricted or at risk of account suspension. Immediate action required.
                 </p>
               </div>
             </div>
-            <div className="mt-4 pt-4 border-t border-gray-200">
+            <div className="mt-4 pt-4 border-t border-[var(--haip-border)]">
               <a
                 href="https://developers.facebook.com/docs/whatsapp/api/quality-rating"
                 target="_blank"

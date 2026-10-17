@@ -9,10 +9,10 @@ import { UserAvatar } from "@/components/crm/UserAvatar";
 
 export default function ProfilePage() {
   return (
-    <div className="h-full overflow-y-auto bg-gray-50">
-      <div className="px-6 py-5 bg-white border-b border-gray-100">
+    <div className="h-full overflow-y-auto bg-[var(--haip-surface)]">
+      <div className="px-6 py-5 bg-white border-b border-[var(--haip-border)]">
         <h1 className="haip-page-title">Your Profile</h1>
-        <p className="text-sm text-gray-400 mt-0.5">Manage your personal information, password, and preferences</p>
+        <p className="text-sm text-[var(--haip-fg-subtle)] mt-0.5">Manage your personal information, password, and preferences</p>
       </div>
       <div className="p-6 max-w-2xl space-y-6">
         <PersonalInfoCard />
@@ -90,17 +90,17 @@ function PersonalInfoCard() {
             name={form.name}
             photoUrl={me?.avatar_url}
             size="xl"
-            className="shadow-lg shadow-teal-200"
+            className="shadow-lg shadow-[color-mix(in_srgb,var(--primary)_18%,transparent)]"
           />
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploadAvatar.isPending}
-            className="absolute -bottom-1 -right-1 w-7 h-7 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-50"
+            className="absolute -bottom-1 -right-1 w-7 h-7 bg-white border border-[var(--haip-border)] rounded-lg flex items-center justify-center shadow-sm hover:bg-[var(--haip-surface)] transition-colors disabled:opacity-50"
           >
             {uploadAvatar.isPending
-              ? <Loader2 size={13} className="text-gray-500 animate-spin" />
-              : <Camera size={13} className="text-gray-500" />}
+              ? <Loader2 size={13} className="text-[var(--haip-fg-subtle)] animate-spin" />
+              : <Camera size={13} className="text-[var(--haip-fg-subtle)]" />}
           </button>
           <input
             ref={fileInputRef}
@@ -115,9 +115,9 @@ function PersonalInfoCard() {
           />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-base font-bold text-gray-900">{form.name}</p>
-          <p className="text-sm text-gray-500 mt-0.5">{form.email}</p>
-          <span className="mt-1.5 inline-block text-[11px] bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full font-semibold capitalize">
+          <p className="text-base font-bold text-[var(--haip-fg)]">{form.name}</p>
+          <p className="text-sm text-[var(--haip-fg-subtle)] mt-0.5">{form.email}</p>
+          <span className="mt-1.5 inline-block text-[11px] bg-[var(--haip-primary-tint)] text-primary px-2 py-0.5 rounded-full font-semibold capitalize">
             {form.role}
           </span>
           {avatarError && (
@@ -135,13 +135,13 @@ function PersonalInfoCard() {
         </div>
         <Field label="Phone number" value={form.phone} onChange={v => { setForm(f => ({...f, phone: v})); setSaved(false); }} placeholder="+91 98765 43210" />
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Bio <span className="text-gray-400 font-normal">(optional)</span></label>
+          <label className="block text-sm font-medium text-[var(--haip-fg-2)] mb-1">Bio <span className="text-[var(--haip-fg-subtle)] font-normal">(optional)</span></label>
           <textarea
             value={form.bio}
             onChange={e => { setForm(f => ({...f, bio: e.target.value})); setSaved(false); }}
             placeholder="Short description visible to your team…"
             rows={2}
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white resize-none"
+            className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white resize-none"
           />
         </div>
       </div>
@@ -151,7 +151,7 @@ function PersonalInfoCard() {
         disabled={loading}
         className={cn(
           "mt-5 flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-colors",
-          saved ? "bg-green-50 text-green-700 border border-green-200" : "bg-teal-500 text-white hover:bg-teal-600 disabled:opacity-50"
+          saved ? "bg-green-50 text-green-700 border border-green-200" : "bg-primary text-white hover:bg-primary disabled:opacity-50"
         )}
       >
         {loading ? <Loader2 size={14} className="animate-spin" /> : saved ? <CheckCircle size={14} /> : <Save size={14} />}
@@ -218,7 +218,7 @@ function ChangePasswordCard() {
             <div>
               <div className="flex gap-1 mb-1">
                 {[1,2,3,4].map(i => (
-                  <div key={i} className={cn("h-1 flex-1 rounded-full transition-colors", i <= strength ? strengthColor : "bg-gray-200")} />
+                  <div key={i} className={cn("h-1 flex-1 rounded-full transition-colors", i <= strength ? strengthColor : "bg-[var(--haip-border)]")} />
                 ))}
               </div>
               <p className={cn("text-[11px] font-medium", strength <= 1 ? "text-red-500" : strength === 2 ? "text-amber-500" : strength === 3 ? "text-blue-500" : "text-green-500")}>
@@ -260,9 +260,9 @@ function PreferencesCard() {
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Timezone</label>
+            <label className="block text-sm font-medium text-[var(--haip-fg-2)] mb-1">Timezone</label>
             <select value={prefs.timezone} onChange={e => { setPrefs(p => ({...p, timezone: e.target.value})); setSaved(false); }}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white">
+              className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white">
               <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
               <option value="Asia/Dubai">Asia/Dubai (GST)</option>
               <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
@@ -271,9 +271,9 @@ function PreferencesCard() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Language</label>
+            <label className="block text-sm font-medium text-[var(--haip-fg-2)] mb-1">Language</label>
             <select value={prefs.language} onChange={e => { setPrefs(p => ({...p, language: e.target.value})); setSaved(false); }}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white">
+              className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white">
               <option value="en">English</option>
               <option value="hi">Hindi</option>
               <option value="ta">Tamil</option>
@@ -282,31 +282,31 @@ function PreferencesCard() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Theme</label>
+          <label className="block text-sm font-medium text-[var(--haip-fg-2)] mb-2">Theme</label>
           <div className="flex gap-3">
             {[
-              { id: "light", label: "Light", preview: "bg-white border-2 border-gray-200" },
+              { id: "light", label: "Light", preview: "bg-white border-2 border-[var(--haip-border)]" },
               { id: "dark",  label: "Dark",  preview: "bg-[#0B1F3A] border-2 border-gray-600" },
-              { id: "system",label: "System",preview: "bg-gradient-to-r from-white to-[#0B1F3A] border-2 border-gray-300" },
+              { id: "system",label: "System",preview: "bg-gradient-to-r from-white to-[#0B1F3A] border-2 border-[var(--haip-border-strong)]" },
             ].map(t => (
               <label key={t.id} className="cursor-pointer flex-1">
                 <input type="radio" name="theme" value={t.id} checked={prefs.theme === t.id} onChange={() => { setPrefs(p => ({...p, theme: t.id})); setSaved(false); }} className="sr-only" />
                 <div className={cn("rounded-xl p-3 flex flex-col items-center gap-2 transition-all",
-                  prefs.theme === t.id ? "ring-2 ring-teal-500 shadow-sm" : "hover:ring-1 ring-gray-200"
+                  prefs.theme === t.id ? "ring-2 ring-primary shadow-sm" : "hover:ring-1 ring-[var(--haip-border)]"
                 )}>
                   <div className={cn("w-full h-8 rounded-lg", t.preview)} />
-                  <span className="text-xs font-medium text-gray-700">{t.label}</span>
+                  <span className="text-xs font-medium text-[var(--haip-fg-2)]">{t.label}</span>
                 </div>
               </label>
             ))}
           </div>
-          <p className="text-[11px] text-gray-400 mt-1.5">Dark mode coming soon.</p>
+          <p className="text-[11px] text-[var(--haip-fg-subtle)] mt-1.5">Dark mode coming soon.</p>
         </div>
       </div>
 
       <button onClick={() => setSaved(true)} className={cn(
         "mt-5 flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-colors",
-        saved ? "bg-green-50 text-green-700 border border-green-200" : "bg-teal-500 text-white hover:bg-teal-600"
+        saved ? "bg-green-50 text-green-700 border border-green-200" : "bg-primary text-white hover:bg-primary"
       )}>
         {saved ? <><CheckCircle size={14} /> Saved!</> : <><Save size={14} /> Save preferences</>}
       </button>
@@ -352,8 +352,8 @@ function DangerZoneCard() {
 /* ── Shared ─────────────────────────────────────────────────────────────────── */
 function Card({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-      {title && <p className="text-sm font-semibold text-gray-800 mb-4">{title}</p>}
+    <div className="bg-white rounded-xl border border-[var(--haip-border)] shadow-sm p-5">
+      {title && <p className="text-sm font-semibold text-[var(--haip-fg)] mb-4">{title}</p>}
       {children}
     </div>
   );
@@ -365,16 +365,16 @@ function Field({ label, value, onChange, placeholder, disabled, hint, type = "te
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <label className="block text-sm font-medium text-[var(--haip-fg-2)] mb-1">{label}</label>
       <input
         type={type} value={value} onChange={e => onChange(e.target.value)}
         placeholder={placeholder} disabled={disabled}
         className={cn(
-          "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30",
-          disabled ? "bg-gray-50 text-gray-400 cursor-not-allowed" : "bg-white"
+          "w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30",
+          disabled ? "bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)] cursor-not-allowed" : "bg-white"
         )}
       />
-      {hint && <p className="text-xs text-gray-400 mt-1">{hint}</p>}
+      {hint && <p className="text-xs text-[var(--haip-fg-subtle)] mt-1">{hint}</p>}
     </div>
   );
 }
@@ -385,13 +385,13 @@ function PasswordField({ label, value, onChange, show, onToggle }: {
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <label className="block text-sm font-medium text-[var(--haip-fg-2)] mb-1">{label}</label>
       <div className="relative">
         <input
           type={show ? "text" : "password"} value={value} onChange={e => onChange(e.target.value)}
-          className="w-full px-3 py-2 pr-10 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white"
+          className="w-full px-3 py-2 pr-10 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white"
         />
-        <button type="button" onClick={onToggle} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+        <button type="button" onClick={onToggle} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)]">
           {show ? <EyeOff size={14} /> : <Eye size={14} />}
         </button>
       </div>

@@ -95,25 +95,25 @@ export default function AgentProfilePage() {
   if (!allowed) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6 bg-[#F8FAFC]">
-        <ShieldAlert size={32} className="text-gray-300" />
-        <p className="text-sm font-semibold text-gray-600">You can only view your own profile</p>
-        <Link href="/dashboard" className="text-xs text-teal-600 hover:underline">Back to dashboard</Link>
+        <ShieldAlert size={32} className="text-[var(--haip-fg-subtle)]/70" />
+        <p className="text-sm font-semibold text-[var(--haip-fg-muted)]">You can only view your own profile</p>
+        <Link href="/dashboard" className="text-xs text-primary hover:underline">Back to dashboard</Link>
       </div>
     );
   }
 
   return (
     <div className="h-full flex flex-col overflow-y-auto">
-      <div className="px-6 py-5 bg-white border-b border-gray-100 flex-shrink-0 space-y-3">
+      <div className="px-6 py-5 bg-white border-b border-[var(--haip-border)] flex-shrink-0 space-y-3">
         <div className="flex items-center gap-2">
           {isOwnerView && !isSelf && (
-            <Link href="/dashboard/settings/team" className="text-gray-400 hover:text-gray-600">
+            <Link href="/dashboard/settings/team" className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)]">
               <ArrowLeft size={16} />
             </Link>
           )}
           <div>
             <h1 className="haip-page-title haip-page-title--keep">{scorecardLoading ? "Loading…" : scorecard?.agent_name || "Agent"}</h1>
-            <p className="text-sm text-gray-400 mt-0.5">{isSelf ? "Your calls, messages and leads" : "Calls, messages and leads handled"}</p>
+            <p className="text-sm text-[var(--haip-fg-subtle)] mt-0.5">{isSelf ? "Your calls, messages and leads" : "Calls, messages and leads handled"}</p>
           </div>
         </div>
         <DateRangeFilterBar value={range} onChange={setRange} />
@@ -129,8 +129,8 @@ export default function AgentProfilePage() {
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors",
                 tab === key
-                  ? "bg-teal-50 border-teal-300 text-teal-800"
-                  : "bg-white border-gray-200 text-gray-600 hover:border-gray-300",
+                  ? "bg-[var(--haip-primary-tint)] border-[color-mix(in_srgb,var(--primary)_25%,transparent)] text-[var(--accent-foreground)]"
+                  : "bg-white border-[var(--haip-border)] text-[var(--haip-fg-muted)] hover:border-[var(--haip-border-strong)]",
               )}
             >
               <Icon size={13} /> {label}
@@ -160,20 +160,20 @@ export default function AgentProfilePage() {
             {callsLoading ? (
               <Skeleton className="h-32 w-full" />
             ) : !calls?.length ? (
-              <p className="text-sm text-gray-400">No calls in this period.</p>
+              <p className="text-sm text-[var(--haip-fg-subtle)]">No calls in this period.</p>
             ) : calls.map(c => (
               <Link
                 key={c.id}
                 href={`/dashboard/calls/${c.id}`}
-                className="block p-3 rounded-xl border border-gray-200 hover:border-teal-300 transition-colors"
+                className="block p-3 rounded-xl border border-[var(--haip-border)] hover:border-[color-mix(in_srgb,var(--primary)_25%,transparent)] transition-colors"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-gray-800">{c.guest_name || c.guest_phone}</span>
+                  <span className="text-sm font-semibold text-[var(--haip-fg)]">{c.guest_name || c.guest_phone}</span>
                   {c.disposition && (
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded">{c.disposition}</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-primary bg-[var(--haip-primary-tint)] px-1.5 py-0.5 rounded">{c.disposition}</span>
                   )}
                 </div>
-                <div className="text-xs text-gray-400 mt-1">{c.direction} · {new Date(c.started_at).toLocaleString()}</div>
+                <div className="text-xs text-[var(--haip-fg-subtle)] mt-1">{c.direction} · {new Date(c.started_at).toLocaleString()}</div>
               </Link>
             ))}
           </div>
@@ -184,18 +184,18 @@ export default function AgentProfilePage() {
             {messagesLoading ? (
               <Skeleton className="h-32 w-full" />
             ) : !messages?.length ? (
-              <p className="text-sm text-gray-400">No conversations replied to in this period.</p>
+              <p className="text-sm text-[var(--haip-fg-subtle)]">No conversations replied to in this period.</p>
             ) : messages.map(m => (
               <Link
                 key={m.conversation_id}
                 href={`/dashboard/inbox?conversation=${m.conversation_id}`}
-                className="block p-3 rounded-xl border border-gray-200 hover:border-teal-300 transition-colors"
+                className="block p-3 rounded-xl border border-[var(--haip-border)] hover:border-[color-mix(in_srgb,var(--primary)_25%,transparent)] transition-colors"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-gray-800">{m.guest_name || "Guest"}</span>
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded">{m.channel}</span>
+                  <span className="text-sm font-semibold text-[var(--haip-fg)]">{m.guest_name || "Guest"}</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--haip-fg-subtle)] bg-[var(--haip-surface)] px-1.5 py-0.5 rounded">{m.channel}</span>
                 </div>
-                <div className="text-xs text-gray-400 mt-1">
+                <div className="text-xs text-[var(--haip-fg-subtle)] mt-1">
                   {m.message_count} repl{m.message_count === 1 ? "y" : "ies"}
                   {m.last_message_at ? ` · last ${new Date(m.last_message_at).toLocaleString()}` : ""}
                 </div>

@@ -50,15 +50,15 @@ function PropertySkeleton() {
   return (
     <div className="haip-card p-5 rounded-2xl animate-pulse">
       <div className="flex items-start justify-between mb-4">
-        <div className="w-11 h-11 rounded-xl bg-gray-100" />
-        <div className="w-16 h-5 rounded-full bg-gray-100" />
+        <div className="w-11 h-11 rounded-xl bg-[var(--haip-status-neutral-bg)]" />
+        <div className="w-16 h-5 rounded-full bg-[var(--haip-status-neutral-bg)]" />
       </div>
-      <div className="h-4 bg-gray-100 rounded w-3/4 mb-2" />
-      <div className="h-3 bg-gray-100 rounded w-1/2 mb-4" />
+      <div className="h-4 bg-[var(--haip-status-neutral-bg)] rounded w-3/4 mb-2" />
+      <div className="h-3 bg-[var(--haip-status-neutral-bg)] rounded w-1/2 mb-4" />
       <div className="flex gap-2">
-        <div className="h-3 bg-gray-100 rounded w-12" />
-        <div className="h-3 bg-gray-100 rounded w-12" />
-        <div className="h-3 bg-gray-100 rounded w-12" />
+        <div className="h-3 bg-[var(--haip-status-neutral-bg)] rounded w-12" />
+        <div className="h-3 bg-[var(--haip-status-neutral-bg)] rounded w-12" />
+        <div className="h-3 bg-[var(--haip-status-neutral-bg)] rounded w-12" />
       </div>
     </div>
   );
@@ -97,7 +97,7 @@ function PropertyCard({ p, onEdit, noun }: { p: Property; onEdit: (p: Property) 
               className="font-semibold text-[14.5px] leading-snug line-clamp-2"
               style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--haip-fg)" }}
             >
-              {p.name || <span className="text-gray-400 italic text-sm">Unnamed {noun}</span>}
+              {p.name || <span className="text-[var(--haip-fg-subtle)] italic text-sm">Unnamed {noun}</span>}
             </h3>
             {(p.city || p.address) && (
               <div className="flex items-center gap-1 mt-0.5">

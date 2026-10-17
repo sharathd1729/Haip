@@ -97,7 +97,7 @@ export default function MessagingOverviewPage() {
                 </button>
               ))}
             </div>
-            <Link href="/dashboard/messaging/campaigns" className="flex items-center gap-2 bg-teal-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors shadow-sm shadow-teal-200">
+            <Link href="/dashboard/messaging/campaigns" className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-primary transition-colors shadow-sm shadow-[color-mix(in_srgb,var(--primary)_18%,transparent)]">
               <Megaphone size={15} /> New campaign
             </Link>
           </div>
@@ -132,13 +132,13 @@ export default function MessagingOverviewPage() {
           <div className="py-20 text-center">
             <AlertCircle size={32} className="text-red-300 mx-auto mb-3" />
             <p className="text-sm text-[var(--haip-fg)] font-medium">Couldn't load the overview</p>
-            <button onClick={() => refetch()} disabled={isFetching} className="mt-4 text-xs font-semibold text-teal-600 border border-teal-200 bg-teal-50 px-3 py-1.5 rounded-lg">{isFetching ? "Retrying…" : "Retry"}</button>
+            <button onClick={() => refetch()} disabled={isFetching} className="mt-4 text-xs font-semibold text-primary border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] bg-[var(--haip-primary-tint)] px-3 py-1.5 rounded-lg">{isFetching ? "Retrying…" : "Retry"}</button>
           </div>
         ) : isLoading && !data ? (
           <div className="space-y-4"><div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}</div><Skeleton className="h-64 rounded-2xl" /></div>
         ) : nothing ? (
           <div className="py-20 text-center">
-            <Send size={40} className="text-gray-200 mx-auto mb-3" />
+            <Send size={40} className="text-[var(--haip-fg-subtle)]/70 mx-auto mb-3" />
             <p className="text-sm text-[var(--haip-fg)] font-medium">Nothing sent in the last {days} days</p>
             <p className="text-xs text-[var(--haip-fg-muted)] mt-1">Once a campaign goes out, delivery, reads and failures show up here.</p>
             {data && data.upcoming.length > 0 && <p className="text-xs text-[var(--haip-fg-2)] mt-3">Next up: <strong>{data.upcoming[0].name}</strong>{data.upcoming[0].scheduled_at ? `, ${new Date(data.upcoming[0].scheduled_at).toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : ""}</p>}

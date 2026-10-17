@@ -67,7 +67,7 @@ export const TranscriptTurn = memo(function TranscriptTurn({
   <div
   className={cn(
  "flex gap-3 px-1 py-1 rounded-xl transition-colors",
-  isActive && "bg-teal-50/60",
+  isActive && "bg-[var(--haip-primary-tint)]",
   onClick && "cursor-pointer"
   )}
   onClick={() => onClick?.(t0)}

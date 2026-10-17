@@ -59,10 +59,10 @@ type Tab = "audit" | "consents" | "dpdp" | "incidents";
 
 const ACTION_COLORS: Record<string, string> = {
   login:             "text-blue-600 bg-blue-50",
-  logout:            "text-gray-600 bg-gray-50",
+  logout:            "text-[var(--haip-fg-muted)] bg-[var(--haip-surface)]",
   invite:            "text-purple-600 bg-purple-50",
   role_change:       "text-amber-600 bg-amber-50",
-  qa_override:       "text-teal-600 bg-teal-50",
+  qa_override:       "text-primary bg-[var(--haip-primary-tint)]",
   "dpdp.delete_requested":  "text-red-600 bg-red-50",
   "dpdp.delete_restored":   "text-green-600 bg-green-50",
   "retention.purge": "text-orange-600 bg-orange-50",
@@ -98,7 +98,7 @@ function formatDate(iso: string) {
 }
 
 const SEVERITY_COLORS: Record<string, string> = {
-  low:      "bg-gray-100 text-gray-600",
+  low:      "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)]",
   medium:   "bg-amber-100 text-amber-700",
   high:     "bg-orange-100 text-orange-700",
   critical: "bg-red-100 text-red-700",
@@ -183,14 +183,14 @@ export default function CompliancePage() {
   return (
     <div className="h-full flex flex-col bg-white">
       {/* Header */}
-      <div className="px-5 py-4 border-b border-gray-100 flex-shrink-0">
+      <div className="px-5 py-4 border-b border-[var(--haip-border)] flex-shrink-0">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center">
             <Shield size={18} className="text-blue-600" />
           </div>
           <div>
             <h1 className="haip-page-title">Compliance centre</h1>
-            <p className="text-xs text-gray-400">DPDP Act compliance · audit trail · consent registry · incidents</p>
+            <p className="text-xs text-[var(--haip-fg-subtle)]">DPDP Act compliance · audit trail · consent registry · incidents</p>
           </div>
         </div>
         <div className="flex gap-1">
@@ -200,7 +200,7 @@ export default function CompliancePage() {
               onClick={() => setTab(t.id)}
               className={cn(
                 "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                tab === t.id ? "bg-[#0F766E] text-white" : "text-gray-500 hover:bg-gray-100"
+                tab === t.id ? "bg-[#0F766E] text-white" : "text-[var(--haip-fg-subtle)] hover:bg-[var(--haip-status-neutral-bg)]"
               )}
             >
               {t.label}
@@ -212,22 +212,22 @@ export default function CompliancePage() {
       {/* ── Audit log ── */}
       {tab === "audit" && (
         <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-50 flex items-center gap-3 flex-shrink-0 flex-wrap">
+          <div className="px-5 py-3 border-b border-[var(--haip-border)] flex items-center gap-3 flex-shrink-0 flex-wrap">
             {/* D7: action filter */}
             <div className="relative">
-              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
               <input
                 value={search}
                 onChange={e => { setSearch(e.target.value); setOffset(0); }}
                 placeholder="Filter by action…"
-                className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gray-50 w-44"
+                className="pl-8 pr-3 py-1.5 text-xs border border-[var(--haip-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-[var(--haip-surface)] w-44"
               />
             </div>
             {/* D7: resource type filter */}
             <select
               value={resourceFilter}
               onChange={e => { setResourceFilter(e.target.value); setOffset(0); }}
-              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500"
+              className="text-xs border border-[var(--haip-border)] rounded-lg px-2 py-1.5 bg-[var(--haip-surface)] focus:outline-none focus:ring-2 focus:ring-primary"
             >
               <option value="">All resources</option>
               <option value="guest">Guest</option>
@@ -244,19 +244,19 @@ export default function CompliancePage() {
               className={cn(
                 "flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors",
                 search === "mcp."
-                  ? "bg-teal-50 border-teal-200 text-teal-700"
-                  : "bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100"
+                  ? "bg-[var(--haip-primary-tint)] border-[color-mix(in_srgb,var(--primary)_25%,transparent)] text-primary"
+                  : "bg-[var(--haip-surface)] border-[var(--haip-border)] text-[var(--haip-fg-subtle)] hover:bg-[var(--haip-status-neutral-bg)]"
               )}
             >
               <Bot size={12} />
               MCP activity
             </button>
-            <span className="text-xs text-gray-400 ml-auto">{auditEvents.length} events</span>
+            <span className="text-xs text-[var(--haip-fg-subtle)] ml-auto">{auditEvents.length} events</span>
           </div>
 
           <div className="flex-1 overflow-y-auto">
             {auditLoading ? (
-              <div className="divide-y divide-gray-50">
+              <div className="divide-y divide-[var(--haip-border)]">
                 {Array.from({ length: 10 }).map((_, i) => (
                   <div key={i} className="px-5 py-3 flex gap-3">
                     <Skeleton className="h-5 w-20 rounded-full" />
@@ -265,27 +265,27 @@ export default function CompliancePage() {
                 ))}
               </div>
             ) : auditEvents.length === 0 ? (
-              <div className="py-16 text-center text-sm text-gray-400">
+              <div className="py-16 text-center text-sm text-[var(--haip-fg-subtle)]">
                 {search || resourceFilter ? "No matching events" : "No audit events yet"}
               </div>
             ) : (
               <table className="w-full text-xs">
-                <thead className="sticky top-0 bg-white border-b border-gray-100">
+                <thead className="sticky top-0 bg-white border-b border-[var(--haip-border)]">
                   <tr>
                     {["Action", "Resource", "Actor", "Timestamp"].map(h => (
-                      <th key={h} className="px-4 py-2.5 text-left font-semibold uppercase tracking-wide text-gray-400">{h}</th>
+                      <th key={h} className="px-4 py-2.5 text-left font-semibold uppercase tracking-wide text-[var(--haip-fg-subtle)]">{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-[var(--haip-border)]">
                   {auditEvents.map(evt => {
                     const link = resourceLink(evt.target_type, evt.target_id);
                     return (
-                      <tr key={evt.id} className="hover:bg-gray-50 transition-colors">
+                      <tr key={evt.id} className="hover:bg-[var(--haip-surface)] transition-colors">
                         <td className="px-4 py-2.5">
                           <span className={cn(
                             "px-2 py-0.5 rounded-full text-[10px] font-semibold",
-                            ACTION_COLORS[evt.action] ?? "text-gray-600 bg-gray-100"
+                            ACTION_COLORS[evt.action] ?? "text-[var(--haip-fg-muted)] bg-[var(--haip-status-neutral-bg)]"
                           )}>
                             {evt.action}
                           </span>
@@ -293,24 +293,24 @@ export default function CompliancePage() {
                         {/* D7: clickable resource link */}
                         <td className="px-4 py-2.5">
                           {evt.target_type && (
-                            <span className="text-gray-600 capitalize">{evt.target_type}</span>
+                            <span className="text-[var(--haip-fg-muted)] capitalize">{evt.target_type}</span>
                           )}
                           {evt.target_id && link ? (
                             <Link
                               href={link}
-                              className="text-teal-600 hover:underline font-mono ml-1 flex items-center gap-0.5 inline-flex"
+                              className="text-primary hover:underline font-mono ml-1 flex items-center gap-0.5 inline-flex"
                             >
                               {shortId(evt.target_id)}
                               <ExternalLink size={9} />
                             </Link>
                           ) : evt.target_id ? (
-                            <span className="text-gray-400 font-mono ml-1">{shortId(evt.target_id)}</span>
+                            <span className="text-[var(--haip-fg-subtle)] font-mono ml-1">{shortId(evt.target_id)}</span>
                           ) : null}
                         </td>
-                        <td className="px-4 py-2.5 text-gray-500 font-mono">
+                        <td className="px-4 py-2.5 text-[var(--haip-fg-subtle)] font-mono">
                           {evt.actor_user_id?.slice(0, 8) ?? "system"}
                         </td>
-                        <td className="px-4 py-2.5 text-gray-400">{formatDate(evt.created_at)}</td>
+                        <td className="px-4 py-2.5 text-[var(--haip-fg-subtle)]">{formatDate(evt.created_at)}</td>
                       </tr>
                     );
                   })}
@@ -318,12 +318,12 @@ export default function CompliancePage() {
               </table>
             )}
           </div>
-          <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between flex-shrink-0">
+          <div className="px-5 py-3 border-t border-[var(--haip-border)] flex items-center justify-between flex-shrink-0">
             <button onClick={() => setOffset(Math.max(0, offset - LIMIT))} disabled={offset === 0}
-              className="text-xs text-gray-500 hover:text-gray-700 disabled:opacity-40 font-medium">← Previous</button>
-            <span className="text-xs text-gray-400">Showing {offset + 1}–{offset + auditEvents.length}</span>
+              className="text-xs text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-2)] disabled:opacity-40 font-medium">← Previous</button>
+            <span className="text-xs text-[var(--haip-fg-subtle)]">Showing {offset + 1}–{offset + auditEvents.length}</span>
             <button onClick={() => setOffset(offset + LIMIT)} disabled={auditEvents.length < LIMIT}
-              className="text-xs text-gray-500 hover:text-gray-700 disabled:opacity-40 font-medium">Next →</button>
+              className="text-xs text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-2)] disabled:opacity-40 font-medium">Next →</button>
           </div>
         </div>
       )}
@@ -342,33 +342,33 @@ export default function CompliancePage() {
           )}
           {consentsLoading ? <Skeleton className="h-64 rounded-2xl" />
           : !consentsError && consents.length === 0 ? (
-            <div className="py-16 text-center text-sm text-gray-400">No consent records yet</div>
+            <div className="py-16 text-center text-sm text-[var(--haip-fg-subtle)]">No consent records yet</div>
           ) : !consentsError && (
             <table className="w-full text-sm">
               <thead>
                 <tr>
                   {["Guest phone", "Scope", "Channel", "Status", "Withdrawn", "Date"].map(h => (
-                    <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-gray-400">{h}</th>
+                    <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--haip-fg-subtle)]">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-[var(--haip-border)]">
                 {consents.map(c => (
-                  <tr key={c.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-mono text-xs text-gray-700">{c.guest_phone}</td>
+                  <tr key={c.id} className="hover:bg-[var(--haip-surface)]">
+                    <td className="px-4 py-3 font-mono text-xs text-[var(--haip-fg-2)]">{c.guest_phone}</td>
                     <td className="px-4 py-3"><Badge variant="ghost" className="capitalize text-xs">{c.scope}</Badge></td>
-                    <td className="px-4 py-3 text-gray-500 text-xs capitalize">{c.channel || "—"}</td>
+                    <td className="px-4 py-3 text-[var(--haip-fg-subtle)] text-xs capitalize">{c.channel || "—"}</td>
                     <td className="px-4 py-3">
                       {c.granted
-                        ? <span className="flex items-center gap-1 text-xs text-teal-600"><CheckCircle2 size={12} /> Granted</span>
+                        ? <span className="flex items-center gap-1 text-xs text-primary"><CheckCircle2 size={12} /> Granted</span>
                         : <span className="text-xs text-red-500">Revoked</span>}
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-400">
+                    <td className="px-4 py-3 text-xs text-[var(--haip-fg-subtle)]">
                       {c.withdrawn_at ? (
                         <span title={c.withdrawal_reason ?? ""}>{formatDate(c.withdrawn_at)}</span>
                       ) : "—"}
                     </td>
-                    <td className="px-4 py-3 text-gray-400 text-xs">{formatDate(c.created_at)}</td>
+                    <td className="px-4 py-3 text-[var(--haip-fg-subtle)] text-xs">{formatDate(c.created_at)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -392,8 +392,8 @@ export default function CompliancePage() {
 
           {dpdpLoading ? <Skeleton className="h-48 rounded-2xl" />
           : pendingDeletions.length === 0 ? (
-            <div className="text-center py-16 text-sm text-gray-400">
-              <Trash2 size={32} className="text-gray-300 mx-auto mb-3" />
+            <div className="text-center py-16 text-sm text-[var(--haip-fg-subtle)]">
+              <Trash2 size={32} className="text-[var(--haip-fg-subtle)]/70 mx-auto mb-3" />
               No deletion requests pending
             </div>
           ) : (
@@ -401,18 +401,18 @@ export default function CompliancePage() {
               <thead>
                 <tr>
                   {["Guest", "Requested at", "Days until hard-delete", "Actions"].map(h => (
-                    <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-gray-400">{h}</th>
+                    <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--haip-fg-subtle)]">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-[var(--haip-border)]">
                 {pendingDeletions.map(g => (
-                  <tr key={g.id} className="hover:bg-gray-50">
+                  <tr key={g.id} className="hover:bg-[var(--haip-surface)]">
                     <td className="px-4 py-3">
-                      <p className="text-sm font-medium text-gray-900">{g.name ?? "Unknown"}</p>
-                      <p className="text-xs text-gray-400 font-mono">***{g.phone}</p>
+                      <p className="text-sm font-medium text-[var(--haip-fg)]">{g.name ?? "Unknown"}</p>
+                      <p className="text-xs text-[var(--haip-fg-subtle)] font-mono">***{g.phone}</p>
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-500">{formatDate(g.deletion_requested_at)}</td>
+                    <td className="px-4 py-3 text-xs text-[var(--haip-fg-subtle)]">{formatDate(g.deletion_requested_at)}</td>
                     <td className="px-4 py-3">
                       <span className={cn(
                         "text-xs font-semibold px-2 py-0.5 rounded-full",
@@ -420,7 +420,7 @@ export default function CompliancePage() {
                           ? "bg-red-100 text-red-700"
                           : (g.days_until_hard_delete ?? 30) <= 7
                           ? "bg-amber-100 text-amber-700"
-                          : "bg-gray-100 text-gray-600"
+                          : "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)]"
                       )}>
                         {g.days_until_hard_delete ?? "?"} days
                       </span>
@@ -429,7 +429,7 @@ export default function CompliancePage() {
                       <button
                         onClick={() => restoreMutation.mutate(g.id)}
                         disabled={restoreMutation.isPending}
-                        className="flex items-center gap-1 text-xs text-teal-600 border border-teal-200 bg-teal-50 hover:bg-teal-100 px-2.5 py-1 rounded-lg transition-colors"
+                        className="flex items-center gap-1 text-xs text-primary border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] bg-[var(--haip-primary-tint)] hover:bg-[var(--haip-primary-tint)] px-2.5 py-1 rounded-lg transition-colors"
                       >
                         <RotateCcw size={11} /> Restore
                       </button>
@@ -472,8 +472,8 @@ export default function CompliancePage() {
 
           {incidentsLoading ? <Skeleton className="h-64 rounded-2xl" />
           : incidents.length === 0 ? (
-            <div className="text-center py-12 text-sm text-gray-400">
-              <Shield size={28} className="text-gray-200 mx-auto mb-3" />
+            <div className="text-center py-12 text-sm text-[var(--haip-fg-subtle)]">
+              <Shield size={28} className="text-[var(--haip-fg-subtle)]/70 mx-auto mb-3" />
               No incidents recorded — keep it that way
             </div>
           ) : (
@@ -484,15 +484,15 @@ export default function CompliancePage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={cn(
                         "text-[10px] font-bold px-2 py-0.5 rounded-full uppercase",
-                        SEVERITY_COLORS[inc.severity] ?? "bg-gray-100 text-gray-600"
+                        SEVERITY_COLORS[inc.severity] ?? "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)]"
                       )}>
                         {inc.severity}
                       </span>
-                      <span className="text-sm font-semibold text-gray-900 capitalize">
+                      <span className="text-sm font-semibold text-[var(--haip-fg)] capitalize">
                         {inc.incident_type.replace(/_/g, " ")}
                       </span>
                       {inc.affected_count > 0 && (
-                        <span className="flex items-center gap-0.5 text-xs text-gray-500">
+                        <span className="flex items-center gap-0.5 text-xs text-[var(--haip-fg-subtle)]">
                           <Users size={11} /> {inc.affected_count} affected
                         </span>
                       )}
@@ -501,18 +501,18 @@ export default function CompliancePage() {
                       "text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0",
                       inc.status === "open" ? "bg-red-100 text-red-600"
                       : inc.status === "contained" ? "bg-amber-100 text-amber-600"
-                      : "bg-gray-100 text-gray-500"
+                      : "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-subtle)]"
                     )}>
                       {inc.status}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-600 line-clamp-2">{inc.narrative}</p>
+                  <p className="text-xs text-[var(--haip-fg-muted)] line-clamp-2">{inc.narrative}</p>
                   <div className="mt-2 flex items-center gap-3">
-                    <span className="text-[10px] text-gray-400">{formatDate(inc.created_at)}</span>
-                    {inc.scope && <span className="text-[10px] text-gray-400">Scope: {inc.scope}</span>}
+                    <span className="text-[10px] text-[var(--haip-fg-subtle)]">{formatDate(inc.created_at)}</span>
+                    {inc.scope && <span className="text-[10px] text-[var(--haip-fg-subtle)]">Scope: {inc.scope}</span>}
                     <Link
                       href={`/dashboard/compliance/incidents/${inc.id}`}
-                      className="ml-auto text-[10px] text-teal-600 hover:underline flex items-center gap-0.5"
+                      className="ml-auto text-[10px] text-primary hover:underline flex items-center gap-0.5"
                     >
                       View + generate notification <ExternalLink size={9} />
                     </Link>
@@ -614,7 +614,7 @@ function IncidentForm({
         >
           {isPending ? "Saving…" : "Create incident record"}
         </button>
-        <button onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl">
+        <button onClick={onCancel} className="px-4 py-2 text-sm text-[var(--haip-fg-muted)] hover:bg-[var(--haip-status-neutral-bg)] rounded-xl">
           Cancel
         </button>
       </div>

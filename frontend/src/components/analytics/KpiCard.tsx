@@ -35,8 +35,8 @@ export function DeltaChip({
     <span
       className={cn(
         "inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full",
-        positive ? "bg-teal-100 text-teal-700" :
-        negative ? "bg-red-100 text-red-600"   : "bg-gray-100 text-gray-500",
+        positive ? "bg-[var(--haip-primary-tint)] text-primary" :
+        negative ? "bg-red-100 text-red-600"   : "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-subtle)]",
       )}
     >
       {delta.direction === "up"   ? <ArrowUpRight size={9} />   :

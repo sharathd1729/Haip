@@ -37,27 +37,27 @@ export default function SettingsPage() {
             onClick={() => setTab(t.id)}
             className={cn(
               "w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-colors group",
-              tab === t.id ? "bg-teal-50 text-teal-700" : "text-gray-600 hover:bg-gray-50"
+              tab === t.id ? "bg-[var(--haip-primary-tint)] text-primary" : "text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)]"
             )}
           >
-            <span className={tab === t.id ? "text-teal-500" : "text-gray-400"}>{t.icon}</span>
+            <span className={tab === t.id ? "text-primary" : "text-[var(--haip-fg-subtle)]"}>{t.icon}</span>
             <div>
               <div className="text-sm font-medium">{t.label}</div>
-              <div className="text-[10px] text-gray-400 leading-none mt-0.5">{t.desc}</div>
+              <div className="text-[10px] text-[var(--haip-fg-subtle)] leading-none mt-0.5">{t.desc}</div>
             </div>
-            <ChevronRight size={13} className={cn("ml-auto transition-opacity", tab === t.id ? "opacity-100 text-teal-400" : "opacity-0 group-hover:opacity-40")} />
+            <ChevronRight size={13} className={cn("ml-auto transition-opacity", tab === t.id ? "opacity-100 text-primary" : "opacity-0 group-hover:opacity-40")} />
           </button>
         ))}
 
         {/* Team — separate page */}
         <button
           onClick={() => router.push("/dashboard/settings/team")}
-          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-colors group text-gray-600 hover:bg-gray-50"
+          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-colors group text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)]"
         >
-          <span className="text-gray-400"><Users size={15} /></span>
+          <span className="text-[var(--haip-fg-subtle)]"><Users size={15} /></span>
           <div>
             <div className="text-sm font-medium">Team</div>
-            <div className="text-[10px] text-gray-400 leading-none mt-0.5">Invite members, manage roles</div>
+            <div className="text-[10px] text-[var(--haip-fg-subtle)] leading-none mt-0.5">Invite members, manage roles</div>
           </div>
           <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-40 transition-opacity" />
         </button>
@@ -65,12 +65,12 @@ export default function SettingsPage() {
         {/* AI Knowledge Base — what the concierge knows */}
         <button
           onClick={() => router.push("/dashboard/settings/knowledge")}
-          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-colors group text-gray-600 hover:bg-gray-50"
+          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-colors group text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)]"
         >
-          <span className="text-gray-400"><BookOpen size={15} /></span>
+          <span className="text-[var(--haip-fg-subtle)]"><BookOpen size={15} /></span>
           <div>
             <div className="text-sm font-medium">AI Knowledge Base</div>
-            <div className="text-[10px] text-gray-400 leading-none mt-0.5">FAQs, amenities, add-ons, routes</div>
+            <div className="text-[10px] text-[var(--haip-fg-subtle)] leading-none mt-0.5">FAQs, amenities, add-ons, routes</div>
           </div>
           <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-40 transition-opacity" />
         </button>
@@ -78,12 +78,12 @@ export default function SettingsPage() {
         {/* External Assistant Access (Perisclaw / MCP) — separate page */}
         <button
           onClick={() => router.push("/dashboard/settings/mcp-access")}
-          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-colors group text-gray-600 hover:bg-gray-50"
+          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-colors group text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)]"
         >
-          <span className="text-gray-400"><KeyRound size={15} /></span>
+          <span className="text-[var(--haip-fg-subtle)]"><KeyRound size={15} /></span>
           <div>
             <div className="text-sm font-medium">AI Assistants</div>
-            <div className="text-[10px] text-gray-400 leading-none mt-0.5">Connect Claude, ChatGPT, Gemini</div>
+            <div className="text-[10px] text-[var(--haip-fg-subtle)] leading-none mt-0.5">Connect Claude, ChatGPT, Gemini</div>
           </div>
           <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-40 transition-opacity" />
         </button>
@@ -91,12 +91,12 @@ export default function SettingsPage() {
         {/* Personal WhatsApp bridge — every agent pairs their own */}
         <button
           onClick={() => router.push("/dashboard/settings/whatsapp-personal")}
-          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-colors group text-gray-600 hover:bg-gray-50"
+          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-colors group text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)]"
         >
-          <span className="text-gray-400"><MessageCircle size={15} /></span>
+          <span className="text-[var(--haip-fg-subtle)]"><MessageCircle size={15} /></span>
           <div>
             <div className="text-sm font-medium">Personal WhatsApp</div>
-            <div className="text-[10px] text-gray-400 leading-none mt-0.5">Pair your own phone, track chats in HAIP</div>
+            <div className="text-[10px] text-[var(--haip-fg-subtle)] leading-none mt-0.5">Pair your own phone, track chats in HAIP</div>
           </div>
           <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-40 transition-opacity" />
         </button>
@@ -105,21 +105,21 @@ export default function SettingsPage() {
         {isOwner && (
           <button
             onClick={() => router.push("/dashboard/settings/permissions")}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-colors group text-gray-600 hover:bg-gray-50"
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-colors group text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)]"
           >
-            <span className="text-gray-400"><Lock size={15} /></span>
+            <span className="text-[var(--haip-fg-subtle)]"><Lock size={15} /></span>
             <div>
               <div className="text-sm font-medium">Roles &amp; Permissions</div>
-              <div className="text-[10px] text-gray-400 leading-none mt-0.5">What each role can access</div>
+              <div className="text-[10px] text-[var(--haip-fg-subtle)] leading-none mt-0.5">What each role can access</div>
             </div>
             <ChevronRight size={13} className="ml-auto opacity-0 group-hover:opacity-40 transition-opacity" />
           </button>
         )}
 
-        <div className="mt-auto pt-4 border-t border-gray-100">
-          <p className="text-[10px] text-gray-400 px-3">
+        <div className="mt-auto pt-4 border-t border-[var(--haip-border)]">
+          <p className="text-[10px] text-[var(--haip-fg-subtle)] px-3">
             IVR, WhatsApp, Instagram, and PMS settings are managed in{" "}
-            <a href="/dashboard/settings/integrations" className="text-teal-600 hover:underline font-medium">Integrations →</a>
+            <a href="/dashboard/settings/integrations" className="text-primary hover:underline font-medium">Integrations →</a>
           </p>
         </div>
       </div>
@@ -188,21 +188,21 @@ function WorkspaceSettings() {
             hint="Used in AI Concierge greetings and email signatures"
           />
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Workspace URL</label>
-            <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
-              <span className="px-3 py-2 text-gray-400 text-sm border-r border-gray-200">genhaip.com/</span>
-              <span className="px-3 py-2 text-gray-700 text-sm font-medium flex-1">{form.slug}</span>
-              <span className="px-3 text-xs text-gray-400">Contact support to change</span>
+            <label className="block text-sm font-medium text-[var(--haip-fg-2)] mb-1">Workspace URL</label>
+            <div className="flex items-center border border-[var(--haip-border)] rounded-lg overflow-hidden bg-[var(--haip-surface)]">
+              <span className="px-3 py-2 text-[var(--haip-fg-subtle)] text-sm border-r border-[var(--haip-border)]">genhaip.com/</span>
+              <span className="px-3 py-2 text-[var(--haip-fg-2)] text-sm font-medium flex-1">{form.slug}</span>
+              <span className="px-3 text-xs text-[var(--haip-fg-subtle)]">Contact support to change</span>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Timezone</label>
+              <label className="block text-sm font-medium text-[var(--haip-fg-2)] mb-1">Timezone</label>
               <select
                 value={form.timezone}
                 onChange={e => setForm(f => ({...f, timezone: e.target.value}))}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white"
+                className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white"
               >
                 <option value="Asia/Kolkata">Asia/Kolkata (IST, UTC+5:30)</option>
                 <option value="Asia/Dubai">Asia/Dubai (GST, UTC+4)</option>
@@ -212,11 +212,11 @@ function WorkspaceSettings() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Language</label>
+              <label className="block text-sm font-medium text-[var(--haip-fg-2)] mb-1">Language</label>
               <select
                 value={form.language}
                 onChange={e => setForm(f => ({...f, language: e.target.value}))}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white"
+                className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white"
               >
                 <option value="en">English</option>
                 <option value="hi">Hindi</option>
@@ -227,11 +227,11 @@ function WorkspaceSettings() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Date format</label>
+            <label className="block text-sm font-medium text-[var(--haip-fg-2)] mb-1">Date format</label>
             <select
               value={form.date_format}
               onChange={e => setForm(f => ({...f, date_format: e.target.value}))}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white"
+              className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white"
             >
               <option value="DD/MM/YYYY">DD/MM/YYYY</option>
               <option value="MM/DD/YYYY">MM/DD/YYYY</option>
@@ -241,26 +241,26 @@ function WorkspaceSettings() {
 
           {/* B10: Business hours — shown below timezone */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Business hours</label>
-            <p className="text-xs text-gray-400 mb-3">Used for SLA timers, daily digest scheduling, and AI concierge availability.</p>
-            <div className="border border-gray-100 rounded-xl overflow-hidden">
+            <label className="block text-sm font-medium text-[var(--haip-fg-2)] mb-2">Business hours</label>
+            <p className="text-xs text-[var(--haip-fg-subtle)] mb-3">Used for SLA timers, daily digest scheduling, and AI concierge availability.</p>
+            <div className="border border-[var(--haip-border)] rounded-xl overflow-hidden">
               {["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map((day, idx) => (
-                <div key={day} className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
-                  <span className="w-24 text-xs font-medium text-gray-700">{day}</span>
-                  <span className="text-xs text-gray-400">{idx < 5 ? "09:00 – 21:00" : idx === 5 ? "10:00 – 18:00" : "10:00 – 14:00"}</span>
-                  <span className="ml-auto text-[10px] text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full font-medium">Open</span>
+                <div key={day} className="flex items-center gap-3 px-4 py-2.5 border-b border-[var(--haip-border)] last:border-0 hover:bg-[var(--haip-surface)]/50">
+                  <span className="w-24 text-xs font-medium text-[var(--haip-fg-2)]">{day}</span>
+                  <span className="text-xs text-[var(--haip-fg-subtle)]">{idx < 5 ? "09:00 – 21:00" : idx === 5 ? "10:00 – 18:00" : "10:00 – 14:00"}</span>
+                  <span className="ml-auto text-[10px] text-primary bg-[var(--haip-primary-tint)] px-2 py-0.5 rounded-full font-medium">Open</span>
                 </div>
               ))}
             </div>
-            <p className="text-[11px] text-gray-400 mt-2">Full business hours editor coming in the next release.</p>
+            <p className="text-[11px] text-[var(--haip-fg-subtle)] mt-2">Full business hours editor coming in the next release.</p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Current plan</label>
+            <label className="block text-sm font-medium text-[var(--haip-fg-2)] mb-1">Current plan</label>
             <div className="flex items-center gap-3">
-              <span className="bg-teal-100 text-teal-700 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide">Growth</span>
-              <span className="text-sm text-gray-500">1,500 calls/mo · 4,500 WA conv · 5 users</span>
-              <a href="/dashboard/billing" className="ml-auto text-xs text-teal-600 hover:underline font-medium">Manage billing →</a>
+              <span className="bg-[var(--haip-primary-tint)] text-primary text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide">Growth</span>
+              <span className="text-sm text-[var(--haip-fg-subtle)]">1,500 calls/mo · 4,500 WA conv · 5 users</span>
+              <a href="/dashboard/billing" className="ml-auto text-xs text-primary hover:underline font-medium">Manage billing →</a>
             </div>
           </div>
         </div>
@@ -351,17 +351,17 @@ function KillSwitchCard() {
       {/* Emergency stop */}
       <div className={cn(
         "rounded-xl border-2 p-5 transition-colors",
-        stopped ? "border-red-300 bg-red-50" : "border-gray-100 bg-white",
+        stopped ? "border-red-300 bg-red-50" : "border-[var(--haip-border)] bg-white",
       )}>
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <AlertCircle size={16} className={stopped ? "text-red-600" : "text-gray-400"} />
-              <p className="text-sm font-semibold text-gray-900">
+              <AlertCircle size={16} className={stopped ? "text-red-600" : "text-[var(--haip-fg-subtle)]"} />
+              <p className="text-sm font-semibold text-[var(--haip-fg)]">
                 {stopped ? "AI is stopped" : "Emergency stop"}
               </p>
             </div>
-            <p className="text-xs text-gray-500 mt-1 max-w-md">
+            <p className="text-xs text-[var(--haip-fg-subtle)] mt-1 max-w-md">
               {stopped
                 ? "The AI is not sending anything to guests. It still writes drafts for your team to review and send."
                 : "Immediately stops the AI sending messages to guests on every channel. Drafts keep appearing for your team, so nothing is lost."}
@@ -394,7 +394,7 @@ function KillSwitchCard() {
 
       {/* Escalation keywords */}
       <Card title="Always send to a human">
-        <p className="text-xs text-gray-500 mb-3">
+        <p className="text-xs text-[var(--haip-fg-subtle)] mb-3">
           If a guest&apos;s message mentions any of these, the AI will never reply on its own — it holds the
           draft for your team and sends an alert. {defaultCount} common triggers (refunds, legal, cancellations,
           safety, asking for a manager) are built in and always active.
@@ -406,11 +406,11 @@ function KillSwitchCard() {
             onChange={e => setKwInput(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addKeyword(); } }}
             placeholder="Add your own, e.g. generator"
-            className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+            className="flex-1 px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
           <button
             onClick={addKeyword}
-            className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-xs font-semibold hover:bg-gray-200 transition-colors"
+            className="px-3 py-2 bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-2)] rounded-lg text-xs font-semibold hover:bg-[var(--haip-border)] transition-colors"
           >
             Add
           </button>
@@ -432,7 +432,7 @@ function KillSwitchCard() {
             ))}
           </div>
         ) : (
-          <p className="text-xs text-gray-400 mb-3">No extra keywords — the built-in list is still active.</p>
+          <p className="text-xs text-[var(--haip-fg-subtle)] mb-3">No extra keywords — the built-in list is still active.</p>
         )}
 
         <SaveButton
@@ -489,23 +489,23 @@ function RateLimitCard({ safety }: { safety?: AISafety }) {
 
   return (
     <Card title="Limits on automatic sending">
-      <p className="text-xs text-gray-500 mb-4">
+      <p className="text-xs text-[var(--haip-fg-subtle)] mb-4">
         If the AI hits one of these, it stops sending automatically and leaves the reply for your team instead —
         the guest still gets an answer, just from a person. You&apos;ll get an alert when it happens.
       </p>
       <div className="space-y-4">
         {FIELDS.map(f => (
           <div key={f.key}>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{f.label}</label>
+            <label className="block text-sm font-medium text-[var(--haip-fg-2)] mb-1">{f.label}</label>
             <input
               type="number"
               min={1}
               max={1000}
               value={valueFor(f.key, f.fallback)}
               onChange={e => setDraft({ ...(draft ?? {}), [f.key]: Number(e.target.value) })}
-              className="w-28 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+              className="w-28 px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
-            <p className="text-[11px] text-gray-400 mt-1 max-w-lg">{f.hint}</p>
+            <p className="text-[11px] text-[var(--haip-fg-subtle)] mt-1 max-w-lg">{f.hint}</p>
           </div>
         ))}
       </div>
@@ -586,29 +586,29 @@ function AISettings() {
           {MODE_OPTIONS.map(m => (
             <label key={m.id} className={cn(
               "flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-colors",
-              waModeForm.mode === m.id ? "border-teal-500 bg-teal-50" : "border-gray-200 hover:border-gray-300"
+              waModeForm.mode === m.id ? "border-primary bg-[var(--haip-primary-tint)]" : "border-[var(--haip-border)] hover:border-[var(--haip-border-strong)]"
             )}>
-              <input type="radio" name="wa_mode" value={m.id} checked={waModeForm.mode === m.id} onChange={() => setWaModeForm(f => ({...f, mode: m.id}))} className="mt-0.5 accent-teal-500" />
+              <input type="radio" name="wa_mode" value={m.id} checked={waModeForm.mode === m.id} onChange={() => setWaModeForm(f => ({...f, mode: m.id}))} className="mt-0.5 accent-primary" />
               <div>
-                <div className="text-sm font-semibold text-gray-900">{m.label}</div>
-                <div className="text-xs text-gray-500">{m.desc}</div>
+                <div className="text-sm font-semibold text-[var(--haip-fg)]">{m.label}</div>
+                <div className="text-xs text-[var(--haip-fg-subtle)]">{m.desc}</div>
               </div>
             </label>
           ))}
         </div>
         {waModeForm.mode === "autonomous" && (
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Confidence threshold</label>
+            <label className="block text-sm font-medium text-[var(--haip-fg-2)] mb-1">Confidence threshold</label>
             <input
               type="number" min="0.5" max="1" step="0.01"
               value={waModeForm.confidence}
               onChange={e => setWaModeForm(f => ({...f, confidence: e.target.value}))}
-              className="w-32 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+              className="w-32 px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
-            <p className="text-xs text-gray-400 mt-1">Recommended: 0.78. Replies below this score go to shadow mode for review.</p>
+            <p className="text-xs text-[var(--haip-fg-subtle)] mt-1">Recommended: 0.78. Replies below this score go to shadow mode for review.</p>
           </div>
         )}
-        <p className="text-xs text-gray-400 mb-4">Recommended: start with Shadow for 30 days, then switch to Autonomous.</p>
+        <p className="text-xs text-[var(--haip-fg-subtle)] mb-4">Recommended: start with Shadow for 30 days, then switch to Autonomous.</p>
         {aiModeError && (
           <p className="text-xs text-red-600 mb-2">Couldn&apos;t load current settings — saving may overwrite them.</p>
         )}
@@ -638,24 +638,24 @@ function AISettings() {
           {MODE_OPTIONS.map(m => (
             <label key={m.id} className={cn(
               "flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-colors",
-              igModeForm.mode === m.id ? "border-teal-500 bg-teal-50" : "border-gray-200 hover:border-gray-300"
+              igModeForm.mode === m.id ? "border-primary bg-[var(--haip-primary-tint)]" : "border-[var(--haip-border)] hover:border-[var(--haip-border-strong)]"
             )}>
-              <input type="radio" name="ig_mode" value={m.id} checked={igModeForm.mode === m.id} onChange={() => setIgModeForm(f => ({...f, mode: m.id}))} className="mt-0.5 accent-teal-500" />
+              <input type="radio" name="ig_mode" value={m.id} checked={igModeForm.mode === m.id} onChange={() => setIgModeForm(f => ({...f, mode: m.id}))} className="mt-0.5 accent-primary" />
               <div>
-                <div className="text-sm font-semibold text-gray-900">{m.label}</div>
-                <div className="text-xs text-gray-500">{m.desc}</div>
+                <div className="text-sm font-semibold text-[var(--haip-fg)]">{m.label}</div>
+                <div className="text-xs text-[var(--haip-fg-subtle)]">{m.desc}</div>
               </div>
             </label>
           ))}
         </div>
         {igModeForm.mode === "autonomous" && (
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Confidence threshold</label>
+            <label className="block text-sm font-medium text-[var(--haip-fg-2)] mb-1">Confidence threshold</label>
             <input
               type="number" min="0.5" max="1" step="0.01"
               value={igModeForm.confidence}
               onChange={e => setIgModeForm(f => ({...f, confidence: e.target.value}))}
-              className="w-32 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+              className="w-32 px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
           </div>
         )}
@@ -758,38 +758,38 @@ function PushSubscriptionCard() {
       <div className="flex items-start gap-3">
         <div className={cn(
           "w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0",
-          status === "subscribed" ? "bg-emerald-50 text-emerald-600" : "bg-gray-50 text-gray-400"
+          status === "subscribed" ? "bg-emerald-50 text-emerald-600" : "bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)]"
         )}>
           {status === "subscribed" ? <BellRing size={16} /> : <BellOff size={16} />}
         </div>
         <div className="flex-1 min-w-0">
-          {status === "checking" && <p className="text-sm text-gray-500">Checking…</p>}
+          {status === "checking" && <p className="text-sm text-[var(--haip-fg-subtle)]">Checking…</p>}
 
           {status === "subscribed" && (
-            <p className="text-sm text-gray-700">Enabled — you&apos;ll get calls and new messages as notifications here.</p>
+            <p className="text-sm text-[var(--haip-fg-2)]">Enabled — you&apos;ll get calls and new messages as notifications here.</p>
           )}
 
           {status === "unsupported" && (
-            <p className="text-sm text-gray-500">This browser doesn&apos;t support push notifications.</p>
+            <p className="text-sm text-[var(--haip-fg-subtle)]">This browser doesn&apos;t support push notifications.</p>
           )}
 
           {iosBlocked && (
             <div>
-              <p className="text-sm text-gray-700">Add HAIP to your Home Screen first.</p>
-              <p className="text-xs text-gray-400 mt-0.5">iOS only allows notifications for installed apps: open this page in Safari, tap Share, then &quot;Add to Home Screen,&quot; and open HAIP from there.</p>
+              <p className="text-sm text-[var(--haip-fg-2)]">Add HAIP to your Home Screen first.</p>
+              <p className="text-xs text-[var(--haip-fg-subtle)] mt-0.5">iOS only allows notifications for installed apps: open this page in Safari, tap Share, then &quot;Add to Home Screen,&quot; and open HAIP from there.</p>
             </div>
           )}
 
           {status === "denied" && !iosBlocked && (
             <div>
-              <p className="text-sm text-gray-700">Blocked in your browser.</p>
-              <p className="text-xs text-gray-400 mt-0.5">Open this site&apos;s settings in your browser (usually the lock icon in the address bar) and allow notifications, then refresh this page.</p>
+              <p className="text-sm text-[var(--haip-fg-2)]">Blocked in your browser.</p>
+              <p className="text-xs text-[var(--haip-fg-subtle)] mt-0.5">Open this site&apos;s settings in your browser (usually the lock icon in the address bar) and allow notifications, then refresh this page.</p>
             </div>
           )}
 
           {status === "not-subscribed" && !iosBlocked && (
             <div className="flex items-center justify-between gap-3">
-              <p className="text-sm text-gray-700">Not enabled on this device yet.</p>
+              <p className="text-sm text-[var(--haip-fg-2)]">Not enabled on this device yet.</p>
               <button
                 onClick={enable}
                 disabled={busy}
@@ -892,16 +892,16 @@ function NotificationSettings() {
         <Card key={g.label} title={g.label}>
           <div className="space-y-1">
             {g.items.map(item => (
-              <div key={item.key} className="flex items-center justify-between py-2.5 border-b border-gray-50 last:border-0">
+              <div key={item.key} className="flex items-center justify-between py-2.5 border-b border-[var(--haip-border)] last:border-0">
                 <div>
-                  <p className="text-sm text-gray-800">{item.label}</p>
-                  <p className="text-xs text-gray-400">{item.channel}</p>
+                  <p className="text-sm text-[var(--haip-fg)]">{item.label}</p>
+                  <p className="text-xs text-[var(--haip-fg-subtle)]">{item.channel}</p>
                 </div>
                 <button
                   onClick={() => toggle(item.key)}
                   className={cn(
                     "relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0",
-                    prefs[item.key] ? "bg-teal-500" : "bg-gray-200"
+                    prefs[item.key] ? "bg-primary" : "bg-[var(--haip-border)]"
                   )}
                 >
                   <span className={cn(
@@ -946,13 +946,13 @@ function SecuritySettings() {
           <Row label="Delete-on-request SLA" value="30 days" />
         </div>
         <div className="mt-4 flex items-center gap-3">
-          <a href="/dashboard/compliance" className="text-xs text-teal-600 hover:underline font-medium">Open Compliance Centre →</a>
+          <a href="/dashboard/compliance" className="text-xs text-primary hover:underline font-medium">Open Compliance Centre →</a>
           <button className="text-xs text-red-500 hover:underline ml-auto">Request data deletion</button>
         </div>
       </Card>
 
       <Card title="Environment keys">
-        <p className="text-xs text-gray-500 mb-3">API keys are stored in your server environment and encrypted at rest. These show current configuration status.</p>
+        <p className="text-xs text-[var(--haip-fg-subtle)] mb-3">API keys are stored in your server environment and encrypted at rest. These show current configuration status.</p>
         <div className="space-y-2">
           {[
             { key: "ANTHROPIC_API_KEY",         status: "set" },
@@ -961,11 +961,11 @@ function SecuritySettings() {
             { key: "META_WEBHOOK_VERIFY_TOKEN",  status: "missing" },
             { key: "AWS_ACCESS_KEY_ID",          status: "missing" },
           ].map(k => (
-            <div key={k.key} className="flex items-center gap-2 py-1.5 border-b border-gray-50 last:border-0">
+            <div key={k.key} className="flex items-center gap-2 py-1.5 border-b border-[var(--haip-border)] last:border-0">
               {k.status === "set"
                 ? <CheckCircle size={13} className="text-green-500 flex-shrink-0" />
                 : <AlertCircle size={13} className="text-amber-400 flex-shrink-0" />}
-              <code className="text-xs text-gray-700 flex-1">{k.key}</code>
+              <code className="text-xs text-[var(--haip-fg-2)] flex-1">{k.key}</code>
               <span className={`text-[10px] font-semibold ${k.status === "set" ? "text-green-600" : "text-amber-500"}`}>
                 {k.status === "set" ? "Configured" : "Missing"}
               </span>
@@ -1024,7 +1024,7 @@ function MFACard() {
     <Card title="Two-factor authentication">
       {stage === "idle" && (
         <div className="space-y-4">
-          <p className="text-sm text-gray-500">Add an extra layer of security. You'll be prompted for a 6-digit code from your authenticator app on each sign-in.</p>
+          <p className="text-sm text-[var(--haip-fg-subtle)]">Add an extra layer of security. You'll be prompted for a 6-digit code from your authenticator app on each sign-in.</p>
           {error && <p className="text-xs text-red-500">{error}</p>}
           <button onClick={startSetup} disabled={loading}
             className="flex items-center gap-2 px-4 py-2 bg-[#0F766E] text-white text-sm font-semibold rounded-lg hover:bg-[#0d6660] disabled:opacity-50 transition-colors">
@@ -1035,24 +1035,24 @@ function MFACard() {
       )}
       {stage === "setup" && (
         <div className="space-y-5">
-          <p className="text-sm text-gray-600">Scan with <strong>Google Authenticator</strong>, <strong>Authy</strong>, or any TOTP app.</p>
-          {qrUri && <div className="flex justify-center"><img src={qrUri} alt="MFA QR code" className="w-44 h-44 rounded-xl border border-gray-200" /></div>}
-          <div className="bg-gray-50 rounded-lg p-3">
-            <p className="text-xs text-gray-500 mb-1">Manual entry key</p>
-            <code className="text-xs font-mono text-gray-800 break-all select-all">{secret}</code>
+          <p className="text-sm text-[var(--haip-fg-muted)]">Scan with <strong>Google Authenticator</strong>, <strong>Authy</strong>, or any TOTP app.</p>
+          {qrUri && <div className="flex justify-center"><img src={qrUri} alt="MFA QR code" className="w-44 h-44 rounded-xl border border-[var(--haip-border)]" /></div>}
+          <div className="bg-[var(--haip-surface)] rounded-lg p-3">
+            <p className="text-xs text-[var(--haip-fg-subtle)] mb-1">Manual entry key</p>
+            <code className="text-xs font-mono text-[var(--haip-fg)] break-all select-all">{secret}</code>
           </div>
-          <button onClick={() => setStage("verify")} className="w-full py-2 bg-teal-500 hover:bg-teal-600 text-white font-semibold rounded-lg text-sm">
+          <button onClick={() => setStage("verify")} className="w-full py-2 bg-primary hover:bg-primary text-white font-semibold rounded-lg text-sm">
             I&apos;ve scanned — continue
           </button>
         </div>
       )}
       {stage === "verify" && (
         <div className="space-y-4">
-          <p className="text-sm text-gray-600">Enter the 6-digit code from your authenticator app.</p>
+          <p className="text-sm text-[var(--haip-fg-muted)]">Enter the 6-digit code from your authenticator app.</p>
           <input type="text" inputMode="numeric" maxLength={6} value={code}
             onChange={e => { setCode(e.target.value.replace(/\D/g, "").slice(0, 6)); setError(""); }}
             placeholder="000000"
-            className="w-full px-4 py-3 text-center text-2xl font-mono tracking-[0.5em] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500"
+            className="w-full px-4 py-3 text-center text-2xl font-mono tracking-[0.5em] border border-[var(--haip-border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"
           />
           {error && <p className="text-xs text-red-500">{error}</p>}
           <button onClick={verifyCode} disabled={loading || code.length < 6}
@@ -1071,15 +1071,15 @@ function SectionHeader({ title, sub }: { title: string; sub: string }) {
   return (
     <div>
       <h1 className="haip-page-title haip-page-title--keep">{title}</h1>
-      <p className="text-sm text-gray-400 mt-0.5">{sub}</p>
+      <p className="text-sm text-[var(--haip-fg-subtle)] mt-0.5">{sub}</p>
     </div>
   );
 }
 
 function Card({ children, title }: { children: React.ReactNode; title?: string }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-      {title && <div className="text-sm font-semibold text-gray-800 mb-4">{title}</div>}
+    <div className="bg-white rounded-xl border border-[var(--haip-border)] shadow-sm p-5">
+      {title && <div className="text-sm font-semibold text-[var(--haip-fg)] mb-4">{title}</div>}
       {children}
     </div>
   );
@@ -1091,10 +1091,10 @@ function Field({ label, value, onChange, placeholder, type = "text", hint }: {
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <label className="block text-sm font-medium text-[var(--haip-fg-2)] mb-1">{label}</label>
       <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white" />
-      {hint && <p className="text-xs text-gray-400 mt-1">{hint}</p>}
+        className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white" />
+      {hint && <p className="text-xs text-[var(--haip-fg-subtle)] mt-1">{hint}</p>}
     </div>
   );
 }
@@ -1105,7 +1105,7 @@ function SaveButton({ onClick, saved, loading = false, label = "Save changes" }:
   return (
     <button onClick={onClick} disabled={loading} className={cn(
       "mt-5 px-5 py-2 text-sm font-semibold rounded-lg transition-colors flex items-center gap-2 disabled:opacity-60",
-      saved ? "bg-green-50 text-green-700 border border-green-200" : "bg-teal-500 text-white hover:bg-teal-600"
+      saved ? "bg-green-50 text-green-700 border border-green-200" : "bg-primary text-white hover:bg-primary"
     )}>
       {loading && <Loader2 size={13} className="animate-spin" />}
       {saved ? "✓ Saved" : label}
@@ -1115,9 +1115,9 @@ function SaveButton({ onClick, saved, loading = false, label = "Save changes" }:
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between py-2 border-b border-gray-50 last:border-0">
-      <span className="text-sm text-gray-500">{label}</span>
-      <span className="text-sm font-medium text-gray-800">{value}</span>
+    <div className="flex justify-between py-2 border-b border-[var(--haip-border)] last:border-0">
+      <span className="text-sm text-[var(--haip-fg-subtle)]">{label}</span>
+      <span className="text-sm font-medium text-[var(--haip-fg)]">{value}</span>
     </div>
   );
 }

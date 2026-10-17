@@ -104,8 +104,8 @@ function ThreadRow({ thread, active, onClick }: { thread: RWThread; active: bool
       className={cn(
         "w-full text-left px-4 py-3 border-b transition-colors",
         active
-          ? "bg-teal-50 border-l-2 border-l-[#0F766E]"
-          : "hover:bg-gray-50 border-l-2 border-l-transparent",
+          ? "bg-[var(--haip-primary-tint)] border-l-2 border-l-[#0F766E]"
+          : "hover:bg-[var(--haip-surface)] border-l-2 border-l-transparent",
         "border-b-gray-100"
       )}
     >
@@ -145,7 +145,7 @@ function ThreadRow({ thread, active, onClick }: { thread: RWThread; active: bool
               </span>
             )}
             {thread.messages_count > 0 && (
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-medium bg-gray-100 text-gray-500">
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-medium bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-subtle)]">
                 <MessageSquare size={8} /> {thread.messages_count}
               </span>
             )}
@@ -197,7 +197,7 @@ function RWMessageBubble({ msg }: { msg: RWMessage }) {
             "rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed",
             isOutbound
               ? "bg-[#0F766E] text-white rounded-br-sm"
-              : "bg-white border border-gray-100 shadow-sm text-gray-800 rounded-bl-sm"
+              : "bg-white border border-[var(--haip-border)] shadow-sm text-[var(--haip-fg)] rounded-bl-sm"
           )}
         >
           <p className="whitespace-pre-wrap break-words">{displayContent}</p>
@@ -207,7 +207,7 @@ function RWMessageBubble({ msg }: { msg: RWMessage }) {
             <div
               className={cn(
                 "mt-2 pt-2 text-[11px] italic border-t",
-                isOutbound ? "border-white/20 text-white/70" : "border-gray-100 text-gray-400"
+                isOutbound ? "border-white/20 text-white/70" : "border-[var(--haip-border)] text-[var(--haip-fg-subtle)]"
               )}
             >
               <span className="font-medium not-italic">Translated: </span>
@@ -227,8 +227,8 @@ function RWMessageBubble({ msg }: { msg: RWMessage }) {
         <div className={cn("flex items-center gap-1.5 px-1", isOutbound ? "justify-end" : "justify-start")}>
           <ProviderBadge provider={msg.provider} size="sm" />
           <span className="text-[10px]" style={{ color: "#9CA3AF" }}>{time}</span>
-          {isOutbound && msg.is_sent && <CheckCircle2 size={10} className="text-teal-400" />}
-          {isOutbound && !msg.is_sent && !msg.error_message && <Loader2 size={10} className="text-gray-300 animate-spin" />}
+          {isOutbound && msg.is_sent && <CheckCircle2 size={10} className="text-primary" />}
+          {isOutbound && !msg.is_sent && !msg.error_message && <Loader2 size={10} className="text-[var(--haip-fg-subtle)]/70 animate-spin" />}
         </div>
       </div>
 
@@ -304,7 +304,7 @@ function ThreadPanel({ thread, onBack }: { thread: RWThread; onBack: () => void 
       >
         <button
           onClick={onBack}
-          className="md:hidden flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-100 transition-colors"
+          className="md:hidden flex items-center justify-center w-8 h-8 rounded-lg hover:bg-[var(--haip-status-neutral-bg)] transition-colors"
           style={{ color: "#6B7280" }}
         >
           <ChevronLeft size={18} />
@@ -337,7 +337,7 @@ function ThreadPanel({ thread, onBack }: { thread: RWThread; onBack: () => void 
           )}
           <button
             onClick={() => refetch()}
-            className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors"
+            className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-[var(--haip-status-neutral-bg)] transition-colors"
             style={{ color: "#9CA3AF" }}
             title="Refresh"
           >
@@ -360,7 +360,7 @@ function ThreadPanel({ thread, onBack }: { thread: RWThread; onBack: () => void 
         ) : isError ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
             <AlertCircle size={28} className="text-red-400" />
-            <p className="text-sm text-gray-500">Failed to load messages</p>
+            <p className="text-sm text-[var(--haip-fg-subtle)]">Failed to load messages</p>
             <button
               onClick={() => refetch()}
               className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#0F766E] text-white hover:bg-[#0d6660] transition-colors"
@@ -370,8 +370,8 @@ function ThreadPanel({ thread, onBack }: { thread: RWThread; onBack: () => void 
           </div>
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-2">
-            <MessageSquare size={28} className="text-gray-300" />
-            <p className="text-sm text-gray-400">No messages in this thread</p>
+            <MessageSquare size={28} className="text-[var(--haip-fg-subtle)]/70" />
+            <p className="text-sm text-[var(--haip-fg-subtle)]">No messages in this thread</p>
           </div>
         ) : (
           <>
@@ -399,7 +399,7 @@ function ThreadPanel({ thread, onBack }: { thread: RWThread; onBack: () => void 
                   "px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors border",
                   selectedProvider === p.id
                     ? "border-[#0F766E] bg-[#0F766E]/5 text-[#0F766E]"
-                    : "border-gray-200 text-gray-500 hover:bg-gray-50"
+                    : "border-[var(--haip-border)] text-[var(--haip-fg-subtle)] hover:bg-[var(--haip-surface)]"
                 )}
               >
                 {PROVIDER_LABELS[p.id] ?? p.id}
@@ -595,7 +595,7 @@ function FilterRow({ value, onChange }: { value: string; onChange: (v: string) =
           onClick={() => onChange(f.value)}
           className={cn(
             "flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors",
-            value === f.value ? "bg-[#0F766E] text-white" : "text-gray-500 hover:bg-gray-100"
+            value === f.value ? "bg-[#0F766E] text-white" : "text-[var(--haip-fg-subtle)] hover:bg-[var(--haip-status-neutral-bg)]"
           )}
         >
           {f.value === "airbnb"      && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "#FF5A5F" }} />}
@@ -668,7 +668,7 @@ export default function ChannelManagerPage() {
           </div>
           <button
             onClick={() => { queryClient.invalidateQueries({ queryKey: ["rw-threads"] }); }}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-semibold transition-colors border border-gray-200 text-gray-600 hover:bg-gray-50"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-semibold transition-colors border border-[var(--haip-border)] text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)]"
           >
             <RefreshCw size={13} className={isFetching ? "animate-spin" : ""} />
             Refresh
@@ -717,7 +717,7 @@ export default function ChannelManagerPage() {
             {isLoading ? (
               <div>
                 {[1, 2, 3, 4, 5].map(i => (
-                  <div key={i} className="px-4 py-3 border-b border-gray-50">
+                  <div key={i} className="px-4 py-3 border-b border-[var(--haip-border)]">
                     <div className="flex items-start gap-3">
                       <Skeleton className="w-9 h-9 rounded-full flex-shrink-0" />
                       <div className="flex-1 space-y-2">
@@ -732,7 +732,7 @@ export default function ChannelManagerPage() {
             ) : isError ? (
               <div className="flex flex-col items-center justify-center py-16 px-4 gap-3">
                 <AlertCircle size={28} className="text-red-400" />
-                <p className="text-sm text-gray-500 text-center">Failed to load conversations</p>
+                <p className="text-sm text-[var(--haip-fg-subtle)] text-center">Failed to load conversations</p>
                 <button
                   onClick={() => refetch()}
                   className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#0F766E] text-white hover:bg-[#0d6660] transition-colors"
@@ -742,9 +742,9 @@ export default function ChannelManagerPage() {
               </div>
             ) : threads.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 px-4 gap-2">
-                <Inbox size={28} className="text-gray-300" />
-                <p className="text-sm font-medium text-gray-400">No conversations found</p>
-                {debouncedSearch && <p className="text-xs text-gray-400">Try a different search term</p>}
+                <Inbox size={28} className="text-[var(--haip-fg-subtle)]/70" />
+                <p className="text-sm font-medium text-[var(--haip-fg-subtle)]">No conversations found</p>
+                {debouncedSearch && <p className="text-xs text-[var(--haip-fg-subtle)]">Try a different search term</p>}
               </div>
             ) : (
               threads.map(t => (

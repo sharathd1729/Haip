@@ -43,7 +43,7 @@ function MediaHeader({ kind, url }: { kind: HeaderKind; url: string | null }) {
     return <video src={url} className="h-36 w-full rounded-md bg-black object-cover" muted playsInline controls />;
   }
   return (
-    <div className="flex h-28 w-full flex-col items-center justify-center gap-1 rounded-md bg-gray-100 text-gray-400">
+    <div className="flex h-28 w-full flex-col items-center justify-center gap-1 rounded-md bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-subtle)]">
       {kind === "image" && <ImageIcon size={22} />}
       {kind === "video" && <Play size={22} />}
       {kind === "document" && <FileText size={22} />}
@@ -77,14 +77,14 @@ export function WhatsAppPreview({ form, className }: { form: TemplateForm; class
           {form.headerKind !== "none" && form.headerKind !== "text" && (
             <div className="mb-1.5"><MediaHeader kind={form.headerKind} url={form.media?.previewUrl ?? null} /></div>
           )}
-          {header && <p className="mb-1 text-[13px] font-bold leading-snug text-gray-900">{withMarkers(header)}</p>}
+          {header && <p className="mb-1 text-[13px] font-bold leading-snug text-[var(--haip-fg)]">{withMarkers(header)}</p>}
           {form.body.trim() ? (
-            <p className="whitespace-pre-wrap break-words text-[13px] leading-snug text-gray-800">{withMarkers(body)}</p>
+            <p className="whitespace-pre-wrap break-words text-[13px] leading-snug text-[var(--haip-fg)]">{withMarkers(body)}</p>
           ) : (
-            <p className="text-[13px] italic leading-snug text-gray-300">Your message appears here as you type…</p>
+            <p className="text-[13px] italic leading-snug text-[var(--haip-fg-subtle)]/70">Your message appears here as you type…</p>
           )}
-          {form.footer.trim() && <p className="mt-1.5 text-[11px] leading-snug text-gray-500">{form.footer}</p>}
-          <p className="mt-1 text-right text-[10px] text-gray-400">10:42 AM</p>
+          {form.footer.trim() && <p className="mt-1.5 text-[11px] leading-snug text-[var(--haip-fg-subtle)]">{form.footer}</p>}
+          <p className="mt-1 text-right text-[10px] text-[var(--haip-fg-subtle)]">10:42 AM</p>
         </div>
         {buttons.length > 0 && (
           <div className="mt-1 space-y-1">
@@ -92,7 +92,7 @@ export function WhatsAppPreview({ form, className }: { form: TemplateForm; class
           </div>
         )}
         {empty && buttons.length === 0 && (
-          <p className="mt-2 text-center text-[10px] text-gray-500">This is how guests will see the message.</p>
+          <p className="mt-2 text-center text-[10px] text-[var(--haip-fg-subtle)]">This is how guests will see the message.</p>
         )}
       </div>
     </div>

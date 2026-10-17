@@ -96,7 +96,7 @@ export function AddLeadModal({ onClose, onCreated }: { onClose: () => void; onCr
           <h3 className="font-bold text-[15px]" style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}>
             Add Lead
           </h3>
-          <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700">
+          <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-2)]">
             <X size={15} />
           </button>
         </div>
