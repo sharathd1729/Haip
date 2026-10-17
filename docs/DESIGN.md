@@ -94,9 +94,9 @@ Retire it incrementally: as each module is redesigned in V2 Phase 4, convert tha
 
 ## 5. Typography
 
-- Body: `--font-sans` (Inter), mapped to Tailwind `font-sans` via `@theme inline` (`globals.css:10`).
-- Display/headings: `--font-display`, exposed as `font-heading`/`font-display`, applied by the `.haip-heading` utility (`globals.css:421+`, weight 700, `letter-spacing: -0.02em`).
-- Per-tenant font override arrives through `brandTheme.ts`'s `--brand-font` + Google Fonts injection (`applyTheme()`, `brandTheme.ts:156-170`), with 10 approved font options.
+- Body: **Figtree** (`next/font`, `--font-figtree` -> `--font-sans`), weights 400-800. The variable classes sit on `<html>` so `:root` custom properties resolve (on `<body>` they fell back to Times).
+- Display/headings: **Bricolage Grotesque** (`--font-display`), weights 500-800, used for page titles (`.haip-page-title`, 28px/600), card titles (`.haip-card-title`, `CardHeader`), stat values and the phone header title. Use `font-[family-name:var(--font-display)]` in components.
+- Per-tenant font override still arrives through `brandTheme.ts` (`--brand-font` + Google Fonts injection) for non-app fonts; the default is Figtree, and the legacy default "Inter" is read as Figtree.
 
 ---
 
@@ -111,30 +111,40 @@ Retire it incrementally: as each module is redesigned in V2 Phase 4, convert tha
 
 ---
 
-## 5. Redesign direction: "Calm operations room" *(Oct 2026, decided; precedence: CLAUDE.md > this file > HAIP_UI_Redesign_Plan.md > any skill)*
+## 7. Direction: Hospitality Hybrid *(chosen 17 Oct 2026 from the six-concept lab at `/design-lab`; precedence: CLAUDE.md > this file > any skill. Replaces "Calm operations room": teal, the navy sidebar and Outfit are retired)*
 
-HAIP keeps its own identity: teal `#0F766E`, dark-navy sidebar, Outfit for display. Sections 1-4 above are unchanged and still govern tokens. This section adds the *direction* so every screen is designed toward the same thing.
+Warm, friendly and calm: a hospitality product, not a back-office console. People and stays are shown as faces and pills, not rows of codes.
 
-### Three signature moves (everything else stays quiet and conventional)
-1. **The queue is the hero.** "Who is waiting on me" is the same card/priority/urgency language on My day, the Dashboard top, the Inbox header and sidebar badges.
-2. **One guest timeline.** Inquiry, conversation, call, booking and stay render in one visual pattern (`Timeline`) on Lead, Guest and Booking detail.
-3. **Restrained motion and depth.** One easing curve (`cubic-bezier(0.23, 1, 0.32, 1)`, set in the theme), soft navy-tinted shadows, count-up on KPIs, motion only where it explains a state change. Everything respects `prefers-reduced-motion`.
+### Palette (tokens in `globals.css`; never hex in components)
+- Surfaces: white cards (`--card`) on a stone canvas (`--haip-app-bg` #F5F5F4); warm ink `--foreground` #1C1917. Dark mode is a warm near-black (#141110 / cards #1E1A18), designed, not inverted.
+- **Jamun plum** `--primary` #5A2D6B (dark: #C9A2D9) for brand and every primary action; `--haip-primary-tint` for selected/active fills. White-label overrides arrive only as `--brand-*` feeds.
+- **Marigold** `--haip-accent` #D9930D for highlights only (today, a "new" mark, VIP), never an action. Ink on it: `--haip-on-accent`.
+- Status triplets `--haip-status-{success,warning,danger,info,neutral}-{bg,fg,border}`; calendar bars keep the taught meanings (green direct `--haip-cal-direct`, gray blocked `--haip-cal-block`, red maintenance `--haip-cal-maint`).
+- Person avatars: five warm tints `--haip-avatar-N-bg/fg`, picked by `lib/avatarTint.ts`, two-letter initials.
 
-### Dials (the third-party "taste" vocabulary, used as a shared language, not a dependency)
-App screens: variance **4**, motion **4**, density **7** (dense, with air around groups). Login, empty-state art and the marketing hero may go to variance 7 / motion 6 / density 3.
+### Shape and type
+Radius 12px controls, 16px cards, full pills for chips, tabs and status. Figtree body, Bricolage Grotesque for display (section 5). Sentence-case labels; no uppercase eyebrows.
 
-### Non-negotiables
-WCAG AA contrast; 44px touch targets on phones; loading, empty, error and worst-case states on every screen; light, dark and 390px verified; no change to data behaviour; white-label must keep working (test with two non-default brand colours).
+### Shell (`components/layout/nav.ts` is the ONE navigation model)
+- Desktop: a light 64px top bar (`shell/HybridTopNav.tsx`): logo, primary tabs (My day and Inbox carry live counts; Home and Calls only from 1024px), "More" with every other page grouped by section, then search, theme, notifications, account. No sidebar.
+- Phone: 52px header with a menu button (opens `MobileMenuSheet`, every page + account + sign-out), the page name (`ROUTE_LABELS`), theme, bell, avatar; a 60px light bottom bar: Home, Inbox, a raised plum **Now** button (My day, showing how many people are waiting), Leads, Calendar.
+- A page reachable on desktop is reachable on the phone and the other way round; visibility rules live in `nav.ts` only.
 
-### Rules added to section 2
-- New code uses Tailwind utilities and semantic tokens. **No new inline `style={{}}`.** Shared pieces come from `components/ui` (`page.tsx`, `kit/*`).
-- Two status vocabularies only: the semantic `--haip-green/amber/red` colours plus a label. A red "SLA breached" tag on every row is not allowed: escalate only the worst few.
-- Numbers always say what they cover, and never render as `NaN`, `-100%` against an empty period, or a clipped value.
-- Skills and external style guides are advisory. If one disagrees with this file, this file wins; log the decision in `docs/design/decisions.md`.
+### Signature pieces
+1. **Today strip** (Home, both views): waiting on the team, trips starting / coming back today, where each vehicle is right now.
+2. **Waiting for you**: the first waiting people as cards (avatar, channel, reason, wait, next step), from the same work-queue query as My day and the nav badge.
+3. **Stay card** at the top of the Inbox guest panel (staying now / arrives today / booked).
+4. **Calendar pills**: rounded bars with the guest's initial, marigold today, one month grid per vehicle on phones.
+5. **Leads on phones** grouped Act now / Today / Later inside each stage.
+
+### Non-negotiables (unchanged)
+WCAG AA contrast; 44px touch targets on phones; 16px inputs on touch; loading, empty, error and worst-case states on every screen; light, dark and 320-1440px verified; no change to data behaviour; white-label keeps working.
+
+### Rules
+- Tailwind utilities + tokens only. No new hex, no raw Tailwind grays/teal for state, no new inline `style={{}}` (a tenant-data colour such as a pipeline stage colour is the exception).
+- Shared pieces come from `components/ui` (`page.tsx`, `kit/*`), avatars from `crm/UserAvatar` / `crm/GuestAvatar`.
+- Numbers say what they cover; never `NaN`, `-100%` against an empty period, or a clipped value.
+- Skills and external guides are advisory; log disagreements in `docs/design/decisions.md`.
 
 ### Shared kit (`frontend/src/components/ui/`)
-`page.tsx` (`PageHeader`, `EmptyState`, `StatusPill`) and `kit/` (`Card`, `Stat`, `Tabs`, `FilterBar`, `DataTable`, `Drawer`, `SectionNav`, `Timeline`). A dev-only gallery lives at `/dashboard/dev-kit` (hidden in production, not linked in the navigation).
-
-### Tokens added in Phase 0
-A six-step radius and spacing ramp (`--haip-radius-*`, `--haip-space-*`), semantic status tokens for surfaces and text (`--haip-status-*`), and `--haip-icon-neutral` so structural icons (chevrons, close, menus) are neutral and teal is reserved for what is actionable.
-
+`page.tsx` (`PageHeader`, `EmptyState`, `StatusPill` incl. `highlight` tone) and `kit/` (`Card`, `Stat`, `Tabs`, `FilterBar`, `DataTable`, `Drawer`, `SectionNav`, `Timeline`). Dev gallery: `/dashboard/dev-kit`. The concept lab stays at `/design-lab` (dev only, synthetic data).
