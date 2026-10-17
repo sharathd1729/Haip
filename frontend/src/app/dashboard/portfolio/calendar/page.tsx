@@ -55,7 +55,7 @@ interface ChConfig {
 const CH: Record<string, ChConfig> = {
   airbnb:         { bg:"bg-rose-500",    text:"text-white", border:"border-rose-600",    dot:"bg-rose-400",    label:"Airbnb",       short:"ABB" },
   "booking.com":  { bg:"bg-blue-600",    text:"text-white", border:"border-blue-700",    dot:"bg-blue-500",    label:"Booking.com",  short:"BDC" },
-  direct:         { bg:"bg-emerald-500", text:"text-white", border:"border-emerald-600", dot:"bg-emerald-400", label:"Direct",       short:"DIR" },
+  direct:         { bg:"bg-[var(--haip-cal-direct)]", text:"text-white", border:"border-[var(--haip-cal-direct)]", dot:"bg-[var(--haip-cal-direct)]", label:"Direct",       short:"DIR" },
   makemytrip:     { bg:"bg-orange-500",  text:"text-white", border:"border-orange-600",  dot:"bg-orange-400",  label:"MMT",          short:"MMT" },
   vrbo:           { bg:"bg-purple-500",  text:"text-white", border:"border-purple-600",  dot:"bg-purple-400",  label:"VRBO",         short:"VBO" },
   expedia:        { bg:"bg-yellow-500",  text:"text-white", border:"border-yellow-600",  dot:"bg-yellow-400",  label:"Expedia",      short:"EXP" },
@@ -63,8 +63,8 @@ const CH: Record<string, ChConfig> = {
   retalwise:      { bg:"bg-indigo-500",  text:"text-white", border:"border-indigo-600",  dot:"bg-indigo-400",  label:"RentalWise",   short:"RW"  },
 };
 const CH_DEFAULT: ChConfig = { bg:"bg-gray-500", text:"text-white", border:"border-gray-600", dot:"bg-gray-400", label:"Other",       short:"OTH" };
-const CH_BLOCKED: ChConfig = { bg:"bg-gray-300", text:"text-gray-700", border:"border-gray-400", dot:"bg-gray-300", label:"Blocked", short:"BLK" };
-const CH_MAINT:   ChConfig = { bg:"bg-red-500",  text:"text-white",  border:"border-red-600",  dot:"bg-red-500",  label:"Maint.",  short:"MNT" };
+const CH_BLOCKED: ChConfig = { bg:"bg-[var(--haip-cal-block)]", text:"text-[var(--haip-cal-block-fg)]", border:"border-[var(--haip-border-strong)]", dot:"bg-[var(--haip-cal-block)]", label:"Blocked", short:"BLK" };
+const CH_MAINT:   ChConfig = { bg:"bg-[var(--haip-cal-maint)]",  text:"text-white",  border:"border-[var(--haip-cal-maint)]",  dot:"bg-[var(--haip-cal-maint)]",  label:"Maint.",  short:"MNT" };
 
 function chConfig(src?: string | null): ChConfig {
   if (!src) return CH.direct;
@@ -675,7 +675,7 @@ const PropertyCalendarRow = memo(function PropertyCalendarRow({
                     className={cn(
                       "h-full border-r border-gray-100 flex-shrink-0",
                       weekend && "bg-gray-50/70",
-                      todayDy && "bg-teal-50/50",
+                      todayDy && "bg-[var(--haip-accent-light)]",
                     )}
                     style={{ width: DAY_W }}
                   />
@@ -779,14 +779,14 @@ const CalendarHeader = memo(function CalendarHeader({
                 className={cn(
                   "flex-shrink-0 flex flex-col items-center justify-end pb-1 border-r border-gray-100",
                   weekend && "bg-gray-50",
-                  todayDy && "bg-teal-50",
+                  todayDy && "bg-[var(--haip-accent-light)]",
                 )}
                 style={{ width: DAY_W, height: 30 }}
               >
                 <span className={cn(
                   "text-[10px] font-semibold leading-none",
                   todayDy
-                    ? "bg-teal-500 text-white rounded-full w-4 h-4 flex items-center justify-center"
+                    ? "bg-[var(--haip-accent)] text-[var(--haip-on-accent)] rounded-full w-4 h-4 flex items-center justify-center"
                     : weekend ? "text-gray-400" : "text-gray-500",
                 )}>
                   {format(d, "d")}
@@ -834,10 +834,10 @@ const OTA_LEGEND_ITEMS = [
 
 function buildLegend(isCaravan: boolean) {
   return [
-    { dot: "bg-emerald-500", label: "Direct" },
+    { dot: "bg-[var(--haip-cal-direct)]", label: "Direct" },
     ...(isCaravan ? [] : OTA_LEGEND_ITEMS),
-    { dot: "bg-gray-300",    label: "Blocked" },
-    { dot: "bg-red-500",     label: "Maintenance" },
+    { dot: "bg-[var(--haip-cal-block)]",    label: "Blocked" },
+    { dot: "bg-[var(--haip-cal-maint)]",     label: "Maintenance" },
   ];
 }
 
