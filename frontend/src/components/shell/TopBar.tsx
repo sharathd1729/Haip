@@ -24,7 +24,7 @@ interface TopBarProps {
 
 // ─── Theme toggle ─────────────────────────────────────────────────────────────
 
-function ThemeToggle() {
+export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
 
   // Cycle: light → dark → system → light
@@ -59,7 +59,7 @@ function ThemeToggle() {
 
 // ─── Search bar ───────────────────────────────────────────────────────────────
 
-function GlobalSearch() {
+export function GlobalSearch() {
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const router = useRouter();
@@ -122,7 +122,7 @@ function timeAgo(ts: number): string {
   return `${Math.floor(secs / 86400)}d ago`;
 }
 
-function NotificationBell() {
+export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const items = useNotificationsStore(s => s.items);
@@ -244,7 +244,7 @@ function NotificationBell() {
 
 // ─── User avatar / menu ───────────────────────────────────────────────────────
 
-function UserMenu({ user }: { user?: TopBarProps["user"] }) {
+export function UserMenu({ user }: { user?: TopBarProps["user"] }) {
   const [open, setOpen] = useState(false);
   const { data: me } = useQuery({
     queryKey: ["users", "me"],

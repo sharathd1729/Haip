@@ -474,8 +474,20 @@
 
   /* Structural icons (chevrons, close, menus) are neutral; plum is for what is actionable or branded. */
   --haip-icon-neutral: #78716C;
+
+  /* Person avatars: five warm tints, picked by a hash of the name (lib/avatarTint.ts). Every pair meets AA for initials. */
+  --haip-avatar-1-bg: #F1E8F4; --haip-avatar-1-fg: #5A2D6B;
+  --haip-avatar-2-bg: #FCEFD2; --haip-avatar-2-fg: #7A4E05;
+  --haip-avatar-3-bg: #E5F0E8; --haip-avatar-3-fg: #24613E;
+  --haip-avatar-4-bg: #E8EEF8; --haip-avatar-4-fg: #2F4F8F;
+  --haip-avatar-5-bg: #F8E6E2; --haip-avatar-5-fg: #8E3227;
 }
 .dark {
+  --haip-avatar-1-bg: rgba(201,162,217,0.16); --haip-avatar-1-fg: #DCC0E7;
+  --haip-avatar-2-bg: rgba(232,169,58,0.16);  --haip-avatar-2-fg: #F1C26B;
+  --haip-avatar-3-bg: rgba(111,207,151,0.14); --haip-avatar-3-fg: #8EDBAE;
+  --haip-avatar-4-bg: rgba(143,168,232,0.15); --haip-avatar-4-fg: #AFC2F0;
+  --haip-avatar-5-bg: rgba(240,140,128,0.15); --haip-avatar-5-fg: #F5A99F;
   --haip-status-success-bg: rgba(111,207,151,0.12); --haip-status-success-fg: #8EDBAE; --haip-status-success-border: rgba(111,207,151,0.28);
   --haip-status-warning-bg: rgba(232,169,58,0.13);  --haip-status-warning-fg: #F1C26B; --haip-status-warning-border: rgba(232,169,58,0.30);
   --haip-status-danger-bg:  rgba(240,140,128,0.13); --haip-status-danger-fg:  #F5A99F; --haip-status-danger-border:  rgba(240,140,128,0.30);

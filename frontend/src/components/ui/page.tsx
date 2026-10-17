@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-/** Title row for a dashboard page: a plain heading and one line of context on the left, actions on the right.
- *  No icon tile: the sidebar already says where you are, and a coloured square above every title is what
- *  makes pages look templated. */
+/** Title row for a dashboard page: a display-face heading and one line of context on the left, actions on the right.
+ *  No icon tile: the top bar already says where you are, and a coloured square above every title is what makes pages
+ *  look templated. On phones the header bar names the page, so globals.css hides the title there. */
 export function PageHeader({
   title, subtitle, actions, className,
 }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; className?: string }) {
@@ -11,7 +11,7 @@ export function PageHeader({
     <header className={cn("flex flex-wrap items-end gap-x-4 gap-y-3", className)}>
       <div className="min-w-0 flex-1">
         <h1 className="haip-page-title">{title}</h1>
-        {subtitle && <p className="mt-0.5 text-[13px] leading-snug text-[var(--haip-fg-subtle)]">{subtitle}</p>}
+        {subtitle && <p className="mt-1 text-[14px] leading-snug text-[var(--haip-fg-muted)]">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </header>
@@ -23,9 +23,9 @@ export function EmptyState({
   title, hint, action, className,
 }: { title: ReactNode; hint?: ReactNode; action?: ReactNode; className?: string }) {
   return (
-    <div className={cn("flex flex-col items-center justify-center gap-1.5 px-6 py-16 text-center", className)}>
-      <p className="text-sm font-semibold text-[var(--haip-fg)]">{title}</p>
-      {hint && <p className="max-w-sm text-xs leading-relaxed text-[var(--haip-fg-subtle)]">{hint}</p>}
+    <div className={cn("flex flex-col items-center justify-center gap-1.5 px-6 py-14 text-center", className)}>
+      <p className="font-[family-name:var(--font-display)] text-[17px] font-semibold text-[var(--haip-fg)]">{title}</p>
+      {hint && <p className="max-w-sm text-[13.5px] leading-relaxed text-[var(--haip-fg-subtle)]">{hint}</p>}
       {action && <div className="mt-3">{action}</div>}
     </div>
   );
@@ -38,7 +38,8 @@ const TONES = {
   success: "bg-[var(--haip-status-success-bg)] text-[var(--haip-status-success-fg)] border-[var(--haip-status-success-border)]",
   warning: "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)] border-[var(--haip-status-warning-border)]",
   danger:  "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)] border-[var(--haip-status-danger-border)]",
-  brand:   "bg-primary/10 text-primary border-primary/20",
+  brand:   "bg-[var(--haip-primary-tint)] text-primary border-[color-mix(in_srgb,var(--primary)_22%,transparent)]",
+  highlight: "bg-[var(--haip-accent-light)] text-[var(--haip-accent-ink)] border-[color-mix(in_srgb,var(--haip-accent)_35%,transparent)]",
 } as const;
 
 export type Tone = keyof typeof TONES;
@@ -47,7 +48,7 @@ export type Tone = keyof typeof TONES;
  *  the colour only reinforces it, so it still reads for colour-blind users and in greyscale prints. */
 export function StatusPill({ tone = "neutral", children, className }: { tone?: Tone; children: ReactNode; className?: string }) {
   return (
-    <span className={cn("inline-flex items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold leading-4", TONES[tone], className)}>
+    <span className={cn("inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[12px] font-semibold leading-4", TONES[tone], className)}>
       {children}
     </span>
   );
