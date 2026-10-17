@@ -1,7 +1,7 @@
 "use client";
 // Operations view (was the Home "Owner Daily" page; owners and managers now land on the Owner Command Center, this
-// stays at /dashboard/operations and remains the landing page for every other role). Top to bottom: greeting + range/agent/channel
-// filters, the four "Needs you now" queues, four KPI tiles (two more behind a toggle), revenue chart
+// stays at /dashboard/operations and remains the landing page for every other role). Top to bottom: greeting + channel/agent
+// filters, the Today strip and the people waiting (shared with the owner view), the period bar, four KPI tiles (two more behind a toggle), revenue chart
 // next to the lead funnel, team next to lead sources, then what the AI
 // noticed. One page for every role -- /dashboard/overview scopes the data
 // (agents see only their own numbers; the team table is owner/manager only).
@@ -12,7 +12,8 @@ import api from "@/lib/api";
 import { PeriodBar, PERIOD_PRESETS, usePersistedPeriod } from "@/components/dashboard/PeriodBar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
-import { NeedsYouNowCards } from "@/components/dashboard/home/NeedsYouNowCards";
+import { TodayStrip } from "@/components/dashboard/today/TodayStrip";
+import { WaitingForYou } from "@/components/dashboard/today/WaitingForYou";
 import { KpiTiles } from "@/components/dashboard/home/KpiTiles";
 import { RevenueChart, LeadFunnel, TeamTable, LeadSources, AiNoticed } from "@/components/dashboard/home/Panels";
 import type { OverviewResponse } from "@/components/dashboard/home/types";
@@ -32,8 +33,7 @@ function greeting() {
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
 
-const selectCls = "text-xs font-semibold rounded-lg px-2.5 py-2 outline-none focus-visible:ring-2 focus-visible:ring-teal-600";
-const selectStyle = { background: "var(--haip-card)", border: "1px solid var(--haip-border)", color: "var(--haip-fg)" };
+const selectCls = "min-h-10 rounded-xl border border-[var(--haip-border)] bg-[var(--haip-card)] px-3 text-[16px] font-semibold text-[var(--haip-fg)] outline-none focus-visible:ring-2 focus-visible:ring-primary sm:text-[13.5px] max-md:min-h-11";
 
 export function OperationsHome() {
   const { data: session } = useSession();
@@ -92,24 +92,24 @@ export function OperationsHome() {
   const showTeam = isOwnerView && !agentId && !!data?.agents;
 
   return (
-    <div className="h-full overflow-y-auto" style={{ background: "var(--haip-bg, var(--background))" }}>
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-5 space-y-5">
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto max-w-[1360px] space-y-4 px-3 py-3 sm:space-y-5 sm:px-6 sm:py-5">
         {/* Header */}
         <header className="flex flex-col lg:flex-row lg:items-center gap-3 lg:justify-between">
           <div>
-            <h1 className="text-2xl font-bold" style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display)" }}>
+            <h1 className="font-[family-name:var(--font-display)] text-xl font-semibold tracking-tight text-[var(--haip-fg)] sm:text-[26px]">
               {greeting()}{firstName ? `, ${firstName}` : ""}
             </h1>
-            <p className="text-sm mt-0.5" style={{ color: "var(--haip-fg-subtle)" }}>
+            <p className="mt-0.5 text-[13.5px] text-[var(--haip-fg-subtle)]">
               {today} · {scope} · {rangeLabel.toLowerCase()}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <select aria-label="Channel" value={channel} onChange={e => setChannel(e.target.value)} className={selectCls} style={selectStyle}>
+            <select aria-label="Channel" value={channel} onChange={e => setChannel(e.target.value)} className={selectCls}>
               {CHANNELS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
             </select>
             {isOwnerView && team.length > 0 && (
-              <select aria-label="Agent" value={agentId} onChange={e => setAgentId(e.target.value)} className={selectCls} style={selectStyle}>
+              <select aria-label="Agent" value={agentId} onChange={e => setAgentId(e.target.value)} className={selectCls}>
                 <option value="">All agents</option>
                 {team.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
@@ -117,10 +117,13 @@ export function OperationsHome() {
           </div>
         </header>
 
+        <TodayStrip role={role ?? ""} />
+        <WaitingForYou role={role ?? ""} />
+
         <PeriodBar value={range} onChange={v => setRange(v as typeof range)} />
 
         {isError ? (
-          <div className="haip-card p-8 text-center text-sm" style={{ color: "var(--haip-fg-muted)" }}>
+          <div className="haip-card p-8 text-center text-sm text-[var(--haip-fg-muted)]">
             Couldn't load the dashboard. Check your connection and refresh.
           </div>
         ) : isLoading || !data ? (
@@ -131,7 +134,6 @@ export function OperationsHome() {
           </div>
         ) : (
           <>
-            <NeedsYouNowCards data={data.needs_you_now} />
             <KpiTiles data={data} rangeLabel={rangeLabel} />
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
               <RevenueChart series={data.series} rangeLabel={rangeLabel} />

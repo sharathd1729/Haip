@@ -23,6 +23,8 @@ import { periodLabel } from "./types";
 import { JourneyBand } from "./JourneyBand";
 import { Ledger } from "./Ledger";
 import { Trends } from "./Trends";
+import { TodayStrip } from "@/components/dashboard/today/TodayStrip";
+import { WaitingForYou } from "@/components/dashboard/today/WaitingForYou";
 import { isRestricted, type BusinessOverview } from "./types";
 
 const INITIAL: Filters = { preset: "this_month", customFrom: "", customTo: "", channel: "", propertyId: "", agentId: "", trend: "day" };
@@ -84,6 +86,7 @@ function Loading() {
 export function CommandCenter() {
   const { data: session } = useSession();
   const firstName = (session?.user?.name || "").split(" ")[0];
+  const role = session?.user?.role ?? "";
   const [filters, setFilters] = useState<Filters>(INITIAL);
   const [remembered, remember] = usePersistedPeriod("this_month");
   // The remembered period applies once it has been read from this device; "custom" is never remembered.
@@ -125,6 +128,11 @@ export function CommandCenter() {
           </div>
         </header>
 
+        {/* Today first (what is happening on the ground, who is waiting), then the period numbers. */}
+        <TodayStrip role={role} />
+        <WaitingForYou role={role} />
+
+        <h2 className="sr-only">Business numbers</h2>
         <PeriodBar custom value={filters.preset} onChange={pickPeriod}
           caption={data ? <><span className="font-semibold text-[var(--haip-fg-2)]">{periodLabel(data.period.date_from, data.period.date_to)}</span><span className="hidden sm:inline"> · India time (IST), full days · compared with the equal period before it</span><span className="sm:hidden"> · IST · vs the period before</span></> : undefined} />
 
