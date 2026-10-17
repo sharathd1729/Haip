@@ -111,14 +111,14 @@ Retire it incrementally: as each module is redesigned in V2 Phase 4, convert tha
 
 ---
 
-## 7. Direction: Hospitality Hybrid *(chosen 17 Oct 2026 from the six-concept lab at `/design-lab`; precedence: CLAUDE.md > this file > any skill. Replaces "Calm operations room": teal, the navy sidebar and Outfit are retired)*
+## 7. Direction: Hospitality Hybrid *(chosen 17 Oct 2026 from the six-concept lab at `/design-lab`; palette changed to Sea Green & Coral on 18 Oct after a four-way palette comparison; precedence: CLAUDE.md > this file > any skill. Replaces "Calm operations room": teal, the navy sidebar and Outfit are retired)*
 
 Warm, friendly and calm: a hospitality product, not a back-office console. People and stays are shown as faces and pills, not rows of codes.
 
 ### Palette (tokens in `globals.css`; never hex in components)
-- Surfaces: white cards (`--card`) on a stone canvas (`--haip-app-bg` #F5F5F4); warm ink `--foreground` #1C1917. Dark mode is a warm near-black (#141110 / cards #1E1A18), designed, not inverted.
-- **Jamun plum** `--primary` #5A2D6B (dark: #C9A2D9) for brand and every primary action; `--haip-primary-tint` for selected/active fills. White-label overrides arrive only as `--brand-*` feeds.
-- **Marigold** `--haip-accent` #D9930D for highlights only (today, a "new" mark, VIP), never an action. Ink on it: `--haip-on-accent`.
+- Surfaces: white cards (`--card`) on a warm sand-white canvas (`--haip-app-bg` #F7F5F2); warm ink `--foreground` #1C1917. Dark mode is a deep green-charcoal (#111412 / cards #1A201C), designed, not inverted.
+- **Sea green** `--primary` #1E7A5A (dark: #5CC9A0) for brand and every primary action; `--haip-primary-tint` for selected/active fills. White-label overrides arrive only as `--brand-*` feeds.
+- **Coral** `--haip-accent` #E0694A (dark: #F08A6E; soft `#FCE6DF`, ink `#9E3A22`) for highlights only (today, a "new" mark, VIP), never an action. Ink on it: `--haip-on-accent`. Warning status stays amber (`--haip-status-warning-*`), so a highlight never reads as a warning.
 - Status triplets `--haip-status-{success,warning,danger,info,neutral}-{bg,fg,border}`; calendar bars keep the taught meanings (green direct `--haip-cal-direct`, gray blocked `--haip-cal-block`, red maintenance `--haip-cal-maint`).
 - Person avatars: five warm tints `--haip-avatar-N-bg/fg`, picked by `lib/avatarTint.ts`, two-letter initials.
 
@@ -127,14 +127,14 @@ Radius 12px controls, 16px cards, full pills for chips, tabs and status. Figtree
 
 ### Shell (`components/layout/nav.ts` is the ONE navigation model)
 - Desktop: a light 64px top bar (`shell/HybridTopNav.tsx`): logo, primary tabs (My day and Inbox carry live counts; Home and Calls only from 1024px), "More" with every other page grouped by section, then search, theme, notifications, account. No sidebar.
-- Phone: 52px header with a menu button (opens `MobileMenuSheet`, every page + account + sign-out), the page name (`ROUTE_LABELS`), theme, bell, avatar; a 60px light bottom bar: Home, Inbox, a raised plum **Now** button (My day, showing how many people are waiting), Leads, Calendar.
+- Phone: 52px header with a menu button (opens `MobileMenuSheet`, every page + account + sign-out), the page name (`ROUTE_LABELS`), theme, bell, avatar; a 60px light bottom bar: Home, Inbox, a raised sea-green **Now** button (My day, showing how many people are waiting), Leads, Calendar.
 - A page reachable on desktop is reachable on the phone and the other way round; visibility rules live in `nav.ts` only.
 
 ### Signature pieces
 1. **Today strip** (Home, both views): waiting on the team, trips starting / coming back today, where each vehicle is right now.
 2. **Waiting for you**: the first waiting people as cards (avatar, channel, reason, wait, next step), from the same work-queue query as My day and the nav badge.
 3. **Stay card** at the top of the Inbox guest panel (staying now / arrives today / booked).
-4. **Calendar pills**: rounded bars with the guest's initial, marigold today, one month grid per vehicle on phones.
+4. **Calendar pills**: rounded bars with the guest's initial, coral today, one month grid per vehicle on phones.
 5. **Leads on phones** grouped Act now / Today / Later inside each stage.
 
 ### Non-negotiables (unchanged)

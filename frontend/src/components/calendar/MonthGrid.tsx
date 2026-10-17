@@ -2,7 +2,7 @@
 // A month calendar for ONE property, the way a booking site shows availability: a 7-column date grid, bookings and holds as bars
 // that span their dates (a stay runs from the afternoon of check-in to the morning of check-out), tap a bar for its details.
 // Colours come from the caller (green direct, gray blocked, red maintenance, one colour per other channel). Hospitality Hybrid:
-// bars are pills with the guest's initial at the start, today is a marigold dot.
+// bars are pills with the guest's initial at the start, today is a coral dot.
 import { useMemo } from "react";
 import { addDays, differenceInCalendarDays, format, isSameMonth, isToday, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";

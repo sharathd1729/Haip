@@ -2,6 +2,10 @@
 
 Newest first. One entry per decision that changes how the UI is built. Rule from `HAIP_UI_Redesign_Plan.md`: when two sources disagree, follow `docs/DESIGN.md`; if it is silent, follow the plan; log the choice here.
 
+## 2026-10-18
+
+**Palette: Sea Green & Coral replaces plum & marigold.** The owner wanted the theme closer to the brand (green/cyan family, not teal). Four combinations were compared on the real app with a temporary per-browser palette switcher (A Emerald & Marigold, B Sea Green & Coral, C Ocean Cyan & Sand, D Lagoon; screenshots in `docs/design/palette-lab/`, not committed). B was chosen: sea green `#1E7A5A` (dark `#5CC9A0`) for actions, coral `#E0694A` for highlights, sand-white canvas, green-charcoal dark mode; every pair AA in both themes. The lab was removed. Workspaces still on an old house default (teal + navy, or plum + white) follow the new default automatically (`brandTheme.ts` `LEGACY_DEFAULTS`); the Jamun preset was replaced by "Sea Green (HAIP)".
+
 ## 2026-10-17
 
 **Hospitality Hybrid replaces "Calm operations room".** Six directions were built side by side on synthetic data in a dev-only lab (`/design-lab`, 4 screens each, layout-checked at 320-1440px); the owner chose F, Hospitality Hybrid. Teal, the navy sidebar and Outfit are retired; plum `#5A2D6B` + marigold, Figtree + Bricolage Grotesque, light top bar on desktop, bottom bar with a raised "Now" on phones. `docs/DESIGN.md` section 7.

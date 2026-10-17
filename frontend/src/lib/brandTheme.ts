@@ -19,7 +19,7 @@
  */
 
 export interface BrandTheme {
-  primaryColor: string;        // hex, e.g. "#5A2D6B"
+  primaryColor: string;        // hex, e.g. "#1E7A5A"
   sidebarColor: string;        // hex, e.g. "#FFFFFF"
   logoUrl?: string;            // uploaded logo URL
   logoDarkUrl?: string;        // dark-bg variant
@@ -29,9 +29,9 @@ export interface BrandTheme {
   tagline?: string;
 }
 
-// Hospitality Hybrid (Oct 2026): jamun plum on light stone, Figtree. The shell is light, so "sidebarColor" is white.
+// Hospitality Hybrid (Oct 2026): sea green with coral highlights on warm sand-white, Figtree. The shell is light, so "sidebarColor" is white.
 export const DEFAULT_THEME: BrandTheme = {
-  primaryColor: "#5A2D6B",
+  primaryColor: "#1E7A5A",
   sidebarColor: "#FFFFFF",
   logoUrl: "/logo-wordmark.png",
   logoDarkUrl: "/logo-wordmark.png",
@@ -42,7 +42,7 @@ export const DEFAULT_THEME: BrandTheme = {
 };
 
 export const PRESET_THEMES: { name: string; primaryColor: string; sidebarColor: string }[] = [
-  { name: "Jamun (HAIP)",   primaryColor: "#5A2D6B", sidebarColor: "#FFFFFF" },
+  { name: "Sea Green (HAIP)", primaryColor: "#1E7A5A", sidebarColor: "#FFFFFF" },
   { name: "Teal",           primaryColor: "#0F766E", sidebarColor: "#0B1F3A" },
   { name: "Ocean Blue",     primaryColor: "#3b82f6", sidebarColor: "#1e3a5f" },
   { name: "Indigo",         primaryColor: "#6366f1", sidebarColor: "#1e1b4b" },
@@ -121,14 +121,15 @@ const RADIUS_BTN_MAP = { sharp: "4px", rounded: "10px", pill: "9999px" };
 
 // The app's own type and colour defaults. A theme that still carries the PREVIOUS defaults (teal + navy, Inter) was never
 // customised by the tenant, so it follows the current house style instead of freezing the old one.
-const LEGACY_DEFAULT_PRIMARY = ["#14b8a6", "#0f766e"];
-const LEGACY_DEFAULT_SIDEBAR = ["#0b1f3a"];
+// Earlier house defaults, as [primary, sidebar] pairs. A workspace still on one never customised its colours, so it follows
+// the current default: teal + navy (until Oct 2026) and plum + white (Hybrid launch, 17-18 Oct 2026).
+const LEGACY_DEFAULTS: [string, string][] = [["#14b8a6", "#0b1f3a"], ["#0f766e", "#0b1f3a"], ["#5a2d6b", "#ffffff"]];
 const APP_FONTS = ["Figtree", "Inter"];
 
-/** Primary as seen in dark mode: the house plum has a designed lift; any other brand colour is lifted towards white
+/** Primary as seen in dark mode: the house sea green has a designed lift; any other brand colour is lifted towards white
  *  until it reads on the dark canvas. */
 function primaryOnDark(p: string): string {
-  if (p.toLowerCase() === DEFAULT_THEME.primaryColor.toLowerCase()) return "#C9A2D9";
+  if (p.toLowerCase() === DEFAULT_THEME.primaryColor.toLowerCase()) return "#5CC9A0";
   const b = brightness(p);
   return b < 90 ? mixWithWhite(p, 0.55) : b < 140 ? mixWithWhite(p, 0.35) : p;
 }
@@ -166,7 +167,7 @@ export function buildCSSVars(theme: BrandTheme): Record<string, string> {
     // ── Canonical token feeds ───────────────────────────────────────────────
     // globals.css maps --primary, --ring, --radius and friends onto these per theme (light and dark), so a tenant's colour
     // reaches every Tailwind utility and the --haip-* layer, and dark mode can still lift it. They used to be written here
-    // straight onto <html>, which beat the .dark rules and left a dark plum on a dark page.
+    // straight onto <html>, which beat the .dark rules and left a dark brand colour on a dark page.
     "--brand-on-primary":        brightness(p) > 160 ? "#1C1917" : "#FFFFFF",
     "--brand-primary-on-dark":   primaryOnDark(p),
     "--brand-on-primary-dark":   brightness(primaryOnDark(p)) > 150 ? "#1C1917" : "#FFFFFF",
@@ -216,13 +217,12 @@ export function applyTheme(theme: BrandTheme): void {
  * left alone. */
 export function withCurrentDefaultLogo(t: BrandTheme): BrandTheme {
   const fix = (u?: string) => (u === "/logo.png" ? "/logo-wordmark.png" : u);
-  const legacyColours = LEGACY_DEFAULT_PRIMARY.includes((t.primaryColor || "").toLowerCase())
-    && LEGACY_DEFAULT_SIDEBAR.includes((t.sidebarColor || "").toLowerCase());
+  const legacyColours = LEGACY_DEFAULTS.some(([pr, sb]) => (t.primaryColor || "").toLowerCase() === pr && (t.sidebarColor || "").toLowerCase() === sb);
   return {
     ...t,
     logoUrl: fix(t.logoUrl),
     logoDarkUrl: fix(t.logoDarkUrl),
-    // Never customised: follow the current house style (see LEGACY_DEFAULT_*).
+    // Never customised: follow the current house style (see LEGACY_DEFAULTS).
     ...(legacyColours ? { primaryColor: DEFAULT_THEME.primaryColor, sidebarColor: DEFAULT_THEME.sidebarColor } : {}),
     ...(t.fontFamily === "Inter" ? { fontFamily: DEFAULT_THEME.fontFamily } : {}),
   };

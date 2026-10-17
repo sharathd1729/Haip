@@ -75,7 +75,7 @@
    See docs/DESIGN.md.
 ────────────────────────────────────────────────────────────────────────────── */
 :root {
-  /* Hospitality Hybrid (docs/DESIGN.md): stone neutrals, jamun plum for the brand and every primary action, marigold for
+  /* Hospitality Hybrid (docs/DESIGN.md): warm sand-white neutrals, sea green for the brand and every primary action, coral for
      highlights. --primary/--radius come from the tenant's brand theme (brandTheme.ts writes --brand-primary and friends on
      <html>); the literal after each var() is the default when no theme is applied (marketing, auth, first paint). */
   --font-sans: var(--font-figtree), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -86,21 +86,21 @@
   --card-foreground: #1C1917;
   --popover: #FFFFFF;
   --popover-foreground: #1C1917;
-  --primary: var(--brand-primary, #5A2D6B);
+  --primary: var(--brand-primary, #1E7A5A);
   --primary-foreground: var(--brand-on-primary, #FFFFFF);
   --secondary: #F0EFED;
   --secondary-foreground: #44403C;
   --muted: #F0EFED;
   --muted-foreground: #5F5A55;
-  --accent: #F1E8F4;
-  --accent-foreground: #3E1D4A;
+  --accent: #E6F2EC;
+  --accent-foreground: #145240;
   --destructive: #B4322F;
   --border: #E7E5E4;
   /* Form-field borders need 3:1 against the field (WCAG 1.4.11). */
   --input: #A8A29E;
   --ring: var(--primary);
   --chart-1: var(--primary);
-  --chart-2: #D9930D;
+  --chart-2: #E0694A;
   --chart-3: #2E7D4F;
   --chart-4: #3B5BA9;
   --chart-5: #B4322F;
@@ -109,8 +109,8 @@
   --sidebar-foreground: #1C1917;
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: #F1E8F4;
-  --sidebar-accent-foreground: #3E1D4A;
+  --sidebar-accent: #E6F2EC;
+  --sidebar-accent-foreground: #145240;
   --sidebar-border: #E7E5E4;
   --sidebar-ring: var(--primary);
 
@@ -128,27 +128,27 @@
 }
 
 .dark {
-  /* Hybrid at night: warm charcoal (never blue-black), lifted plum for actions so it stays readable on dark. */
-  --background:          #141110;
+  /* Hybrid at night: deep green-charcoal (never blue-black), lifted sea green for actions so it stays readable on dark. */
+  --background:          #111412;
   --foreground:          #F3EFEC;
-  --card:                #1E1A18;
+  --card:                #1A201C;
   --card-foreground:     #F3EFEC;
-  --popover:             #25201D;
+  --popover:             #202722;
   --popover-foreground:  #F3EFEC;
-  --primary:             var(--brand-primary-on-dark, #C9A2D9);
+  --primary:             var(--brand-primary-on-dark, #5CC9A0);
   --primary-foreground:  var(--brand-on-primary-dark, #1C1917);
-  --secondary:           #2A2421;
+  --secondary:           #212824;
   --secondary-foreground:#D6CFC9;
-  --muted:               #2A2421;
+  --muted:               #212824;
   --muted-foreground:    #B3ABA4;
-  --accent:              #2E2530;
-  --accent-foreground:   #EAD9F1;
+  --accent:              #1F2E27;
+  --accent-foreground:   #CFEFE1;
   --destructive:         #F08C80;
   --border:              rgba(255, 255, 255, 0.09);
   --input:               #6E6560;
   --ring:                var(--primary);
   --chart-1: var(--primary);
-  --chart-2: #E8A93A;
+  --chart-2: #F08A6E;
   --chart-3: #6FCF97;
   --chart-4: #8FA8E8;
   --chart-5: #F08C80;
@@ -156,8 +156,8 @@
   --sidebar-foreground:         #F3EFEC;
   --sidebar-primary:            var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent:             #2E2530;
-  --sidebar-accent-foreground:  #EAD9F1;
+  --sidebar-accent:             #1F2E27;
+  --sidebar-accent-foreground:  #CFEFE1;
   --sidebar-border:             rgba(255,255,255,0.08);
   --sidebar-ring:               var(--primary);
 
@@ -179,7 +179,7 @@
    var(--text-secondary) automatically adapt to both themes.
 ────────────────────────────────────────────────────────────────────────────── */
 :root {
-  --page-bg:           #F5F5F4;
+  --page-bg:           #F7F5F2;
   --panel-bg:          #FAFAF9;
   --text-primary:      #1C1917;
   --text-secondary:    #5F5A55;
@@ -187,8 +187,8 @@
   --hover-bg:          rgba(28, 25, 23, 0.04);
 }
 .dark {
-  --page-bg:           #141110;
-  --panel-bg:          #1E1A18;
+  --page-bg:           #111412;
+  --panel-bg:          #1A201C;
   --text-primary:      #F3EFEC;
   --text-secondary:    #B3ABA4;
   --input-bg:          rgba(255, 255, 255, 0.05);
@@ -417,18 +417,18 @@
   --haip-sidebar-active-bg:  color-mix(in srgb, var(--primary) 10%, transparent);
 
   /* App canvas: stone, so white cards read as raised. --background stays white for marketing and auth. */
-  --haip-app-bg:        #F5F5F4;
+  --haip-app-bg:        #F7F5F2;
 
   /* Brand — follows --primary so per-tenant white-labelling propagates */
   --haip-primary:       var(--primary);
   --haip-primary-hover: color-mix(in srgb, var(--primary) 86%, black);
   --haip-primary-tint:  color-mix(in srgb, var(--primary) 9%, var(--card));
-  /* Marigold: highlights only (today, the selected day, a "new" mark), never a primary action. */
-  --haip-accent:        #D9930D;
-  --haip-accent-light:  #FCEFD2;
-  --haip-accent-ink:    #8C5A06;
-  --haip-gold:          #D9930D;
-  --haip-gold-light:    #FCEFD2;
+  /* Coral: highlights only (today, the selected day, a "new" mark, VIP), never a primary action. */
+  --haip-accent:        #E0694A;
+  --haip-accent-light:  #FCE6DF;
+  --haip-accent-ink:    #9E3A22;
+  --haip-gold:          #E0694A;
+  --haip-gold-light:    #FCE6DF;
 
   /* Surfaces */
   --haip-surface:       #FAFAF9;
@@ -472,30 +472,30 @@
   --haip-status-info-bg:    #ECF0FA; --haip-status-info-fg:    #34509A; --haip-status-info-border:    #C9D5F0;
   --haip-status-neutral-bg: #F0EFED; --haip-status-neutral-fg: #57534E; --haip-status-neutral-border: #E7E5E4;
 
-  /* Structural icons (chevrons, close, menus) are neutral; plum is for what is actionable or branded. */
+  /* Structural icons (chevrons, close, menus) are neutral; sea green is for what is actionable or branded. */
   --haip-icon-neutral: #78716C;
 
   /* Person avatars: five warm tints, picked by a hash of the name (lib/avatarTint.ts). Every pair meets AA for initials. */
-  --haip-avatar-1-bg: #F1E8F4; --haip-avatar-1-fg: #5A2D6B;
-  --haip-avatar-2-bg: #FCEFD2; --haip-avatar-2-fg: #7A4E05;
+  --haip-avatar-1-bg: #E6F2EC; --haip-avatar-1-fg: #17604A;
+  --haip-avatar-2-bg: #FCE6DF; --haip-avatar-2-fg: #9E3A22;
   --haip-avatar-3-bg: #E5F0E8; --haip-avatar-3-fg: #24613E;
   --haip-avatar-4-bg: #E8EEF8; --haip-avatar-4-fg: #2F4F8F;
   --haip-avatar-5-bg: #F8E6E2; --haip-avatar-5-fg: #8E3227;
 
   /* Calendar bars keep the meanings owners were taught: green = direct booking, gray = blocked, red = maintenance.
-     Solid fills with white text (AA in both themes); today is marigold with dark ink. */
+     Solid fills with white text (AA in both themes); today is coral with dark ink. */
   --haip-cal-direct: #2E7D4F;
   --haip-cal-maint:  #B4322F;
   --haip-cal-block:  #D6D3D1; --haip-cal-block-fg: #292524;
   --haip-on-accent:  #1C1917;
 
-  /* Sign-in brand panel: always dark (deep jamun) in both themes, with a light marigold accent that passes AA on it. */
-  --haip-brand-panel:  #2A1433;
-  --haip-panel-accent: #F1C26B;
+  /* Sign-in brand panel: always dark (deep sea green) in both themes, with a light coral accent that passes AA on it. */
+  --haip-brand-panel:  #0D2A21;
+  --haip-panel-accent: #F6A58E;
 }
 .dark {
-  --haip-avatar-1-bg: rgba(201,162,217,0.16); --haip-avatar-1-fg: #DCC0E7;
-  --haip-avatar-2-bg: rgba(232,169,58,0.16);  --haip-avatar-2-fg: #F1C26B;
+  --haip-avatar-1-bg: rgba(92,201,160,0.16);  --haip-avatar-1-fg: #5CC9A0;
+  --haip-avatar-2-bg: rgba(240,138,110,0.16); --haip-avatar-2-fg: #F6A58E;
   --haip-avatar-3-bg: rgba(111,207,151,0.14); --haip-avatar-3-fg: #8EDBAE;
   --haip-avatar-4-bg: rgba(143,168,232,0.15); --haip-avatar-4-fg: #AFC2F0;
   --haip-avatar-5-bg: rgba(240,140,128,0.15); --haip-avatar-5-fg: #F5A99F;
@@ -507,15 +507,15 @@
   --haip-status-neutral-bg: rgba(255,255,255,0.06); --haip-status-neutral-fg: #C7BFB8; --haip-status-neutral-border: rgba(255,255,255,0.10);
   --haip-icon-neutral: #A39A93;
   /* Only the literals need a dark variant; aliases follow automatically */
-  --haip-surface:       #1A1614;
+  --haip-surface:       #151A17;
   --haip-border-strong: rgba(255,255,255,0.14);
   --haip-fg-subtle:     #A39A93;
   --haip-text-subtle:   #8C847D;
-  --haip-accent:        #E8A93A;
-  --haip-accent-light:  rgba(232,169,58,0.14);
-  --haip-accent-ink:    #F1C26B;
-  --haip-gold:          #E8A93A;
-  --haip-gold-light:    rgba(232,169,58,0.14);
+  --haip-accent:        #F08A6E;
+  --haip-accent-light:  rgba(240,138,110,0.14);
+  --haip-accent-ink:    #F6A58E;
+  --haip-gold:          #F08A6E;
+  --haip-gold-light:    rgba(240,138,110,0.14);
   --haip-green:         #6FCF97;
   --haip-amber:         #E8A93A;
   --haip-red:           #F08C80;
