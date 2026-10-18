@@ -1,7 +1,9 @@
 """HAIP's own website leads.
 
 Public (no login, rate-limited per IP by RateLimitMiddleware + a per-visitor hourly count in the database):
-  POST /public/leads                 book-demo | contact form -> platform_leads (+ a Leads360 lead in HAIP's sales workspace)
+  POST /public/leads                 book-demo | contact | assessment form -> platform_leads (+ a Leads360 lead in HAIP's
+                                     sales workspace). kind=assessment recomputes the result from the ACTIVE benchmarks,
+                                     stores that snapshot and returns the full report + its report token.
 
 Owner of HAIP's sales workspace (PLATFORM_LEADS_TENANT_SLUG) only:
   GET  /platform-leads               the stored submissions, newest first
@@ -55,10 +57,24 @@ def store_submission(db: Session, body, request: Request, assessment_snapshot: O
 @router.post("/public/leads", response_model=PlatformLeadAccepted, status_code=201,
              dependencies=[Depends(body_size_cap)])
 def submit_lead(body: PlatformLeadSubmit, request: Request, response: Response, db: Session = Depends(get_db)):
-    lead, duplicate = store_submission(db, body, request)
+    snapshot = None
+    if body.kind == "assessment":
+        from app.services import assessment_benchmarks, assessment_engine
+        try:
+            result = assessment_engine.project(assessment_benchmarks.active(db), body.assessment)
+        except assessment_engine.AssessmentError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+        snapshot = {"input": body.assessment.model_dump(), "result": result,
+                    "benchmark_version": result["benchmark_version"]}
+    lead, duplicate = store_submission(db, body, request, assessment_snapshot=snapshot)
     if duplicate:
         response.status_code = 200
-    return PlatformLeadAccepted(id=lead.id, kind=lead.kind, duplicate=duplicate)
+    out = PlatformLeadAccepted(id=lead.id, kind=lead.kind, duplicate=duplicate)
+    if lead.kind == "assessment" and lead.assessment and not lead.is_spam:
+        # The stored snapshot, not this request's computation: a retry gets exactly the report first shown.
+        out.report = lead.assessment["result"]
+        out.report_token = platform_lead_service.report_token(lead.id)
+    return out
 
 
 def require_sales_workspace_owner(current_user: User = Depends(require_roles(UserRole.OWNER)),
@@ -75,6 +91,7 @@ def _row(lead: PlatformLead) -> dict:
         id=lead.id, kind=lead.kind, name=lead.name, email=lead.email, phone=lead.phone, company=lead.company,
         message=lead.message, details=lead.details or {}, is_spam=lead.is_spam, routing_status=lead.routing_status,
         workspace_inquiry_id=lead.workspace_inquiry_id, marketing_opt_in=lead.marketing_opt_in,
+        assessment_summary=platform_lead_service.assessment_brief(lead),
         created_at=lead.created_at.isoformat() if lead.created_at else "",
     ).model_dump()
 

@@ -56,7 +56,7 @@ _STRICT_PREFIXES = (
 # HAIP's own public website (no login): lead forms + the property assessment. Fail-OPEN on a Redis outage so a
 # visitor's lead is not lost; the per-visitor hourly count in platform_lead_service holds without Redis.
 _PUBLIC_SITE_PREFIX = "/api/v1/public/"
-_PUBLIC_LEAD_PATHS = ("/api/v1/public/leads", "/api/v1/public/assessment/report")
+_PUBLIC_LEAD_PATHS = ("/api/v1/public/leads",)
 _PUBLIC_LEAD_LIMIT: Tuple[int, int] = (10, 60)    # 10/min per IP: lead POSTs
 _PUBLIC_SITE_LIMIT: Tuple[int, int] = (30, 60)    # 30/min per IP: estimates, report reads
 

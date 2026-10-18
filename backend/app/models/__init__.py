@@ -39,6 +39,7 @@ from app.models.task import Task
 from app.models.lead_attribution import LeadAttribution
 from app.models.whatsapp_personal_session import WhatsAppPersonalSession, WhatsAppPersonalSessionStatus
 from app.models.platform_lead import PlatformLead
+from app.models.roi_benchmark import RoiBenchmarkVersion
 
 __all__ = [
     "BusinessRecord",
@@ -57,5 +58,5 @@ __all__ = [
     "AIDraftOutcome", "Task",
     "LeadAttribution",
     "WhatsAppPersonalSession", "WhatsAppPersonalSessionStatus",
-    "PlatformLead",
+    "PlatformLead", "RoiBenchmarkVersion",
 ]

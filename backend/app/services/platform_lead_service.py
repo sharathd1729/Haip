@@ -14,6 +14,7 @@ PII is never logged: log lines carry the lead id and kind only.
 """
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
 import uuid
@@ -57,6 +58,17 @@ def ip_hash(ip: Optional[str]) -> Optional[str]:
     if not ip:
         return None
     return hmac.new(settings.SECRET_KEY.encode(), f"platform-lead-ip:{ip}".encode(), hashlib.sha256).hexdigest()
+
+
+def report_token(lead_id: str) -> str:
+    """Opens one assessment report (JSON + PDF). Derived from the lead id with the server key, so nothing is stored and
+    a retried submission gets the same token back."""
+    mac = hmac.new(settings.SECRET_KEY.encode(), f"assessment-report:{lead_id}".encode(), hashlib.sha256).digest()
+    return base64.urlsafe_b64encode(mac).decode().rstrip("=")[:32]
+
+
+def verify_report_token(lead_id: str, token: Optional[str]) -> bool:
+    return bool(token) and hmac.compare_digest(report_token(lead_id), token)
 
 
 def _now() -> datetime:
@@ -117,6 +129,8 @@ def submit(db: Session, body, *, ip: Optional[str], user_agent: Optional[str],
     log.info("platform_lead_stored", lead_id=lead.id, kind=lead.kind)
     route_to_workspace(db, lead)
     _queue_notify(lead.id)
+    if lead.kind == "assessment":
+        _queue_narrative(db, lead)
     return lead, False
 
 
@@ -175,7 +189,24 @@ def _summary_text(lead: PlatformLead) -> str:
         parts.append(f"{key.capitalize()}: {value}")
     if lead.message:
         parts.append(lead.message)
+    brief = assessment_brief(lead)
+    if brief:
+        parts.append(f"Assessment: {brief['property_type']} ({brief['segment']}), {brief['keys']} rooms, likely revenue "
+                     f"Rs. {brief['yearly_revenue_likely']:,}/year, investment Rs. {brief['investment_total']:,}, "
+                     f"benchmarks {brief['benchmark_version']}")
     return "\n".join(parts)[:4000]
+
+
+def assessment_brief(lead: PlatformLead) -> Optional[dict]:
+    """The few assessment figures sales needs on the lead card and in the list."""
+    result = (lead.assessment or {}).get("result")
+    if not result:
+        return None
+    inp = (lead.assessment or {}).get("input") or {}
+    return {"property_type": result["property_type_label"], "segment": result["segment"], "keys": result["keys"],
+            "city": inp.get("city"), "yearly_revenue_likely": result["yearly"]["likely"]["revenue"],
+            "investment_total": result["investment"]["total"], "payback_months_likely": result["payback_months"]["likely"],
+            "benchmark_version": result["benchmark_version"]}
 
 
 def _write_consents(db: Session, tenant_id: str, guest_id: str, lead: PlatformLead) -> None:
@@ -233,7 +264,8 @@ def _create_inquiry(db: Session, tenant_id: str, lead: PlatformLead) -> tuple[st
         stage_id=stage_id or inquiry_service._stage_id_for(db, tenant_id, InquiryStage.NEW),
         source=InquirySource.WEBSITE, special_requests=_summary_text(lead),
         custom_fields={"platform_lead_ids": [lead.id], "website_form": lead.kind,
-                       **({"company": lead.company} if lead.company else {})},
+                       **({"company": lead.company} if lead.company else {}),
+                       **({"assessment": assessment_brief(lead)} if lead.assessment else {})},
     )
     db.add(inquiry)
     db.flush()
@@ -248,6 +280,22 @@ def _queue_notify(lead_id: str) -> None:
         notify_owners.delay(lead_id)
     except Exception as exc:  # noqa: BLE001 -- the lead is stored and visible in the list; only the alert is late
         log.error("platform_lead_notify_dispatch_failed", lead_id=lead_id, error=type(exc).__name__)
+
+
+def _queue_narrative(db: Session, lead: PlatformLead) -> None:
+    if not settings.ASSESSMENT_NARRATIVE_ENABLED:
+        lead.narrative_status = "off"
+        db.commit()
+        return
+    lead.narrative_status = "pending"
+    db.commit()
+    try:
+        from app.workers.tasks.assessment_narrative import write_narrative
+        write_narrative.delay(lead.id)
+    except Exception as exc:  # noqa: BLE001 -- the report is complete without the write-up
+        lead.narrative_status = "failed"
+        db.commit()
+        log.error("assessment_narrative_dispatch_failed", lead_id=lead.id, error=type(exc).__name__)
 
 
 def notify(db: Session, lead_id: str) -> dict:

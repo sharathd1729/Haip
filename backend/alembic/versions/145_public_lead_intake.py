@@ -1,10 +1,13 @@
-"""HAIP's own website leads (platform_leads)
+"""HAIP's own website leads (platform_leads) + versioned ROI benchmark sets (roi_benchmarks)
 
 ``platform_leads`` stores every book-demo / contact / property-assessment submission from HAIP's public website.
 DOCUMENTED PLATFORM-LEVEL EXCEPTION: the rows belong to HAIP the company, are written by anonymous visitors before any
 tenant is known, and are read only by the owner of HAIP's own sales workspace. No ``tenant_id`` column, so no tenant
 policy (the RLS guard in tests/test_rls_postgres.py only covers tables that have one). The Leads360 copy of each lead
 (guest, consent, inquiry) lives in normal tenant tables under their own RLS.
+
+``roi_benchmarks`` holds versioned benchmark sets for the public property assessment: business-level config that HAIP
+maintains (same documented platform-level exception, no ``tenant_id``). Rows are never edited; a change is a new version.
 
 Production builds tables with create_all at startup, so every statement is guarded (IF NOT EXISTS). 142-144 belong to
 branches not merged yet; whichever merges second needs a merge revision (like 127).
@@ -58,7 +61,22 @@ def upgrade():
     """)
     op.execute("CREATE INDEX IF NOT EXISTS ix_platform_leads_ip_created ON platform_leads (ip_hash, created_at)")
     op.execute("CREATE INDEX IF NOT EXISTS ix_platform_leads_created ON platform_leads (created_at)")
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS roi_benchmarks (
+            id                 VARCHAR PRIMARY KEY,
+            version            VARCHAR(40) NOT NULL,
+            data               JSON NOT NULL,
+            notes              TEXT,
+            is_active          BOOLEAN NOT NULL DEFAULT FALSE,
+            activated_at       TIMESTAMPTZ,
+            created_by_user_id VARCHAR,
+            created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+            updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+            CONSTRAINT uq_roi_benchmarks_version UNIQUE (version)
+        )
+    """)
 
 
 def downgrade():
+    op.execute("DROP TABLE IF EXISTS roi_benchmarks")
     op.execute("DROP TABLE IF EXISTS platform_leads")

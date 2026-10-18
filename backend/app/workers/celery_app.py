@@ -71,6 +71,7 @@ celery_app = Celery(
         "app.workers.tasks.quote_tasks",
         # HAIP's own website leads (book-demo, contact, assessment): owner alerts
         "app.workers.tasks.platform_leads",
+        "app.workers.tasks.assessment_narrative",
         # WhatsApp: campaign runner + template status sync
         "app.workers.tasks.run_campaign",
         "app.workers.tasks.campaign_scheduler",
@@ -266,6 +267,8 @@ celery_app.conf.update(
         "quotes.cancel_payment_links":                {"queue": "whatsapp"},
         # HAIP's own website leads (platform_leads.py): owner push + email.
         "platform_leads.notify":                      {"queue": "default"},
+        # Property assessment write-up (assessment_narrative.py): an LLM call, same queue as the other AI tasks.
+        "assessment.narrative":                       {"queue": "ai_scoring"},
     },
 )
 

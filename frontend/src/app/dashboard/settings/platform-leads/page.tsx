@@ -5,6 +5,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
+import { formatINR } from "@/lib/utils";
+import { BenchmarksAdmin } from "@/components/assessment/BenchmarksAdmin";
 import { Card, DataTable, FilterBar, FilterChip, PageHeader, StatusPill, type Column, type Tone } from "@/components/ui/kit";
 
 interface PlatformLeadRow {
@@ -19,6 +21,7 @@ interface PlatformLeadRow {
   is_spam: boolean;
   routing_status: string;
   workspace_inquiry_id?: string | null;
+  assessment_summary?: { property_type: string; segment: string; keys: number; city?: string | null; yearly_revenue_likely: number; benchmark_version: string } | null;
   marketing_opt_in: boolean;
   created_at: string;
 }
@@ -79,7 +82,9 @@ export default function PlatformLeadsPage() {
     {
       key: "note", header: "Message", hideBelow: "md", cell: r => (
         <p className="max-w-[28rem] text-[13px] text-[var(--haip-fg-muted)] line-clamp-2 break-words">
-          {r.message || Object.values(r.details || {}).join(" · ") || "—"}
+          {r.assessment_summary
+            ? `${r.assessment_summary.property_type} (${r.assessment_summary.segment}), ${r.assessment_summary.keys} rooms${r.assessment_summary.city ? `, ${r.assessment_summary.city}` : ""} · likely ${formatINR(r.assessment_summary.yearly_revenue_likely)} a year`
+            : r.message || Object.values(r.details || {}).join(" · ") || "—"}
         </p>
       ),
     },
@@ -114,6 +119,7 @@ export default function PlatformLeadsPage() {
           empty={{ title: "No website leads yet", hint: "When someone books a demo, sends a message or asks for an assessment report, it shows up here and in Leads360." }}
         />
       </Card>
+      {!query.isError && <BenchmarksAdmin />}
     </div>
   );
 }

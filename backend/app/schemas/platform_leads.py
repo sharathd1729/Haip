@@ -7,7 +7,9 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
-LeadKind = Literal["demo", "contact"]
+from app.schemas.assessment import AssessmentInput
+
+LeadKind = Literal["demo", "contact", "assessment"]
 
 
 class LeadDetails(BaseModel):
@@ -38,6 +40,8 @@ class PlatformLeadSubmit(BaseModel):
     notice_version: str = Field("web-v1", max_length=20)
     # Honeypot: a field people never see. A filled one is stored as spam and never becomes a lead.
     website: Optional[str] = Field(None, max_length=300)
+    # kind=assessment only: the answers. The server recomputes the result itself (never trusts one sent by the page).
+    assessment: Optional[AssessmentInput] = None
 
     @model_validator(mode="after")
     def _rules_per_kind(self):
@@ -55,6 +59,13 @@ class PlatformLeadSubmit(BaseModel):
             raise ValueError("A demo request needs an email, a phone number and a company name.")
         if self.kind == "contact" and not (self.email and self.message):
             raise ValueError("A message needs an email address and some text.")
+        if self.kind == "assessment":
+            if not self.phone:
+                raise ValueError("The full report needs a phone number.")
+            if self.assessment is None:
+                raise ValueError("The assessment answers are missing.")
+        elif self.assessment is not None:
+            raise ValueError("Only an assessment lead carries assessment answers.")
         return self
 
 
@@ -63,6 +74,9 @@ class PlatformLeadAccepted(BaseModel):
     kind: LeadKind
     status: Literal["received"] = "received"
     duplicate: bool = False
+    # kind=assessment only: the full report and the token that opens it again (JSON + PDF).
+    report: Optional[dict] = None
+    report_token: Optional[str] = None
 
 
 class PlatformLeadRow(BaseModel):
@@ -78,5 +92,6 @@ class PlatformLeadRow(BaseModel):
     is_spam: bool
     routing_status: str
     workspace_inquiry_id: Optional[str] = None
+    assessment_summary: Optional[dict] = None
     marketing_opt_in: bool
     created_at: str
