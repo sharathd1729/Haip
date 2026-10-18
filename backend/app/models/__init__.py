@@ -37,6 +37,10 @@ from app.models.ai_draft_outcome import AIDraftOutcome
 from app.models.task import Task
 from app.models.lead_attribution import LeadAttribution
 from app.models.whatsapp_personal_session import WhatsAppPersonalSession, WhatsAppPersonalSessionStatus
+from app.models.ops import (
+    StaffProfile, StaffDuty, ShiftPattern, ShiftOverride, EscalationChain, OpsSettings, OpsItem, OpsEscalationEvent,
+    OpsAlertSend,
+)
 
 __all__ = [
     "BusinessRecord",
@@ -55,4 +59,6 @@ __all__ = [
     "AIDraftOutcome", "Task",
     "LeadAttribution",
     "WhatsAppPersonalSession", "WhatsAppPersonalSessionStatus",
+    "StaffProfile", "StaffDuty", "ShiftPattern", "ShiftOverride", "EscalationChain", "OpsSettings", "OpsItem",
+    "OpsEscalationEvent", "OpsAlertSend",
 ]

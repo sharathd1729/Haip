@@ -57,6 +57,10 @@ _DEFAULT_GRANTS: dict[str, set[str]] = {
     "users.read": {"owner", "manager", "compliance"},
     "users.manage": {"owner"},
     "settings.manage": {"owner"},
+    # Operations module (migration 131 grants these to existing tenants).
+    "ops.read": {"owner", "manager", "reservations", "concierge", "foh"},
+    "ops.write": {"owner", "manager", "concierge", "foh"},
+    "ops.manage": {"owner", "manager"},
 }
 
 

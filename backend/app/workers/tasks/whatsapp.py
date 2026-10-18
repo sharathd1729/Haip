@@ -205,6 +205,28 @@ def _describe_other_message(msg_type: str, msg: dict) -> str:
     return f"[{msg_type or 'unknown'} message — this type can't be shown here]"
 
 
+def _handle_staff_message(db, tenant: Tenant, staff, msg: dict, msg_type: str) -> None:
+    from app.core.cache import get_cached, set_cached
+    from app.services import ops_escalation_service
+    from app.workers.tasks.ops_escalation import queue_delivery
+    dedup_key = f"haip:ops:inbound:{msg.get('id', '')}"
+    if msg.get("id") and get_cached(dedup_key):      # Meta redelivers webhooks; a staff tap is handled once
+        return
+    payload = None
+    if msg_type == "button":
+        payload = (msg.get("button") or {}).get("payload")
+    elif msg_type == "interactive":
+        i = msg.get("interactive") or {}
+        payload = (i.get("button_reply") or {}).get("id")
+    text = msg.get("text", {}).get("body", "") if msg_type == "text" else _describe_other_message(msg_type, msg)
+    send_ids = ops_escalation_service.handle_staff_inbound(db, str(tenant.id), staff, payload=payload, text=text)
+    db.commit()
+    if msg.get("id"):
+        set_cached(dedup_key, "1", ttl=86400)
+    queue_delivery(str(tenant.id), send_ids)
+    log.info("wa_staff_message_routed_to_ops", staff_id=staff.id, type=msg_type)
+
+
 def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
     from_number = "+" + msg.get("from", "").lstrip("+")
     wa_msg_id = msg.get("id", "")
@@ -216,6 +238,15 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
     # Fast-path dedup check (application level)
     existing = db.query(Message).filter_by(channel_message_id=wa_msg_id).first()
     if existing:
+        return
+
+    # Staff are not guests (docs/ops/OPS_MODULE_PLAN.md §0.1). A message from an active staff profile's number -- typically a
+    # tap on an ops alert's Acknowledge / Can't take it button -- goes to the ops handler and never reaches identity
+    # resolution, leads, the inbox, push or the concierge.
+    from app.services.staff_service import find_active_staff_by_phone
+    staff = find_active_staff_by_phone(db, tenant.id, from_number)
+    if staff is not None:
+        _handle_staff_message(db, tenant, staff, msg, msg_type)
         return
 
     # T1.3: identity resolution goes through the canonical facade --
@@ -517,6 +548,15 @@ def _handle_status_update(db, tenant: Tenant, status_obj: dict):
     ).first()
 
     if not message:
+        # An ops alert to a staff member has no Message row either (ops_alert_sends).
+        from app.services import ops_alert_sender
+        matched, follow_ups = ops_alert_sender.apply_status_callback(db, str(tenant.id), status_obj)
+        if matched:
+            if follow_ups:
+                db.commit()
+                from app.workers.tasks.ops_escalation import queue_delivery
+                queue_delivery(str(tenant.id), follow_ups)
+            return
         # Not an inbox message. A message sent by a campaign has no Message
         # row: its status goes to the campaign's per-recipient record (and the
         # campaign's delivered/read counters).

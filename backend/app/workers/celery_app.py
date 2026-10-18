@@ -62,6 +62,7 @@ celery_app = Celery(
         "app.workers.tasks.call_recovery",
         # Safety net: a guest message that never got an AI reply is handed to the concierge again
         "app.workers.tasks.reply_recovery",
+        "app.workers.tasks.ops_escalation",
         # iCal calendar links (Airbnb / Booking.com / Google): read outside calendars
         "app.workers.tasks.ical_sync",
         # Public API: signed webhook deliveries + retries
@@ -249,6 +250,10 @@ celery_app.conf.update(
         # Same queue as concierge_draft itself ("whatsapp"): if that queue is not consumed, neither is the draft it would trigger.
         "concierge.recover_missed_replies":              {"queue": "whatsapp"},
         "concierge.recover_missed_replies_all_tenants":  {"queue": "whatsapp"},
+        # Ops alerts go out as WhatsApp templates: same queue as every other WhatsApp send.
+        "ops.deliver_sends":                             {"queue": "whatsapp"},
+        "ops.escalation_tick":                           {"queue": "whatsapp"},
+        "ops.escalation_tick_tenant":                    {"queue": "whatsapp"},
         "tasks.daily_briefing.generate":              {"queue": "ai_scoring"},
         "backfill_missing_instagram_inquiries":       {"queue": "ai_scoring"},
     },
@@ -256,6 +261,11 @@ celery_app.conf.update(
 
 # Scheduled tasks (Celery Beat)
 celery_app.conf.beat_schedule = {
+    # Ops escalation (ops_escalation.py): critical items have a 5-minute ack window, so this runs every minute.
+    "ops-escalation-tick-1min": {
+        "task": "ops.escalation_tick",
+        "schedule": crontab(minute="*"),
+    },
     # Safety net for guest replies: a message with no AI draft and no reply after 4 minutes is queued for the concierge again (see
     # reply_recovery.py). Minutes 3/13/23/...: clear of the :00/:05/:10/:20/:30/:40 jobs.
     "concierge-missed-reply-recovery-10min": {
