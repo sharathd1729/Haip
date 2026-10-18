@@ -16,6 +16,7 @@ import { Breakdowns } from "./Breakdowns";
 import { ChannelPanels } from "./ChannelPanels";
 import { KpiGrid } from "./KpiGrid";
 import { LeadFlow } from "./LeadFlow";
+import { SinceHaip } from "./SinceHaip";
 import { Team } from "./Team";
 import { Controls, type Filters } from "./Controls";
 import { PeriodBar, usePersistedPeriod, type PeriodValue } from "../PeriodBar";
@@ -131,6 +132,7 @@ export function CommandCenter() {
         {/* Today first (what is happening on the ground, who is waiting), then the period numbers. */}
         <TodayStrip role={role} />
         <WaitingForYou role={role} />
+        {tenantWide && <SinceHaip />}
 
         <h2 className="sr-only">Business numbers</h2>
         <PeriodBar custom value={filters.preset} onChange={pickPeriod}

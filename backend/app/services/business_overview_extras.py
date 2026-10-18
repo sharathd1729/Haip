@@ -30,6 +30,7 @@ from app.services.business_overview_common import (
     Params, _ist_day, _lead_conditions, _linked_stay_ids, _money, _stay_conditions, people_filters,
 )
 from app.services.date_presets import ist_range_to_utc
+from app.services.message_metrics import RESPONSE_SOURCES, chat_response_by_agent_source
 
 LIVE_STATUSES = ("confirmed", "checked_in")
 TREND_BUCKETS = 12          # weeks or months shown by the week / month trend
@@ -212,6 +213,12 @@ def agent_table(db: Session, p: Params) -> Optional[list[dict]]:
         Call.created_at >= start_dt, Call.created_at <= end_dt).group_by(Call.agent_id).all())
     card = {r["agent_id"]: r for r in get_agent_scorecard_rows(db, p.tid, p.d_from, p.d_to)}
     names = dict(db.query(User.id, User.name).filter(User.tenant_id == p.tid).all())
+    # First human reply split by where the guest wrote (personal WhatsApp bridge / Cloud WhatsApp / Instagram); group
+    # chats and mirrored phone history are left out (message_metrics.chat_response_by_agent_source).
+    by_source: dict = defaultdict(lambda: {s: None for s in RESPONSE_SOURCES})
+    for r in chat_response_by_agent_source(db, p.tid, since=start_dt, until=end_dt)["by_agent"]:
+        by_source[r["agent_id"]][r["source"]] = {"avg_seconds": round(r["avg_seconds"]) if r["avg_seconds"] is not None else None,
+                                                 "response_count": r["response_count"]}
 
     out = []
     for uid in set(rows) | {u for u, r in card.items() if r["calls_answered"] or r["calls_missed"] or r["followups_total"]} | set(messages):
@@ -227,6 +234,7 @@ def agent_table(db: Session, p: Params) -> Optional[list[dict]]:
             "calls_answered": c.get("calls_answered", 0), "calls_missed": c.get("calls_missed", 0),
             "callbacks_waiting": max(0, c.get("calls_missed", 0) - c.get("calls_missed_recovered", 0)),
             "avg_response_seconds": round(c["avg_response_seconds"]) if responded else None,
+            "response_by_source": by_source[uid] if uid else None,
             "messages_sent": int(messages.get(uid, 0)),
             "followups_total": c.get("followups_total", 0), "followups_completed": c.get("followups_completed", 0),
             "followups_overdue": c.get("followups_overdue", 0),

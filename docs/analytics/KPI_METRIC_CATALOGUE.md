@@ -246,6 +246,7 @@ Not captured anywhere: UTM/landing-page, other ad networks, first/last-touch rul
 |---|---|---|---|
 | **Tenant average / p95 first reply** (`message_metrics`) | per guest *turn* (inbound message whose predecessor was not inbound): seconds until the next outbound message in the conversation; mean / 95th percentile | WhatsApp and Instagram only. "Outbound" is **any** outbound row: AI auto-replies, **internal notes**, scheduled-but-unsent messages and failed sends all count as replies (R). Window on the inbound message time. | PG |
 | By agent | same turns, but the matched reply must have a `sender_id` (a human) | so AI replies are excluded here but included above | PG |
+| By agent **and source** (`chat_response_by_agent_source`, 19 Oct 2026) | the by-agent turns split by where the guest wrote: `personal_whatsapp` (conversation `source = personal_bridge` **or** the message's `channel_metadata.source = personal_bridge`, since a bridged message can land in a lead's open Cloud thread), `whatsapp_cloud`, `instagram`; per (agent, source), per source and overall from one `GROUPING SETS` query | **Group chats** (`channel_metadata.chat_type = group`) are neither turns nor replies; **mirrored phone history** (`channel_metadata.history = true`, text only, ≤200/chat) is left out unless `include_history` (the Since HAIP card uses it in both windows: it is the only pre-go-live record). Shown as `response_by_source` on each Business Overview agent row. No answered turn = `null`, never 0 s. | PG |
 | SLA compliance (executive) | `1 − breached ÷ answered` of enquiries with `first_response_at`, % | uses stored flags `sla_breached`; **100.0 when there is no data** | T |
 | Automation coverage (overview) | `1 − no_match_no_response ÷ inbound messages`, % | **100.0 when there are no inbound messages** | PG |
 | AI draft acceptance | `sent_verbatim + sent_edited` ÷ drafts | `0.0` when no drafts | PG |
@@ -319,6 +320,13 @@ Reused unchanged: `leads.identified_new`, `leads.conversion_cohort`, `enquiries.
 | `leads.quoted_cohort` | Of the people who became leads in the period, those with a quote so far (`inquiry_quotes` row or `Inquiry.quoted_at` on any of their enquiries). | Shown next to the cohort booked share; enquiry records are shown but never divided by leads. |
 | `calls.missed_returned` | Inbound calls missed in the period (`call_status_service`), returned = `recovered_by_call_id` set, median minutes to that callback, share returned within 60 min (of all missed). | All IVR providers counted (D-15 still open). |
 | `enquiries.lost` | Non-spam enquiry records now in a closed-lost stage whose `current_stage_entered_at` (else `updated_at`) is in the period, by `lost_reason` (empty = Not recorded). | Records, not people. |
+
+**Since HAIP card** (Owner Command Center, `GET /dashboard/impact/since-haip`, `impact_since.py`, 19 Oct 2026): five tiles, the
+latest N days vs the **same number of days** just before go-live (go-live date + N from the impact profile): `leads.identified_new`,
+`stays.booked` count and stay charge (split by `Stay.channel_source` so the before figure names its source: shared calendar, entered
+in HAIP, PMS import...), average first **human** reply (`chat_response_by_agent_source` with mirrored history, see section 9) and AI
+drafts sent (`ai_draft_outcomes` `sent_verbatim` + `sent_edited`, the scorecard's "approved"). Every before figure carries a
+`source` line; 0 or none = `has_data: false`, shown "No data", no change. Bookings need `bookings.read`, money `revenue.read`.
 
 Money (bookings value, cash collected, revenue per IST month) needs `revenue.read`; without it the tiles and the revenue block are
 `{"restricted": true}`. The public case study (`/case-studies/{slug}`) shows only an owner-published **snapshot** of these aggregates

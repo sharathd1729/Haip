@@ -41,9 +41,11 @@ URL = "/api/v1/dashboard/business-overview"
 @pytest.fixture(autouse=True)
 def _agent_scorecard(monkeypatch):
     """The per-agent scorecard (shared with the old dashboard) computes response times with PostgreSQL-only SQL
-    (LATERAL, percentile_cont). On SQLite it is replaced by an empty scorecard; on PostgreSQL the real one runs."""
+    (LATERAL, percentile_cont), as does the reply time by source. On SQLite both are replaced by empty answers; on PostgreSQL
+    the real ones run."""
     if "sqlite" in os.environ.get("DATABASE_URL", "sqlite"):
         monkeypatch.setattr(extras, "get_agent_scorecard_rows", lambda *a, **k: [])
+        monkeypatch.setattr(extras, "chat_response_by_agent_source", lambda *a, **k: {"by_agent": [], "by_source": {}, "all": None})
 
 
 # ── a small, fully known workspace ──────────────────────────────────────────────────────────────────────────
@@ -520,6 +522,23 @@ def test_the_agent_table_merges_leads_bookings_messages_and_the_scorecard(client
     assert (asha["calls_answered"], asha["calls_missed"], asha["callbacks_waiting"]) == (9, 4, 3)
     assert asha["avg_response_seconds"] == 540 and (asha["followups_completed"], asha["followups_overdue"]) == (3, 1)
     assert agents["Bala"]["leads"] == 1 and agents["Bala"]["qualified"] == 0 and agents["Bala"]["avg_response_seconds"] is None   # no scorecard data: unknown, not 0
+
+
+def test_the_agent_table_splits_first_reply_by_source(client, db, world, monkeypatch):
+    a1 = world["a1"]
+    seen = {}
+
+    def fake(db_, tid, since, until=None, **k):
+        seen.update(tid=tid, history=k.get("include_history", False))
+        return {"by_agent": [{"agent_id": a1.id, "source": "personal_whatsapp", "avg_seconds": 610.4, "p95_seconds": 900.0, "response_count": 3},
+                             {"agent_id": "someone-else", "source": "instagram", "avg_seconds": 60.0, "p95_seconds": 60.0, "response_count": 1}],
+                "by_source": {}, "all": None}
+    monkeypatch.setattr(extras, "chat_response_by_agent_source", fake)
+    agents = {a["name"]: a for a in _get(client, world["h_owner"]).json()["agents"]}
+    assert agents["Asha"]["response_by_source"] == {"personal_whatsapp": {"avg_seconds": 610, "response_count": 3},
+                                                    "whatsapp_cloud": None, "instagram": None}
+    assert agents["Bala"]["response_by_source"] == {"personal_whatsapp": None, "whatsapp_cloud": None, "instagram": None}
+    assert seen == {"tid": world["tid"], "history": False}         # live figures: mirrored phone history left out
 
 
 def test_promising_leads_at_risk_come_from_the_work_queue_and_the_ai_reading(client, db, world):
