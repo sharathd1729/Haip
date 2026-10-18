@@ -72,6 +72,13 @@ class KnowledgeEntry(Base, TimestampMixin, TenantMixin):
     # retrieved (the source no longer says it); the owner can keep it from the settings page, which clears this.
     stale_since = Column(DateTime(timezone=True), nullable=True)
 
+    # When the source itself published this (an Instagram post's timestamp, an ad's start date) -- not when HAIP read it. The
+    # concierge shows it as the passage's date, so a new post beats an older passage on the same topic. Migration 143.
+    source_published_at = Column(DateTime(timezone=True), nullable=True)
+    # Machine flags for the reviewer, e.g. ["mentions_price", "mentions_offer"]: a social post quoting a price never becomes
+    # the price the bot gives (prices come only from published business data; figures are stripped from knowledge text).
+    content_flags = Column(JSON, nullable=True)
+
     created_by = Column(String, ForeignKey("users.id"), nullable=True)
 
     __table_args__ = (

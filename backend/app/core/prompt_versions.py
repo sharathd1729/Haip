@@ -79,7 +79,9 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v12 (2026-10-13): works from operational data -- property facts, the guest's own bookings with their real state, availability
     # WITH the reason a property is not open, what the guest already told us, every question they asked, and a "grounded" pricing
     # mode (only live figures). Knowledge-base text no longer carries prices. See the template header.
-    "concierge_reply": "concierge-reply-v13",   # concierge_reply.jinja
+    # v14 (2026-10-18): current data wins over the conversation -- knowledge snippets carry their "updated" date, published records
+    # beat snippets, and an earlier (possibly our own) out-of-date statement is corrected rather than repeated.
+    "concierge_reply": "concierge-reply-v14",   # concierge_reply.jinja
     "lost_reason":     "lost-reason-v1",        # lost_reason.jinja
     "agent_performance_narrative": "agent-performance-narrative-v1",  # agent_performance_narrative.jinja
     "agent_leads_feedback": "agent-leads-feedback-v1",  # agent_leads_feedback.jinja

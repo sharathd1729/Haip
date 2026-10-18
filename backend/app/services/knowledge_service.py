@@ -84,6 +84,15 @@ def entry_history(db: Session, tenant_id: str, entry_id: str, limit: int = 50) -
              "changes": (r.payload or {}).get("changes"), "values": (r.payload or {}).get("values")} for r in rows]
 
 
+def _iso_day(value) -> Optional[str]:
+    """YYYY-MM-DD for a timestamp read through raw SQL (a datetime on PostgreSQL, a string on SQLite)."""
+    if value is None:
+        return None
+    if hasattr(value, "date"):
+        return value.date().isoformat()
+    return str(value)[:10] or None
+
+
 def is_clipped(value) -> bool:
     return isinstance(value, str) and bool(re.search(r"\.\.\.\[\d+ chars, sha256 [0-9a-f]{16}\]$", value))
 
@@ -468,12 +477,15 @@ def search_detailed(
                 "source": r.source,
                 "property_id": r.property_id,
                 "score": score,
+                "updated_at": _iso_day(getattr(r, "updated_at", None)),
             }
     hits = list(best.values())
     # Human-authored content wins ties against scraped/mined content of similar relevance; `priority` is the tenant's
     # explicit thumb on the scale. Score still dominates -- this only reorders near-equals.
+    # Then the NEWER entry wins: when the owner adds "Mysore route now open" beside an older passage on the same topic, the
+    # current one must not lose a tie to the old one (both are shown, newest first, each with its date).
     priority_by_id = {r.entry_id: (r.priority or 0) for r, _ in scored}
-    hits.sort(key=lambda h: (round(h["score"], 2), priority_by_id.get(h["id"], 0)), reverse=True)
+    hits.sort(key=lambda h: (round(h["score"], 2), priority_by_id.get(h["id"], 0), h.get("updated_at") or ""), reverse=True)
     hits = hits[:top_k]
     return SearchOutcome(hits=hits, status="ok" if hits else "no_match")
 
@@ -485,7 +497,8 @@ _SELECT_COLUMNS = """
     k.content           AS entry_content,
     k.source            AS source,
     k.priority          AS priority,
-    k.property_id       AS property_id
+    k.property_id       AS property_id,
+    COALESCE(k.source_published_at, k.updated_at) AS updated_at
 """
 
 
@@ -533,6 +546,8 @@ def search_snippets(
             "text": (f"Q: {h['question']}\nA: {h['content']}" if h.get("question") else h["content"]),
             "source": h["category"],
             "score": h["score"],
+            "updated": h.get("updated_at"),
+            "origin": h.get("source"),
         }
         for h in search(db, tenant_id, query, property_id=property_id, top_k=top_k)
     ]
