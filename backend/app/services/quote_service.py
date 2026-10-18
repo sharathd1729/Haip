@@ -64,7 +64,8 @@ def issue_quote(db: Session, tenant_id: str, inquiry_id: str, quote: PackageQuot
     append_audit(
         db, tenant_id=tenant_id, action="quote.issued", actor_user_id=actor_id, target_type="inquiry_quote", target_id=row.id,
         payload={"inquiry_id": inquiry_id, "package_key": quote.package_key, "total": str(quote.total), "valid_until": quote.valid_until.isoformat(),
-                 "record_refs": [(r["kind"], r["key"], r["version"]) for r in quote.record_refs]},
+                 "record_refs": [(r["kind"], r["key"], r["version"]) for r in quote.record_refs],
+                 "custom_lines": [(l.label, str(l.amount)) for l in quote.lines if l.custom]},
     )
     return row
 
@@ -102,3 +103,47 @@ def check_still_valid(db: Session, tenant_id: str, row: InquiryQuote, at: Option
     if changed:
         reasons.append("the terms it was built on have changed since it was issued")
     return {"valid": not reasons, "reasons": reasons, "terms_changed": changed}
+
+
+def inr(amount) -> str:
+    """₹1,25,000 (Indian grouping). Paise are shown only when present."""
+    d = Decimal(str(amount))
+    sign, d = ("-" if d < 0 else ""), abs(d)
+    whole, frac = divmod(d, 1)
+    digits = str(int(whole))
+    head, tail = digits[:-3], digits[-3:]
+    groups = []
+    while len(head) > 2:
+        groups.insert(0, head[-2:])
+        head = head[:-2]
+    if head:
+        groups.insert(0, head)
+    text = ",".join(groups + [tail]) if groups else tail
+    paise = f"{frac:.2f}"[1:] if frac else ""
+    return f"{sign}₹{text}{paise}"
+
+
+def message_text(row: InquiryQuote, guest_name: str = "") -> str:
+    """The WhatsApp-ready text of an issued quote, built only from its snapshot. A person reviews and sends it; nothing here sends."""
+    snap = row.snapshot or {}
+    inputs = snap.get("inputs") or {}
+    guests = int(inputs.get("adults") or 0) + int(inputs.get("children") or 0)
+    out = [f"*{snap.get('package_name') or 'Your trip'}*", "",
+           f"Dates: {inputs.get('check_in')} to {inputs.get('check_out')}  |  Guests: {guests}", ""]
+    for line in snap.get("lines") or []:
+        out.append(f"- {line['label']}: {inr(line['amount'])}")
+    out.append("")
+    if snap.get("gst") is not None:
+        out.append(f"GST ({Decimal(str(snap.get('gst_percent'))).normalize():f}%): {inr(snap['gst'])}")
+    out.append(f"*Total: {inr(snap.get('total'))}*")
+    if snap.get("advance") is not None:
+        out.append(f"Advance to confirm ({Decimal(str(snap.get('advance_percent'))).normalize():f}%): {inr(snap['advance'])}")
+    if snap.get("inclusions"):
+        out += ["", "Included: " + ", ".join(snap["inclusions"])]
+    if snap.get("exclusions"):
+        out.append("Not included: " + ", ".join(snap["exclusions"]))
+    if snap.get("valid_until"):
+        out += ["", f"This quote is valid until {snap['valid_until']}."]
+    first = (guest_name or "").split()[0] if guest_name else ""
+    out.append(f"Reply YES to confirm{', ' + first if first else ''}.")
+    return "\n".join(out)

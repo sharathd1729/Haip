@@ -11,6 +11,7 @@ import { ResponseTimeBadge, formatDuration } from "@/components/leads/LeadCard";
 import { useToast } from "@/components/ui/toast";
 import { useSession } from "next-auth/react";
 import { AIRecommendationCard, type RecommendedAction } from "@/components/ai/AIRecommendationCard";
+import { QuotePanel } from "@/components/leads/QuotePanel";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -419,6 +420,8 @@ function AiAnalysisTab({
 // ─── SIGNAL type role check ───────────────────────────────────────────────────
 
 const SIGNAL_ROLES = new Set(["owner", "manager", "reservations"]);
+// Default holders of `leads.write`; the backend enforces the real capability.
+const QUOTE_ROLES = new Set(["owner", "manager", "reservations", "concierge"]);
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -770,6 +773,8 @@ export default function LeadDetailPage() {
                   </div>
                 </div>
               )}
+
+              <QuotePanel inquiryId={inquiryId} canWrite={QUOTE_ROLES.has(role)} />
 
               {/* Quote history */}
               {(data.quote_history ?? []).length > 0 && (

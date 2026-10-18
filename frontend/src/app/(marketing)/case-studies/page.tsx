@@ -8,7 +8,7 @@ const featured = {
   brand: "Ratha",
   brandTag: "Luxury Caravan Travel & Experiential Journeys",
   headline: "From 6-hour quote turnaround to 30 minutes — with the founder still in the loop.",
-  excerpt: "Ratha designs 11-night experiential journeys across Spiti, Ladakh and the Northeast. Before HAIP, every enquiry meant manually pulling itineraries, rates, transport and partner contacts into a quote PDF. Now the AI Trip Designer drafts the first version from the founder's own past 200 itineraries, and a trip designer ships the final to the guest in under 30 minutes.",
+  excerpt: "Ratha designs 11-night experiential journeys across Spiti, Ladakh and the Northeast. Before HAIP, every enquiry meant manually pulling itineraries, rates, transport and partner contacts into a quote PDF. Now HAIP prices each quote from Ratha's own published packages and rates, the team adds any custom touches, and the guest gets it on WhatsApp the same conversation.",
   metrics: [
     { label: "Quote turnaround", value: "30 min", baseline: "from 6+ hrs" },
     { label: "Enquiries auto-handled to resolution", value: ">60%", baseline: "from 0%" },

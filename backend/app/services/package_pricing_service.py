@@ -5,7 +5,7 @@ the language model. The result is either a priced quote with its lines and the e
 
     package_not_published  dates_in_past  invalid_dates  over_capacity  below_min_nights  above_max_nights
     no_rate_for_dates      conflicting_rates  unknown_extra  needs_confirmation  unavailable  vehicle_not_in_package
-    no_discount_policy
+    no_discount_policy     invalid_custom_line
 
 A refusal never carries a price. A caller (the concierge, a tool, the test box) turns it into "the team will confirm" and, where it
 matters, a task or incident. Nothing here is rounded in the guest's favour or against it silently: rupee amounts are exact to two
@@ -17,6 +17,11 @@ Billing conventions (Ratha must confirm; they are stated on every quote line):
   unit "day"      price per calendar day of use = nights + 1.
 A rate narrower than another (a weekday list, a larger minimum stay) wins over the broader one on the dates both cover; two equally
 specific rates with different amounts are a conflict and the quote is refused.
+
+Custom lines (`custom_lines`) are the one exception to "every number comes from a record": a STAFF member adds a priced line the
+package does not publish (a custom stop, a decoration, a one-off service). They are positive amounts only (a reduction goes through
+the discount policy), taxed like any other line, marked `custom` on the quote and stored with the inputs. Only the staff quote
+endpoint passes them; the AI's read path (`sales_gateway.quote_package`) cannot.
 """
 from __future__ import annotations
 
@@ -34,6 +39,8 @@ from app.services import business_data_service as bds
 
 ONE = Decimal("1")
 CENT = Decimal("0.01")
+MAX_CUSTOM_LINES = 10
+MAX_CUSTOM_AMOUNT = Decimal("1000000")
 
 
 def _rupee(d: Decimal) -> Decimal:
@@ -49,6 +56,7 @@ class Line:
     label: str
     amount: Decimal
     detail: str = ""
+    custom: bool = False                          # added by staff, not from a published record
 
 
 @dataclass
@@ -90,7 +98,8 @@ class PackageQuote:
             return str(v) if isinstance(v, Decimal) else (v.isoformat() if isinstance(v, date) else v)
         return json.loads(json.dumps({
             "package_key": self.package_key, "package_name": self.package_name,
-            "lines": [{"label": l.label, "amount": l.amount, "detail": l.detail} for l in self.lines],
+            "lines": [{"label": l.label, "amount": l.amount, "detail": l.detail, "custom": l.custom} for l in self.lines],
+            "has_custom_lines": any(l.custom for l in self.lines),
             "subtotal": self.subtotal, "discount": self.discount, "taxable": self.taxable, "gst_percent": self.gst_percent,
             "gst": self.gst, "total": self.total, "advance_percent": self.advance_percent, "advance": self.advance,
             "currency": self.currency, "valid_until": self.valid_until, "inputs": self.inputs, "record_refs": self.record_refs,
@@ -100,6 +109,28 @@ class PackageQuote:
 
 def _refuse(code: str, message: str, **kw) -> PackageQuote:
     return PackageQuote(status="refused", reason=code, message=message, **kw)
+
+
+def _clean_custom_lines(custom_lines: Optional[list[dict]]) -> tuple[list[dict], Optional[str]]:
+    """[{label, amount, reason}] -> normalised list, or an error message. Amounts are exact to two places and must be positive."""
+    out = []
+    for raw in custom_lines or []:
+        label = str(raw.get("label") or "").strip()
+        reason = str(raw.get("reason") or "").strip()
+        try:
+            amount = _money(Decimal(str(raw.get("amount"))))
+        except Exception:
+            return [], f"Custom line '{label or '?'}' has no valid amount."
+        if not label or len(label) > 80:
+            return [], "Every custom line needs a label of at most 80 characters."
+        if len(reason) > 200:
+            return [], f"The reason on '{label}' is longer than 200 characters."
+        if amount <= 0 or amount > MAX_CUSTOM_AMOUNT:
+            return [], f"Custom line '{label}' must be more than 0 and at most {MAX_CUSTOM_AMOUNT}; reductions go through the discount policy."
+        out.append({"label": label, "amount": str(amount), "reason": reason})
+    if len(out) > MAX_CUSTOM_LINES:
+        return [], f"At most {MAX_CUSTOM_LINES} custom lines."
+    return out, None
 
 
 def _rate_applies(rate, d: date, nights: int) -> bool:
@@ -161,15 +192,18 @@ def evaluate_discount(pol, percent: Decimal, base_total: Decimal) -> dict:
 def quote(
     db: Session, tenant_id: str, package_key: str, check_in: date, check_out: date, adults: int, children: int = 0,
     planned_km: Optional[Decimal] = None, extras: Optional[list[dict]] = None, discount_percent: Optional[Decimal] = None,
-    vehicle_property_id: Optional[str] = None, as_of: Optional[date] = None,
+    vehicle_property_id: Optional[str] = None, as_of: Optional[date] = None, custom_lines: Optional[list[dict]] = None,
 ) -> PackageQuote:
     today = as_of or bds.tenant_today(db, tenant_id)
+    custom, custom_error = _clean_custom_lines(custom_lines)
     inputs = {
         "package_key": package_key, "check_in": check_in.isoformat(), "check_out": check_out.isoformat(), "adults": adults,
         "children": children, "planned_km": str(planned_km) if planned_km is not None else None,
         "extras": sorted(({"name": e.get("name"), "quantity": int(e.get("quantity", 1))} for e in (extras or [])), key=lambda e: str(e["name"])),
         "discount_percent": str(discount_percent) if discount_percent is not None else None, "vehicle_property_id": vehicle_property_id,
     }
+    if custom:
+        inputs["custom_lines"] = custom                  # only present when used, so existing quotes keep their params_hash
 
     rec = bds.get_effective(db, tenant_id, "package", package_key, today)
     if rec is None:
@@ -196,6 +230,8 @@ def quote(
         return _refuse("above_max_nights", f"This package allows at most {pkg.max_nights} night(s); {nights} requested.", **base)
     if vehicle_property_id and pkg.vehicle_property_ids and vehicle_property_id not in pkg.vehicle_property_ids:
         return _refuse("vehicle_not_in_package", "That vehicle is not part of this package.", **base)
+    if custom_error:
+        return _refuse("invalid_custom_line", custom_error, **base)
 
     # ── base price ────────────────────────────────────────────────────────────────────────────────────────
     lines: list[Line] = []
@@ -250,6 +286,8 @@ def quote(
             continue
         mult = {"per_stay": 1, "per_night": billable_nights, "per_person": guests, "per_unit": wanted.get(c.name, 1)}[c.unit]
         lines.append(Line(c.name, c.amount * mult, f"{mult} x {c.amount} ({c.unit.replace('_', ' ')})"))
+    for c in custom:
+        lines.append(Line(c["label"], Decimal(c["amount"]), c["reason"] or "custom line added by staff", custom=True))
 
     subtotal = _money(sum((l.amount for l in lines), Decimal("0")))
 

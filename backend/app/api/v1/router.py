@@ -13,6 +13,7 @@ from app.api.v1.endpoints import (
     grievance, incidents, health, changelog, sample_data, admin_dlq,
     calculator, calendar, bookings,
     leads,
+    lead_quotes,
     pipeline_stages,
     lead_fields,
     automations,
@@ -64,6 +65,7 @@ api_router.include_router(calls.router)
 
 # Leads360 — unified sales pipeline
 api_router.include_router(leads.router)
+api_router.include_router(lead_quotes.router)
 
 # Intelligence
 api_router.include_router(qa.router)
