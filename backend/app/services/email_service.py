@@ -333,3 +333,25 @@ async def send_password_reset_email(*, to_email: str, name: str, reset_link: str
     </div>
     """
     return await _send(to=to_email, subject=subject, html=html)
+
+
+async def send_platform_lead_email(*, to_email: str, kind_label: str, name: str, company: str | None,
+                                   phone: str | None, email: str | None, link: str) -> bool:
+    """A visitor filled in a form on HAIP's own website (platform_lead_service.notify). Goes to the owners of HAIP's
+    sales workspace only. Every visitor-typed value is escaped."""
+    rows = [("Name", name), ("Company", company), ("Phone", phone), ("Email", email)]
+    cells = "".join(
+        f'<tr><td style="padding:4px 12px 4px 0;color:#6b7280;">{_escape(k)}</td>'
+        f'<td style="padding:4px 0;color:#1a1a2e;font-weight:600;">{_escape(v)}</td></tr>'
+        for k, v in rows if v
+    )
+    subject = f"New website lead: {kind_label}"
+    html = f"""
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; color: #1a1a2e;">
+      <h1 style="font-size: 20px; font-weight: 700; margin-bottom: 8px;">{_escape(kind_label)} from the HAIP website</h1>
+      <p style="color: #6b7280; font-size: 14px; line-height: 1.6;">It is already a lead in Leads360. Reply within 2 working hours, as the site promises.</p>
+      <table style="font-size: 14px; margin: 16px 0;">{cells}</table>
+      <a href="{_escape(link)}" style="display:inline-block;background:#1E7A5A;color:white;text-decoration:none;font-weight:700;font-size:14px;padding:12px 24px;border-radius:12px;">Open the lead &rarr;</a>
+    </div>
+    """
+    return await _send(to=to_email, subject=subject, html=html)

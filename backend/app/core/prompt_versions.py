@@ -133,6 +133,8 @@ PROMPT_VERSIONS: dict[str, str] = {
     "daily_briefing": "daily-briefing-v2",
     # Lead autopilot AI classifier (lead_autopilot_ai.py): stage decision + lost reason + confidence + evidence refs.
     "lead_autopilot_classify": "lead-autopilot-classify-v1",
+    # Public property assessment: plain-language write-up of numbers the engine computed (assessment_narrative.py).
+    "assessment_narrative": "assessment-narrative-v1",
 }
 
 UNKNOWN = "unregistered"
