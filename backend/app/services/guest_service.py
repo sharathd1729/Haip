@@ -180,6 +180,11 @@ def dpdp_delete(db: Session, tenant_id: str, guest_id: str) -> dict:
     if stay_ids:
         for model in (StayAddOn, StayPayment, StayPaymentLink, StayInstalment, StayDeposit, StayServiceRequest):
             db.query(model).filter(model.tenant_id == tenant_id, model.stay_id.in_(stay_ids)).delete(synchronize_session=False)
+        # Issued invoices are tax records the business must keep (GST: 72 months), so they are detached from the
+        # booking, not deleted. They keep the buyer snapshot taken at issue time. Owner/legal to confirm (CLAUDE.md).
+        from app.models.invoice import Invoice
+        db.query(Invoice).filter(Invoice.tenant_id == tenant_id, Invoice.stay_id.in_(stay_ids)).update(
+            {Invoice.stay_id: None}, synchronize_session=False)
     db.query(Stay).filter_by(tenant_id=tenant_id, guest_id=guest_id).delete()
     db.query(Consent).filter_by(tenant_id=tenant_id, guest_id=guest_id).delete()
 

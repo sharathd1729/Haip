@@ -6,27 +6,24 @@
   DELETE /bookings/{id}/addons/{line_id}
   POST   /bookings/{id}/payments             record a payment or refund
   DELETE /bookings/{id}/payments/{pay_id}    remove a mistaken entry (audited)
-  POST   /bookings/{id}/payment-links        Razorpay link for the guest to pay
+  POST   /bookings/{id}/payment-links        Razorpay link for the guest to pay (optionally sent on WhatsApp)
   POST   /bookings/{id}/dpdp-delete          start DPDP erasure for the guest
 """
 from __future__ import annotations
 
-import time
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload
 
-from app.adapters.payments import razorpay as rzp
+from app.adapters.payments import razorpay as rzp  # noqa: F401  (kept: tests patch rzp.create_payment_link via this path)
 from app.api.v1.deps import get_current_user, require_roles
 from app.services.authz_service import require_capability
 from app.core.audit import append_audit
 from app.core.database import get_db
-from app.core.encryption import decrypt_credentials
 from app.models.audit_event import AuditEvent
-from app.models.integration import Integration
 from app.models.property import PropertyAddOn, Stay
 from app.models.stay_finance import StayAddOn, StayDeposit, StayPayment, StayPaymentLink, StayServiceRequest
 from app.models.user import User, UserRole
@@ -299,52 +296,37 @@ def delete_payment(booking_id: str, payment_id: str,
 class PaymentLinkCreate(BaseModel):
     amount: Optional[float] = Field(None, gt=0, le=100_000_000)   # default: the outstanding balance
     expires_in_days: int = Field(3, ge=1, le=30)
-
-
-def razorpay_credentials(db: Session, tenant_id: str) -> Optional[dict]:
-    intg = db.query(Integration).filter_by(tenant_id=tenant_id, kind="razorpay", status="active").first()
-    if not intg or not intg.credentials_kms_blob:
-        return None
-    blob = bytes(intg.credentials_kms_blob) if isinstance(intg.credentials_kms_blob, memoryview) else intg.credentials_kms_blob
-    return decrypt_credentials(blob)
+    # Also send it to the guest with the approved ratha_balance_due_v1 template. When the template is not approved
+    # the link is still made and the response says why it was not sent (the page then offers Copy instead).
+    send_whatsapp: bool = False
 
 
 @router.post("/{booking_id}/payment-links", status_code=201)
 def create_payment_link(booking_id: str, body: PaymentLinkCreate, current_user: User = Depends(require_roles(*_EDIT)),
                         db: Session = Depends(get_db)):
+    from app.models.tenant import Tenant
+    from app.services import payment_link_service as pls
+    from app.services import wa_booking_messages
+
     stay = _get_stay(db, current_user, booking_id)
     tid = current_user.tenant_id
-    creds = razorpay_credentials(db, tid)
-    if not creds:
-        raise HTTPException(status_code=422, detail="Razorpay is not connected. Add your keys in Settings > Payments first.")
-    outstanding = bsvc.financials_for(db, tid, [stay])[stay.id]["outstanding"]
-    amount = body.amount if body.amount is not None else outstanding
-    if amount <= 0:
-        raise HTTPException(status_code=422, detail="Nothing is outstanding on this booking.")
-    guest, prop = stay.guest, stay.property
-    expires = datetime.now(timezone.utc) + timedelta(days=body.expires_in_days)
-    phone = guest.phone if guest and guest.phone and not guest.phone.startswith("DELETED_") else None
+    fin = bsvc.financials_for(db, tid, [stay])[stay.id]
+    amount = body.amount if body.amount is not None else fin["outstanding"]
     try:
-        res = rzp.create_payment_link(
-            creds["key_id"], creds["key_secret"], amount_inr=amount,
-            description=f"{prop.name if prop else 'Stay'}, {stay.check_in:%d %b} to {stay.check_out:%d %b %Y}",
-            reference_id=stay.id.replace("-", "")[:32],
-            customer_name=guest.name if guest else None, customer_phone=phone,
-            customer_email=guest.email if guest else None,
-            expire_by=int(expires.timestamp()) if expires.timestamp() > time.time() + 900 else None,
-            notes={"haip_stay_id": stay.id, "haip_tenant_id": tid},
-        )
-    except rzp.RazorpayError as exc:
-        raise HTTPException(status_code=502, detail=str(exc))
-    link = StayPaymentLink(tenant_id=tid, stay_id=stay.id, provider="razorpay", external_id=res["id"],
-                           short_url=res["short_url"], amount=amount, status="created", expires_at=expires,
-                           created_by=current_user.id)
-    db.add(link)
-    db.flush()
-    append_audit(db, tenant_id=tid, actor_user_id=current_user.id, action="booking.payment_link_created",
-                 target_type="booking", target_id=stay.id, payload={"amount": amount, "link_id": res["id"]})
+        link = pls.create_booking_link(db, tid, stay, amount, expires_in_days=body.expires_in_days, created_by=current_user.id)
+    except pls.PaymentLinkError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc))
     db.commit()
-    return _link_out(link)
+    out = _link_out(link)
+    if body.send_whatsapp:
+        tenant = db.query(Tenant).filter_by(id=tid).first()
+        due = bsvc.next_due(bsvc.schedules_for(db, tid, {stay.id: fin}).get(stay.id, []))
+        due_date = date.fromisoformat(due["due_date"]) if due else stay.check_in
+        res = wa_booking_messages.send_balance_due(db, tenant, stay, link, amount, max(due_date, date.today()),
+                                                   event=f"link:{link.id[:16]}", actor_user_id=current_user.id,
+                                                   sender_name=current_user.name or "HAIP")
+        out["whatsapp"] = {"status": res["status"], "reason": res["reason"]}
+    return out
 
 
 # ── DPDP ─────────────────────────────────────────────────────────────────────

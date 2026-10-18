@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     auth, calls, workspace_context,
     tenants, users, guests, inquiries, conversations, properties,
-    qa, integrations, ical_feeds, api_keys, meta_ads, webhook_endpoints, booking_detail, booking_extras, payments_razorpay, analytics, analytics_executive, instagram_insights, audit, sse, messaging, messaging_campaign_reports, reports, saved_replies, saved_views,
+    qa, integrations, ical_feeds, api_keys, meta_ads, webhook_endpoints, booking_detail, booking_extras, invoices, payments_razorpay, analytics, analytics_executive, instagram_insights, audit, sse, messaging, messaging_campaign_reports, reports, saved_replies, saved_views,
     webhooks_callerdesk, webhooks_acefone, webhooks_mcube, webhooks_whatsapp, webhooks_instagram,
     webhooks_dograh, webhooks_vobiz, webhooks_whatsapp_personal,
     whatsapp_personal,
@@ -62,6 +62,7 @@ api_router.include_router(calendar.router)
 api_router.include_router(bookings.router)
 api_router.include_router(booking_detail.router)
 api_router.include_router(booking_extras.router)
+api_router.include_router(invoices.router)
 api_router.include_router(calls.router)
 
 # Leads360 — unified sales pipeline

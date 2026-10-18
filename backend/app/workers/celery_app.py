@@ -66,6 +66,8 @@ celery_app = Celery(
         "app.workers.tasks.ical_sync",
         # Public API: signed webhook deliveries + retries
         "app.workers.tasks.webhook_delivery",
+        # Booking payments: invoices/receipts, WhatsApp confirmations, balance reminders
+        "app.workers.tasks.invoice_tasks",
         # WhatsApp: campaign runner + template status sync
         "app.workers.tasks.run_campaign",
         "app.workers.tasks.campaign_scheduler",
@@ -251,6 +253,11 @@ celery_app.conf.update(
         "concierge.recover_missed_replies_all_tenants":  {"queue": "whatsapp"},
         "tasks.daily_briefing.generate":              {"queue": "ai_scoring"},
         "backfill_missing_instagram_inquiries":       {"queue": "ai_scoring"},
+        # Booking payments (invoice_tasks.py): same queue as the template send they trigger.
+        "invoices.after_payment":                     {"queue": "whatsapp"},
+        "invoices.render_pdf":                        {"queue": "whatsapp"},
+        "payments.notify_staff":                      {"queue": "whatsapp"},
+        "payments.balance_reminders":                 {"queue": "whatsapp"},
     },
 )
 
@@ -286,6 +293,11 @@ celery_app.conf.beat_schedule = {
     "webhooks-retry-due-1min": {
         "task": "webhooks.retry_due",
         "schedule": crontab(minute="*"),
+    },
+    # Balance reminders (opt-in per tenant: brand_config.payments.auto_balance_reminder). 09:35 IST, clear of :30/:40.
+    "payments-balance-reminders-daily": {
+        "task": "payments.balance_reminders",
+        "schedule": crontab(hour=9, minute=35),
     },
     "webhooks-purge-old-daily": {
         "task": "webhooks.purge_old",

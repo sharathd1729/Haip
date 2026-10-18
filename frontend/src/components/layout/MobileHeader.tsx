@@ -50,6 +50,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "channel-manager": "Channel manager",
   developers:   "Developers",
   "instagram-insights": "Instagram insights",
+  invoices:     "Invoice details",
   ivr:          "Call routing",
   knowledge:    "AI knowledge base",
   "lead-assignment": "Lead assignment",

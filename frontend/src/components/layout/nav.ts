@@ -76,6 +76,7 @@ export const NAV_SECTIONS: NavSection[] = [
     { label: "Lead assignment", href: "/dashboard/settings/lead-assignment", icon: Shuffle, resource: "settings" },
     { label: "Calendar sync", href: "/dashboard/settings/calendar-sync", icon: Calendar, resource: "settings" },
     { label: "Payments", href: "/dashboard/settings/payments", icon: CreditCard, resource: "settings" },
+    { label: "Invoice details", href: "/dashboard/settings/invoices", icon: FileText, resource: "settings", onlyRoles: ["owner", "manager"] },
     { label: "Developers", href: "/dashboard/settings/developers", icon: Key, resource: "settings" },
     { label: "Branding", href: "/dashboard/settings/branding", icon: Palette, resource: "branding" },
     { label: "Billing", href: "/dashboard/billing", icon: CreditCard, resource: "billing" },

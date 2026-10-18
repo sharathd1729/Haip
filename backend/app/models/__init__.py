@@ -29,6 +29,7 @@ from app.models.ical_feed import ICalEventBooking, ICalEventDetail, ICalFeed, IC
 from app.models.api_key import ApiKey
 from app.models.webhook import WebhookDelivery, WebhookEndpoint
 from app.models.stay_finance import StayAddOn, StayPayment, StayPaymentLink, StayInstalment, StayDeposit, StayServiceRequest
+from app.models.invoice import Invoice, InvoiceSequence
 from app.models.flow_execution import FlowPendingExecution, WAFlowRun
 from app.models.mcp_token import PersonalAccessToken
 from app.models.capability import Capability, RoleCapability

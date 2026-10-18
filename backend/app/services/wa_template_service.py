@@ -5,10 +5,12 @@ send-payload construction, and header-media upload to Meta.
 Kept separate from api/v1/endpoints/messaging.py so the rules can be tested
 without HTTP and reused by the campaign runner.
 
-Scope (templates step 1): TEXT / IMAGE / VIDEO / DOCUMENT headers, a body with
-{{n}} variables, a footer, and up to 10 buttons of type QUICK_REPLY, URL
-(static) and PHONE_NUMBER. Carousel, COPY_CODE, dynamic-URL buttons and
-LTO/catalog templates are not supported yet.
+Scope: TEXT / IMAGE / VIDEO / DOCUMENT headers, a body with {{n}} variables, a
+footer, and up to 10 buttons of type QUICK_REPLY, URL and PHONE_NUMBER. A URL
+button may end in one {{1}} (a dynamic suffix, e.g. "https://rzp.io/{{1}}" for
+a Razorpay link) with an example URL; the suffix is passed per send. A send may
+also override a DOCUMENT header with its own file (e.g. this guest's invoice).
+Carousel, COPY_CODE and LTO/catalog templates are not supported yet.
 """
 
 from __future__ import annotations
@@ -162,7 +164,13 @@ def validate_components(components: list) -> list[str]:
                     if not url.lower().startswith("https://"):
                         errors.append("A URL button needs a link starting with https://.")
                     if variable_indices(url):
-                        errors.append("Links with variables are not supported yet.")
+                        if not url.endswith("{{1}}") or variable_indices(url) != [1] or url.count("{{") != 1:
+                            errors.append("A link can only have one variable, {{1}}, at the very end.")
+                        else:
+                            example = b.get("example") or []
+                            sample = str(example[0] if isinstance(example, list) and example else example or "")
+                            if not sample.lower().startswith(url[:-5].lower()) or len(sample) <= len(url) - 5:
+                                errors.append("A link with {{1}} needs an example: the full link with a sample ending.")
                 elif btype == "PHONE_NUMBER":
                     counts["PHONE_NUMBER"] += 1
                     phone = (b.get("phone_number") or "").strip()
@@ -211,14 +219,21 @@ def build_send_components(
     variable_map: Optional[dict],
     recipient: Any,
     header_media_link: Optional[str] = None,
+    header_document_filename: Optional[str] = None,
+    button_params: Optional[dict[int, str]] = None,
 ) -> list[dict]:
     """Components array for Meta's send-template call: header media and
     every {{n}} variable filled in for this recipient.
+
+    ``header_document_filename`` names a DOCUMENT header file as the guest sees
+    it ("Invoice INV-2026-27-0001.pdf"). ``button_params`` maps a button's
+    position to the text that fills its URL's {{1}}.
 
     Raises TemplateError when a value cannot be resolved (Meta rejects an
     empty parameter), so the caller can count that recipient as failed with a
     reason instead of sending a broken message."""
     variable_map = variable_map or {}
+    button_params = button_params or {}
     out: list[dict] = []
 
     for comp in components or []:
@@ -230,12 +245,25 @@ def build_send_components(
                 if not header_media_link:
                     raise TemplateError(f"This template has a {fmt.lower()} header but no file is attached.")
                 key = fmt.lower()
-                out.append({"type": "header", "parameters": [{"type": key, key: {"link": header_media_link}}]})
+                media: dict = {"link": header_media_link}
+                if fmt == "DOCUMENT" and header_document_filename:
+                    media["filename"] = header_document_filename[:240]
+                out.append({"type": "header", "parameters": [{"type": key, key: media}]})
             elif variable_indices(comp.get("text")):
                 out.append({"type": "header", "parameters": _text_params(comp, "header", variable_map, recipient)})
 
         elif ctype == "BODY" and variable_indices(comp.get("text")):
             out.append({"type": "body", "parameters": _text_params(comp, "body", variable_map, recipient)})
+
+        elif ctype == "BUTTONS":
+            for index, b in enumerate(comp.get("buttons") or []):
+                if (b.get("type") or "").upper() != "URL" or not variable_indices(b.get("url")):
+                    continue
+                suffix = str(button_params.get(index) or "").strip()
+                if not suffix:
+                    raise TemplateError(f"The '{b.get('text') or 'link'}' button needs the end of its link for this message.")
+                out.append({"type": "button", "sub_type": "url", "index": str(index),
+                            "parameters": [{"type": "text", "text": suffix}]})
 
     return out
 
