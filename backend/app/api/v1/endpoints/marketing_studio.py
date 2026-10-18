@@ -405,20 +405,30 @@ def usage(days: int = Query(30, ge=1, le=366), user: User = Depends(get_current_
 # ── AI images (opt-in) ──────────────────────────────────────────────────────────────────────────────────────────────
 
 class StudioSettings(BaseModel):
-    ai_images_enabled: bool
+    ai_images_enabled: Optional[bool] = None
+    ai_images_monthly_cap: Optional[int] = Field(default=None, ge=0, le=images.MAX_MONTHLY_CAP)
+
+
+def _settings_out(db: Session, tenant: Tenant) -> dict:
+    return {"ai_images_enabled": images.ai_images_enabled(tenant), "ai_images_monthly_cap": images.monthly_cap(tenant),
+            "ai_images_used_this_month": images.used_this_month(db, tenant), "default_model": images.image_adapter.DEFAULT_MODEL}
 
 
 @router.get("/settings")
 def get_settings(user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
-    return {"ai_images_enabled": images.ai_images_enabled(_tenant(db, user))}
+    return _settings_out(db, _tenant(db, user))
 
 
 @router.put("/settings")
 def put_settings(body: StudioSettings, user: User = Depends(get_current_user), db: Session = Depends(get_db),
                  _m=_module, _c=_owner_settings):
-    enabled = images.set_ai_images(db, _tenant(db, user), body.ai_images_enabled, user.id)
+    tenant = _tenant(db, user)
+    if body.ai_images_enabled is not None:
+        images.set_ai_images(db, tenant, body.ai_images_enabled, user.id)
+    if body.ai_images_monthly_cap is not None:
+        _run(images.set_monthly_cap, db, tenant, body.ai_images_monthly_cap, user.id)
     db.commit()
-    return {"ai_images_enabled": enabled}
+    return _settings_out(db, tenant)
 
 
 @router.get("/image-models")
@@ -428,7 +438,7 @@ def image_models(_m=_module, _c=_read):
 
 class ImageRequest(BaseModel):
     prompt: str = Field(min_length=3, max_length=images.PROMPT_MAX)
-    model: str = "flux.1-schnell"
+    model: str = "gemini-3.1-flash-lite-image"
     shape: str = "portrait"
     seed: Optional[int] = Field(default=None, ge=0, le=2**31 - 1)
 

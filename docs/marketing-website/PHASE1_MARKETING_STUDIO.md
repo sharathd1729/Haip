@@ -72,6 +72,17 @@ AI images are opt-in and approval-gated. NVIDIA's hosted catalog is called on th
 5. **Review.** `POST /marketing/studio/media/{id}/approve|reject` needs `marketing.approve`. Nobody but the owner may approve an image they requested. Approve sets the image `active`; reject sets it `archived`.
 6. **Gate.** Every content version is checked: each `asset_id` it references must belong to this tenant and be `active`. Otherwise it gets 422 `asset_not_usable`.
 
+**Gemini (default since 18 Oct 2026, owner decision).** NVIDIA's hosted FLUX endpoint never answered, so `gemini-3.1-flash-lite-image` is now the default model (`adapters/image/gemini.py`, existing `GEMINI_API_KEY`).
+- **Cost** (ai.google.dev/gemini-api/docs/pricing, 18 Oct 2026):
+  - Rates: input $0.25 / 1M tokens, image output $30 / 1M, text output $1.50 / 1M.
+  - A 1K image is 1,120 tokens. The real run cost **$0.0343 (about ₹3)** and took 11.5s.
+  - There is no free tier for image models.
+  - Each image's estimate is stored in `usage_events.meta.est_cost_usd`.
+- **Cap:** each workspace gets 50 images a month by default (about ₹150). The owner changes it with `PUT /settings {ai_images_monthly_cap}` (0–1000). It is counted per calendar month in the workspace timezone, and failed jobs don't count. Two simultaneous requests can overshoot it by one.
+- **Billing:** images stop if the Gemini billing balance runs out. The concierge had this outage on 2026-09-27. Keep a prepaid balance or a budget alert.
+- **Watermark:** Gemini images carry an invisible SynthID watermark.
+- **Accuracy:** the generated caravan is a generic van, not Ratha's. Approval is the safeguard against posting misleading pictures of the product.
+
 **Caveats:**
 - **NVIDIA API Trial Terms.** These govern the hosted catalog. Check them, and NVIDIA AI Enterprise, before production use. This applies to the existing LLM routes too.
 - **Live reliability.** On 18 Oct 2026 two real FLUX.1-schnell generations did not answer within 300s, and even a validation error took 35s. A real image has **not yet been produced end to end**.

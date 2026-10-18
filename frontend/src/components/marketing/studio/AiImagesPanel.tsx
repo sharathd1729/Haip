@@ -20,10 +20,11 @@ export function AiImagesPanel() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [prompt, setPrompt] = useState("");
-  const [model, setModel] = useState("flux.1-schnell");
+  const [model, setModel] = useState("gemini-3.1-flash-lite-image");
+  const [capDraft, setCapDraft] = useState<string | null>(null);
   const [shape, setShape] = useState("portrait");
 
-  const settings = useQuery<{ ai_images_enabled: boolean }>({ queryKey: ["studio-settings"], queryFn: () => api.get(`${STUDIO}/settings`).then(r => r.data) });
+  const settings = useQuery<{ ai_images_enabled: boolean; ai_images_monthly_cap: number; ai_images_used_this_month: number; default_model: string }>({ queryKey: ["studio-settings"], queryFn: () => api.get(`${STUDIO}/settings`).then(r => r.data) });
   const models = useQuery<ImageModel[]>({ queryKey: ["studio-image-models"], queryFn: () => api.get(`${STUDIO}/image-models`).then(r => r.data) });
   const jobs = useQuery<ImageJob[]>({
     queryKey: ["studio-image-jobs"], enabled: !!settings.data?.ai_images_enabled,
@@ -31,13 +32,13 @@ export function AiImagesPanel() {
     refetchInterval: q => (q.state.data?.some(j => j.status === "pending") ? 5000 : false),
   });
   const toggle = useMutation({
-    mutationFn: (on: boolean) => api.put(`${STUDIO}/settings`, { ai_images_enabled: on }),
-    onSuccess: r => qc.setQueryData(["studio-settings"], r.data),
+    mutationFn: (patch: { ai_images_enabled?: boolean; ai_images_monthly_cap?: number }) => api.put(`${STUDIO}/settings`, patch),
+    onSuccess: r => { qc.setQueryData(["studio-settings"], r.data); setCapDraft(null); },
     onError: e => toast({ variant: "error", title: "Not changed", description: studioError(e, "Try again.") }),
   });
   const create = useMutation({
     mutationFn: () => api.post(`${STUDIO}/images`, { prompt, model, shape }),
-    onSuccess: () => { setPrompt(""); qc.invalidateQueries({ queryKey: ["studio-image-jobs"] }); },
+    onSuccess: () => { setPrompt(""); qc.invalidateQueries({ queryKey: ["studio-image-jobs"] }); qc.invalidateQueries({ queryKey: ["studio-settings"] }); },
     onError: e => toast({ variant: "error", title: "Not started", description: studioError(e, "Try again.") }),
   });
 
@@ -55,12 +56,27 @@ export function AiImagesPanel() {
           <p className="text-xs text-[var(--haip-fg-subtle)]">Made by AI, not real photos. Each one needs approval before it can be used.</p>
         </div>
         {isOwner ? (
-          <button type="button" className={on ? btn : btnPrimary} disabled={toggle.isPending || settings.isLoading} onClick={() => toggle.mutate(!on)}>
+          <button type="button" className={on ? btn : btnPrimary} disabled={toggle.isPending || settings.isLoading} onClick={() => toggle.mutate({ ai_images_enabled: !on })}>
             {on ? "Switch off" : "Switch on"}
           </button>
         ) : !on && <span className="text-xs text-[var(--haip-fg-subtle)]">Off. The owner can switch it on.</span>}
       </div>
 
+      {on && settings.data && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-[var(--haip-fg-2)]">
+            Used <b>{settings.data.ai_images_used_this_month}</b> of <b>{settings.data.ai_images_monthly_cap}</b> images this month
+            <span className="text-xs text-[var(--haip-fg-subtle)]"> · about ₹3 each</span>
+          </span>
+          {isOwner && (
+            <form className="flex items-center gap-2" onSubmit={e => { e.preventDefault(); if (capDraft !== null) toggle.mutate({ ai_images_monthly_cap: Number(capDraft) }); }}>
+              <input type="number" min={0} max={1000} aria-label="Monthly cap" className={inputCls + " w-24"}
+                value={capDraft ?? String(settings.data.ai_images_monthly_cap)} onChange={e => setCapDraft(e.target.value)} />
+              {capDraft !== null && <button type="submit" className={btn} disabled={toggle.isPending}>Save cap</button>}
+            </form>
+          )}
+        </div>
+      )}
       {on && (
         <>
           <form className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end" onSubmit={e => { e.preventDefault(); if (prompt.trim().length >= 3) create.mutate(); }}>

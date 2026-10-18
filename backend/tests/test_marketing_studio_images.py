@@ -39,7 +39,8 @@ def test_blocked_or_unknown_models_cannot_be_used(key):
 
 def test_only_commercially_licensed_confirmed_models_are_enabled():
     enabled = {k for k, m in image_adapter.MODELS.items() if m.enabled}
-    assert enabled == {"flux.1-schnell"}
+    assert enabled == {"gemini-3.1-flash-lite-image", "flux.1-schnell"}
+    assert image_adapter.DEFAULT_MODEL == "gemini-3.1-flash-lite-image"
     assert "non-commercial" in image_adapter.MODELS["flux.1-dev"].licence
 
 
@@ -110,7 +111,7 @@ def test_off_by_default_and_only_owner_can_switch_on(client, ws):  # noqa: F811
     assert r.status_code == 403 and r.json()["detail"]["code"] == "ai_images_off"
     assert client.put(f"{BASE}/settings", json={"ai_images_enabled": True}, headers=ws["manager_h"]).status_code == 403
     r = client.put(f"{BASE}/settings", json={"ai_images_enabled": True}, headers=ws["owner_h"])
-    assert r.status_code == 200 and r.json() == {"ai_images_enabled": True}
+    assert r.status_code == 200 and r.json()["ai_images_enabled"] is True
 
 
 def test_request_validates_model_and_text_then_queues(client, ws, monkeypatch):  # noqa: F811
@@ -202,3 +203,105 @@ def test_reject_archives_and_api_review_needs_approve_capability(client, db, ws)
     assert client.post(f"{BASE}/media/{job.asset_id}/approve", json={}, headers=ws["mkt_h"]).status_code == 403
     r = client.post(f"{BASE}/media/{job.asset_id}/reject", json={"note": "Looks fake"}, headers=ws["manager_h"])
     assert r.status_code == 200 and r.json()["status"] == "archived"
+
+
+# ── Gemini adapter ──────────────────────────────────────────────────────────────────────────────────────────────────
+
+from app.adapters.image import gemini  # noqa: E402
+
+GEMINI_OK = {
+    "candidates": [{"finishReason": "STOP", "content": {"parts": [{"inlineData": {"mimeType": "image/png", "data": base64.b64encode(_png()).decode()}}]}}],
+    "usageMetadata": {"promptTokenCount": 32, "candidatesTokenCount": 1617,
+                      "candidatesTokensDetails": [{"modality": "IMAGE", "tokenCount": 1120}]},
+}
+
+
+@pytest.fixture()
+def gkey(monkeypatch):
+    monkeypatch.setattr("app.core.config.settings.GEMINI_API_KEY", "g-test")
+
+
+def test_gemini_success_sends_aspect_and_estimates_cost(gkey):
+    seen = {}
+
+    def handler(req: httpx.Request):
+        seen["url"], seen["key"], seen["body"] = str(req.url), req.headers.get("x-goog-api-key"), req.content
+        return httpx.Response(200, json=GEMINI_OK)
+
+    m = image_adapter.MODELS["gemini-3.1-flash-lite-image"]
+    raw, meta = gemini.generate(m, "misty road", "4:5", client=_client(handler))
+    assert raw.startswith(bytes([0x89]) + b"PNG")
+    assert seen["url"] == "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-image:generateContent"
+    assert seen["key"] == "g-test" and b'"aspectRatio":"4:5"' in seen["body"].replace(b" ", b"")
+    assert "key=" not in seen["url"]                                     # never in the URL
+    assert (meta["image_tokens"], meta["text_tokens"], meta["input_tokens"]) == (1120, 497, 32)
+    # 1120 * $30 + 497 * $1.50 + 32 * $0.25 per 1M tokens
+    assert meta["est_cost_usd"] == pytest.approx(0.0343535, abs=1e-6)
+
+
+@pytest.mark.parametrize("status,transient", [(429, True), (500, True), (400, False), (403, False)])
+def test_gemini_error_classes(gkey, status, transient):
+    m = image_adapter.MODELS["gemini-3.1-flash-lite-image"]
+    with pytest.raises(image_adapter.ImageGenError) as exc:
+        gemini.generate(m, "x", "1:1", client=_client(lambda r: httpx.Response(status, text="nope")))
+    assert exc.value.transient is transient
+
+
+@pytest.mark.parametrize("body", [
+    {"promptFeedback": {"blockReason": "SAFETY"}},
+    {"candidates": [{"finishReason": "IMAGE_SAFETY", "content": {"parts": []}}]},
+    {"candidates": [{"finishReason": "STOP", "content": {"parts": [{"text": "I can't draw that"}]}}]},
+])
+def test_gemini_refusals_are_permanent(gkey, body):
+    m = image_adapter.MODELS["gemini-3.1-flash-lite-image"]
+    with pytest.raises(image_adapter.ImageGenError) as exc:
+        gemini.generate(m, "x", "1:1", client=_client(lambda r: httpx.Response(200, json=body)))
+    assert exc.value.transient is False
+
+
+def test_gemini_timeout_is_transient(gkey):
+    def slow(_):
+        raise httpx.ConnectTimeout("slow")
+    with pytest.raises(image_adapter.ImageGenError) as exc:
+        gemini.generate(image_adapter.MODELS["gemini-3.1-flash-lite-image"], "x", "1:1", client=_client(slow))
+    assert exc.value.transient is True
+
+
+# ── Monthly cap ─────────────────────────────────────────────────────────────────────────────────────────────────────
+
+def test_monthly_cap_blocks_requests_and_failed_jobs_do_not_count(db, ws):  # noqa: F811
+    tenant = ws["tenant"]
+    images.set_ai_images(db, tenant, True, ws["owner"].id)
+    images.set_monthly_cap(db, tenant, 2, ws["owner"].id)
+    db.commit()
+    a = images.request_image(db, tenant, prompt="misty road one", model=image_adapter.DEFAULT_MODEL, shape="portrait", actor_id=ws["mkt"].id)
+    images.request_image(db, tenant, prompt="misty road two", model=image_adapter.DEFAULT_MODEL, shape="square", actor_id=ws["mkt"].id)
+    db.commit()
+    with pytest.raises(svc.MarketingError) as exc:
+        images.request_image(db, tenant, prompt="misty road three", model=image_adapter.DEFAULT_MODEL, shape="story", actor_id=ws["mkt"].id)
+    assert exc.value.code == "monthly_cap_reached" and exc.value.status == 429
+    a.status = "failed"
+    db.commit()
+    assert images.used_this_month(db, tenant) == 1
+    images.request_image(db, tenant, prompt="misty road three", model=image_adapter.DEFAULT_MODEL, shape="story", actor_id=ws["mkt"].id)
+
+
+def test_cap_settings_api_owner_only_and_bounded(client, ws):  # noqa: F811
+    r = client.get(f"{BASE}/settings", headers=ws["mkt_h"])
+    assert r.json()["ai_images_monthly_cap"] == images.DEFAULT_MONTHLY_CAP and r.json()["default_model"] == image_adapter.DEFAULT_MODEL
+    assert client.put(f"{BASE}/settings", json={"ai_images_monthly_cap": 10}, headers=ws["manager_h"]).status_code == 403
+    assert client.put(f"{BASE}/settings", json={"ai_images_monthly_cap": 5000}, headers=ws["owner_h"]).status_code == 422
+    r = client.put(f"{BASE}/settings", json={"ai_images_monthly_cap": 10}, headers=ws["owner_h"])
+    assert r.status_code == 200 and r.json()["ai_images_monthly_cap"] == 10 and r.json()["ai_images_enabled"] is False
+
+
+def test_generated_image_records_cost_in_usage(db, ws):  # noqa: F811
+    job = _job(db, ws, ws["mkt"])
+    job.model = image_adapter.DEFAULT_MODEL
+    db.commit()
+    meta = {"provider": "gemini", "input_tokens": 32, "image_tokens": 1120, "text_tokens": 497, "est_cost_usd": 0.034}
+    with _fake_store(), patch.object(image_adapter, "generate", return_value=(_png(), meta)):
+        images.run_image(db, ws["tenant"].id, job.id)
+    db.commit()
+    ev = db.query(UsageEvent).filter_by(tenant_id=ws["tenant"].id, kind="image_gen").one()
+    assert (ev.provider, ev.input_units, ev.output_units, ev.meta["est_cost_usd"]) == ("gemini", 32, 1617, 0.034)

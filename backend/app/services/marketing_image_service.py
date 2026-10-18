@@ -2,6 +2,9 @@
 
 Rules:
   * Off by default. Only an owner (settings.manage) switches it on: brand_config["marketing_studio"]["ai_images_enabled"].
+  * Monthly cap per workspace (brand_config["marketing_studio"]["ai_images_monthly_cap"], default DEFAULT_MONTHLY_CAP,
+    owner-set). Counted per calendar month in the workspace's timezone: requests that are pending or produced an image.
+    Failed jobs do not count. Two requests at the same instant can overshoot the cap by one.
   * Only models enabled in adapters/image (commercial licence + confirmed endpoint). FLUX.1-dev and SD 3.5 Large are blocked.
   * The prompt goes through the same price and banned-word checks as content, and a fixed suffix keeps text, logos and
     watermarks out of the image (text belongs in the template creative, where it is checked).
@@ -11,6 +14,7 @@ Rules:
 """
 from datetime import datetime, timezone
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 import structlog
 from sqlalchemy.orm import Session
@@ -33,11 +37,50 @@ log = structlog.get_logger()
 SETTINGS_KEY = "marketing_studio"
 PROMPT_SUFFIX = ", photographic, natural light, no text, no lettering, no logos, no watermark"
 PROMPT_MAX = 600
+DEFAULT_MONTHLY_CAP = 50          # about ₹150/month on Gemini Flash Lite Image at ~$0.034 per image
+MAX_MONTHLY_CAP = 1000
 
 
 def ai_images_enabled(tenant: Optional[Tenant]) -> bool:
     cfg = ((tenant.brand_config or {}).get(SETTINGS_KEY) or {}) if tenant is not None else {}
     return bool(isinstance(cfg, dict) and cfg.get("ai_images_enabled"))
+
+
+def monthly_cap(tenant: Optional[Tenant]) -> int:
+    cfg = ((tenant.brand_config or {}).get(SETTINGS_KEY) or {}) if tenant is not None else {}
+    value = cfg.get("ai_images_monthly_cap") if isinstance(cfg, dict) else None
+    return value if isinstance(value, int) and 0 <= value <= MAX_MONTHLY_CAP else DEFAULT_MONTHLY_CAP
+
+
+def _month_start_utc(tenant: Tenant) -> datetime:
+    try:
+        tz = ZoneInfo(tenant.timezone or "Asia/Kolkata")
+    except Exception:  # noqa: BLE001 -- an unknown zone name falls back to IST
+        tz = ZoneInfo("Asia/Kolkata")
+    local = datetime.now(tz)
+    return local.replace(day=1, hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+
+
+def used_this_month(db: Session, tenant: Tenant) -> int:
+    return (db.query(MarketingImageJob)
+            .filter(MarketingImageJob.tenant_id == tenant.id, MarketingImageJob.status.in_(("pending", "ready")),
+                    MarketingImageJob.created_at >= _month_start_utc(tenant))
+            .count())
+
+
+def set_monthly_cap(db: Session, tenant: Tenant, cap: int, actor_id: str) -> int:
+    if not 0 <= cap <= MAX_MONTHLY_CAP:
+        raise MarketingError(422, "bad_cap", f"The monthly cap must be between 0 and {MAX_MONTHLY_CAP}.")
+    cfg = dict(tenant.brand_config or {})
+    section = dict(cfg.get(SETTINGS_KEY) or {})
+    before = monthly_cap(tenant)
+    section["ai_images_monthly_cap"] = cap
+    cfg[SETTINGS_KEY] = section
+    tenant.brand_config = cfg
+    flag_modified(tenant, "brand_config")
+    append_audit(db, tenant_id=tenant.id, action="marketing.ai_images.cap_changed", actor_user_id=actor_id,
+                 target_type="tenant", target_id=tenant.id, payload={"before": before, "after": cap})
+    return cap
 
 
 def set_ai_images(db: Session, tenant: Tenant, enabled: bool, actor_id: str) -> bool:
@@ -74,6 +117,10 @@ def request_image(db: Session, tenant: Tenant, *, prompt: str, model: str, shape
     problems = content_svc.check_text(db, tenant.id, {"prompt": prompt})
     if problems:
         raise MarketingError(422, "content_not_allowed", "The description breaks a workspace rule.", problems)
+    cap, used = monthly_cap(tenant), used_this_month(db, tenant)
+    if used >= cap:
+        raise MarketingError(429, "monthly_cap_reached",
+                             f"This workspace has used {used} of its {cap} AI images this month. The owner can raise the cap.")
     job = MarketingImageJob(tenant_id=tenant.id, prompt=prompt, model=m.key, shape=shape, seed=seed, status="pending",
                             created_by=actor_id)
     db.add(job)
@@ -111,7 +158,10 @@ def run_image(db: Session, tenant_id: str, job_id: str) -> MarketingImageJob:
         job.status, job.error = "failed", exc.message
         return job
     usage_service.record(db, tenant_id, module="marketing_studio", kind="image_gen", units=1, provider=meta.get("provider"),
-                         model=m.key, ref_type="media_asset", ref_id=asset.id)
+                         model=m.key, input_units=meta.get("input_tokens"),
+                         output_units=(meta.get("image_tokens") or 0) + (meta.get("text_tokens") or 0) or None,
+                         ref_type="media_asset", ref_id=asset.id,
+                         meta={"est_cost_usd": meta.get("est_cost_usd"), "image_tokens": meta.get("image_tokens")})
     job.status, job.asset_id, job.error = "ready", asset.id, None
     return job
 
