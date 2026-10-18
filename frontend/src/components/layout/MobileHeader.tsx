@@ -54,6 +54,7 @@ const ROUTE_LABELS: Record<string, string> = {
   ivr:          "Call routing",
   knowledge:    "AI knowledge base",
   "lead-assignment": "Lead assignment",
+  "platform-leads": "Website leads",
   "leads-activity": "Lead activity",
   "mcp-access": "AI assistants",
   "meta-quality": "Meta quality",

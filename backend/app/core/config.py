@@ -144,6 +144,13 @@ class Settings(BaseSettings):
     VAPID_PUBLIC_KEY: str = ""
     VAPID_EMAIL: str = "notifications@haip.app"
 
+    # HAIP's own website leads (book-demo, contact, property assessment). Every lead is stored in the platform-level
+    # platform_leads table; when this names a workspace (tenant slug), the lead also becomes a Leads360 inquiry there
+    # and that workspace's owners are notified. Empty = stored only (logged as platform_lead_unrouted).
+    PLATFORM_LEADS_TENANT_SLUG: str = ""
+    # Optional AI write-up of a property assessment (Celery, router task "assessment_narrative").
+    ASSESSMENT_NARRATIVE_ENABLED: bool = True
+
     # Dograh Voice AI
     DOGRAH_WEBHOOK_SECRET: str = ""     # Global fallback — always prefer per-tenant secret
     DOGRAH_SERVER_URL: str = ""

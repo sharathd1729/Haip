@@ -26,6 +26,7 @@ from app.api.v1.endpoints import (
     targets,
     work_queue,
     lead_activity,
+    public_leads,
 )
 
 api_router = APIRouter(prefix="/api/v1")
@@ -91,6 +92,8 @@ api_router.include_router(sse.router)
 
 # Compliance
 api_router.include_router(grievance.router)
+# HAIP's own website leads (public intake + sales-workspace list)
+api_router.include_router(public_leads.router)
 api_router.include_router(incidents.router)
 
 # Health / status bar (X8)

@@ -8,6 +8,8 @@ Default limits:
   Unauthenticated routes:  60 req/min per IP
   Send endpoints:          30 req/min per tenant
   MCP endpoint:           120 req/min per PAT (fail-open on Redis outage)
+  Public website forms:    10 req/min per IP for lead POSTs, 30/min for the rest of /api/v1/public/
+                           (fail-open: platform_lead_service also counts per visitor in the database)
 
 Implementation: Redis sliding-window counter (INCR + EXPIRE).
 Returns 429 with Retry-After header when limit exceeded.
@@ -50,6 +52,13 @@ _STRICT_PREFIXES = (
     "/api/v1/auth/forgot-password",
     "/api/v1/auth/reset-password",
 )
+
+# HAIP's own public website (no login): lead forms + the property assessment. Fail-OPEN on a Redis outage so a
+# visitor's lead is not lost; the per-visitor hourly count in platform_lead_service holds without Redis.
+_PUBLIC_SITE_PREFIX = "/api/v1/public/"
+_PUBLIC_LEAD_PATHS = ("/api/v1/public/leads", "/api/v1/public/assessment/report")
+_PUBLIC_LEAD_LIMIT: Tuple[int, int] = (10, 60)    # 10/min per IP: lead POSTs
+_PUBLIC_SITE_LIMIT: Tuple[int, int] = (30, 60)    # 30/min per IP: estimates, report reads
 
 # Routes with tighter per-tenant send limits
 _SEND_PREFIXES = (
@@ -185,6 +194,18 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     if not allowed:
                         log.warning("rate_limit_exceeded", path=path, key=key)
                         return _rate_limit_response(retry_after)
+            return await call_next(request)
+
+        # ── HAIP public website forms: per-IP, fail-open (DB backstop) ────────
+        if path.startswith(_PUBLIC_SITE_PREFIX):
+            if r is not None:
+                is_lead = request.method == "POST" and path.startswith(_PUBLIC_LEAD_PATHS)
+                limit, window = _PUBLIC_LEAD_LIMIT if is_lead else _PUBLIC_SITE_LIMIT
+                key = f"rl:ip:{ip}:public:{'lead' if is_lead else 'site'}"
+                allowed, retry_after = _check_limit(r, key, limit, window, strict=False)
+                if not allowed:
+                    log.warning("rate_limit_exceeded", path=path, tier="public_site")
+                    return _rate_limit_response(retry_after)
             return await call_next(request)
 
         if r is None:
