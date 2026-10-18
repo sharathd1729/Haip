@@ -90,7 +90,7 @@ def activate_module(
     if current_user.role not in ("owner",):
         raise HTTPException(status_code=403, detail="owner_required")
     from app.workers.tasks.module_activation import activate
-    activate.delay(workspace_id=current_user.tenant_id, module_code=module_code, actor_id=current_user.id)
+    activate.delay(workspace_id=current_user.tenant_id, module_code=module_code, activated_by=current_user.id)
     return {"module_code": module_code, "status": "activation_queued"}
 
 
@@ -104,7 +104,7 @@ def deactivate_module(
     if current_user.role not in ("owner",):
         raise HTTPException(status_code=403, detail="owner_required")
     from app.workers.tasks.module_activation import deactivate
-    deactivate.delay(workspace_id=current_user.tenant_id, module_code=module_code, actor_id=current_user.id)
+    deactivate.delay(workspace_id=current_user.tenant_id, module_code=module_code, deactivated_by=current_user.id)
     return {"module_code": module_code, "status": "deactivation_queued"}
 
 
