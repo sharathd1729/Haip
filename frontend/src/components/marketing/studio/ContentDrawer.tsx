@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Drawer, StatusPill, Timeline, type TimelineEntry } from "@/components/ui/kit";
 import { PayloadForm, emptyPayload } from "./PayloadForm";
+import { PublishPanel } from "./PublishPanel";
 import { KIND_LABEL, STATUS, STUDIO, btn, btnPrimary, inputCls, studioError, when, type ContentItem } from "./types";
 
 const DECISION_LABEL = { submitted: "Sent for approval", approved: "Approved", rejected: "Changes asked", withdrawn: "Approval voided by an edit" };
@@ -47,7 +48,7 @@ export function ContentDrawer({ id, onClose }: { id: string | null; onClose: () 
   });
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(current?.payload ?? {});
-  const locked = item?.status === "in_review" || item?.status === "approved" || item?.status === "archived";
+  const locked = ["in_review", "approved", "archived", "scheduled", "published"].includes(item?.status ?? "");
   const ownVersion = !!current && current.created_by === me && role !== "owner";
   const busy = save.isPending || act.isPending || item?.generation_status === "pending";
 
@@ -85,7 +86,7 @@ export function ContentDrawer({ id, onClose }: { id: string | null; onClose: () 
           {item.generation_status === "failed" && item.generation_error && (
             <p className="rounded-lg bg-[var(--haip-status-danger-bg)] p-3 text-sm text-[var(--haip-status-danger-fg)]">AI could not write this: {item.generation_error}</p>
           )}
-          {item.status === "approved" && <p className="rounded-lg bg-[var(--haip-status-success-bg)] p-3 text-sm text-[var(--haip-status-success-fg)]">Approved. Any edit creates a new version that needs approval again. Nothing is posted to Instagram from here yet.</p>}
+          {item.status === "approved" && <p className="rounded-lg bg-[var(--haip-status-success-bg)] p-3 text-sm text-[var(--haip-status-success-fg)]">Approved. Schedule it below to post to Instagram. Any edit creates a new version that needs approval again.</p>}
 
           {!locked && (
             <div className="flex flex-col gap-2 rounded-xl border border-[var(--haip-border)] p-3 sm:flex-row sm:items-end">
@@ -120,6 +121,8 @@ export function ContentDrawer({ id, onClose }: { id: string | null; onClose: () 
               <input className={inputCls} maxLength={500} value={note} onChange={e => setNote(e.target.value)} />
             </label>
           )}
+
+          {["approved", "scheduled", "published"].includes(item.status) && <PublishPanel itemId={item.id} canSchedule={canApprove} />}
 
           <section className="space-y-2">
             <h3 className="text-[13px] font-bold text-[var(--haip-fg)]">History</h3>

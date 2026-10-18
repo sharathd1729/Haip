@@ -102,6 +102,9 @@ def _review(kind: str, item_id: str, body: Review, user: User, db: Session, appr
             version_id = body.version_id or svc.get_item(db, user.tenant_id, item_id).current_version_id
             fn = svc.approve if approve else svc.reject
             fn(db, user.tenant_id, item_id, version_id, user, body.note)
+            if approve:
+                from app.services.marketing_publish_service import on_approved
+                on_approved(db, _tenant(db, user), item_id)
         elif kind == "ai_image":
             images.review_image(db, user.tenant_id, item_id, user, approve=approve, note=body.note)
         else:
@@ -122,3 +125,59 @@ def approve(kind: str, item_id: str, body: Review = Review(), user: User = Depen
 def reject(kind: str, item_id: str, body: Review = Review(), user: User = Depends(get_current_user),
            db: Session = Depends(get_db), _m=_module, _c=_approve):
     return _review(kind, item_id, body, user, db, False)
+
+
+# ── Scheduling + publishing (plan phase C) ──────────────────────────────────────────────────────────────────────────
+
+class ScheduleIn(BaseModel):
+    scheduled_for: Optional[datetime] = None        # omitted = the suggested time
+
+
+def _attempts(db: Session, tenant_id: str, item_id: str) -> list[dict]:
+    from app.models.marketing import MarketingPublishAttempt
+    rows = (db.query(MarketingPublishAttempt).filter_by(tenant_id=tenant_id, content_id=item_id)
+            .order_by(MarketingPublishAttempt.created_at.desc()).all())
+    return [{"id": a.id, "version_id": a.version_id, "status": a.status, "scheduled_for": a.scheduled_for, "tries": a.tries,
+             "permalink": a.permalink, "error": a.error, "published_at": a.published_at} for a in rows]
+
+
+@router.get("/content/{item_id}/publishing")
+def publishing(item_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
+    from app.services import marketing_publish_service as pub
+    try:
+        item = svc.get_item(db, user.tenant_id, item_id)
+    except svc.MarketingError as exc:
+        raise _err(exc)
+    tenant = _tenant(db, user)
+    problems, notes = ([], [])
+    if item.status in ("approved", "scheduled"):
+        try:
+            problems, notes = pub.preflight(db, user.tenant_id, item, svc.approved_payload(db, user.tenant_id, item.id))
+        except svc.MarketingError as exc:
+            problems = [exc.message]
+    return {"status": item.status, "publish_level": agency.level(tenant, "publish"), "problems": problems, "notes": notes,
+            "suggested_time": pub.suggest_time(db, tenant).isoformat(), "attempts": _attempts(db, user.tenant_id, item.id)}
+
+
+@router.post("/content/{item_id}/schedule")
+def schedule(item_id: str, body: ScheduleIn = ScheduleIn(), user: User = Depends(get_current_user),
+             db: Session = Depends(get_db), _m=_module, _c=_approve):
+    from app.services import marketing_publish_service as pub
+    tenant = _tenant(db, user)
+    try:
+        attempt = pub.schedule(db, tenant, item_id, body.scheduled_for or pub.suggest_time(db, tenant), user.id)
+    except svc.MarketingError as exc:
+        raise _err(exc)
+    db.commit()
+    return {"status": attempt.status, "scheduled_for": attempt.scheduled_for}
+
+
+@router.post("/content/{item_id}/unschedule")
+def unschedule(item_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_approve):
+    from app.services import marketing_publish_service as pub
+    try:
+        pub.unschedule(db, user.tenant_id, item_id, user.id)
+    except svc.MarketingError as exc:
+        raise _err(exc)
+    db.commit()
+    return {"ok": True}

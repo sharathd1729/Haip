@@ -230,6 +230,8 @@ celery_app.conf.update(
         "marketing_agency.orchestrate":              {"queue": "default"},
         "marketing_agency.run_week":                 {"queue": "default"},
         "marketing_research.refresh":                {"queue": "default"},
+        "marketing_publish.dispatch":                {"queue": "default"},
+        "marketing_publish.publish_one":             {"queue": "default"},
         "owner_digest.orchestrate":                  {"queue": "ai_scoring"},
         # Registered under short names, so the "app.workers.tasks.<module>.*" globs above never
         # matched them and they fell into the unconsumed "celery" queue. The inbox "rewrite"
@@ -375,6 +377,11 @@ celery_app.conf.beat_schedule = {
     "marketing-agency-orchestrate-hourly": {
         "task": "marketing_agency.orchestrate",
         "schedule": crontab(minute=5),
+    },
+    # Instagram publisher: posts approved, scheduled content whose time has come.
+    "marketing-publish-dispatch": {
+        "task": "marketing_publish.dispatch",
+        "schedule": crontab(minute="*/5"),
     },
     "sync-retalwise-hourly": {
         "task": "app.workers.tasks.sync_all_pms.sync_retalwise_all_tenants",

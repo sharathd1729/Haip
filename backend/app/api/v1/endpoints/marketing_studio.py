@@ -321,7 +321,10 @@ def submit(item_id: str, body: Decision, user: User = Depends(get_current_user),
 def approve(item_id: str, body: Decision, user: User = Depends(get_current_user), db: Session = Depends(get_db),
             _m=_module, _c=_approve):
     item = _run(svc.approve, db, user.tenant_id, item_id, body.version_id, user, body.note)
+    from app.services.marketing_publish_service import on_approved
+    on_approved(db, _tenant(db, user), item.id)
     db.commit()
+    db.refresh(item)
     return _item_out(db, item, full=True)
 
 

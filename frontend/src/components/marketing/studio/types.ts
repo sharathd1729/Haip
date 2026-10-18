@@ -4,7 +4,7 @@ import type { Tone } from "@/components/ui/kit";
 export const STUDIO = "/marketing/studio";
 
 export type Kind = "post" | "carousel" | "story" | "promo";
-export type ItemStatus = "draft" | "in_review" | "approved" | "rejected" | "archived";
+export type ItemStatus = "draft" | "in_review" | "approved" | "rejected" | "archived" | "scheduled" | "published";
 
 export interface Version {
   id: string; version: number; payload: Record<string, unknown>; sha256: string; origin: "ai" | "human";
@@ -73,6 +73,8 @@ export const STATUS: Record<ItemStatus, { label: string; tone: Tone }> = {
   approved: { label: "Approved", tone: "success" },
   rejected: { label: "Changes asked", tone: "danger" },
   archived: { label: "Archived", tone: "neutral" },
+  scheduled: { label: "Scheduled", tone: "info" },
+  published: { label: "Posted", tone: "success" },
 };
 
 /** The backend sends {detail: {code, message, problems[]}} for its own errors and {detail: string} for auth/permission ones. */

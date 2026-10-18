@@ -123,3 +123,36 @@ def research_refresh(tenant_id: str, actor_id=None):
             return {"snapshots": snaps, "error": type(exc).__name__}
         db.commit()
         return {"snapshots": snaps, "brief": brief.status}
+
+
+# ── Publisher (plan phase C) ────────────────────────────────────────────────────────────────────────────────────────
+
+@shared_task(name="marketing_publish.dispatch")
+def publish_dispatch():
+    """Every 5 minutes: queue one publish job per due attempt (the job itself claims the row, so duplicates are harmless)."""
+    from app.services import marketing_publish_service as pub
+
+    with SessionLocal() as db:
+        ids = [a.id for a in pub.due(db)]
+    for attempt_id in ids:
+        publish_one.delay(attempt_id)
+    return {"queued": len(ids)}
+
+
+@shared_task(name="marketing_publish.publish_one")
+def publish_one(attempt_id: str):
+    from app.services import marketing_publish_service as pub
+
+    with SessionLocal() as db:
+        try:
+            attempt = pub.publish_attempt(db, attempt_id)
+            return {"status": attempt.status, "error": attempt.error}
+        except Exception:  # noqa: BLE001 -- leave a readable state, never a row stuck in "publishing"
+            db.rollback()
+            log.exception("publish_one_crashed", attempt_id=attempt_id)
+            from app.models.marketing import MarketingPublishAttempt
+            row = db.query(MarketingPublishAttempt).filter_by(id=attempt_id).first()
+            if row is not None and row.status == "publishing":
+                row.status, row.error = "failed", "Unexpected error while posting; check Instagram before retrying."
+                db.commit()
+            return {"status": "failed"}

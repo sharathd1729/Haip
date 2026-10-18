@@ -3,10 +3,12 @@ import { useState } from "react";
 // Typed form for one content payload. Mirrors backend/app/schemas/marketing.py (change both together).
 import type { Kind } from "./types";
 import { inputCls, btn } from "./types";
+import { PhotoPicker } from "./PhotoPicker";
 
 type P = Record<string, unknown>;
 type Sticker = { type: "poll" | "question" | "link"; text: string; options?: string[] };
-type Row = { headline?: string; body?: string; text?: string; cta?: string; shot_note?: string; sticker?: Sticker };
+type Media = { asset_id?: string | null; alt_text?: string | null };
+type Row = { headline?: string; body?: string; text?: string; cta?: string; shot_note?: string; sticker?: Sticker; media?: Media };
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -59,6 +61,11 @@ export function PayloadForm({ kind, value, onChange, disabled }: { kind: Kind; v
 
   return (
     <fieldset disabled={disabled} className="space-y-4">
+      {(kind === "post" || kind === "promo") && (
+        <Field label="Photo" hint="From your library. Instagram needs a JPEG.">
+          <PhotoPicker value={value.media as Media | undefined} onChange={m => set("media", m)} disabled={disabled} />
+        </Field>
+      )}
       {kind === "promo" && (
         <>
           <Field label="Headline"><input className={inputCls} maxLength={80} value={str("headline")} onChange={e => set("headline", e.target.value)} /></Field>
@@ -83,6 +90,7 @@ export function PayloadForm({ kind, value, onChange, disabled }: { kind: Kind; v
                     onClick={() => set(listKey, list.filter((_, j) => j !== i))}>Remove</button>
                 )}
               </div>
+              <PhotoPicker value={r.media} onChange={m => setRow(i, "media", m)} disabled={disabled} />
               {kind === "carousel" ? (
                 <>
                   <input className={inputCls} placeholder="Headline" maxLength={80} value={r.headline ?? ""} onChange={e => setRow(i, "headline", e.target.value)} />

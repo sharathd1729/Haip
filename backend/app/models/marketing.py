@@ -224,3 +224,28 @@ class MarketingResearchBrief(Base, TimestampMixin):
     prompt_version = Column(String(60), nullable=True)
     model = Column(String(120), nullable=True)
     created_by = Column(String, nullable=True)
+
+
+class MarketingPublishAttempt(Base, TimestampMixin):
+    """Schedule + publish record for one approved version (agency phase C). Unique per (content, version), so a
+    retried or re-delivered job can never post the same version twice; the provider container/media ids are stored
+    as soon as they exist so a retry can tell whether Instagram already published."""
+    __tablename__ = "marketing_publish_attempts"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    content_id = Column(String, ForeignKey("marketing_content.id"), nullable=False, index=True)
+    version_id = Column(String, nullable=False)
+    sha256 = Column(String(64), nullable=False)
+    scheduled_for = Column(DateTime(timezone=True), nullable=False)
+    status = Column(String(20), nullable=False, default="scheduled")   # scheduled|publishing|published|failed|cancelled
+    container_ids = Column(JSON, nullable=True)
+    media_ids = Column(JSON, nullable=True)
+    permalink = Column(Text, nullable=True)
+    error = Column(Text, nullable=True)
+    tries = Column(Integer, nullable=False, default=0)
+    scheduled_by = Column(String, nullable=True)
+    published_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (UniqueConstraint("content_id", "version_id", name="uq_marketing_publish_attempts_version"),
+                      Index("ix_marketing_publish_attempts_due", "status", "scheduled_for"))

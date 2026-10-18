@@ -152,6 +152,9 @@ def add_version(db: Session, tenant_id: str, item_id: str, payload: dict, *, ori
     item = get_item(db, tenant_id, item_id)
     if item.status == "archived":
         raise MarketingError(409, "archived", "Archived content cannot be changed.")
+    from app.models.marketing import MarketingPublishAttempt
+    if db.query(MarketingPublishAttempt.id).filter_by(content_id=item.id, status="publishing").first():
+        raise MarketingError(409, "publishing", "This is being posted right now; edit it once that finishes.")
     clean = _validated(db, tenant_id, item.kind, payload)
     n = (db.query(func.max(MarketingContentVersion.version)).filter_by(content_id=item.id).scalar() or 0) + 1
     version = MarketingContentVersion(tenant_id=tenant_id, content_id=item.id, version=n, payload=clean, sha256=sha_of(clean),
@@ -164,7 +167,10 @@ def add_version(db: Session, tenant_id: str, item_id: str, payload: dict, *, ori
         db.rollback()
         raise MarketingError(409, "concurrent_edit", "Someone saved a new version at the same moment. Reload and try again.")
     previous = item.status
-    if previous in ("in_review", "approved"):
+    if previous == "scheduled":
+        from app.services.marketing_publish_service import cancel_for_edit
+        cancel_for_edit(db, tenant_id, item.id)
+    if previous in ("in_review", "approved", "scheduled"):
         old = get_version(db, tenant_id, item.current_version_id)
         if old is not None:
             _decision(db, item, old, "withdrawn", actor_id or "system", note="Superseded by a new version")
@@ -254,7 +260,7 @@ def approved_payload(db: Session, tenant_id: str, item_id: str) -> dict:
     """What a publisher may send: the approved version, only if it is still current and its hash still matches.
     Phase 4's publisher must call this immediately before any external request."""
     item = get_item(db, tenant_id, item_id)
-    if item.status != "approved" or not item.approved_version_id:
+    if item.status not in ("approved", "scheduled") or not item.approved_version_id:
         raise MarketingError(409, "not_approved", "This content has not been approved.")
     if item.approved_version_id != item.current_version_id:
         raise MarketingError(409, "approval_stale", "The content changed after it was approved.")
