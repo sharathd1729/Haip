@@ -8,17 +8,17 @@
 * ``stay_payment_links``: stay_id becomes nullable and ``inquiry_quote_id`` is added, so a link can belong to a quote
   before any booking exists. A row must have one or the other (check constraint).
 
-Numbered 141 with down_revision 128 on purpose: 129-140 belong to branches not merged yet. Re-parent onto the real
-head when those land. Production builds tables with create_all at startup (no RLS), so every statement is guarded.
+Follows 140 (the quote builder: inquiry_quotes options + capabilities); first written on 128 while the two branches were
+apart, re-parented when they were merged. 129-139 belong to branches not merged yet. Production builds tables with create_all at startup (no RLS), so every statement is guarded.
 
 Revision ID: 141
-Revises: 128
+Revises: 140
 Create Date: 2026-10-18
 """
 from alembic import op
 
 revision = "141"
-down_revision = "128"
+down_revision = "140"
 branch_labels = None
 depends_on = None
 
