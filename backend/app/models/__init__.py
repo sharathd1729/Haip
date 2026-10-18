@@ -39,6 +39,7 @@ from app.models.task import Task
 from app.models.sales_action import SalesAction
 from app.models.lead_attribution import LeadAttribution
 from app.models.whatsapp_personal_session import WhatsAppPersonalSession, WhatsAppPersonalSessionStatus
+from app.models.lead_autopilot import LeadAutopilotEvent
 
 __all__ = [
     "BusinessRecord",
@@ -57,4 +58,5 @@ __all__ = [
     "AIDraftOutcome", "Task", "SalesAction",
     "LeadAttribution",
     "WhatsAppPersonalSession", "WhatsAppPersonalSessionStatus",
+    "LeadAutopilotEvent",
 ]

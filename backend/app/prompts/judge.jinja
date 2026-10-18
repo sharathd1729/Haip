@@ -1,6 +1,8 @@
 {#---
-version: 4
-changed_at: 2026-05-13
+version: 5
+changed_at: 2026-10-18
+changes: v5 (registry call-judge-v3) -- missed_revenue items name what was missed and quote the evidence; est_value is
+         a number ONLY when a price/figure was actually stated on the call, otherwise null (never an estimate).
 rubric_id: hospitality_v1
 purpose: QA scoring of hospitality calls against weighted rubric
 ---#}
@@ -27,7 +29,8 @@ INSTRUCTIONS
    - AUTO_FAIL: if triggered, set has_auto_fail=true and score=0
 2. For each criterion provide 1-2 evidence spans quoting transcript turns.
 3. Detect sentiment, intent, language, and up to 5 themes.
-4. Identify missed upsell opportunities with estimated revenue impact in INR.
+4. Identify missed upsell/revenue opportunities. Say what was missed and quote the turn it rests on. Give est_value
+   in INR ONLY when a price or figure for it was actually stated on the call; otherwise est_value is null.
 5. Return STRICTLY this JSON shape via tool-use:
 
 {
@@ -43,7 +46,7 @@ INSTRUCTIONS
   "intent": "<intent>",
   "language": "<lang>",
   "themes": ["<theme>"],
-  "missed_revenue": [{"kind": "spa|chef|transfer|photographer|room_upgrade", "est_value": <inr>}],
+  "missed_revenue": [{"kind": "spa|chef|transfer|photographer|room_upgrade|extra_night|add_on|other", "what": "<one sentence>", "quote": "<verbatim turn>", "est_value": <inr stated on the call, or null>}],
   "confidence": 0.0-1.0,
   "agent_strengths": "<1 sentence>",
   "agent_growth_areas": "<1 sentence>"

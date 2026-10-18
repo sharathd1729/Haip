@@ -3,7 +3,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Clock, AlertCircle, ChevronDown, MessageSquare, Loader2, Calendar } from "@/lib/icons";
+import { Clock, AlertCircle, ChevronDown, MessageSquare, Loader2, Calendar, Bot } from "@/lib/icons";
+import type { AutopilotMoveBadge } from "@/lib/actionable";
 import { UserCheck } from "lucide-react";
 import { cn, timeAgo } from "@/lib/utils";
 import { ChannelIcon } from "@/components/inbox/ChannelIcon";
@@ -56,6 +57,8 @@ export interface LeadCard {
   // personal follow-up -- e.g. a complex custom quote or a frustrated guest.
   needs_agent_followup?: boolean;
   needs_agent_followup_reason?: string | null;
+  // Lead autopilot: the current stage was set automatically (backend lead_autopilot_view.batch_moves).
+  autopilot_move?: AutopilotMoveBadge | null;
 }
 
 function formatCardDate(iso?: string): string | null {
@@ -93,6 +96,20 @@ export function ResponseTimeBadge({ seconds, status }: { seconds?: number | null
       title={waiting ? "Guest is waiting for a reply" : "Time to first reply"}
     >
       {waiting ? `waiting ${formatDuration(seconds)}` : `replied in ${formatDuration(seconds)}`}
+    </span>
+  );
+}
+
+/** "auto" pill: the lead autopilot set this stage. The lead page explains why and offers Undo. */
+export function AutopilotBadge({ move }: { move?: AutopilotMoveBadge | null }) {
+  if (!move) return null;
+  return (
+    <span
+      className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-[var(--haip-primary-tint)] px-1.5 py-0.5 text-[11px] font-semibold text-primary sm:text-[9px]"
+      title={`Moved to ${move.to_stage_label ?? "this stage"} by autopilot: ${move.reason}`}
+    >
+      <Bot size={9} />
+      auto
     </span>
   );
 }
@@ -362,6 +379,7 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
             <Clock size={9} />
             {lead.last_touch_at ? timeAgo(lead.last_touch_at) : "—"}
           </span>
+          <AutopilotBadge move={lead.autopilot_move} />
           <NeedsFollowupBadge reason={lead.needs_agent_followup_reason} />
           <ResponseTimeBadge seconds={lead.response_time_seconds} status={lead.response_time_status} />
         </div>

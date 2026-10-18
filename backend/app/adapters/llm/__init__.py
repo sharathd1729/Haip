@@ -21,6 +21,7 @@ Routing rules:
   deep_reason      → nvidia   nvidia/nemotron-3-ultra-550b-a55b  (thinking=True)
   report_gen       → nvidia   nvidia/nemotron-3-ultra-550b-a55b
   concierge_draft  → gemini   gemini-3.6-flash
+  lead_stage_classify → nvidia openai/gpt-oss-20b  (lead autopilot)
   ruflo_domain     → nvidia   openai/gpt-oss-20b
   ruflo_synthesis  → nvidia   openai/gpt-oss-20b
   fallback         → nvidia   mistralai/mistral-nemotron
@@ -140,6 +141,10 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # synthesis over already-fetched structured rows, same tier as
     # lead_summary/agent_performance_narrative -- not guest-facing.
     "daily_briefing": ("nvidia", "openai/gpt-oss-20b"),
+    # Lead autopilot (lead_autopilot_ai.py): reads one lead's recent messages + call notes and returns a stage decision
+    # (lost | qualified | booked | none) with confidence and evidence quotes. Internal classification over already-fetched
+    # rows, structured JSON output -- the gpt-oss-20b tier, never mistral-nemotron (answers tool prompts in prose).
+    "lead_stage_classify": ("nvidia", "openai/gpt-oss-20b"),
 }
 
 
@@ -155,6 +160,7 @@ _GEMINI_FALLBACK_TASKS: dict[str, float] = {
     "lead_summary":                60,
     "daily_briefing":              60,
     "quick_classify":              30,
+    "lead_stage_classify":         45,
     "agent_performance_narrative": 60,
     "agent_leads_feedback":        60,
     "deep_reason":                 120,   # judge's low-confidence re-score

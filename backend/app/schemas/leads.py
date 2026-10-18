@@ -151,6 +151,10 @@ class LeadCardSchema(BaseModel):
     needs_agent_followup: bool = False
     needs_agent_followup_reason: Optional[str] = None
 
+    # Lead autopilot: set when the lead's current stage was set by the autopilot (applied, not undone) --
+    # {event_id, to_stage_label, reason, source, lost_reason, at}. Drives the list badge.
+    autopilot_move: Optional[dict] = None
+
 
 # ─── Lead Detail (card + timeline) ───────────────────────────────────────────
 
@@ -167,6 +171,8 @@ class LeadDetailSchema(LeadCardSchema):
     # already uses on the call detail page -- see lead_recommendation_service.py.
     # Human clicks "Apply"; nothing here moves the pipeline on its own.
     recommended_actions: List[dict] = []
+    # Lead autopilot (lead_autopilot_view.lead_block): {mode, pinned, pinned_at, last_move, suggestion, history}.
+    autopilot: Optional[dict] = None
 
 
 # ─── List Response ────────────────────────────────────────────────────────────

@@ -74,6 +74,7 @@ export const NAV_SECTIONS: NavSection[] = [
     { label: "Integrations", href: "/dashboard/settings/integrations", icon: Link2, resource: "integrations" },
     { label: "Team", href: "/dashboard/settings/team", icon: Users, resource: "users" },
     { label: "Lead assignment", href: "/dashboard/settings/lead-assignment", icon: Shuffle, resource: "settings" },
+    { label: "Lead autopilot", href: "/dashboard/settings/lead-autopilot", icon: Bot, resource: "settings", onlyRoles: ["owner", "manager"] },
     { label: "Calendar sync", href: "/dashboard/settings/calendar-sync", icon: Calendar, resource: "settings" },
     { label: "Payments", href: "/dashboard/settings/payments", icon: CreditCard, resource: "settings" },
     { label: "Invoice details", href: "/dashboard/settings/invoices", icon: FileText, resource: "settings", onlyRoles: ["owner", "manager"] },
