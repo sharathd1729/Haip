@@ -102,6 +102,12 @@ celery_app = Celery(
         "app.workers.tasks.backfill_missing_inquiries",
     ],
 )
+# Make this the process-wide default app, not just the current app of the thread that imported it. Celery's
+# "current app" is thread-local, and FastAPI runs sync endpoints in a thread pool, so a @shared_task queued from a
+# request handler resolved to Celery's fallback app (amqp://localhost, broker None) and .delay() failed with
+# "connection refused" (found 18 Oct 2026 on Marketing Studio; module activation, knowledge re-index, Hostaway /
+# Retalwise sync and the Meta Ads backfill use @shared_task too). Regression: tests/test_celery_default_app.py.
+celery_app.set_default()
 
 celery_app.conf.update(
     task_serializer="json",
