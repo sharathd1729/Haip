@@ -18,6 +18,7 @@ import { SchedulePanel } from "@/components/bookings/SchedulePanel";
 import { DepositPanel } from "@/components/bookings/DepositPanel";
 import { ServiceRequestsPanel } from "@/components/bookings/ServiceRequestsPanel";
 import { ChangeGuestDialog } from "@/components/bookings/ChangeGuestDialog";
+import { InvoicesMessagesCard } from "@/components/bookings/InvoicesMessagesCard";
 import {
   CHANNEL_STYLE, PAYMENT_STYLE, PAYMENT_TONE, STATUS_OPTIONS, STATUS_STYLE, STATUS_TONE, LOAD_FAILURES, describeActivity, errorMessage, fmtDate, httpStatus, loadFailure,
   type BookingDetail,
@@ -366,6 +367,7 @@ export function BookingDetailView({ id, variant = "page" }: { id: string; varian
           <AddOnsPanel booking={booking} onChange={setBooking} />
           <ServiceRequestsPanel booking={booking} onChange={setBooking} />
           <DepositPanel booking={booking} onChange={setBooking} />
+          <InvoicesMessagesCard booking={booking} watch={booking.payment_links.some(l => l.status === "created")} />
 
           <Card>
             <CardHeader title="Activity" />

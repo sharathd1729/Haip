@@ -84,7 +84,10 @@ export interface BookingList {
 
 export interface AddOnLine { id: string; addon_id: string | null; name: string; quantity: number; unit_price: number; line_total: number; notes: string | null }
 export interface PaymentEntry { id: string; kind: "payment" | "refund"; amount: number; method: PayMethod; reference: string | null; paid_on: string; notes: string | null; via_gateway: boolean }
-export interface PaymentLink { id: string; short_url: string; amount: number; status: string; expires_at: string | null; created_at: string | null }
+export interface PaymentLink {
+  id: string; short_url: string; amount: number; status: string; expires_at: string | null; created_at: string | null;
+  whatsapp?: { status: "queued" | "duplicate" | "skipped"; reason: string | null };   // only when sent with send_whatsapp
+}
 export interface CatalogAddOn { id: string; name: string; description: string | null; category: string; price: number; price_type: string; suggested_quantity: number }
 export interface ActivityEntry { id: string; action: string; at: string | null; by: string | null; payload: Record<string, unknown> }
 
@@ -186,6 +189,12 @@ export function describeActivity(a: ActivityEntry): string {
     case "booking.payment_deleted": return `Removed a ${inr(p.amount)} ${p.kind} entry`;
     case "booking.payment_link_created": return `Payment link for ${inr(p.amount)} created`;
     case "booking.payment_received_razorpay": return `${inr(p.amount)} received through Razorpay`;
+    case "booking.invoice_issued": return `Invoice ${p.number} issued`;
+    case "booking.invoice_reissued": return `Invoice ${p.number} issued, replacing ${p.replaces}`;
+    case "booking.receipt_issued": return `Receipt ${p.number} issued`;
+    case "booking.invoice_not_issued": return `No invoice issued: ${p.reason}`;
+    case "booking.message_queued": return "WhatsApp message sent";
+    case "booking.message_not_sent": return `WhatsApp message not sent: ${p.reason}`;
     case "booking.schedule_set": return `Payment schedule set (${p.instalments} instalment${p.instalments === 1 ? "" : "s"})`;
     case "booking.deposit_updated": return `Deposit ${inr(p.amount)} marked ${p.to}`;
     case "booking.deposit_removed": return "Deposit removed";
