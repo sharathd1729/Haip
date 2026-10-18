@@ -81,3 +81,21 @@ def test_the_model_report_says_what_answers_guests():
     assert r["guest_reply"]["provider"] == "gemini" and r["override_applied"] is False and r["tenant_override"] == "nvidia"
     assert {t["task"] for t in r["tasks"]} >= {"concierge_draft", "quick_classify"}
     assert r["keys"]["GEMINI_API_KEY"] in ("present", "absent") and r["keys"]["NVIDIA_API_KEY"] in ("present", "absent")
+
+
+def test_autopilot_holds_for_a_guest_who_said_stop(db, monkeypatch):
+    """A STOP keyword withdraws marketing consent (opt_out_responder). The AI must then never send a quote by itself."""
+    from app.models.consent import Consent
+    from app.services import sales_agent_service as sas
+    monkeypatch.setattr(sas.qss, "readiness", lambda *a, **k: {"blockers": [], "warnings": []})
+    w = ratha(db)
+    inq = lead(db, w.t.id)
+    guest = db.query(Guest).filter_by(id=inq.guest_id).first()
+    assert sas._holds(db, w.t.id, [object()], guest, False, "confirmed", {}) == []          # no STOP: nothing holds it back
+    db.add(Consent(id=str(uuid.uuid4()), tenant_id=w.t.id, guest_id=guest.id, channel="whatsapp", scope="marketing",
+                   granted=False, source="user_keyword", recorded_at="2026-10-18T10:00:00+00:00"))
+    db.commit()
+    holds = sas._holds(db, w.t.id, [object()], guest, False, "confirmed", {})
+    assert len(holds) == 1 and "STOP" in holds[0]
+    other = ratha(db)                                                                      # another workspace's STOP never counts
+    assert sas.guest_said_stop(db, other.t.id, guest.id) is False

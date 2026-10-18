@@ -90,9 +90,21 @@ def _stay_check(db: Session, tenant_id: str, q) -> tuple[str, bool]:
     return ("confirmed" if auto else "not_checked"), True
 
 
+def guest_said_stop(db: Session, tenant_id: str, guest_id: Optional[str]) -> bool:
+    """The guest withdrew consent with a STOP keyword (opt_out_responder). A quote is transactional, but after an explicit
+    STOP the AI must never send one by itself; staff can still decide."""
+    if not guest_id:
+        return False
+    from app.models.consent import Consent
+    row = db.query(Consent).filter_by(tenant_id=tenant_id, guest_id=guest_id, scope="marketing").first()
+    return bool(row is not None and row.granted is False)
+
+
 def _holds(db: Session, tenant_id: str, rows: list, guest, overnight: bool, stay_check: str, details: dict) -> list[str]:
     """Why the agent would not send this quote itself. Empty = autopilot may send (if the reply itself goes out)."""
     holds: list[str] = []
+    if guest_said_stop(db, tenant_id, getattr(guest, "id", None)):
+        holds.append("The guest asked us to stop messaging them (STOP), so the AI will not send this itself.")
     if overnight and stay_check != "confirmed":
         holds.append("The overnight stay needs a check with the partner first (the plan or route is not marked auto-bookable).")
     ready = qss.readiness(db, tenant_id, rows[0], rows, guest)
