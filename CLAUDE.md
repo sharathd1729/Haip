@@ -1,5 +1,5 @@
 # HAIP — Claude Code Working Instructions
-**Version**: 2.4 · **Owner**: Sharath D. · **Updated**: 18 Oct 2026 (Alembic head `128`)
+**Version**: 2.4 · **Owner**: Sharath D. · **Updated**: 18 Oct 2026 (Alembic head `131`)
 **Reference docs**: HAIP_FULL_BUILD_PLAN.md · architecture-delta.md · execution-plan.md · docs/HAIP_Module_Audit_M0.md (module status matrix, 11 Oct 2026 — update statuses as gaps close)
 
 **KEEP THIS FILE CURRENT — standing rule from the owner.** When a change adds or alters a
@@ -66,6 +66,7 @@ replies, unified lead record across every touchpoint.
   **Ratha business data** (`business_records`, migration 124; `docs/ai/RATHA_KB_EVOLUTION.md`): versioned typed records (package, destination, itinerary, reseller/discount/stay/payment/cancellation policy);
   draft → publish → superseded, immutable once published, rollback = new version, effective-dated, audited. Guest-facing code reads ONLY `business_data_service.get_effective` (never drafts). Package prices: `package_pricing_service.quote` (refuses, never guesses; availability via `calculator_service`); `quote_service.issue_quote` snapshots amounts + record versions in `inquiry_quotes` [125], so a later price change never alters an issued quote. The AI reads this data ONLY via `sales_gateway` (read-only: `list_packages/get_package/get_destination/get_itinerary/quote_package/policy_check`, each returns data + sources + flags; `concierge_business_facts` feeds the concierge; prompt `concierge-reply-v13`). Payment/cancellation terms reach the prompt only in `grounded` price mode. Every KB write (create/edit/delete/reindex/upload/crawl) appends a chained `kb.*` audit row with before/after values (`knowledge_service.audit_change`). `GET /knowledge/{id}/history` + `POST /knowledge/{id}/rollback` undo an edit via that trail (normal edit path: re-indexed before use). `POST /knowledge/test` (`kb_test_service`, `settings.manage`) runs the same retrieval + gateway calls as a reply and returns sources/versions/flags. UI: KB page has two tabs (`dashboard/settings/knowledge`: Knowledge & Training | Structured Business Data); typed editors are spec-driven (`components/knowledge/businessDataSpecs.ts` mirrors `schemas/business_data.py` — change both together). `POST /business-data/import-existing` drafts packages/destinations from RatePlan/SeasonalRate/Property.routes (drafts only; never overwrites).
 - **Meta Ads + Marketing page** [115, 116] — see "META ADS / MARKETING" below.
+- **Operations module foundations** [131] (staff, shift roster, escalation engine; no UI yet) — see "OPERATIONS MODULE" below.
 - **UI: Hospitality Hybrid** (Oct 17, replaced teal/navy sidebar): see UI RULES below; concept lab `/design-lab` (dev only).
 
 Active clients:
@@ -129,14 +130,10 @@ truth; if this table and the code disagree, the code wins and this table is stal
 Unknown task keys route to `fallback` (they previously defaulted to Claude,
 which fails in prod — no `ANTHROPIC_API_KEY` is provisioned there).
 
-⚠️ **NIM models reach end-of-life and start returning HTTP 410.** Dead so far:
-`mistral-medium-3.5-128b` (2026-08-07, sat broken 13 days), `meta/llama-3.1-8b-instruct` and
-`nvidia/llama-3.3-nemotron-super-49b-v1.5` (both 2026-08-26 — took out `quick_classify`, `judge.py`,
-`generate_ai_summary.py` and `daily_briefing_service.py` in prod until 2026-08-30). Mid tier tried
-`openai/gpt-oss-120b` (100s+ latency, 504s) and `deepseek-v4-flash-0731` (sustained 504 outage) before
-landing on `openai/gpt-oss-20b` for the mid tier too — a real capability step-down for `call_analysis`/
-`call_scoring`/`lead_summary`/`daily_briefing`/agent reports, accepted because it is reliable. Revisit
-the bigger models once NIM congestion clears, via a direct trivial-prompt call, not just `/v1/models`.
+⚠️ **NIM models reach end-of-life and return HTTP 410.** Dead: `mistral-medium-3.5-128b` (08-07), `meta/llama-3.1-8b-instruct` +
+`nvidia/llama-3.3-nemotron-super-49b-v1.5` (08-26, broke classify/judge/summaries/briefing until 08-30). `gpt-oss-120b` (100s+, 504s) and
+`deepseek-v4-flash-0731` (504 outage) failed as mid tier, so mid tier = `openai/gpt-oss-20b` (a capability step-down accepted for
+reliability). Revisit bigger models with a direct trivial-prompt call, not just `/v1/models`.
 - **Fix any call site that hardcodes `model=`** on `.complete()`: an explicit kwarg always beats the
   routed default (see `_build_adapter` docstring in `adapters/llm/__init__.py`).
 - Verify a model serves before routing to it: `GET https://integrate.api.nvidia.com/v1/models`.
@@ -236,6 +233,16 @@ Every table must have tenant_id.
 - Prod DB pool is capped via `DB_POOL_SIZE=3` / `DB_MAX_OVERFLOW=2` in `backend/.env` after
   Supabase `EMAXCONNSESSION`; prod uses `create_all` at startup, so migrations must be idempotent
   (`IF NOT EXISTS`, guarded RLS policy).
+
+## OPERATIONS MODULE (Oct 2026 — foundations [131]; plan `docs/ops/OPS_MODULE_PLAN.md`, build order `docs/ops/OPS_BUILD_PLAN.md`)
+
+- Tables (tenant_id + forced RLS): `staff_profiles` (phone unique per tenant, `whatsapp_opt_in_at`), `staff_duties`, `shift_patterns` (weekly, minutes; end < start crosses midnight), `shift_overrides` (leave|swap|extra), `escalation_chains` (JSON steps), `ops_settings` (SLA, quiet hours, template names), `ops_items` (severity, duty, ack/resolve due, step), `ops_escalation_events`, `ops_alert_sends` (wamid, status, nonce, response).
+- **Staff numbers never become guests.** Cloud API inbound from an active staff profile's phone goes to `whatsapp.py::_handle_staff_message` (button taps / free text) and skips identity, leads, inbox, push and concierge; the personal bridge mirrors a staff chat but never makes it a lead (`staff_service.find_active_staff_by_phone`).
+- **`roster_service` is the only place that picks alert recipients** (`on_duty`, chains; empty step -> next step; owner always last, receives everything while a roster is empty). Nothing else chooses who is alerted.
+- `ops_escalation_service`: SLA per severity (critical 5/60 min ... low 4/72 h), quiet hours hold low/normal only, "Can't take it" = next step now, a failed send escalates once nobody in the step can still be reached (logged, never silent), resolve breach re-escalates. Button payload `ops:<ack|decline>:<send_id>:<nonce>` (compare_digest; the tapper must be the alerted staff). Meta status callbacks for ops sends land in `ops_alert_sender.apply_status_callback`.
+- Templates: `ops_templates.PACK` (`ops_alert_v1`, `ops_escalation_v1`; UTILITY, 5 body vars, Acknowledge / Can't take it). `POST /ops/templates/install` makes drafts; submit with the template editor; new wording = new `_vN`.
+- Celery `ops.deliver_sends`, `ops.escalation_tick`, `ops.escalation_tick_tenant` (queue `whatsapp`); beat `ops-escalation-tick-1min` every minute.
+- API `/api/v1/ops/*` (`endpoints/ops.py`): staff, shifts, shift-overrides, on-duty, escalation-chains, settings, templates/install, items (+ acknowledge/resolve/cancel). Caps `ops.read` (owner, manager, reservations, concierge, foh), `ops.write` (owner, manager, concierge, foh), `ops.manage` (owner, manager); 131 grants them to provisioned tenants. No UI yet (build plan Task 2).
 
 ## FUTURE MODULES — ARCHITECT FOR, DO NOT BUILD
 
@@ -404,7 +411,7 @@ commit, 10 s bounded wait; failures log `audit_chain_lock_failed`) and stamps `c
 writers form one chain. A transaction must never audit several tenants (deadlock): use one transaction per tenant.
 Row-level security: `alembic/proposed/118_*` is NOT applied; check the DB role with `backend/scripts/verify_rls_isolation.py` (read-only) and `docs/HAIP_Phase0_Production_Checklist.md` before assuming RLS protects anything. Migration 117 widens
 `calls.ai_score_status`; 119 grants foh `conversations.send` to existing tenants unless the owner edited that cell; 120-121 add the iCal tables; 122 adds the lead columns on `guests` + `guest_merge_events`; 123 adds
-`knowledge_entries.embedding_attempts/stale_since`; 124 adds `business_records`; 125 adds quote snapshot columns; 126 adds the `organic_call` source value; 127 merges 125 and 126 (no schema change); 128 (head) adds `ical_event_bookings.locked` when missing (prod's table pre-dated it, so 121's CREATE IF NOT EXISTS skipped it and every booking page 503'd: **a `CREATE TABLE IF NOT EXISTS` migration never repairs an existing table**). 118 is reserved for the proposed RLS file (re-parent on 128 when promoted). Roll code back with `alembic downgrade 116` first (checklist 11).
+`knowledge_entries.embedding_attempts/stale_since`; 124 adds `business_records`; 125 adds quote snapshot columns; 126 adds the `organic_call` source value; 127 merges 125 and 126 (no schema change); 128 adds `ical_event_bookings.locked` when missing (prod's table pre-dated it, so 121's CREATE IF NOT EXISTS skipped it and every booking page 503'd: **a `CREATE TABLE IF NOT EXISTS` migration never repairs an existing table**); 131 (head) adds the 9 ops tables + `ops.*` grants. 118 is reserved for the proposed RLS file (re-parent on 131 when promoted). Roll code back with `alembic downgrade 116` first (checklist 11).
 **Sending needs `conversations.send`** (owner, manager, reservations, concierge, foh by default): `send_message`, `send_template`, `retry`, `approve`, `reject`, `ai-draft` and both AI-rewrite POSTs use `require_capability`. `approve`/`reject` are one guarded UPDATE (only a pending AI draft, text unchanged since read; 409 otherwise; audited `ai_draft.approved|rejected`). A new default grant only reaches NEW tenants; existing ones need a data migration.
 **AI-rewrite tasks are bounded** (`rewrite_draft.py`): one request <= 30 s (`asyncio.wait_for`), a timeout is never retried, the draft task retries a
 provider error once, the composer never retries; a rewrite that changes a number is rejected. Embedding calls: 8 s query / 30 s indexing, SDK retries off.
@@ -418,23 +425,16 @@ with structlog kwargs (`TypeError` at INFO, how production runs); Phase 0 found 
 ## DOGRAH VOICE AI INTEGRATION (M5-Parallel)
 
 ### Active adapters
-- `backend/app/adapters/ivr/` — CallerDesk, Acefone, Mcube, Vobiz (existing,
-  do not touch). Only Acefone (Jade) and Vobiz (Ratha) are live for a
-  tenant today; CallerDesk and Mcube adapters/webhooks remain in the
-  codebase (Mcube's webhook still rejects posts once an Integration is
-  marked disconnected — migration `064`) but aren't any tenant's active
-  provider.
+- `backend/app/adapters/ivr/` — CallerDesk, Acefone, Mcube, Vobiz (existing, do not touch). Only Acefone (Jade) and Vobiz (Ratha) are live;
+  CallerDesk and Mcube remain in code (Mcube's webhook rejects posts once its Integration is disconnected, migration `064`), no tenant uses them.
 - `backend/app/adapters/voice/dograh/` — Dograh voice AI adapter (new, M5-parallel)
 
 ### Voice platform routing
 ⚠️ Two separate, similarly-named tenant fields exist — don't conflate them:
-- `tenants.ivr_provider` (`callerdesk`/`acefone`/`mcube`/`vobiz`) — which IVR
-  adapter `calls.py` and `call_ingest.py` use for a tenant's actual call
-  handling. This is the one migration `064` set to `'vobiz'` for Ratha.
-- `tenants.voice_platform` (`callerdesk`/`acefone`/`dograh`, default
-  `callerdesk`) — Dograh-specific routing gate, used only to decide whether
-  `webhooks_dograh.py` is in play for a tenant. Not read by the regular IVR
-  call-handling path at all.
+- `tenants.ivr_provider` (`callerdesk`/`acefone`/`mcube`/`vobiz`) — which IVR adapter `calls.py` and `call_ingest.py` use for a tenant's
+  actual call handling. This is the one migration `064` set to `'vobiz'` for Ratha.
+- `tenants.voice_platform` (`callerdesk`/`acefone`/`dograh`, default `callerdesk`) — Dograh-specific routing gate, used only to decide
+  whether `webhooks_dograh.py` is in play for a tenant. Not read by the regular IVR call-handling path at all.
 
 `voice_platform` determines which *Dograh-parallel* path processes calls:
 - `callerdesk` → existing CallerDesk adapter + `webhooks_callerdesk.py`

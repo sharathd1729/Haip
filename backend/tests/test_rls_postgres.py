@@ -290,6 +290,38 @@ def _as_probe(conn, tenant_id):
 @pytest.mark.parametrize("table", ALL_PROPOSED_TABLES)
 def test_table_isolates_read_insert_update_delete(proposed_rls, table):
     assert table in proposed_rls.TENANT_TABLES, "table list in the test drifted from the migration"
+    _assert_table_isolates(table)
+
+
+# Tables whose policy ships in their own migration (not in the proposed 118), read from the migration so the list can't drift.
+def _migration_tables(filename):
+    spec = importlib.util.spec_from_file_location(
+        f"mig_{filename}", pathlib.Path(__file__).resolve().parents[1] / "alembic" / "versions" / filename)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return list(module._TABLES)
+
+
+OPS_TABLES = _migration_tables("131_ops_foundations.py")
+
+
+def test_ops_table_list_is_the_nine_planned_tables():
+    assert sorted(OPS_TABLES) == sorted([
+        "staff_profiles", "staff_duties", "shift_patterns", "shift_overrides", "escalation_chains",
+        "ops_settings", "ops_items", "ops_escalation_events", "ops_alert_sends",
+    ])
+
+
+# One row per tenant (UNIQUE tenant_id): the "may insert for its own tenant" probe uses a fresh tenant instead of a second row.
+ONE_ROW_PER_TENANT = {"ops_settings"}
+
+
+@pytest.mark.parametrize("table", OPS_TABLES)
+def test_ops_table_isolates_read_insert_update_delete(proposed_rls, table):
+    _assert_table_isolates(table)
+
+
+def _assert_table_isolates(table):
     a, b = f"rls-a-{uuid.uuid4().hex[:8]}", f"rls-b-{uuid.uuid4().hex[:8]}"
     with engine.begin() as conn:
         exists = conn.execute(text("SELECT to_regclass(:t)"), {"t": f"public.{table}"}).scalar()
@@ -310,9 +342,10 @@ def test_table_isolates_read_insert_update_delete(proposed_rls, table):
                 assert seen == expected, f"{table}: tenant {tenant!r} saw {seen} rows, expected {expected}"
 
             # insert: same tenant allowed, other tenant denied
+            own = f"rls-c-{uuid.uuid4().hex[:8]}" if table in ONE_ROW_PER_TENANT else a
             conn.execute(text("SAVEPOINT s"))
-            _as_probe(conn, a)
-            conn.execute(text(insert), {"tenant": a})
+            _as_probe(conn, own)
+            conn.execute(text(insert), {"tenant": own})
             conn.execute(text("ROLLBACK TO SAVEPOINT s"))
             conn.execute(text("SAVEPOINT s"))
             _as_probe(conn, a)
