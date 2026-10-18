@@ -208,10 +208,15 @@ def enrich_guest(
     identity_type: str,
     identity_value: str,
     source: str = "system",
+    observed_at: Optional[datetime] = None,
 ) -> float:
     """
     Add a new identity signal to an already-known guest.
     Returns the new confidence for this signal.
+
+    ``observed_at``: when the signal was really given (a backfill reading an old message). It becomes the signal's
+    first_seen_at and, for the guest's first usable phone, the moment they became a lead -- so a backfill does not count
+    old leads as new today. Default: now.
 
     Also checks whether another guest already owns this signal:
       → If yes: triggers merge (deprecated → survivor = guest_id).
@@ -237,7 +242,7 @@ def enrich_guest(
 
     if not conflict:
         conf = SIGNAL_CONFIDENCE.get(identity_type, 0.60)
-        _attach_signal(db, tenant_id, guest_id, identity_type, value, source, conf)
+        _attach_signal(db, tenant_id, guest_id, identity_type, value, source, conf, observed_at=observed_at)
         _backfill_guest_phone(db, tenant_id, guest_id, identity_type, value)
         log.info("identity_signal_added",
                  tenant_id=tenant_id, guest_id=guest_id, type=identity_type)
@@ -463,8 +468,9 @@ def _attach_signal(
     identity_value: str,
     source: str,
     confidence: float,
+    observed_at: Optional[datetime] = None,
 ) -> GuestIdentity:
-    now = _now()
+    now = observed_at or _now()
     sig = GuestIdentity(
         id=gen_uuid(),
         tenant_id=tenant_id,

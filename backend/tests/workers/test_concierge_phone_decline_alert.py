@@ -137,3 +137,16 @@ class TestPhoneDeclineAlert:
 
         tasks = db.query(Task).filter_by(tenant_id=tenant_id, conversation_id=conv_id).all()
         assert len(tasks) == 1
+
+    def test_no_decline_task_when_the_guest_already_has_a_number(self, db):
+        """A guest who wrote "won't share my number here" but had shared it (now captured as a signal) has not declined: the alert
+        would put a stale "No phone shared" chip on the inbox."""
+        from app.models.guest_identity import GuestIdentity
+        tenant, guest, conv, inbound = _setup(db, inbound_body="won't share my number here, call 98450 12345")
+        db.add(GuestIdentity(id=str(uuid.uuid4()), tenant_id=tenant.id, guest_id=guest.id, identity_type="phone",
+                             identity_value="+919845012345", source="message_text", confidence=0.9))
+        db.commit()
+        tenant_id, conv_id, message_id = tenant.id, conv.id, inbound.id
+        _run(db, tenant_id, conv_id, message_id, _FakeConciergeLLM("Thanks, our team will call you."))
+
+        assert db.query(Task).filter_by(tenant_id=tenant_id, conversation_id=conv_id).first() is None
