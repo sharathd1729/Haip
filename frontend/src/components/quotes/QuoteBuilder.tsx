@@ -1,18 +1,21 @@
 "use client";
 // New quote (layout B): the choices on the left, the quote on the right (below on phones), priced by POST /quotes/preview on every
-// change (debounced). "Save to lead" re-prices from published records and stores the options (POST /quotes).
+// change (debounced). "Save to lead" re-prices from published records and stores the options (POST /quotes). "Send quote +
+// payment link" saves first when needed, then POST /quotes/{id}/send (a Razorpay link per option + the WhatsApp quote).
 import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
 import { addDays, entryData, fallbackOption, kitsFor, money, packageLevels, toOptionPayload } from "@/app/dashboard/quotes/quoteHelpers";
-import type { Catalog, CatalogEntry, IssueResult, LeadHit, OptionForm, Preview, StayCheck } from "@/app/dashboard/quotes/types";
+import { sendGate } from "@/app/dashboard/quotes/sendHelpers";
+import type { Catalog, CatalogEntry, IssueResult, LeadHit, OptionForm, Preview, SendResult, StayCheck } from "@/app/dashboard/quotes/types";
 import { useDebounced } from "./LeadPicker";
-import { QuoteCard } from "./QuoteCard";
+import { QuoteCard, type SentState } from "./QuoteCard";
 import { KitsSection, PlanSection, RouteSection, WhenSection, WhereSection } from "./QuoteSections";
 import { RouteEditor } from "./RouteEditor";
 import { apiProblems } from "./ui";
 
+const SAVE_FAILED = "quote-save-failed";
 const locked = (p: CatalogEntry | undefined) => ((p ? entryData(p).destination_keys : []) as string[] | undefined) ?? [];
 const usualNights = (d: CatalogEntry | undefined) => { const n = d ? entryData(d).usual_nights : null; return typeof n === "number" ? n : null; };
 
@@ -41,6 +44,7 @@ export function QuoteBuilder({ catalog, startRoute, onRouteUsed, onOpenPackages 
   const [nextAt, setNextAt] = useState("");
   const [editing, setEditing] = useState<null | { entry: CatalogEntry | null }>(null);
   const [saved, setSaved] = useState<IssueResult | null>(null);
+  const [sent, setSent] = useState<SentState | null>(null);
 
   const set = (patch: Partial<OptionForm>) => { setForm(f => ({ ...f, ...patch })); setSaved(null); };
 
@@ -104,6 +108,28 @@ export function QuoteBuilder({ catalog, startRoute, onRouteUsed, onOpenPackages 
     onError: e => toast({ variant: "error", title: "Couldn't save the quote", description: apiProblems(e).message }),
   });
 
+  const send = useMutation({
+    mutationFn: async () => {
+      // Save first when the quote changed since it was saved (that failure already has its own message).
+      const issued = saved ?? await save.mutateAsync().catch(() => { throw new Error(SAVE_FAILED); });
+      return api.post(`/quotes/${issued.quotes[0].id}/send`).then(r => r.data as SendResult);
+    },
+    onSuccess: res => {
+      setSent({ quoteId: res.quote_id, journey: res.journey, notice: res.message.status === "queued" ? null : res.message.message });
+      qc.invalidateQueries({ queryKey: ["quotes", lead?.inquiry_id] });
+      if (res.message.status === "queued") toast({ variant: "success", title: "Quote sent", description: "Sending on WhatsApp with the payment link." });
+    },
+    onError: e => {
+      if (e instanceof Error && e.message === SAVE_FAILED) return;
+      toast({ variant: "error", title: "Couldn't send the quote", description: apiProblems(e).message });
+    },
+  });
+  const newQuote = () => {
+    setSent(null); setSaved(null); setLead(null); setNextAt(""); setFallbackKey(""); setStayCheck("not_checked"); setStayName("");
+    setForm(firstForm(catalog));
+  };
+  const gate = sendGate({ canQuote: catalog.permissions.can_quote, preview: preview.data, lead, nextAt, saved: !!saved, setup: catalog.send_setup });
+
   const dest = catalog.destinations.find(d => d.key === form.destination_key);
   const q = preview.data?.primary;
   const editor = editing ? (
@@ -130,7 +156,8 @@ export function QuoteBuilder({ catalog, startRoute, onRouteUsed, onOpenPackages 
         <QuoteCard catalog={catalog} form={form} preview={preview.data} loading={preview.isFetching} failed={preview.isError}
           onFix={set} fallbackKey={fallbackKey} onFallback={k => { setFallbackKey(k); setSaved(null); }}
           lead={lead} onLead={l => { setLead(l); setSaved(null); }} nextAt={nextAt} onNextAt={setNextAt}
-          onSave={() => save.mutate()} saving={save.isPending} saved={saved} />
+          onSave={() => save.mutate()} saving={save.isPending} saved={saved}
+          gate={gate} onSend={() => send.mutate()} sending={send.isPending} sent={sent} onNewQuote={newQuote} />
       </div>
     </div>
   );

@@ -10,10 +10,11 @@ import { Card, CardBody, CardHeader, StatusPill } from "@/components/ui/kit";
 import { errorMessage } from "@/lib/bookings";
 import { templatePill, type PackTemplate } from "@/lib/invoices";
 
-export function BookingTemplatesCard() {
+export function BookingTemplatesCard({ canCreate = true }: { canCreate?: boolean } = {}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { data, isLoading, isError, refetch } = useQuery<{ templates: PackTemplate[] }>({
+  // isPending, not isLoading: isLoading is false during SSR, which would render the list branch and mismatch on hydration.
+  const { data, isPending, isError, refetch } = useQuery<{ templates: PackTemplate[] }>({
     queryKey: ["booking-pack"], queryFn: () => api.get("/messaging/templates/booking-pack").then(r => r.data),
   });
   const create = useMutation({
@@ -32,7 +33,7 @@ export function BookingTemplatesCard() {
       <CardHeader
         title="WhatsApp booking messages"
         description="Sent by HAIP around a booking. Meta must approve each one before its first send; until then HAIP skips it."
-        actions={missing > 0 && (
+        actions={canCreate && missing > 0 && (
           <button type="button" onClick={() => create.mutate()} disabled={create.isPending}
             className="min-h-11 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-50 sm:min-h-9">
             {create.isPending ? "Creating..." : `Create ${missing === templates.length ? "the drafts" : `${missing} missing draft${missing === 1 ? "" : "s"}`}`}
@@ -40,7 +41,7 @@ export function BookingTemplatesCard() {
         )}
       />
       <CardBody className="space-y-3">
-        {isLoading ? <Skeleton className="h-32 rounded-xl" /> : isError ? (
+        {isPending ? <Skeleton className="h-32 rounded-xl" /> : isError ? (
           <p role="alert" className="text-sm text-[var(--haip-status-danger-fg)]">
             Couldn&apos;t load the templates. <button type="button" className="font-semibold underline" onClick={() => refetch()}>Try again</button>
           </p>

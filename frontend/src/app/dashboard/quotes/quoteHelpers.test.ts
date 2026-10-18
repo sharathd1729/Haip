@@ -21,8 +21,8 @@ const catalog: Catalog = {
   destinations: [entry("coorg", { name: "Coorg", usual_nights: 2 }), entry("krs", { name: "KRS Backwaters", usual_nights: 1 })],
   kits: [{ name: "Culinary", amount: "5000.00", unit: "per_stay", package_keys: ["coorg-48", "day-rate"] },
          { name: "Wellness", amount: "5000.00", unit: "per_stay", package_keys: ["coorg-48"] }],
-  reseller_terms: null, advance_percent: "50.00", vehicles: [],
-  permissions: { user_id: "u1", is_owner: false, can_quote: true, can_draft: true, can_publish: true },
+  reseller_terms: null, advance_percent: "50.00", vehicles: [], send_setup: { razorpay_connected: true, template_status: "approved" },
+  permissions: { user_id: "u1", is_owner: false, can_quote: true, can_draft: true, can_publish: true, can_manage_templates: false },
 };
 
 const primary: OptionForm = {

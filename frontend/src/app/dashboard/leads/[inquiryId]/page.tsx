@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Sparkles, Phone, MessageSquare, Instagram, Building2, Clock, RefreshCw, Plus, Globe, Shield, Star, Timer, Users, MapPin, IndianRupee, Heart, FileText } from "@/lib/icons";
@@ -43,7 +44,12 @@ interface QuoteHistory {
   created_at?: string;
   is_active?: boolean;
   age_days?: number;
+  option_rank?: number;
+  payment_link_status?: "created" | "paid" | "expired" | "cancelled" | null;
+  booking_id?: string | null;
 }
+
+const QUOTE_LINK_LABEL = { created: "Link sent", paid: "Paid", expired: "Link expired", cancelled: "Link cancelled" } as const;
 
 interface FieldValue {
   field_key: string;
@@ -784,7 +790,15 @@ export default function LeadDetailPage() {
                       >
                         <span className="font-medium tabular-nums" style={{ color: q.is_active ? "var(--haip-green)" : "var(--haip-fg-2)" }}>
                           {q.currency} {Number(q.amount).toLocaleString("en-IN")}
+                          {(q.option_rank ?? 1) === 2 && <span className="ml-1 font-normal text-[var(--haip-fg-subtle)]">option 2</span>}
                         </span>
+                        {q.payment_link_status && (
+                          q.booking_id
+                            ? <Link href={`/dashboard/bookings/${q.booking_id}`} className="font-semibold text-primary hover:underline">Paid · booking</Link>
+                            : <span className={q.payment_link_status === "paid" ? "font-semibold text-[var(--haip-status-success-fg)]" : "text-[var(--haip-fg-subtle)]"}>
+                                {QUOTE_LINK_LABEL[q.payment_link_status]}
+                              </span>
+                        )}
                         <span style={{ color: "var(--haip-fg-subtle)" }}>
                           {q.age_days != null ? `${q.age_days}d ago` : "—"}
                           {q.is_active && <span className="ml-1.5 font-medium" style={{ color: "var(--haip-green)" }}>Active</span>}

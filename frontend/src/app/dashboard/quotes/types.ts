@@ -30,7 +30,11 @@ export interface Catalog {
   reseller_terms: { version: number; data: { tiers: ResellerTier[] } } | null;
   advance_percent: string | null;
   vehicles: { id: string; name: string }[];
-  permissions: { user_id: string; is_owner: boolean; can_quote: boolean; can_draft: boolean; can_publish: boolean };
+  /** What "Send quote + payment link" needs from the workspace. */
+  send_setup: { razorpay_connected: boolean; template_status: string | null };
+  permissions: {
+    user_id: string; is_owner: boolean; can_quote: boolean; can_draft: boolean; can_publish: boolean; can_manage_templates: boolean;
+  };
 }
 
 export interface ResellerTier {
@@ -149,6 +153,41 @@ export interface SavedQuote {
 }
 
 export interface IssueResult { quotes: SavedQuote[]; next_step: { task_id: string; due_date: string | null } | null }
+
+// ─── Sending (POST /quotes/{id}/send) and where a sent quote stands (GET /quotes/{id} -> send) ─────────────
+
+export type LinkStatus = "created" | "paid" | "expired" | "cancelled";
+export interface PaymentLinkOut {
+  id: string; external_id: string; short_url: string; amount: number; status: LinkStatus;
+  expires_at: string | null; booking_id: string | null; created_at: string | null; paid_at: string | null;
+}
+export interface MessageState { status: string; error: string | null; at: string | null; message_id: string | null; conversation_id: string | null }
+export interface Journey {
+  quote_number: string;
+  group_id: string;
+  options: { quote_id: string; option_rank: number; status: string; amount: string; advance: string | null; link: PaymentLinkOut | null }[];
+  message: MessageState | null;
+  fallback_message: MessageState | null;
+  paid: { quote_id: string; option_rank: number; amount: number; at: string | null } | null;
+  booking_id: string | null;
+  invoice: { number: string; id: string } | null;
+  confirmation: { status: string; error: string | null } | null;
+  needs_staff: string | null;
+  polling: boolean;
+}
+export interface Problem { code: string; message: string }
+export interface SendReadiness { can_send: boolean; blockers: Problem[]; warnings: Problem[] }
+export interface QuoteDetail extends SavedQuote {
+  quote_number: string;
+  payment_link: PaymentLinkOut | null;
+  send: Journey;
+  send_readiness: SendReadiness;
+}
+export interface SendResult {
+  quote_id: string;
+  message: { status: "queued" | "not_sent" | "already_sent"; code: string | null; message: string };
+  journey: Journey;
+}
 
 /** The route editor's working copy (turned into a destination record by routeToData). */
 export interface RouteForm {
