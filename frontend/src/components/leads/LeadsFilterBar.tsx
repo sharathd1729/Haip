@@ -25,6 +25,8 @@ export interface LeadsFilters {
   checkin_date_to?: string;
   booked_date_from?: string;
   booked_date_to?: string;
+  // "moved" = leads whose current stage the lead autopilot set (GET /leads?autopilot=moved)
+  autopilot?: string;
 }
 
 const ENQUIRY_PRESETS = [
@@ -154,6 +156,14 @@ function FilterControls({
         onChange={v => set({ source: v || undefined })}
         options={SOURCE_OPTIONS.map(s => ({ value: s, label: s.replace(/_/g, " ") }))}
         placeholder="Source"
+        className={fieldCls}
+      />
+
+      <Select
+        value={filters.autopilot}
+        onChange={v => set({ autopilot: v || undefined })}
+        options={[{ value: "moved", label: "Moved by autopilot" }]}
+        placeholder="Autopilot"
         className={fieldCls}
       />
 

@@ -12,6 +12,9 @@ import { ResponseTimeBadge, formatDuration } from "@/components/leads/LeadCard";
 import { useToast } from "@/components/ui/toast";
 import { useSession } from "next-auth/react";
 import { AIRecommendationCard, type RecommendedAction } from "@/components/ai/AIRecommendationCard";
+import { ActionableInsights } from "@/components/ai/ActionableInsights";
+import { AutopilotPanel } from "@/components/leads/AutopilotPanel";
+import type { Actionable } from "@/lib/actionable";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,7 +61,7 @@ interface FieldValue {
   value: unknown;
 }
 
-interface AiAnalysis {
+interface AiAnalysis extends Actionable {
   intent?: string | null;
   sentiment?: string | null;
   objection?: string | null;
@@ -351,6 +354,9 @@ function AiAnalysisTab({
           <p className="text-[11px] text-primary/70 italic">Generating summary… refresh in a moment.</p>
         )}
       </div>
+
+      {/* The actionable read first (next best action, blocker, temperature, missed revenue, what to update). */}
+      {analysis && <ActionableInsights insights={analysis} />}
 
       {analysis ? (
         <div className="bg-[var(--haip-card)] rounded-xl border border-[var(--haip-border)] px-3.5 py-1">
@@ -717,7 +723,9 @@ export default function LeadDetailPage() {
                 ) : (
                   <p className="lx-ai-label text-[11px] italic">Generating summary… refresh in a moment.</p>
                 )}
-                {data.ai_next_action && (
+                {data.ai_analysis?.next_best_action?.action ? (
+                  <div className="mt-2"><ActionableInsights insights={data.ai_analysis} compact /></div>
+                ) : data.ai_next_action && (
                   <p className="lx-ai-next text-[11px] font-medium mt-1.5 pt-1.5">
                     → {data.ai_next_action}
                   </p>
@@ -748,6 +756,9 @@ export default function LeadDetailPage() {
                   extended to a lead's own stage/Lost suggestion
                   (lead_recommendation_service.py). Nothing here moves the
                   pipeline until the agent clicks Apply. */}
+              <AutopilotPanel inquiryId={inquiryId} autopilot={data.autopilot}
+                canEdit={["owner", "manager", "reservations", "concierge"].includes(role)} />
+
               {(data.recommended_actions ?? []).length > 0 && (
                 <AIRecommendationCard
                   title="Suggested next step"
