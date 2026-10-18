@@ -492,8 +492,14 @@
   /* Sign-in brand panel: always dark (deep sea green) in both themes, with a light coral accent that passes AA on it. */
   --haip-brand-panel:  #0D2A21;
   --haip-panel-accent: #F6A58E;
+
+  /* Two-series charts (impact revenue: booked vs collected). Validated with the dataviz palette checker in both themes. */
+  --haip-series-1: #3B5BA9;
+  --haip-series-2: #E0694A;
 }
 .dark {
+  --haip-series-1: #5A7FE0;
+  --haip-series-2: #E06A48;
   --haip-avatar-1-bg: rgba(92,201,160,0.16);  --haip-avatar-1-fg: #5CC9A0;
   --haip-avatar-2-bg: rgba(240,138,110,0.16); --haip-avatar-2-fg: #F6A58E;
   --haip-avatar-3-bg: rgba(111,207,151,0.14); --haip-avatar-3-fg: #8EDBAE;

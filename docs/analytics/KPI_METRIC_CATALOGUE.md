@@ -302,6 +302,28 @@ not shared:
 | Dashboard overview | none | no generated-at, no period echo beyond `date_from/date_to` |
 | Empty-denominator behaviour | `0.0` (conversion, callback rate, AI acceptance), `100.0` (automation coverage, SLA), `None` (WhatsApp rates, cost per lead), hard-coded `0` (team report) | needs one rule |
 
+## 14. Impact view: before / after go-live  *(shared; evidence T; added 18 Oct 2026)*
+
+Page `/dashboard/impact`, `GET /dashboard/impact` (owner/manager), PDF `GET /dashboard/impact/export.pdf`. Two windows of N IST days
+(default 30): **Before** = the N days before the go-live date, **With HAIP** = the latest N days up to today (not before go-live).
+"Before" shows the **owner-entered baseline** (`impact_baselines`: value, period in the owner's words, source note; owner only,
+audited) labelled *owner-entered*, and what HAIP itself recorded in the before window labelled *measured* (often thin: personal
+WhatsApp history reaches back 30 days). The change is against the owner figure when there is one, else the measured one; none when the
+reference is missing or 0. `%` metrics change in points, others in percent. Per-30-day figures scale the window's total by 30 / N.
+Reused unchanged: `leads.identified_new`, `leads.conversion_cohort`, `enquiries.created`, `stays.booked`, `payments.collected`.
+
+| Metric id | Definition | Notes |
+|---|---|---|
+| `replies.first_response` | Per **guest turn**: a guest message (WhatsApp or Instagram) whose previous message in the chat was ours, or was more than 24 h earlier, or none; later guest messages before our reply join that turn. Reply = first outbound that really went out (not internal, not failed / rejected / pending / queued). Median and p90 over answered turns; answered within 5/15/60 min over **all** turns (unanswered count as not answered). | Channel = where the guest wrote: `whatsapp_cloud`, `personal_whatsapp` (message `channel_metadata.source = personal_bridge`, read-only mirror; replies typed on the agent's phone count as staff), `instagram`. Group chats excluded. Responder: `ai` (sent by itself), `staff_ai_draft`, `staff`. Turns younger than 60 min left out. **Differs from `message_metrics`** (any outbound row, no 24 h rule): it answers D-09 for this view only. |
+| `replies.after_hours` | The guest turns above that started outside business hours (`Tenant.business_hours`, else `tenant_tz` defaults Mon-Fri 9-21, Sat 10-18, Sun 10-14), share answered within 15 min, and share of the answered ones sent by the AI on its own. | `ivr_routing_service` treats no hours as always open; this view uses the `tenant_tz` defaults. |
+| `leads.quoted_cohort` | Of the people who became leads in the period, those with a quote so far (`inquiry_quotes` row or `Inquiry.quoted_at` on any of their enquiries). | Shown next to the cohort booked share; enquiry records are shown but never divided by leads. |
+| `calls.missed_returned` | Inbound calls missed in the period (`call_status_service`), returned = `recovered_by_call_id` set, median minutes to that callback, share returned within 60 min (of all missed). | All IVR providers counted (D-15 still open). |
+| `enquiries.lost` | Non-spam enquiry records now in a closed-lost stage whose `current_stage_entered_at` (else `updated_at`) is in the period, by `lost_reason` (empty = Not recorded). | Records, not people. |
+
+Money (bookings value, cash collected, revenue per IST month) needs `revenue.read`; without it the tiles and the revenue block are
+`{"restricted": true}`. The public case study (`/case-studies/{slug}`) shows only an owner-published **snapshot** of these aggregates
+(no guest data; money only if the owner ticked it); until published it says "coming soon".
+
 ## 13. Decisions needed (none is assumed)
 
 | Id | Decision |

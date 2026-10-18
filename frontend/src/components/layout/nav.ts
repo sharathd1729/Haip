@@ -63,6 +63,7 @@ export const NAV_SECTIONS: NavSection[] = [
   ] },
   { title: "Insights", links: [
     { label: "Reports", href: "/dashboard/reports", icon: BarChart2, resource: "reports" },
+    { label: "Impact", href: "/dashboard/impact", icon: TrendingUp, resource: "analytics", onlyRoles: ["owner", "manager"] },
     { label: "Instagram insights", href: "/dashboard/instagram-insights", icon: AtSign, resource: "analytics" },
     { label: "Marketing", href: "/dashboard/marketing", icon: Megaphone, resource: "analytics", onlyRoles: ["owner", "manager", "marketing"] },
     { label: "QA & scores", href: "/dashboard/qa", icon: Star, resource: "qa" },

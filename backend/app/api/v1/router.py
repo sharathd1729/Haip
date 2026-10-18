@@ -20,7 +20,7 @@ from app.api.v1.endpoints import (
     tasks,
     ivr,
     push,
-    dashboard_overview, business_overview,
+    dashboard_overview, business_overview, impact,
     knowledge,
     knowledge_freshness,
     business_data,
@@ -39,6 +39,8 @@ api_router.include_router(auth.router)
 # Dashboard
 api_router.include_router(dashboard_overview.router)
 api_router.include_router(business_overview.router)
+api_router.include_router(impact.router)
+api_router.include_router(impact.public_router)
 api_router.include_router(workspace_context.router)
 
 # Metrics & Widgets catalogue
