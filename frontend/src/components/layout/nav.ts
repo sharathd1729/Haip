@@ -13,7 +13,7 @@ import {
   TrendingUp, UserCircle, Users, Zap,
 } from "@/lib/icons";
 import { GitBranch, UserCheck } from "lucide-react";
-import { BOOKING_READ_ROLES, REVENUE_READ_ROLES, canSeeNav, type Resource } from "@/lib/permissions";
+import { BOOKING_READ_ROLES, QUOTE_WRITE_ROLES, REVENUE_READ_ROLES, canSeeNav, type Resource } from "@/lib/permissions";
 import { useBusinessType } from "@/components/providers/WorkspaceProvider";
 import { useInboxStore } from "@/store/inbox";
 
@@ -25,6 +25,8 @@ export interface NavLink {
   icon: NavIcon;
   resource: Resource;
   hideForBusinessTypes?: string[];
+  /** Shown only for these business types (hidden while the type is still unknown). */
+  onlyForBusinessTypes?: string[];
   onlyRoles?: string[];
   ownerOnly?: boolean;
 }
@@ -49,6 +51,7 @@ export const NAV_SECTIONS: NavSection[] = [
     { label: "Targets", href: "/dashboard/targets", icon: TrendingUp, resource: "guests", onlyRoles: REVENUE_READ_ROLES },
     { label: "Properties", href: "/dashboard/properties", icon: Home, resource: "properties", hideForBusinessTypes: ["caravan"] },
     { label: "Rate calculator", href: "/dashboard/calculator", icon: Calculator, resource: "properties", hideForBusinessTypes: ["caravan"] },
+    { label: "Quotes", href: "/dashboard/quotes", icon: Calculator, resource: "guests", onlyRoles: QUOTE_WRITE_ROLES, onlyForBusinessTypes: ["caravan"] },
   ] },
   { title: "Messaging", links: [
     { label: "Overview", href: "/dashboard/messaging", icon: Send, resource: "settings" },
@@ -60,6 +63,7 @@ export const NAV_SECTIONS: NavSection[] = [
   ] },
   { title: "Insights", links: [
     { label: "Reports", href: "/dashboard/reports", icon: BarChart2, resource: "reports" },
+    { label: "Impact", href: "/dashboard/impact", icon: TrendingUp, resource: "analytics", onlyRoles: ["owner", "manager"] },
     { label: "Instagram insights", href: "/dashboard/instagram-insights", icon: AtSign, resource: "analytics" },
     { label: "Marketing", href: "/dashboard/marketing", icon: Megaphone, resource: "analytics", onlyRoles: ["owner", "manager", "marketing"] },
     { label: "QA & scores", href: "/dashboard/qa", icon: Star, resource: "qa" },
@@ -71,8 +75,10 @@ export const NAV_SECTIONS: NavSection[] = [
     { label: "Integrations", href: "/dashboard/settings/integrations", icon: Link2, resource: "integrations" },
     { label: "Team", href: "/dashboard/settings/team", icon: Users, resource: "users" },
     { label: "Lead assignment", href: "/dashboard/settings/lead-assignment", icon: Shuffle, resource: "settings" },
+    { label: "Lead autopilot", href: "/dashboard/settings/lead-autopilot", icon: Bot, resource: "settings", onlyRoles: ["owner", "manager"] },
     { label: "Calendar sync", href: "/dashboard/settings/calendar-sync", icon: Calendar, resource: "settings" },
     { label: "Payments", href: "/dashboard/settings/payments", icon: CreditCard, resource: "settings" },
+    { label: "Invoice details", href: "/dashboard/settings/invoices", icon: FileText, resource: "settings", onlyRoles: ["owner", "manager"] },
     { label: "Developers", href: "/dashboard/settings/developers", icon: Key, resource: "settings" },
     { label: "Branding", href: "/dashboard/settings/branding", icon: Palette, resource: "branding" },
     { label: "Billing", href: "/dashboard/billing", icon: CreditCard, resource: "billing" },
@@ -101,6 +107,7 @@ export function isVisible(link: NavLink, role: string, businessType: string | nu
   return canSeeNav(role, link.resource)
     && (!link.onlyRoles || link.onlyRoles.includes(role))
     && (!businessType || !link.hideForBusinessTypes?.includes(businessType))
+    && (!link.onlyForBusinessTypes || (!!businessType && link.onlyForBusinessTypes.includes(businessType)))
     && (!link.ownerOnly || role === "owner");
 }
 

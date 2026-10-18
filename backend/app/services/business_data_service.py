@@ -284,10 +284,31 @@ def update_draft(
     return rec
 
 
-def publish(db: Session, tenant_id: str, record_id: str, actor_id: Optional[str], effective_from: Optional[date] = None) -> BusinessRecord:
+def authored_by(db: Session, tenant_id: str, rec: BusinessRecord, user_id: Optional[str]) -> bool:
+    """Did this user create or edit this draft? (The audit chain records every edit with its actor.)"""
+    from app.models.audit_event import AuditEvent
+    if not user_id:
+        return False
+    if rec.created_by == user_id:
+        return True
+    db.flush()
+    return db.query(AuditEvent.id).filter(
+        AuditEvent.tenant_id == tenant_id, AuditEvent.target_id == rec.id, AuditEvent.actor_user_id == user_id,
+        AuditEvent.action == "business_record.draft_updated",
+    ).first() is not None
+
+
+def publish(
+    db: Session, tenant_id: str, record_id: str, actor_id: Optional[str], effective_from: Optional[date] = None,
+    actor_role: Optional[str] = None,
+) -> BusinessRecord:
+    """`actor_role` (given by the API) turns on the four-eyes rule: whoever drafted or edited a version may not publish it,
+    unless they are the owner (the same rule as Marketing Studio approvals)."""
     rec = _get(db, tenant_id, record_id)
     if rec.status != "draft":
         raise BusinessDataError("not_a_draft", f"Only a draft can be published (this is {rec.status}).", status=409)
+    if actor_role is not None and actor_role != "owner" and authored_by(db, tenant_id, rec, actor_id):
+        raise BusinessDataError("self_approval", "You drafted or edited this version, so someone else must approve it.", status=403)
     result = validate_record(db, tenant_id, rec)
     if result["errors"]:
         raise BusinessDataError("invalid", "This draft cannot be published yet.", result["errors"])
@@ -367,7 +388,7 @@ def deactivate(db: Session, tenant_id: str, kind: str, key: str, actor_id: Optio
 
 def rollback(
     db: Session, tenant_id: str, kind: str, key: str, to_version: int, actor_id: Optional[str],
-    note: Optional[str] = None, publish_now: bool = False,
+    note: Optional[str] = None, publish_now: bool = False, actor_role: Optional[str] = None,
 ) -> BusinessRecord:
     """A NEW draft copied from an older version (history is never rewritten); optionally published straight away."""
     key = normalise_key(kind, key)
@@ -376,4 +397,4 @@ def rollback(
         raise BusinessDataError("not_found", "That version cannot be rolled back to.", status=404)
     draft = create_draft(db, tenant_id, kind, key, src.data, actor_id, note=note or f"Rollback to version {to_version}", rollback_of_id=src.id)
     _audit(db, tenant_id, "rolled_back", actor_id, draft, to_version=to_version)
-    return publish(db, tenant_id, draft.id, actor_id) if publish_now else draft
+    return publish(db, tenant_id, draft.id, actor_id, actor_role=actor_role) if publish_now else draft

@@ -188,6 +188,9 @@ def build_concierge_context(
                     "text": (f"Q: {h['question']}\nA: {h['content']}" if h.get("question") else h["content"]),
                     "source": h["category"],
                     "score": h["score"],
+                    # Shown to the model so it can tell a current passage from an old one (and from what we said earlier).
+                    "updated": h.get("updated_at"),
+                    "origin": h.get("source"),
                 }
                 for h in outcome.hits
             ]

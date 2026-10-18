@@ -14,6 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { AIRecommendationCard, type RecommendedAction } from "@/components/ai/AIRecommendationCard";
+import { ActionableInsights } from "@/components/ai/ActionableInsights";
+import { hasActionable, type Actionable } from "@/lib/actionable";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -74,6 +76,8 @@ interface CallDetail {
   ai_summary?: string;
   };
   recommended_actions?: RecommendedAction[];
+  // wrap_up v5 (backend calls.ai_insights): next best action, blocker + counter, temperature, missed revenue, updates.
+  ai_insights?: Actionable | null;
 }
 
 // Real CallDisposition values (backend models/call.py). The previous list
@@ -748,6 +752,14 @@ export default function CallDetailPage() {
   ) : null}
   </div>
   ) : null}
+
+  {/* ── Actionable read of the call (wrap_up v5) ── */}
+  {hasActionable(call.ai_insights) && (
+  <div className="haip-card p-5">
+  <h2 className="text-sm font-semibold text-[var(--haip-fg)] mb-3">What to do next</h2>
+  <ActionableInsights insights={call.ai_insights} />
+  </div>
+  )}
 
   {/* ── Insights zone ─────────────────────────────────────────────────
   Groups Layer 2 intent/outcome data with the missed-revenue

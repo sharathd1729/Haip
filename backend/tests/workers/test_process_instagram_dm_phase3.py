@@ -217,7 +217,7 @@ def test_guest_sharing_phone_number_does_not_set_human_owned(db):
     tenant = _make_tenant(db, ig_ai_mode_default="autonomous")
     integration = _make_ig_integration(db, tenant.id)
 
-    result, _ = _run_dm_task(db, tenant, integration, sender_id="guest-phone-001", text="You can reach me at 9876543210")
+    result, _ = _run_dm_task(db, tenant, integration, sender_id="guest-phone-001", text="You can reach me at 9845012345")
 
     assert result["status"] == "ok"
     conv = db.query(Conversation).filter_by(tenant_id=tenant.id).first()
@@ -265,13 +265,56 @@ def test_phone_shared_on_a_later_message_promotes_stuck_default_stage_inquiry(db
     default_stage = db.query(PipelineStage).filter_by(tenant_id=tenant.id, is_default_entry=True).first()
     assert inquiry.stage_id == default_stage.id  # confirms it landed stuck, per the bug
 
-    result2, _ = _run_dm_task(db, tenant, integration, sender_id="guest-latephone-001", text="You can reach me at 9876543210")
+    result2, _ = _run_dm_task(db, tenant, integration, sender_id="guest-latephone-001", text="You can reach me at 9845012345")
     assert result2["status"] == "ok"
 
     db.refresh(inquiry)
     valid_stage = db.query(PipelineStage).filter_by(tenant_id=tenant.id, is_valid_lead_entry=True).first()
     assert inquiry.stage_id == valid_stage.id
     assert conv.human_owned is False  # phone capture no longer forces shadow mode
+
+
+def test_dates_and_phone_in_one_dm_make_the_guest_a_lead_in_the_valid_stage(db):
+    """Owner report (Oct 2026): the lead sent the dates AND the number in the same DM, but the old regex read
+    "9845012345 21/10" as one invalid number, so no phone was captured and the bot kept asking for it."""
+    from app.services.pipeline_stage_service import seed_default_pipeline_stages
+    from app.models.pipeline_stage import PipelineStage
+    from app.models.inquiry import Inquiry
+    from app.models.guest_identity import GuestIdentity
+
+    tenant = _make_tenant(db, ig_ai_mode_default="autonomous")
+    integration = _make_ig_integration(db, tenant.id)
+    seed_default_pipeline_stages(db, tenant.id)
+    db.commit()
+
+    result, _ = _run_dm_task(db, tenant, integration, sender_id="guest-datephone-001",
+                             text="Hi 4 adults 2 kids Coorg, 9845012345 21/10 to 22/10")
+    assert result["status"] == "ok"
+    conv = db.query(Conversation).filter_by(tenant_id=tenant.id).first()
+    sig = db.query(GuestIdentity).filter_by(tenant_id=tenant.id, guest_id=conv.guest_id, identity_type="phone").one()
+    assert sig.identity_value == "+919845012345"
+    guest = db.query(Guest).filter_by(id=conv.guest_id).one()
+    assert guest.lead_identified_at is not None
+    inquiry = db.query(Inquiry).filter_by(id=conv.inquiry_id).one()
+    assert db.query(PipelineStage).filter_by(id=inquiry.stage_id).one().is_valid_lead_entry
+
+
+def test_dates_without_a_phone_do_not_land_in_the_valid_stage(db):
+    """The old loose check said "has a phone" for "24-10-2026 to 26-10-2026", routing a number-less enquiry into the valid
+    stage: the team's list then showed an Instagram lead with dates and no number on file."""
+    from app.services.pipeline_stage_service import seed_default_pipeline_stages
+    from app.models.pipeline_stage import PipelineStage
+    from app.models.inquiry import Inquiry
+
+    tenant = _make_tenant(db, ig_ai_mode_default="autonomous")
+    integration = _make_ig_integration(db, tenant.id)
+    seed_default_pipeline_stages(db, tenant.id)
+    db.commit()
+
+    _run_dm_task(db, tenant, integration, sender_id="guest-dateonly-001", text="Available 24-10-2026 to 26-10-2026?")
+    conv = db.query(Conversation).filter_by(tenant_id=tenant.id).first()
+    inquiry = db.query(Inquiry).filter_by(id=conv.inquiry_id).one()
+    assert db.query(PipelineStage).filter_by(id=inquiry.stage_id).one().is_default_entry
 
 
 def test_share_post_opener_does_not_permanently_block_inquiry_creation(db):

@@ -45,7 +45,7 @@ respond with ONLY a JSON object (no markdown fences, no other text):
     "unanswered_questions": ["<each question the GUEST asked that the team has NOT yet answered in this conversation, as a short phrase; [] if none>"],
     "requirements": ["<each amenity/need the guest stated (pets, kitchen, wheelchair access ...), as a short phrase; [] if none>"],
     "inferences": ["<anything you CONCLUDED but the guest did NOT say, e.g. 'likely price-sensitive'; [] if none. Never put an inference anywhere else>"],
-    "follow_up": "<when/how to follow up if a follow-up is due (e.g. 'call back tomorrow morning'), else null>"
+    "follow_up": "<when/how to follow up if a follow-up is due (e.g. 'call back tomorrow morning'), else null>",__ACTIONABLE__
   },
   "extracted": {
     "check_in": "<ISO date YYYY-MM-DD ONLY if the guest explicitly stated a check-in/travel date, else null. If the guest gave a date with no year (e.g. 'sept 16-18', 'the 20th'), resolve the year using the 'Reference date' given in the lead context below -- pick the nearest occurrence of that month/day ON OR AFTER the reference date, never a year already in the past relative to it, and never guess a year with no anchor.>",
@@ -77,7 +77,15 @@ guest actually said in this conversation -- never infer, guess, or estimate
 a value the guest did not state. "lead_analysis" is the one exception: it is
 your own reasoned assessment, not a literal readback, but it must still be
 grounded strictly in this conversation's actual content. When in doubt, use
-null. Output only the JSON object."""
+null. Output only the JSON object.
+
+__ACTIONABLE_RULES__ The owner is the "Assigned agent" in the lead context when there is one; deadlines are relative to
+"Today" in the lead context."""
+
+from app.services import ai_actionable as _actionable  # noqa: E402
+
+SYSTEM_PROMPT = (SYSTEM_PROMPT.replace("__ACTIONABLE__", _actionable.PROMPT_SPEC.rstrip())
+                 .replace("__ACTIONABLE_RULES__", _actionable.PROMPT_RULES))
 
 
 _ANALYSIS_KEYS = ("intent", "sentiment", "objection", "reply_urgency", "next_action",
@@ -106,6 +114,10 @@ def _clean_analysis(raw: dict) -> dict:
             out[key] = val.strip().lower() if isinstance(val, str) and val.strip().lower() in _URGENCIES else None
         else:
             out[key] = val.strip()[:300] if isinstance(val, str) and val.strip() else None
+    # v8 actionable block (added keys; nothing renamed). next_action stays the one-line text older readers use.
+    out.update(_actionable.clean_actionable(raw))
+    if not out.get("next_action"):
+        out["next_action"] = _actionable.next_action_text(out.get("next_best_action"))
     return out
 _EXTRACTED_KEYS = (
     "check_in", "check_out", "adults", "children", "occasion", "budget", "special_requests",
@@ -424,7 +436,10 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
             return
 
         # ── Build context ──────────────────────────────────────────────────────
+        from zoneinfo import ZoneInfo
         lines = [
+            f"Today: {datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%Y-%m-%d %H:%M')} IST",
+            f"Assigned agent: {inquiry.assigned_user.name if inquiry.assigned_user else 'unassigned'}",
             f"Inquiry source: {inquiry.source.value if inquiry.source else 'unknown'}",
             f"Stage: {_stage_label(inquiry)}",
             f"Booking status: {_booking_status_text(db, tenant_id, inquiry)}",
@@ -557,6 +572,10 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
             fields_extracted=fields_written,
             **stamp("leads360_summary", model=result.get("model")),
         )
+        # Lead autopilot reads the freshly updated lead. Message bursts reach here through the summary debounce,
+        # so a burst costs one evaluation.
+        from app.services import lead_autopilot_service
+        lead_autopilot_service.queue_evaluation(inquiry_id, tenant_id, trigger="summary")
 
     except Exception as exc:
         # LLM failure must never crash the task chain

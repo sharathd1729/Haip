@@ -50,9 +50,12 @@ const ROUTE_LABELS: Record<string, string> = {
   "channel-manager": "Channel manager",
   developers:   "Developers",
   "instagram-insights": "Instagram insights",
+  invoices:     "Invoice details",
   ivr:          "Call routing",
   knowledge:    "AI knowledge base",
   "lead-assignment": "Lead assignment",
+  "lead-autopilot": "Lead autopilot",
+  "platform-leads": "Website leads",
   "leads-activity": "Lead activity",
   "mcp-access": "AI assistants",
   "meta-quality": "Meta quality",
@@ -61,6 +64,8 @@ const ROUTE_LABELS: Record<string, string> = {
   permissions:  "Roles & permissions",
   "saved-replies": "Saved replies",
   targets:      "Targets",
+  impact:       "Impact",
+  quotes:       "Quotes",
   "whatsapp-personal": "Personal WhatsApp",
 };
 

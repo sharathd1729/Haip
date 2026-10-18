@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.core.cache import cache_key, get_cached, set_cached
 from app.services import worklist_service
+from app.services.ai_actionable import clean_next_action
 
 log = structlog.get_logger()
 
@@ -36,8 +37,15 @@ Respond with ONLY a JSON object (no markdown fences, no other text):
   "flags": [
     {"type": "quick_win", "text": "<one specific, actionable observation, or omit this flag type entirely if none applies>"},
     {"type": "coverage_gap", "text": "<one specific gap, e.g. a time window with several missed calls, or omit if none applies>"}
+  ],
+  "actions": [
+    {"lead": "<the guest's name exactly as listed>", "action": "<ONE concrete step, e.g. 'Call back about the missed call and confirm 24-25 Oct'>", "owner": "<the assigned agent if listed, else 'team'>", "channel": "<call | whatsapp | instagram | email>", "deadline": "<e.g. 'within 1 hour', 'today before 6 PM'>", "why": "<short reason from the data>"}
   ]
 }
+
+"actions" lists the (at most 3) most valuable next steps across the whole snapshot, most urgent first -- people waiting
+longest, missed calls, overdue follow-ups. Each names a real listed guest, one channel and a deadline. Omit "actions"
+(or use []) when nothing is outstanding.
 
 Only state what is directly supported by the data given to you -- never
 invent a name, count, or pattern that isn't there. Omit a flag entirely
@@ -106,7 +114,13 @@ def _parse_response(raw: str) -> Optional[dict]:
                 "type": f.get("type") if f.get("type") in ("quick_win", "coverage_gap", "pattern") else "pattern",
                 "text": f["text"].strip(),
             })
-    return {"narrative": narrative.strip(), "flags": flags}
+    actions = []
+    for a in (parsed.get("actions") or [])[:3] if isinstance(parsed.get("actions"), list) else []:
+        nba = clean_next_action(a)
+        lead = a.get("lead") if isinstance(a, dict) and isinstance(a.get("lead"), str) else None
+        if nba and lead and lead.strip():
+            actions.append({"lead": lead.strip()[:80], **nba})
+    return {"narrative": narrative.strip(), "flags": flags, "actions": actions}
 
 
 def generate_briefing(db: Session, tenant_id: str) -> Optional[dict]:
@@ -117,7 +131,7 @@ def generate_briefing(db: Session, tenant_id: str) -> Optional[dict]:
     total = sum(snapshot.get("counts", {}).values())
 
     if total == 0:
-        result = {"narrative": "Nothing outstanding right now — all caught up.", "flags": []}
+        result = {"narrative": "Nothing outstanding right now — all caught up.", "flags": [], "actions": []}
     else:
         try:
             from app.adapters.llm import get_llm

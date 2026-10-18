@@ -443,6 +443,54 @@ def update_stage(
     )
 
 
+def _notify_stage_hooks(db: Session, inquiry: Inquiry, actor_user_id: Optional[str]) -> None:
+    """Called by BOTH transition paths (_apply_stage and _apply_stage_by_id), like _emit_stage_ledger_event: a hook on
+    only one would miss every move made through the other. Today: the lead autopilot closes its open decisions when a
+    person moves the lead (lead_autopilot_service.on_stage_changed). Best-effort -- never blocks the transition."""
+    try:
+        from app.services import lead_autopilot_service
+        lead_autopilot_service.on_stage_changed(db, inquiry, inquiry.stage_id, actor_user_id)
+    except Exception as exc:
+        log.warning("lead_autopilot_stage_hook_failed", inquiry_id=inquiry.id, error=str(exc)[:200])
+
+
+def revert_automatic_move(
+    db: Session,
+    *,
+    tenant_id: str,
+    inquiry_id: str,
+    expected_stage_id: str,
+    restore_stage_id: str,
+    actor_user_id: str,
+    reason: str,
+) -> Inquiry:
+    """Undo ONE lead-autopilot move: put the lead back in the stage it was in before.
+
+    Narrower than update_stage_by_id/reopen_lost_inquiry on purpose: it only works while the lead is still in the stage
+    the autopilot put it in (expected_stage_id -- otherwise a person has moved it since and their move wins), never out
+    of a Sold stage (that is a booking: cancel the booking instead), and only back into an open stage. Writes the same
+    stage log, ledger event and audit row as any move. Clears the lost reason when leaving Lost (the caller restores
+    the previous one). Caller commits."""
+    inquiry = db.query(Inquiry).filter_by(id=inquiry_id, tenant_id=tenant_id).first()
+    if not inquiry:
+        raise ValueError(f"Inquiry {inquiry_id} not found")
+    current = db.query(PipelineStage).filter_by(id=expected_stage_id, tenant_id=tenant_id).first()
+    target = db.query(PipelineStage).filter_by(id=restore_stage_id, tenant_id=tenant_id).first()
+    if current is None or target is None:
+        raise ValueError("Pipeline stage not found")
+    if inquiry.stage_id != current.id:
+        raise InvalidStageTransition(current.key, target.key, "The lead has been moved since; this change can't be undone.")
+    if current.is_closed_won:
+        raise InvalidStageTransition(current.key, target.key, "A Sold lead is a booking. Cancel the booking instead.")
+    if target.is_closed_won or target.is_closed_lost:
+        raise InvalidStageTransition(current.key, target.key, "An undo can only return the lead to an open stage.")
+    _apply_stage_by_id(db, inquiry, current, target, actor_user_id, reason)
+    if current.is_closed_lost:
+        inquiry.lost_reason = None
+        inquiry.lost_note = None
+    return inquiry
+
+
 def _emit_stage_ledger_event(
     db: Session,
     inquiry: Inquiry,
@@ -552,6 +600,8 @@ def _apply_stage(
         )
     except Exception as exc:
         log.warning("audit_write_failed", error=str(exc))
+
+    _notify_stage_hooks(db, inquiry, actor_user_id)
 
     log.info(
         "inquiry_stage_changed",
@@ -754,6 +804,8 @@ def _apply_stage_by_id(
         )
     except Exception as exc:
         log.warning("audit_write_failed", error=str(exc))
+
+    _notify_stage_hooks(db, inquiry, actor_user_id)
 
     log.info(
         "inquiry_stage_changed", inquiry_id=inquiry.id,

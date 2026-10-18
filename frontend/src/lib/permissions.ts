@@ -340,6 +340,19 @@ export function canSendMessages(role: UserRole | string | undefined | null): boo
 export const BOOKING_READ_ROLES: UserRole[] = ["owner", "manager", "reservations", "concierge", "foh", "read_only"];
 export const REVENUE_READ_ROLES: UserRole[] = ["owner", "manager", "marketing"];
 
+/**
+ * Quote builder (display only; the server decides from the workspace's capability matrix, migration 140):
+ * `quotes.write` prices and saves quotes, `business_data.draft` drafts routes and packages, `business_data.publish` approves
+ * them (never one's own draft, unless owner). These are the capabilities' DEFAULT holders.
+ */
+export const QUOTE_WRITE_ROLES: UserRole[] = ["owner", "manager", "reservations", "concierge"];
+export const BUSINESS_DATA_DRAFT_ROLES: UserRole[] = ["owner", "manager", "reservations"];
+export const BUSINESS_DATA_PUBLISH_ROLES: UserRole[] = ["owner", "manager"];
+
+export function canWriteQuotes(role: UserRole | string | undefined | null): boolean {
+  return !!role && QUOTE_WRITE_ROLES.includes(role as UserRole);
+}
+
 export function canViewBookings(role: UserRole | string | undefined | null): boolean {
   return !!role && BOOKING_READ_ROLES.includes(role as UserRole);
 }

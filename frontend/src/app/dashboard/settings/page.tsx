@@ -7,6 +7,7 @@ import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { getPushStatus, subscribeToPush, isIOSStandaloneRequired, type PushStatus } from "@/components/PWARegister";
+import { SalesAgentSettingsCard } from "@/components/settings/SalesAgentSettingsCard";
 
 type Tab = "workspace" | "ai" | "notifications" | "security";
 
@@ -579,6 +580,8 @@ function AISettings() {
       <SectionHeader title="AI Concierge" sub="Control automation behaviour per channel" />
 
       <KillSwitchCard />
+
+      <SalesAgentSettingsCard />
 
       {/* WhatsApp */}
       <Card title="WhatsApp — AI mode">

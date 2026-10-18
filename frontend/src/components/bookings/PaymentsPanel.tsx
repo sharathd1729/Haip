@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Trash2 } from "@/lib/icons";
 import api from "@/lib/api";
 import { cn, formatINR } from "@/lib/utils";
@@ -10,6 +10,7 @@ import {
   METHOD_LABEL, PAYMENT_STYLE, errorMessage, fmtDate,
   type BookingDetail, type PayMethod, type PaymentLink,
 } from "@/lib/bookings";
+import { BALANCE_TEMPLATE, type BookingMessages } from "@/lib/invoices";
 
 const input = "w-full text-sm border border-[var(--haip-border)] rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary";
 const METHODS: PayMethod[] = ["upi", "cash", "card", "bank_transfer", "other"];
@@ -19,14 +20,25 @@ function waLink(phone: string | undefined, text: string): string {
   return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
 }
 
-/** Money for one booking: what is owed, the payment ledger, and a Razorpay link to collect the balance. */
+/** Money for one booking: what is owed, the payment ledger, and a Razorpay link to collect the balance. When the
+ * ratha_balance_due_v1 template is approved, HAIP sends the link on WhatsApp itself; otherwise Copy + wa.me. */
 export function PaymentsPanel({ booking, onChange }: { booking: BookingDetail; onChange: (b: BookingDetail) => void }) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const f = booking.financials;
   const base = `/bookings/${booking.id}`;
   const today = new Date().toISOString().slice(0, 10);
   const [form, setForm] = useState<{ kind: "payment" | "refund"; amount: string; method: PayMethod; reference: string; paid_on: string } | null>(null);
   const [link, setLink] = useState<PaymentLink | null>(booking.payment_links.find(l => l.status === "created") ?? null);
+
+  const [sent, setSent] = useState<{ status: string; reason: string | null } | null>(null);
+  // Same query (and cache) as the "Invoices and messages" card.
+  const { data: msgs } = useQuery<BookingMessages>({
+    queryKey: ["booking-messages", booking.id],
+    queryFn: () => api.get(`/bookings/${booking.id}/booking-messages`).then(r => r.data),
+    staleTime: 60_000,
+  });
+  const balanceReady = msgs?.templates?.[BALANCE_TEMPLATE] === "approved";
 
   const { data: rzp } = useQuery<{ connected: boolean }>({
     queryKey: ["razorpay-status"],
@@ -51,8 +63,16 @@ export function PaymentsPanel({ booking, onChange }: { booking: BookingDetail; o
   });
 
   const makeLink = useMutation({
-    mutationFn: () => api.post<PaymentLink>(`${base}/payment-links`, {}),
-    onSuccess: res => { setLink(res.data); toast({ variant: "success", title: "Payment link ready" }); },
+    mutationFn: (send: boolean) => api.post<PaymentLink>(`${base}/payment-links`, { send_whatsapp: send }),
+    onSuccess: res => {
+      setLink(res.data);
+      const wa = res.data.whatsapp ?? null;
+      setSent(wa);
+      if (wa) queryClient.invalidateQueries({ queryKey: ["booking-messages", booking.id] });
+      if (wa?.status === "queued") toast({ variant: "success", title: "Payment link sent on WhatsApp" });
+      else if (wa) toast({ variant: "warning", title: `Link ready, but not sent: ${wa.reason ?? "unknown reason"}. Copy it instead.` });
+      else toast({ variant: "success", title: "Payment link ready" });
+    },
     onError: e => toast({ variant: "error", title: errorMessage(e, "Could not create the link") }),
   });
 
@@ -162,10 +182,16 @@ export function PaymentsPanel({ booking, onChange }: { booking: BookingDetail; o
                 Record refund
               </button>
             )}
+            {f.outstanding > 0 && rzp?.connected !== false && balanceReady && (
+              <button onClick={() => makeLink.mutate(true)} disabled={makeLink.isPending}
+                className="min-h-9 pointer-coarse:min-h-11 text-xs font-semibold bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50">
+                {makeLink.isPending ? "Sending..." : "Send payment link on WhatsApp"}
+              </button>
+            )}
             {f.outstanding > 0 && rzp?.connected !== false && (
-              <button onClick={() => makeLink.mutate()} disabled={makeLink.isPending}
-                className="text-xs font-semibold border border-[var(--haip-border)] text-[var(--haip-fg-2)] px-3 py-2 rounded-lg hover:bg-[var(--haip-surface)] disabled:opacity-50">
-                {makeLink.isPending ? "Creating..." : "Get payment link"}
+              <button onClick={() => makeLink.mutate(false)} disabled={makeLink.isPending}
+                className="min-h-9 pointer-coarse:min-h-11 text-xs font-semibold border border-[var(--haip-border)] text-[var(--haip-fg-2)] px-3 py-2 rounded-lg hover:bg-[var(--haip-surface)] disabled:opacity-50">
+                {makeLink.isPending ? "Creating..." : balanceReady ? "Get link only" : "Get payment link"}
               </button>
             )}
           </div>
@@ -188,13 +214,22 @@ export function PaymentsPanel({ booking, onChange }: { booking: BookingDetail; o
               >
                 <Copy size={12} /> Copy
               </button>
-              {booking.guest?.phone && (
+              {booking.guest?.phone && sent?.status !== "queued" && (
                 <a href={waLink(booking.guest.phone, message)} target="_blank" rel="noopener noreferrer"
                   className="text-xs font-semibold bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700">
-                  Send on WhatsApp
+                  Send from my WhatsApp
                 </a>
               )}
             </div>
+            {sent?.status === "queued" ? (
+              <p className="text-[11px] text-[var(--accent-foreground)]">Sent to the guest on WhatsApp with the Pay balance button.</p>
+            ) : !balanceReady ? (
+              <p className="text-[11px] text-[var(--accent-foreground)]/70">
+                HAIP can&apos;t send it for you yet: the WhatsApp template {BALANCE_TEMPLATE} is not approved by Meta. Copy the link or send it from your WhatsApp.
+              </p>
+            ) : sent?.reason ? (
+              <p className="text-[11px] text-[var(--accent-foreground)]/70">Not sent by HAIP: {sent.reason}.</p>
+            ) : null}
             <p className="text-[11px] text-[var(--accent-foreground)]/70">The payment is recorded here automatically when the guest pays.</p>
           </div>
         )}

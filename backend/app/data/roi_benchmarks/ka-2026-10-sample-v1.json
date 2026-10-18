@@ -1,0 +1,217 @@
+{
+ "version": "ka-2026-10-sample-v1",
+ "label": "Karnataka sample benchmarks, October 2026",
+ "region": "Karnataka",
+ "sample": true,
+ "note": "sample — owner to confirm",
+ "segments": {"small_max_sqft": 5000, "medium_max_sqft": 43560},
+ "property_types": {
+  "hotel": {
+   "label": "Hotel",
+   "adr": {"small": 3000, "medium": 4200, "large": 5500},
+   "base_occupancy": 0.62,
+   "build_cost_per_sqft": 3000,
+   "fitout_per_key": 400000,
+   "running_cost_pct": 0.42,
+   "ota_share": 0.45,
+   "floors": 3,
+   "built_up_sqft_per_key": 400,
+   "common_pct": 0.25,
+   "parking_sqft_per_key": 120,
+   "events": null,
+   "note": "sample — owner to confirm"
+  },
+  "urban_retreat": {
+   "label": "Urban retreat",
+   "adr": {"small": 4000, "medium": 5500, "large": 7000},
+   "base_occupancy": 0.55,
+   "build_cost_per_sqft": 3200,
+   "fitout_per_key": 500000,
+   "running_cost_pct": 0.4,
+   "ota_share": 0.4,
+   "floors": 2,
+   "built_up_sqft_per_key": 550,
+   "common_pct": 0.2,
+   "parking_sqft_per_key": 150,
+   "events": null,
+   "note": "sample — owner to confirm"
+  },
+  "rural_retreat": {
+   "label": "Rural retreat",
+   "adr": {"small": 4500, "medium": 6000, "large": 8000},
+   "base_occupancy": 0.48,
+   "build_cost_per_sqft": 2600,
+   "fitout_per_key": 450000,
+   "running_cost_pct": 0.38,
+   "ota_share": 0.35,
+   "floors": 1,
+   "built_up_sqft_per_key": 650,
+   "common_pct": 0.2,
+   "parking_sqft_per_key": 150,
+   "events": null,
+   "note": "sample — owner to confirm"
+  },
+  "farmhouse": {
+   "label": "Farmhouse",
+   "adr": {"small": 6000, "medium": 9000, "large": 14000},
+   "base_occupancy": 0.4,
+   "build_cost_per_sqft": 2400,
+   "fitout_per_key": 350000,
+   "running_cost_pct": 0.32,
+   "ota_share": 0.3,
+   "floors": 1,
+   "built_up_sqft_per_key": 800,
+   "common_pct": 0.3,
+   "parking_sqft_per_key": 200,
+   "events": null,
+   "note": "sample — owner to confirm"
+  },
+  "event_space": {
+   "label": "Event space",
+   "adr": {"small": 3500, "medium": 4500, "large": 5500},
+   "base_occupancy": 0.35,
+   "build_cost_per_sqft": 2200,
+   "fitout_per_key": 300000,
+   "running_cost_pct": 0.4,
+   "ota_share": 0.15,
+   "floors": 1,
+   "built_up_sqft_per_key": 450,
+   "common_pct": 0.15,
+   "parking_sqft_per_key": 100,
+   "events": {
+    "per_month": {"small": 4, "medium": 6, "large": 8},
+    "price_per_event": {"small": 60000, "medium": 150000, "large": 350000},
+    "venue_sqft": {"small": 1500, "medium": 6000, "large": 12000}
+   },
+   "note": "sample — owner to confirm"
+  }
+ },
+ "location_tiers": {
+  "metro": {
+   "label": "Metro",
+   "adr_mult": 1.15,
+   "occ_mult": 1.05,
+   "places": ["bengaluru", "bangalore"],
+   "note": "sample — owner to confirm"
+  },
+  "tier2": {
+   "label": "Tier-2 city",
+   "adr_mult": 1.0,
+   "occ_mult": 1.0,
+   "places": ["mysuru", "mysore", "mangaluru", "mangalore", "hubballi", "hubli", "dharwad", "belagavi", "belgaum", "udupi", "davanagere", "shivamogga", "shimoga", "tumakuru", "kalaburagi"],
+   "note": "sample — owner to confirm"
+  },
+  "leisure": {
+   "label": "Leisure destination",
+   "adr_mult": 1.2,
+   "occ_mult": 1.0,
+   "places": ["coorg", "kodagu", "madikeri", "chikkamagaluru", "chikmagalur", "sakleshpur", "hampi", "gokarna", "kabini", "dandeli", "bandipur", "nandi hills", "murudeshwar", "agumbe", "kemmangundi", "virajpet", "badami"],
+   "note": "sample — owner to confirm"
+  },
+  "other": {
+   "label": "Elsewhere in Karnataka",
+   "adr_mult": 0.9,
+   "occ_mult": 0.9,
+   "places": [],
+   "note": "sample — owner to confirm"
+  }
+ },
+ "landmarks": {
+  "tourist_spot": {
+   "label": "a tourist spot",
+   "note": "sample — owner to confirm",
+   "bands": [
+    {"max_km": 5, "adr_mult": 1.1, "occ_mult": 1.08},
+    {"max_km": 20, "adr_mult": 1.03, "occ_mult": 1.03},
+    {"max_km": 60, "adr_mult": 0.97, "occ_mult": 0.96},
+    {"max_km": null, "adr_mult": 0.88, "occ_mult": 0.88}
+   ]
+  },
+  "highway": {
+   "label": "a highway",
+   "note": "sample — owner to confirm",
+   "bands": [
+    {"max_km": 2, "adr_mult": 1.0, "occ_mult": 1.04},
+    {"max_km": 15, "adr_mult": 1.0, "occ_mult": 1.0},
+    {"max_km": 50, "adr_mult": 0.95, "occ_mult": 0.94},
+    {"max_km": null, "adr_mult": 0.88, "occ_mult": 0.88}
+   ]
+  },
+  "airport": {
+   "label": "an airport",
+   "note": "sample — owner to confirm",
+   "bands": [
+    {"max_km": 15, "adr_mult": 1.06, "occ_mult": 1.05},
+    {"max_km": 45, "adr_mult": 1.0, "occ_mult": 1.0},
+    {"max_km": 120, "adr_mult": 0.95, "occ_mult": 0.95},
+    {"max_km": null, "adr_mult": 0.9, "occ_mult": 0.9}
+   ]
+  }
+ },
+ "competitor_density": {
+  "low": {"label": "Few competitors", "adr_mult": 1.04, "occ_mult": 1.05, "note": "sample — owner to confirm"},
+  "medium": {"label": "Some competitors", "adr_mult": 1.0, "occ_mult": 1.0, "note": "sample — owner to confirm"},
+  "high": {"label": "Many competitors", "adr_mult": 0.94, "occ_mult": 0.93, "note": "sample — owner to confirm"}
+ },
+ "seasonality": {
+  "even": {
+   "label": "Steady all year (city)",
+   "weights": [1.0, 1.0, 1.0, 0.95, 0.9, 0.9, 0.95, 1.0, 1.0, 1.05, 1.1, 1.15],
+   "note": "sample — owner to confirm"
+  },
+  "hill_coffee": {
+   "label": "Hills / coffee country (peak Oct–Feb, monsoon dip)",
+   "weights": [1.2, 1.1, 1.0, 1.05, 1.1, 0.6, 0.55, 0.65, 0.9, 1.15, 1.25, 1.45],
+   "note": "sample — owner to confirm"
+  },
+  "coastal": {
+   "label": "Coast (peak Oct–Mar, quiet monsoon)",
+   "weights": [1.3, 1.2, 1.1, 0.9, 0.8, 0.4, 0.35, 0.45, 0.75, 1.1, 1.25, 1.4],
+   "note": "sample — owner to confirm"
+  },
+  "wildlife": {
+   "label": "Wildlife (parks quieter Jul–Sep)",
+   "weights": [1.2, 1.15, 1.15, 1.1, 1.1, 0.7, 0.5, 0.55, 0.75, 1.1, 1.2, 1.4],
+   "note": "sample — owner to confirm"
+  },
+  "weekend_getaway": {
+   "label": "Weekend getaway near a city",
+   "weights": [1.05, 1.0, 0.95, 1.0, 1.05, 0.85, 0.8, 0.85, 0.95, 1.05, 1.1, 1.35],
+   "note": "sample — owner to confirm"
+  }
+ },
+ "amenities": {
+  "pool": {"label": "Swimming pool", "adr_uplift": 0.08, "capex": 2500000, "footprint_sqft": 1500, "note": "sample — owner to confirm"},
+  "spa": {"label": "Spa", "adr_uplift": 0.06, "capex": 3000000, "footprint_sqft": 1200, "note": "sample — owner to confirm"},
+  "restaurant": {"label": "Restaurant", "adr_uplift": 0.04, "capex": 3500000, "footprint_sqft": 2000, "fnb_per_occupied_room_night": 1500, "note": "sample — owner to confirm"},
+  "banquet": {"label": "Banquet / lawn for events", "adr_uplift": 0.02, "capex": 4000000, "footprint_sqft": 3000, "events_per_month": 2, "price_per_event": 80000, "note": "sample — owner to confirm"},
+  "gym": {"label": "Gym", "adr_uplift": 0.02, "capex": 800000, "footprint_sqft": 400, "note": "sample — owner to confirm"},
+  "kids_play": {"label": "Kids' play area", "adr_uplift": 0.02, "capex": 500000, "footprint_sqft": 800, "note": "sample — owner to confirm"},
+  "bonfire": {"label": "Bonfire / barbecue area", "adr_uplift": 0.02, "capex": 200000, "footprint_sqft": 600, "note": "sample — owner to confirm"},
+  "games_room": {"label": "Games room", "adr_uplift": 0.02, "capex": 600000, "footprint_sqft": 500, "note": "sample — owner to confirm"},
+  "ev_charging": {"label": "EV charging", "adr_uplift": 0.01, "capex": 300000, "footprint_sqft": 200, "note": "sample — owner to confirm"}
+ },
+ "experiences": {
+  "trekking": {"label": "Guided treks", "revenue_per_occupied_room_night": 400, "note": "sample — owner to confirm"},
+  "plantation_tour": {"label": "Plantation / farm tour", "revenue_per_occupied_room_night": 500, "note": "sample — owner to confirm"},
+  "cooking_class": {"label": "Cooking class", "revenue_per_occupied_room_night": 350, "note": "sample — owner to confirm"},
+  "safari": {"label": "Wildlife safari", "revenue_per_occupied_room_night": 1200, "note": "sample — owner to confirm"},
+  "water_sports": {"label": "Water sports", "revenue_per_occupied_room_night": 900, "note": "sample — owner to confirm"},
+  "yoga": {"label": "Yoga / wellness sessions", "revenue_per_occupied_room_night": 300, "note": "sample — owner to confirm"},
+  "cycling": {"label": "Cycling trails", "revenue_per_occupied_room_night": 250, "note": "sample — owner to confirm"},
+  "farm_to_table": {"label": "Farm-to-table dining", "revenue_per_occupied_room_night": 600, "note": "sample — owner to confirm"}
+ },
+ "scenarios": {
+  "low": {"adr_mult": 0.88, "occ_mult": 0.8},
+  "likely": {"adr_mult": 1.0, "occ_mult": 1.0},
+  "high": {"adr_mult": 1.1, "occ_mult": 1.12},
+  "note": "sample — owner to confirm"
+ },
+ "limits": {"occupancy_cap": 0.9, "occupancy_floor": 0.05, "amenity_uplift_cap": 0.2, "experience_revenue_cap": 2500, "green_min_pct": 0.15, "note": "sample — owner to confirm"},
+ "costs": {"ota_commission_pct": 0.18, "conversion_build_factor": 0.45, "contingency_pct": 0.1, "note": "sample — owner to confirm"},
+ "cta": {
+  "saas": {"title": "HAIP SaaS", "text": "Software for your own team: AI replies on WhatsApp and Instagram, call recording with AI review, and one CRM for every enquiry.", "price_text": "Monthly plan. Price: owner to confirm."},
+  "service": {"title": "HAIP Service", "text": "We run sales and revenue for you on HAIP: replies, follow-ups, pricing and OTA listings, for a fixed fee plus a share of revenue.", "price_text": "Fixed fee + share of revenue. Terms: owner to confirm."},
+  "note": "sample — owner to confirm"
+ }
+}

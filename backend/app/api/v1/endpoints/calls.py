@@ -944,6 +944,9 @@ def _serialize_call_detail(call: Call, db) -> dict:
         # which the lead detail page's CallCard already relies on.
         "ai_summary": call.ai_summary,
         "ai_next_action": call.ai_next_action,
+        # wrap_up v5: next best action (owner/channel/deadline), blocking objection + counter, missed revenue,
+        # temperature, what to update in HAIP, call outcome. Null for calls analysed before v5.
+        "ai_insights": call.ai_insights,
         "wrap_up_notes": call.disposition_note,
         # AI Autonomy Plan Phase 2 ticket 5: the one action contract, everywhere
         # (next_action_service.py) -- feeds AIRecommendationCard on the call

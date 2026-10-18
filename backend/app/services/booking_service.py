@@ -141,6 +141,70 @@ def pick_free_property(db: Session, tenant_id: str, check_in: date, check_out: d
     return None
 
 
+# ── Creating a booking ───────────────────────────────────────────────────────
+
+class BookingCreateError(Exception):
+    """Why a booking could not be made, safe to show; ``status`` is the HTTP status POST /bookings answers with."""
+    def __init__(self, message: str, status: int = 422):
+        super().__init__(message)
+        self.message, self.status = message, status
+
+
+def create_booking(db: Session, tenant_id: str, *, guest_id: str, prop: Property, check_in: date, check_out: date,
+                   adults: int = 1, children: int = 0, total_amount=None, inquiry_id: Optional[str] = None,
+                   status: str = "confirmed", special_requests: Optional[str] = None, occasion: Optional[str] = None,
+                   channel_source: str = "direct", check_in_time: Optional[str] = None, check_out_time: Optional[str] = None,
+                   internal_notes: Optional[str] = None, actor_user_id: Optional[str] = None, actor_role: str = "system",
+                   reason: str = "Booked in HAIP", strict_stage: bool = True, audit_extra: Optional[dict] = None) -> Stay:
+    """The one way HAIP code makes a booking (POST /bookings, a paid quote link). Ties it to its lead and marks that lead
+    Sold through the audited stage move, then audits ``booking.created``. Flushes; the caller commits. Raises
+    BookingCreateError when the lead is not this guest's (422) or already has a booking (409).
+
+    ``strict_stage=False`` (a payment webhook): a lead that cannot move to Sold (e.g. it was marked Lost) is logged and
+    audited instead of failing, because the guest has paid and the booking must stand."""
+    from app.core.audit import append_audit
+    from app.models.base import gen_uuid
+    from app.models.inquiry import Inquiry
+
+    stay = Stay(id=gen_uuid(), tenant_id=tenant_id, guest_id=guest_id, property_id=prop.id, check_in=check_in, check_out=check_out,
+                adults=adults, children=children, status=status, total_amount=total_amount, currency="INR",
+                special_requests=[special_requests] if special_requests else [], occasion=occasion, channel_source=channel_source,
+                check_in_time=check_in_time, check_out_time=check_out_time, internal_notes=internal_notes)
+    if inquiry_id:
+        lead = db.query(Inquiry).filter_by(id=inquiry_id, tenant_id=tenant_id).first()
+        if lead is None or lead.guest_id != guest_id:
+            raise BookingCreateError("That lead does not belong to this guest", 422)
+        if db.query(Stay.id).filter(Stay.tenant_id == tenant_id, Stay.inquiry_id == lead.id, Stay.status != "cancelled").first():
+            raise BookingCreateError("That lead already has a booking", 409)
+        stay.inquiry_id = lead.id
+    db.add(stay)
+    db.flush()
+    # A booking keeps the source and agent of the lead it came from: tie it to the lead (and mark that lead Sold through the
+    # audited stage move) so reports never show it as "Other" / "Unassigned" when the attribution exists. When the guest has no
+    # single open lead, nothing is guessed and the booking stays unattributed.
+    from app.services import ical_booking_service as _lead_link
+    if stay.inquiry_id is None:
+        _lead_link.link_lead(db, stay, date.today(), reason=reason)
+    else:
+        from app.models.pipeline_stage import PipelineStage
+        from app.services import inquiry_service as _inq
+        won = db.query(PipelineStage).filter_by(tenant_id=tenant_id, is_closed_won=True).order_by(PipelineStage.order).first()
+        lead = db.query(Inquiry).filter_by(id=stay.inquiry_id, tenant_id=tenant_id).first()
+        if won is not None and lead is not None and lead.stage_id != won.id:
+            try:
+                _inq.update_stage_by_id(db, tenant_id=tenant_id, inquiry_id=lead.id, new_stage_id=won.id,
+                                        actor_user_id=actor_user_id, actor_role=actor_role, reason=reason)
+            except (_inq.InvalidStageTransition, ValueError) as exc:
+                if strict_stage:
+                    raise
+                append_audit(db, tenant_id=tenant_id, actor_user_id=actor_user_id, action="booking.lead_not_moved",
+                             target_type="inquiry", target_id=lead.id, payload={"booking_id": stay.id, "reason": str(exc)[:300]})
+    append_audit(db, tenant_id=tenant_id, actor_user_id=actor_user_id, action="booking.created", target_type="booking", target_id=stay.id,
+                 payload={"property_id": prop.id, "check_in": check_in.isoformat(), "check_out": check_out.isoformat(),
+                          "inquiry_id": stay.inquiry_id, **(audit_extra or {})})
+    return stay
+
+
 # ── Payment schedule ─────────────────────────────────────────────────────────
 
 def allocate_schedule(instalments: list, paid: float, today: Optional[date] = None) -> list[dict]:

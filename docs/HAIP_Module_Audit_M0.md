@@ -1,6 +1,6 @@
 # HAIP (Hype) — Module Audit, Milestone 0
 
-**Date:** 11 Oct 2026 · **Repo state:** `master` at `85f105e`, Alembic head `116`
+**Date:** 11 Oct 2026 (status update 18 Oct 2026, §2a) · **Repo state:** `master` at `85f105e`, Alembic head `116`
 **Source roadmap:** `Hype_Module_Audit_and_Build_Roadmap (1).md` (sections 2, 19, 23)
 **Method:** read the repository (models, migrations, services, endpoints, tasks, tests, `.github`), ran the full
 backend suite, ran `tsc`/vitest. **No production access** — anything that needs production proof is marked
@@ -91,6 +91,26 @@ Key caveat: whether any of this protects production depends on the role the API 
 | M10 | Analytics & BI | **Partial** | Many dashboards, Ask HAIP, daily reports; no catalogue, freshness flags, exec analytics tests red |
 | M11 | Integrations & developer platform | **Built core / Partial edges** | Public API, scoped keys, signed webhooks, retry, redelivery; no sandbox, metering, partner provisioning |
 | M12 | Guest & property intelligence | **Partial** | `identity_service` + confidence weights + timeline; no unmerge, no review queue, no match-rate metrics |
+
+### 2a. Status update, 18 Oct 2026 (read with `docs/HAIP_Priority_List.md`)
+
+Read against `feat/quote-payments` (11 commits ahead of `master` @ `a87934e`) and the local branches named below. "Not merged"
+= code exists, not on `master`. The table above is kept as the 11 Oct baseline; where they differ, this one is current.
+
+| ID | Module | Now | What changed since 11 Oct |
+|---|---|---|---|
+| F01 | Shared foundation | **Partial** | Metric catalogue now exists (`docs/analytics/KPI_METRIC_CATALOGUE.md`, `services/kpi_metrics.py`, lead definition migration 122). Still: production RLS unverified, no job-health alerts, no key rotation. Migration numbers collide across branches (`131` twice) |
+| M01 | Property & owner onboarding | **Partial (thin)** | Unchanged. Vehicles named + first-free-vehicle assignment (`booking_service.pick_free_property`) |
+| M02 | Marketing & acquisition | **Partial; much built, not merged** | Marketing Studio + agency A–C on `feat/marketing-studio` (129–133). Website builder, UTM capture, GA4/Search Console/Business Profile hub, SEO plan, blog, dynamic SOPs, reviews/comments, reels **uncommitted** in worktree `focused-jones-7ffc51` (`feat/website-builder`, 134–135). HAIP's own demo/contact forms drop leads (no backend route) |
+| M03 | Omnichannel comms | **Built core / Partial edges** | WA dedupe test green (Phase 0). Booking + quote WhatsApp templates (not merged, 141). Personal-WhatsApp bridge read-only mirror live |
+| M06 | AI agents & automation | **Partial; in progress** | Sales agent (`feat/sales-agent`, 142), lead autopilot (`feat/lead-autopilot`, 144), KB freshness (`feat/ai-data-freshness`, 143): all in progress, uncommitted |
+| M07 | Leads & sales CRM | **Built** | Quote builder with options, send + payment link per option, journey (not merged, 140–141); `inquiry_quotes` snapshots (125) |
+| M08 | Bookings & availability | **Built core / Partial edges** | Calendar bookings + shared iCal calendars (120–121, 128), bookings layout B (not merged). Still: no `stays.room_id`, Hostaway never run live, no reconciliation queue. Channel manager remains out of scope per CLAUDE.md; the 18 Oct meeting asks for one (owner decision) |
+| M09 | Payments & revenue | **Partial → closer to Built (not merged)** | Invoices/receipts with GST numbering, unique Razorpay payment index, quote-owned payment links, balance reminders (141). Still missing: reconciliation/exception queue, commission/net revenue fields, tenant subscription billing (the `/dashboard/billing` page is static) |
+| M10 | Analytics & BI | **Partial** | Owner Command Center + shared metrics; KPI catalogue. Missing: before/after impact view, response time split by source (Cloud API / personal bridge / AI) |
+| M12 | Guest & property intelligence | **Partial** | Merges logged in `guest_merge_events` and reversible (122). Still: no duplicate review queue, no match-rate metrics |
+| X01 | Operations | **Foundations built, not merged** | `feat/ops-foundations` (staff routing, roster, escalation, WA alerts; migration `131_ops_foundations`, collides). No UI, no checklists, no AI photo inspection. Plan `docs/ops/*` untracked in the main checkout |
+| — | Prospect assessment / ROI tool | **Not built** | No code. Recommended #1 in `docs/HAIP_Priority_List.md` |
 
 ## 3. Capability detail with evidence
 

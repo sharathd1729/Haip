@@ -56,9 +56,11 @@ def add_signal(
     value: str,
     source: str = "system",
     actor_user_id: Optional[str] = None,
+    observed_at: Optional[datetime] = None,
 ) -> float:
     """
     Add a new identity signal to an existing guest.
+    ``observed_at`` = when the guest actually gave it (a backfill of an old message); default now.
 
     Steps:
       1. Delegate to identity_resolution.enrich_guest() for signal storage + merge detection
@@ -81,6 +83,7 @@ def add_signal(
         identity_type=signal_type,
         identity_value=value,
         source=source,
+        observed_at=observed_at,
     )
 
     # DPDP: auto-write consent for PII signals added by a human agent

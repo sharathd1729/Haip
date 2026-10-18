@@ -24,6 +24,7 @@ import { ThreadHeader } from "@/components/inbox/thread/ThreadHeader";
 import { ThreadSearch } from "@/components/inbox/thread/ThreadSearch";
 import { ThreadBody } from "@/components/inbox/thread/ThreadBody";
 import { DraftEditor } from "@/components/inbox/thread/DraftEditor";
+import { SalesActionCard } from "@/components/sales/SalesActionCard";
 import { ComposerNotices } from "@/components/inbox/thread/ComposerNotices";
 import { Composer } from "@/components/inbox/thread/Composer";
 import { InboxListPane } from "@/components/inbox/thread/InboxListPane";
@@ -720,6 +721,9 @@ function InboxPageInner() {
             {/* HAIP Inbox UI-fidelity pass, ticket 5: pinned-inquiry banner
                 (dates/guests/budget + lead score) above the thread. */}
             <PinnedInquiryBanner inquiryId={detail?.inquiry_id ?? null} />
+
+            {/* AI sales agent: a quote it prepared that waits for staff (Approve sends it with its payment link). */}
+            <SalesActionCard conversationId={detail?.id ?? null} />
 
             <ThreadSearch
               showSearch={showSearch} searchQ={searchQ} setSearchQ={setSearchQ} setShowSearch={setShowSearch}

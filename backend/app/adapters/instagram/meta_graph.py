@@ -220,6 +220,19 @@ class InstagramGraphAdapter:
         })
         return data.get("data", [])
 
+    def list_media_page(self, limit: int = 25, after: str | None = None) -> tuple[list[dict], str | None]:
+        """One page of the account's own posts and reels, newest first: (items, next cursor or None).
+
+        Only the fields the knowledge base needs (id, caption, media_type, permalink, timestamp). Paging uses the `after` cursor
+        against GRAPH_BASE, never the `paging.next` URL Meta returns, so the token is only ever sent to graph.instagram.com."""
+        params = {"fields": "id,caption,media_type,permalink,timestamp", "limit": max(1, min(int(limit), 50))}
+        if after:
+            params["after"] = after
+        data = self._get(f"/{self._account_id}/media", params=params)
+        paging = data.get("paging") or {}
+        cursor = (paging.get("cursors") or {}).get("after") if paging.get("next") else None
+        return data.get("data", []), cursor
+
     def get_media_insights(self, media_id: str, metrics: list[str]) -> dict[str, int]:
         """Per-post insights (reach, saved, shares, total_interactions).
         Confirmed live against a real recent post: reach=5115. NOT confirmed:

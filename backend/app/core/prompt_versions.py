@@ -34,8 +34,12 @@ PROMPT_VERSIONS: dict[str, str] = {
     # per-provider by adapters/llm/tools.py -- same semantic fields, but the
     # code path producing a stored/logged result is genuinely different now.
     "call_classify":   "call-classify-v2",      # classify.jinja
-    "call_judge":      "call-judge-v2",         # judge.jinja
-    "call_wrap_up":    "call-wrap-up-v4",       # wrap_up.jinja
+    # v3 (2026-10-18): missed_revenue items say what was missed and quote the evidence; est_value only when a figure
+    # was stated on the call (null otherwise) -- the old free estimate read as fact.
+    "call_judge":      "call-judge-v3",         # judge.jinja
+    # v5 (2026-10-18): actionable output (services/ai_actionable.py) + outcome/decline_reason/decline_quote that the
+    # lead autopilot reads. Stored in calls.ai_insights; summary/next_action/disposition unchanged.
+    "call_wrap_up":    "call-wrap-up-v5",       # wrap_up.jinja
     # v3 (AI Autonomy Plan Phase 1 ticket 4): concierge_reply.jinja now
     # renders a grounded_facts section (real availability/pricing from the
     # bounded tool loop) instead of the always-empty kb_snippets it relied
@@ -79,7 +83,12 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v12 (2026-10-13): works from operational data -- property facts, the guest's own bookings with their real state, availability
     # WITH the reason a property is not open, what the guest already told us, every question they asked, and a "grounded" pricing
     # mode (only live figures). Knowledge-base text no longer carries prices. See the template header.
-    "concierge_reply": "concierge-reply-v13",   # concierge_reply.jinja
+    # v14 (2026-10-18): the AI sales agent's SALES STEP block + guardrails (no booking before payment, no discount, no link),
+    # nearest free dates, and inclusions / exclusions / tolls at actuals / advance on a package quote.
+    # v14 (2026-10-18): current data wins over the conversation -- knowledge snippets carry their "updated" date, published records
+    # beat snippets, and an earlier (possibly our own) out-of-date statement is corrected rather than repeated.
+    # v15 (2026-10-18): v14 sales agent + v14 current-data-wins merged into one version.
+    "concierge_reply": "concierge-reply-v15",   # concierge_reply.jinja
     "lost_reason":     "lost-reason-v1",        # lost_reason.jinja
     "agent_performance_narrative": "agent-performance-narrative-v1",  # agent_performance_narrative.jinja
     "agent_leads_feedback": "agent-leads-feedback-v1",  # agent_leads_feedback.jinja
@@ -102,7 +111,10 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v7 (2026-10-13): updates the previous summary instead of rewriting from the last 10 messages; sees the real stage and the real
     # booking status; ignores AI drafts nobody sent; adds unanswered_questions / requirements / inferences / follow_up and keeps
     # stated facts (extracted) apart from conclusions (inferences).
-    "leads360_summary":       "leads360-summary-v7",  # generate_ai_summary.py -- v3 adds structured trip-fact extraction
+    # v8 (2026-10-18): adds the actionable block (services/ai_actionable.py): next_best_action with owner/channel/
+    # deadline, blocking_objection + counter, missed_revenue (rupees only when grounded), temperature + reason,
+    # haip_updates. Old keys unchanged; analysis.next_action is now the one-line form of next_best_action.
+    "leads360_summary":       "leads360-summary-v8",  # generate_ai_summary.py -- v3 adds structured trip-fact extraction
     "ask_haip_intent":        "ask-haip-intent-v1",
     "ask_haip_rca":           "ask-haip-rca-v1",
     "ask_haip_report":        "ask-haip-report-v1",
@@ -117,7 +129,12 @@ PROMPT_VERSIONS: dict[str, str] = {
     # rewrite of an existing pending AI draft.
     "concierge_rewrite": "concierge-rewrite-v1",
     # Today (Worklist) AI Daily Briefing: cross-worklist pattern summary.
-    "daily_briefing": "daily-briefing-v1",
+    # v2 (2026-10-18): adds "actions": up to 3 next best actions, each with lead, owner, channel and deadline.
+    "daily_briefing": "daily-briefing-v2",
+    # Lead autopilot AI classifier (lead_autopilot_ai.py): stage decision + lost reason + confidence + evidence refs.
+    "lead_autopilot_classify": "lead-autopilot-classify-v1",
+    # Public property assessment: plain-language write-up of numbers the engine computed (assessment_narrative.py).
+    "assessment_narrative": "assessment-narrative-v1",
 }
 
 UNKNOWN = "unregistered"

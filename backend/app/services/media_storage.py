@@ -165,6 +165,67 @@ def upload_wa_template_media(tenant_id: str, content: bytes, content_type: str, 
     return s3_key
 
 
+def _put(s3_key: str, content: bytes, content_type: str) -> None:
+    put_kwargs = dict(Bucket=settings.S3_BUCKET_NAME, Key=s3_key, Body=content, ContentType=content_type)
+    if settings.KMS_KEY_ID and not settings.AWS_S3_ENDPOINT_URL:
+        put_kwargs["ServerSideEncryption"] = "aws:kms"
+        put_kwargs["SSEKMSKeyId"] = settings.KMS_KEY_ID
+    _s3_client().put_object(**put_kwargs)
+
+
+def upload_invoice_pdf(tenant_id: str, invoice_id: str, content: bytes) -> str:
+    """Store an issued invoice/receipt PDF, return the key. One object per invoice id: re-rendering the same issued
+    document overwrites itself, a reissue is a new invoice id and so a new object."""
+    safe_id = "".join(c for c in invoice_id if c.isalnum() or c == "-")[:64]
+    s3_key = f"{tenant_id}/invoices/{safe_id}.pdf"
+    _put(s3_key, content, "application/pdf")
+    log.info("invoice_pdf_stored", tenant_id=tenant_id, invoice_id=invoice_id, bytes=len(content))
+    return s3_key
+
+
+def upload_quote_pdf(tenant_id: str, quote_id: str, content: bytes) -> str:
+    """Store a sent quote's PDF (both options), return the key. One object per quote group: re-rendering overwrites it."""
+    safe_id = "".join(c for c in quote_id if c.isalnum() or c == "-")[:64]
+    s3_key = f"{tenant_id}/quotes/{safe_id}.pdf"
+    _put(s3_key, content, "application/pdf")
+    log.info("quote_pdf_stored", tenant_id=tenant_id, quote_id=quote_id, bytes=len(content))
+    return s3_key
+
+
+def upload_invoice_logo(tenant_id: str, content: bytes) -> str:
+    """Store the (already re-encoded PNG) logo printed on invoices. A new key per upload, so an invoice rendered
+    earlier never changes when the logo is replaced."""
+    import uuid
+    s3_key = f"{tenant_id}/invoice_logo/{uuid.uuid4().hex}.png"
+    _put(s3_key, content, "image/png")
+    log.info("invoice_logo_stored", tenant_id=tenant_id, bytes=len(content))
+    return s3_key
+
+
+def download_media(s3_key: str) -> bytes:
+    """Read a stored object back (e.g. the invoice logo when rendering a PDF). Raises on failure."""
+    obj = _s3_client().get_object(Bucket=settings.S3_BUCKET_NAME, Key=s3_key)
+    return obj["Body"].read()
+
+
+def get_presigned_download_url(s3_key: str, filename: str, content_type: str = "application/pdf",
+                               expires_in: int = 900) -> str | None:
+    """A short-lived link that opens the file in the browser under a readable name. None on failure."""
+    if not s3_key:
+        return None
+    safe = "".join(c for c in filename if c.isalnum() or c in " ._-")[:120] or "document.pdf"
+    try:
+        return _s3_client().generate_presigned_url(
+            "get_object",
+            Params={"Bucket": settings.S3_BUCKET_NAME, "Key": s3_key, "ResponseContentType": content_type,
+                    "ResponseContentDisposition": f'inline; filename="{safe}"'},
+            ExpiresIn=expires_in,
+        )
+    except Exception as exc:
+        log.warning("media_presign_failed", s3_key=s3_key, error=str(exc))
+        return None
+
+
 def get_presigned_media_url(s3_key: str, expires_in: int = 3600) -> str | None:
     """Generate a time-limited download URL for a stored media object.
     Returns None on any failure -- never let a presign error break message

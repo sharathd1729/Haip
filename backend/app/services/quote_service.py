@@ -9,6 +9,8 @@ previous active quote for that enquiry. The caller commits.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
 from typing import Optional
@@ -36,37 +38,91 @@ def _end_of_day_utc(db: Session, tenant_id: str, d: date) -> datetime:
     return datetime.combine(d, time(23, 59, 59), tzinfo=tz).astimezone(timezone.utc)
 
 
-def issue_quote(db: Session, tenant_id: str, inquiry_id: str, quote: PackageQuote, actor_id: Optional[str] = None) -> InquiryQuote:
+def _hash(quote: PackageQuote, meta: Optional[dict]) -> str:
+    h = quote.params_hash()
+    hashed = {k: v for k, v in (meta or {}).items() if k not in _UNHASHED_META}
+    if not hashed:
+        return h
+    return hashlib.sha256((h + json.dumps(hashed, sort_keys=True, default=str)).encode()).hexdigest()
+
+
+# Meta that does not change what the guest is quoted (the follow-up time lives on a Task).
+_UNHASHED_META = ("next_step_at",)
+
+
+def issue_quote(
+    db: Session, tenant_id: str, inquiry_id: str, quote: PackageQuote, actor_id: Optional[str] = None, *,
+    option_rank: int = 1, option_group_id: Optional[str] = None, meta: Optional[dict] = None,
+) -> InquiryQuote:
+    """Store one option. Rank 1 (the primary) supersedes every active quote of the enquiry, fallbacks included; rank 2 (a
+    fallback) supersedes only the earlier fallback of the same primary. `meta` (overnight-stay check, next step) is kept in
+    the snapshot; it is not a price input."""
     if not quote.ok:
         raise QuoteError("not_quotable", f"A refused quote cannot be issued ({quote.reason}).", 422)
+    if quote.uses_drafts:
+        raise QuoteError("uses_drafts", "This quote uses a route or package that is waiting for approval; it can be saved once it is published.", 422)
+    if option_rank not in (1, 2) or (option_rank == 2 and not option_group_id):
+        raise QuoteError("invalid_option", "A fallback option needs the primary quote it belongs to.", 422)
     if db.query(Inquiry.id).filter_by(id=inquiry_id, tenant_id=tenant_id).first() is None:
         raise QuoteError("not_found", "Enquiry not found.", 404)
 
-    h = quote.params_hash()
+    h = _hash(quote, meta)
     now = datetime.now(timezone.utc)
     active = db.query(InquiryQuote).filter_by(tenant_id=tenant_id, inquiry_id=inquiry_id, is_active=True).all()
+    if option_rank == 2:
+        active = [q for q in active if q.option_rank == 2 and q.option_group_id == option_group_id]
     for q in active:
-        if q.params_hash == h and q.status == "issued" and (q.valid_until is None or _aware(q.valid_until) >= now):
+        fresh = q.valid_until is None or _aware(q.valid_until) >= now
+        if (q.option_rank or 1) == option_rank and q.params_hash == h and q.status == "issued" and fresh:
+            if option_rank == 1 and q.option_group_id is None:
+                q.option_group_id = q.id
             return q                                                      # same inputs, same terms: the quote already issued
     for q in active:
         q.is_active, q.status = False, "superseded"
 
     ci = date.fromisoformat(quote.inputs["check_in"])
     co = date.fromisoformat(quote.inputs["check_out"])
+    snapshot = quote.to_snapshot()
+    if meta:
+        snapshot["meta"] = json.loads(json.dumps(meta, default=str))
     row = InquiryQuote(
         tenant_id=tenant_id, inquiry_id=inquiry_id, amount=quote.total, currency=quote.currency,
         valid_until=_end_of_day_utc(db, tenant_id, quote.valid_until), created_by=actor_id, is_active=True,
         package_key=quote.package_key, check_in=ci, check_out=co, guests=quote.inputs["adults"] + quote.inputs["children"],
-        snapshot=quote.to_snapshot(), record_refs=quote.record_refs, params_hash=h, status="issued",
+        snapshot=snapshot, record_refs=quote.record_refs, params_hash=h, status="issued",
+        option_rank=option_rank, option_group_id=option_group_id,
     )
     db.add(row)
     db.flush()
+    if option_rank == 1:
+        row.option_group_id = row.id
+        db.flush()
     append_audit(
         db, tenant_id=tenant_id, action="quote.issued", actor_user_id=actor_id, target_type="inquiry_quote", target_id=row.id,
         payload={"inquiry_id": inquiry_id, "package_key": quote.package_key, "total": str(quote.total), "valid_until": quote.valid_until.isoformat(),
-                 "record_refs": [(r["kind"], r["key"], r["version"]) for r in quote.record_refs]},
+                 "record_refs": [(r["kind"], r["key"], r["version"]) for r in quote.record_refs],
+                 "option_rank": option_rank, "option_group_id": row.option_group_id},
     )
     return row
+
+
+def issue_options(
+    db: Session, tenant_id: str, inquiry_id: str, primary: PackageQuote, fallback: Optional[PackageQuote],
+    actor_id: Optional[str] = None, meta: Optional[dict] = None,
+) -> list[InquiryQuote]:
+    """The primary option and, optionally, a fallback priced on its own and linked to it. Saving without a fallback withdraws
+    the primary's earlier fallback. The caller commits."""
+    if fallback is not None and (not fallback.ok or fallback.uses_drafts):
+        raise QuoteError("fallback_not_quotable", "The fallback option cannot be saved: " + (fallback.message or "it uses a draft."), 422)
+    first = issue_quote(db, tenant_id, inquiry_id, primary, actor_id, option_rank=1, meta=meta)
+    rows = [first]
+    if fallback is None:
+        for q in db.query(InquiryQuote).filter_by(tenant_id=tenant_id, inquiry_id=inquiry_id, is_active=True, option_rank=2).all():
+            q.is_active, q.status = False, "superseded"
+        db.flush()
+    else:
+        rows.append(issue_quote(db, tenant_id, inquiry_id, fallback, actor_id, option_rank=2, option_group_id=first.option_group_id, meta=meta))
+    return rows
 
 
 def _aware(dt: datetime) -> datetime:

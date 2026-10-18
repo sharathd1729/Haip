@@ -26,6 +26,8 @@ jinja2==3.1.6
 sentry-sdk[fastapi]==2.19.2
 phonenumbers==8.13.50
 pillow==11.0.0
+# Invoice and receipt PDFs (services/invoice_pdf.py): pure-Python, built-in fonts, no system libraries.
+reportlab==5.0.1
 celery-batches==0.9
 flower==2.0.1
 pyotp==2.9.0

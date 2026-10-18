@@ -60,17 +60,25 @@ def update_my_tenant(
     if "brand_config" in data:
         merged = dict(tenant.brand_config or {})
         incoming = data.pop("brand_config")
-        if "price_disclosure" in incoming:
-            from app.services.price_policy import PRICE_MODES
-            if incoming["price_disclosure"] not in PRICE_MODES:
-                raise HTTPException(status_code=422, detail=f"price_disclosure must be one of {', '.join(PRICE_MODES)}")
+        # Owner-only, audited switches with their own endpoints: PUT /ai/sales-agent (price disclosure, sales agent) and
+        # PUT /lead-autopilot/settings. A manager must not switch them on through here.
+        guarded = [k for k in ("price_disclosure", "sales_agent") if k in incoming]
+        if guarded:
+            raise HTTPException(status_code=422, detail=f"{', '.join(guarded)}: change this in Settings > AI (PUT /ai/sales-agent, owner only)")
+        if "lead_autopilot" in incoming:
+            raise HTTPException(status_code=422, detail="Change lead autopilot settings in Settings > Lead autopilot")
         merged.update(incoming)
         tenant.brand_config = merged
 
     # `config` dict is merged into brand_config (used for onboarding_step etc.)
     if "config" in data:
         merged = dict(tenant.brand_config or {})
-        merged.update(data.pop("config"))
+        incoming = data.pop("config")
+        if any(k in incoming for k in ("price_disclosure", "sales_agent")):
+            raise HTTPException(status_code=422, detail="price_disclosure / sales_agent: change this in Settings > AI (owner only)")
+        if "lead_autopilot" in incoming:
+            raise HTTPException(status_code=422, detail="Change lead autopilot settings in Settings > Lead autopilot")
+        merged.update(incoming)
         tenant.brand_config = merged
 
     for field, value in data.items():

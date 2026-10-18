@@ -5,7 +5,7 @@ existing revenue reports keep their meaning) plus its add-on lines. What has
 been received is the ledger of StayPayment rows, so "paid / outstanding" is
 computed from recorded payments, never guessed from the booking status.
 """
-from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import CheckConstraint, Column, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, text
 
 from app.core.database import Base
 from app.models.base import TenantMixin, TimestampMixin, gen_uuid
@@ -30,6 +30,12 @@ class StayAddOn(Base, TimestampMixin, TenantMixin):
 class StayPayment(Base, TimestampMixin, TenantMixin):
     """A payment received (kind="payment") or money returned (kind="refund")."""
     __tablename__ = "stay_payments"
+    # One row per provider payment id (migrations 110 and 141). The Razorpay webhook relies on this index: a retried
+    # delivery hits IntegrityError and is answered as a duplicate. Declared here too so create_all builds it.
+    __table_args__ = (
+        Index("uq_stay_payments_external", "tenant_id", "external_id", unique=True,
+              postgresql_where=text("external_id IS NOT NULL"), sqlite_where=text("external_id IS NOT NULL")),
+    )
 
     id = Column(String, primary_key=True, default=gen_uuid)
     tenant_id = Column(String, nullable=False, index=True)
@@ -48,12 +54,18 @@ class StayPayment(Base, TimestampMixin, TenantMixin):
 
 class StayPaymentLink(Base, TimestampMixin, TenantMixin):
     """A hosted payment link sent to the guest (Razorpay Payment Link). When the
-    guest pays, the provider webhook marks it paid and records a StayPayment."""
+    guest pays, the provider webhook hands it to payment_events_service.on_payment_link_paid.
+
+    A link belongs to a booking (stay_id) or, from migration 141, to a quote option (inquiry_quote_id, no stay yet). When a
+    quote link is paid, quote_payment_service makes the booking from the quote and sets stay_id here (or raises a staff
+    task when the caravan is no longer free)."""
     __tablename__ = "stay_payment_links"
+    __table_args__ = (CheckConstraint("stay_id IS NOT NULL OR inquiry_quote_id IS NOT NULL", name="ck_stay_payment_links_owner"),)
 
     id = Column(String, primary_key=True, default=gen_uuid)
     tenant_id = Column(String, nullable=False, index=True)
-    stay_id = Column(String, ForeignKey("stays.id", ondelete="CASCADE"), nullable=False, index=True)
+    stay_id = Column(String, ForeignKey("stays.id", ondelete="CASCADE"), nullable=True, index=True)
+    inquiry_quote_id = Column(String, ForeignKey("inquiry_quotes.id", ondelete="SET NULL"), nullable=True, index=True)
     provider = Column(String(20), nullable=False, default="razorpay")
     external_id = Column(String(64), nullable=False)                   # plink_xxx
     short_url = Column(String(300), nullable=False)

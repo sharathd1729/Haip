@@ -9,6 +9,7 @@ export interface TemplateButton {
   text: string;
   url?: string;
   phone_number?: string;
+  example?: string[];      // a URL ending in {{1}} needs a full sample link (e.g. the booking pack's pay buttons)
 }
 
 export interface TemplateComponent {
@@ -46,6 +47,7 @@ export interface ButtonDraft {
   text: string;
   url: string;
   phone: string;
+  urlExample: string;
 }
 
 export interface TemplateForm {
@@ -87,7 +89,7 @@ export const LANGUAGES = [
 let _btnSeq = 0;
 export function newButton(type: ButtonType): ButtonDraft {
   _btnSeq += 1;
-  return { id: `b${Date.now()}_${_btnSeq}`, type, text: "", url: "", phone: "" };
+  return { id: `b${Date.now()}_${_btnSeq}`, type, text: "", url: "", phone: "", urlExample: "" };
 }
 
 export function emptyForm(): TemplateForm {
@@ -111,6 +113,13 @@ export function orderedButtons(buttons: ButtonDraft[]): ButtonDraft[] {
     ...buttons.filter(b => b.type === "QUICK_REPLY"),
     ...buttons.filter(b => b.type !== "QUICK_REPLY"),
   ];
+}
+
+/** A link ending in {{1}} keeps the sample it came with (Meta reviews it); a new one gets "…/example". */
+export function urlExample(b: Pick<ButtonDraft, "url" | "urlExample">): { example?: string[] } {
+  if (!b.url.endsWith("{{1}}")) return {};
+  const base = b.url.slice(0, -5);
+  return { example: [b.urlExample.startsWith(base) && b.urlExample.length > base.length ? b.urlExample : `${base}example`] };
 }
 
 export function buildComponents(form: TemplateForm): TemplateComponent[] {
@@ -138,7 +147,7 @@ export function buildComponents(form: TemplateForm): TemplateComponent[] {
   if (form.footer.trim()) comps.push({ type: "FOOTER", text: form.footer });
 
   const buttons = orderedButtons(form.buttons).map((b): TemplateButton => {
-    if (b.type === "URL") return { type: "URL", text: b.text, url: b.url };
+    if (b.type === "URL") return { type: "URL", text: b.text, url: b.url, ...urlExample(b) };
     if (b.type === "PHONE_NUMBER") return { type: "PHONE_NUMBER", text: b.text, phone_number: b.phone };
     return { type: "QUICK_REPLY", text: b.text };
   });
@@ -172,7 +181,7 @@ export function formFromTemplate(t: Template): TemplateForm {
       form.footer = c.text ?? "";
     } else if (c.type === "BUTTONS") {
       form.buttons = (c.buttons ?? []).map(b => ({
-        ...newButton(b.type), text: b.text, url: b.url ?? "", phone: b.phone_number ?? "",
+        ...newButton(b.type), text: b.text, url: b.url ?? "", phone: b.phone_number ?? "", urlExample: b.example?.[0] ?? "",
       }));
     }
   }

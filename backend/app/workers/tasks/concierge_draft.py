@@ -1036,13 +1036,24 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         if details:
             grounded_facts.append({"tool": "conversation_details", "result": details})
 
+        # The AI sales agent (brand_config.sales_agent.mode; "off" by default = nothing runs and the reply path is unchanged):
+        # calendar availability, a grounded package quote on the lead, a pending or autopilot quote send. sales_agent_service.
+        from app.services import sales_agent_service, sales_agent_settings
+        try:
+            sales_turn = sales_agent_service.prepare_turn(db, tenant, conversation, inquiry, guest, details, burst_text)
+        except Exception as exc:
+            db.rollback()
+            log.warning("sales_agent_turn_failed", conversation_id=conversation_id, error=str(exc))
+            sales_turn = sales_agent_service.SalesTurn(mode=sales_agent_settings.mode(tenant), status="error")
+        grounded_facts = sales_agent_service.merge_facts(tenant, grounded_facts, sales_turn)
+
         # HAIP Inbox UI-fidelity pass, ticket 3: widen the AI card trigger
         # beyond price_quote-only. One query, checked alongside the rest of
         # the context-building above.
-        from app.models.guest_identity import GuestIdentity, IdentityType
-        guest_missing_phone = db.query(GuestIdentity.id).filter_by(
-            tenant_id=tenant_id, guest_id=guest_id, identity_type=IdentityType.PHONE.value,
-        ).first() is None
+        # A WhatsApp-number signal is a phone too: a guest merged with a WhatsApp lead (or whose number came in as one) used to be
+        # asked for "a phone number" again because only the "phone" signal type was checked.
+        from app.services.chat_phone_capture import guest_has_phone
+        guest_missing_phone = not guest_has_phone(db, tenant_id, guest_id)
 
         template = _jinja_env.get_template("concierge_reply.jinja")
 
@@ -1285,6 +1296,19 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             confidence = 0.0
             needs_human_reasons.append(f"price leak: {price_leak!r}")
 
+        # ── Sales-agent guard (sales mode only): no booking promised before payment, no discount, no link or "sent" claim the
+        # system did not make, and no "available" without a calendar check.
+        _sales_violation = sales_agent_service.check_reply(reply_text, grounded_facts, sales_turn)
+        if sales_turn.active and not _sales_violation and _positive_availability_claim(reply_text) and not any(
+                f.get("tool") == "check_availability" and (f.get("args") or {}).get("checkin") for f in grounded_facts):
+            _sales_violation = "says dates are available without a calendar check"
+        if _sales_violation:
+            log.warning("draft_sales_guard_blocked", conversation_id=conversation_id, message_id=message_id, reason=_sales_violation)
+            needs_human = True
+            hard_block = True
+            confidence = 0.0
+            needs_human_reasons.append(f"sales guard: {_sales_violation}")
+
         # Determine mode. Resolved per-channel from the tenant's current
         # policy (ai_mode_service), NOT from the snapshot copied into
         # conversations.ai_mode at creation time -- otherwise switching the
@@ -1452,11 +1476,13 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         # up -- otherwise "someone will reach out personally" is a promise
         # nothing in the system is tracking.
         try:
-            _maybe_create_price_handoff(
-                db, tenant_id=tenant_id, conversation=conversation, guest=guest,
-                inquiry=inquiry, intent=_intent, qualified=qualified,
-                price_leak=bool(price_leak),
-            )
+            # The sales agent's own work item (a prepared quote, or a handoff task) replaces the generic pricing callback.
+            if not (sales_turn.action_id or sales_turn.handoff or sales_turn.status in sales_agent_service.OWN_WORK_STATUSES):
+                _maybe_create_price_handoff(
+                    db, tenant_id=tenant_id, conversation=conversation, guest=guest,
+                    inquiry=inquiry, intent=_intent, qualified=qualified,
+                    price_leak=bool(price_leak),
+                )
         except Exception as exc:
             # A missed task must never cost the guest their reply.
             log.warning("price_handoff_failed", conversation_id=conversation_id, error=str(exc))
@@ -1466,7 +1492,9 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         # number (that's the channel), so "declined to share a phone
         # number" only makes sense for Instagram DMs.
         channel_val_for_decline = str(conversation.channel.value if hasattr(conversation.channel, "value") else conversation.channel)
-        if channel_val_for_decline == "instagram" and burst_text:
+        # Not when we already have their number: a guest who wrote "won't share my number here, call 98765 43210" (or shared it
+        # earlier) has not declined anything, and the alert would put up a stale "No phone shared" chip.
+        if channel_val_for_decline == "instagram" and burst_text and guest_missing_phone:
             from app.services.phone_decline_detector import detect_phone_decline
             phone_decline_phrase = detect_phone_decline(burst_text)
             if phone_decline_phrase:
@@ -1502,6 +1530,13 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
                 )
             except Exception as _push_exc:
                 log.warning("push_notify_failed", error=str(_push_exc))
+
+        if sales_turn.active:
+            try:
+                sales_agent_service.after_draft(db, tenant_id, sales_turn, draft_message.id, bool(should_auto_send), conversation, guest)
+            except Exception as exc:
+                db.rollback()
+                log.warning("sales_agent_after_draft_failed", conversation_id=conversation_id, error=str(exc))
 
         # Leads360: trigger debounced AI summary refresh for linked inquiry
         if inquiry and inquiry.id:

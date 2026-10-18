@@ -89,6 +89,7 @@ def list_leads(
     checkin_date_preset: Optional[str] = Query(None, description="next_7d|last_7d|next_14d|last_14d|custom"),
     booked_date_from: Optional[str] = Query(None, description="ISO date string"),
     booked_date_to: Optional[str] = Query(None, description="ISO date string"),
+    autopilot: Optional[str] = Query(None, description="'moved' = leads whose current stage the autopilot set"),
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=200),
     current_user: User = Depends(get_current_user),
@@ -103,6 +104,8 @@ def list_leads(
     HAIP is India-only, so a client-timezone-driven "last 7 days" risks
     silently shifting by a day.
     """
+    if autopilot is not None and autopilot != "moved":
+        raise HTTPException(status_code=422, detail="Invalid autopilot filter: use 'moved'")
     for preset, name in ((enquiry_date_preset, "enquiry_date_preset"), (checkin_date_preset, "checkin_date_preset")):
         if preset and preset not in VALID_PRESETS:
             raise HTTPException(status_code=422, detail=f"Invalid {name}: {preset}")
@@ -132,6 +135,7 @@ def list_leads(
         page=page,
         page_size=page_size,
         scope_user_id=_visibility_scope(current_user),
+        autopilot=autopilot,
     )
 
 
