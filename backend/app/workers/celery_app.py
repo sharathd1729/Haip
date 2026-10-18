@@ -80,6 +80,8 @@ celery_app = Celery(
         "app.workers.tasks.lead_assignment",
         # Organic Instagram account insights -- daily snapshot
         "app.workers.tasks.instagram_insights_poll",
+        # Marketing Studio AI runs (audit, plan, content)
+        "app.workers.tasks.marketing_studio",
         # Automations engine + timer triggers
         "app.workers.tasks.automation_engine",
         "app.workers.tasks.check_automation_timers",
@@ -215,6 +217,9 @@ celery_app.conf.update(
         "instagram_token.refresh_all_tenants":       {"queue": "whatsapp"},
         "instagram_token.refresh_tenant":            {"queue": "whatsapp"},
         "instagram_insights.poll_all_tenants":       {"queue": "whatsapp"},
+        "marketing_studio.generate_audit":           {"queue": "default"},
+        "marketing_studio.generate_plan":            {"queue": "default"},
+        "marketing_studio.generate_content":         {"queue": "default"},
         "owner_digest.orchestrate":                  {"queue": "ai_scoring"},
         # Registered under short names, so the "app.workers.tasks.<module>.*" globs above never
         # matched them and they fell into the unconsumed "celery" queue. The inbox "rewrite"

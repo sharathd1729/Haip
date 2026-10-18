@@ -118,6 +118,10 @@ PROMPT_VERSIONS: dict[str, str] = {
     "concierge_rewrite": "concierge-rewrite-v1",
     # Today (Worklist) AI Daily Briefing: cross-worklist pattern summary.
     "daily_briefing": "daily-briefing-v1",
+    # Marketing Studio (services/marketing_prompts.py).
+    "marketing_audit": "marketing-audit-v1",
+    "marketing_plan": "marketing-plan-v1",
+    "marketing_content": "marketing-content-v1",
 }
 
 UNKNOWN = "unregistered"

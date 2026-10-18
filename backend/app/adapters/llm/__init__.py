@@ -140,6 +140,11 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # synthesis over already-fetched structured rows, same tier as
     # lead_summary/agent_performance_narrative -- not guest-facing.
     "daily_briefing": ("nvidia", "openai/gpt-oss-20b"),
+    # Marketing Studio: audit reading, plan + calendar, one content piece. Structured output via one tool, so the
+    # reliable tool-calling tier; every result is re-validated and reviewed by a person before anything leaves HAIP.
+    "marketing_audit":   ("nvidia", "openai/gpt-oss-20b"),
+    "marketing_plan":    ("nvidia", "openai/gpt-oss-20b"),
+    "marketing_content": ("nvidia", "openai/gpt-oss-20b"),
 }
 
 
@@ -158,6 +163,9 @@ _GEMINI_FALLBACK_TASKS: dict[str, float] = {
     "agent_performance_narrative": 60,
     "agent_leads_feedback":        60,
     "deep_reason":                 120,   # judge's low-confidence re-score
+    "marketing_audit":             60,
+    "marketing_plan":              90,
+    "marketing_content":           60,
 }
 
 

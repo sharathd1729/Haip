@@ -1,5 +1,5 @@
 # HAIP — Claude Code Working Instructions
-**Version**: 2.4 · **Owner**: Sharath D. · **Updated**: 18 Oct 2026 (Alembic head `128`)
+**Version**: 2.4 · **Owner**: Sharath D. · **Updated**: 18 Oct 2026 (Alembic head `129`)
 **Reference docs**: HAIP_FULL_BUILD_PLAN.md · architecture-delta.md · execution-plan.md · docs/HAIP_Module_Audit_M0.md (module status matrix, 11 Oct 2026 — update statuses as gaps close)
 
 **KEEP THIS FILE CURRENT — standing rule from the owner.** When a change adds or alters a
@@ -66,6 +66,7 @@ replies, unified lead record across every touchpoint.
   **Ratha business data** (`business_records`, migration 124; `docs/ai/RATHA_KB_EVOLUTION.md`): versioned typed records (package, destination, itinerary, reseller/discount/stay/payment/cancellation policy);
   draft → publish → superseded, immutable once published, rollback = new version, effective-dated, audited. Guest-facing code reads ONLY `business_data_service.get_effective` (never drafts). Package prices: `package_pricing_service.quote` (refuses, never guesses; availability via `calculator_service`); `quote_service.issue_quote` snapshots amounts + record versions in `inquiry_quotes` [125], so a later price change never alters an issued quote. The AI reads this data ONLY via `sales_gateway` (read-only: `list_packages/get_package/get_destination/get_itinerary/quote_package/policy_check`, each returns data + sources + flags; `concierge_business_facts` feeds the concierge; prompt `concierge-reply-v13`). Payment/cancellation terms reach the prompt only in `grounded` price mode. Every KB write (create/edit/delete/reindex/upload/crawl) appends a chained `kb.*` audit row with before/after values (`knowledge_service.audit_change`). `GET /knowledge/{id}/history` + `POST /knowledge/{id}/rollback` undo an edit via that trail (normal edit path: re-indexed before use). `POST /knowledge/test` (`kb_test_service`, `settings.manage`) runs the same retrieval + gateway calls as a reply and returns sources/versions/flags. UI: KB page has two tabs (`dashboard/settings/knowledge`: Knowledge & Training | Structured Business Data); typed editors are spec-driven (`components/knowledge/businessDataSpecs.ts` mirrors `schemas/business_data.py` — change both together). `POST /business-data/import-existing` drafts packages/destinations from RatePlan/SeasonalRate/Property.routes (drafts only; never overwrites).
 - **Meta Ads + Marketing page** [115, 116] — see "META ADS / MARKETING" below.
+- **Marketing Studio, Phase 1** [129] (`docs/marketing-website/`): module `marketing_studio` (NOT default; owner switches it on), caps `marketing.read/edit/approve` (approve = owner+manager, D3). `/marketing/studio/*` (`endpoints/marketing_studio.py`), page `/dashboard/marketing/studio`. Profile = `brand_config.business_profile` (schema `schemas/marketing.py`). Audit stores MEASURED (IG poller snapshot) apart from the AI assessment. Content versions are immutable; approval binds to version + sha256 (`marketing_content_service`, guarded UPDATEs, no self-approval except owner, an edit voids it); `approved_payload()` is the only thing a publisher may send. Text gate: `price_policy` (handoff = no prices) + profile `avoid` words. AI via Celery `marketing_studio.generate_*` (queue default; only transient errors retried, 2x). Shared: `media_assets` (re-encoded uploads, Pillow template creatives, D2: no AI images), `usage_events` (LLM tokens, renders). No publishing to Instagram yet (Phase 4).
 - **UI: Hospitality Hybrid** (Oct 17, replaced teal/navy sidebar): see UI RULES below; concept lab `/design-lab` (dev only).
 
 Active clients:
@@ -125,18 +126,15 @@ truth; if this table and the code disagree, the code wins and this table is stal
 | `concierge_rewrite` | NVIDIA | openai/gpt-oss-20b |
 | `fallback` | NVIDIA | mistralai/mistral-nemotron |
 | `concierge_draft` | Gemini | gemini-3.6-flash |
+| `marketing_audit` · `marketing_plan` · `marketing_content` | NVIDIA (+Gemini fallback) | openai/gpt-oss-20b |
 
 Unknown task keys route to `fallback` (they previously defaulted to Claude,
 which fails in prod — no `ANTHROPIC_API_KEY` is provisioned there).
 
-⚠️ **NIM models reach end-of-life and start returning HTTP 410.** Dead so far:
-`mistral-medium-3.5-128b` (2026-08-07, sat broken 13 days), `meta/llama-3.1-8b-instruct` and
-`nvidia/llama-3.3-nemotron-super-49b-v1.5` (both 2026-08-26 — took out `quick_classify`, `judge.py`,
-`generate_ai_summary.py` and `daily_briefing_service.py` in prod until 2026-08-30). Mid tier tried
-`openai/gpt-oss-120b` (100s+ latency, 504s) and `deepseek-v4-flash-0731` (sustained 504 outage) before
-landing on `openai/gpt-oss-20b` for the mid tier too — a real capability step-down for `call_analysis`/
-`call_scoring`/`lead_summary`/`daily_briefing`/agent reports, accepted because it is reliable. Revisit
-the bigger models once NIM congestion clears, via a direct trivial-prompt call, not just `/v1/models`.
+⚠️ **NIM models reach end-of-life and return HTTP 410.** Dead: `mistral-medium-3.5-128b` (08-07), `meta/llama-3.1-8b-instruct` +
+`nvidia/llama-3.3-nemotron-super-49b-v1.5` (08-26, broke classify/judge/summaries/briefing until 08-30). `gpt-oss-120b` (100s+, 504s) and
+`deepseek-v4-flash-0731` (504 outage) failed as mid tier, so mid tier = `openai/gpt-oss-20b` (a capability step-down accepted for
+reliability). Revisit bigger models with a direct trivial-prompt call, not just `/v1/models`.
 - **Fix any call site that hardcodes `model=`** on `.complete()`: an explicit kwarg always beats the
   routed default (see `_build_adapter` docstring in `adapters/llm/__init__.py`).
 - Verify a model serves before routing to it: `GET https://integrate.api.nvidia.com/v1/models`.
@@ -261,7 +259,7 @@ Every table must have tenant_id.
 5. Endpoint → `backend/app/api/v1/endpoints/`
 6. Worker task → `backend/app/workers/tasks/` (if async)
 7. Tests
-8. Frontend types → regenerate from OpenAPI (`npm run gen:api`)
+8. Frontend types → hand-written next to the page/component (there is no `gen:api` script or OpenAPI generator)
 9. Frontend page/component
 
 ---
@@ -404,7 +402,7 @@ commit, 10 s bounded wait; failures log `audit_chain_lock_failed`) and stamps `c
 writers form one chain. A transaction must never audit several tenants (deadlock): use one transaction per tenant.
 Row-level security: `alembic/proposed/118_*` is NOT applied; check the DB role with `backend/scripts/verify_rls_isolation.py` (read-only) and `docs/HAIP_Phase0_Production_Checklist.md` before assuming RLS protects anything. Migration 117 widens
 `calls.ai_score_status`; 119 grants foh `conversations.send` to existing tenants unless the owner edited that cell; 120-121 add the iCal tables; 122 adds the lead columns on `guests` + `guest_merge_events`; 123 adds
-`knowledge_entries.embedding_attempts/stale_since`; 124 adds `business_records`; 125 adds quote snapshot columns; 126 adds the `organic_call` source value; 127 merges 125 and 126 (no schema change); 128 (head) adds `ical_event_bookings.locked` when missing (prod's table pre-dated it, so 121's CREATE IF NOT EXISTS skipped it and every booking page 503'd: **a `CREATE TABLE IF NOT EXISTS` migration never repairs an existing table**). 118 is reserved for the proposed RLS file (re-parent on 128 when promoted). Roll code back with `alembic downgrade 116` first (checklist 11).
+`knowledge_entries.embedding_attempts/stale_since`; 124 adds `business_records`; 125 adds quote snapshot columns; 126 adds the `organic_call` source value; 127 merges 125 and 126 (no schema change); 128 adds `ical_event_bookings.locked` when missing (prod's table pre-dated it, so 121's CREATE IF NOT EXISTS skipped it and every booking page 503'd: **a `CREATE TABLE IF NOT EXISTS` migration never repairs an existing table**). 129 (head) adds the Marketing Studio tables + module/capability rows. 118 is reserved for the proposed RLS file (re-parent on 129 when promoted). Roll code back with `alembic downgrade 116` first (checklist 11).
 **Sending needs `conversations.send`** (owner, manager, reservations, concierge, foh by default): `send_message`, `send_template`, `retry`, `approve`, `reject`, `ai-draft` and both AI-rewrite POSTs use `require_capability`. `approve`/`reject` are one guarded UPDATE (only a pending AI draft, text unchanged since read; 409 otherwise; audited `ai_draft.approved|rejected`). A new default grant only reaches NEW tenants; existing ones need a data migration.
 **AI-rewrite tasks are bounded** (`rewrite_draft.py`): one request <= 30 s (`asyncio.wait_for`), a timeout is never retried, the draft task retries a
 provider error once, the composer never retries; a rewrite that changes a number is rejected. Embedding calls: 8 s query / 30 s indexing, SDK retries off.

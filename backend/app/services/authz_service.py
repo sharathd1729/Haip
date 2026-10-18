@@ -57,6 +57,11 @@ _DEFAULT_GRANTS: dict[str, set[str]] = {
     "users.read": {"owner", "manager", "compliance"},
     "users.manage": {"owner"},
     "settings.manage": {"owner"},
+    # Marketing Studio (migration 129). Approve is owner + manager by owner decision D3
+    # (docs/marketing-website/PHASE0_AUDIT.md); nobody may approve a version they wrote or asked the AI for, except the owner.
+    "marketing.read": {"owner", "manager", "marketing"},
+    "marketing.edit": {"owner", "manager", "marketing"},
+    "marketing.approve": {"owner", "manager"},
 }
 
 

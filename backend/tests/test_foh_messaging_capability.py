@@ -104,6 +104,10 @@ def _grid(db, tenant_id):
 def test_foh_is_a_default_holder_and_nothing_else_about_the_defaults_changed():
     expected = {k: list(v) for k, v in PREVIOUS.items()}
     expected["conversations.send"] = sorted(expected["conversations.send"] + ["foh"])
+    # Capabilities added later (Marketing Studio, migration 129) are pinned here too, so any other drift still fails.
+    expected["marketing.read"] = ["manager", "marketing", "owner"]
+    expected["marketing.edit"] = ["manager", "marketing", "owner"]
+    expected["marketing.approve"] = ["manager", "owner"]
     assert {k: sorted(v) for k, v in authz_service._DEFAULT_GRANTS.items()} == expected
 
 

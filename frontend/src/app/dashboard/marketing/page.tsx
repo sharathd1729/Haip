@@ -1,6 +1,7 @@
 "use client";
 // Marketing: Meta ads next to what HAIP sees after the click. Spend, reach, clicks and "chats started" come from
 // Meta; leads, bookings and revenue come from HAIP, joined by the ad that brought the guest in. Reads only.
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
@@ -103,13 +104,16 @@ export default function MarketingPage() {
         <PageHeader
           title="Marketing"
           subtitle={s?.ad_account ? `Meta ads · ${s.ad_account.name || s.ad_account.id} · updated ${ago(s.last_synced_at)}` : "What your Meta ads cost and what they bring in"}
-          actions={s?.configured && (
+          actions={(
             <>
+              <Link href="/dashboard/marketing/studio" className="inline-flex h-9 items-center rounded-lg bg-primary px-3.5 text-[13px] font-semibold text-primary-foreground hover:opacity-90">Marketing Studio</Link>
+              {s?.configured && <>
               <Tabs label="Date range" value={days} onChange={setDays} items={RANGES} />
               <button type="button" onClick={() => sync.mutate()} disabled={sync.isPending}
                 className="h-9 rounded-lg border border-[var(--haip-border)] bg-[var(--haip-card)] px-3.5 text-[13px] font-semibold text-[var(--haip-fg-2)] hover:bg-[var(--haip-surface)] disabled:opacity-50">
                 {sync.isPending ? "Updating…" : "Update now"}
               </button>
+              </>}
             </>
           )}
         />
