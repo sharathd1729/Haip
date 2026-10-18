@@ -279,6 +279,12 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
             is_new_conversation = False
             if conversation is None:
                 raise
+    if conversation.is_personal_bridge:
+        # The guest's one open WhatsApp thread was mirrored from the agent's personal phone, and now they have written to the
+        # official number: from here on it is an official thread (the concierge and the inbox may answer it). Personal-phone
+        # messages that still arrive in it are skipped by the reply safety net, message by message.
+        conversation.source = None
+        log.info("wa_personal_bridge_thread_became_official", conversation_id=conversation.id, tenant_id=tenant.id)
 
     # Extract message body
     body = ""

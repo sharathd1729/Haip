@@ -895,6 +895,14 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
             log.error("concierge_draft_conversation_not_found", conversation_id=conversation_id)
             return
 
+        # A chat mirrored from the read-only personal WhatsApp bridge: the agent is talking on their own phone and HAIP cannot
+        # send there, so any reply (autonomous or a draft to approve) would go out from the official number. Refused for every
+        # caller (webhook, reply recovery, automations, "write a draft").
+        if conversation.is_personal_bridge:
+            log.warning("concierge_draft_refused_personal_bridge", conversation_id=conversation_id, tenant_id=tenant_id,
+                        message_id=message_id)
+            return
+
         # Message-burst debounce: a newer inbound message arrived and
         # queued its own (fresher-delayed) concierge_draft run after this
         # one was scheduled -- that run is the one that should actually
