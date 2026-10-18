@@ -51,6 +51,32 @@ The Studio does not post anything to Instagram.
 | Story | `sticker` (poll/question/link) and `shot_note` per frame | Validator: at most one poll or question and one link per story; a poll needs exactly two answers. |
 | Plan | At most 5 pillars, plus `position`, `rotation`, `out_of_scope` | Validator: every calendar entry must use one of the plan's pillars. |
 
+### AI images (D2 revised, 18 Oct 2026) — migration `130`
+
+AI images are opt-in and approval-gated. NVIDIA's hosted catalog is called on the existing `NVIDIA_API_KEY`.
+
+**Models** (`adapters/image/__init__.py`). A model is enabled only when its provider page clears it for commercial use **and** a live request confirmed its hosted endpoint.
+
+| Model | Licence on build.nvidia.com | Status |
+|---|---|---|
+| FLUX.1-schnell | "ready for commercial use" (Apache-2.0) | **enabled**. `ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-schnell`; our key passed the API's validation. |
+| qwen-image | commercial + non-commercial (Apache-2.0) | disabled: the hosted endpoint isn't found (guessed paths return 404) |
+| Stable Diffusion 3.5 Large | "ready for **non-commercial** use"; commercial use needs a Stability AI licence | **blocked** on licence |
+| FLUX.1-dev | non-commercial only | **never** |
+
+**Flow:**
+1. **Owner switches it on.** `PUT /marketing/studio/settings {ai_images_enabled}`, which needs `settings.manage` and is audited.
+2. **Request.** `POST /marketing/studio/images {prompt, model, shape}` creates a `marketing_image_jobs` row and queues Celery `marketing_studio.generate_image`. The prompt passes the price and banned-word checks. A fixed suffix keeps text, logos and watermarks out of the image (version `marketing-image-v1`).
+3. **Generate.** The adapter is pinned to `ai.api.nvidia.com` and `api.nvcf.nvidia.com`, polls 202/NVCF-REQID within a 300s budget, and treats timeouts, 429 and 5xx as transient (the task retries twice). Other errors and filtered images fail the job with the reason.
+4. **Result.** The image is re-encoded to JPEG and stored as `media_assets` with `source='ai'`, `status='pending_review'`, and a provenance record of provider, model, prompt, seed and licence. It is metered as `image_gen`.
+5. **Review.** `POST /marketing/studio/media/{id}/approve|reject` needs `marketing.approve`. Nobody but the owner may approve an image they requested. Approve sets the image `active`; reject sets it `archived`.
+6. **Gate.** Every content version is checked: each `asset_id` it references must belong to this tenant and be `active`. Otherwise it gets 422 `asset_not_usable`.
+
+**Caveats:**
+- **NVIDIA API Trial Terms.** These govern the hosted catalog. Check them, and NVIDIA AI Enterprise, before production use. This applies to the existing LLM routes too.
+- **Live reliability.** On 18 Oct 2026 two real FLUX.1-schnell generations did not answer within 300s, and even a validation error took 35s. A real image has **not yet been produced end to end**.
+- **Worker load.** An image job can occupy a `default`-queue worker for up to about 5 minutes per attempt.
+
 ## 2. Implementation and migration
 
 **Migration `129_marketing_studio.py`** (head; down_revision `128`). It is idempotent.

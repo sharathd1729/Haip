@@ -99,3 +99,20 @@ class MarketingApproval(Base):
     note = Column(Text, nullable=True)
     actor_user_id = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False)
+
+
+class MarketingImageJob(Base, TimestampMixin):
+    """One AI image request (opt-in per tenant). On success the image becomes a media_assets row with
+    source='ai' and status='pending_review': it cannot be used in content until someone with marketing.approve approves it."""
+    __tablename__ = "marketing_image_jobs"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    prompt = Column(Text, nullable=False)
+    model = Column(String(60), nullable=False)
+    shape = Column(String(20), nullable=False)
+    seed = Column(Integer, nullable=True)
+    status = Column(String(20), nullable=False, default="pending")   # pending | ready | failed
+    error = Column(Text, nullable=True)
+    asset_id = Column(String, nullable=True)
+    created_by = Column(String, nullable=True)

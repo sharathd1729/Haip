@@ -85,7 +85,40 @@ def _validated(db: Session, tenant_id: str, kind: str, payload: dict) -> dict:
     problems = check_text(db, tenant_id, clean)
     if problems:
         raise MarketingError(422, "content_not_allowed", "The content breaks a workspace rule.", problems)
+    unusable = _unusable_assets(db, tenant_id, clean)
+    if unusable:
+        raise MarketingError(422, "asset_not_usable", "Some images can't be used: they are not in this workspace's library, "
+                             "or are AI images still waiting for approval.", unusable)
     return clean
+
+
+def _asset_ids(payload) -> set[str]:
+    found: set[str] = set()
+
+    def walk(v):
+        if isinstance(v, dict):
+            if isinstance(v.get("asset_id"), str) and v["asset_id"]:
+                found.add(v["asset_id"])
+            for x in v.values():
+                walk(x)
+        elif isinstance(v, list):
+            for x in v:
+                walk(x)
+
+    walk(payload)
+    return found
+
+
+def _unusable_assets(db: Session, tenant_id: str, payload: dict) -> list[str]:
+    """Every referenced image must be this tenant's and `active` (an AI image becomes active only when approved)."""
+    from app.models.media_asset import MediaAsset
+
+    ids = _asset_ids(payload)
+    if not ids:
+        return []
+    ok = {a for (a,) in db.query(MediaAsset.id).filter(MediaAsset.tenant_id == tenant_id, MediaAsset.id.in_(ids),
+                                                         MediaAsset.status == "active")}
+    return sorted(ids - ok)
 
 
 def _decision(db: Session, item: MarketingContent, version: MarketingContentVersion, decision: str, actor_id: str, note=None):

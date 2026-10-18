@@ -53,6 +53,23 @@ def generate_plan(self, tenant_id: str, plan_id: str):
     _run(self, "plan", tenant_id, plan_id, lambda db: svc.run_plan(db, tenant_id, plan_id), MarketingPlan)
 
 
+@shared_task(name="marketing_studio.generate_image", bind=True, max_retries=MAX_RETRIES)
+def generate_image(self, tenant_id: str, job_id: str):
+    """AI image (opt-in). The adapter's transient errors are retried like LLM ones; the job row is idempotent."""
+    from app.adapters.image import ImageGenError
+    from app.models.marketing import MarketingImageJob
+    from app.services import marketing_ai_service as svc
+    from app.services import marketing_image_service as images
+
+    def run(db):
+        try:
+            images.run_image(db, tenant_id, job_id)
+        except ImageGenError as exc:
+            raise svc.LLMTransientError(str(exc)) from exc
+
+    _run(self, "image", tenant_id, job_id, run, MarketingImageJob)
+
+
 @shared_task(name="marketing_studio.generate_content", bind=True, max_retries=MAX_RETRIES)
 def generate_content(self, tenant_id: str, item_id: str, actor_id: str, brief: str = ""):
     from app.models.marketing import MarketingContent

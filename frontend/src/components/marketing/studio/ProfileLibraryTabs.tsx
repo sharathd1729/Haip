@@ -6,6 +6,8 @@ import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardBody, CardHeader, EmptyState, StatusPill } from "@/components/ui/kit";
 import { STUDIO, btn, btnPrimary, inputCls, studioError, type Asset } from "./types";
+import { AiImagesPanel } from "./AiImagesPanel";
+import { useSession } from "next-auth/react";
 
 interface Profile {
   tagline: string | null; description: string | null; audience: string | null; tone: string | null;
@@ -81,6 +83,9 @@ export function ProfileTab() {
 }
 
 export function LibraryTab() {
+  const { data: session } = useSession();
+  const role = session?.user?.role;
+  const canReview = role === "owner" || role === "manager";
   const qc = useQueryClient();
   const { toast } = useToast();
   const file = useRef<HTMLInputElement>(null);
@@ -95,6 +100,11 @@ export function LibraryTab() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["studio-media"] }),
     onError: e => toast({ variant: "error", title: "Upload failed", description: studioError(e, "Use a JPEG, PNG or WebP up to 10 MB.") }),
   });
+  const review = useMutation({
+    mutationFn: ({ id, approve }: { id: string; approve: boolean }) => api.post(`${STUDIO}/media/${id}/${approve ? "approve" : "reject"}`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["studio-media"] }),
+    onError: e => toast({ variant: "error", title: "Not done", description: studioError(e, "Try again.") }),
+  });
   const make = useMutation({
     mutationFn: () => api.post(`${STUDIO}/media/${render?.id}/render`, { template, headline, subline: subline || null }),
     onSuccess: () => { setRender(null); setHeadline(""); setSubline(""); qc.invalidateQueries({ queryKey: ["studio-media"] }); toast({ variant: "success", title: "Creative added to the library" }); },
@@ -104,11 +114,12 @@ export function LibraryTab() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-[var(--haip-fg-muted)]">Your own photos, and creatives made from them. No AI-generated images.</p>
+        <p className="text-sm text-[var(--haip-fg-muted)]">Your own photos, creatives made from them, and approved AI images.</p>
         <input ref={file} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only"
           onChange={e => { const f = e.target.files?.[0]; if (f) upload.mutate(f); e.target.value = ""; }} />
         <button type="button" className={btnPrimary} disabled={upload.isPending} onClick={() => file.current?.click()}>{upload.isPending ? "Uploading…" : "Upload photo"}</button>
       </div>
+      <AiImagesPanel />
       {render && (
         <Card className="p-4">
           <form className="grid gap-3 sm:grid-cols-[auto_1fr_1fr_auto] sm:items-end" onSubmit={e => { e.preventDefault(); make.mutate(); }}>
@@ -136,10 +147,22 @@ export function LibraryTab() {
           {assets.data.map(a => (
             <li key={a.id} className="overflow-hidden rounded-xl border border-[var(--haip-border)] bg-[var(--haip-card)]">
               {a.url ? <img src={a.url} alt={a.alt_text ?? ""} className="aspect-square w-full object-cover" loading="lazy" /> : <div className="aspect-square bg-[var(--haip-surface)]" />}
-              <div className="flex items-center justify-between gap-2 p-2">
-                <StatusPill tone={a.source === "template" ? "brand" : "neutral"}>{a.source === "template" ? "Creative" : "Photo"}</StatusPill>
-                {a.source === "upload" && <button type="button" className="min-h-11 px-1 text-xs font-semibold text-primary sm:min-h-0" onClick={() => setRender(a)}>Make creative</button>}
+              <div className="flex flex-wrap items-center justify-between gap-2 p-2">
+                {a.source === "ai" ? (
+                  <StatusPill tone={a.status === "pending_review" ? "warning" : "info"}>{a.status === "pending_review" ? "AI image · needs approval" : "AI image"}</StatusPill>
+                ) : <StatusPill tone={a.source === "template" ? "brand" : "neutral"}>{a.source === "template" ? "Creative" : "Photo"}</StatusPill>}
+                {a.status !== "pending_review" && (a.source === "upload" || a.source === "ai") && (
+                  <button type="button" className="min-h-11 px-1 text-xs font-semibold text-primary sm:min-h-0" onClick={() => setRender(a)}>Make creative</button>
+                )}
               </div>
+              {a.status === "pending_review" && canReview && (
+                <div className="flex gap-2 px-2 pb-2">
+                  <button type="button" className={btnPrimary + " flex-1"} disabled={review.isPending || (role !== "owner" && a.created_by === session?.user?.id)}
+                    title={role !== "owner" && a.created_by === session?.user?.id ? "You asked for this image, so someone else must approve it." : undefined}
+                    onClick={() => review.mutate({ id: a.id, approve: true })}>Approve</button>
+                  <button type="button" className={btn + " flex-1"} disabled={review.isPending} onClick={() => review.mutate({ id: a.id, approve: false })}>Reject</button>
+                </div>
+              )}
             </li>
           ))}
         </ul>

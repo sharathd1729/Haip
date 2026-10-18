@@ -37,7 +37,8 @@ class MediaError(Exception):
 
 
 def _store(db: Session, tenant_id: str, data: bytes, mime: str, ext: str, size: tuple[int, int], *, source: str,
-           actor_id: Optional[str], alt_text: Optional[str], property_id: Optional[str], provenance: Optional[dict]) -> MediaAsset:
+           actor_id: Optional[str], alt_text: Optional[str], property_id: Optional[str], provenance: Optional[dict],
+           status: str = "active") -> MediaAsset:
     sha = hashlib.sha256(data).hexdigest()
     existing = db.query(MediaAsset).filter_by(tenant_id=tenant_id, sha256=sha, status="active").first()
     if existing is not None:
@@ -45,11 +46,11 @@ def _store(db: Session, tenant_id: str, data: bytes, mime: str, ext: str, size: 
     key = media_storage.upload_marketing_media(tenant_id, data, mime, ext)
     asset = MediaAsset(tenant_id=tenant_id, property_id=property_id, storage_key=key, mime_type=mime, bytes=len(data),
                        width=size[0], height=size[1], sha256=sha, alt_text=alt_text, source=source,
-                       provenance=provenance, created_by=actor_id)
+                       provenance=provenance, created_by=actor_id, status=status)
     db.add(asset)
     db.flush()
     append_audit(db, tenant_id=tenant_id, action="media.asset_added", actor_user_id=actor_id, target_type="media_asset",
-                 target_id=asset.id, payload={"source": source, "bytes": len(data), "sha256": sha})
+                 target_id=asset.id, payload={"source": source, "bytes": len(data), "sha256": sha, "status": status})
     return asset
 
 
@@ -81,6 +82,20 @@ def add_upload(db: Session, tenant_id: str, raw: bytes, *, actor_id: str, alt_te
     mime, ext = _FORMATS[fmt]
     return _store(db, tenant_id, out.getvalue(), mime, ext, size, source="upload", actor_id=actor_id,
                   alt_text=alt_text, property_id=property_id, provenance=None)
+
+
+def add_generated(db: Session, tenant_id: str, raw: bytes, *, actor_id: Optional[str], provenance: dict) -> MediaAsset:
+    """Store an AI-generated image. It lands as `pending_review`: not usable in content or creatives until approved."""
+    try:
+        with Image.open(io.BytesIO(raw)) as img:
+            img = img.convert("RGB")
+            out = io.BytesIO()
+            img.save(out, format="JPEG", quality=92)      # re-encode: drops any metadata the provider embedded
+            size = img.size
+    except (UnidentifiedImageError, OSError, SyntaxError, Image.DecompressionBombError):
+        raise MediaError(502, "bad_generated_image", "The image service returned something that is not an image.")
+    return _store(db, tenant_id, out.getvalue(), "image/jpeg", "jpg", size, source="ai", actor_id=actor_id,
+                  alt_text=None, property_id=None, provenance=provenance, status="pending_review")
 
 
 def _panel_colour(tenant: Tenant) -> str:

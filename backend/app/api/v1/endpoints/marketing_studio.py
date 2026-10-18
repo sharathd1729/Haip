@@ -14,6 +14,10 @@ POST /marketing/studio/content/{id}/submit | approve | reject | archive
 GET  /marketing/studio/media    POST same (multipart)              media library
 POST /marketing/studio/media/{id}/render   GET .../templates        template creative from a library photo
 GET  /marketing/studio/usage                                       metered usage for this module
+GET  /marketing/studio/settings   PUT same (owner)                 opt-in switches (AI images)
+GET  /marketing/studio/image-models                                models with licence status (blocked ones say why)
+POST /marketing/studio/images     GET same                         AI image jobs (async; result needs approval)
+POST /marketing/studio/media/{id}/approve | reject                 review an AI image (marketing.approve)
 """
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Optional
@@ -26,7 +30,7 @@ from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_current_user, require_module
 from app.core.database import get_db
-from app.models.marketing import MarketingAudit, MarketingContent, MarketingPlan
+from app.models.marketing import MarketingAudit, MarketingContent, MarketingImageJob, MarketingPlan
 from app.models.media_asset import MediaAsset
 from app.models.property import Property
 from app.models.tenant import Tenant
@@ -34,6 +38,7 @@ from app.models.usage_event import UsageEvent
 from app.models.user import User
 from app.services import marketing_ai_service as ai
 from app.services import marketing_content_service as svc
+from app.services import marketing_image_service as images
 from app.services import media_library_service as media
 from app.services.authz_service import require_capability
 from app.services.media_storage import get_presigned_media_url
@@ -45,6 +50,7 @@ _module = Depends(require_module("marketing_studio"))
 _read = Depends(require_capability("marketing.read"))
 _edit = Depends(require_capability("marketing.edit"))
 _approve = Depends(require_capability("marketing.approve"))
+_owner_settings = Depends(require_capability("settings.manage"))
 MAX_PLAN_DAYS = 62
 
 
@@ -335,14 +341,15 @@ def archive(item_id: str, user: User = Depends(get_current_user), db: Session = 
 # ── Media ───────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 def _asset_out(a: MediaAsset) -> dict:
-    return {"id": a.id, "url": get_presigned_media_url(a.storage_key, expires_in=900), "mime_type": a.mime_type,
+    return {"id": a.id, "url": get_presigned_media_url(a.storage_key, expires_in=900), "mime_type": a.mime_type, "status": a.status,
+            "created_by": a.created_by,
             "width": a.width, "height": a.height, "bytes": a.bytes, "alt_text": a.alt_text, "source": a.source,
             "provenance": a.provenance, "property_id": a.property_id, "created_at": a.created_at}
 
 
 @router.get("/media")
 def list_media(user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
-    rows = (db.query(MediaAsset).filter_by(tenant_id=user.tenant_id, status="active")
+    rows = (db.query(MediaAsset).filter(MediaAsset.tenant_id == user.tenant_id, MediaAsset.status.in_(("active", "pending_review")))
             .order_by(MediaAsset.created_at.desc()).limit(200).all())
     return [_asset_out(a) for a in rows]
 
@@ -393,3 +400,78 @@ def usage(days: int = Query(30, ge=1, le=366), user: User = Depends(get_current_
             .filter(UsageEvent.tenant_id == user.tenant_id, UsageEvent.module == "marketing_studio", UsageEvent.created_at >= since)
             .group_by(UsageEvent.kind).all())
     return {"days": days, "since": since.isoformat(), "by_kind": [{"kind": k, "events": n, "units": int(u)} for k, n, u in rows]}
+
+
+# ── AI images (opt-in) ──────────────────────────────────────────────────────────────────────────────────────────────
+
+class StudioSettings(BaseModel):
+    ai_images_enabled: bool
+
+
+@router.get("/settings")
+def get_settings(user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
+    return {"ai_images_enabled": images.ai_images_enabled(_tenant(db, user))}
+
+
+@router.put("/settings")
+def put_settings(body: StudioSettings, user: User = Depends(get_current_user), db: Session = Depends(get_db),
+                 _m=_module, _c=_owner_settings):
+    enabled = images.set_ai_images(db, _tenant(db, user), body.ai_images_enabled, user.id)
+    db.commit()
+    return {"ai_images_enabled": enabled}
+
+
+@router.get("/image-models")
+def image_models(_m=_module, _c=_read):
+    return images.models_catalogue()
+
+
+class ImageRequest(BaseModel):
+    prompt: str = Field(min_length=3, max_length=images.PROMPT_MAX)
+    model: str = "flux.1-schnell"
+    shape: str = "portrait"
+    seed: Optional[int] = Field(default=None, ge=0, le=2**31 - 1)
+
+
+def _job_out(j: MarketingImageJob) -> dict:
+    return {"id": j.id, "prompt": j.prompt, "model": j.model, "shape": j.shape, "status": j.status, "error": j.error,
+            "asset_id": j.asset_id, "created_by": j.created_by, "created_at": j.created_at}
+
+
+@router.post("/images", status_code=202)
+def request_image(body: ImageRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db),
+                  _m=_module, _c=_edit):
+    from app.workers.tasks.marketing_studio import generate_image
+
+    job = _run(images.request_image, db, _tenant(db, user), prompt=body.prompt, model=body.model, shape=body.shape,
+               actor_id=user.id, seed=body.seed)
+    db.commit()
+    _queue(db, generate_image, MarketingImageJob, job.id, user.tenant_id)
+    return _job_out(job)
+
+
+@router.get("/images")
+def list_images(user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
+    rows = (db.query(MarketingImageJob).filter_by(tenant_id=user.tenant_id)
+            .order_by(MarketingImageJob.created_at.desc()).limit(50).all())
+    return [_job_out(j) for j in rows]
+
+
+class ReviewNote(BaseModel):
+    note: Optional[str] = Field(default=None, max_length=500)
+
+
+@router.post("/media/{asset_id}/approve")
+def approve_image(asset_id: str, body: ReviewNote = ReviewNote(), user: User = Depends(get_current_user),
+                  db: Session = Depends(get_db), _m=_module, _c=_approve):
+    asset = _run(images.review_image, db, user.tenant_id, asset_id, user, approve=True, note=body.note)
+    db.commit()
+    return _asset_out(asset)
+
+
+@router.post("/media/{asset_id}/reject")
+def reject_image(asset_id: str, body: ReviewNote = ReviewNote(), user: User = Depends(get_current_user),
+                 db: Session = Depends(get_db), _m=_module, _c=_approve):
+    asset = _run(images.review_image, db, user.tenant_id, asset_id, user, approve=False, note=body.note)
+    db.commit()
+    return _asset_out(asset)

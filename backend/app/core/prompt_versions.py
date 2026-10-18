@@ -124,6 +124,8 @@ PROMPT_VERSIONS: dict[str, str] = {
     "marketing_audit": "marketing-audit-v2",
     "marketing_plan": "marketing-plan-v2",
     "marketing_content": "marketing-content-v2",
+    # Fixed suffix appended to AI image prompts (marketing_image_service.PROMPT_SUFFIX).
+    "marketing_image": "marketing-image-v1",
 }
 
 UNKNOWN = "unregistered"
