@@ -55,6 +55,11 @@ class QuoteHistorySchema(BaseModel):
     created_at: Optional[datetime] = None
     is_active: bool = False
     age_days: Optional[int] = None
+    status: Optional[str] = None             # issued | superseded | accepted | withdrawn ...
+    option_rank: int = 1
+    payment_link_status: Optional[str] = None   # created | paid | expired | cancelled (newest link of this option)
+    payment_link_url: Optional[str] = None
+    booking_id: Optional[str] = None            # the booking a paid link became
 
 
 # ─── Lead Card ────────────────────────────────────────────────────────────────

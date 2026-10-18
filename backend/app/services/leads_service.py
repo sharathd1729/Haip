@@ -1028,6 +1028,9 @@ def get_lead_detail(
         .all()
     )
     today = datetime.now(timezone.utc).date()
+    from app.services.quote_journey import link_out
+    from app.services.quote_send_service import latest_links
+    quote_links = {k: link_out(v) for k, v in latest_links(db, tenant_id, [q.id for q in quotes_raw]).items()}
     quote_history = [
         QuoteHistorySchema(
             id=str(q.id),
@@ -1036,6 +1039,11 @@ def get_lead_detail(
             created_at=q.created_at,
             is_active=q.is_active,
             age_days=(today - q.created_at.date()).days if q.created_at else None,
+            status=q.status,
+            option_rank=q.option_rank or 1,
+            payment_link_status=(quote_links.get(q.id) or {}).get("status"),
+            payment_link_url=(quote_links.get(q.id) or {}).get("short_url"),
+            booking_id=(quote_links.get(q.id) or {}).get("booking_id"),
         )
         for q in quotes_raw
     ]

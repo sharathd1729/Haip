@@ -5,7 +5,9 @@ GET  /quotes/leads?q=         lead picker (same visibility as /leads)
 POST /quotes/preview          price a primary option and an optional fallback; NO database writes; may use drafts
 POST /quotes                  save both options to a lead (published records only); audited `quote.issued`; next step -> task
 GET  /quotes?inquiry_id=      a lead's quotes, newest first
-GET  /quotes/{id}             one quote + whether it is still valid against today's records
+GET  /quotes/{id}             one quote + whether it is still valid, its payment link, where the send stands, what blocks it
+POST /quotes/{id}/send        a Razorpay link per option (primary + fallback) + the WhatsApp quote with its PDF (queued);
+                              typed refusals; idempotent (live links reused, never sent twice). quote_send_service.py
 
 Writes and previews need `quotes.write` (owner, manager, reservations, concierge by default); reads need `leads.read` or
 `bookings.read`. The catalogue needs any of quotes.write / business_data.draft / business_data.publish / settings.manage.
@@ -20,6 +22,7 @@ from app.core.database import get_db
 from app.models.user import User
 from app.schemas.quotes import QuoteIssueIn, QuotePreviewIn
 from app.services import quote_builder_service as svc
+from app.services import quote_send_service as qss
 from app.services import quote_service as qs
 from app.services.authz_service import require_capability
 
@@ -70,3 +73,11 @@ def get_quote(quote_id: str, current_user: User = Depends(get_current_user), db:
     if row is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Quote not found."})
     return row
+
+
+@router.post("/{quote_id}/send")
+def send_quote(quote_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db), _cap=_write):
+    try:
+        return qss.send(db, current_user, quote_id)
+    except qs.QuoteError as exc:
+        raise HTTPException(status_code=exc.status, detail={"code": exc.code, "message": exc.message})

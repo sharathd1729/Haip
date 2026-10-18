@@ -50,7 +50,7 @@ class InquiryQuote(Base, TimestampMixin, TenantMixin):
     currency     = Column(String(3), default="INR", nullable=False)
     valid_until  = Column(DateTime(timezone=True), nullable=True)
 
-    pdf_url      = Column(Text, nullable=True)
+    pdf_url      = Column(Text, nullable=True)   # sent quote PDF: the storage key (media_storage.upload_quote_pdf), on the primary option
     notes        = Column(Text, nullable=True)
     created_by   = Column(String, nullable=True)   # user_id
     is_active    = Column(Boolean, default=True, nullable=False)

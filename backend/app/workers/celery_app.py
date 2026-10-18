@@ -68,6 +68,7 @@ celery_app = Celery(
         "app.workers.tasks.webhook_delivery",
         # Booking payments: invoices/receipts, WhatsApp confirmations, balance reminders
         "app.workers.tasks.invoice_tasks",
+        "app.workers.tasks.quote_tasks",
         # WhatsApp: campaign runner + template status sync
         "app.workers.tasks.run_campaign",
         "app.workers.tasks.campaign_scheduler",
@@ -258,6 +259,9 @@ celery_app.conf.update(
         "invoices.render_pdf":                        {"queue": "whatsapp"},
         "payments.notify_staff":                      {"queue": "whatsapp"},
         "payments.balance_reminders":                 {"queue": "whatsapp"},
+        # Sent quotes (quote_tasks.py): the quote PDF + WhatsApp send, and cancelling the other option's link.
+        "quotes.send_with_links":                     {"queue": "whatsapp"},
+        "quotes.cancel_payment_links":                {"queue": "whatsapp"},
     },
 )
 

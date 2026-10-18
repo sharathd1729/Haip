@@ -56,9 +56,9 @@ class StayPaymentLink(Base, TimestampMixin, TenantMixin):
     """A hosted payment link sent to the guest (Razorpay Payment Link). When the
     guest pays, the provider webhook hands it to payment_events_service.on_payment_link_paid.
 
-    A link belongs to a booking (stay_id) or, from migration 141, to a quote (inquiry_quote_id, no stay yet). A quote
-    link that gets paid does not make a booking by itself: it raises a staff task until the quote builder's
-    "create booking from quote" step is wired in (see on_payment_link_paid)."""
+    A link belongs to a booking (stay_id) or, from migration 141, to a quote option (inquiry_quote_id, no stay yet). When a
+    quote link is paid, quote_payment_service makes the booking from the quote and sets stay_id here (or raises a staff
+    task when the caravan is no longer free)."""
     __tablename__ = "stay_payment_links"
     __table_args__ = (CheckConstraint("stay_id IS NOT NULL OR inquiry_quote_id IS NOT NULL", name="ck_stay_payment_links_owner"),)
 

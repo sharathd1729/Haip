@@ -1,6 +1,7 @@
 """Send a booking's WhatsApp templates (confirmation, payment received, balance due) to the guest.
 
-``send_booking_template`` is the one way booking code sends a template: it finds or opens the guest's WhatsApp
+``send_guest_template`` is the one way HAIP sends these templates (``send_booking_template`` for a booking, the quote
+sender for ratha_quote_payment_v1, "qt:{quote group}:{event}" keys): it finds or opens the guest's WhatsApp
 conversation, writes the outbound Message (so it shows in the inbox and on the booking) and queues the normal
 ``tasks.send_whatsapp_template`` task. Guarantees:
 * never twice for the same (booking, event): ``Message.idempotency_key`` = "bk:{stay_id}:{event}" (partial unique index
@@ -40,9 +41,10 @@ def day(d: date) -> str:
     return f"{d:%a}, {d.day} {d:%b}"
 
 
-def idempotency_key(stay_id: str, event: str) -> str:
+def idempotency_key(owner_id: str, event: str, prefix: str = IDEM_PREFIX) -> str:
+    """"bk:{stay_id}:{event}" for a booking, "qt:{quote group id}:{event}" for a sent quote."""
     part = event if len(event) <= 24 else hashlib.sha256(event.encode()).hexdigest()[:24]
-    return f"{IDEM_PREFIX}{stay_id}:{part}"
+    return f"{prefix}{owner_id}:{part}"
 
 
 def rzp_suffix(short_url: str) -> Optional[str]:
@@ -54,10 +56,18 @@ def rzp_suffix(short_url: str) -> Optional[str]:
     return tail if all(c.isalnum() or c in "/_-" for c in tail) else None
 
 
-def _skip(db: Session, tenant_id: str, stay: Stay, template: str, event: str, reason: str, actor_id: Optional[str]) -> dict:
-    log.warning("booking_message_not_sent", tenant_id=tenant_id, stay_id=stay.id, template=template, booking_event=event, reason=reason)
-    append_audit(db, tenant_id=tenant_id, actor_user_id=actor_id, action="booking.message_not_sent", target_type="booking",
-                 target_id=stay.id, payload={"template": template, "event": event, "reason": reason})
+class Target:
+    """What a template message is about: its idempotency key prefix, the audit rows and Message.channel_metadata.
+    Booking: Target("booking", stay.id, "bk:", {...}, "booking"); sent quote: Target("inquiry_quote", group id, "qt:", {...}, "quote")."""
+    def __init__(self, kind: str, target_id: str, prefix: str, meta: dict, audit_prefix: str):
+        self.kind, self.id, self.prefix, self.meta, self.audit_prefix = kind, target_id, prefix, meta, audit_prefix
+
+
+def _skip(db: Session, tenant_id: str, target: Target, template: str, event: str, reason: str, actor_id: Optional[str]) -> dict:
+    log.warning(f"{target.audit_prefix}_message_not_sent", tenant_id=tenant_id, target_id=target.id, template=template,
+                message_event=event, reason=reason)
+    append_audit(db, tenant_id=tenant_id, actor_user_id=actor_id, action=f"{target.audit_prefix}.message_not_sent",
+                 target_type=target.kind, target_id=target.id, payload={"template": template, "event": event, "reason": reason})
     db.commit()
     return {"status": "skipped", "reason": reason, "message_id": None}
 
@@ -81,45 +91,53 @@ def send_booking_template(db: Session, tenant_id: str, stay: Stay, template_name
                           actor_user_id: Optional[str] = None, sender_name: str = "HAIP") -> dict:
     """Queue one template for this booking's guest. Returns {"status": "queued"|"duplicate"|"skipped", "reason",
     "message_id"}. ``document`` = {"key": storage key, "filename": "Invoice ....pdf"}. Commits."""
+    target = Target("booking", stay.id, IDEM_PREFIX, {"source": "booking", "booking_id": stay.id, "booking_event": event}, "booking")
+    return send_guest_template(db, tenant_id, stay.guest, template_name, variables, target=target, event=event, document=document,
+                               url_suffix=url_suffix, actor_user_id=actor_user_id, sender_name=sender_name)
+
+
+def send_guest_template(db: Session, tenant_id: str, guest, template_name: str, variables: list[str], *, target: Target,
+                        event: str, document: Optional[dict] = None, url_suffix: Optional[str] = None,
+                        actor_user_id: Optional[str] = None, sender_name: str = "HAIP") -> dict:
+    """Queue one approved template to a guest, at most once per (target, event). Same return as send_booking_template."""
     from app.api.v1.endpoints.messaging import TemplateStatus, WATemplate
     from app.workers.tasks.send_whatsapp import _bad_number_reason
 
-    key = idempotency_key(stay.id, event)
+    key = idempotency_key(target.id, event, target.prefix)
     prior = db.query(Message.id).filter_by(tenant_id=tenant_id, idempotency_key=key).first()
     if prior:
-        return {"status": "duplicate", "reason": "Already sent for this booking.", "message_id": prior[0]}
+        return {"status": "duplicate", "reason": "Already sent.", "message_id": prior[0]}
 
     tmpl = (db.query(WATemplate).filter_by(tenant_id=tenant_id, name=template_name, status=TemplateStatus.APPROVED)
             .order_by(WATemplate.language).first())
     if tmpl is None:
-        return _skip(db, tenant_id, stay, template_name, event, "template not approved", actor_user_id)
+        return _skip(db, tenant_id, target, template_name, event, "template not approved", actor_user_id)
 
     needed = wts.template_variables(tmpl.components)
     if needed.get("header") or len(needed.get("body", [])) != len(variables):
-        return _skip(db, tenant_id, stay, template_name, event,
-                     f"template needs {len(needed.get('body', []))} values, booking code gave {len(variables)}", actor_user_id)
+        return _skip(db, tenant_id, target, template_name, event,
+                     f"template needs {len(needed.get('body', []))} values, HAIP gave {len(variables)}", actor_user_id)
     header = next((c for c in tmpl.components or [] if (c.get("type") or "").upper() == "HEADER"), None)
     if header and (header.get("format") or "").upper() == "DOCUMENT" and not (document and document.get("key")):
-        return _skip(db, tenant_id, stay, template_name, event, "no document to attach", actor_user_id)
+        return _skip(db, tenant_id, target, template_name, event, "no document to attach", actor_user_id)
     url_index = next((i for c in tmpl.components or [] if (c.get("type") or "").upper() == "BUTTONS"
                       for i, b in enumerate(c.get("buttons") or [])
                       if (b.get("type") or "").upper() == "URL" and wts.variable_indices(b.get("url"))), None)
     if url_index is not None and not url_suffix:
-        return _skip(db, tenant_id, stay, template_name, event, "no payment link to put on the button", actor_user_id)
+        return _skip(db, tenant_id, target, template_name, event, "no payment link to put on the button", actor_user_id)
 
-    guest = stay.guest
     phone = guest.phone if guest else ""
     bad = _bad_number_reason(phone if phone and not str(phone).startswith("DELETED_") else "")
     if bad:   # the checker's text quotes the number; logs and the audit trail must not (PII)
         reason = "the guest has no phone number" if not phone else "the guest's phone number is not a valid WhatsApp number"
-        return _skip(db, tenant_id, stay, template_name, event, reason, actor_user_id)
+        return _skip(db, tenant_id, target, template_name, event, reason, actor_user_id)
 
     tenant = db.query(Tenant).filter_by(id=tenant_id).first()
     conv = _open_conversation(db, tenant, guest.id)
     body = next((c.get("text", "") for c in tmpl.components or [] if (c.get("type") or "").upper() == "BODY"), tmpl.name)
     for i, v in enumerate(variables, start=1):
-        body = body.replace(f"{{{{{i}}}}}", str(v))
-    meta = {"template_id": tmpl.id, "template_name": tmpl.name, "source": "booking", "booking_id": stay.id, "booking_event": event}
+        body = body.replace("{{%d}}" % i, str(v))
+    meta = {"template_id": tmpl.id, "template_name": tmpl.name, **target.meta}
     if document and document.get("key"):
         meta["document"] = {"key": document["key"], "filename": document.get("filename") or "document.pdf"}
     if url_index is not None:
@@ -130,26 +148,26 @@ def send_booking_template(db: Session, tenant_id: str, stay: Stay, template_name
                   idempotency_key=key, channel_metadata=meta)
     db.add(msg)
     conv.last_message_at = datetime.now(timezone.utc).isoformat()
-    append_audit(db, tenant_id=tenant_id, actor_user_id=actor_user_id, action="booking.message_queued", target_type="booking",
-                 target_id=stay.id, payload={"template": template_name, "event": event, "message_id": msg.id})
+    append_audit(db, tenant_id=tenant_id, actor_user_id=actor_user_id, action=f"{target.audit_prefix}.message_queued",
+                 target_type=target.kind, target_id=target.id, payload={"template": template_name, "event": event, "message_id": msg.id})
     try:
         db.commit()
-    except IntegrityError:                          # a concurrent sender took the same (booking, event)
+    except IntegrityError:                          # a concurrent sender took the same (target, event)
         db.rollback()
-        return {"status": "duplicate", "reason": "Already sent for this booking.", "message_id": None}
+        return {"status": "duplicate", "reason": "Already sent.", "message_id": None}
 
     from app.workers.tasks.send_whatsapp import send_whatsapp_template
     try:
         send_whatsapp_template.delay(message_id=msg.id, tenant_id=tenant_id, template_name=tmpl.name,
                                      language_code=tmpl.language or "en", variables=[str(v) for v in variables])
     except Exception as exc:  # noqa: BLE001 -- broker down: say so on the message instead of leaving it "queued" forever
-        log.error("booking_message_enqueue_failed", tenant_id=tenant_id, message_id=msg.id, error=str(exc))
+        log.error(f"{target.audit_prefix}_message_enqueue_failed", tenant_id=tenant_id, message_id=msg.id, error=str(exc))
         msg.delivery_state = MessageDeliveryState.FAILED
         msg.channel_status = "failed"
         msg.delivery_error = "Could not queue the message. Use Retry in the inbox."
         db.commit()
         return {"status": "skipped", "reason": "could not queue the message", "message_id": msg.id}
-    log.info("booking_message_queued", tenant_id=tenant_id, message_id=msg.id, template=tmpl.name, booking_event=event)
+    log.info(f"{target.audit_prefix}_message_queued", tenant_id=tenant_id, message_id=msg.id, template=tmpl.name, message_event=event)
     return {"status": "queued", "reason": None, "message_id": msg.id}
 
 
@@ -200,7 +218,8 @@ def send_balance_due(db: Session, tenant: Tenant, stay: Stay, link, amount, due:
                      actor_user_id: Optional[str] = None, sender_name: str = "HAIP") -> dict:
     suffix = rzp_suffix(link.short_url)
     if not suffix:
-        return _skip(db, tenant.id, stay, pack.BALANCE_DUE, event, "the payment link is not a rzp.io link", actor_user_id)
+        target = Target("booking", stay.id, IDEM_PREFIX, {}, "booking")
+        return _skip(db, tenant.id, target, pack.BALANCE_DUE, event, "the payment link is not a rzp.io link", actor_user_id)
     variables = [_first(stay), day(stay.check_in), inr(amount), day(due)]
     return send_booking_template(db, tenant.id, stay, pack.BALANCE_DUE, variables, event=event, url_suffix=suffix,
                                  actor_user_id=actor_user_id, sender_name=sender_name)

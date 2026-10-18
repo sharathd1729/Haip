@@ -181,7 +181,8 @@ def test_catalog_lists_plans_routes_drafts_kits_and_permissions(client, db, r):
     assert [k["name"] for k in c["kits"]] == ["Adventure", "Culinary", "Entertainment", "Wellness"]
     assert c["reseller_terms"]["data"]["tiers"][0]["name"] == "Travel agents" and c["advance_percent"] == "50.00"
     assert [v["name"] for v in c["vehicles"]] == ["Ratha 1", "Ratha 2"]
-    assert c["permissions"] == {"user_id": r.res.id, "is_owner": False, "can_quote": True, "can_draft": True, "can_publish": False}
+    assert c["permissions"] == {"user_id": r.res.id, "is_owner": False, "can_quote": True, "can_draft": True, "can_publish": False,
+                                "can_manage_templates": False}
     assert client.get(f"{API}/catalog", headers=_h(r.foh)).status_code == 403
 
 

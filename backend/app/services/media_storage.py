@@ -183,6 +183,15 @@ def upload_invoice_pdf(tenant_id: str, invoice_id: str, content: bytes) -> str:
     return s3_key
 
 
+def upload_quote_pdf(tenant_id: str, quote_id: str, content: bytes) -> str:
+    """Store a sent quote's PDF (both options), return the key. One object per quote group: re-rendering overwrites it."""
+    safe_id = "".join(c for c in quote_id if c.isalnum() or c == "-")[:64]
+    s3_key = f"{tenant_id}/quotes/{safe_id}.pdf"
+    _put(s3_key, content, "application/pdf")
+    log.info("quote_pdf_stored", tenant_id=tenant_id, quote_id=quote_id, bytes=len(content))
+    return s3_key
+
+
 def upload_invoice_logo(tenant_id: str, content: bytes) -> str:
     """Store the (already re-encoded PNG) logo printed on invoices. A new key per upload, so an invoice rendered
     earlier never changes when the logo is replaced."""

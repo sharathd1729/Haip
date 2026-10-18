@@ -10,12 +10,12 @@ Booking link (link.stay_id set)
      later one, renders the PDF, sends ratha_booking_confirmed_v1 / ratha_payment_received_v1 with it attached, and
      pushes a "payment received" notification to staff. Nothing slow happens in the webhook request.
 
-Quote link (link.inquiry_quote_id set, no stay yet)  -- HOOK FOR THE QUOTE BUILDER
-  No booking is created here. The link is marked paid with a guarded UPDATE (so a retry is a duplicate), the payment
-  is audited ``quote.payment_received`` (amount, Razorpay payment id, quote id) and a high-priority staff task
-  "Payment received for quote ... - create the booking" is raised on the lead, plus a push to staff. When the quote
-  builder can turn a quote into a booking, replace ``_quote_link_paid``'s task with: create the Stay from the quote,
-  set link.stay_id, then fall through to the booking-link path above (which records the payment and invoices it).
+Quote link (link.inquiry_quote_id set, no stay yet)
+  Handed to quote_payment_service.on_quote_link_paid: if the quote's caravan is still free on its dates, the booking is
+  made from the issued quote (same path as POST /bookings), the payment recorded on it, the quote accepted and the
+  other option withdrawn (its link cancelled by a queued task), the lead moved to Sold, then ``invoices.after_payment``
+  is queued exactly as for a booking link. Not free, already booked, or not bookable -> no booking, a high-priority
+  staff task and an audit row; staff decide (nothing is refunded automatically).
 """
 from __future__ import annotations
 
@@ -23,7 +23,6 @@ from datetime import date
 from typing import Optional
 
 import structlog
-from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -46,7 +45,8 @@ def _enqueue(task_name: str, **kwargs) -> None:
 
 def on_payment_link_paid(db: Session, tenant: Tenant, link: StayPaymentLink, payment_payload: dict,
                          link_payload: Optional[dict] = None) -> str:
-    """Returns "recorded", "duplicate", "quote_recorded" or "ignored". Commits."""
+    """Returns "recorded", "duplicate", "ignored", or for a quote link "booked", "paid_no_vehicle", "double_payment",
+    "quote_recorded". Commits."""
     pay_id = (payment_payload or {}).get("id")
     if not pay_id:
         return "ignored"
@@ -77,31 +77,5 @@ def on_payment_link_paid(db: Session, tenant: Tenant, link: StayPaymentLink, pay
 
 
 def _quote_link_paid(db: Session, tenant: Tenant, link: StayPaymentLink, pay_id: str, amount: float, method: str) -> str:
-    from app.models.inquiry import Inquiry
-    from app.models.inquiry_360 import InquiryQuote
-    from app.models.task import Task
-
-    first = db.execute(
-        update(StayPaymentLink).where(StayPaymentLink.id == link.id, StayPaymentLink.tenant_id == tenant.id,
-                                      StayPaymentLink.status != "paid")
-        .values(status="paid").execution_options(synchronize_session=False)
-    ).rowcount
-    if first != 1:
-        db.commit()
-        return "duplicate"
-    quote = db.query(InquiryQuote).filter_by(id=link.inquiry_quote_id, tenant_id=tenant.id).first() if link.inquiry_quote_id else None
-    inquiry = db.query(Inquiry).filter_by(id=quote.inquiry_id, tenant_id=tenant.id).first() if quote else None
-    ref = (getattr(quote, "quote_number", None) or (quote.id[:8].upper() if quote else link.external_id))
-    rupees = f"Rs. {amount:,.0f}"
-    append_audit(db, tenant_id=tenant.id, actor_user_id=None, action="quote.payment_received", target_type="inquiry",
-                 target_id=inquiry.id if inquiry else None,
-                 payload={"amount": amount, "payment_id": pay_id, "method": method, "quote_id": link.inquiry_quote_id,
-                          "link_id": link.external_id})
-    db.add(Task(tenant_id=tenant.id, title=f"Payment received for quote {ref} ({rupees}) - create the booking"[:255],
-                priority="high", guest_id=inquiry.guest_id if inquiry else None, inquiry_id=inquiry.id if inquiry else None,
-                assigned_to=inquiry.assigned_to if inquiry else None))
-    db.commit()
-    _enqueue("notify_staff", tenant_id=tenant.id, title="Payment received",
-             body=f"{rupees} paid for quote {ref}. Create the booking.",
-             url=f"/dashboard/leads/{inquiry.id}" if inquiry else "/dashboard/my-day")
-    return "quote_recorded"
+    from app.services.quote_payment_service import on_quote_link_paid
+    return on_quote_link_paid(db, tenant, link, pay_id, amount, method)

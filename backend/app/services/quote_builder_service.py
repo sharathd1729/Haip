@@ -157,15 +157,27 @@ def list_quotes(db: Session, user: User, inquiry_id: str) -> Optional[list[dict]
         return None
     rows = (db.query(InquiryQuote).filter_by(tenant_id=user.tenant_id, inquiry_id=inquiry_id)
             .order_by(InquiryQuote.created_at.desc(), InquiryQuote.option_rank.asc()).all())
-    return [row_out(r) for r in rows]
+    from app.services.quote_journey import decorate
+    return decorate(db, user.tenant_id, [row_out(r) for r in rows])
 
 
 def get_quote(db: Session, user: User, quote_id: str) -> Optional[dict]:
     row = db.query(InquiryQuote).filter_by(id=quote_id, tenant_id=user.tenant_id).first()
-    if row is None or visible_inquiry(db, user, row.inquiry_id) is None:
+    inquiry = visible_inquiry(db, user, row.inquiry_id) if row is not None else None
+    if row is None or inquiry is None:
         return None
     out = row_out(row)
     out["still_valid"] = qs.check_still_valid(db, user.tenant_id, row)
+    # Sending (POST /quotes/{id}/send): where it stands, and what would stop it. Both options travel together.
+    from app.services import quote_send_service as qss
+    from app.services.quote_journey import journey, link_out
+    primary = qss.primary_of(db, user.tenant_id, row)
+    rows = qss.group_rows(db, user.tenant_id, primary)
+    guest = db.query(Guest).filter_by(id=inquiry.guest_id, tenant_id=user.tenant_id).first()
+    out["quote_number"] = qss.quote_number(primary)
+    out["payment_link"] = link_out(qss.latest_links(db, user.tenant_id, [row.id]).get(row.id))
+    out["send"] = journey(db, user.tenant_id, rows)
+    out["send_readiness"] = qss.readiness(db, user.tenant_id, primary, rows, guest)
     return out
 
 
@@ -206,6 +218,15 @@ def _rec(r: Optional[BusinessRecord], names: dict) -> Optional[dict]:
             "published_at": r.published_at.isoformat() if r.published_at else None}
 
 
+def _send_setup(db: Session, tenant_id: str) -> dict:
+    """What "Send quote + payment link" needs from the workspace (shown before a quote is saved)."""
+    from app.models.integration import Integration
+    from app.services.quote_send_service import template_status
+    rzp = db.query(Integration.id).filter(Integration.tenant_id == tenant_id, Integration.kind == "razorpay",
+                                          Integration.status == "active", Integration.credentials_kms_blob.isnot(None)).first()
+    return {"razorpay_connected": rzp is not None, "template_status": template_status(db, tenant_id)}
+
+
 def catalog(db: Session, user: User) -> dict:
     tid = user.tenant_id
     today = bds.tenant_today(db, tid)
@@ -237,10 +258,12 @@ def catalog(db: Session, user: User) -> dict:
         "reseller_terms": {"version": reseller.version, "data": reseller.data} if reseller else None,
         "advance_percent": str(bds.parse(payment).advance_percent) if payment else None,
         "vehicles": [{"id": v.id, "name": v.name} for v in vehicles],
+        "send_setup": _send_setup(db, tid),
         "permissions": {
             "user_id": user.id, "is_owner": user.role == UserRole.OWNER,
             "can_quote": "quotes.write" in caps,
             "can_draft": bool({"business_data.draft", "settings.manage"} & caps),
             "can_publish": bool({"business_data.publish", "settings.manage"} & caps),
+            "can_manage_templates": _sees_all(user),
         },
     }
