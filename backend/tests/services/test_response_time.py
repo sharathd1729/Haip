@@ -137,7 +137,9 @@ def test_parse_summary_valid_json():
     assert set(analysis.keys()) == {
         "intent", "sentiment", "objection", "reply_urgency", "next_action",
         "unanswered_questions", "requirements", "inferences", "follow_up",     # added in leads360-summary-v7
+        "next_best_action", "blocking_objection", "missed_revenue", "temperature", "haip_updates",  # v8 (ai_actionable)
     }
+    assert analysis["next_best_action"] is None and analysis["next_action"] == "Call back"   # old key untouched
     assert analysis["unanswered_questions"] == [] and analysis["follow_up"] is None
 
 

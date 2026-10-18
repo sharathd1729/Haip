@@ -60,6 +60,9 @@ def update_my_tenant(
     if "brand_config" in data:
         merged = dict(tenant.brand_config or {})
         incoming = data.pop("brand_config")
+        if "lead_autopilot" in incoming:
+            # Owner-only and audited: PUT /lead-autopilot/settings. A manager must not switch it on through here.
+            raise HTTPException(status_code=422, detail="Change lead autopilot settings in Settings > Lead autopilot")
         if "price_disclosure" in incoming:
             from app.services.price_policy import PRICE_MODES
             if incoming["price_disclosure"] not in PRICE_MODES:

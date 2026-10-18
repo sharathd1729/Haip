@@ -110,6 +110,10 @@ class Call(Base, TimestampMixin, TenantMixin):
     ai_summary = Column(Text, nullable=True)
     ai_disposition = Column(SAEnum(CallDisposition), nullable=True)
     ai_next_action = Column(Text, nullable=True)
+    # Actionable read of the call (migration 144, wrap_up prompt v5): next best action with owner/channel/deadline,
+    # the blocking objection + counter, missed-revenue flags, lead temperature, outcome and what to update in HAIP.
+    # Cleaned by services/ai_actionable.py; null on calls analysed before v5.
+    ai_insights = Column(JSON, nullable=True)
     ai_score = Column(Numeric(5, 2), nullable=True)   # 0-100
 
     # M5+ WS1: structured, clickable version of ai_next_action. Derived

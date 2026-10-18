@@ -74,3 +74,17 @@ async def test_explicit_model_kwarg_still_overrides_the_routed_default():
 
         call_kwargs = mock_client.chat.completions.create.call_args.kwargs
         assert call_kwargs["model"] == "openai/gpt-oss-20b"
+
+
+def test_lead_stage_classify_routes_to_the_structured_output_tier(monkeypatch):
+    """Lead autopilot's AI classifier (lead_autopilot_ai.py) returns JSON: gpt-oss-20b on NVIDIA, never the
+    prose-only mistral-nemotron fallback, and it retries on Gemini when NVIDIA errors (when a Gemini key is set)."""
+    from app.adapters.llm import _GEMINI_FALLBACK_TASKS
+    from app.adapters.llm.fallback import FallbackAdapter
+    from app.core.config import settings
+
+    assert _TASK_ROUTES["lead_stage_classify"] == ("nvidia", "openai/gpt-oss-20b")
+    assert _GEMINI_FALLBACK_TASKS["lead_stage_classify"] == 45
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    adapter = get_llm("lead_stage_classify")
+    assert isinstance(adapter, FallbackAdapter) and adapter._default_model == "openai/gpt-oss-20b"

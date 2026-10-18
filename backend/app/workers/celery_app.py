@@ -50,6 +50,8 @@ celery_app = Celery(
         # Phase 6: Alert monitoring
         # Leads360: async AI summary generation
         "app.workers.tasks.generate_ai_summary",
+        # Lead autopilot: stage decisions from calls, chats, bookings and timing
+        "app.workers.tasks.lead_autopilot",
         # AI concierge knowledge base: embedding pipeline
         "app.workers.tasks.embed_knowledge",
         # Daily owner report email
@@ -253,6 +255,9 @@ celery_app.conf.update(
         "concierge.recover_missed_replies":              {"queue": "whatsapp"},
         "concierge.recover_missed_replies_all_tenants":  {"queue": "whatsapp"},
         "tasks.daily_briefing.generate":              {"queue": "ai_scoring"},
+        # Lead autopilot (lead_autopilot.py): short names, so exact-name routes.
+        "lead_autopilot.evaluate_inquiry":            {"queue": "ai_scoring"},
+        "lead_autopilot.sweep_all_tenants":           {"queue": "ai_scoring"},
         "backfill_missing_instagram_inquiries":       {"queue": "ai_scoring"},
         # Booking payments (invoice_tasks.py): same queue as the template send they trigger.
         "invoices.after_payment":                     {"queue": "whatsapp"},
@@ -288,6 +293,12 @@ celery_app.conf.beat_schedule = {
     "knowledge-index-sweep": {
         "task": "knowledge.sweep_all_tenants",
         "schedule": crontab(minute="7,22,37,52"),
+    },
+    # Lead autopilot, time-based rules (dates passed, unanswered calls, silence). 07:45 IST, before the team starts;
+    # rules only, no LLM. Minute 45 is clear of the other jobs.
+    "lead-autopilot-daily-sweep": {
+        "task": "lead_autopilot.sweep_all_tenants",
+        "schedule": crontab(hour=7, minute=45),
     },
     "ical-sync-30min": {
         "task": "ical.sync_all_feeds",

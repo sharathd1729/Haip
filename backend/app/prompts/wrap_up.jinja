@@ -1,8 +1,12 @@
 {#---
-version: 3
-changed_at: 2026-08-25
-purpose: Generate an after-call wrap-up summary and suggested disposition
-changes: v3 -- even with the real transcript now wired in (v2), the model
+version: 5
+changed_at: 2026-10-18
+purpose: Generate an after-call wrap-up summary, suggested disposition and an actionable read of the call
+changes: v5 -- (registry call-wrap-up-v5; v4 was a registry-only bump) the owner found the analysis not actionable.
+         Adds next_best_action (owner, channel, deadline), blocking_objection + counter, missed_revenue with a rupee
+         figure only when one was said on the call, temperature + reason, haip_updates, and the call outcome
+         (outcome / decline_reason / decline_quote) that the lead autopilot reads. Existing keys unchanged.
+         v3 -- even with the real transcript now wired in (v2), the model
          kept choosing "callback" for transcripts that were unambiguously
          nobody-answered: only the tenant's own IVR greeting/hold/
          voicemail-prompt audio, zero real guest speech, confirmed live on
@@ -32,6 +36,8 @@ CALL CONTEXT
 - Duration: {{ duration_sec }}s
 - Direction: {{ direction }}
 - QA Score: {{ qa_score | default("pending") }}%
+- Call date (reference for deadlines): {{ call_date | default("today") }}
+- Guest: {{ guest_name | default("(unknown)") }}
 
 TRANSCRIPT
 {{ transcript_text }}
@@ -55,11 +61,20 @@ INSTRUCTIONS
   audio played.
 - "voicemail" means the guest DID speak (left a message after a beep or
   prompt) but no agent picked up live.
+- "outcome" is what happened on THIS call: booked (the guest confirmed), declined (the guest said no / booked
+  elsewhere / cancelled the trip), negotiating (interested, an objection is open), callback (asked to be called
+  back), undecided, or no_conversation (nobody real spoke). Only "declined" fills decline_reason and decline_quote,
+  and decline_quote must be the guest's exact words. A price objection still being discussed is "negotiating".
 Write a concise wrap-up for the agent. Return STRICTLY this JSON via tool-use:
 {
   "summary": "<2-3 sentence summary of the call outcome>",
   "suggested_disposition": "hot|quoted|booked|lost|callback|no_answer|voicemail",
   "next_action": "<specific actionable next step for the agent>",
   "follow_up_message": "<optional — draft WhatsApp follow-up message, or null>",
-  "confidence": 0.0-1.0
+  "confidence": 0.0-1.0,
+  "outcome": "booked|declined|negotiating|callback|undecided|no_conversation",
+  "decline_reason": "<only when outcome is declined: price | dates | no_response | booked_elsewhere | not_suitable | other>",
+  "decline_quote": "<only when outcome is declined: the guest's exact words>",{{ actionable_spec }}
 }
+
+{{ actionable_rules }}
