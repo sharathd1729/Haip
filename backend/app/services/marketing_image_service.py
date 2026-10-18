@@ -163,6 +163,8 @@ def run_image(db: Session, tenant_id: str, job_id: str) -> MarketingImageJob:
                          ref_type="media_asset", ref_id=asset.id,
                          meta={"est_cost_usd": meta.get("est_cost_usd"), "image_tokens": meta.get("image_tokens")})
     job.status, job.asset_id, job.error = "ready", asset.id, None
+    from app.services.marketing_agency_service import notify_needs_approval
+    notify_needs_approval(db, tenant_id, "Marketing: AI image to review", "A new AI image is waiting for approval.")
     return job
 
 

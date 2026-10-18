@@ -21,7 +21,7 @@ from app.core.audit import append_audit
 from app.models.marketing import MarketingApproval, MarketingContent, MarketingContentVersion
 from app.models.tenant import Tenant
 from app.models.user import User
-from app.schemas.marketing import CONTENT_KINDS, text_of, validate_content
+from app.schemas.marketing import CONTENT_KINDS, strings_of, text_of, validate_content
 from app.services import price_policy
 
 
@@ -64,9 +64,13 @@ def check_text(db: Session, tenant_id: str, payload: dict) -> list[str]:
     text = text_of(payload)
     problems: list[str] = []
     if tenant is not None and price_policy.price_mode(tenant) == "handoff":
-        found = price_policy.detect_price(text)
-        if found:
-            problems.append(f"Mentions a price ({found!r}); this workspace never shows prices in public content.")
+        # Field by field: joined text let "3 posts per day" plus the next field's "2026-10-19" read as a rate
+        # (live run, 18 Oct 2026).
+        for field_text in strings_of(payload):
+            found = price_policy.detect_price(field_text)
+            if found:
+                problems.append(f"Mentions a price ({found!r}); this workspace never shows prices in public content.")
+                break
     lowered = text.lower()
     for word in get_profile(tenant).get("avoid", []) if tenant is not None else []:
         if word and word.lower() in lowered:

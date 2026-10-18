@@ -357,3 +357,19 @@ def test_plan_out_of_scope_may_name_banned_words(db, tid):
     with _llm({"goals": ["g"], "audience": "a", "pillars": ["Routes"], "cadence": "c", "out_of_scope": ["Cheap deal posts"]}):
         ai.run_plan(db, tid, p.id)
     assert p.status == "ready"
+
+
+def test_plan_shape_repairs_from_a_live_run():
+    fixed = ai.normalise_plan({"rotation": {"Routes": "2/week", "Life": "1/week"},
+                               "calendar": [{"date": "2026-11-02", "kind": "Reel", "pillar": "Routes", "idea": "Ghat drive"},
+                                            {"date": "2026-11-03", "kind": "carousel_album", "pillar": "Routes", "idea": "x"},
+                                            {"date": "2026-11-04", "kind": "billboard", "pillar": "Routes", "idea": "y"}]})
+    assert fixed["rotation"] == "Routes: 2/week; Life: 1/week"
+    assert [e["kind"] for e in fixed["calendar"]] == ["post", "carousel", "billboard"]   # unknown kinds still fail validation
+    assert fixed["calendar"][0]["idea"] == "Reel idea: Ghat drive"
+
+
+def test_price_check_does_not_join_fields_or_read_dates(db, tid):
+    body = {"cadence": "3 posts per day", "calendar": [{"date": "2026-10-19", "kind": "post", "pillar": "Routes", "idea": "x"}]}
+    assert svc.check_text(db, tid, body) == []
+    assert svc.check_text(db, tid, {"caption": "Only Rs 9,999 per night"}) != []

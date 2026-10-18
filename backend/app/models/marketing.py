@@ -116,3 +116,48 @@ class MarketingImageJob(Base, TimestampMixin):
     error = Column(Text, nullable=True)
     asset_id = Column(String, nullable=True)
     created_by = Column(String, nullable=True)
+
+
+class MarketingTask(Base, TimestampMixin):
+    """Run log of the AI agency: one row per step a role performed (or skipped), grouped by run_id.
+
+    Output lives in the domain tables (audits, plans, content, image jobs); this row points at it (ref_type/ref_id)
+    and records status, error and cost, so a weekly run that stops half-way shows exactly where and why."""
+    __tablename__ = "marketing_tasks"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    run_id = Column(String, nullable=True, index=True)
+    role = Column(String(30), nullable=False)          # services.marketing_agency_service.ROLES
+    step = Column(String(40), nullable=False)          # run | audit | plan | draft | image | submit | ...
+    status = Column(String(20), nullable=False, default="queued")   # queued|running|done|failed|skipped|needs_approval
+    trigger = Column(String(20), nullable=False, default="schedule")  # schedule | manual
+    ref_type = Column(String(40), nullable=True)
+    ref_id = Column(String, nullable=True)
+    detail = Column(JSON, nullable=True)
+    error = Column(Text, nullable=True)
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+    created_by = Column(String, nullable=True)
+
+    __table_args__ = (Index("ix_marketing_tasks_tenant_created", "tenant_id", "created_at"),)
+
+
+class InstagramPostMetricDaily(Base, TimestampMixin):
+    """One row per post per day, appended by the insights poller, so post performance has a history
+    (instagram_post_snapshots is overwritten in place)."""
+    __tablename__ = "instagram_post_metrics_daily"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    media_id = Column(String(100), nullable=False)
+    day = Column(String(10), nullable=False)            # YYYY-MM-DD in the workspace timezone
+    media_type = Column(String(20), nullable=True)
+    posted_at = Column(String(50), nullable=True)
+    like_count = Column(Integer, nullable=True)
+    comments_count = Column(Integer, nullable=True)
+    reach = Column(Integer, nullable=True)
+    saved = Column(Integer, nullable=True)
+    shares = Column(Integer, nullable=True)
+    total_interactions = Column(Integer, nullable=True)
+
+    __table_args__ = (UniqueConstraint("tenant_id", "media_id", "day", name="uq_ig_post_metrics_daily"),)

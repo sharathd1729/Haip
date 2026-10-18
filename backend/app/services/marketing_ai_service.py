@@ -202,6 +202,42 @@ def run_audit(db: Session, tenant_id: str, audit_id: str) -> MarketingAudit:
     return audit
 
 
+_KIND_SYNONYMS = {
+    "post": "post", "image": "post", "photo": "post", "single": "post", "single_image": "post", "static": "post",
+    "reel": "post", "reels": "post", "video": "post",                 # no reel kind until the video editor (phase D)
+    "carousel": "carousel", "carousel_album": "carousel", "album": "carousel",
+    "story": "story", "stories": "story", "promo": "promo", "offer": "promo", "ad": "promo",
+}
+
+
+def normalise_plan(data: dict) -> dict:
+    """Repair the shapes models commonly get wrong before strict validation (live run, 18 Oct 2026: a "reel" kind and
+    `rotation` as an object). Only shape is repaired; content is never invented, and anything else still fails."""
+    if not isinstance(data, dict):
+        return data
+    out = dict(data)
+    rot = out.get("rotation")
+    if isinstance(rot, dict):
+        out["rotation"] = "; ".join(f"{k}: {v}" for k, v in rot.items())[:300]
+    elif isinstance(rot, list):
+        out["rotation"] = "; ".join(str(x) for x in rot)[:300]
+    cal = []
+    for e in out.get("calendar") or []:
+        if not isinstance(e, dict):
+            cal.append(e)
+            continue
+        e = dict(e)
+        raw = str(e.get("kind", "")).strip().lower().replace(" ", "_")
+        kind = _KIND_SYNONYMS.get(raw, raw)
+        if raw in ("reel", "reels", "video") and isinstance(e.get("idea"), str) and not e["idea"].lower().startswith("reel"):
+            e["idea"] = f"Reel idea: {e['idea']}"[:300]
+        e["kind"] = kind
+        cal.append(e)
+    if "calendar" in out:
+        out["calendar"] = cal
+    return out
+
+
 def run_plan(db: Session, tenant_id: str, plan_id: str) -> MarketingPlan:
     plan = db.query(MarketingPlan).filter_by(id=plan_id, tenant_id=tenant_id).one()
     tenant = db.query(Tenant).filter_by(id=tenant_id).one()
@@ -213,7 +249,7 @@ def run_plan(db: Session, tenant_id: str, plan_id: str) -> MarketingPlan:
                 f"Audit findings: {audit.assessment if audit is not None and audit.status == 'ready' else '(no audit)'}")
         data, raw, provider = _call("marketing_plan", tenant_id, _system(prompts.PLAN_SYSTEM, tenant), user, prompts.PLAN_TOOL)
         usage_service.record_llm(db, tenant_id, MODULE, raw, provider=provider, ref_type="marketing_plan", ref_id=plan.id)
-        body = MarketingPlanBody.model_validate(data).model_dump(mode="json")
+        body = MarketingPlanBody.model_validate(normalise_plan(data)).model_dump(mode="json")
         body["calendar"] = [e for e in body["calendar"] if plan.period_start <= e["date"] <= plan.period_end]
         # out_of_scope names what the account must NOT post ("cheap deals"), so it is exempt from the banned-word check.
         problems = content_svc.check_text(db, tenant_id, {k: v for k, v in body.items() if k != "out_of_scope"})

@@ -312,6 +312,8 @@ def generate(item_id: str, body: GenerateRequest = GenerateRequest(), user: User
 def submit(item_id: str, body: Decision, user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_edit):
     item = _run(svc.submit, db, user.tenant_id, item_id, body.version_id, user)
     db.commit()
+    from app.services.marketing_agency_service import notify_needs_approval
+    notify_needs_approval(db, user.tenant_id, "Marketing: approval needed", f"“{item.title}” is waiting for approval.")
     return _item_out(db, item, full=True)
 
 

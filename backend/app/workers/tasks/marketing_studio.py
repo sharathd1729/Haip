@@ -75,3 +75,31 @@ def generate_content(self, tenant_id: str, item_id: str, actor_id: str, brief: s
     from app.models.marketing import MarketingContent
     from app.services import marketing_ai_service as svc
     _run(self, "content", tenant_id, item_id, lambda db: svc.run_content(db, tenant_id, item_id, actor_id, brief), MarketingContent)
+
+
+# ── Agency (plan phase A) ───────────────────────────────────────────────────────────────────────────────────────────
+
+@shared_task(name="marketing_agency.orchestrate")
+def agency_orchestrate():
+    """Hourly. Queues a weekly run for each workspace whose local time is Monday 09:00 and whose module is on."""
+    from app.models.tenant import Tenant
+    from app.services import marketing_agency_run as runs
+
+    queued = 0
+    with SessionLocal() as db:
+        for tenant in db.query(Tenant).all():
+            try:
+                if runs.due(db, tenant):
+                    agency_run_week.delay(tenant.id, "schedule", None)
+                    queued += 1
+            except Exception as exc:  # noqa: BLE001 -- one workspace must not stop the others
+                log.error("agency_orchestrate_failed", tenant_id=tenant.id, error=str(exc))
+    return {"queued": queued}
+
+
+@shared_task(name="marketing_agency.run_week")
+def agency_run_week(tenant_id: str, trigger: str = "schedule", actor_id=None):
+    from app.services import marketing_agency_run as runs
+
+    with SessionLocal() as db:
+        return runs.run_week(db, tenant_id, trigger=trigger, actor_id=actor_id)

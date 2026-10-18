@@ -193,8 +193,8 @@ def validate_content(kind: str, payload: dict) -> dict:
     return model.model_validate({**payload, "kind": kind}).model_dump(mode="json")
 
 
-def text_of(payload: dict) -> str:
-    """Every guest-visible string in a payload, for price and banned-word checks."""
+def strings_of(payload: dict) -> list[str]:
+    """Every guest-visible string in a payload, one per field (`date` fields are not text a guest reads)."""
     parts: list[str] = []
 
     def walk(v):
@@ -202,14 +202,18 @@ def text_of(payload: dict) -> str:
             parts.append(v)
         elif isinstance(v, dict):
             for k, x in v.items():
-                if k not in ("asset_id", "kind"):
+                if k not in ("asset_id", "kind", "date", "valid_until"):
                     walk(x)
         elif isinstance(v, list):
             for x in v:
                 walk(x)
 
     walk(payload)
-    return "\n".join(parts)
+    return parts
+
+
+def text_of(payload: dict) -> str:
+    return "\n".join(strings_of(payload))
 
 
 # ── AI outputs ──────────────────────────────────────────────────────────────────────────────────────────────────────

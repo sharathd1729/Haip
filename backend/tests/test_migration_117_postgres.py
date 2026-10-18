@@ -69,11 +69,12 @@ def narrow_column():
 def test_alembic_head_is_117_and_118_is_not_auto_applied():
     """Alembic only sees alembic/versions. 118 lives in alembic/proposed, so it cannot ship by accident.
 
-    (Name kept because the failure register refers to it.) The chain tip is now 130 (Marketing Studio image jobs), after 129 (Marketing Studio tables), after 128 (ical_event_bookings.locked repair), after 127 (merge of the 122-125 chain with 126, the organic_call source), after 125 (quote snapshot), 124 (business records), 123 (knowledge index health), 122 (lead identification), 121 (iCal event bookings) and 120 (iCal vehicle rules), which follows 119, the front-of-house data
+    (Name kept because the failure register refers to it.) The chain tip is now 131 (marketing agency foundations), after 130 (Marketing Studio image jobs), after 129 (Marketing Studio tables), after 128 (ical_event_bookings.locked repair), after 127 (merge of the 122-125 chain with 126, the organic_call source), after 125 (quote snapshot), 124 (business records), 123 (knowledge index health), 122 (lead identification), 121 (iCal event bookings) and 120 (iCal vehicle rules), which follows 119, the front-of-house data
     migration; 119 follows 117 directly because number 118 is reserved for the proposed RLS migration.
     """
     script = ScriptDirectory.from_config(Config(str(BACKEND / "alembic.ini")))
-    assert script.get_heads() == ["130"]
+    assert script.get_heads() == ["131"]
+    assert script.get_revision("131").down_revision == "130"
     assert script.get_revision("130").down_revision == "129"
     assert script.get_revision("129").down_revision == "128"
     assert script.get_revision("128").down_revision == "127"

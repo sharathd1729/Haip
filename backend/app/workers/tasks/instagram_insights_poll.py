@@ -226,3 +226,24 @@ def _poll_recent_posts(db, tenant_id: str, adapter) -> None:
         target.total_interactions = media_insights.get("total_interactions")
         if not existing:
             db.add(target)
+        _record_daily(db, tenant_id, target)
+
+
+def _record_daily(db, tenant_id: str, post: "InstagramPostSnapshot") -> None:
+    """Keep a per-day history of each post's numbers (the snapshot above is overwritten in place).
+    One row per post per local day; a second poll on the same day updates that row."""
+    from app.core.tenant_tz import get_tenant_now
+    from app.models.marketing import InstagramPostMetricDaily
+    from app.models.tenant import Tenant
+
+    tenant = db.query(Tenant).filter_by(id=tenant_id).first()
+    day = get_tenant_now(tenant).date().isoformat() if tenant is not None else None
+    if day is None:
+        return
+    row = db.query(InstagramPostMetricDaily).filter_by(tenant_id=tenant_id, media_id=post.media_id, day=day).first()
+    if row is None:
+        row = InstagramPostMetricDaily(tenant_id=tenant_id, media_id=post.media_id, day=day)
+        db.add(row)
+        db.flush()      # sessions run with autoflush off: make the row visible to a second record in this transaction
+    for f in ("media_type", "posted_at", "like_count", "comments_count", "reach", "saved", "shares", "total_interactions"):
+        setattr(row, f, getattr(post, f))
