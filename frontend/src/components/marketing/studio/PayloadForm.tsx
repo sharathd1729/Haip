@@ -78,7 +78,7 @@ export function PayloadForm({ kind, value, onChange, disabled }: { kind: Kind; v
             <div key={i} className="space-y-2 rounded-xl border border-[var(--haip-border)] p-3">
               <div className="flex items-center justify-between">
                 <span className="text-[13px] font-semibold text-[var(--haip-fg-2)]">{kind === "carousel" ? "Slide" : "Frame"} {i + 1}</span>
-                {list.length > min && (
+                {!disabled && list.length > min && (
                   <button type="button" className="min-h-11 px-2 text-xs font-semibold text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg)] sm:min-h-0"
                     onClick={() => set(listKey, list.filter((_, j) => j !== i))}>Remove</button>
                 )}
@@ -114,7 +114,7 @@ export function PayloadForm({ kind, value, onChange, disabled }: { kind: Kind; v
               )}
             </div>
           ))}
-          {list.length < max && <button type="button" className={btn} onClick={() => set(listKey, [...list, {}])}>Add {kind === "carousel" ? "slide" : "frame"}</button>}
+          {!disabled && list.length < max && <button type="button" className={btn} onClick={() => set(listKey, [...list, {}])}>Add {kind === "carousel" ? "slide" : "frame"}</button>}
         </div>
       )}
 

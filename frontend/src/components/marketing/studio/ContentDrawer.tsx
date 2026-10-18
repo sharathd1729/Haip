@@ -8,7 +8,7 @@ import api from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Drawer, StatusPill, Timeline, type TimelineEntry } from "@/components/ui/kit";
-import { PayloadForm } from "./PayloadForm";
+import { PayloadForm, emptyPayload } from "./PayloadForm";
 import { KIND_LABEL, STATUS, STUDIO, btn, btnPrimary, inputCls, studioError, when, type ContentItem } from "./types";
 
 const DECISION_LABEL = { submitted: "Sent for approval", approved: "Approved", rejected: "Changes asked", withdrawn: "Approval voided by an edit" };
@@ -104,7 +104,7 @@ export function ContentDrawer({ id, onClose }: { id: string | null; onClose: () 
             </>
           ) : (
             <p className="text-sm text-[var(--haip-fg-subtle)]">No version yet. Ask the AI above, or start writing:
-              <button type="button" className="ml-2 font-semibold text-primary" onClick={() => setDraft({ caption: "" })}>write it myself</button>
+              <button type="button" className="ml-2 font-semibold text-primary" onClick={() => setDraft(emptyPayload(item.kind))}>write it myself</button>
             </p>
           )}
           {!current && Object.keys(draft).length > 0 && (
