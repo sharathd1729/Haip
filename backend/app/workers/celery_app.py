@@ -229,6 +229,7 @@ celery_app.conf.update(
         "marketing_studio.generate_image":           {"queue": "default"},
         "marketing_agency.orchestrate":              {"queue": "default"},
         "marketing_agency.run_week":                 {"queue": "default"},
+        "marketing_research.refresh":                {"queue": "default"},
         "owner_digest.orchestrate":                  {"queue": "ai_scoring"},
         # Registered under short names, so the "app.workers.tasks.<module>.*" globs above never
         # matched them and they fell into the unconsumed "celery" queue. The inbox "rewrite"

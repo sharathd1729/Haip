@@ -102,7 +102,8 @@ def test_weekly_run_audits_plans_drafts_and_submits_for_approval(db, ws):  # noq
     pending = agency.pending_approvals(db, tid)
     assert {p["type"] for p in pending} == {"content"} and len(pending) == 3
     hist = runs.history(db, tid)
-    assert hist[0]["summary"]["drafts"] == 3 and len(hist[0]["steps"]) == 5
+    assert hist[0]["summary"]["drafts"] == 3 and len(hist[0]["steps"]) == 6
+    assert ("competitors", "skipped") in steps                        # no competitors on the list yet
 
 
 def test_failed_plan_stops_the_run_visibly(db, ws):  # noqa: F811

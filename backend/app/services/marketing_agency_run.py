@@ -116,6 +116,17 @@ def run_week(db: Session, tenant_id: str, *, trigger: str = "schedule", actor_id
         _finish(t, "done" if audit.status == "ready" else "failed", ref=("marketing_audit", audit.id), error=audit.error)
         return audit.status == "ready"
 
+    def competitors(t):
+        from app.services import marketing_research_service as research
+        if not research.list_competitors(db, tenant_id):
+            _finish(t, "skipped", detail={"reason": "No competitors on the list yet."})
+            return False
+        snaps = research.snapshot_competitors(db, tenant_id)
+        brief = research.run_brief(db, tenant, actor_id or AGENCY_ACTOR.id)
+        _finish(t, "done" if brief.status == "ready" else "failed", ref=("marketing_research_brief", brief.id),
+                detail={"snapshots": snaps}, error=brief.error)
+        return brief.status == "ready"
+
     def strategy(t):
         start = get_tenant_now(tenant).date() + timedelta(days=1)
         audit = state.get("audit")
@@ -188,6 +199,7 @@ def run_week(db: Session, tenant_id: str, *, trigger: str = "schedule", actor_id
         return sent > 0
 
     research_ok = _step(db, tenant, run_id, "research", "audit", trigger, actor_id, research)
+    _step(db, tenant, run_id, "research", "competitors", trigger, actor_id, competitors)
     plan_ok = _step(db, tenant, run_id, "strategy", "plan", trigger, actor_id, strategy)
     drafts_ok = plan_ok and _step(db, tenant, run_id, "copy", "draft", trigger, actor_id, copy)
     if drafts_ok:

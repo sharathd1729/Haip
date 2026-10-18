@@ -103,3 +103,23 @@ def agency_run_week(tenant_id: str, trigger: str = "schedule", actor_id=None):
 
     with SessionLocal() as db:
         return runs.run_week(db, tenant_id, trigger=trigger, actor_id=actor_id)
+
+
+@shared_task(name="marketing_research.refresh")
+def research_refresh(tenant_id: str, actor_id=None):
+    """Competitor snapshots (if Facebook is connected) and a new research brief, on demand."""
+    from app.models.tenant import Tenant
+    from app.services import marketing_research_service as research
+
+    with SessionLocal() as db:
+        tenant = db.query(Tenant).filter_by(id=tenant_id).one()
+        snaps = research.snapshot_competitors(db, tenant_id)
+        db.commit()
+        try:
+            brief = research.run_brief(db, tenant, actor_id)
+        except Exception as exc:  # noqa: BLE001 -- a stuck "pending" brief must never be left behind
+            db.rollback()
+            log.exception("research_refresh_failed", tenant_id=tenant_id)
+            return {"snapshots": snaps, "error": type(exc).__name__}
+        db.commit()
+        return {"snapshots": snaps, "brief": brief.status}

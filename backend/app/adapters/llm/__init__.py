@@ -145,6 +145,7 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     "marketing_audit":   ("nvidia", "openai/gpt-oss-20b"),
     "marketing_plan":    ("nvidia", "openai/gpt-oss-20b"),
     "marketing_content": ("nvidia", "openai/gpt-oss-20b"),
+    "marketing_research": ("nvidia", "openai/gpt-oss-20b"),
 }
 
 
@@ -166,6 +167,7 @@ _GEMINI_FALLBACK_TASKS: dict[str, float] = {
     "marketing_audit":             60,
     "marketing_plan":              90,
     "marketing_content":           60,
+    "marketing_research":          60,
 }
 
 

@@ -12,18 +12,20 @@ import { Card, EmptyState, PageHeader, Tabs } from "@/components/ui/kit";
 import { ContentTab } from "@/components/marketing/studio/ContentTab";
 import { AgencyTab } from "@/components/marketing/studio/AgencyTab";
 import { ApprovalsTab } from "@/components/marketing/studio/ApprovalsTab";
+import { ResearchTab } from "@/components/marketing/studio/ResearchTab";
 import { AuditTab, PlanTab } from "@/components/marketing/studio/InsightsTabs";
 import { LibraryTab, ProfileTab } from "@/components/marketing/studio/ProfileLibraryTabs";
 import { STUDIO, btn, btnPrimary, studioError } from "@/components/marketing/studio/types";
 
 const TABS = [
-  { value: "agency", label: "Agency" }, { value: "approvals", label: "Approvals" },
+  { value: "agency", label: "Agency" }, { value: "approvals", label: "Approvals" }, { value: "research", label: "Research" },
   { value: "content", label: "Content" }, { value: "plan", label: "Plan" }, { value: "audit", label: "Audit" },
   { value: "library", label: "Library" }, { value: "profile", label: "Profile" },
 ];
 
 export default function MarketingStudioPage() {
-  const [tab, setTab] = useState("agency");
+  // ?tab=research when Facebook Login sends the browser back here.
+  const [tab, setTab] = useState(() => (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab")) || "agency");
   const { data: session } = useSession();
   const isOwner = session?.user?.role === "owner";
   // The query cache is persisted to localStorage (lib/queryClient.ts), so the client can hold data the server render
@@ -62,6 +64,7 @@ export default function MarketingStudioPage() {
             <Tabs label="Marketing Studio sections" value={tab} onChange={setTab} items={TABS} />
             {tab === "agency" && <AgencyTab />}
             {tab === "approvals" && <ApprovalsTab />}
+            {tab === "research" && <ResearchTab />}
             {tab === "content" && <ContentTab />}
             {tab === "plan" && <PlanTab />}
             {tab === "audit" && <AuditTab />}

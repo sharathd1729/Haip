@@ -238,6 +238,17 @@ def normalise_plan(data: dict) -> dict:
     return out
 
 
+def _latest_research(db: Session, tenant_id: str) -> str:
+    from app.services.marketing_research_service import latest_brief
+
+    brief = latest_brief(db, tenant_id)
+    if brief is None or not brief.assessment:
+        return "(none yet)"
+    a = brief.assessment
+    return str({"themes": [t["name"] + ": " + t["why_it_works"] for t in a.get("themes", [])],
+                "formats": a.get("formats"), "opportunities": a.get("opportunities"), "avoid": a.get("avoid")})
+
+
 def run_plan(db: Session, tenant_id: str, plan_id: str) -> MarketingPlan:
     plan = db.query(MarketingPlan).filter_by(id=plan_id, tenant_id=tenant_id).one()
     tenant = db.query(Tenant).filter_by(id=tenant_id).one()
@@ -246,7 +257,8 @@ def run_plan(db: Session, tenant_id: str, plan_id: str) -> MarketingPlan:
     try:
         user = (f"Business facts:\n{_facts(db, tenant)}\n\nPeriod: {plan.period_start} to {plan.period_end}\n"
                 f"Owner's brief: {plan.brief or '(none)'}\n"
-                f"Audit findings: {audit.assessment if audit is not None and audit.status == 'ready' else '(no audit)'}")
+                f"Audit findings: {audit.assessment if audit is not None and audit.status == 'ready' else '(no audit)'}\n"
+                f"Competitor research: {_latest_research(db, tenant_id)}")
         data, raw, provider = _call("marketing_plan", tenant_id, _system(prompts.PLAN_SYSTEM, tenant), user, prompts.PLAN_TOOL)
         usage_service.record_llm(db, tenant_id, MODULE, raw, provider=provider, ref_type="marketing_plan", ref_id=plan.id)
         body = MarketingPlanBody.model_validate(normalise_plan(data)).model_dump(mode="json")

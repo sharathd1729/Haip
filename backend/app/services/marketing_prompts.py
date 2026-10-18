@@ -7,7 +7,7 @@ v2 techniques (judge against the account's own median, STOP/KEEP/TEST, "not enou
 slide rules, one-ask story arcs, 3-5 pillars with out-of-scope) are adapted from Ootto-AI/claude-content-skills,
 MIT licence, Copyright (c) 2026 Ootto. Notice: docs/marketing-website/THIRD_PARTY_NOTICES.md.
 """
-from app.schemas.marketing import AuditAssessment, MarketingPlanBody, CONTENT_MODELS
+from app.schemas.marketing import AuditAssessment, MarketingPlanBody, ResearchBrief, CONTENT_MODELS
 
 _COMMON_RULES = """Rules you must follow:
 - Write only about what the business facts below say. Never invent amenities, awards, reviews, locations or numbers.
@@ -41,7 +41,8 @@ Produce:
 - rotation: how often each pillar appears in a week; out_of_scope: what the account does not post;
 - a realistic cadence for a small team, and a dated calendar inside the requested period (at most one entry per day,
   every entry's pillar exactly one of the pillar names).
-Base it on the business facts and, when given, the audit's stop/keep/test lists. Answer only by calling the tool.
+Base it on the business facts, the audit's stop/keep/test lists and, when given, the competitor research (borrow
+what works in the segment; never copy a competitor's post). Answer only by calling the tool.
 """ + _COMMON_RULES
 
 CONTENT_SYSTEM = """You write Instagram content for a hospitality brand. Produce exactly one piece of the requested kind.
@@ -114,3 +115,20 @@ PLAN_TOOL = {"name": "submit_plan", "description": "Return the marketing plan.",
 
 def content_tool(kind: str) -> dict:
     return {"name": "submit_content", "description": f"Return one Instagram {kind}.", "input_schema": _schema(CONTENT_MODELS[kind])}
+
+
+RESEARCH_SYSTEM = """You are a market research analyst for a hospitality brand on Instagram.
+You get MEASURED public numbers for competitor accounts (followers, likes + comments per post, formats, cadence) and
+the brand's own baseline. Some posts were pasted in by a person (source=manual); treat their numbers as approximate.
+Reach and saves of other accounts are not available; never estimate them.
+- themes: what the best-performing competitor posts have in common, each with why it likely works and up to 5
+  example permalinks copied exactly from the data.
+- formats: which formats earn the most engagement per follower.
+- opportunities: what this brand could do that competitors are not doing well, grounded in the business facts.
+- avoid: patterns that consistently under-perform.
+- If the data is thin, say what is missing in not_enough_signal instead of guessing.
+Answer only by calling the tool.
+""" + _COMMON_RULES
+
+RESEARCH_TOOL = {"name": "submit_research", "description": "Return the research brief.",
+                 "input_schema": _schema(ResearchBrief)}

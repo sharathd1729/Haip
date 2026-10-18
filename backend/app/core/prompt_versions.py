@@ -122,7 +122,9 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v2: median baseline + stop/keep/test, pillars with position/rotation/out-of-scope, first comment and
     # carousel/story rules (techniques from Ootto-AI/claude-content-skills, MIT; see THIRD_PARTY_NOTICES.md).
     "marketing_audit": "marketing-audit-v2",
-    "marketing_plan": "marketing-plan-v2",
+    # v3: the strategist also reads the research analyst's latest competitor brief (agency phase B).
+    "marketing_plan": "marketing-plan-v3",
+    "marketing_research": "marketing-research-v1",
     "marketing_content": "marketing-content-v2",
     # Fixed suffix appended to AI image prompts (marketing_image_service.PROMPT_SUFFIX).
     "marketing_image": "marketing-image-v1",

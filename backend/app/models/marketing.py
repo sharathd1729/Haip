@@ -161,3 +161,66 @@ class InstagramPostMetricDaily(Base, TimestampMixin):
     total_interactions = Column(Integer, nullable=True)
 
     __table_args__ = (UniqueConstraint("tenant_id", "media_id", "day", name="uq_ig_post_metrics_daily"),)
+
+
+class MarketingCompetitor(Base, TimestampMixin):
+    __tablename__ = "marketing_competitors"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    handle = Column(String(31), nullable=False)
+    display_name = Column(String(120), nullable=True)
+    notes = Column(Text, nullable=True)
+    active = Column(Integer, nullable=False, default=1)
+    created_by = Column(String, nullable=True)
+
+    __table_args__ = (UniqueConstraint("tenant_id", "handle", name="uq_marketing_competitors_handle"),)
+
+
+class MarketingCompetitorSnapshot(Base, TimestampMixin):
+    """Public account numbers from Business Discovery (source=api). Deleted when the Facebook connection is removed."""
+    __tablename__ = "marketing_competitor_snapshots"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    competitor_id = Column(String, ForeignKey("marketing_competitors.id"), nullable=False, index=True)
+    source = Column(String(10), nullable=False, default="api")
+    followers_count = Column(Integer, nullable=True)
+    media_count = Column(Integer, nullable=True)
+    error = Column(Text, nullable=True)
+
+
+class MarketingCompetitorPost(Base, TimestampMixin):
+    """A competitor post: from Business Discovery (source=api) or pasted by a person (source=manual)."""
+    __tablename__ = "marketing_competitor_posts"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    competitor_id = Column(String, ForeignKey("marketing_competitors.id"), nullable=False, index=True)
+    source = Column(String(10), nullable=False)
+    media_id = Column(String(100), nullable=True)
+    permalink = Column(String(300), nullable=True)
+    caption = Column(Text, nullable=True)
+    media_type = Column(String(20), nullable=True)
+    like_count = Column(Integer, nullable=True)
+    comments_count = Column(Integer, nullable=True)
+    posted_at = Column(String(50), nullable=True)
+    note = Column(Text, nullable=True)
+    created_by = Column(String, nullable=True)
+
+    __table_args__ = (Index("ix_marketing_competitor_posts_comp_media", "competitor_id", "media_id"),)
+
+
+class MarketingResearchBrief(Base, TimestampMixin):
+    """Research analyst output: measured competitor numbers apart from the AI reading of them."""
+    __tablename__ = "marketing_research_briefs"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    measured = Column(JSON, nullable=False)
+    assessment = Column(JSON, nullable=True)
+    status = Column(String(20), nullable=False, default="pending")
+    error = Column(Text, nullable=True)
+    prompt_version = Column(String(60), nullable=True)
+    model = Column(String(120), nullable=True)
+    created_by = Column(String, nullable=True)
