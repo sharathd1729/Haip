@@ -220,6 +220,15 @@ def test_reservations_drafts_a_route_and_a_manager_approves_it(client, db, r):
     assert bds.get_effective(db, r.t.id, "destination", "chikmagalur") is not None
 
 
+def test_routes_save_without_the_ai_module_but_others_still_need_it(client, db, r):
+    bare = _tenant(db)                                 # no ai_concierge module at all
+    res, foh = _user(db, bare.id, UserRole.RESERVATIONS), _user(db, bare.id, UserRole.FOH)
+    made = client.post(f"{BD}/records", json={"kind": "destination", "key": "shoolagiri", "data": krs_route(km=200)}, headers=_h(res))
+    assert made.status_code == 201, made.text          # a quote-builder role drafts a route with no AI module
+    blocked = client.get(f"{BD}/effective/package", headers=_h(foh))   # bookings.read, but no quote-builder capability
+    assert blocked.status_code == 403 and blocked.json()["detail"]["error"] == "module_not_enabled"
+
+
 def test_nobody_but_the_owner_approves_their_own_draft(client, db, r):
     own = client.post(f"{BD}/records", json={"kind": "destination", "key": "hampi", "data": krs_route(km=300)}, headers=_h(r.mgr)).json()
     res = client.post(f"{BD}/records/{own['id']}/publish", json={}, headers=_h(r.mgr))

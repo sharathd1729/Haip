@@ -27,7 +27,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.api.v1.deps import get_current_user, require_module
+from app.api.v1.deps import get_current_user, get_workspace_context, require_module
 from app.core.database import get_db
 from app.models.business_record import BusinessRecord
 from app.models.user import User
@@ -42,7 +42,24 @@ _draft = Depends(require_capability("business_data.draft", "settings.manage"))
 _approve = Depends(require_capability("business_data.publish", "settings.manage"))
 _editors = Depends(require_capability("settings.manage", "business_data.draft", "business_data.publish"))
 _read = Depends(require_capability("settings.manage", "bookings.read"))
-_module = Depends(require_module("ai_concierge"))
+_concierge_module = require_module("ai_concierge")
+
+
+def _business_data_access(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    ctx=Depends(get_workspace_context),
+):
+    """These records feed the AI concierge AND the staff quote builder. A workspace without the ai_concierge module
+    still needs its routes and packages for quoting, so quote-builder roles pass without the module."""
+    if "ai_concierge" in ctx.active_modules:
+        return ctx
+    if any(has_capability(db, current_user, k) for k in ("quotes.write", "business_data.draft", "business_data.publish")):
+        return ctx
+    return _concierge_module(ctx=ctx, current_user=current_user)   # raises the usual module_not_enabled 403
+
+
+_module = Depends(_business_data_access)
 
 # Kinds the quote builder's drafters and approvers may touch; every other kind needs settings.manage.
 QUOTE_KINDS = ("destination", "package", "itinerary")
