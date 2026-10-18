@@ -8,7 +8,7 @@ New tables:
 """
 
 import enum
-from sqlalchemy import JSON, Column, Date, Integer, String, Text, Numeric, Boolean, DateTime, ForeignKey, Index
+from sqlalchemy import JSON, Column, Date, Integer, SmallInteger, String, Text, Numeric, Boolean, DateTime, ForeignKey, Index
 from app.core.database import Base
 from app.models.base import TimestampMixin, TenantMixin, gen_uuid
 
@@ -64,6 +64,10 @@ class InquiryQuote(Base, TimestampMixin, TenantMixin):
     record_refs  = Column(JSON, nullable=True)       # [{kind, key, version, record_id}] the quote was built from
     params_hash  = Column(String(64), nullable=True) # same inputs + same record versions -> same hash (idempotent issue)
     status       = Column(String(20), nullable=True) # issued | superseded | expired | accepted | withdrawn
+    # Options (migration 140): a quote has a primary option (rank 1) and may have a fallback (rank 2), each priced on its own.
+    # Both share option_group_id = the primary's id. Older rows: rank 1, no group.
+    option_rank     = Column(SmallInteger, nullable=False, default=1, server_default="1")
+    option_group_id = Column(String, nullable=True, index=True)
 
     __table_args__ = (
         Index("ix_inquiry_quotes_inquiry", "inquiry_id"),

@@ -52,10 +52,13 @@ def _published_amounts(db: Session, tenant_id: str) -> set[int]:
         pkg = parse(rec)
         values = [r.amount for r in pkg.rates] + [c.amount for c in pkg.charges]
         if pkg.extra_guest_charge:
-            values.append(pkg.extra_guest_charge.per_guest_per_night)
+            values.append(pkg.extra_guest_charge.amount)
         if pkg.extra_km_charge:
-            values.append(pkg.extra_km_charge.per_km)
-        out |= {int(v) for v in values}
+            k = pkg.extra_km_charge
+            values += [k.per_km, k.max_per_km, k.min_per_km] + [st.per_km for st in k.ladder]
+        if pkg.extra_hour_charge:
+            values.append(pkg.extra_hour_charge.per_hour)
+        out |= {int(v) for v in values if v is not None}
     return out
 
 

@@ -50,7 +50,12 @@ export const KIND_SPECS: KindSpec[] = [
       { k: "int", name: "max_guests", label: "Most guests", required: true, min: 1, max: 50 },
       { k: "int", name: "min_nights", label: "Fewest nights", min: 0, max: 60, hint: "0 for a same-day package" },
       { k: "int", name: "max_nights", label: "Most nights", min: 0, max: 60 },
-      { k: "decimal", name: "included_km", label: "Kilometres included", unit: "km" },
+      { k: "decimal", name: "included_km", label: "Kilometres included (whole trip)", unit: "km", hint: "Or use the per-day allowance below, not both." },
+      { k: "decimal", name: "included_km_per_day", label: "Kilometres included per day", unit: "km" },
+      { k: "select", name: "day_count", label: "How days are counted", options: [
+        { value: "calendar", label: "Calendar days (nights + 1)" }, { value: "noon_to_noon", label: "Noon to noon (24-hour days; a day trip is 1 day)" }] },
+      { k: "int", name: "min_days", label: "Fewest days", min: 1, max: 60 },
+      { k: "int", name: "duration_hours", label: "Package length (hours)", min: 1, max: 720, hint: "For a fixed-length package, e.g. 48. Shown on the quote." },
       { k: "vehicles", name: "vehicle_property_ids", label: "Vehicles", hint: "None selected = every vehicle." },
       { k: "tags", name: "inclusions", label: "Included", placeholder: "e.g. Driver and fuel" },
       { k: "tags", name: "exclusions", label: "Not included", placeholder: "e.g. Meals, tolls" },
@@ -63,14 +68,29 @@ export const KIND_SPECS: KindSpec[] = [
           { value: "night", label: "per night" }, { value: "package", label: "per package" }, { value: "day", label: "per day" }] },
         { k: "int", name: "min_nights", label: "Only for stays of at least (nights)", min: 0, max: 60 },
         { k: "choices", name: "days_of_week", label: "Only on these nights", options: WEEKDAYS, hint: "None selected = every day." },
+        { k: "text", name: "level", label: "Level (optional)", max: 40, hint: "e.g. 40000. If one rate has a level, every rate needs one; the agent picks the level." },
       ] },
       { k: "object", name: "extra_guest_charge", label: "Extra guests", toggle: "Charge for extra guests", fields: [
         { k: "int", name: "free_guests", label: "Guests included", min: 0, max: 50 },
-        { k: "decimal", name: "per_guest_per_night", label: "Per extra guest per night", required: true, unit: "₹" },
+        { k: "decimal", name: "per_guest", label: "Per extra guest", unit: "₹" },
+        { k: "select", name: "unit", label: "Charged", options: [
+          { value: "night", label: "per night" }, { value: "day", label: "per day" }, { value: "trip", label: "once for the trip" }] },
+        { k: "decimal", name: "per_guest_per_night", label: "Per extra guest per night (older records)", unit: "₹", hint: "Fill this or the amount above, not both." },
       ] },
       { k: "object", name: "extra_km_charge", label: "Extra kilometres", toggle: "Charge for kilometres above the included amount", fields: [
-        { k: "decimal", name: "per_km", label: "Per extra km", required: true, unit: "₹" },
+        { k: "decimal", name: "per_km", label: "Fixed rate per extra km", unit: "₹", hint: "Or let the agent pick within a range below, not both." },
+        { k: "decimal", name: "max_per_km", label: "Highest rate per km", unit: "₹" },
+        { k: "decimal", name: "min_per_km", label: "Lowest rate per km", unit: "₹" },
+        { k: "list", name: "ladder", label: "Suggested rate by extra distance", addLabel: "Add a step", itemLabel: "Step", fields: [
+          { k: "decimal", name: "up_to_extra_km", label: "Up to (extra km)", unit: "km", hint: "Leave empty on the last step for any distance." },
+          { k: "decimal", name: "per_km", label: "Suggested rate", required: true, unit: "₹" },
+        ] },
       ] },
+      { k: "object", name: "extra_hour_charge", label: "Extra hours", toggle: "Charge for a late return", fields: [
+        { k: "decimal", name: "per_hour", label: "Per extra hour", required: true, unit: "₹" },
+      ] },
+      { k: "bool", name: "kits_included", label: "Experience kits are included in the price", hint: "Experience charges then show as included (₹0)." },
+      { k: "tags", name: "at_actuals", label: "Billed at actuals (outside the total)", placeholder: "e.g. Tolls and parking" },
       { k: "list", name: "charges", label: "Optional charges and experiences", addLabel: "Add a charge", itemLabel: "Charge", fields: [
         { k: "text", name: "name", label: "Name", required: true },
         { k: "select", name: "kind", label: "Kind", options: [
@@ -78,7 +98,7 @@ export const KIND_SPECS: KindSpec[] = [
           { value: "night_halt", label: "Night halt" }, { value: "other", label: "Other" }] },
         { k: "decimal", name: "amount", label: "Amount", required: true, unit: "₹" },
         { k: "select", name: "unit", label: "Charged", options: [
-          { value: "per_stay", label: "per stay" }, { value: "per_night", label: "per night" },
+          { value: "per_stay", label: "per stay" }, { value: "per_night", label: "per night" }, { value: "per_day", label: "per day" },
           { value: "per_person", label: "per person" }, { value: "per_unit", label: "per unit" }] },
       ] },
       { k: "keys", name: "destination_keys", label: "Destinations", of: "destination", hint: "Only published destinations can be linked." },
@@ -88,7 +108,7 @@ export const KIND_SPECS: KindSpec[] = [
   },
   {
     kind: "destination", label: "Destination", plural: "Destinations", singleton: false,
-    blurb: "Where you go: distance, travel time and the stops on the way.",
+    blurb: "Where you go: distance, travel time, the stops on the way (with the return to base as the last stop) and optional sights.",
     summary: d => `${s(d.distance_km_from_base)} km · ${s(d.travel_hours_from_base)} h from base · ${n(d.stops)} stop${n(d.stops) === 1 ? "" : "s"}`,
     fields: [
       { k: "text", name: "name", label: "Name", required: true, max: 120 },
@@ -102,6 +122,11 @@ export const KIND_SPECS: KindSpec[] = [
         { k: "decimal", name: "distance_km_from_previous", label: "Distance from previous", unit: "km" },
         { k: "decimal", name: "travel_hours_from_previous", label: "Time from previous", unit: "hours" },
       ] },
+      { k: "list", name: "sights", label: "Optional sights guests can add", addLabel: "Add a sight", itemLabel: "Sight", fields: [
+        { k: "text", name: "name", label: "Sight", required: true, max: 120 },
+        { k: "decimal", name: "km_round_trip", label: "Km there and back", required: true, unit: "km" },
+      ] },
+      { k: "int", name: "usual_nights", label: "Usual nights", min: 0, max: 30 },
       { k: "choices", name: "best_months", label: "Best months", options: MONTHS },
       { k: "text", name: "notes", label: "Notes", multiline: true, max: 1000 },
     ],
@@ -194,6 +219,10 @@ export const KIND_SPECS: KindSpec[] = [
         { k: "text", name: "name", label: "Tier name", required: true },
         { k: "decimal", name: "commission_percent", label: "Commission", required: true, unit: "%" },
         { k: "decimal", name: "max_discount_percent", label: "Largest discount they may offer", unit: "%" },
+        { k: "decimal", name: "min_commission_percent", label: "Lowest commission the agent may pick", unit: "%" },
+        { k: "decimal", name: "max_commission_percent", label: "Highest commission the agent may pick", unit: "%" },
+        { k: "int", name: "min_days", label: "Fewest days", min: 1, max: 60 },
+        { k: "decimal", name: "min_billing", label: "Lowest billing before tax", unit: "₹" },
         { k: "keys", name: "applies_to_package_keys", label: "Packages", of: "package", hint: "None selected = every package." },
       ] },
       { k: "text", name: "settlement_notes", label: "How commission is settled", multiline: true, max: 1000 },

@@ -22,6 +22,7 @@ from app.api.v1.endpoints import (
     dashboard_overview, business_overview,
     knowledge,
     business_data,
+    quotes,
     targets,
     work_queue,
     lead_activity,
@@ -49,6 +50,7 @@ api_router.include_router(lead_fields.router)
 api_router.include_router(conversations.router)
 api_router.include_router(knowledge.router)
 api_router.include_router(business_data.router)
+api_router.include_router(quotes.router)
 api_router.include_router(targets.router)
 api_router.include_router(work_queue.router)
 api_router.include_router(lead_activity.router)

@@ -57,6 +57,10 @@ _DEFAULT_GRANTS: dict[str, set[str]] = {
     "users.read": {"owner", "manager", "compliance"},
     "users.manage": {"owner"},
     "settings.manage": {"owner"},
+    # Quote builder (migration 140 adds these cells for existing tenants).
+    "quotes.write": {"owner", "manager", "reservations", "concierge"},
+    "business_data.draft": {"owner", "manager", "reservations"},
+    "business_data.publish": {"owner", "manager"},
 }
 
 

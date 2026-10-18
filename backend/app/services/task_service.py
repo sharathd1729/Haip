@@ -21,7 +21,9 @@ def create_task(
     inquiry_id: Optional[str] = None,
     conversation_id: Optional[str] = None,
     assigned_to: Optional[str] = None,
+    commit: bool = True,
 ) -> Task:
+    """commit=False adds the task to the caller's transaction (the caller commits)."""
     task = Task(
         tenant_id=tenant_id,
         title=title,
@@ -34,6 +36,9 @@ def create_task(
         created_by=created_by,
     )
     db.add(task)
+    if not commit:
+        db.flush()
+        return task
     db.commit()
     db.refresh(task)
     return task

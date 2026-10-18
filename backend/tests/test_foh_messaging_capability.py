@@ -104,7 +104,8 @@ def _grid(db, tenant_id):
 def test_foh_is_a_default_holder_and_nothing_else_about_the_defaults_changed():
     expected = {k: list(v) for k, v in PREVIOUS.items()}
     expected["conversations.send"] = sorted(expected["conversations.send"] + ["foh"])
-    assert {k: sorted(v) for k, v in authz_service._DEFAULT_GRANTS.items()} == expected
+    # Keys added later (quotes.write, business_data.* -- migration 140) are pinned by their own tests.
+    assert {k: sorted(v) for k, v in authz_service._DEFAULT_GRANTS.items() if k in PREVIOUS} == expected
 
 
 def test_a_newly_provisioned_tenant_lets_foh_send_and_every_other_cell_is_as_before(db):

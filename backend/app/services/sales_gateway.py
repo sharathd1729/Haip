@@ -77,9 +77,11 @@ def _package_view(rec, pkg, include_rates: bool) -> dict:
         view["rates"] = [{"label": r.label, "valid_from": r.valid_from, "valid_to": r.valid_to, "unit": r.unit, "amount": r.amount,
                           "days_of_week": r.days_of_week, "min_nights": r.min_nights} for r in pkg.rates]
         if pkg.extra_guest_charge:
-            view["extra_guest_charge"] = {"free_guests": pkg.extra_guest_charge.free_guests, "amount": pkg.extra_guest_charge.per_guest_per_night}
+            g = pkg.extra_guest_charge
+            view["extra_guest_charge"] = {"free_guests": g.free_guests, "amount": g.amount, **({"unit": g.unit} if g.unit != "night" else {})}
         if pkg.extra_km_charge:
-            view["extra_km_charge"] = {"amount": pkg.extra_km_charge.per_km}
+            k = pkg.extra_km_charge
+            view["extra_km_charge"] = {"amount": k.per_km} if not k.ranged else {"max_amount": k.max_per_km, "min_amount": k.min_per_km}
         view["charges"] = [{"name": c.name, "kind": c.kind, "unit": c.unit, "amount": c.amount} for c in pkg.charges]
     return _s(view)
 

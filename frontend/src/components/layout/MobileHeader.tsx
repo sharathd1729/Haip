@@ -61,6 +61,7 @@ const ROUTE_LABELS: Record<string, string> = {
   permissions:  "Roles & permissions",
   "saved-replies": "Saved replies",
   targets:      "Targets",
+  quotes:       "Quotes",
   "whatsapp-personal": "Personal WhatsApp",
 };
 

@@ -13,7 +13,7 @@ import {
   TrendingUp, UserCircle, Users, Zap,
 } from "@/lib/icons";
 import { GitBranch, UserCheck } from "lucide-react";
-import { BOOKING_READ_ROLES, REVENUE_READ_ROLES, canSeeNav, type Resource } from "@/lib/permissions";
+import { BOOKING_READ_ROLES, QUOTE_WRITE_ROLES, REVENUE_READ_ROLES, canSeeNav, type Resource } from "@/lib/permissions";
 import { useBusinessType } from "@/components/providers/WorkspaceProvider";
 import { useInboxStore } from "@/store/inbox";
 
@@ -25,6 +25,8 @@ export interface NavLink {
   icon: NavIcon;
   resource: Resource;
   hideForBusinessTypes?: string[];
+  /** Shown only for these business types (hidden while the type is still unknown). */
+  onlyForBusinessTypes?: string[];
   onlyRoles?: string[];
   ownerOnly?: boolean;
 }
@@ -49,6 +51,7 @@ export const NAV_SECTIONS: NavSection[] = [
     { label: "Targets", href: "/dashboard/targets", icon: TrendingUp, resource: "guests", onlyRoles: REVENUE_READ_ROLES },
     { label: "Properties", href: "/dashboard/properties", icon: Home, resource: "properties", hideForBusinessTypes: ["caravan"] },
     { label: "Rate calculator", href: "/dashboard/calculator", icon: Calculator, resource: "properties", hideForBusinessTypes: ["caravan"] },
+    { label: "Quotes", href: "/dashboard/quotes", icon: Calculator, resource: "guests", onlyRoles: QUOTE_WRITE_ROLES, onlyForBusinessTypes: ["caravan"] },
   ] },
   { title: "Messaging", links: [
     { label: "Overview", href: "/dashboard/messaging", icon: Send, resource: "settings" },
@@ -101,6 +104,7 @@ export function isVisible(link: NavLink, role: string, businessType: string | nu
   return canSeeNav(role, link.resource)
     && (!link.onlyRoles || link.onlyRoles.includes(role))
     && (!businessType || !link.hideForBusinessTypes?.includes(businessType))
+    && (!link.onlyForBusinessTypes || (!!businessType && link.onlyForBusinessTypes.includes(businessType)))
     && (!link.ownerOnly || role === "owner");
 }
 
