@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -9,7 +9,8 @@ import api from "@/lib/api";
 import { cn, formatINR, formatPhone } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
-import { DataTable, FilterBar, FilterChip, FilterSearch, PageHeader, StatusPill, type Column } from "@/components/ui/kit";
+import { DataTable, EmptyState, FilterBar, FilterChip, FilterSearch, PageHeader, StatusPill, type Column } from "@/components/ui/kit";
+import { BookingDetailView } from "@/components/bookings/BookingDetailView";
 import {
   CHANNEL_OPTIONS, CHANNEL_STYLE, PAYMENT_STYLE, PAYMENT_TONE, STATUS_OPTIONS, STATUS_STYLE, STATUS_TONE, errorMessage, fmtDate,
   type BookingList, type BookingRow,
@@ -66,6 +67,43 @@ function guestName(b: BookingRow): string {
   return `${g.first_name} ${g.last_name}`.trim() || (g.phone ? formatPhone(g.phone) : "Unknown guest");
 }
 
+// Wide screens (1024px and up) show the list beside the open booking (layout B). Phones keep list, then full page.
+function useIsWide(): boolean {
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const apply = () => setWide(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+  return wide;
+}
+const VIEW_KEY = "haip.bookings.view";
+
+function ListItem({ b, selected, onPick }: { b: BookingRow; selected: boolean; onPick: (id: string) => void }) {
+  const cancelled = b.status === "cancelled";
+  return (
+    <button type="button" onClick={() => onPick(b.id)} aria-current={selected ? "true" : undefined}
+      className={cn("block w-full border-b border-[var(--haip-border)] px-4 py-3 text-left transition-colors hover:bg-[var(--haip-surface)]",
+        selected && "bg-[var(--haip-primary-tint)] hover:bg-[var(--haip-primary-tint)]")}>
+      <span className="flex items-baseline justify-between gap-3">
+        <span className="min-w-0 truncate text-sm font-semibold text-[var(--haip-fg)]">{guestName(b)}</span>
+        <span className={cn("flex-shrink-0 text-sm font-semibold tabular-nums text-[var(--haip-fg)]", cancelled && "text-[var(--haip-fg-subtle)] line-through")}>{formatINR(b.total)}</span>
+      </span>
+      <span className="mt-0.5 block truncate text-xs text-[var(--haip-fg-subtle)]">
+        {b.property?.name ?? "No property"} · {fmtDate(b.checkin, false)} to {fmtDate(b.checkout, false)} · #{b.external_id}
+      </span>
+      <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        {!cancelled && <StatusPill tone={PAYMENT_TONE[b.payment_status]}>{PAYMENT_STYLE[b.payment_status].label}</StatusPill>}
+        {b.status !== "confirmed" && <StatusPill tone={STATUS_TONE[b.status] ?? "info"}>{(STATUS_STYLE[b.status] ?? STATUS_STYLE.confirmed).label}</StatusPill>}
+        {!b.property && <StatusPill tone="warning">No property</StatusPill>}
+      </span>
+      <DueLine b={b} />
+    </button>
+  );
+}
+
 function BookingsList() {
   const router = useRouter();
   const params = useSearchParams();
@@ -93,12 +131,33 @@ function BookingsList() {
   const [moving, setMoving] = useState(false);
   // On a phone the dropdowns sit behind a "Filters" button so the bookings are visible first.
   const [showFilters, setShowFilters] = useState(false);
+  // Split view: the open booking is kept in ?b= so a link or a reload opens the same one.
+  const wide = useIsWide();
+  const [view, setView] = useState<"split" | "table">("split");
+  const [picked, setPicked] = useState(params.get("b") ?? "");
+  useEffect(() => { try { if (localStorage.getItem(VIEW_KEY) === "table") setView("table"); } catch { /* storage blocked: keep split */ } }, []);
+  function chooseView(v: "split" | "table") {
+    setView(v);
+    try { localStorage.setItem(VIEW_KEY, v); } catch { /* storage blocked: the choice lasts for this visit */ }
+  }
+  function pick(id: string) {
+    setPicked(id);
+    const u = new URLSearchParams(window.location.search);
+    u.set("b", id);
+    window.history.replaceState(null, "", `?${u.toString()}`);
+  }
 
   useEffect(() => {
     const t = setTimeout(() => { setDebounced(search.trim()); setPage(1); }, 350);
     return () => clearTimeout(t);
   }, [search]);
   useEffect(() => { setPage(1); setSelected(new Set()); }, [quick, status, payment, range, propertyId, channel, sort, guestId]);
+  // A new filter opens the first matching booking instead of one that may no longer be in the list.
+  const filtersSeen = useRef(false);
+  useEffect(() => {
+    if (!filtersSeen.current) { filtersSeen.current = true; return; }
+    setPicked("");
+  }, [quick, status, payment, range, propertyId, channel, sort, guestId, debounced]);
 
   const { data: properties = [] } = useQuery<{ id: string; name: string }[]>({
     queryKey: ["bookable-properties"],
@@ -127,6 +186,8 @@ function BookingsList() {
   const rows = data?.data ?? [];
   const meta = data?.meta;
   const filtered = !!(debounced || quick || status || payment || range || guestId || propertyId || channel);
+  const split = wide && view === "split";
+  const openId = split ? (picked || rows[0]?.id || "") : "";
 
   function clearAll() {
     setSearch(""); setDebounced(""); setQuick(""); setStatus(""); setPayment(""); setRange(""); setPropertyId(""); setChannel("");
@@ -219,7 +280,9 @@ function BookingsList() {
   ];
 
   const unassignedHint = quick === "needs_property"
-    ? "These sit on a placeholder property. Select them and move them to the real one."
+    ? split
+      ? "These sit on a placeholder property. Switch to Table to select several and move them together."
+      : "These sit on a placeholder property. Select them and move them to the real one."
     : null;
 
   return (
@@ -230,6 +293,16 @@ function BookingsList() {
           subtitle={meta ? `${meta.total} booking${meta.total === 1 ? "" : "s"}${filtered ? " match" : ""}` : " "}
           actions={
             <>
+              {wide && (
+                <div role="group" aria-label="Layout" className="inline-flex h-9 items-center rounded-lg border border-[var(--haip-border)] bg-[var(--haip-card)] p-0.5">
+                  {(["split", "table"] as const).map(v => (
+                    <button key={v} type="button" aria-pressed={view === v} onClick={() => chooseView(v)}
+                      className={cn("h-full rounded-md px-2.5 text-xs font-semibold", view === v ? "bg-[var(--haip-primary-tint)] text-primary" : "text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg)]")}>
+                      {v === "split" ? "Split" : "Table"}
+                    </button>
+                  ))}
+                </div>
+              )}
               <button onClick={exportCsv} disabled={exporting || !rows.length}
                 className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--haip-border)] bg-[var(--haip-card)] px-3 text-xs font-semibold text-[var(--haip-fg-2)] hover:bg-[var(--haip-surface)] disabled:opacity-40">
                 <Download size={13} /> {exporting ? "Exporting..." : "Export"}
@@ -311,6 +384,37 @@ function BookingsList() {
         </div>
       )}
 
+      {split ? (
+        <div className="flex min-h-0 flex-1">
+          <div className="flex w-[380px] flex-shrink-0 flex-col border-r border-[var(--haip-border)] bg-[var(--haip-card)]">
+            <div className="min-h-0 flex-1 overflow-y-auto" aria-label="Bookings" aria-busy={!data && !isError}>
+              {!data && !isError ? (
+                <div className="space-y-2 p-3">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-[74px] rounded-xl" />)}</div>
+              ) : isError ? (
+                <EmptyState title="Could not load bookings" hint="Check your connection and try again."
+                  action={<button onClick={() => refetch()} className="h-9 rounded-lg border border-[var(--haip-border)] px-4 text-[13px] font-semibold hover:bg-[var(--haip-surface)]">Try again</button>} />
+              ) : rows.length === 0 ? (
+                <EmptyState title={filtered ? "No bookings match these filters" : "No bookings yet"} hint={filtered ? "Clear a filter to see more." : "Create one, or move a lead to Sold."}
+                  action={filtered ? <button onClick={clearAll} className="h-9 rounded-lg border border-[var(--haip-border)] px-4 text-[13px] font-semibold hover:bg-[var(--haip-surface)]">Clear filters</button> : undefined} />
+              ) : rows.map(b => <ListItem key={b.id} b={b} selected={b.id === openId} onPick={pick} />)}
+            </div>
+            {meta && meta.last_page > 1 && (
+              <div className="flex flex-shrink-0 items-center justify-between gap-2 border-t border-[var(--haip-border)] px-3 py-2 text-xs text-[var(--haip-fg-subtle)]">
+                <span className="tabular-nums">{meta.from} to {meta.to} of {meta.total}</span>
+                <div className="flex gap-2">
+                  <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="h-9 rounded-lg border border-[var(--haip-border)] bg-[var(--haip-card)] px-3 disabled:opacity-40">Previous</button>
+                  <button disabled={page >= meta.last_page} onClick={() => setPage(p => p + 1)} className="h-9 rounded-lg border border-[var(--haip-border)] bg-[var(--haip-card)] px-3 disabled:opacity-40">Next</button>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="min-w-0 flex-1 overflow-y-auto">
+            {openId
+              ? <BookingDetailView key={openId} id={openId} variant="pane" />
+              : data && <EmptyState title="Pick a booking" hint="It opens here, next to the list." />}
+          </div>
+        </div>
+      ) : (
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {!data && !isError ? (
           <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
@@ -341,6 +445,7 @@ function BookingsList() {
           </>
         )}
       </div>
+      )}
 
       {creating && (
         <CreateBookingModal
