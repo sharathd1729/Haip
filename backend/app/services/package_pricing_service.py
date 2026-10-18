@@ -159,8 +159,11 @@ def _open_vehicles(db: Session, tenant_id: str, vehicle_ids: list[str], ci: date
     q = db.query(Property).filter(Property.tenant_id == tenant_id, Property.is_active.is_(True))
     if vehicle_ids:
         q = q.filter(Property.id.in_(vehicle_ids))
+    from app.services.vehicle_pool import is_placeholder_name
     out = []
     for p in q.order_by(Property.name).all():
+        if is_placeholder_name(p.name):
+            continue                         # the "Unassigned" holder is not a vehicle anyone can be quoted on
         cap = (p.max_adults or 0) + (p.max_children or 0)
         if cap and guests > cap:
             status = "over_capacity"

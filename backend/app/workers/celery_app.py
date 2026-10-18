@@ -69,6 +69,7 @@ celery_app = Celery(
         # Booking payments: invoices/receipts, WhatsApp confirmations, balance reminders
         "app.workers.tasks.invoice_tasks",
         "app.workers.tasks.quote_tasks",
+        "app.workers.tasks.sales_agent_tasks",
         # WhatsApp: campaign runner + template status sync
         "app.workers.tasks.run_campaign",
         "app.workers.tasks.campaign_scheduler",
@@ -262,6 +263,8 @@ celery_app.conf.update(
         # Sent quotes (quote_tasks.py): the quote PDF + WhatsApp send, and cancelling the other option's link.
         "quotes.send_with_links":                     {"queue": "whatsapp"},
         "quotes.cancel_payment_links":                {"queue": "whatsapp"},
+        # AI sales agent on autopilot (sales_agent_tasks.py): the agent's own quote send, same queue as the staff send.
+        "sales_agent.send_quote":                     {"queue": "whatsapp"},
     },
 )
 

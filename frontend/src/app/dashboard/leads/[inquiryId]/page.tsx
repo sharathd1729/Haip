@@ -12,6 +12,7 @@ import { ResponseTimeBadge, formatDuration } from "@/components/leads/LeadCard";
 import { useToast } from "@/components/ui/toast";
 import { useSession } from "next-auth/react";
 import { AIRecommendationCard, type RecommendedAction } from "@/components/ai/AIRecommendationCard";
+import { SalesActionCard } from "@/components/sales/SalesActionCard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -588,6 +589,7 @@ export default function LeadDetailPage() {
       {/* ── Scrollable content ── */}
       <div className="flex-1 overflow-y-auto haip-scrollbar">
         <div className="p-4 space-y-4 max-w-2xl mx-auto">
+          <SalesActionCard inquiryId={inquiryId} />
 
           {tab === "overview" && (
             <>

@@ -60,17 +60,20 @@ def update_my_tenant(
     if "brand_config" in data:
         merged = dict(tenant.brand_config or {})
         incoming = data.pop("brand_config")
-        if "price_disclosure" in incoming:
-            from app.services.price_policy import PRICE_MODES
-            if incoming["price_disclosure"] not in PRICE_MODES:
-                raise HTTPException(status_code=422, detail=f"price_disclosure must be one of {', '.join(PRICE_MODES)}")
+        # The AI's price disclosure and the sales agent are owner-only, audited switches: PUT /ai/sales-agent is their one way in.
+        guarded = [k for k in ("price_disclosure", "sales_agent") if k in incoming]
+        if guarded:
+            raise HTTPException(status_code=422, detail=f"{', '.join(guarded)}: change this in Settings > AI (PUT /ai/sales-agent, owner only)")
         merged.update(incoming)
         tenant.brand_config = merged
 
     # `config` dict is merged into brand_config (used for onboarding_step etc.)
     if "config" in data:
         merged = dict(tenant.brand_config or {})
-        merged.update(data.pop("config"))
+        incoming = data.pop("config")
+        if any(k in incoming for k in ("price_disclosure", "sales_agent")):
+            raise HTTPException(status_code=422, detail="price_disclosure / sales_agent: change this in Settings > AI (owner only)")
+        merged.update(incoming)
         tenant.brand_config = merged
 
     for field, value in data.items():

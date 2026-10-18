@@ -104,6 +104,8 @@ export const KIND_SPECS: KindSpec[] = [
       { k: "keys", name: "destination_keys", label: "Destinations", of: "destination", hint: "Only published destinations can be linked." },
       { k: "decimal", name: "gst_percent", label: "GST", unit: "%" },
       { k: "int", name: "quote_valid_days", label: "A quote stays valid for (days)", min: 1, max: 60 },
+      { k: "bool", name: "auto_bookable", label: "The AI may send this quote and payment link on its own",
+        hint: "Only for the AI sales agent on autopilot: the overnight stay needs no check with the partner first. Leave off if unsure." },
     ],
   },
   {
@@ -129,6 +131,8 @@ export const KIND_SPECS: KindSpec[] = [
       { k: "int", name: "usual_nights", label: "Usual nights", min: 0, max: 30 },
       { k: "choices", name: "best_months", label: "Best months", options: MONTHS },
       { k: "text", name: "notes", label: "Notes", multiline: true, max: 1000 },
+      { k: "bool", name: "auto_bookable", label: "Overnight stays on this route need no partner check",
+        hint: "Lets the AI sales agent on autopilot send the quote and payment link for this route on its own. Leave off if unsure." },
     ],
   },
   {

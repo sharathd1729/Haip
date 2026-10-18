@@ -187,10 +187,22 @@ def get_itinerary(db: Session, tenant_id: str, key: Optional[str] = None, packag
 
 def quote_package(db: Session, tenant_id: str, package_key: str, check_in: date, check_out: date, adults: int, children: int = 0,
                   planned_km: Optional[Decimal] = None, extras: Optional[list[dict]] = None, discount_percent: Optional[Decimal] = None,
-                  vehicle_property_id: Optional[str] = None) -> GatewayResult:
-    """Prices a stay (never stores it: issuing a quote is quote_service.issue_quote, a separate, audited act)."""
-    q = pps.quote(db, tenant_id, package_key, check_in, check_out, adults, children, planned_km=planned_km, extras=extras,
-                  discount_percent=discount_percent, vehicle_property_id=vehicle_property_id)
+                  vehicle_property_id: Optional[str] = None, destination_key: Optional[str] = None) -> GatewayResult:
+    """Prices a stay (never stores it: issuing a quote is quote_service.issue_quote, a separate, audited act). `destination_key`
+    prices the route's kilometres too (the sales agent passes the route the guest named)."""
+    return quote_package_detailed(db, tenant_id, package_key, check_in, check_out, adults, children, planned_km=planned_km,
+                                  extras=extras, discount_percent=discount_percent, vehicle_property_id=vehicle_property_id,
+                                  destination_key=destination_key)[0]
+
+
+def quote_package_detailed(db: Session, tenant_id: str, package_key: str, check_in: date, check_out: date, adults: int,
+                           children: int = 0, **kw) -> tuple[GatewayResult, pps.PackageQuote]:
+    """quote_package plus the PackageQuote itself, for code (the sales agent) that issues exactly the quote it showed the model."""
+    q = pps.quote(db, tenant_id, package_key, check_in, check_out, adults, children, **kw)
+    return _quote_result(q), q
+
+
+def _quote_result(q: pps.PackageQuote) -> GatewayResult:
     sources = [{"kind": r["kind"], "key": r["key"], "version": r["version"]} for r in q.record_refs]
     if not q.ok:
         return GatewayResult(False, {"reason": q.reason, "message": q.message, "availability": _s(q.availability)}, sources, [f"refused:{q.reason}"])

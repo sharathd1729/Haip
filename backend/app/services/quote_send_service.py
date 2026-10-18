@@ -154,22 +154,37 @@ def send(db: Session, user: User, quote_id: str) -> dict:
     inquiry = visible_inquiry(db, user, row.inquiry_id) if row is not None else None
     if row is None or inquiry is None:
         raise qs.QuoteError("not_found", "Quote not found.", 404)
-    guest = db.query(Guest).filter_by(id=inquiry.guest_id, tenant_id=user.tenant_id).first()
-    rows = group_rows(db, user.tenant_id, row)
-    ready = readiness(db, user.tenant_id, row, rows, guest)
+    return _send(db, user.tenant_id, row, inquiry, actor_id=user.id)
+
+
+def send_as_agent(db: Session, tenant_id: str, quote_id: str) -> dict:
+    """The AI sales agent on autopilot (sales_action_service): the same checks, links and message as a person's send, with no
+    user -- audited with a NULL actor and ``payload.actor = "ai_sales_agent"``. Raises qs.QuoteError. Commits."""
+    row = db.query(InquiryQuote).filter_by(id=quote_id, tenant_id=tenant_id).first()
+    inquiry = db.query(Inquiry).filter_by(id=row.inquiry_id, tenant_id=tenant_id).first() if row is not None else None
+    if row is None or inquiry is None:
+        raise qs.QuoteError("not_found", "Quote not found.", 404)
+    return _send(db, tenant_id, row, inquiry, actor_id=None, actor="ai_sales_agent")
+
+
+def _send(db: Session, tenant_id: str, row: InquiryQuote, inquiry: Inquiry, actor_id: Optional[str], actor: Optional[str] = None) -> dict:
+    who = {"actor": actor} if actor else {}
+    guest = db.query(Guest).filter_by(id=inquiry.guest_id, tenant_id=tenant_id).first()
+    rows = group_rows(db, tenant_id, row)
+    ready = readiness(db, tenant_id, row, rows, guest)
     if ready["blockers"]:
         first = ready["blockers"][0]
         raise qs.QuoteError(first["code"], first["message"], _STATUS.get(first["code"], 422))
 
     number = quote_number(row)
-    existing = latest_links(db, user.tenant_id, [r.id for r in rows])
+    existing = latest_links(db, tenant_id, [r.id for r in rows])
     links: list[StayPaymentLink] = []
     try:
         for r in rows:
             link = existing.get(r.id)
             if not is_live(link):
-                link = pls.create_quote_link(db, user.tenant_id, r, guest, (r.snapshot or {}).get("advance"),
-                                             description=_describe(r, number), expires_at=r.valid_until, created_by=user.id)
+                link = pls.create_quote_link(db, tenant_id, r, guest, (r.snapshot or {}).get("advance"),
+                                             description=_describe(r, number), expires_at=r.valid_until, created_by=actor_id)
             links.append(link)
     except pls.PaymentLinkError as exc:
         db.commit()                                   # links already made stay usable; the next send reuses them
@@ -177,28 +192,28 @@ def send(db: Session, user: User, quote_id: str) -> dict:
 
     gid, event = group_id(row), f"sent:{links[0].external_id}"
     key = wbm.idempotency_key(gid, event, PREFIX)
-    if db.query(Message.id).filter_by(tenant_id=user.tenant_id, idempotency_key=key).first():
+    if db.query(Message.id).filter_by(tenant_id=tenant_id, idempotency_key=key).first():
         message = {"status": "already_sent", "code": None, "message": "This quote and its links were already sent on WhatsApp."}
-    elif template_status(db, user.tenant_id) != "approved":
-        append_audit(db, tenant_id=user.tenant_id, actor_user_id=user.id, action="quote.message_not_sent", target_type="inquiry_quote",
-                     target_id=gid, payload={"template": pack.QUOTE_PAYMENT, "event": event, "reason": "template not approved"})
+    elif template_status(db, tenant_id) != "approved":
+        append_audit(db, tenant_id=tenant_id, actor_user_id=actor_id, action="quote.message_not_sent", target_type="inquiry_quote",
+                     target_id=gid, payload={"template": pack.QUOTE_PAYMENT, "event": event, "reason": "template not approved", **who})
         message = {"status": "not_sent", "code": "template_not_approved", "message": TEMPLATE_NOT_APPROVED}
     else:
-        append_audit(db, tenant_id=user.tenant_id, actor_user_id=user.id, action="quote.sent", target_type="inquiry_quote", target_id=gid,
+        append_audit(db, tenant_id=tenant_id, actor_user_id=actor_id, action="quote.sent", target_type="inquiry_quote", target_id=gid,
                      payload={"inquiry_id": row.inquiry_id, "event": event, "links": [lk.external_id for lk in links],
-                              "amounts": [float(lk.amount) for lk in links]})
+                              "amounts": [float(lk.amount) for lk in links], **who})
         message = {"status": "queued", "code": None, "message": "Sending the quote on WhatsApp."}
     db.commit()
     if message["status"] == "queued":
         from app.workers.tasks import quote_tasks
         try:
-            quote_tasks.send_with_links.delay(tenant_id=user.tenant_id, quote_id=row.id, link_id=links[0].id)
+            quote_tasks.send_with_links.delay(tenant_id=tenant_id, quote_id=row.id, link_id=links[0].id)
         except Exception as exc:  # noqa: BLE001 -- broker down: the links exist; say the message did not go
-            log.error("quote_send_enqueue_failed", tenant_id=user.tenant_id, quote_id=row.id, error=str(exc))
+            log.error("quote_send_enqueue_failed", tenant_id=tenant_id, quote_id=row.id, error=str(exc))
             message = {"status": "not_sent", "code": "queue_failed",
                        "message": "Could not queue the WhatsApp message. Copy the links and send them, or try again."}
     from app.services.quote_journey import journey
-    return {"quote_id": row.id, "message": message, "journey": journey(db, user.tenant_id, rows)}
+    return {"quote_id": row.id, "message": message, "journey": journey(db, tenant_id, rows)}
 
 
 # ─── the Celery task body ────────────────────────────────────────────────────────────────────────────────

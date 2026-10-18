@@ -19,6 +19,8 @@ The code wins over this table. Checked against `feat/mai3-reliability`. Tests: S
 | Model-output safety | Working (new) | – | bad/oversized/non-JSON output goes to review | `…::test_malformed_model_output…` |
 | Duplicate protection | Working (new) | – | Meta has no idempotency key: a crash between "sent" and the commit can still repeat once | `…::test_a_retried_task…`, `test_ai_reliability_controls.py` |
 | Rewrite / translate / tone | Working | draft or composer text | translation is only on request; a rewrite that changes a number is rejected | `test_ai_reliability_controls.py` |
+| Sales agent (Oct 18, off by default) | Working, opt-in | booking calendar (`caravan_availability`), published packages (`sales_gateway`), `quote_service`, `quote_send_service` | suggest = staff approve the prepared quote; autopilot sends only when every hold clears and the reply auto-sent; overnight trips need `auto_bookable`; no PostgreSQL run yet | `tests/workers/test_sales_agent_concierge.py`, `test_sales_agent_api.py`, `test_caravan_availability.py` |
+| Which model replies | Checked | `_TASK_ROUTES` | guest reply = Gemini `gemini-3.6-flash` (2 x 40 s, then the holding reply; no other provider); message understanding = NVIDIA `gpt-oss-20b` with a Gemini retry; `llm_provider_override` is never applied | `GET /ai/routing`, `scripts/diagnose_llm_routing.py` |
 
 ## Knowledge base
 

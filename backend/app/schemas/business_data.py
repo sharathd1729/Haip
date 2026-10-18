@@ -163,6 +163,9 @@ class PackageData(_Strict):
     extra_hour_charge: Optional[ExtraHourCharge] = None                 # none = a late return cannot be quoted
     kits_included: bool = False                                         # experience charges are part of the price (shown at 0)
     at_actuals: list[str] = Field(default_factory=list)                 # e.g. "Tolls and parking": billed at actuals, outside the total
+    # The AI sales agent (autopilot) may send this package's quote + payment link without a person first confirming the
+    # overnight stay with the partner. Owner's call; off by default.
+    auto_bookable: bool = False
 
     @model_validator(mode="after")
     def _consistent(self):
@@ -219,6 +222,7 @@ class DestinationData(_Strict):
     travel_hours_from_base: Decimal = Field(ge=0)
     best_months: list[int] = Field(default_factory=list)
     notes: str = Field(default="", max_length=1000)
+    auto_bookable: bool = False          # the overnight stays on this route need no partner check before the AI sends a quote
 
     @model_validator(mode="after")
     def _stops(self):
@@ -408,8 +412,9 @@ _OMIT_IF_DEFAULT: dict[type, tuple[str, ...]] = {
     ExtraGuestCharge: ("per_guest_per_night", "per_guest", "unit"),
     ExtraKmCharge: ("per_km", "max_per_km", "min_per_km", "ladder"),
     Charge: (),
-    PackageData: ("day_count", "min_days", "duration_hours", "included_km_per_day", "extra_hour_charge", "kits_included", "at_actuals"),
-    DestinationData: ("sights", "usual_nights"),
+    PackageData: ("day_count", "min_days", "duration_hours", "included_km_per_day", "extra_hour_charge", "kits_included", "at_actuals",
+                  "auto_bookable"),
+    DestinationData: ("sights", "usual_nights", "auto_bookable"),
     ResellerTier: ("min_commission_percent", "max_commission_percent", "min_days", "min_billing"),
 }
 

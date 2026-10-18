@@ -36,6 +36,7 @@ from app.models.capability import Capability, RoleCapability
 from app.models.mcp_oauth import OAuthClient, OAuthGrant
 from app.models.ai_draft_outcome import AIDraftOutcome
 from app.models.task import Task
+from app.models.sales_action import SalesAction
 from app.models.lead_attribution import LeadAttribution
 from app.models.whatsapp_personal_session import WhatsAppPersonalSession, WhatsAppPersonalSessionStatus
 
@@ -53,7 +54,7 @@ __all__ = [
     "WATemplate", "WACampaign", "WASubscriber", "WAFlow",
     "FlowPendingExecution", "WAFlowRun",
     "Capability", "RoleCapability",
-    "AIDraftOutcome", "Task",
+    "AIDraftOutcome", "Task", "SalesAction",
     "LeadAttribution",
     "WhatsAppPersonalSession", "WhatsAppPersonalSessionStatus",
 ]
