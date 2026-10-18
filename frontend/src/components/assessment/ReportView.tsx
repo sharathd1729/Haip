@@ -37,11 +37,12 @@ export function SummaryCard({ summary }: { summary: AssessmentSummary }) {
   return (
     <Panel title="Your estimate" hint={`${summary.property_type_label} · ${summary.segment_label} · ${summary.keys} rooms · ${summary.location_label}`}>
       <p className="text-[13px] font-semibold uppercase tracking-wide text-[var(--mkt-muted)]">Revenue a year</p>
-      <div className="mt-2 grid grid-cols-3 gap-2">
+      {/* Rows on phones (a crore figure does not fit a third of 375px), three tiles from 640px. */}
+      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
         {SCENARIOS.map(s => (
-          <div key={s} className={`rounded-xl px-3 py-3 ${s === "likely" ? "bg-[var(--mkt-surface)] border border-[var(--mkt-border-gold)]" : "bg-[var(--mkt-panel)]"}`}>
+          <div key={s} className={`flex items-baseline justify-between gap-3 rounded-xl px-3 py-3 sm:block ${s === "likely" ? "bg-[var(--mkt-surface)] border border-[var(--mkt-border-gold)]" : "bg-[var(--mkt-panel)]"}`}>
             <p className="text-[12px] text-[var(--mkt-muted)]">{SCENARIO_LABEL[s]}</p>
-            <p className={`mt-0.5 font-bold tabular-nums break-words ${s === "likely" ? "text-[17px] text-[var(--mkt-gold)]" : "text-[15px] text-[var(--mkt-text)]"}`}>
+            <p className={`mt-0.5 font-bold tabular-nums whitespace-nowrap ${s === "likely" ? "text-[17px] text-[var(--mkt-gold)]" : "text-[15px] text-[var(--mkt-text)]"}`}>
               {money(summary.yearly_revenue[s])}
             </p>
           </div>
