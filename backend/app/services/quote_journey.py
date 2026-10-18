@@ -32,10 +32,19 @@ def _state(m: Message) -> str:
     return str(getattr(m.delivery_state, "value", m.delivery_state) or "queued")
 
 
-def _message(db: Session, tenant_id: str, gid: str) -> tuple[Optional[dict], Optional[dict]]:
+def _keys(db: Session, tenant_id: str, gid: str, rows: list[InquiryQuote]) -> list[str]:
+    """Every idempotency key a send of this group can have used: "sent:{link}" for option 1, "fb:{link}" for option 2."""
+    ranks = {r.id: (r.option_rank or 1) for r in rows}
+    links = db.query(StayPaymentLink.inquiry_quote_id, StayPaymentLink.external_id).filter(
+        StayPaymentLink.tenant_id == tenant_id, StayPaymentLink.inquiry_quote_id.in_(list(ranks))).all()
+    return [wbm.idempotency_key(gid, f"{'fb' if ranks.get(qid) == 2 else 'sent'}:{ext}", qss.PREFIX) for qid, ext in links]
+
+
+def _message(db: Session, tenant_id: str, gid: str, rows_: list[InquiryQuote]) -> tuple[Optional[dict], Optional[dict]]:
     """(the quote template message, the fallback follow-up) -- newest of each."""
-    rows = (db.query(Message).filter(Message.tenant_id == tenant_id, Message.idempotency_key.like(f"{qss.PREFIX}{gid}:%"))
-            .order_by(Message.created_at.desc()).all())
+    keys = _keys(db, tenant_id, gid, rows_)
+    rows = (db.query(Message).filter(Message.tenant_id == tenant_id, Message.idempotency_key.in_(keys))
+            .order_by(Message.created_at.desc()).all()) if keys else []
     tmpl = next((m for m in rows if not str((m.channel_metadata or {}).get("quote_event", "")).startswith("fb:")), None)
     fb = next((m for m in rows if str((m.channel_metadata or {}).get("quote_event", "")).startswith("fb:")), None)
     out = lambda m: {"status": _state(m), "error": m.delivery_error, "at": m.created_at.isoformat() if m.created_at else None,  # noqa: E731
@@ -57,7 +66,7 @@ def journey(db: Session, tenant_id: str, rows: list[InquiryQuote]) -> dict:
     gid = qss.group_id(primary)
     links = qss.latest_links(db, tenant_id, [r.id for r in rows])
     paid = [(r, links[r.id]) for r in rows if r.id in links and links[r.id].status == "paid"]
-    message, fallback_message = _message(db, tenant_id, gid)
+    message, fallback_message = _message(db, tenant_id, gid, rows)
     booking_id = next((lk.stay_id for _, lk in paid if lk.stay_id), None)
     invoice = confirmation = None
     if booking_id:

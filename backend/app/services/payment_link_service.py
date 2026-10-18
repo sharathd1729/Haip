@@ -72,7 +72,7 @@ def create_booking_link(db: Session, tenant_id: str, stay: Stay, amount: float, 
 
 
 def create_quote_link(db: Session, tenant_id: str, quote: InquiryQuote, guest: Optional[Guest], amount, *, description: str,
-                      expires_at: datetime, created_by: Optional[str] = None) -> StayPaymentLink:
+                      expires_at: Optional[datetime], created_by: Optional[str] = None) -> StayPaymentLink:
     """A link for one quote option's advance. reference_id/notes carry the tenant and quote ids, so a payment can always be
     traced back; it expires with the quote. Flushes; the caller commits. Raises PaymentLinkError."""
     creds = razorpay_credentials(db, tenant_id)
@@ -81,14 +81,16 @@ def create_quote_link(db: Session, tenant_id: str, quote: InquiryQuote, guest: O
     amount = float(amount or 0)
     if amount <= 0:
         raise PaymentLinkError("This quote has no advance to collect.")
-    expires = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
+    expires = expires_at or (datetime.now(timezone.utc) + timedelta(days=3))
+    expires = expires if expires.tzinfo else expires.replace(tzinfo=timezone.utc)
     floor = datetime.now(timezone.utc) + timedelta(minutes=16)          # Razorpay wants expire_by at least 15 minutes ahead
     expire_by = int(max(expires, floor).timestamp())
     phone = guest.phone if guest and guest.phone and not str(guest.phone).startswith("DELETED_") else None
     try:
         res = rzp.create_payment_link(
             creds["key_id"], creds["key_secret"], amount_inr=amount, description=description,
-            reference_id=quote.id.replace("-", "")[:32], customer_name=guest.name if guest else None, customer_phone=phone,
+            reference_id=f"q{quote.id.replace('-', '')[:26]}{int(time.time()):x}", customer_name=guest.name if guest else None,
+            customer_phone=phone,
             customer_email=guest.email if guest else None, expire_by=expire_by,
             notes={"haip_tenant_id": tenant_id, "haip_inquiry_quote_id": quote.id},
         )
