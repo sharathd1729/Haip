@@ -21,6 +21,7 @@ from app.api.v1.endpoints import (
     push,
     dashboard_overview, business_overview,
     knowledge,
+    knowledge_freshness,
     business_data,
     quotes,
     sales_agent,
@@ -49,6 +50,7 @@ api_router.include_router(inquiries.router)
 api_router.include_router(pipeline_stages.router)
 api_router.include_router(lead_fields.router)
 api_router.include_router(conversations.router)
+api_router.include_router(knowledge_freshness.router)
 api_router.include_router(knowledge.router)
 api_router.include_router(business_data.router)
 api_router.include_router(quotes.router)

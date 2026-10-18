@@ -10,6 +10,9 @@ import { Tabs } from "@/components/ui/kit";
 import { KnowledgeTestBox } from "@/components/knowledge/KnowledgeTestBox";
 import { StructuredDataTab } from "@/components/knowledge/StructuredDataTab";
 import { KnowledgeHistoryDrawer } from "@/components/knowledge/KnowledgeHistoryDrawer";
+import { KnowledgeFreshnessPanel } from "@/components/knowledge/KnowledgeFreshnessPanel";
+import { SocialApprovalQueue } from "@/components/knowledge/SocialApprovalQueue";
+import { FlagBadges, SourceBadge } from "@/components/knowledge/SourceBadge";
 
 interface KnowledgeEntry {
   id: string;
@@ -27,6 +30,8 @@ interface KnowledgeEntry {
   embedding_attempts?: number;
   embedded_at?: string | null;
   stale_since?: string | null;
+  source_published_at?: string | null;
+  content_flags?: string[] | null;
   property_id?: string | null;
   updated_at: string;
 }
@@ -116,6 +121,8 @@ function KnowledgeAndTrainingTab() {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["knowledge"] });
     queryClient.invalidateQueries({ queryKey: ["knowledge-stats"] });
+    queryClient.invalidateQueries({ queryKey: ["knowledge-approvals"] });
+    queryClient.invalidateQueries({ queryKey: ["knowledge-freshness"] });
   };
 
   const saveMutation = useMutation({
@@ -362,6 +369,8 @@ function KnowledgeAndTrainingTab() {
 
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-4xl space-y-5">
+          <KnowledgeFreshnessPanel />
+          <SocialApprovalQueue />
           <KnowledgeTestBox properties={properties} />
 
           {/* Category filter */}
@@ -446,11 +455,8 @@ function KnowledgeAndTrainingTab() {
                         <span className="text-[10px] font-semibold uppercase tracking-wider text-primary bg-[var(--haip-primary-tint)] px-1.5 py-0.5 rounded">
                           {CATEGORY_LABEL[e.category] ?? e.category}
                         </span>
-                        {e.source !== "manual" && (
-                          <span className="text-[10px] text-[var(--haip-fg-subtle)] bg-[var(--haip-status-neutral-bg)] px-1.5 py-0.5 rounded capitalize">
-                            from {e.source}
-                          </span>
-                        )}
+                        <SourceBadge source={e.source} />
+                        <FlagBadges flags={e.content_flags} />
                         {e.property_id && (
                           <span className="text-[10px] text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded">
                             only {propertyName(e.property_id)}

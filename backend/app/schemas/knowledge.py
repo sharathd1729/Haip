@@ -11,7 +11,7 @@ KnowledgeCategory = Literal[
     "location", "routes", "faq", "policy", "other",
 ]
 
-KnowledgeSource = Literal["manual", "website", "document", "conversation"]
+KnowledgeSource = Literal["manual", "website", "document", "conversation", "upload", "instagram", "meta_ad", "owner_notes"]
 
 # Anything not authored by a human on the tenant's team lands in `pending`
 # and is invisible to the concierge until someone approves it. Scraped and
@@ -73,6 +73,8 @@ class KnowledgeEntryOut(BaseModel):
     embedding_attempts: int = 0
     embedded_at: Optional[datetime] = None
     stale_since: Optional[datetime] = None
+    source_published_at: Optional[datetime] = None
+    content_flags: Optional[List[str]] = None
     created_by: Optional[str] = None
     created_at: datetime
     updated_at: datetime

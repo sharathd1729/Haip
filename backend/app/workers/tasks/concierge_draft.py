@@ -1050,10 +1050,10 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         # HAIP Inbox UI-fidelity pass, ticket 3: widen the AI card trigger
         # beyond price_quote-only. One query, checked alongside the rest of
         # the context-building above.
-        from app.models.guest_identity import GuestIdentity, IdentityType
-        guest_missing_phone = db.query(GuestIdentity.id).filter_by(
-            tenant_id=tenant_id, guest_id=guest_id, identity_type=IdentityType.PHONE.value,
-        ).first() is None
+        # A WhatsApp-number signal is a phone too: a guest merged with a WhatsApp lead (or whose number came in as one) used to be
+        # asked for "a phone number" again because only the "phone" signal type was checked.
+        from app.services.chat_phone_capture import guest_has_phone
+        guest_missing_phone = not guest_has_phone(db, tenant_id, guest_id)
 
         template = _jinja_env.get_template("concierge_reply.jinja")
 
@@ -1492,7 +1492,9 @@ def concierge_draft(self, message_id: str, conversation_id: str, tenant_id: str,
         # number (that's the channel), so "declined to share a phone
         # number" only makes sense for Instagram DMs.
         channel_val_for_decline = str(conversation.channel.value if hasattr(conversation.channel, "value") else conversation.channel)
-        if channel_val_for_decline == "instagram" and burst_text:
+        # Not when we already have their number: a guest who wrote "won't share my number here, call 98765 43210" (or shared it
+        # earlier) has not declined anything, and the alert would put up a stale "No phone shared" chip.
+        if channel_val_for_decline == "instagram" and burst_text and guest_missing_phone:
             from app.services.phone_decline_detector import detect_phone_decline
             phone_decline_phrase = detect_phone_decline(burst_text)
             if phone_decline_phrase:

@@ -45,8 +45,8 @@ def test_is_collab_message_matches_keywords():
 
 
 def test_text_contains_phone():
-    assert lac.text_contains_phone("call me at 9876543210")
-    assert lac.text_contains_phone("+91 98765 43210")
+    assert lac.text_contains_phone("call me at 9845012345")
+    assert lac.text_contains_phone("+91 98450 12345")
     assert not lac.text_contains_phone("looking for a villa this weekend")
 
 
@@ -103,7 +103,7 @@ def test_get_or_create_from_chat_instagram_with_phone_routes_valid(db):
     guest = _make_guest(db, t.id)
 
     inquiry = get_or_create_from_chat(
-        db, t.id, guest.id, source=InquirySource.META_IG.value, message_text="call me on 9876543210 please",
+        db, t.id, guest.id, source=InquirySource.META_IG.value, message_text="call me on 9845012345 please",
     )
     assert inquiry.stage_id == valid_stage.id
 
@@ -117,7 +117,7 @@ def test_get_or_create_from_chat_collab_keyword_routes_collab_over_phone(db):
 
     inquiry = get_or_create_from_chat(
         db, t.id, guest.id, source=InquirySource.WA_DIRECT.value,
-        message_text="Hi I'm a content creator, keen on a UGC collab -- 9876543210",
+        message_text="Hi I'm a content creator, keen on a UGC collab -- 9845012345",
     )
     assert inquiry.stage_id == collab_stage.id
 

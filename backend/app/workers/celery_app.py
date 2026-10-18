@@ -52,6 +52,8 @@ celery_app = Celery(
         "app.workers.tasks.generate_ai_summary",
         # AI concierge knowledge base: embedding pipeline
         "app.workers.tasks.embed_knowledge",
+        # Knowledge from Instagram posts, running ads and the tenant's website (re-crawl)
+        "app.workers.tasks.knowledge_sources_sync",
         # Daily owner report email
         "app.workers.tasks.daily_owner_report",
         # Per-agent end-of-day performance report email
@@ -240,6 +242,10 @@ celery_app.conf.update(
         "knowledge.embed_entry":   {"queue": "ai_scoring"},
         "knowledge.embed_pending": {"queue": "ai_scoring"},
         "knowledge.sweep_all_tenants": {"queue": "ai_scoring"},
+        "knowledge_sources.sync_all_tenants":    {"queue": "ai_scoring"},
+        "knowledge_sources.sync_tenant":         {"queue": "ai_scoring"},
+        "knowledge_sources.recrawl_all_tenants": {"queue": "ai_scoring"},
+        "knowledge_sources.recrawl_tenant":      {"queue": "ai_scoring"},
         # Short-name tasks again -- these need exact-name routes or they
         # land in the unconsumed default "celery" queue.
         "reports.send_daily_owner_report":      {"queue": "ai_scoring"},
@@ -291,6 +297,17 @@ celery_app.conf.beat_schedule = {
     "knowledge-index-sweep": {
         "task": "knowledge.sweep_all_tenants",
         "schedule": crontab(minute="7,22,37,52"),
+    },
+    # Instagram posts/reels and running ads into the knowledge base (pending approval unless the owner turned on auto-approve).
+    # Every 4 hours at :27, clear of the other jobs.
+    "knowledge-social-sync-4h": {
+        "task": "knowledge_sources.sync_all_tenants",
+        "schedule": crontab(minute="27", hour="*/4"),
+    },
+    # Re-read the website pages each workspace imported (only workspaces that switched it on). Sundays 03:47 UTC.
+    "knowledge-website-recrawl-weekly": {
+        "task": "knowledge_sources.recrawl_all_tenants",
+        "schedule": crontab(minute="47", hour="3", day_of_week="sun"),
     },
     "ical-sync-30min": {
         "task": "ical.sync_all_feeds",

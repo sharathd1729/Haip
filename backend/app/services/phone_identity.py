@@ -90,3 +90,37 @@ def normalize(raw: Optional[str], region: Optional[str] = None) -> Optional[str]
 
 def is_usable(raw: Optional[str], region: Optional[str] = None) -> bool:
     return normalize(raw, region) is not None
+
+
+# A message longer than this is not a chat message; reading only its start keeps the matcher cheap.
+_MAX_SCAN_CHARS = 4000
+
+
+def find_phones(text: Optional[str], region: Optional[str] = None) -> list[str]:
+    """Every usable phone number written in free text (a chat message), as E.164, in order, without repeats.
+
+    Uses the ``phonenumbers`` matcher at VALID leniency rather than a digit regex. The regex this replaced took the FIRST run
+    of digits and spaces and stopped there, so it failed on the messages guests actually send: a date before the number
+    ("24 10 2026 to 26 10 2026, ph 9876543210"), a date or a head count right after it ("9876543210 21/10 to 22/10",
+    "+91 9876543210 2 adults" -- the trailing digits were swallowed into one invalid 12-digit run) and dot separators
+    ("98765.43210"). The matcher finds each number on its own and rejects dates, prices ("25,000"), pincodes ("560064") and
+    long reference numbers, because none of them is a valid number for the region. Placeholders (9999999999, 1234567890)
+    are dropped like everywhere else. ``region`` is the country a number without a country code belongs to; with no region
+    only numbers written with a "+" country code are found.
+    """
+    if not text:
+        return []
+    found: list[str] = []
+    try:
+        matcher = phonenumbers.PhoneNumberMatcher(str(text)[:_MAX_SCAN_CHARS], region or "ZZ",
+                                                  leniency=phonenumbers.Leniency.VALID)
+        for match in matcher:
+            number = match.number
+            if _is_placeholder(str(number.national_number)):
+                continue
+            e164 = phonenumbers.format_number(number, phonenumbers.PhoneNumberFormat.E164)
+            if e164 not in found:
+                found.append(e164)
+    except Exception:  # noqa: BLE001 -- free text must never break message ingest
+        return found
+    return found

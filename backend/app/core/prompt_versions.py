@@ -81,7 +81,10 @@ PROMPT_VERSIONS: dict[str, str] = {
     # mode (only live figures). Knowledge-base text no longer carries prices. See the template header.
     # v14 (2026-10-18): the AI sales agent's SALES STEP block + guardrails (no booking before payment, no discount, no link),
     # nearest free dates, and inclusions / exclusions / tolls at actuals / advance on a package quote.
-    "concierge_reply": "concierge-reply-v14",   # concierge_reply.jinja
+    # v14 (2026-10-18): current data wins over the conversation -- knowledge snippets carry their "updated" date, published records
+    # beat snippets, and an earlier (possibly our own) out-of-date statement is corrected rather than repeated.
+    # v15 (2026-10-18): v14 sales agent + v14 current-data-wins merged into one version.
+    "concierge_reply": "concierge-reply-v15",   # concierge_reply.jinja
     "lost_reason":     "lost-reason-v1",        # lost_reason.jinja
     "agent_performance_narrative": "agent-performance-narrative-v1",  # agent_performance_narrative.jinja
     "agent_leads_feedback": "agent-leads-feedback-v1",  # agent_leads_feedback.jinja
