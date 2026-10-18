@@ -126,7 +126,17 @@ Errors from these endpoints look like `{"detail": {"code", "message", "problems"
 
 ## 5. Known limitations and risks
 
-- **The AI is not live-tested.** Prompts and tool schemas were checked only through mocks. Run one real audit, plan and content generation on a staging tenant before enabling the module for Ratha.
+- **Live run on demo data (18 Oct 2026, local preview, NVIDIA gpt-oss-20b with Gemini fallback):**
+  - **Audit:** ready in about 20s and read the median baseline correctly.
+  - **Carousel:** 6 slides in about 35s, grounded and price-free.
+  - **Plan:** 14 days via Gemini after NVIDIA timed out.
+  - **Bugs this exposed, now fixed:**
+    - Gemini returned 400 on `additionalProperties`/`const` in the tool schema; the schema is now reduced to Gemini's subset.
+    - A plan overran the 3,000-token output and lost its tool call; there are now per-task budgets, with 8,000 for plans.
+    - `out_of_scope` naming a banned word was refused; that list is now exempt from the check.
+    - The Studio page had a hydration mismatch (the persisted query cache); it now renders after mount.
+  - **Quality:** gpt-oss sometimes adds details not in the facts (a "fire pit"). It also wrote an odd cadence line, and once listed "Images" as out of scope. A person must still review before approving.
+  - **Still to do:** a run on the real Instagram account, since the demo numbers are synthetic.
 - **`gpt-oss-20b`** is the reliable tier, not the best writer. Quality needs review on real output.
 - **Gemini fallback:** profile and property text can reach Google when NVIDIA fails, the same tradeoff as the internal tasks.
 - **Price detector:** it also blocks "20% off" style promos in handoff workspaces. This is intentional, but owners may find it strict.

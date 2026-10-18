@@ -3,7 +3,7 @@
 // media library. Nothing is posted to Instagram from here yet. Server-side gates: module marketing_studio +
 // marketing.* capabilities; this page only mirrors them.
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import api from "@/lib/api";
@@ -23,6 +23,10 @@ export default function MarketingStudioPage() {
   const [tab, setTab] = useState("content");
   const { data: session } = useSession();
   const isOwner = session?.user?.role === "owner";
+  // The query cache is persisted to localStorage (lib/queryClient.ts), so the client can hold data the server render
+  // did not have. Render the same skeleton as the server until mounted, or React reports a hydration mismatch.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   // A cheap read that answers "is the module on and may I see it?" before rendering the tabs.
   const gate = useQuery({ queryKey: ["studio-profile"], queryFn: () => api.get(`${STUDIO}/profile`).then(r => r.data), retry: false });
   const status = (gate.error as { response?: { status?: number; data?: { detail?: unknown } } } | null)?.response;
@@ -38,7 +42,7 @@ export default function MarketingStudioPage() {
       <div className="mx-auto max-w-[1280px] space-y-5 px-4 py-5 sm:px-6">
         <PageHeader title="Marketing Studio" subtitle="Plan, write and approve Instagram content"
           actions={<Link href="/dashboard/marketing" className={btn}>Ads results</Link>} />
-        {gate.isLoading ? <Skeleton className="h-40 w-full" /> : gate.isError ? (
+        {!mounted || gate.isLoading ? <Skeleton className="h-40 w-full" /> : gate.isError ? (
           <Card>
             <EmptyState
               title={moduleOff ? "Marketing Studio is not switched on" : status?.status === 403 ? "Your role can't open Marketing Studio" : "Could not load Marketing Studio"}

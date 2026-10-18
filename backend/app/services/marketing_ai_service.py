@@ -145,6 +145,11 @@ def _is_transient(exc: Exception) -> bool:
     return (isinstance(status, int) and (status == 429 or status >= 500)) or "timeout" in name or "connection" in name
 
 
+# Output budgets per task. A two-week calendar overran 3,000 tokens on a live gpt-oss-20b run (18 Oct 2026) and the
+# tool call was cut off, so the plan gets more room.
+MAX_TOKENS = {"marketing_audit": 3000, "marketing_plan": 8000, "marketing_content": 4000}
+
+
 def _call(task: str, tenant_id: str, system: str, user: str, tool: dict) -> tuple[dict, dict, str]:
     """Run one tool-calling completion. Returns (tool input, raw response, provider)."""
     from app.adapters.llm import get_llm
@@ -152,7 +157,7 @@ def _call(task: str, tenant_id: str, system: str, user: str, tool: dict) -> tupl
     adapter = get_llm(task, tenant_id)
     loop = asyncio.new_event_loop()
     try:
-        raw = loop.run_until_complete(adapter.complete(system_prompt=system, user_message=user, max_tokens=3000, tools=[tool]))
+        raw = loop.run_until_complete(adapter.complete(system_prompt=system, user_message=user, max_tokens=MAX_TOKENS.get(task, 3000), tools=[tool]))
     except Exception as exc:  # noqa: BLE001 -- classified below
         if _is_transient(exc):
             raise LLMTransientError(f"{type(exc).__name__}: {exc}") from exc
@@ -210,7 +215,8 @@ def run_plan(db: Session, tenant_id: str, plan_id: str) -> MarketingPlan:
         usage_service.record_llm(db, tenant_id, MODULE, raw, provider=provider, ref_type="marketing_plan", ref_id=plan.id)
         body = MarketingPlanBody.model_validate(data).model_dump(mode="json")
         body["calendar"] = [e for e in body["calendar"] if plan.period_start <= e["date"] <= plan.period_end]
-        problems = content_svc.check_text(db, tenant_id, body)
+        # out_of_scope names what the account must NOT post ("cheap deals"), so it is exempt from the banned-word check.
+        problems = content_svc.check_text(db, tenant_id, {k: v for k, v in body.items() if k != "out_of_scope"})
         if problems:
             raise ValueError("; ".join(problems))
         plan.body, plan.model, plan.status, plan.error = body, raw.get("model"), "ready", None

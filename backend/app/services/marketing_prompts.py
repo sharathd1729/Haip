@@ -64,21 +64,48 @@ def rules(price_mode: str) -> dict:
     return {"price_rule": PRICE_RULE_GROUNDED if price_mode == "grounded" else PRICE_RULE_HANDOFF}
 
 
+_DROP = {"title", "default", "additionalProperties", "$defs"}
+
+
 def _schema(model) -> dict:
-    """Pydantic's JSON schema with every $ref inlined (Gemini function declarations, the fallback route, reject $ref)."""
+    """Pydantic's JSON schema reduced to the subset Gemini function declarations accept (Gemini is the fallback route).
+
+    Found on a live run (18 Oct 2026): Gemini answers 400 to `$ref`, `additionalProperties` and `const`. So refs are
+    inlined, `const` becomes a one-value `enum`, `Optional[X]` (anyOf X|null) becomes X with `nullable`, and the
+    unsupported keys are dropped. The stored result is still validated by the full Pydantic model."""
     s = model.model_json_schema()
-    defs = s.pop("$defs", {})
+    defs = s.get("$defs", {})
 
-    def inline(node):
-        if isinstance(node, dict):
-            if "$ref" in node:
-                return inline(dict(defs[node["$ref"].rsplit("/", 1)[-1]]))
-            return {k: inline(v) for k, v in node.items() if k != "title"}
-        if isinstance(node, list):
-            return [inline(x) for x in node]
-        return node
+    def clean(node: dict) -> dict:
+        if "$ref" in node:
+            return clean({**defs[node["$ref"].rsplit("/", 1)[-1]], **{k: v for k, v in node.items() if k != "$ref"}})
+        if "anyOf" in node:
+            options = [o for o in node["anyOf"] if o.get("type") != "null"]
+            if len(options) == 1:
+                out = clean(options[0])
+                if len(options) < len(node["anyOf"]):
+                    out["nullable"] = True
+                if node.get("description"):
+                    out["description"] = node["description"]
+                return out
+        out: dict = {}
+        for k, v in node.items():
+            if k in _DROP:
+                continue
+            if k == "const":
+                out["enum"] = [v]
+                out.setdefault("type", "string")
+            elif k == "properties":
+                out[k] = {name: clean(sub) for name, sub in v.items()}
+            elif k == "items" and isinstance(v, dict):
+                out[k] = clean(v)
+            elif k == "anyOf":
+                out[k] = [clean(x) for x in v]
+            else:
+                out[k] = v
+        return out
 
-    return inline(s)
+    return clean(s)
 
 
 AUDIT_TOOL = {"name": "submit_audit", "description": "Return the audit assessment.", "input_schema": _schema(AuditAssessment)}

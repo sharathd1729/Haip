@@ -332,3 +332,28 @@ def test_first_comment_goes_through_the_price_check(db, tid, item):
         svc.add_version(db, tid, item.id, {"caption": "Monsoon mornings", "first_comment": "Weekends from Rs 15,000 per night!"},
                         origin="human", actor_id="u")
     assert exc.value.code == "content_not_allowed"
+
+
+def test_tool_schemas_use_only_what_gemini_accepts():
+    """Live run 18 Oct 2026: Gemini (the fallback) answered 400 to additionalProperties / const / $ref."""
+    import json
+    from app.services import marketing_prompts as m
+    tools = [m.AUDIT_TOOL, m.PLAN_TOOL, *(m.content_tool(k) for k in ("post", "carousel", "story", "promo"))]
+    for t in tools:
+        s = json.dumps(t["input_schema"])
+        for banned in ('"$ref"', '"$defs"', '"additionalProperties"', '"const"', '"default"', '"type": "null"'):
+            assert banned not in s, (t["name"], banned)
+    sticker = m.content_tool("story")["input_schema"]["properties"]["frames"]["items"]["properties"]["sticker"]
+    assert sticker["nullable"] is True and sticker["properties"]["type"]["enum"] == ["poll", "question", "link"]
+
+
+def test_plan_out_of_scope_may_name_banned_words(db, tid):
+    tenant = db.get(__import__("app.models.tenant", fromlist=["Tenant"]).Tenant, tid)
+    tenant.brand_config = {"business_profile": {"avoid": ["cheap"]}}
+    db.commit()
+    p = MarketingPlan(tenant_id=tid, period_start="2026-11-01", period_end="2026-11-30", status="pending")
+    db.add(p)
+    db.commit()
+    with _llm({"goals": ["g"], "audience": "a", "pillars": ["Routes"], "cadence": "c", "out_of_scope": ["Cheap deal posts"]}):
+        ai.run_plan(db, tid, p.id)
+    assert p.status == "ready"
