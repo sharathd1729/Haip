@@ -244,3 +244,29 @@ def test_a_slug_belongs_to_one_workspace_and_must_be_clean(client, db, world):
     status = client.get(f"{URL}/case-study", headers=h_other).json()
     assert status["status"] == "draft" and status["snapshot"] is None                     # B never sees A's snapshot
     assert client.get("/api/v1/case-studies/Bad_Slug!").json()["status"] == "coming_soon"
+
+
+# ── units of the snapshot whitelist and the PDF formatting ───────────────────────────────────────────────────
+
+def test_public_snapshot_is_a_whitelist(client, world):
+    from app.services import impact_case_study, impact_service
+    _go_live(client, world["h_owner"])
+    client.put(f"{URL}/baselines/first_reply_median_minutes", json={"value": 240, "period_label": "Q1", "source_note": "private note"},
+               headers=world["h_owner"])
+    view = client.get(URL, headers=world["h_owner"]).json()
+    snap = impact_case_study.public_snapshot(view, brand_name="Ratha", headline=None, summary=None, include_revenue=False)
+    assert "private note" not in json.dumps(snap)
+    assert all(t["unit"] != "inr" for t in snap["tiles"])
+    with_money = impact_case_study.public_snapshot(view, brand_name="Ratha", headline=None, summary=None, include_revenue=True)
+    assert any(t["unit"] == "inr" for t in with_money["tiles"])
+    assert set(snap) == {"version", "brand_name", "headline", "summary", "go_live", "windows", "tiles", "channels", "after_hours",
+                         "includes_revenue", "measured_through"}
+    assert impact_service.BASELINE_METRICS.keys() >= {t["key"] for t in with_money["tiles"]}
+
+
+def test_pdf_formatting():
+    from app.services import impact_pdf
+    assert impact_pdf.fmt(None, "%") == "-"
+    assert impact_pdf.fmt(57.1, "%") == "57.1%"
+    assert impact_pdf.fmt(9, "minutes") == "9 min" and impact_pdf.fmt(240, "minutes") == "4.0 h"
+    assert impact_pdf.fmt(125000, "inr") == "Rs. 1,25,000"

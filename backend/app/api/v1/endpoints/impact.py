@@ -65,6 +65,7 @@ def impact_view(
                      "days": profile.window_days if profile else svc.DEFAULT_DAYS}
     view["can_edit"] = current_user.role == UserRole.OWNER
     view["can_revenue"] = _can_revenue(db, current_user)
+    view["tenant_name"] = _tenant(db, current_user).name
     return view
 
 
