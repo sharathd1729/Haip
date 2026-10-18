@@ -76,19 +76,23 @@ Key caveat: whether any of this protects production depends on the role the API 
 
 ## 2. Status matrix (module level)
 
+**Refreshed 18 Oct 2026** (head `128`, `master` at `a87934e`) from a code read for `docs/HAIP_Priority_List.md`,
+which also maps the Oct 2026 meeting ideas (ROI tool, Service SaaS, SEO/SOPs, PMS, photo QC). Rows changed since
+11 Oct say so; §3 below is still the 11 Oct detail.
+
 | ID | Module | Overall | One-line reason |
 |---|---|---|---|
-| F01 | Shared foundation | **Partial** | RBAC, flags, request IDs, retention built; RLS unproven, no metric catalogue, no key rotation, weak job alerting |
+| F01 | Shared foundation | **Partial** | RBAC, flags, request IDs, retention built; RLS unproven in prod, no key rotation, weak job alerting. *18 Oct:* shared metric layer started (`services/kpi_metrics.py`, `docs/analytics/KPI_METRIC_CATALOGUE.md`); no HAIP billing (billing page is mock data); one user = one tenant |
 | M01 | Property & owner onboarding | **Partial (thin)** | CRUD + rooms/rates/add-ons only; no owner, lifecycle, wizard, documents, completeness |
-| M02 | Marketing & acquisition | **Partial** | Meta ads sync/backfill/attribution built (this week); no UTM, rules, confidence, other channels |
-| M03 | Omnichannel comms | **Built core / Partial edges** | WA + IG inbox, templates, campaigns, opt-out; SLA timers, retention/export, dedupe test red |
+| M02 | Marketing & acquisition | **Partial** | Meta ads sync/backfill/attribution built; no UTM, rules, confidence, other channels. *18 Oct:* `organic_call` source (126); public site demo/contact forms post to routes that don't exist (no web lead capture); no SEO/GA/GBP |
+| M03 | Omnichannel comms | **Built core / Partial edges** | WA + IG inbox, templates, campaigns, opt-out, personal-WA read-only mirror; SLA timers, retention/export partial. *18 Oct:* dedupe test green (Phase 0); reply recovery does not skip personal-WA threads (send-guard gap, see priority list §2.6) |
 | M04 | IVR & telephony | **Partial** | Vobiz/Acefone/Mcube/CallerDesk adapters, missed-call callbacks, recording status; no balance/outage alerts |
 | M05 | Voice AI & call intelligence | **Built core / Partial edges** | Transcribe→analyze→score→recommend; no eval dataset, no evidence links, no rubric config |
-| M06 | AI agents & automation | **Partial** | Automation rules + flow engine + AI modes + MCP tools; no versioned/published workflows, no execution cost trace |
-| M07 | Leads & sales CRM | **Built** | Tenant stage catalog, assignment, work queue, autopilot suggestions, stage log, tests |
-| M08 | Bookings & availability | **Built core / Partial edges** | Full booking page, conflicts, iCal, PMS sync; PMS sync bugs, no reconciliation queue |
+| M06 | AI agents & automation | **Partial** | Automation rules + flow engine + AI modes + MCP tools; no versioned/published workflows, no execution cost trace. *18 Oct:* versioned business data, `sales_gateway`, package pricing, quote snapshots (124–125) built; `issue_quote` has no caller; sales-agent loop is proposal only; Increment 1 PR-2/3/4 open |
+| M07 | Leads & sales CRM | **Built** | Tenant stage catalog, assignment, work queue (My day), autopilot suggestions, stage log, tests. *18 Oct:* lead = person with a usable phone (122), stage resolution by meaning |
+| M08 | Bookings & availability | **Built core / Partial edges** | Full booking page, conflicts, iCal, calendar → booking, vehicle pool; no reconciliation queue. *18 Oct:* Hostaway/RentalWise hourly beat still dead and Hostaway never run on a real account; no multi-room inventory (`Stay` has no `room_id`) |
 | M09 | Payments & revenue | **Partial** | Ledger, schedule, deposits, Razorpay idempotent webhook; no reconciliation, no revenue-recognition definition |
-| M10 | Analytics & BI | **Partial** | Many dashboards, Ask HAIP, daily reports; no catalogue, freshness flags, exec analytics tests red |
+| M10 | Analytics & BI | **Partial** | Many dashboards, Ask HAIP, daily reports, Owner Command Center. *18 Oct:* KPI catalogue + shared metrics exist; exec analytics tests green; no before/after (go-live baseline) view; forecasting flag has no implementation |
 | M11 | Integrations & developer platform | **Built core / Partial edges** | Public API, scoped keys, signed webhooks, retry, redelivery; no sandbox, metering, partner provisioning |
 | M12 | Guest & property intelligence | **Partial** | `identity_service` + confidence weights + timeline; no unmerge, no review queue, no match-rate metrics |
 
