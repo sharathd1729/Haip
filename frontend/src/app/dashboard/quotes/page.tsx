@@ -26,7 +26,9 @@ export default function QuotesPage() {
       <Tabs label="Quotes" value={tab} onChange={v => setTab(v as Tab)}
         items={[{ value: "new", label: "New quote" }, { value: "routes", label: "Routes" }, { value: "packages", label: "Packages" }]} />
 
-      {catalog.isLoading ? (
+      {/* isPending, not isLoading: on the server the query has not started fetching, so isLoading is false there and the
+          error branch would render, then mismatch the browser's skeleton (hydration error). */}
+      {catalog.isPending ? (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
           <div className="space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-36 rounded-2xl" />)}</div>
           <Skeleton className="h-80 rounded-2xl" />
