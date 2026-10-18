@@ -54,6 +54,16 @@ export function AuditTab() {
                   ))}
                 </div>
               ) : <p className="text-sm text-[var(--haip-fg-subtle)]">Connect Instagram in Settings → Integrations. Numbers arrive after the next daily update.</p>}
+              {a.measured.baseline && (
+                <div className="mt-4 space-y-1 text-sm">
+                  <h3 className="text-[13px] font-bold">Your typical post (median of the last {a.measured.baseline.posts_counted})</h3>
+                  {a.measured.baseline.enough_signal ? (
+                    <p className="text-[var(--haip-fg-2)]">
+                      {Object.entries(a.measured.baseline.medians).filter(([, v]) => v != null).map(([k, v]) => k.replace(/_/g, " ") + " " + NUM.format(v as number)).join(" · ")}
+                    </p>
+                  ) : <p className="text-[var(--haip-fg-subtle)]">Needs at least {a.measured.baseline.min_posts} posts with numbers.</p>}
+                </div>
+              )}
             </CardBody>
           </Card>
           <Card>
@@ -64,6 +74,18 @@ export function AuditTab() {
               {a.assessment && (
                 <>
                   <p className="text-sm text-[var(--haip-fg)]">{a.assessment.summary}</p>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    {([["Stop", a.assessment.stop, "danger"], ["Keep", a.assessment.keep, "success"], ["Test", a.assessment.test, "info"]] as const).map(([label, items, tone]) => (
+                      <div key={label} className="rounded-xl border border-[var(--haip-border)] p-3">
+                        <StatusPill tone={tone}>{label}</StatusPill>
+                        {items?.length ? <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">{items.map(x => <li key={x}>{x}</li>)}</ul>
+                          : <p className="mt-2 text-sm text-[var(--haip-fg-subtle)]">Nothing yet.</p>}
+                      </div>
+                    ))}
+                  </div>
+                  {!!a.assessment.not_enough_signal?.length && (
+                    <p className="text-sm text-[var(--haip-fg-subtle)]">Not enough data yet to say: {a.assessment.not_enough_signal.join("; ")}</p>
+                  )}
                   <ul className="space-y-2">
                     {a.assessment.findings.map((f, i) => (
                       <li key={i} className="rounded-xl border border-[var(--haip-border)] p-3 text-sm">
@@ -141,7 +163,10 @@ export function PlanTab() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <div><h3 className="text-[13px] font-bold">Goals</h3><ul className="mt-1 list-disc pl-5 text-sm">{p.body.goals.map(g => <li key={g}>{g}</li>)}</ul></div>
                   <div><h3 className="text-[13px] font-bold">Themes</h3><p className="mt-1 text-sm">{p.body.pillars.join(" · ")}</p>
-                    <h3 className="mt-3 text-[13px] font-bold">Cadence</h3><p className="mt-1 text-sm">{p.body.cadence}</p></div>
+                    <h3 className="mt-3 text-[13px] font-bold">Cadence</h3><p className="mt-1 text-sm">{p.body.cadence}</p>
+                    {p.body.rotation && <><h3 className="mt-3 text-[13px] font-bold">Rotation</h3><p className="mt-1 text-sm">{p.body.rotation}</p></>}</div>
+                  {p.body.position && <div className="md:col-span-2"><h3 className="text-[13px] font-bold">In one line</h3><p className="mt-1 text-sm">{p.body.position}</p></div>}
+                  {!!p.body.out_of_scope?.length && <div className="md:col-span-2"><h3 className="text-[13px] font-bold">Not for this account</h3><p className="mt-1 text-sm">{p.body.out_of_scope.join(" · ")}</p></div>}
                 </div>
                 <ol className="divide-y divide-[var(--haip-border)] rounded-xl border border-[var(--haip-border)]">
                   {p.body.calendar.map((e, i) => (

@@ -2,6 +2,10 @@
 
 Every task answers through one tool whose input is validated again by app.schemas.marketing after it comes back,
 so a model that ignores the schema produces a recorded failure, never stored content.
+
+v2 techniques (judge against the account's own median, STOP/KEEP/TEST, "not enough signal", first comment, carousel
+slide rules, one-ask story arcs, 3-5 pillars with out-of-scope) are adapted from Ootto-AI/claude-content-skills,
+MIT licence, Copyright (c) 2026 Ootto. Notice: docs/marketing-website/THIRD_PARTY_NOTICES.md.
 """
 from app.schemas.marketing import AuditAssessment, MarketingPlanBody, CONTENT_MODELS
 
@@ -16,21 +20,42 @@ PRICE_RULE_HANDOFF = "Never mention prices, rates, discounts, percentages off or
 PRICE_RULE_GROUNDED = "Do not state any price or discount figure; prices are added by staff, not by you."
 
 AUDIT_SYSTEM = """You are a social media strategist reviewing a hospitality brand's Instagram account.
-You get MEASURED numbers from Instagram's API. Interpret them; never restate them as new numbers or invent any.
-For every finding list the measured field names (metric_keys) it is based on. If data is missing, say what is missing
-instead of guessing. Answer only by calling the tool.
-""" + _COMMON_RULES
-
-PLAN_SYSTEM = """You are a social media strategist building a content plan for a hospitality brand on Instagram.
-Produce goals, audience, 3-5 content pillars, a realistic cadence for a small team, and a dated calendar inside the
-requested period (at most one entry per day). Base it on the business facts and, when given, the audit findings.
+You get MEASURED numbers from Instagram's API, including `baseline`: the account's own median per metric and each
+post's multiple of that median (1.0 = typical for this account). Judge every post against THIS account's median,
+never against other accounts or industry benchmarks. Interpret the numbers; never restate them as new figures or
+invent any.
+- Findings: name the trait the outliers share (format, topic, hook style, length) and list the measured field names
+  (metric_keys) each finding rests on.
+- stop / keep / test: up to five short items each. "stop" = what consistently sits below median; "keep" = what
+  beats it; "test" = what the data hints at but has not proven.
+- If baseline.enough_signal is false, or a pattern is not visible in the data, put the open question in
+  not_enough_signal instead of guessing.
 Answer only by calling the tool.
 """ + _COMMON_RULES
 
+PLAN_SYSTEM = """You are a social media strategist building a content plan for a hospitality brand on Instagram.
+Produce:
+- goals, and the audience;
+- 3 to 5 pillars: themes with a point of view, not topic buckets. Six is too many; force it down;
+- position: one sentence on what someone would say the account is about after ten posts;
+- rotation: how often each pillar appears in a week; out_of_scope: what the account does not post;
+- a realistic cadence for a small team, and a dated calendar inside the requested period (at most one entry per day,
+  every entry's pillar exactly one of the pillar names).
+Base it on the business facts and, when given, the audit's stop/keep/test lists. Answer only by calling the tool.
+""" + _COMMON_RULES
+
 CONTENT_SYSTEM = """You write Instagram content for a hospitality brand. Produce exactly one piece of the requested kind.
-Captions: a strong first line, short paragraphs, one clear call to action (usually "DM us" or "link in bio").
-Hashtags: 5-15 relevant ones, no banned or spammy tags. Leave media.asset_id empty; staff pick photos.
-Write alt_text describing the kind of photo that should go with each slide or frame.
+- Caption: the first line is the only one shown before "more", so make it earn the tap; then 2-4 short lines of
+  substance; then one clear call to action (usually "DM us" or "link in bio"). No hashtags inside the caption.
+- hashtags: 5-15 relevant ones, a mix of broad, mid and niche; no banned or spammy tags.
+- first_comment: one warm question that invites replies (no link, no hashtags).
+- Carousel: slide 1 is the scroll-stopper, under 8 words; then ONE idea per slide (a headline plus at most a short
+  line); the second-to-last slide is the summary worth saving; the last slide is the single ask. If a slide needs
+  three lines, it is two slides.
+- Story: 5-7 frames: an opening worth tapping past, build, one interaction, the ask. At most ONE sticker of type
+  poll or question in the whole sequence, and the link sticker (if any) only after the value. Short text per frame,
+  and a shot_note saying what to film or photograph.
+Leave media.asset_id empty; staff pick photos. Write alt_text describing the photo each slide or frame needs.
 Answer only by calling the tool.
 """ + _COMMON_RULES
 

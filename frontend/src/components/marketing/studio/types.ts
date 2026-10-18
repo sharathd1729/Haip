@@ -28,14 +28,23 @@ export interface Finding {
   area: string; observation: string; metric_keys: string[]; recommendation: string; priority: "high" | "medium" | "low";
 }
 
+export interface Baseline {
+  posts_counted: number; enough_signal: boolean; min_posts: number; medians: Record<string, number | null>;
+  by_post: { media_id: string; media_type: string | null; multiples: Record<string, number> }[];
+  by_media_type: Record<string, { posts: number; median_reach: number | null; median_interactions: number | null }>;
+}
+
 export interface Measured {
   source: string; available: boolean; captured_at: string | null;
-  account: Record<string, number | null>; posts: Record<string, unknown>[];
+  account: Record<string, number | null>; posts: Record<string, unknown>[]; baseline?: Baseline;
 }
 
 export interface Audit {
   id: string; status: "pending" | "ready" | "failed"; error: string | null; measured: Measured;
-  assessment: { summary: string; strengths: string[]; findings: Finding[] } | null;
+  assessment: {
+    summary: string; strengths: string[]; findings: Finding[];
+    stop?: string[]; keep?: string[]; test?: string[]; not_enough_signal?: string[];
+  } | null;
   prompt_version: string | null; model: string | null; created_at: string;
 }
 
@@ -44,7 +53,10 @@ export interface CalendarEntry { date: string; kind: Kind; pillar: string; idea:
 export interface Plan {
   id: string; status: "pending" | "ready" | "failed" | "archived"; error: string | null; period_start: string; period_end: string;
   brief: string | null; audit_id: string | null; created_at: string;
-  body: { goals: string[]; audience: string; pillars: string[]; cadence: string; calendar: CalendarEntry[] } | null;
+  body: {
+    goals: string[]; audience: string; pillars: string[]; cadence: string; calendar: CalendarEntry[];
+    position?: string | null; rotation?: string | null; out_of_scope?: string[];
+  } | null;
 }
 
 export interface Asset {

@@ -5,7 +5,8 @@ import type { Kind } from "./types";
 import { inputCls, btn } from "./types";
 
 type P = Record<string, unknown>;
-type Row = Record<string, string | undefined>;
+type Sticker = { type: "poll" | "question" | "link"; text: string; options?: string[] };
+type Row = { headline?: string; body?: string; text?: string; cta?: string; shot_note?: string; sticker?: Sticker };
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -37,9 +38,20 @@ export function PayloadForm({ kind, value, onChange, disabled }: { kind: Kind; v
   const [tags, setTags] = useState(Array.isArray(value.hashtags) ? (value.hashtags as string[]).join(" ") : "");
   const listKey = kind === "carousel" ? "slides" : kind === "story" ? "frames" : null;
   const list = listKey ? rows(value[listKey]) : [];
-  const setRow = (i: number, k: string, v: string) => {
+  const setRow = (i: number, k: keyof Row, v: unknown) => {
     if (!listKey) return;
     set(listKey, list.map((r, j) => (j === i ? { ...r, [k]: v || undefined } : r)));
+  };
+  const setSticker = (i: number, type: string) => {
+    const old = list[i]?.sticker;
+    setRow(i, "sticker", type ? { type, text: old?.text ?? "", ...(type === "poll" ? { options: old?.options ?? ["Yes", "No"] } : {}) } : undefined);
+  };
+  const setPollAnswer = (i: number, k: number, v: string) => {
+    const s = list[i]?.sticker;
+    if (!s) return;
+    const o = [...(s.options ?? ["", ""])];
+    o[k] = v;
+    setRow(i, "sticker", { ...s, options: o });
   };
   const max = 10;
   const min = kind === "carousel" ? 2 : 1;
@@ -80,6 +92,24 @@ export function PayloadForm({ kind, value, onChange, disabled }: { kind: Kind; v
                 <>
                   <input className={inputCls} placeholder="Text on the frame" maxLength={120} value={r.text ?? ""} onChange={e => setRow(i, "text", e.target.value)} />
                   <input className={inputCls} placeholder="Call to action (optional)" maxLength={40} value={r.cta ?? ""} onChange={e => setRow(i, "cta", e.target.value)} />
+                  <input className={inputCls} placeholder="What to film or photograph (optional)" maxLength={200} value={r.shot_note ?? ""} onChange={e => setRow(i, "shot_note", e.target.value)} />
+                  <div className="grid gap-2 sm:grid-cols-[auto_1fr]">
+                    <select className={inputCls} aria-label="Sticker" value={r.sticker?.type ?? ""} onChange={e => setSticker(i, e.target.value)}>
+                      <option value="">No sticker</option><option value="poll">Poll</option><option value="question">Question</option><option value="link">Link</option>
+                    </select>
+                    {r.sticker && (
+                      <input className={inputCls} placeholder="Sticker text" maxLength={80} value={r.sticker.text}
+                        onChange={e => r.sticker && setRow(i, "sticker", { ...r.sticker, text: e.target.value })} />
+                    )}
+                  </div>
+                  {r.sticker?.type === "poll" && (
+                    <div className="grid grid-cols-2 gap-2">
+                      {[0, 1].map(k => (
+                        <input key={k} className={inputCls} aria-label={"Poll answer " + (k + 1)} maxLength={25}
+                          value={r.sticker?.options?.[k] ?? ""} onChange={e => setPollAnswer(i, k, e.target.value)} />
+                      ))}
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -92,6 +122,9 @@ export function PayloadForm({ kind, value, onChange, disabled }: { kind: Kind; v
         <>
           <Field label="Caption" hint={`${caption.length} / 2,200 characters`}>
             <textarea className={inputCls} rows={6} maxLength={2200} value={caption} onChange={e => set("caption", e.target.value)} />
+          </Field>
+          <Field label="First comment (optional)" hint="Posted under the post, e.g. a question that invites replies.">
+            <textarea className={inputCls} rows={2} maxLength={2200} value={str("first_comment")} onChange={e => set("first_comment", e.target.value || undefined)} />
           </Field>
           <Field label="Hashtags" hint="Separate with spaces. Up to 30.">
             <input className={inputCls} value={tags}

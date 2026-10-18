@@ -46,7 +46,7 @@ def test_generated_content_becomes_an_ai_version_and_is_metered(db, tid, item, t
         ai.run_content(db, tid, item.id, tenant_and_user["user"].id, "monsoon mood")
     db.commit()
     v = db.query(MarketingContentVersion).filter_by(content_id=item.id).one()
-    assert v.origin == "ai" and v.prompt_version == "marketing-content-v1" and v.payload["hashtags"] == ["#monsoon"]
+    assert v.origin == "ai" and v.prompt_version == "marketing-content-v2" and v.payload["hashtags"] == ["#monsoon"]
     assert v.created_by == tenant_and_user["user"].id     # the requester counts as author for the self-approval rule
     ev = db.query(UsageEvent).filter_by(tenant_id=tid, ref_id=item.id).one()
     assert (ev.kind, ev.units, ev.input_units, ev.provider) == ("llm_tokens", 1200, 900, "nvidia")
@@ -266,3 +266,69 @@ def test_migration_grants_marketing_cells_once_and_never_edits_existing_rows(db,
     assert again == {"catalogue": 0, "cells": 0}
     db.refresh(cell)
     assert cell.allowed is False
+
+
+# ── v2 prompt data: median baseline, STOP/KEEP/TEST, stories, pillars, first comment ──────────────────────────────────
+
+def test_baseline_is_the_accounts_own_median_and_each_posts_multiple():
+    posts = [{"media_id": "a", "media_type": "IMAGE", "reach": 100, "saved": 2},
+             {"media_id": "b", "media_type": "IMAGE", "reach": 300, "saved": 4},
+             {"media_id": "c", "media_type": "CAROUSEL_ALBUM", "reach": 200, "saved": None}]
+    b = ai.post_baseline(posts)
+    assert b["enough_signal"] is True and b["medians"]["reach"] == 200.0
+    assert b["medians"]["saved"] is None           # only two posts had saves: below MIN_POSTS_FOR_BASELINE
+    assert {p["media_id"]: p["multiples"]["reach"] for p in b["by_post"]} == {"a": 0.5, "b": 1.5, "c": 1.0}
+    assert b["by_media_type"]["IMAGE"]["posts"] == 2
+
+
+def test_baseline_with_too_few_posts_says_so():
+    b = ai.post_baseline([{"media_id": "a", "reach": 10}])
+    assert b["enough_signal"] is False and all(v is None for v in b["medians"].values())
+
+
+def test_audit_stores_stop_keep_test_and_open_questions(db, tid):
+    a = MarketingAudit(tenant_id=tid, measured=MEASURED, status="pending")
+    db.add(a)
+    db.commit()
+    with _llm({"summary": "s", "stop": ["Text-only quote cards"], "keep": ["Sunrise reels"], "test": ["Guest stories"],
+               "not_enough_signal": ["Whether Tuesday posts do better"]}):
+        ai.run_audit(db, tid, a.id)
+    assert a.status == "ready"
+    assert (a.assessment["stop"], a.assessment["keep"], a.assessment["test"]) == (["Text-only quote cards"], ["Sunrise reels"], ["Guest stories"])
+    assert a.assessment["not_enough_signal"] == ["Whether Tuesday posts do better"]
+
+
+@pytest.mark.parametrize("frames,ok", [
+    ([{"text": "a", "sticker": {"type": "poll", "text": "Coorg or Ooty?", "options": ["Coorg", "Ooty"]}},
+      {"text": "b", "sticker": {"type": "link", "text": "Plan yours"}}], True),
+    ([{"sticker": {"type": "poll", "text": "x", "options": ["a", "b"]}}, {"sticker": {"type": "question", "text": "y"}}], False),
+    ([{"sticker": {"type": "link", "text": "x"}}, {"sticker": {"type": "link", "text": "y"}}], False),
+    ([{"sticker": {"type": "poll", "text": "x", "options": ["only one"]}}], False),
+])
+def test_story_allows_one_interaction_and_one_link(frames, ok):
+    from pydantic import ValidationError
+    from app.schemas.marketing import validate_content
+    if ok:
+        assert validate_content("story", {"frames": frames})["frames"][0]["sticker"]["type"] == "poll"
+    else:
+        with pytest.raises(ValidationError):
+            validate_content("story", {"frames": frames})
+
+
+def test_plan_refuses_six_pillars_and_calendar_pillars_outside_the_plan(db, tid):
+    base = {"goals": ["g"], "audience": "a", "cadence": "c"}
+    for body, needle in [({**base, "pillars": [f"P{i}" for i in range(6)]}, "format"),
+                         ({**base, "pillars": ["Routes"], "calendar": [{"date": "2026-11-02", "kind": "post", "pillar": "Food", "idea": "x"}]}, "not in the plan")]:
+        p = MarketingPlan(tenant_id=tid, period_start="2026-11-01", period_end="2026-11-30", status="pending")
+        db.add(p)
+        db.commit()
+        with _llm(body):
+            ai.run_plan(db, tid, p.id)
+        assert p.status == "failed" and needle in p.error
+
+
+def test_first_comment_goes_through_the_price_check(db, tid, item):
+    with pytest.raises(svc.MarketingError) as exc:
+        svc.add_version(db, tid, item.id, {"caption": "Monsoon mornings", "first_comment": "Weekends from Rs 15,000 per night!"},
+                        origin="human", actor_id="u")
+    assert exc.value.code == "content_not_allowed"

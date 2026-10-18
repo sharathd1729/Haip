@@ -119,9 +119,11 @@ PROMPT_VERSIONS: dict[str, str] = {
     # Today (Worklist) AI Daily Briefing: cross-worklist pattern summary.
     "daily_briefing": "daily-briefing-v1",
     # Marketing Studio (services/marketing_prompts.py).
-    "marketing_audit": "marketing-audit-v1",
-    "marketing_plan": "marketing-plan-v1",
-    "marketing_content": "marketing-content-v1",
+    # v2: median baseline + stop/keep/test, pillars with position/rotation/out-of-scope, first comment and
+    # carousel/story rules (techniques from Ootto-AI/claude-content-skills, MIT; see THIRD_PARTY_NOTICES.md).
+    "marketing_audit": "marketing-audit-v2",
+    "marketing_plan": "marketing-plan-v2",
+    "marketing_content": "marketing-content-v2",
 }
 
 UNKNOWN = "unregistered"

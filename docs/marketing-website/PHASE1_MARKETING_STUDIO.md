@@ -38,6 +38,19 @@ The Studio does not post anything to Instagram.
 | Images (D2) | Uploads are decoded and re-encoded by Pillow (JPEG/PNG/WebP, ≤10 MB, ≤40 MP, EXIF/GPS stripped) and de-duplicated by sha256. Creatives are the tenant's photo plus a brand-coloured text panel (1080×1350, 1080×1080, 1080×1920). | No AI imagery in Phase 1. |
 | Usage | `usage_events` rows for LLM tokens (in/out/total, provider, model) and creative renders. | Phase 4 monetisation has history from day one. |
 
+### Prompt v2 (18 Oct 2026)
+
+`marketing-*-v2` prompts adapt techniques from Ootto-AI/claude-content-skills (MIT; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)). Each rule is enforced in the schema where it can be:
+
+| Area | Change | How it is enforced |
+|---|---|---|
+| Baseline | `measured.baseline` holds each metric's median (needs at least 3 posts), each post's multiple of it, and medians by media type | Computed in `marketing_ai_service.post_baseline()`, never by the AI. |
+| Audit | `stop`, `keep`, `test` lists, plus `not_enough_signal` for questions the data can't answer yet | Schema (at most 5 items per list). |
+| Content | `first_comment` on captioned kinds | Price and banned-word checks cover it. |
+| Carousel | Short slide 1 and one idea per slide | Prompt only. |
+| Story | `sticker` (poll/question/link) and `shot_note` per frame | Validator: at most one poll or question and one link per story; a poll needs exactly two answers. |
+| Plan | At most 5 pillars, plus `position`, `rotation`, `out_of_scope` | Validator: every calendar entry must use one of the plan's pillars. |
+
 ## 2. Implementation and migration
 
 **Migration `129_marketing_studio.py`** (head; down_revision `128`). It is idempotent.

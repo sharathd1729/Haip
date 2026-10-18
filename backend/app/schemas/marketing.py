@@ -95,6 +95,8 @@ class MediaRef(_Strict):
 class _Captioned(_Strict):
     caption: str = Field(min_length=1, max_length=CAPTION_MAX)
     hashtags: list[str] = Field(default_factory=list)
+    # Posted as the first comment (e.g. a question that invites replies); where the hashtags go is the publisher's choice.
+    first_comment: Optional[str] = Field(default=None, max_length=CAPTION_MAX)
 
     @field_validator("hashtags")
     @classmethod
@@ -128,15 +130,44 @@ class CarouselContent(_Captioned):
     slides: list[CarouselSlide] = Field(min_length=2, max_length=10)
 
 
+class StorySticker(_Strict):
+    type: Literal["poll", "question", "link"]
+    text: str = Field(min_length=1, max_length=80)
+    options: list[str] = Field(default_factory=list, max_length=2)   # poll answers
+
+    @model_validator(mode="after")
+    def _poll_options(self):
+        if self.type == "poll" and len(self.options) != 2:
+            raise ValueError("a poll needs exactly two answers")
+        if self.type != "poll" and self.options:
+            raise ValueError("only a poll has answers")
+        for o in self.options:
+            if not 1 <= len(o) <= 25:
+                raise ValueError("poll answers must be 1-25 characters")
+        return self
+
+
 class StoryFrame(_Strict):
     media: MediaRef = Field(default_factory=MediaRef)
     text: Optional[str] = Field(default=None, max_length=120)
     cta: Optional[str] = Field(default=None, max_length=40)
+    sticker: Optional[StorySticker] = None
+    shot_note: Optional[str] = Field(default=None, max_length=200)   # what to film or photograph for this frame
 
 
 class StoryContent(_Strict):
+    """One ask per sequence: at most one poll/question and at most one link sticker across all frames."""
     kind: Literal["story"] = "story"
     frames: list[StoryFrame] = Field(min_length=1, max_length=10)
+
+    @model_validator(mode="after")
+    def _one_ask(self):
+        types = [f.sticker.type for f in self.frames if f.sticker]
+        if sum(t in ("poll", "question") for t in types) > 1:
+            raise ValueError("use at most one poll or question per story sequence")
+        if types.count("link") > 1:
+            raise ValueError("use at most one link sticker per story sequence")
+        return self
 
 
 class PromoContent(_Captioned):
@@ -191,11 +222,27 @@ class AuditFinding(_Strict):
     priority: Literal["high", "medium", "low"] = "medium"
 
 
+def _short_list(v: list[str]) -> list[str]:
+    for item in v:
+        if len(item) > 200:
+            raise ValueError("each item must be at most 200 characters")
+    return [i.strip() for i in v if i.strip()]
+
+
 class AuditAssessment(_Strict):
     """AI opinion over measured data. Never holds numbers of its own: the measured snapshot is stored separately."""
     summary: str = Field(min_length=1, max_length=1500)
     strengths: list[str] = Field(default_factory=list, max_length=8)
     findings: list[AuditFinding] = Field(default_factory=list, max_length=12)
+    stop: list[str] = Field(default_factory=list, max_length=5)
+    keep: list[str] = Field(default_factory=list, max_length=5)
+    test: list[str] = Field(default_factory=list, max_length=5)
+    not_enough_signal: list[str] = Field(default_factory=list, max_length=5)   # questions the data cannot answer yet
+
+    @field_validator("strengths", "stop", "keep", "test", "not_enough_signal")
+    @classmethod
+    def _lists(cls, v):
+        return _short_list(v)
 
 
 class CalendarEntry(_Strict):
@@ -208,6 +255,17 @@ class CalendarEntry(_Strict):
 class MarketingPlanBody(_Strict):
     goals: list[str] = Field(min_length=1, max_length=6)
     audience: str = Field(min_length=1, max_length=600)
-    pillars: list[str] = Field(min_length=1, max_length=6)
+    pillars: list[str] = Field(min_length=1, max_length=5)              # more than five means no focus
+    position: Optional[str] = Field(default=None, max_length=300)       # one sentence: what the account is about
+    rotation: Optional[str] = Field(default=None, max_length=300)       # how often each pillar appears in a week
+    out_of_scope: list[str] = Field(default_factory=list, max_length=8)  # what the account does not post
     cadence: str = Field(min_length=1, max_length=200)
     calendar: list[CalendarEntry] = Field(default_factory=list, max_length=62)
+
+    @model_validator(mode="after")
+    def _pillars_known(self):
+        names = {p.strip().lower() for p in self.pillars}
+        unknown = sorted({e.pillar for e in self.calendar if e.pillar.strip().lower() not in names})
+        if unknown:
+            raise ValueError(f"calendar uses pillars that are not in the plan: {', '.join(unknown)[:200]}")
+        return self

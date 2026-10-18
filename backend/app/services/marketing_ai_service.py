@@ -83,6 +83,36 @@ _POST_FIELDS = ("media_id", "media_type", "posted_at", "like_count", "comments_c
                 "total_interactions")
 
 
+_BASELINE_METRICS = ("reach", "like_count", "comments_count", "saved", "shares", "total_interactions")
+MIN_POSTS_FOR_BASELINE = 3
+
+
+def post_baseline(posts: list[dict]) -> dict:
+    """The account's own medians, and each post's multiple of them, computed here (never by the AI).
+
+    Judging posts against the account's own median, not generic benchmarks, follows the content-audit technique in
+    Ootto-AI/claude-content-skills (MIT; docs/marketing-website/THIRD_PARTY_NOTICES.md)."""
+    from statistics import median
+
+    def med(rows: list[dict], m: str):
+        vals = [r[m] for r in rows if isinstance(r.get(m), (int, float))]
+        return float(median(vals)) if len(vals) >= MIN_POSTS_FOR_BASELINE else None
+
+    medians = {m: med(posts, m) for m in _BASELINE_METRICS}
+    by_post = []
+    for p in posts:
+        mult = {m: round(p[m] / medians[m], 2) for m in _BASELINE_METRICS
+                if medians[m] and isinstance(p.get(m), (int, float))}
+        by_post.append({"media_id": p.get("media_id"), "media_type": p.get("media_type"), "multiples": mult})
+    by_type: dict[str, dict] = {}
+    for t in sorted({p.get("media_type") for p in posts if p.get("media_type")}):
+        rows = [p for p in posts if p.get("media_type") == t]
+        by_type[t] = {"posts": len(rows), "median_reach": med(rows, "reach"),
+                      "median_interactions": med(rows, "total_interactions")}
+    return {"posts_counted": len(posts), "enough_signal": any(v is not None for v in medians.values()),
+            "min_posts": MIN_POSTS_FOR_BASELINE, "medians": medians, "by_post": by_post, "by_media_type": by_type}
+
+
 def measured_snapshot(db: Session, tenant_id: str) -> dict:
     """A frozen copy of the latest numbers the daily Instagram poller stored (instagram_insights_poll.py)."""
     from app.workers.tasks.instagram_insights_poll import InstagramInsightsSnapshot, InstagramPostSnapshot
@@ -93,13 +123,15 @@ def measured_snapshot(db: Session, tenant_id: str) -> dict:
              .order_by(InstagramPostSnapshot.posted_at.desc()).limit(12).all())
     if snap is None and not posts:
         return {"source": "instagram_graph_api", "available": False, "captured_at": None, "account": {}, "posts": []}
+    post_rows = [{f: getattr(p, f) for f in _POST_FIELDS} | {"caption": (p.caption or "")[:300]} for p in posts]
     return {
         "source": "instagram_graph_api",
         "available": True,
         "captured_at": snap.created_at.isoformat() if snap is not None and snap.created_at else None,
         "account": {f: getattr(snap, f) for f in _ACCOUNT_FIELDS} if snap is not None else {},
         "demographics": snap.demographics if snap is not None else None,
-        "posts": [{f: getattr(p, f) for f in _POST_FIELDS} | {"caption": (p.caption or "")[:300]} for p in posts],
+        "posts": post_rows,
+        "baseline": post_baseline(post_rows),
     }
 
 
@@ -153,7 +185,7 @@ def run_audit(db: Session, tenant_id: str, audit_id: str) -> MarketingAudit:
         user = f"Business facts:\n{_facts(db, tenant)}\n\nMEASURED Instagram data:\n{audit.measured}"
         data, raw, provider = _call("marketing_audit", tenant_id, _system(prompts.AUDIT_SYSTEM, tenant), user, prompts.AUDIT_TOOL)
         usage_service.record_llm(db, tenant_id, MODULE, raw, provider=provider, ref_type="marketing_audit", ref_id=audit.id)
-        known = set(_ACCOUNT_FIELDS) | set(_POST_FIELDS) | {"demographics"}
+        known = set(_ACCOUNT_FIELDS) | set(_POST_FIELDS) | {"demographics", "baseline", "medians", "multiples"}
         assessment = AuditAssessment.model_validate(data).model_dump(mode="json")
         for f in assessment["findings"]:
             f["metric_keys"] = [k for k in f["metric_keys"] if k in known]
