@@ -162,6 +162,45 @@ def test_different_numbers_stay_separate_until_a_person_links_them_and_the_link_
         identity_resolution.unmerge_guests(db, tid, event.id, actor_user_id=uid)               # not twice
 
 
+def test_a_merge_folds_two_open_threads_on_one_channel_and_unmerge_puts_them_back(db, tenant_and_user):
+    """Found live in the phone backfill: both records of one person had an OPEN Instagram conversation. Re-pointing broke
+    the one-open-per-guest-and-channel rule (migration 099) and, on PostgreSQL, aborted the rest of the merge. Now the two
+    are folded with 099's rule (keep the one with the enquiry) and undoing the merge splits them again."""
+    tid, uid = tenant_and_user["tenant"].id, tenant_and_user["user"].id
+    a = _guest(db, tid, "ig-201", name="A")
+    b = _guest(db, tid, "ig-202", name="B")
+    inq = _inquiry(db, tid, b)
+    conv_a = Conversation(id=str(uuid.uuid4()), tenant_id=tid, guest_id=a.id, channel=ChannelType.INSTAGRAM)
+    conv_b = Conversation(id=str(uuid.uuid4()), tenant_id=tid, guest_id=b.id, channel=ChannelType.INSTAGRAM, inquiry_id=inq.id)
+    db.add_all([conv_a, conv_b])
+    db.flush()
+    msgs = {}
+    for conv, text_ in ((conv_a, "hi from a"), (conv_b, "dates 24-25 Oct")):
+        m = Message(id=str(uuid.uuid4()), tenant_id=tid, conversation_id=conv.id, channel=ChannelType.INSTAGRAM,
+                    direction="inbound", body=text_)
+        db.add(m)
+        msgs[conv.id] = m.id
+    stay_prop = Property(id=str(uuid.uuid4()), tenant_id=tid, name="Ratha 1", slug=f"r-{uuid.uuid4().hex[:6]}", type="caravan")
+    db.add(stay_prop)
+    db.flush()
+    db.add(Stay(id=str(uuid.uuid4()), tenant_id=tid, guest_id=b.id, property_id=stay_prop.id,
+                check_in=date.today(), check_out=date.today() + timedelta(days=1), status="confirmed"))
+    db.commit()
+
+    event = identity_resolution.merge_guests(db, tid, a.id, b.id, actor_user_id=uid, reason="manual")
+    open_threads = db.query(Conversation).filter_by(tenant_id=tid, guest_id=a.id, channel=ChannelType.INSTAGRAM, is_open=True).all()
+    assert [c.id for c in open_threads] == [conv_b.id]                      # the thread with the enquiry is kept
+    assert {m.conversation_id for m in db.query(Message).filter(Message.id.in_(list(msgs.values())))} == {conv_b.id}
+    assert db.get(Conversation, conv_a.id).is_open is False
+    assert db.query(Stay).filter_by(tenant_id=tid, guest_id=a.id).count() == 1   # later tables were still re-pointed
+    assert event.moved["folded_conversations"] == [{"kept": conv_b.id, "closed": conv_a.id, "messages": [msgs[conv_a.id]]}]
+
+    identity_resolution.unmerge_guests(db, tid, event.id, actor_user_id=uid)
+    assert db.get(Message, msgs[conv_a.id]).conversation_id == conv_a.id     # a's message is back in a's thread
+    assert db.get(Conversation, conv_a.id).is_open is True and db.get(Conversation, conv_a.id).guest_id == a.id
+    assert db.get(Conversation, conv_b.id).guest_id == b.id and db.get(Conversation, conv_b.id).is_open is True
+
+
 def test_similar_names_alone_never_merge_anyone(db, tenant_and_user):
     tid = tenant_and_user["tenant"].id
     a = _guest(db, tid, "ig-201", name="Asha Rao")

@@ -316,8 +316,10 @@ def merge_guests(
             sig.guest_id = survivor_id
             db.add(sig)
 
-    # Re-point related entities
-    _repoint_entities(db, tenant_id, deprecated_id, survivor_id)
+    # Re-point related entities (an open conversation both guests have on one channel is folded into one first)
+    folds = _repoint_entities(db, tenant_id, deprecated_id, survivor_id)
+    if folds:
+        moved["folded_conversations"] = folds
 
     # The person was a lead / first heard from at the EARLIER of the two moments.
     if dep.lead_identified_at and (survivor.lead_identified_at is None or dep.lead_identified_at < survivor.lead_identified_at):
@@ -361,7 +363,7 @@ def recompute_lead_state(db: Session, tenant_id: str, guest) -> None:
 def unmerge_guests(db: Session, tenant_id: str, merge_event_id: str, *, actor_user_id: Optional[str]):
     """Put back what one merge moved: the deprecated guest comes back, and the identities and records that merge moved
     (and that are still on the survivor) go back to it. Records created after the merge stay where they are."""
-    from sqlalchemy import text
+    from sqlalchemy import bindparam, text
     from app.core.audit import append_audit
     from app.models.guest import Guest
     from app.models.guest_merge_event import GuestMergeEvent
@@ -387,6 +389,18 @@ def unmerge_guests(db: Session, tenant_id: str, merge_event_id: str, *, actor_us
             res = db.execute(text(f"UPDATE {table} SET guest_id = :dep WHERE id = :id AND guest_id = :sur AND tenant_id = :tid"),
                              {"dep": ev.deprecated_id, "sur": ev.survivor_id, "id": row_id, "tid": tenant_id})
             counts[table] = counts.get(table, 0) + (res.rowcount or 0)
+    # A conversation folded into the other guest's open thread gets its messages back and opens again.
+    for fold in moved.get("folded_conversations") or []:
+        try:
+            with db.begin_nested():
+                db.execute(text("UPDATE messages SET conversation_id = :closed WHERE conversation_id = :kept AND id IN :ids")
+                           .bindparams(bindparam("ids", expanding=True)),
+                           {"closed": fold["closed"], "kept": fold["kept"], "ids": fold.get("messages") or ["-"]})
+                db.execute(text("UPDATE conversations SET is_open = true WHERE id = :closed AND tenant_id = :tid"),
+                           {"closed": fold["closed"], "tid": tenant_id})
+            counts["unfolded_conversations"] = counts.get("unfolded_conversations", 0) + 1
+        except Exception as exc:  # e.g. a new open conversation on that channel since the merge: messages stay together
+            log.warning("unmerge_unfold_skip", conversation_id=fold.get("closed"), error=str(exc))
 
     dep.is_deleted, dep.deletion_state = False, "none"
     db.flush()
@@ -512,13 +526,23 @@ def _repoint_entities(
     tenant_id: str,
     deprecated_id: str,
     survivor_id: str,
-) -> None:
+) -> list[dict]:
     """
     Re-link core entities from the deprecated guest to the survivor.
     Extend this list as new entity types are added.
+
+    A guest may have only ONE open conversation per channel (ix_conversations_one_open_per_guest_channel, migration 099).
+    When both guests have one, re-pointing would break that index, so the two are folded first with migration 099's
+    rule: keep the one linked to an enquiry (the survivor's when both or neither are), move every message of the other
+    into it and close the other. Returns what was folded so unmerge_guests can put it back.
+
+    Each UPDATE runs in its own savepoint: on PostgreSQL one failed statement aborts the whole transaction, so the old
+    try/except here let a single conflict silently skip every later table (found live: a phone backfill merge where the
+    conversations UPDATE failed and the stays UPDATE then failed with InFailedSqlTransaction).
     """
     from sqlalchemy import text
 
+    folds = _fold_open_conversations(db, tenant_id, deprecated_id, survivor_id)
     tables = [
         ("inquiries",      "guest_id"),
         ("calls",          "guest_id"),
@@ -527,9 +551,38 @@ def _repoint_entities(
     ]
     for table, col in tables:
         try:
-            db.execute(
-                text(f"UPDATE {table} SET {col} = :sur WHERE {col} = :dep AND tenant_id = :tid"),
-                {"sur": survivor_id, "dep": deprecated_id, "tid": tenant_id},
-            )
+            with db.begin_nested():
+                db.execute(
+                    text(f"UPDATE {table} SET {col} = :sur WHERE {col} = :dep AND tenant_id = :tid"),
+                    {"sur": survivor_id, "dep": deprecated_id, "tid": tenant_id},
+                )
         except Exception as exc:
             log.warning("repoint_entities_skip", table=table, error=str(exc))
+    return folds
+
+
+def _fold_open_conversations(db: Session, tenant_id: str, deprecated_id: str, survivor_id: str) -> list[dict]:
+    from app.models.conversation import Conversation, Message
+
+    folds: list[dict] = []
+    dep_open = (db.query(Conversation)
+                .filter(Conversation.tenant_id == tenant_id, Conversation.guest_id == deprecated_id, Conversation.is_open.is_(True))
+                .all())
+    for dc in dep_open:
+        sc = (db.query(Conversation)
+              .filter(Conversation.tenant_id == tenant_id, Conversation.guest_id == survivor_id,
+                      Conversation.channel == dc.channel, Conversation.is_open.is_(True))
+              .first())
+        if sc is None:
+            continue
+        kept, closed = (dc, sc) if (dc.inquiry_id and not sc.inquiry_id) else (sc, dc)
+        msg_ids = [r[0] for r in db.query(Message.id).filter(Message.conversation_id == closed.id).all()]
+        if msg_ids:
+            db.query(Message).filter(Message.conversation_id == closed.id).update(
+                {Message.conversation_id: kept.id}, synchronize_session=False)
+        closed.is_open = False
+        db.add(closed)
+        db.flush()
+        folds.append({"kept": kept.id, "closed": closed.id, "messages": msg_ids})
+        log.info("merge_folded_open_conversation", tenant_id=tenant_id, kept=kept.id, closed=closed.id, messages=len(msg_ids))
+    return folds
