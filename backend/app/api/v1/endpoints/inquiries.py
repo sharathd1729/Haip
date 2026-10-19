@@ -165,6 +165,20 @@ def update_inquiry(
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
 
+    # Lead page trip fields: an empty string clears; pickup lives in custom_fields (no column of its own).
+    for k in ("route_mentioned", "special_requests"):
+        if k in updates:
+            updates[k] = updates[k].strip() or None
+            setattr(inq, k, updates.pop(k))
+    if "pickup" in updates:
+        custom = dict(inq.custom_fields or {})
+        pickup = updates.pop("pickup").strip()
+        if pickup:
+            custom["pickup"] = pickup
+        else:
+            custom.pop("pickup", None)
+        inq.custom_fields = custom
+
     # Apply remaining non-stage field updates
     for k, v in updates.items():
         if hasattr(inq, k):

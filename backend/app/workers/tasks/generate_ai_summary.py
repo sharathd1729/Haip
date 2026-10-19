@@ -557,6 +557,11 @@ def generate_ai_summary(self, inquiry_id: str, tenant_id: str):
         if analysis is not None:
             # Booking state is read from the bookings themselves, never from the model's account of them.
             analysis["booking_status"] = _booking_status_struct(db, tenant_id, inquiry)
+            # The stage this summary was written at: the lead page says "written when the lead was X" once the stage
+            # has moved on, instead of letting an old "marked lost" summary contradict a live stage.
+            stage = getattr(inquiry, "pipeline_stage", None)
+            analysis["written_stage_key"] = getattr(stage, "key", None)
+            analysis["written_at"] = datetime.now(timezone.utc).isoformat()
             inquiry.ai_analysis = analysis
         if lead_analysis is not None:
             inquiry.ai_lead_analysis = lead_analysis
