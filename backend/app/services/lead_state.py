@@ -14,10 +14,14 @@ CHANNEL_BY_SOURCE = {
     "click_to_wa": "whatsapp", "wa_direct": "whatsapp",
     "instagram": "instagram", "instagram_comment": "instagram", "instagram_dm": "instagram", "meta_ig": "instagram",
     "facebook": "facebook", "meta_fb": "facebook",
-    "ivr_call": "call", "dograh_ivr": "call", "call": "call", "phone": "call",
-    "website": "website", "web": "website",
+    "ivr_call": "call", "dograh_ivr": "call", "call": "call", "phone": "call", "inbound_call": "call", "outbound_call": "call",
+    # An inbound call with no ad behind it (InquirySource.ORGANIC_CALL): its own channel on the dashboard, "Organic calls".
+    "organic_call": "organic_call",
+    "website": "website", "web": "website", "web_form": "website", "web_chat": "website", "google": "website",
     "channel_manager": "other", "manual_booking": "other", "agent_manual": "other", "public_api": "other",
-    "google_calendar": "other", "rentalwise": "other", "hostaway": "other", "airbnb": "other",
+    "google_calendar": "other", "rentalwise": "other", "hostaway": "other", "airbnb": "other", "booking_change_guest": "other",
+    "email": "other", "walk_in": "other", "referral": "other", "travel_agent": "other",
+    "ota_airbnb": "other", "ota_booking": "other", "ota_vrbo": "other", "ota_mmt": "other", "ota_goibibo": "other",
 }
 
 # Identity types that on their own say which channel a contact arrived on.

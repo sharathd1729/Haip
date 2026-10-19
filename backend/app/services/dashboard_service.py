@@ -87,6 +87,7 @@ def needs_you_now_from(res: dict) -> dict:
     return {
         "new_leads": c["new_lead"], "new_leads_oldest_at": oldest["new_lead"],
         "waiting_reply": c["reply"], "waiting_oldest_at": oldest["reply"],
+        "not_replying": c.get("no_reply", 0), "not_replying_oldest_at": oldest.get("no_reply"),
         "missed_not_called_back": c["callback"], "missed_oldest_at": oldest["callback"],
         "followups_overdue": c["followup"], "followups_oldest_due": oldest["followup"],
         "unassigned": res.get("unowned", 0),

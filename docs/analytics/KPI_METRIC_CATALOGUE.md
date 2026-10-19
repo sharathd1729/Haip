@@ -39,6 +39,7 @@ identity match.** The moment that first became true is stored once on the guest 
 | New lead | a person whose phone number was captured in the period | people, once each, across every channel | `leads.identified_new` |
 | Lead active in the period | a lead who messaged, called or enquired in the period | people | `leads.identified_active` |
 | Qualified lead | a new lead with a non-spam enquiry in a `valid` pipeline stage, as of now | people | `leads.qualified_new` |
+| Qualified lead (owner dashboard) | a new lead with a non-spam enquiry that carries a **check-in date** (phone + date) | people | `leads.qualified_dated` |
 | Enquiry | an enquiry record (`inquiries` row); repeat enquiries from one person count each time | records | `enquiries.created` |
 | Booking | a stay record (`stays`), by its own status | records | `stays.booked` |
 | Payment | money on a stay (`stay_payments`) | amounts | `payments.collected` |
@@ -120,7 +121,22 @@ taken from the guest's earliest identity record; with nothing to go on it is lef
 - **Shared by:** the Owner Command Center (`/dashboard/business-overview`). Not yet by the other consumers listed in section 3.
 - **Tests:** `tests/api/test_business_overview.py` (counts, value, cancelled-of-created, period edges, filters, tenant isolation).
 
-### `payments.collected` — Cash collected  *(shared; evidence T)*
+### `stays.booked_value` — Booked value (rental + add-ons)  *(shared; evidence T; added 19 Oct 2026, D-24)*
+- **Definition:** for the bookings made in the period (`stays.booked`): **rental** = sum of `Stay.total_amount` (the stay
+  charge), **add-ons** = sum of `StayAddOn.quantity x unit_price` on those bookings, **booked value** = rental + add-ons.
+- **Date basis:** `Stay.created_at`, IST calendar days as UTC instants. Cancelled bookings excluded (the `stays.booked` statuses).
+- **Function:** `kpi_metrics.booked_value` / `booked_value_rows` (per booking, so property and agent splits add up).
+- **Shared by:** the owner dashboard KPI row, the monthly target card, the Caravans card and the Team card; the Targets page
+  (`sales_performance_service.pickup_report`, `agent_performance`, `property_performance`) now uses the same rental + add-ons on
+  IST days (D-24). "Holding next month" there stays the stay charge by check-in month.
+- **Tests:** `tests/services/test_owner_metrics.py`, `tests/api/test_owner_dashboard.py`, `tests/services/test_sales_performance_service.py`.
+
+### `leads.qualified_dated` — Qualified leads (phone + check-in date)  *(shared; evidence T; added 19 Oct 2026)*
+- **Definition:** of the people who became leads in the period (`leads.identified_new`), those with a non-spam enquiry that
+  carries a check-in date, as of now. A cohort, like `leads.qualified_new` (valid stage), which the journey band keeps.
+- **Function:** `lead_metrics.count_qualified_dated`. **Tests:** `tests/services/test_owner_metrics.py`.
+
+### `payments.collected` — Payment received (was "Cash collected")  *(shared; evidence T)*
 - **Definition:** payments (`StayPayment.kind = payment`) with a payment date in the period, and refunds (`kind = refund`)
   paid out in the period. Two figures, never merged; "net" is their difference and is labelled as cash, not revenue.
 - **Date basis:** `StayPayment.paid_on` (a calendar date), inclusive IST dates. Payments on cancelled stays count (the money moved).
@@ -331,6 +347,34 @@ drafts sent (`ai_draft_outcomes` `sent_verbatim` + `sent_edited`, the scorecard'
 Money (bookings value, cash collected, revenue per IST month) needs `revenue.read`; without it the tiles and the revenue block are
 `{"restricted": true}`. The public case study (`/case-studies/{slug}`) shows only an owner-published **snapshot** of these aggregates
 (no guest data; money only if the owner ticked it); until published it says "coming soon".
+
+## 15. Owner dashboard, layout A  *(19 Oct 2026)*
+
+`GET /dashboard/business-overview` returns the page in `owner` (services `owner_dashboard_attention.py`, `owner_dashboard_blocks.py`);
+the older blocks stay in the payload for other readers.
+
+| Block | Source |
+|---|---|
+| Needs attention (six cards) | the shared work queue: kind `no_reply` (D-23), flag `not_called` (a lead item whose person never had an outbound call; an unanswered attempt counts as called), kind `callback`, follow-ups flagged `open_lead` (open enquiry in a `valid` stage, not won/lost), flag `at_risk` (AI temperature hot/warm or sentiment positive, check-in in the next 30 days, no message or call for 48 h); plus live bookings checking in within 30 days that still owe money (count needs `bookings.read`, amounts `revenue.read`). The cold tail (severity `stale`) is left out, as on Home. |
+| KPI row | `leads.identified_new`, `leads.qualified_dated`, `stays.booked`, `stays.booked_value` (rental / add-ons), `payments.collected` labelled **Payment received**; each vs the equal period before, no change against 0. |
+| Monthly target | D-24 below. |
+| Check-ins and check-outs | live bookings (confirmed / checked in) with a check-in or check-out in the next 3 / 7 / 15 / 30 days (`window_days`, default 7, also drives `bookings.upcoming_checkins`). |
+| When leads want to travel | Active enquiries = open leads with a phone and a check-in date, each person once at their earliest upcoming date; Booked = confirmed stays; by check-in week (Monday weeks, 5 weeks + later). |
+| Where leads came from | `leads.identified_new` by first touch. First touch = `Guest.first_touch_channel`; a phone first touch whose first enquiry is `organic_call` reads **Organic calls**; with no first touch the first enquiry's source decides (`lead_state.CHANNEL_BY_SOURCE`, which now maps every `InquirySource`), so organic calls are never Unknown. The "Calls" filter includes organic calls. |
+| Leads by stage | enquiries created in the period by people with a phone (D-22), by the stage they are in now; Lost by `lost_reason`; unqualified (spam) counted apart. |
+| Caravans | per active property this month: `stays.booked_value` of bookings made this month, `stays.occupied_nights` this month, nights / days in month. The "Unassigned" placeholder only when it holds something. |
+| AI and calls | `sales_actions` pending, `lead_autopilot_events` suggested, calls in the period with `calls.missed_returned`. |
+| Team | per selling agent this month: target (`sales_targets` scope agent) vs achieved booked value (`agent_performance`, D-24), calls handled (`Call.agent_id`), new leads owned (`lead_metrics.by_owner`), median first reply = `replies.first_response` turns answered by that person. |
+
+**Decisions recorded 19 Oct 2026 (owner):**
+
+| Id | Decision |
+|---|---|
+| D-22 | DMs and contacts **without a phone number** are handled by the bot. The owner dashboard never counts or flags them: conversations, contacts without a phone and "guests with no phone number" are not shown there. |
+| D-23 | **Not replying** = a lead (phone) whose last message is OURS (a staff send, or an AI reply that was approved or sent on its own) and the guest has been silent 24 h or more; the lead is still open (not Sold, Lost, Unsuitable, Unqualified/spam); our message is inside the 14-day look-back. A call with them after our message clears it. Work-queue kind `no_reply`, also in My day; severity thresholds 48 h / 72 h / 5 d / 7 d (stale). |
+| D-24 | The monthly target is measured on **booked value** = rental (stay charge) + add-ons of bookings made in the month (IST days), against the tenant monthly target (`sales_targets`, scope tenant). Pace = days elapsed / days in month; "where you should be today" = target x pace. |
+
+(The open questions numbered D-22 / D-23 in `OWNER_DASHBOARD_AUDIT.md` were renumbered D-25 / D-26 so the ids stay unique.)
 
 ## 13. Decisions needed (none is assumed)
 

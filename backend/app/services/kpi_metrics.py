@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from app.models.inquiry import Inquiry
 from app.models.property import Stay
-from app.models.stay_finance import StayPayment
+from app.models.stay_finance import StayAddOn, StayPayment
 
 Bound = Union[datetime, str]
 
@@ -93,8 +93,24 @@ CANONICAL_METRICS: dict[str, dict[str, str]] = {
         "date_basis": "Stay.created_at, period bounds in UTC converted from IST calendar days",
         "function": "booking_filters / booked_totals",
     },
+    "leads.qualified_dated": {
+        "name": "Qualified leads (phone + check-in date)",
+        "definition": "Of the new leads (leads.identified_new), the people with a non-spam enquiry that carries a check-in date, as "
+                      "of now. The owner dashboard's 'Qualified leads' (19 Oct 2026); leads.qualified_new (valid stage) is kept for "
+                      "the journey band.",
+        "date_basis": "Guest.lead_identified_at (cohort), IST days as UTC instants",
+        "function": "lead_metrics.count_qualified_dated",
+    },
+    "stays.booked_value": {
+        "name": "Booked value (rental + add-ons)",
+        "definition": "For the bookings made in the period (stays.booked): rental = sum of Stay.total_amount (the stay charge), "
+                      "add-ons = sum of StayAddOn quantity x unit price on those bookings, booked value = rental + add-ons. The "
+                      "monthly target is measured on it (D-24).",
+        "date_basis": "Stay.created_at, IST calendar days as UTC instants",
+        "function": "booked_value / booked_value_rows",
+    },
     "payments.collected": {
-        "name": "Cash collected",
+        "name": "Payment received",
         "definition": "Payments received (kind payment) with a payment date in the period, and refunds (kind refund) "
                       "paid out in the period, kept as two separate figures.",
         "date_basis": "StayPayment.paid_on (a calendar date), inclusive IST dates",
@@ -261,6 +277,31 @@ def booked_totals(db: Session, tenant_id: str, start: Bound, end: Bound, **filte
         *booking_filters(tenant_id, start, end, **filters)
     ).one()
     return int(count or 0), float(value or 0)
+
+
+# ── stays.booked_value (D-24) ───────────────────────────────────────────────────────────────────────────────
+
+def booked_value_rows(db: Session, tenant_id: str, start: Bound, end: Bound, *, property_id: Optional[str] = None,
+                      extra_filters: Iterable = ()) -> list[dict]:
+    """One row per booking made in the period: {stay_id, property_id, inquiry_id, rental, add_ons}. Callers group these in Python
+    (by property, by agent) so every split adds up to ``booked_value``."""
+    conds = [*booking_filters(tenant_id, start, end, property_id=property_id), *extra_filters]
+    stays = db.query(Stay.id, Stay.property_id, Stay.inquiry_id, Stay.total_amount).filter(*conds).all()
+    if not stays:
+        return []
+    addons = dict(db.query(StayAddOn.stay_id, func.coalesce(func.sum(StayAddOn.quantity * StayAddOn.unit_price), 0))
+                  .filter(StayAddOn.tenant_id == tenant_id, StayAddOn.stay_id.in_([s[0] for s in stays]))
+                  .group_by(StayAddOn.stay_id).all())
+    return [{"stay_id": sid, "property_id": pid, "inquiry_id": iid, "rental": float(amount or 0), "add_ons": float(addons.get(sid) or 0)}
+            for sid, pid, iid, amount in stays]
+
+
+def booked_value(db: Session, tenant_id: str, start: Bound, end: Bound, **filters) -> dict:
+    """{count, rental, add_ons, total} for the bookings made in [start, end]. Empty period: zeros."""
+    rows = booked_value_rows(db, tenant_id, start, end, **filters)
+    rental = sum(r["rental"] for r in rows)
+    add_ons = sum(r["add_ons"] for r in rows)
+    return {"count": len(rows), "rental": rental, "add_ons": add_ons, "total": rental + add_ons}
 
 
 # ── payments.collected ───────────────────────────────────────────────────────────────────────────────────────
