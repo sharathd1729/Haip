@@ -24,6 +24,16 @@ _IDEMPOTENCY_KEY_MAX_LEN = 64
 _IDEMPOTENCY_WINDOW_HOURS = 24
 
 
+def _refuse_personal_bridge(conv: Conversation) -> None:
+    """409 for a thread mirrored from the read-only personal WhatsApp bridge: the agent talks to this guest on their own phone,
+    and anything sent here would go out from the official WhatsApp number instead. Internal notes are not sends."""
+    if conv is not None and conv.is_personal_bridge:
+        raise HTTPException(status_code=409, detail={
+            "code": "personal_bridge_read_only",
+            "message": "This chat is on the agent's personal WhatsApp. Reply from that phone; HAIP only mirrors it.",
+        })
+
+
 def _validate_iso_cursor(value: str, param_name: str) -> None:
     """Validate a `before` pagination cursor is a real ISO timestamp. 422s on
     a malformed cursor rather than silently returning an unfiltered (or
@@ -435,6 +445,8 @@ def send_message(
     conv = db.query(Conversation).filter_by(id=conversation_id, tenant_id=current_user.tenant_id).first()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    if not body.is_internal:
+        _refuse_personal_bridge(conv)
 
     # ── Idempotency check ─────────────────────────────────────────────────────
     idempotency_key = _extract_idempotency_key(request)
@@ -557,6 +569,7 @@ def send_template_message(
     conv = db.query(Conversation).filter_by(id=conversation_id, tenant_id=current_user.tenant_id).first()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    _refuse_personal_bridge(conv)
 
     channel = str(conv.channel.value if hasattr(conv.channel, "value") else conv.channel)
     if channel != "whatsapp":
@@ -644,6 +657,7 @@ def request_ai_draft(
     conv = db.query(Conversation).filter_by(id=conversation_id, tenant_id=current_user.tenant_id).first()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    _refuse_personal_bridge(conv)       # concierge_draft refuses it too; this answers the agent instead of a silent no-op
 
     draft_id = str(uuid.uuid4())
     concierge_draft.delay(
@@ -780,6 +794,7 @@ def retry_failed_message(
     conversation = db.query(Conversation).filter_by(
         id=conversation_id, tenant_id=current_user.tenant_id
     ).first()
+    _refuse_personal_bridge(conversation)
     channel = conversation.channel.value if conversation and hasattr(conversation.channel, "value") else (
         conversation.channel if conversation else None
     )
@@ -1098,6 +1113,7 @@ def approve_ai_draft(
     # on an Instagram (or any non-WhatsApp) conversation queued a WhatsApp send against a guest who often has no phone signal.
     # Route by the conversation's real channel and fail loudly for channels with no outbound-send task.
     conversation = db.query(Conversation).filter_by(id=conversation_id, tenant_id=tenant_id).first()
+    _refuse_personal_bridge(conversation)        # before the guarded UPDATE: the draft stays pending, nothing is claimed
     channel = conversation.channel.value if conversation and hasattr(conversation.channel, "value") else (
         conversation.channel if conversation else None
     )

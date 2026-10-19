@@ -67,6 +67,11 @@ class Conversation(Base, TimestampMixin, TenantMixin):
     # "personal_bridge" only by whatsapp_personal_service.ingest_inbound_message.
     source = Column(String(30), nullable=True)
 
+    @property
+    def is_personal_bridge(self) -> bool:
+        """Mirrored from the read-only personal WhatsApp bridge: HAIP must never reply on it from the official number."""
+        return self.source == "personal_bridge"
+
     # SLA
     first_response_at = Column(String, nullable=True)
     last_message_at = Column(String, nullable=True)
