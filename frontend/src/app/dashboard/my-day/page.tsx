@@ -17,8 +17,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ChannelBadges, toGuestChannel } from "@/components/inbox/ChannelBadges";
 import { SendQuoteButton } from "@/components/quotes/SendQuoteButton";
 import { Card, EmptyState, FilterBar, FilterChip, PageHeader, StatusPill, Tabs, type Tone } from "@/components/ui/kit";
+import { CalendarClashes } from "@/components/dashboard/today/CalendarClashes";
 
-type Kind = "callback" | "new_lead" | "reply" | "no_reply" | "followup";
+type Kind = "callback" | "new_lead" | "reply" | "no_reply" | "followup" | "clash";
 type Flag = "not_called" | "open_lead" | "at_risk";
 type Severity = "fresh" | "late" | "urgent" | "critical" | "stale";
 
@@ -49,9 +50,11 @@ const KINDS: { id: Kind; label: string }[] = [
   { id: "reply",    label: "Waiting for a reply" },
   { id: "no_reply", label: "Not replying" },
   { id: "followup", label: "Follow-ups" },
+  { id: "clash",    label: "Calendar clashes" },
 ];
 const KIND_LABEL: Record<Kind, string> = {
   new_lead: "New lead", callback: "Missed call", reply: "Waiting for a reply", no_reply: "Not replying to us", followup: "Follow-up",
+  clash: "Calendar clash",
 };
 // The owner dashboard's cards deep-link with ?flag= so the list shows exactly the people the card counted.
 const FLAG_LABEL: Record<Flag, string> = { not_called: "Not called yet", open_lead: "On active leads", at_risk: "Promising leads at risk" };
@@ -225,9 +228,12 @@ export default function MyDayPage() {
   });
 
   const filtered = (data?.items ?? []).filter(i => (kind === "all" || i.kind === kind) && (!flag || (i.flags ?? []).includes(flag)));
-  const act = filtered.filter(i => i.severity !== "stale" && i.severity !== "fresh");
-  const fresh = filtered.filter(i => i.severity === "fresh");
-  const cold = filtered.filter(i => i.severity === "stale");
+  // Calendar clashes are about the calendar, not a person: their own section, outside the people lists and the J/K cursor.
+  const clashes = filtered.filter(i => i.kind === "clash");
+  const people = filtered.filter(i => i.kind !== "clash");
+  const act = people.filter(i => i.severity !== "stale" && i.severity !== "fresh");
+  const fresh = people.filter(i => i.severity === "fresh");
+  const cold = people.filter(i => i.severity === "stale");
   // One flat order for the keyboard cursor: exactly what is on screen, top to bottom.
   const shown = useMemo(() => [...act, ...fresh, ...(showCold ? cold : [])], [act, fresh, cold, showCold]);
   const at = Math.min(cursor, Math.max(0, shown.length - 1));
@@ -316,6 +322,7 @@ export default function MyDayPage() {
                 : "Clear this filter to see everyone else."} /></Card>
           ) : (
             <>
+              <CalendarClashes items={clashes} />
               {act.length > 0 && (
                 <Section title="Past their target time" count={act.length} hint="call these first">{rows(act, offset.act)}</Section>
               )}

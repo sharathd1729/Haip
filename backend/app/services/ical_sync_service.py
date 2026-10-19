@@ -29,7 +29,7 @@ from sqlalchemy.orm import Session
 
 from app.core.encryption import decrypt_credentials
 from app.core.url_safety import safe_get
-from app.services import ical_booking_service, ical_event_details
+from app.services import ical_booking_service, ical_clash_tasks, ical_event_details
 
 log = structlog.get_logger()
 
@@ -374,6 +374,10 @@ def sync_feed(db: Session, feed, fetcher: Optional[Callable[[str], str]] = None)
         ical_booking_service.flag_over_capacity(db, feed, list(rules), today)
     db.flush()
     conflicts = sum(_flag_double_bookings(db, feed, today, pid) for pid in (properties_used or {feed.property_id}))
+    db.flush()
+    # The same check, workspace-wide: a clash task whose clash is gone (block lifted, booking cancelled or moved, vehicle
+    # renamed) is closed, and extra copies of one clash are folded into one.
+    ical_clash_tasks.close_stale(db, feed.tenant_id, today)
     feed.last_status, feed.last_error, feed.last_synced_at = "ok", None, now
     feed.last_event_count, feed.last_conflicts = len(seen), conflicts
     db.commit()
@@ -386,42 +390,30 @@ def sync_feed(db: Session, feed, fetcher: Optional[Callable[[str], str]] = None)
 
 def _flag_double_bookings(db: Session, feed, today: date, property_id: Optional[str] = None) -> int:
     """An imported reservation that overlaps a HAIP booking means two guests
-    hold the same dates. Count them and raise a task so someone sorts it out
-    (it shows on My Day) -- iCal sync has no way to stop it, only to notice.
+    hold the same dates. Count them and raise ONE task per clash (calendar block x vehicle, however many bookings it
+    overlaps) so someone sorts it out (My day lists it under "Calendar clashes") -- iCal sync has no way to stop it, only to
+    notice. The task closes itself once the clash is gone (ical_clash_tasks.close_stale, run right after this).
     An event that named no vehicle already has its own "which vehicle?" task and is not counted here."""
-    from app.models.ical_feed import ICalEventDetail
-    from app.models.property import BlockedDate, Property, Stay
     from app.models.task import Task
 
     property_id = property_id or feed.property_id
-    prop = db.query(Property).filter_by(id=property_id, tenant_id=feed.tenant_id).first()
-    pname = prop.name if prop else "property"
-    undecided = {r[0] for r in db.query(ICalEventDetail.blocked_date_id).filter_by(feed_id=feed.id, needs_vehicle=True).all()}
-    blocks = [b for b in db.query(BlockedDate).filter(
-        BlockedDate.tenant_id == feed.tenant_id, BlockedDate.property_id == property_id,
-        BlockedDate.is_active.is_(True), BlockedDate.notes.like(marker(feed.id) + "%"),
-        BlockedDate.blocked_to > today.isoformat()).all() if b.id not in undecided]
-    count = 0
-    for b in blocks:
-        clashes = db.query(Stay).filter(
-            Stay.tenant_id == feed.tenant_id, Stay.property_id == property_id,
-            Stay.status.in_(["confirmed", "checked_in"]),
-            Stay.check_in < b.blocked_to, Stay.check_out > b.blocked_from).all()
-        for stay in clashes:
-            count += 1
-            title = f"Double booking on {pname}: {feed.name} {b.blocked_from} to {b.blocked_to}"[:255]
-            if db.query(Task.id).filter_by(tenant_id=feed.tenant_id, guest_id=stay.guest_id, title=title, is_done=False).first():
-                continue
-            db.add(Task(tenant_id=feed.tenant_id, title=title, priority="high", guest_id=stay.guest_id,
-                        inquiry_id=stay.inquiry_id, due_date=datetime.now(timezone.utc)))
-            try:
-                from app.services.push_service import send_to_tenant
-                send_to_tenant(db, feed.tenant_id, title="Double booking",
-                               body=f"{feed.name} has {pname} reserved {b.blocked_from} to {b.blocked_to}, which overlaps a HAIP booking.",
-                               url="/dashboard/my-day")
-            except Exception as exc:  # noqa: BLE001  -- push is best effort
-                log.warning("ical_conflict_push_failed", error=str(exc))
-    return count
+    clashes = ical_clash_tasks.current_clashes(db, feed.tenant_id, today, feed_id=feed.id, property_ids=[property_id])
+    raised: set[str] = set()
+    for clash in clashes:
+        if clash.title in raised or db.query(Task.id).filter_by(tenant_id=feed.tenant_id, title=clash.title, is_done=False).first():
+            continue
+        raised.add(clash.title)
+        first = clash.stays[0]
+        db.add(Task(tenant_id=feed.tenant_id, title=clash.title, priority="high", guest_id=first.guest_id,
+                    inquiry_id=first.inquiry_id, due_date=datetime.now(timezone.utc)))
+        try:
+            from app.services.push_service import send_to_tenant
+            send_to_tenant(db, feed.tenant_id, title="Double booking",
+                           body=f"{feed.name} has {clash.property_name} reserved {clash.start} to {clash.end}, which overlaps a HAIP booking.",
+                           url="/dashboard/my-day")
+        except Exception as exc:  # noqa: BLE001  -- push is best effort
+            log.warning("ical_conflict_push_failed", error=str(exc))
+    return len(clashes)
 
 
 def feed_cap() -> int:

@@ -629,6 +629,12 @@ def _maybe_create_price_handoff(
     # wastes the agent's call and the guest's time.
     if not qualified and not wants_pricing:
         return
+    # A call needs a number. A guest we hold no usable phone for (an Instagram DM) is not a lead yet: the reply itself asks
+    # for the number (concierge_reply.jinja, guest_missing_phone), and the chat stays in the Inbox. Once they share it,
+    # lead_identified_at is set and their next price question raises this task.
+    if getattr(guest, "lead_identified_at", None) is None:
+        log.info("price_handoff_skipped_no_phone", tenant_id=tenant_id, conversation_id=conversation.id)
+        return
 
     existing = (
         db.query(Task)

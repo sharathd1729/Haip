@@ -11,7 +11,11 @@ answered a guest is not "waiting".
   callback   missed call nobody has returned
   reply      a lead whose last message is theirs and nobody (person or bot) has answered
   no_reply   a lead whose last message is OURS and who has been silent 24 h+ (D-23; work_queue_signals.py)
-  followup   a task someone committed to is due or overdue
+  followup   a task someone committed to is due or overdue, about a LEAD (its guest has a phone) or about nobody in particular
+  clash      a task the calendar sync raised (double booking, which vehicle, not enough vehicles): "Calendar clashes"
+
+A person who already holds a booking is a guest, not a lead: never a new_lead / no_reply, never flagged not_called / at_risk,
+but still a ``reply`` when they wrote and nobody answered (work_queue_signals.booked_guests).
 
 Each person appears ONCE, under the most specific reason (callback > new_lead > reply > no_reply), so counts are people, not
 rows. Items also carry ``flags`` (not_called, open_lead, at_risk; work_queue_signals.apply_flags) that the owner dashboard counts.
@@ -47,7 +51,7 @@ from app.services.date_presets import IST
 log = structlog.get_logger()
 
 # Display / priority order. A person shows once, under the earliest kind that applies.
-KINDS = ("callback", "new_lead", "reply", "no_reply", "followup")
+KINDS = ("callback", "new_lead", "reply", "no_reply", "followup", "clash")
 PERSON_KINDS = ("callback", "new_lead", "reply", "no_reply")
 
 # Calls older than this are a lost cause for a call-back queue; the same window the Calls screen uses.
@@ -207,8 +211,10 @@ def _open_inquiries_by_guest(db: Session, tenant_id: str, guest_ids: list[str]) 
 def human_touch(db: Session, tenant_id: str, since_by_guest: dict[str, datetime]) -> tuple[set[str], dict[str, int]]:
     """({guests a person has contacted since their own cut-off}, {guest: unanswered outbound attempts since}).
 
-    Contact = a message a human sent or approved, an outbound call that was answered, or an inbound call that was answered.
-    The AI's own autonomous replies are not contact. An unanswered outbound call is an attempt, not contact."""
+    Contact = a message a human sent or approved, an outbound call that was answered, an inbound call that was answered, or a
+    quote an agent shared from the rate calculator (sent, or copied to paste into their own WhatsApp -- the copy leaves no
+    message behind, so the quote's shared_at is the only record). The AI's own autonomous replies are not contact. An
+    unanswered outbound call is an attempt, not contact."""
     if not since_by_guest:
         return set(), {}
     ids = list(since_by_guest)
@@ -244,6 +250,23 @@ def human_touch(db: Session, tenant_id: str, since_by_guest: dict[str, datetime]
                 touched.add(call.guest_id)
         elif not call_status_service.is_missed_call(call):
             touched.add(call.guest_id)
+
+    from app.models.inquiry_360 import InquiryQuote
+    shared = (
+        db.query(Inquiry.guest_id, InquiryQuote.shared_at)
+        .join(InquiryQuote, InquiryQuote.inquiry_id == Inquiry.id)
+        .filter(
+            Inquiry.tenant_id == tenant_id,
+            InquiryQuote.tenant_id == tenant_id,
+            Inquiry.guest_id.in_(ids),
+            InquiryQuote.shared_at.isnot(None),
+            InquiryQuote.shared_at >= earliest,
+        )
+        .all()
+    )
+    for guest_id, at in shared:
+        if at and _aware(at) >= _aware(since_by_guest[guest_id]):
+            touched.add(guest_id)
     return touched, attempts
 
 
@@ -479,18 +502,42 @@ def _replies(db: Session, tenant_id: str, scope_user_id: Optional[str], now: dat
     return items
 
 
+def _lead_task_filter(db: Session, tenant_id: str, rows: list[Task]) -> list[Task]:
+    """Keep a task when it is about a LEAD (its guest, else its enquiry's or conversation's guest, has a phone:
+    ``lead_identified_at``) or about no guest at all. A task about someone we hold no number for (an Instagram DM asking the
+    price) stays on the Tasks page and in the Inbox, not on My day. Three queries for the page, none per task."""
+    from app.models.conversation import Conversation as Conv
+
+    inq_ids = {t.inquiry_id for t in rows if not t.guest_id and t.inquiry_id}
+    conv_ids = {t.conversation_id for t in rows if not t.guest_id and not t.inquiry_id and t.conversation_id}
+    via_inq = dict(db.query(Inquiry.id, Inquiry.guest_id).filter(Inquiry.tenant_id == tenant_id, Inquiry.id.in_(list(inq_ids)))
+                   .all()) if inq_ids else {}
+    via_conv = dict(db.query(Conv.id, Conv.guest_id).filter(Conv.tenant_id == tenant_id, Conv.id.in_(list(conv_ids)))
+                    .all()) if conv_ids else {}
+    who = {t.id: t.guest_id or via_inq.get(t.inquiry_id) or via_conv.get(t.conversation_id) for t in rows}
+    gids = {g for g in who.values() if g}
+    leads = {g for (g,) in db.query(Guest.id).filter(
+        Guest.tenant_id == tenant_id, Guest.id.in_(list(gids)), Guest.is_deleted.is_(False), Guest.lead_identified_at.isnot(None))
+    } if gids else set()
+    return [t for t in rows if who[t.id] is None or who[t.id] in leads]
+
+
 def _followups(db: Session, tenant_id: str, scope_user_id: Optional[str]) -> list[QueueItem]:
-    """Tasks due or overdue -- the next step someone committed to."""
+    """Tasks due or overdue -- the next step someone committed to -- about a lead or about nobody in particular (see
+    _lead_task_filter). The calendar sync's own tasks are the ``clash`` kind instead."""
+    from app.services import ical_clash_tasks
+
     now = _now()
     q = db.query(Task).filter(
         Task.tenant_id == tenant_id,
         Task.is_done.is_(False),
         Task.due_date.isnot(None),
         Task.due_date <= now + timedelta(hours=1),
+        ~ical_clash_tasks.calendar_task_sql(),
     )
     if scope_user_id:
         q = q.filter(or_(Task.assigned_to == scope_user_id, Task.assigned_to.is_(None)))
-    rows = q.order_by(Task.due_date.asc()).limit(MAX_PER_KIND).all()
+    rows = _lead_task_filter(db, tenant_id, q.order_by(Task.due_date.asc()).limit(MAX_PER_KIND * 3).all())[:MAX_PER_KIND]
     owners = _names(db, tenant_id, {t.assigned_to for t in rows if t.assigned_to})
     items = []
     for t in rows:
@@ -534,6 +581,7 @@ def build(db: Session, tenant: Tenant, scope_user_id: Optional[str], kinds: Opti
     counted once), ``kinds`` only narrows the ``items`` returned."""
     wanted = [k for k in (kinds or KINDS) if k in KINDS]
     now = _now()
+    today = datetime.now(IST).date()
 
     by_kind: dict[str, list[QueueItem]] = {
         "callback": _callbacks(db, tenant),
@@ -541,7 +589,13 @@ def build(db: Session, tenant: Tenant, scope_user_id: Optional[str], kinds: Opti
         "reply": _replies(db, tenant.id, scope_user_id, now),
         "no_reply": work_queue_signals.no_replies(db, tenant.id, scope_user_id, now),
         "followup": _followups(db, tenant.id, scope_user_id),
+        "clash": work_queue_signals.calendar_items(db, tenant.id, scope_user_id, now, today),
     }
+    # Someone who already booked is a guest, not a lead to chase (still a "reply" if they wrote and nobody answered).
+    booked = work_queue_signals.booked_guests(
+        db, tenant.id, [i.guest_id for k in ("new_lead", "reply", "no_reply") for i in by_kind[k]], today)
+    for kind in ("new_lead", "no_reply"):
+        by_kind[kind] = [i for i in by_kind[kind] if i.guest_id not in booked]
     _dedupe_people(by_kind)
 
     for kind in PERSON_KINDS:
@@ -551,15 +605,15 @@ def build(db: Session, tenant: Tenant, scope_user_id: Optional[str], kinds: Opti
 
     all_items = [i for k in KINDS for i in by_kind[k]]
     all_items.sort(key=_sort_key)
-    flags = work_queue_signals.apply_flags(db, tenant.id, all_items, now, datetime.now(IST).date())
+    flags = work_queue_signals.apply_flags(db, tenant.id, all_items, now, today, frozenset(booked))
     counts = {k: len(by_kind[k]) for k in KINDS}
     oldest = {
         k: _iso(min((i.since for i in by_kind[k] if i.since), key=_aware, default=None))
         for k in KINDS
     }
     people = {i.guest_id for i in all_items if i.guest_id}
-    no_guest = sum(1 for i in all_items if not i.guest_id)
-    severity = {s: sum(1 for i in all_items if i.severity == s) for s in SEVERITIES}
+    no_guest = sum(1 for i in all_items if not i.guest_id and i.kind != "clash")   # a calendar clash is not a person
+    severity = {s: sum(1 for i in all_items if i.severity == s and i.kind != "clash") for s in SEVERITIES}   # people's SLAs
     return {
         "counts": counts,
         "oldest": oldest,

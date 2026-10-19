@@ -29,7 +29,7 @@ function item(patch: Record<string, unknown>) {
 function queue(items: ReturnType<typeof item>[]) {
   const sev = { fresh: 0, late: 0, urgent: 0, critical: 0, stale: 0 } as Record<string, number>;
   items.forEach(i => { sev[i.severity as string] += 1; });
-  const counts = { new_lead: 0, callback: 0, reply: 0, no_reply: 0, followup: 0 } as Record<string, number>;
+  const counts = { new_lead: 0, callback: 0, reply: 0, no_reply: 0, followup: 0, clash: 0 } as Record<string, number>;
   items.forEach(i => { counts[i.kind as string] += 1; });
   return { counts, oldest: { new_lead: null, callback: null, reply: null, followup: null }, severity: sev, total: items.length, people: items.length, unowned: items.filter(i => !i.owner_id).length, items, scope: "team" };
 }
@@ -124,5 +124,24 @@ describe("My day", () => {
     expect(screen.getByText("Not replying to us")).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: "Show everyone" }));
     expect(await screen.findByText("Rohan")).toBeTruthy();
+  });
+
+  it("lists calendar clashes in their own section, with dates, vehicle and a link to that calendar day", async () => {
+    get.mockResolvedValue({ data: queue([
+      item({ title: "Karan", severity: "urgent", since: ago(150) }),
+      item({ kind: "clash", title: "Double booking on Ratha 1: Google 2026-10-21 to 2026-10-22", action: "Open",
+             detail: "Two bookings hold the same dates on this vehicle", inquiry_id: null, guest_id: null, guest_phone: null,
+             channels: [], severity: "critical", facts: ["21 Oct – 22 Oct", "Ratha 1"],
+             href: "/dashboard/portfolio/calendar?date=2026-10-21&property=p1" }),
+    ]) });
+    renderPage();
+    const link = (await screen.findByText("Double booking on Ratha 1: Google 2026-10-21 to 2026-10-22")).closest("a");
+    expect(screen.getByRole("heading", { name: /Calendar clashes/ })).toBeTruthy();
+    expect(link?.getAttribute("href")).toBe("/dashboard/portfolio/calendar?date=2026-10-21&property=p1");
+    expect(screen.getByText("21 Oct – 22 Oct")).toBeTruthy();
+    expect(screen.getByText("Ratha 1")).toBeTruthy();
+    // The clash is not one of the people past their target time.
+    expect(screen.getByText("Past their target time").parentElement?.textContent).toContain("1");
+    expect(screen.getByRole("button", { name: /Calendar clashes/ })).toBeTruthy();
   });
 });
