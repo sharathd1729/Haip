@@ -29,7 +29,9 @@ function row(id: string, name: string, veh: "r1" | "r2", inOff: number, outOff: 
     ...extra,
   };
 }
-const UPCOMING = [row("b1", "Neha Kulkarni", "r1", 1, 3), row("b2", "Manisha Rao", "r2", 2, 3)];
+const UPCOMING = [row("b1", "Neha Kulkarni", "r1", 1, 3),
+  row("b2", "Manisha Rao", "r2", 2, 3, { payment_overdue: true, total_outstanding: 9590, total_paid: 60410 })];   // an instalment is past due
+const CANCELLED = [row("b4", "Sharat Kumar", "r2", 5, 7, { raw_status: "cancelled", total_paid: 0, total_outstanding: 0, payment_status: "unpaid" })];
 const STAYING = [row("b3", "Arjun Menon", "r2", -1, 1, { raw_status: "checked_in", deposit: { amount: 10000, status: "held" }, total_paid: 70000, total_outstanding: 0, payment_status: "paid" })];
 
 function detail(id: string) {
@@ -50,9 +52,9 @@ function api(url: string, cfg?: { params?: Record<string, unknown> }) {
   if (url === "/bookings/summary") return { data: { month: T.slice(0, 7), today: T, bookings: 3, by_vehicle: [], booked_value: 210000, collected: 140000, still_due: 70000, overdue: 0 } };
   if (url === "/bookings/occupancy") return { data: { today: T, from: T, to: addDays(T, 14), days: 14, vehicles: [] } };
   if (url === "/bookings") {
-    let rows = p.segment === "staying" ? STAYING : p.segment === "upcoming" ? UPCOMING : [];
+    let rows = p.segment === "staying" ? STAYING : p.segment === "upcoming" ? UPCOMING : p.segment === "cancelled" ? CANCELLED : [];
     if (p.property_id) rows = rows.filter(r => String(p.property_id).split(",").includes(r.property.id));
-    const counts = { upcoming: UPCOMING.length, staying: STAYING.length, past: 0, cancelled: 0 };
+    const counts = { upcoming: UPCOMING.length, staying: STAYING.length, past: 0, cancelled: CANCELLED.length };
     return { data: { data: rows, meta: { current_page: 1, last_page: 1, per_page: 50, total: rows.length, from: 1, to: rows.length, today: T, segment_counts: counts } } };
   }
   if (url.startsWith("/bookings/")) {
@@ -76,26 +78,67 @@ beforeEach(() => {
   window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }) as never;
 });
 
-describe("Bookings agenda", () => {
-  it("shows check-ins and check-outs by day, with the check-out of the guest staying now and the money chips", async () => {
+const card = (name: string) => screen.getByRole("button", { name: new RegExp(`^Open ${name}`) }).closest("article") as HTMLElement;
+
+describe("Bookings cards by date", () => {
+  it("shows one card per booking under its check-in day, never separate check-in and check-out rows", async () => {
     renderPage();
-    expect(await screen.findByRole("button", { name: /Check-in: Neha Kulkarni/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Check-out: Arjun Menon/ })).toBeTruthy();
-    expect(screen.getAllByText("staying now").length).toBe(1);
-    expect(screen.getAllByText("Collect ₹35,000").length).toBe(2);                 // Neha and Manisha check in owing money
-    expect(screen.getByText("Return ₹10,000 deposit")).toBeTruthy();               // Arjun hands back the caravan
+    expect(await screen.findByRole("button", { name: /^Open Neha Kulkarni/ })).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: /^Open Neha Kulkarni/ })).toHaveLength(1);    // a 2-night booking appears once
+    expect(screen.queryByText(/Check-out/)).toBeNull();
+    expect(screen.queryByText(/Arjun Menon/)).toBeNull();                                     // staying now is its own tab
+    const day1 = screen.getByRole("region", { name: new RegExp(`^Tomorrow`) });
+    expect(within(day1).getByText(/Neha Kulkarni/)).toBeTruthy();
+    expect(within(day1).queryByText(/Manisha Rao/)).toBeNull();                               // she checks in the day after
+    expect(within(card("Neha Kulkarni")).getByText(/· 2 nights/)).toBeTruthy();
+    expect(within(card("Neha Kulkarni")).getByText(/₹35,000 due/)).toBeTruthy();
     expect(screen.getByRole("tab", { name: /Upcoming/ }).textContent).toContain("2");
     expect(document.querySelector('a[href^="tel:"], a[href*="wa.me"]')).toBeNull();
   });
 
+  it("day groups flow across columns, each group its heading with its cards stacked, in date order", async () => {
+    renderPage();
+    await screen.findByRole("button", { name: /^Open Neha Kulkarni/ });
+    const grid = screen.getByTestId("card-groups");
+    expect(grid.className).toContain("grid-cols-[repeat(auto-fill,minmax(min(100%,330px),1fr))]");
+    const groups = Array.from(grid.children) as HTMLElement[];
+    expect(groups.map(g => g.getAttribute("aria-label"))).toEqual([expect.stringMatching(/^Tomorrow/), expect.stringMatching(/^[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2}$/)]);
+    expect(within(groups[0]).getAllByRole("article")).toHaveLength(1);           // Neha, under her own day
+    expect(within(groups[1]).getByText("Manisha Rao")).toBeTruthy();
+  });
+
+  it("an overdue booking says overdue on its card, not just due", async () => {
+    renderPage();
+    await screen.findByRole("button", { name: /^Open Manisha Rao/ });
+    const m = card("Manisha Rao");
+    expect(within(m).getByText("₹9,590 overdue")).toBeTruthy();
+    expect(within(m).getByText("Overdue")).toBeTruthy();
+    expect((within(m).getByRole("button", { name: "Collect from Manisha Rao" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("staying now shows one card per stay; cancelled shows the amount struck through", async () => {
+    renderPage();
+    await screen.findByRole("button", { name: /^Open Neha Kulkarni/ });
+    await userEvent.click(screen.getByRole("tab", { name: /Staying/ }));
+    const trip = await screen.findByRole("region", { name: "On a trip now" });
+    expect(within(trip).getAllByRole("button", { name: /^Open / })).toHaveLength(1);
+    expect(within(card("Arjun Menon")).getByText("Paid in full")).toBeTruthy();
+    expect((within(card("Arjun Menon")).getByRole("button", { name: /nothing to collect/ }) as HTMLButtonElement).disabled).toBe(true);
+    await userEvent.click(screen.getByRole("tab", { name: /Cancelled/ }));
+    await screen.findByRole("button", { name: /^Open Sharat Kumar/ });
+    const struck = within(card("Sharat Kumar")).getByTestId("cancelled-total");
+    expect(struck.tagName).toBe("S");
+    expect(struck.textContent).toBe("₹70,000");
+  });
+
   it("the Filters sheet narrows the list", async () => {
     renderPage();
-    await screen.findByRole("button", { name: /Check-in: Neha Kulkarni/ });
+    await screen.findByRole("button", { name: /^Open Neha Kulkarni/ });
     await userEvent.click(screen.getByRole("button", { name: "Filters" }));
     await userEvent.click(await screen.findByRole("button", { name: "Ratha 2" }));
     await userEvent.click(screen.getByRole("button", { name: "Show bookings" }));
-    await waitFor(() => expect(screen.queryByRole("button", { name: /Check-in: Neha Kulkarni/ })).toBeNull());
-    expect(screen.getByRole("button", { name: /Check-in: Manisha Rao/ })).toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole("button", { name: /^Open Neha Kulkarni/ })).toBeNull());
+    expect(screen.getByRole("button", { name: /^Open Manisha Rao/ })).toBeTruthy();
     expect(get).toHaveBeenCalledWith("/bookings", expect.objectContaining({ params: expect.objectContaining({ property_id: "r2", segment: "upcoming" }) }));
     expect(screen.getByRole("button", { name: "Filters, 1 on" })).toBeTruthy();
   });
@@ -103,7 +146,7 @@ describe("Bookings agenda", () => {
   it("opens a booking with Call through HAIP, never a tel: link", async () => {
     post.mockResolvedValue({ data: { status: "initiated" } });
     renderPage();
-    await userEvent.click(await screen.findByRole("button", { name: /Check-in: Neha Kulkarni/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Open Neha Kulkarni/ }));
     const sheet = await screen.findByRole("dialog");
     expect(await within(sheet).findByRole("heading", { name: "Stay" })).toBeTruthy();
     expect(within(sheet).getByText(/Coorg 48-hour Retreat · 2 nights/)).toBeTruthy();
@@ -117,7 +160,7 @@ describe("Bookings agenda", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     // As restored from the persisted cache before hydration: the server never has this, so the first client render must ignore it.
     client.setQueryData(["bookings-summary"], api("/bookings/summary").data);
-    client.setQueryData(["bookings", "agenda", "upcoming", {}], { pages: [api("/bookings", { params: { segment: "upcoming" } }).data], pageParams: [1] });
+    client.setQueryData(["bookings", "cards", "upcoming", {}], { pages: [api("/bookings", { params: { segment: "upcoming" } }).data], pageParams: [1] });
     const ui = <QueryClientProvider client={client}><BookingsPage /></QueryClientProvider>;
     const html = renderToString(ui);
     expect(html).not.toContain('role="alert"');
@@ -131,7 +174,7 @@ describe("Bookings agenda", () => {
     const mismatch = errors.mock.calls.filter(c => /hydrat|did not match/i.test(String(c[0])));
     errors.mockRestore();
     expect(mismatch).toEqual([]);
-    expect(await within(host).findByRole("button", { name: /Check-in: Neha Kulkarni/ })).toBeTruthy();
+    expect(await within(host).findByRole("button", { name: /^Open Neha Kulkarni/ })).toBeTruthy();
     host.remove();
   });
 

@@ -1,10 +1,12 @@
 "use client";
-// Bookings, layout B · Agenda: this month's figures, Upcoming / Staying now / Past / Cancelled, search + one Filters sheet, the
-// next 14 days of each caravan, then each day's check-ins and check-outs in time order. A booking opens beside the list from
-// 1100px (kept in ?b= so a link or reload opens the same one) and full screen on a phone.
+// Bookings (CRM), layout A · Cards by date: this month's figures, Upcoming / Staying now / Past / Cancelled, search + one Filters
+// sheet, the next 14 days of each caravan, then ONE card per booking under its check-in day (never separate check-in and
+// check-out rows: that agenda view, components/bookings/agenda/AgendaDays, is reserved for the Ops module). A booking opens
+// beside the list from 1100px (kept in ?b= so a link or reload opens the same one) and full screen on a phone.
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { Download, Plus, SlidersHorizontal, X } from "@/lib/icons";
 import api from "@/lib/api";
@@ -13,19 +15,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, FilterSearch, PageHeader, Tabs } from "@/components/ui/kit";
 import { MonthSummary } from "@/components/bookings/agenda/MonthSummary";
 import { OccupancyStrip } from "@/components/bookings/agenda/OccupancyStrip";
-import { AgendaDays } from "@/components/bookings/agenda/AgendaDays";
+import { BookingCards } from "@/components/bookings/cards/BookingCards";
 import { FiltersSheet } from "@/components/bookings/agenda/FiltersSheet";
 import { BookingFullSheet, BookingSidePane, useIsPaneWide } from "@/components/bookings/agenda/BookingPane";
 import { WhatsAppSheet } from "@/components/bookings/WhatsAppSheet";
+import { CollectSheet } from "@/components/bookings/CollectSheet";
 import { useGuestCall } from "@/components/bookings/useGuestCall";
 import { PAYMENT_STYLE, STATUS_STYLE } from "@/lib/bookings";
 import {
-  NO_FILTERS, SEGMENTS, buildEvents, filterCount, filterParams, guestName, todayIST, useHydrated, vehicleSlot,
+  NO_FILTERS, SEGMENTS, canEditBookings, filterCount, filterParams, guestName, todayIST, useHydrated, vehicleSlot,
   type AgendaList, type AgendaRow, type Filters, type Segment,
 } from "@/lib/bookingAgenda";
 
 const PER_PAGE = 50;
-const NO_ROWS: AgendaRow[] = [];
 // The Owner Command Center deep-links here with ?quick=..., so a figure opens the bookings it counted.
 const QUICK_SEGMENT: Record<string, Segment> = { upcoming: "upcoming", current: "staying", past: "past" };
 const outlineBtn = "inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-[var(--haip-border)] bg-[var(--haip-card)] px-3.5 text-[13.5px] font-semibold text-[var(--haip-fg-2)] hover:bg-[var(--haip-surface)] disabled:opacity-40 md:min-h-10";
@@ -35,10 +37,12 @@ function csvCell(v: unknown): string {
   return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
 }
 
-function BookingsAgenda() {
+function BookingsList() {
   const router = useRouter();
   const params = useSearchParams();
   const call = useGuestCall();
+  const { data: session } = useSession();
+  const canEdit = canEditBookings(session?.user?.role);
   const guestId = params.get("guest") ?? "";
   const quick = params.get("quick") ?? "";
   const initialQ = params.get("q") ?? params.get("phone") ?? "";
@@ -51,6 +55,7 @@ function BookingsAgenda() {
   const [showFilters, setShowFilters] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [waFor, setWaFor] = useState<string | null>(null);
+  const [collectFor, setCollectFor] = useState<string | null>(null);
   const [picked, setPicked] = useState(params.get("b") ?? "");
   const wide = useIsPaneWide();
   // Every query-driven branch waits for hydration: the server and the first client render then match even when the persisted
@@ -82,7 +87,7 @@ function BookingsAgenda() {
   };
   const sort = segment === "past" || segment === "cancelled" ? "check_in" : "check_in_asc";
   const list = useInfiniteQuery<AgendaList>({
-    queryKey: ["bookings", "agenda", segment, base],
+    queryKey: ["bookings", "cards", segment, base],
     queryFn: ({ pageParam }) => api.get("/bookings", {
       params: { ...base, segment, sort, page: pageParam, per_page: PER_PAGE, counts: pageParam === 1 || undefined },
     }).then(r => r.data),
@@ -91,21 +96,11 @@ function BookingsAgenda() {
     placeholderData: keepPreviousData,
     staleTime: 20_000,
   });
-  // Upcoming also shows when the guests staying now hand the caravan back.
-  const staying = useQuery<AgendaList>({
-    queryKey: ["bookings", "agenda-staying", base],
-    queryFn: () => api.get("/bookings", { params: { ...base, segment: "staying", sort: "check_in_asc", per_page: 100 } }).then(r => r.data),
-    enabled: segment === "upcoming",
-    staleTime: 20_000,
-  });
-
   const pending = !hydrated || list.isPending;
   const first = pending ? undefined : list.data?.pages[0];
   const rows = useMemo(() => (pending ? [] : list.data?.pages.flatMap(p => p.data) ?? []), [pending, list.data]);
-  const stayingRows = (hydrated && segment === "upcoming" && staying.data?.data) || NO_ROWS;
   const today = first?.meta.today ?? todayIST();
   const counts = first?.meta.segment_counts;
-  const events = useMemo(() => buildEvents(rows, segment, stayingRows), [rows, segment, stayingRows]);
   const nFilters = filterCount(filters) + (needsProperty ? 1 : 0);
   const filtered = !!(debounced || nFilters || guestId);
   const slotOf = (r: AgendaRow) => vehicleSlot(r.property?.name, vehicleNames);
@@ -146,7 +141,7 @@ function BookingsAgenda() {
   return (
     <div className="flex h-full min-h-0 bg-[var(--haip-bg,var(--background))]">
       <div className="min-w-0 flex-1 overflow-y-auto">
-        <div className="mx-auto grid max-w-[980px] gap-3.5 px-4 pb-14 pt-4 sm:px-6">
+        <div className="mx-auto grid max-w-[1280px] gap-3.5 px-4 pb-14 pt-4 sm:px-6">
           <PageHeader title="Bookings"
             actions={<>
               <button type="button" onClick={exportCsv} disabled={exporting || pending || !rows.length} className={cn(outlineBtn, "max-sm:hidden")}>
@@ -187,13 +182,13 @@ function BookingsAgenda() {
 
           <div aria-busy={pending} aria-live="polite">
             {pending ? (
-              <div className="grid gap-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-[74px] rounded-[14px]" />)}</div>
+              <div className="grid gap-3 sm:grid-cols-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[170px] rounded-2xl" />)}</div>
             ) : list.isError ? (
               <div className="haip-card">
                 <EmptyState title="Could not load bookings" hint="Check your connection and try again."
                   action={<button type="button" onClick={() => list.refetch()} className={outlineBtn}>Try again</button>} />
               </div>
-            ) : events.length === 0 ? (
+            ) : rows.length === 0 ? (
               <div className="haip-card">
                 <EmptyState
                   title={filtered ? `No ${segLabel} match` : segment === "staying" ? "Nobody is on a trip right now" : `No ${segLabel}`}
@@ -202,9 +197,9 @@ function BookingsAgenda() {
               </div>
             ) : (
               <>
-                <AgendaDays events={events} today={today} selectedId={picked} slotOf={slotOf} onOpen={open}
-                  onCall={r => r.main_guest?.phone && call.mutate({ phone: r.main_guest.phone, name: guestName(r).split(" ")[0] })}
-                  onWhatsApp={setWaFor} />
+                <BookingCards rows={rows} segment={segment} today={today} selectedId={picked} paneOpen={!!(wide && picked)}
+                  canCollect={canEdit} slotOf={slotOf} onOpen={open} onWhatsApp={setWaFor} onCollect={setCollectFor}
+                  onCall={r => r.main_guest?.phone && call.mutate({ phone: r.main_guest.phone, name: guestName(r).split(" ")[0] })} />
                 {list.hasNextPage && (
                   <div className="mt-3 flex justify-center">
                     <button type="button" onClick={() => list.fetchNextPage()} disabled={list.isFetchingNextPage} className={outlineBtn}>
@@ -223,6 +218,7 @@ function BookingsAgenda() {
 
       <FiltersSheet open={showFilters} onClose={() => setShowFilters(false)} value={filters} onApply={setFilters} vehicles={vehicles} />
       {waFor && <WhatsAppSheet bookingId={waFor} open onClose={() => setWaFor(null)} />}
+      {collectFor && <CollectSheet bookingId={collectFor} open onClose={() => setCollectFor(null)} />}
     </div>
   );
 }
@@ -230,7 +226,7 @@ function BookingsAgenda() {
 export default function BookingsPage() {
   return (
     <Suspense fallback={<div className="p-6"><Skeleton className="h-10 w-48" /></div>}>
-      <BookingsAgenda />
+      <BookingsList />
     </Suspense>
   );
 }
