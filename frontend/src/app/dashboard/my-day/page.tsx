@@ -18,7 +18,8 @@ import { ChannelBadges, toGuestChannel } from "@/components/inbox/ChannelBadges"
 import { SendQuoteButton } from "@/components/quotes/SendQuoteButton";
 import { Card, EmptyState, FilterBar, FilterChip, PageHeader, StatusPill, Tabs, type Tone } from "@/components/ui/kit";
 
-type Kind = "callback" | "new_lead" | "reply" | "followup";
+type Kind = "callback" | "new_lead" | "reply" | "no_reply" | "followup";
+type Flag = "not_called" | "open_lead" | "at_risk";
 type Severity = "fresh" | "late" | "urgent" | "critical" | "stale";
 
 interface Item {
@@ -27,6 +28,8 @@ interface Item {
   owner_id: string | null; owner_name: string | null;
   channels: string[]; since: string | null; overdue: boolean;
   severity: Severity; attempts: number; facts: string[]; has_draft: boolean;
+  /** Owner-dashboard marks from the same queue: never called, follow-up on an open lead, promising lead at risk. */
+  flags?: Flag[];
 }
 interface Queue {
   counts: Record<Kind, number>;
@@ -44,11 +47,14 @@ const KINDS: { id: Kind; label: string }[] = [
   { id: "new_lead", label: "New leads" },
   { id: "callback", label: "Missed calls" },
   { id: "reply",    label: "Waiting for a reply" },
+  { id: "no_reply", label: "Not replying" },
   { id: "followup", label: "Follow-ups" },
 ];
 const KIND_LABEL: Record<Kind, string> = {
-  new_lead: "New lead", callback: "Missed call", reply: "Waiting for a reply", followup: "Follow-up",
+  new_lead: "New lead", callback: "Missed call", reply: "Waiting for a reply", no_reply: "Not replying to us", followup: "Follow-up",
 };
+// The owner dashboard's cards deep-link with ?flag= so the list shows exactly the people the card counted.
+const FLAG_LABEL: Record<Flag, string> = { not_called: "Not called yet", open_lead: "On active leads", at_risk: "Promising leads at risk" };
 
 const SEVERITY: Record<Severity, { label: string; tone: Tone; stripe: string }> = {
   fresh:    { label: "New",          tone: "info",    stripe: "shadow-[inset_3px_0_0_var(--haip-status-info-fg)]" },
@@ -201,6 +207,8 @@ export default function MyDayPage() {
   const [kind, setKind] = useState<Kind | "all">(
     initial && KINDS.some(k => k.id === initial) ? initial : "all",
   );
+  const flag0 = params0.get("flag") as Flag | null;
+  const [flag, setFlag] = useState<Flag | null>(flag0 && flag0 in FLAG_LABEL ? flag0 : null);
   const [cursor, setCursor] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -216,7 +224,7 @@ export default function MyDayPage() {
     refetchOnWindowFocus: true,
   });
 
-  const filtered = (data?.items ?? []).filter(i => kind === "all" || i.kind === kind);
+  const filtered = (data?.items ?? []).filter(i => (kind === "all" || i.kind === kind) && (!flag || (i.flags ?? []).includes(flag)));
   const act = filtered.filter(i => i.severity !== "stale" && i.severity !== "fresh");
   const fresh = filtered.filter(i => i.severity === "fresh");
   const cold = filtered.filter(i => i.severity === "stale");
@@ -285,6 +293,12 @@ export default function MyDayPage() {
             </FilterChip>
           ))}
         </FilterBar>
+        {flag && (
+          <p className="flex flex-wrap items-center gap-2 text-[13px] text-[var(--haip-fg-2)]">
+            Showing only: <StatusPill tone="brand">{FLAG_LABEL[flag]}</StatusPill>
+            <button type="button" onClick={() => setFlag(null)} className="min-h-11 rounded-lg px-2 font-semibold text-primary hover:underline lg:min-h-0">Show everyone</button>
+          </p>
+        )}
 
         <div ref={listRef} className="space-y-5">
           {isError ? (

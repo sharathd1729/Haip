@@ -9,10 +9,10 @@ import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import api from "@/lib/api";
-import { PeriodBar, PERIOD_PRESETS, usePersistedPeriod } from "@/components/dashboard/PeriodBar";
+import { PeriodBar, PERIOD_PRESETS, useDashboardPeriod } from "@/components/dashboard/PeriodBar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
-import { TodayStrip } from "@/components/dashboard/today/TodayStrip";
+import { TodayStrip, istDay } from "@/components/dashboard/today/TodayStrip";
 import { WaitingForYou } from "@/components/dashboard/today/WaitingForYou";
 import { KpiTiles } from "@/components/dashboard/home/KpiTiles";
 import { RevenueChart, LeadFunnel, TeamTable, LeadSources, AiNoticed } from "@/components/dashboard/home/Panels";
@@ -43,18 +43,21 @@ export function OperationsHome() {
   const qc = useQueryClient();
   const { toast } = useToast();
 
-  const [range, setRange] = usePersistedPeriod("last_7d");
+  // Today on every load, like the owner view; a pick is kept only for this tab's session (useDashboardPeriod).
+  const [range, setRange] = useDashboardPeriod();
   const [channel, setChannel] = useState("");
 
-  // The channel is remembered per device too (the period is remembered by usePersistedPeriod, shared with the owner view).
+  // The channel, too, is kept only for this tab's session, never per device (a filter silently left on a phone made its
+  // numbers look wrong next to the laptop's).
   useEffect(() => {
     try {
-      const saved = JSON.parse(window.localStorage.getItem("haip_dashboard_filters") || "{}");
+      window.localStorage.removeItem("haip_dashboard_filters");
+      const saved = JSON.parse(window.sessionStorage.getItem("haip_dashboard_filters") || "{}");
       if (CHANNELS.some(c => c.value === saved.channel)) setChannel(saved.channel);
     } catch { /* storage unavailable: keep defaults */ }
   }, []);
   useEffect(() => {
-    try { window.localStorage.setItem("haip_dashboard_filters", JSON.stringify({ channel })); } catch { /* ignore */ }
+    try { window.sessionStorage.setItem("haip_dashboard_filters", JSON.stringify({ channel })); } catch { /* ignore */ }
   }, [channel]);
   const [agentId, setAgentId] = useState("");
   const rangeLabel = RANGES.find(r => r.value === range)?.label ?? "";
@@ -63,8 +66,8 @@ export function OperationsHome() {
   if (channel) params.channel = channel;
   if (isOwnerView && agentId) params.agent_id = agentId;
 
-  const { data, isLoading, isError } = useQuery<OverviewResponse>({
-    queryKey: ["dashboard-overview", params],
+  const { data, isPending, isError } = useQuery<OverviewResponse>({
+    queryKey: ["dashboard-overview", istDay(0), params],
     queryFn: () => api.get("/dashboard/overview", { params }).then(r => r.data),
     staleTime: 30_000,
     refetchInterval: 60_000,
@@ -126,7 +129,7 @@ export function OperationsHome() {
           <div className="haip-card p-8 text-center text-sm text-[var(--haip-fg-muted)]">
             Couldn't load the dashboard. Check your connection and refresh.
           </div>
-        ) : isLoading || !data ? (
+        ) : isPending || !data ? (
           <div className="space-y-4">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-32" />)}</div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-24" />)}</div>

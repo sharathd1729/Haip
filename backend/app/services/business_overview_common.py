@@ -38,6 +38,7 @@ class Params:
     can_bookings: bool
     can_revenue: bool
     trend: str = "day"             # chart bucket: day | week | month
+    window_days: int = 7           # check-ins / check-outs window: 3 | 7 | 15 | 30 days from today
 
 
 def normalise_channel(raw: Optional[str]) -> Optional[str]:

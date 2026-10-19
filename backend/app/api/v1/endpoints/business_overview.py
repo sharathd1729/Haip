@@ -32,6 +32,7 @@ def business_overview(
     property_id: Optional[str] = Query(None),
     agent_id: Optional[str] = Query(None, description="Owner/manager only: narrow to one agent's leads"),
     trend: str = Query("day", pattern="^(day|week|month)$", description="Trend chart bucket"),
+    window_days: int = Query(7, description="Check-ins / check-outs from today: 3, 7, 15 or 30 days"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     _cap=Depends(require_capability("analytics.read")),
@@ -47,6 +48,8 @@ def business_overview(
         raise HTTPException(status_code=422, detail="date_from and date_to are required for a custom range")
     if d_from > d_to:
         raise HTTPException(status_code=422, detail="date_from must not be after date_to")
+    if window_days not in svc.WINDOW_DAYS:
+        raise HTTPException(status_code=422, detail="window_days must be 3, 7, 15 or 30")
     try:
         channel_key = svc.normalise_channel(channel)
     except ValueError as exc:
@@ -65,7 +68,7 @@ def business_overview(
         property_id=property_id or None, channel=channel_key,
         scope_user_id=(agent_id or None) if tenant_wide else current_user.id,
         tenant_wide=tenant_wide,
-        can_bookings="bookings.read" in caps, can_revenue="revenue.read" in caps, trend=trend,
+        can_bookings="bookings.read" in caps, can_revenue="revenue.read" in caps, trend=trend, window_days=window_days,
     )
     tenant = db.query(Tenant).filter_by(id=tid).first()
     return svc.build(db, params, tenant)
