@@ -69,13 +69,18 @@ const ROUTE_LABELS: Record<string, string> = {
   "whatsapp-personal": "Personal WhatsApp",
 };
 
+// Whole paths whose name is not their last segment's ("/new" alone says nothing).
+const PATH_LABELS: Record<string, string> = {
+  "/dashboard/bookings/new": "New booking",
+};
+
 function PageTitle() {
   const pathname = usePathname();
   const segments = pathname.split("/").filter(Boolean);
   // Dynamic-id routes (/dashboard/leads/{inquiryId}, /dashboard/calls/{id}, ...) have no label for their last segment
   // (a raw id); walk back to the nearest labelled ancestor instead of showing the id. The page body names the record.
-  let label: string | undefined;
-  for (let i = segments.length - 1; i >= 0; i--) {
+  let label: string | undefined = PATH_LABELS[pathname.replace(/\/$/, "")];
+  for (let i = segments.length - 1; i >= 0 && !label; i--) {
     label = ROUTE_LABELS[segments[i]];
     if (label) break;
   }

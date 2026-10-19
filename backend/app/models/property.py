@@ -150,6 +150,8 @@ class Stay(Base, TimestampMixin, TenantMixin):
     check_out_time = Column(String(5), nullable=True)
     internal_notes = Column(Text, nullable=True)         # staff-only, never shown to the guest
     concierge_notes = Column(Text, nullable=True)        # migration 111: handover notes for the on-site team
+    # Migration 150: the GST slab the booking total was priced with in the new-booking flow (NULL = the invoice profile's).
+    gst_percent = Column(Numeric(5, 2), nullable=True)
 
     guest = relationship("Guest", back_populates="stays")
     property = relationship("Property", back_populates="stays")

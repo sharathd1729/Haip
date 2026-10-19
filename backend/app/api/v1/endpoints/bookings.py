@@ -403,12 +403,20 @@ def create_booking(
     if check_out_date < check_in_date:
         raise HTTPException(status_code=422, detail="check_out cannot be before check_in")
 
+    # A real clash is refused (owner decision, Oct 2026): by pickup/return time when both bookings have times, else by date.
+    times = {"check_in_time": payload.check_in_time, "check_out_time": payload.check_out_time}
     if payload.property_id:
         prop = db.query(Property).filter_by(id=payload.property_id, tenant_id=tenant_id).first()
         if not prop:
             raise HTTPException(status_code=404, detail="Property not found")
+        if payload.status in bsvc.ACTIVE_STATUSES:
+            conflicts = bsvc.find_conflicts(db, tenant_id, prop.id, check_in_date, check_out_date, **times)
+            if conflicts:
+                from app.services import booking_clash
+                raise HTTPException(status_code=409, detail=booking_clash.refuse_message(
+                    db, tenant_id, prop, conflicts, check_in_date, check_out_date, payload.check_in_time, payload.check_out_time))
     else:
-        prop = bsvc.pick_free_property(db, tenant_id, check_in_date, check_out_date)
+        prop = bsvc.pick_free_property(db, tenant_id, check_in_date, check_out_date, **times)
         if prop is None:
             raise HTTPException(status_code=409, detail="Every vehicle is already booked or blocked on these dates")
 
@@ -527,10 +535,14 @@ def update_booking(
     # Double-booking guard: only when the dates/property moved (or a cancelled
     # booking is being revived) and the booking will hold the dates.
     new_status = payload.status if payload.status is not None else stay.status
-    moved = (new_property_id, new_check_in, new_check_out) != (stay.property_id, stay.check_in, stay.check_out)
+    ci_t = (payload.check_in_time or None) if payload.check_in_time is not None else stay.check_in_time
+    co_t = (payload.check_out_time or None) if payload.check_out_time is not None else stay.check_out_time
+    moved = (new_property_id, new_check_in, new_check_out, ci_t, co_t) != (
+        stay.property_id, stay.check_in, stay.check_out, stay.check_in_time, stay.check_out_time)
     revived = stay.status not in bsvc.ACTIVE_STATUSES and new_status in bsvc.ACTIVE_STATUSES
     if (moved or revived) and new_status in bsvc.ACTIVE_STATUSES and not payload.force:
-        conflicts = bsvc.find_conflicts(db, tenant_id, new_property_id, new_check_in, new_check_out, exclude_stay_id=stay.id)
+        conflicts = bsvc.find_conflicts(db, tenant_id, new_property_id, new_check_in, new_check_out, exclude_stay_id=stay.id,
+                                        check_in_time=ci_t, check_out_time=co_t)
         if conflicts:
             raise HTTPException(status_code=409, detail={
                 "code": "date_conflict",
