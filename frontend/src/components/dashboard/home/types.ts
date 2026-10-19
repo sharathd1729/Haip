@@ -27,6 +27,8 @@ export interface OverviewResponse {
 export interface NeedsYouNow {
   new_leads: number; new_leads_oldest_at: string | null;
   waiting_reply: number; waiting_oldest_at: string | null;
+  /** Leads whose last message is ours, silent 24 h+ (work-queue kind no_reply). */
+  not_replying?: number; not_replying_oldest_at?: string | null;
   missed_not_called_back: number; missed_oldest_at: string | null;
   followups_overdue: number; followups_oldest_due: string | null;
   /** New leads nobody owns. */

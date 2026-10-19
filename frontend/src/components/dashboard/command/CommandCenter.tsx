@@ -1,7 +1,10 @@
 "use client";
-// Owner Command Center: the landing page for owners and managers. Composes ONE server response
-// (GET /dashboard/business-overview); nothing on this page computes a business figure.
-import { useEffect, useMemo, useState } from "react";
+// Owner dashboard, layout A ("Action first", approved 19 Oct 2026; mock-up docs/design/dashboard-mockup/dashboard.html). The landing
+// page for owners and managers. Composes ONE server response (GET /dashboard/business-overview, its `owner` block); nothing on this
+// page computes a business figure. Order: what needs a person now, this period's numbers, the month's target next to arrivals,
+// demand / sources / stages, caravans next to AI and calls, the team, then Since HAIP. Every block renders on a phone too (no
+// block hides behind a tab), and the period starts on Today on every load (PeriodBar.useDashboardPeriod).
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
@@ -9,33 +12,33 @@ import api from "@/lib/api";
 import { AlertTriangle, RefreshCw } from "@/lib/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
+import { useBusinessType } from "@/components/providers/WorkspaceProvider";
 import { AiNoticed } from "@/components/dashboard/home/Panels";
-import { Acquisition } from "./Acquisition";
-import { AttentionStrip } from "./AttentionStrip";
-import { Breakdowns } from "./Breakdowns";
-import { ChannelPanels } from "./ChannelPanels";
-import { KpiGrid } from "./KpiGrid";
-import { LeadFlow } from "./LeadFlow";
-import { SinceHaip } from "./SinceHaip";
-import { Team } from "./Team";
+import { istDay } from "@/components/dashboard/today/TodayStrip";
+import { PeriodBar, PERIOD_PRESETS, useDashboardPeriod, type PeriodValue } from "../PeriodBar";
 import { Controls, type Filters } from "./Controls";
-import { PeriodBar, usePersistedPeriod, type PeriodValue } from "../PeriodBar";
-import { periodLabel } from "./types";
-import { JourneyBand } from "./JourneyBand";
-import { Ledger } from "./Ledger";
-import { Trends } from "./Trends";
-import { TodayStrip } from "@/components/dashboard/today/TodayStrip";
-import { WaitingForYou } from "@/components/dashboard/today/WaitingForYou";
-import { isRestricted, type BusinessOverview } from "./types";
+import { LeadsRowCards } from "./LeadsRow";
+import { NeedsAttention } from "./NeedsAttention";
+import { AiCallsCard, CaravansCard, TeamCard } from "./OpsRow";
+import { OwnerKpis } from "./OwnerKpis";
+import { SinceHaip } from "./SinceHaip";
+import { ArrivalsCard, TargetCard } from "./TargetAndArrivals";
+import { periodLabel, type BusinessOverview } from "./types";
+import type { OwnerBlock } from "./owner";
 
-const INITIAL: Filters = { preset: "this_month", customFrom: "", customTo: "", channel: "", propertyId: "", agentId: "", trend: "day" };
+const INITIAL: Filters = { preset: "today", customFrom: "", customTo: "", channel: "", propertyId: "", agentId: "", trend: "day" };
+export type Overview = BusinessOverview & { owner?: OwnerBlock };
 
 function greeting() {
   const h = new Date().getHours();
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
 
-export function useBusinessOverview(f: Filters, enabled = true) {
+/** The overview query. The key carries the workspace and the IST day as well as the filters, so a cached answer can never be
+ *  shown for another workspace or for yesterday's "Today" (and the query is never written to the persisted cache). */
+export function useBusinessOverview(f: Filters, windowDays = 7, enabled = true) {
+  const { data: session } = useSession();
+  const tenant = (session?.user as { tenantId?: string } | undefined)?.tenantId ?? "";
   const custom = f.preset === "custom";
   const ready = !custom || (!!f.customFrom && !!f.customTo && f.customFrom <= f.customTo);
   const params = {
@@ -45,9 +48,10 @@ export function useBusinessOverview(f: Filters, enabled = true) {
     ...(f.propertyId ? { property_id: f.propertyId } : {}),
     ...(f.agentId ? { agent_id: f.agentId } : {}),
     ...(f.trend !== "day" ? { trend: f.trend } : {}),
+    ...(windowDays !== 7 ? { window_days: windowDays } : {}),
   };
-  return useQuery<BusinessOverview>({
-    queryKey: ["business-overview", params],
+  return useQuery<Overview>({
+    queryKey: ["business-overview", tenant, istDay(0), params],
     queryFn: () => api.get("/dashboard/business-overview", { params }).then(r => r.data),
     enabled: enabled && ready,
     placeholderData: keepPreviousData,        // changing a filter keeps the old numbers on screen, dimmed, until the new ones land
@@ -74,12 +78,10 @@ export function overviewProblem(error: unknown): { title: string; body: string; 
 
 function Loading() {
   return (
-    <div className="space-y-5" aria-busy="true" aria-label="Loading the business overview">
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">{[0, 1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-24" />)}</div>
+    <div className="space-y-4" aria-busy="true" aria-label="Loading the owner dashboard">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">{[0, 1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-44" />)}</div>
       <Skeleton className="h-28 w-full" />
-      <Skeleton className="h-44 w-full" />
-      <Skeleton className="h-72 w-full" />
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3"><Skeleton className="h-72 lg:col-span-2" /><Skeleton className="h-72" /></div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2"><Skeleton className="h-56" /><Skeleton className="h-56" /></div>
     </div>
   );
 }
@@ -87,16 +89,20 @@ function Loading() {
 export function CommandCenter() {
   const { data: session } = useSession();
   const firstName = (session?.user?.name || "").split(" ")[0];
-  const role = session?.user?.role ?? "";
+  const caravan = useBusinessType() === "caravan";
   const [filters, setFilters] = useState<Filters>(INITIAL);
-  const [remembered, remember] = usePersistedPeriod("this_month");
-  // The remembered period applies once it has been read from this device; "custom" is never remembered.
-  useEffect(() => { setFilters(f => (f.preset === "custom" || f.preset === remembered ? f : { ...f, preset: remembered })); }, [remembered]);
-  const pickPeriod = (v: string) => { setFilters(f => ({ ...f, preset: v })); if (v !== "custom") remember(v as PeriodValue); };
+  const [period, setPeriod] = useDashboardPeriod();
+  const [windowDays, setWindowDays] = useState(7);
+  const preset = filters.preset === "custom" ? "custom" : period;
+  const effective = { ...filters, preset };
+  const pickPeriod = (v: string) => {
+    if (v === "custom") setFilters(f => ({ ...f, preset: "custom" }));
+    else { setFilters(f => ({ ...f, preset: v })); setPeriod(v as PeriodValue); }
+  };
   const qc = useQueryClient();
   const { toast } = useToast();
 
-  const { data, error, isLoading, isError, isFetching, isPlaceholderData, refetch } = useBusinessOverview(filters);
+  const { data, error, isPending, isError, isFetching, isPlaceholderData, refetch } = useBusinessOverview(effective, windowDays);
   const tenantWide = data?.access.tenant_wide ?? true;
 
   const { data: properties = [] } = useQuery<{ id: string; name: string }[]>({
@@ -111,16 +117,20 @@ export function CommandCenter() {
     onError: () => toast({ variant: "error", title: "Couldn't dismiss that insight", description: "Try again." }),
   });
   const asOf = useMemo(() => (data ? new Date(data.generated_at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" }) : null), [data]);
+  const presetLabel = preset === "custom" ? "Custom" : PERIOD_PRESETS.find(p => p.value === preset)?.label ?? "";
+  const range = data ? periodLabel(data.period.date_from, data.period.date_to) : "";
+  const periodText = data ? `${presetLabel} · ${range}` : presetLabel;
+  const owner = data?.owner;
 
   return (
     <div className="h-full overflow-y-auto bg-[var(--haip-bg,var(--background))]">
       <div className="mx-auto max-w-[1360px] space-y-3 px-3 py-2.5 sm:space-y-5 sm:px-6 sm:py-5">
         <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-1 sm:gap-y-2">
-          <div>
+          <div className="min-w-0">
             <h1 className="font-[family-name:var(--font-display)] text-xl font-semibold tracking-tight text-[var(--haip-fg)] sm:text-[26px]">
               {greeting()}{firstName ? `, ${firstName}` : ""}
             </h1>
-            <p className="mt-0.5 hidden text-[13px] text-[var(--haip-fg-subtle)] sm:block">Leads, bookings and revenue across the business.</p>
+            <p className="mt-0.5 text-[13px] text-[var(--haip-fg-subtle)]">{periodText}. What needs you first, then the numbers.</p>
           </div>
           <div className="flex items-center gap-3 text-xs text-[var(--haip-fg-subtle)]" aria-live="polite">
             {isFetching && <span className="inline-flex items-center gap-1.5"><RefreshCw size={13} className="motion-safe:animate-spin" aria-hidden />Updating…</span>}
@@ -129,17 +139,10 @@ export function CommandCenter() {
           </div>
         </header>
 
-        {/* Today first (what is happening on the ground, who is waiting), then the period numbers. */}
-        <TodayStrip role={role} />
-        <WaitingForYou role={role} />
-        {tenantWide && <SinceHaip />}
-
-        <h2 className="sr-only">Business numbers</h2>
-        <PeriodBar custom value={filters.preset} onChange={pickPeriod}
-          caption={data ? <><span className="font-semibold text-[var(--haip-fg-2)]">{periodLabel(data.period.date_from, data.period.date_to)}</span><span className="hidden sm:inline"> · India time (IST), full days · compared with the equal period before it</span><span className="sm:hidden"> · IST · vs the period before</span></> : undefined} />
-
-        <Controls value={filters} onChange={setFilters} properties={properties} agents={agents}
-          from={data?.period.date_from} to={data?.period.date_to} tenantWide={tenantWide} />
+        <PeriodBar custom value={preset} onChange={pickPeriod}
+          caption={data ? <><span className="font-semibold text-[var(--haip-fg-2)]">{range}</span><span> · India time (IST), full days</span></> : undefined} />
+        <Controls value={effective} onChange={next => { setFilters(next); if (next.preset !== "custom" && next.preset !== period) setPeriod(next.preset as PeriodValue); }}
+          properties={properties} agents={agents} from={data?.period.date_from} to={data?.period.date_to} tenantWide={tenantWide} />
 
         {isError && data && (
           <p role="alert" className="flex items-start gap-2 rounded-lg border border-[var(--haip-status-warning-border)] bg-[var(--haip-status-warning-bg)] px-3 py-2 text-[13px] text-[var(--haip-status-warning-fg)]">
@@ -163,20 +166,27 @@ export function CommandCenter() {
               </div>
             </div>
           );
-        })() : isLoading || !data ? (
+        })() : isPending || !data ? (
           <Loading />
+        ) : !owner ? (
+          <div className="haip-card px-6 py-8 text-center text-[13px] text-[var(--haip-fg-2)]" role="alert">
+            This dashboard needs the latest server update. <button type="button" onClick={() => refetch()} className="font-semibold text-primary underline">Try again</button>
+          </div>
         ) : (
           <div className={isPlaceholderData ? "space-y-4 opacity-60 motion-safe:transition-opacity motion-safe:duration-150 sm:space-y-5" : "space-y-4 motion-safe:transition-opacity motion-safe:duration-150 sm:space-y-5"}>
-            <KpiGrid data={data} />
-            <LeadFlow data={data} />
-            <AttentionStrip data={data} />
-            <JourneyBand data={data} />
-            <Ledger data={data} />
-            <Trends data={data} trend={filters.trend} onTrend={trend => setFilters(f => ({ ...f, trend }))} />
-            <Breakdowns data={data} />
-            <Acquisition data={data} />
-            {data.agents && <Team rows={data.agents} />}
-            <ChannelPanels ready={!isPlaceholderData} />
+            <NeedsAttention cards={owner.attention} />
+            <OwnerKpis kpis={owner.kpis} period={periodText} />
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <TargetCard target={owner.target} />
+              <ArrivalsCard movements={owner.movements} windowDays={windowDays} onWindow={setWindowDays} pending={isPlaceholderData} />
+            </div>
+            <LeadsRowCards owner={owner} sources={data.sources} period={periodText} />
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <CaravansCard caravans={owner.caravans} caravan={caravan} />
+              <AiCallsCard data={owner.ai_calls} period={presetLabel} />
+            </div>
+            <TeamCard team={owner.team} />
+            {tenantWide && <SinceHaip />}
             {data.insights.length > 0 && <AiNoticed insights={data.insights} onDismiss={id => dismiss.mutate(id)} dismissing={dismiss.isPending ? dismiss.variables : null} />}
             <Definitions data={data} />
           </div>
@@ -186,21 +196,22 @@ export function CommandCenter() {
   );
 }
 
-function Definitions({ data }: { data: BusinessOverview }) {
+function Definitions({ data }: { data: Overview }) {
   const rows = [
     ["Lead", data.leads.definition],
-    ["Counts", "Leads are people we hold a phone number for (each counted once, whichever channel they used); enquiries are records, and one person can have several. They are never added together."],
-    ["Journey", data.funnel.note],
-    ...(!isRestricted(data.bookings) ? [["Bookings", data.bookings.basis]] : []),
-    ...(!isRestricted(data.revenue) ? [["Revenue", data.revenue.basis]] : []),
+    ["Not counted", "DMs and contacts without a phone number are handled by the AI; this page never counts or flags them."],
+    ["Qualified", "A new lead who has given a check-in date (phone + date)."],
+    ["Booked value", "Rental (the stay charge) plus add-ons of the bookings made in the period. The monthly target is measured on it."],
+    ["Payment received", "Payments with a payment date in the period; refunds are kept apart."],
+    ["Not replying", "A lead whose last message is ours (a person’s, or the AI’s once sent) and who has been silent for 24 hours or more."],
     ["Time", "Every period is whole India (IST) days. Comparisons use the equal-length period immediately before."],
   ];
   return (
     <details className="haip-card px-5 py-3 text-[13px] text-[var(--haip-fg-2)] sm:px-6">
-      <summary className="cursor-pointer rounded py-3 font-semibold lg:py-2 text-[var(--haip-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">How these numbers are defined</summary>
+      <summary className="cursor-pointer rounded py-3 font-semibold text-[var(--haip-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 lg:py-2">How these numbers are defined</summary>
       <dl className="mt-3 space-y-2">
         {rows.map(([k, v]) => (
-          <div key={k} className="grid grid-cols-1 gap-x-4 sm:grid-cols-[7rem_1fr]">
+          <div key={k} className="grid grid-cols-1 gap-x-4 sm:grid-cols-[8rem_1fr]">
             <dt className="font-semibold text-[var(--haip-fg)]">{k}</dt>
             <dd className="text-[var(--haip-fg-subtle)]">{v}</dd>
           </div>

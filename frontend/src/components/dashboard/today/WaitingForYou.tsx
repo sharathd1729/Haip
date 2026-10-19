@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { GuestAvatar } from "@/components/crm/GuestAvatar";
 import { AvatarChannelBadges, toGuestChannel } from "@/components/inbox/ChannelBadges";
 
-type Kind = "callback" | "new_lead" | "reply" | "followup";
+type Kind = "callback" | "new_lead" | "reply" | "no_reply" | "followup";
 type Severity = "fresh" | "late" | "urgent" | "critical" | "stale";
 interface Item {
   kind: Kind; title: string; detail: string; action: string; href: string; guest_id: string | null;
@@ -20,7 +20,7 @@ interface Item {
 }
 interface Queue { total: number; severity: Record<Severity, number>; items: Item[] }
 
-const KIND: Record<Kind, string> = { new_lead: "New lead", callback: "Missed call", reply: "Waiting for a reply", followup: "Follow-up due" };
+const KIND: Record<Kind, string> = { new_lead: "New lead", callback: "Missed call", reply: "Waiting for a reply", no_reply: "Not replying to us", followup: "Follow-up due" };
 const LATE = new Set<Severity>(["late", "urgent", "critical"]);
 
 function wait(iso: string | null): string {

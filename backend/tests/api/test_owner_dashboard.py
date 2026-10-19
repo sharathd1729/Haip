@@ -20,6 +20,7 @@ from app.models.property import Property, Stay
 from app.models.sales_target import SalesTarget
 from app.models.stay_finance import StayAddOn, StayPayment
 from app.models.user import UserRole
+from app.services import owner_dashboard_attention, owner_dashboard_blocks
 from app.services.date_presets import IST
 from tests.api.test_business_overview import URL, _agent_scorecard, _stage, _tenant, _user  # noqa: F401 (autouse fixture: SQLite stand-in for the PG-only scorecard)
 
@@ -139,7 +140,22 @@ def test_the_check_in_window_is_a_parameter(client, shop, window, expected):
     assert first["guest"] == "Buyer" and first["property"] == "Ratha 1" and first["kind"] == "check_in"
 
 
+def test_when_leads_want_to_travel_counts_open_dated_leads_and_booked_stays_by_week(client, shop):
+    tr = _owner(client, shop["h_owner"])["travel"]
+    weeks = tr["weeks"]
+    assert len(weeks) == owner_dashboard_blocks.TRAVEL_WEEKS + 1 and weeks[-1]["start"] is None
+    week = lambda days: min(owner_dashboard_blocks.TRAVEL_WEEKS, (TODAY.weekday() + days) // 7)
+    expected_active = [0] * len(weeks)
+    expected_active[week(9)] += 1                                     # "Dated" only: spam and the other workspace are left out
+    assert [w["active"] for w in weeks] == expected_active
+    expected_booked = [0] * len(weeks)
+    for days in (2, 10):
+        expected_booked[week(days)] += 1
+    assert [w["booked"] for w in weeks] == expected_booked
+
+
 def test_a_window_other_than_3_7_15_30_is_refused(client, shop):
+    assert owner_dashboard_attention.WINDOWS == (3, 7, 15, 30)
     r = client.get(URL, params={"date_preset": "this_month", "window_days": 5}, headers=shop["h_owner"])
     assert r.status_code == 422
 

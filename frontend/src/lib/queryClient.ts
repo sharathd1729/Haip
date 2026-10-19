@@ -1,4 +1,4 @@
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient, defaultShouldDehydrateQuery, type Query } from "@tanstack/react-query";
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 
 // PWA-blank-data-fix plan, Fix 4: PII scope decision made explicitly by
@@ -37,4 +37,22 @@ export const queryPersister = typeof window !== "undefined"
   ? createSyncStoragePersister({ storage: window.localStorage, key: QUERY_PERSIST_STORAGE_KEY })
   : undefined;
 
-export const queryPersistOptions = { persister: queryPersister!, maxAge: PERSIST_MAX_AGE_MS };
+// Live dashboard numbers are never written to the persisted cache (owner dashboard, 19 Oct 2026). A restored snapshot of
+// "today" or "this month" is yesterday's (or another tenant's, on a shared phone) figures under the same key, and on a resumed
+// phone it can sit on screen until the refetch lands -- which is how the phone could show zeros the laptop did not. These
+// queries always load fresh; everything else keeps the instant-paint behaviour above.
+export const NEVER_PERSIST = new Set(["business-overview", "dashboard-overview", "work-queue", "impact-since-haip", "portfolio-calendar"]);
+
+export function shouldPersistQuery(query: Query): boolean {
+  const root = Array.isArray(query.queryKey) ? query.queryKey[0] : undefined;
+  if (typeof root === "string" && NEVER_PERSIST.has(root)) return false;
+  return defaultShouldDehydrateQuery(query);
+}
+
+export const queryPersistOptions = {
+  persister: queryPersister!,
+  maxAge: PERSIST_MAX_AGE_MS,
+  // Bumped so snapshots written before this rule (with dashboard numbers in them) are discarded on the next load.
+  buster: "dash-2026-10-19",
+  dehydrateOptions: { shouldDehydrateQuery: shouldPersistQuery },
+};

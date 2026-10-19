@@ -1,7 +1,9 @@
 "use client";
-// One date filter for every Home view. It stays pinned under the top bar while the page scrolls, and the choice is
-// remembered on this device (same key for the owner Command Center and the operations view, so Home never shows
-// two different periods depending on which one you landed on).
+// One date filter for every Home view. It stays pinned under the top bar while the page scrolls.
+//
+// Every load starts on TODAY (owner decision, 19 Oct 2026). The choice is remembered only for this browser tab's session
+// (sessionStorage), never per device: the old per-device memory (localStorage "haip_dashboard_period") is why a phone could sit on
+// "Today" -- often all zeros in the morning -- while the laptop showed "This month" with the same data behind it.
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
@@ -13,21 +15,25 @@ export const PERIOD_PRESETS = [
 ] as const;
 
 export type PeriodValue = (typeof PERIOD_PRESETS)[number]["value"];
-const KEY = "haip_dashboard_period";
+export const DEFAULT_PERIOD: PeriodValue = "today";
+const SESSION_KEY = "haip_dashboard_period_session";
+const LEGACY_DEVICE_KEY = "haip_dashboard_period";
 const valid = (v: unknown): v is PeriodValue => PERIOD_PRESETS.some(p => p.value === v);
 
-/** The remembered period. Read after mount (not in the initial state) so the first render matches the server. */
-export function usePersistedPeriod(initial: PeriodValue): [PeriodValue, (v: PeriodValue) => void] {
-  const [value, setValue] = useState<PeriodValue>(initial);
+/** The period for this tab: Today on every fresh load, the last pick while the tab stays open. Read after mount so the first
+ *  render matches the server. Also drops the old per-device memory so it can never come back. */
+export function useDashboardPeriod(): [PeriodValue, (v: PeriodValue) => void] {
+  const [value, setValue] = useState<PeriodValue>(DEFAULT_PERIOD);
   useEffect(() => {
     try {
-      const saved = window.localStorage.getItem(KEY);
+      window.localStorage.removeItem(LEGACY_DEVICE_KEY);
+      const saved = window.sessionStorage.getItem(SESSION_KEY);
       if (valid(saved)) setValue(saved);
-    } catch { /* storage unavailable: keep the default */ }
+    } catch { /* storage unavailable: keep Today */ }
   }, []);
   const set = useCallback((v: PeriodValue) => {
     setValue(v);
-    try { window.localStorage.setItem(KEY, v); } catch { /* ignore */ }
+    try { window.sessionStorage.setItem(SESSION_KEY, v); } catch { /* ignore */ }
   }, []);
   return [value, set];
 }
