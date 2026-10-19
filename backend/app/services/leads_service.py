@@ -546,6 +546,10 @@ def build_timeline(
                 "is_ai_generated": False,
             })
 
+    # ── Quotes (rate calculator and quote builder) ────────────────────────────
+    from app.services.lead_quote_view import timeline_entries
+    entries.extend(timeline_entries(db, tenant_id, inquiry_id))
+
     # ── Sort, cap, return ─────────────────────────────────────────────────────
     entries.sort(key=lambda e: e["occurred_at"] or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
     capped = len(entries) > limit
@@ -854,6 +858,13 @@ def get_leads_pipeline(
             card.autopilot_move = moves.get(card.inquiry_id)
     except Exception as exc:   # a badge must never break the list
         log.warning("lead_autopilot_badges_failed", tenant_id=tenant_id, error=str(exc)[:200])
+    try:
+        from app.services.lead_quote_view import latest_for
+        latest = latest_for(db, tenant_id, [inq.id for inq in inquiries])
+        for card in leads:
+            card.latest_quote = latest.get(card.inquiry_id)
+    except Exception as exc:   # the quote line must never break the list
+        log.warning("lead_latest_quote_failed", tenant_id=tenant_id, error=str(exc)[:200])
 
     # Stage summary (count + potential revenue across ALL filtered leads, not just this page)
     stage_meta = _build_stage_summary(
@@ -1055,6 +1066,9 @@ def get_lead_detail(
             payment_link_status=(quote_links.get(q.id) or {}).get("status"),
             payment_link_url=(quote_links.get(q.id) or {}).get("short_url"),
             booking_id=(quote_links.get(q.id) or {}).get("booking_id"),
+            shared_via=q.shared_via,
+            valid_until=q.valid_until,
+            label=(q.snapshot or {}).get("package_name") or q.package_key,
         )
         for q in quotes_raw
     ]
@@ -1066,6 +1080,9 @@ def get_lead_detail(
         inquiry, completeness, signals, property_interest, response_time, pending_draft,
         needs_agent_followup_reason=needs_followup_reason,
     )
+    from app.services.lead_quote_view import card_out
+    newest = next((q for q in quotes_raw if q.status in ("issued", "pending_approval", "accepted") and (q.option_rank or 1) == 1), None)
+    card.latest_quote = card_out(newest) if newest else None
 
     from app.services.lead_field_service import get_field_values_for_inquiry
     try:
@@ -1304,6 +1321,8 @@ def get_needs_action(
     spoken = _batch_spoken_since(db, tenant_id, inquiries)
 
     buckets: dict[str, list[LeadCardSchema]] = {k: [] for k in NEEDS_ACTION_BUCKETS}
+    from app.services.lead_quote_view import latest_for
+    latest_quotes = latest_for(db, tenant_id, ids)
     for inq in inquiries:
         card = _build_lead_card(
             inq,
@@ -1314,6 +1333,7 @@ def get_needs_action(
             pending_draft=pending_draft_map.get(inq.id),
             needs_agent_followup_reason=needs_followup_map.get(inq.id),
         )
+        card.latest_quote = latest_quotes.get(inq.id)
         waiting = (
             card.response_time_status == "waiting"
             and (card.response_time_seconds or 0) <= _WAITING_MAX_SECONDS

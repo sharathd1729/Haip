@@ -60,6 +60,9 @@ class QuoteHistorySchema(BaseModel):
     payment_link_status: Optional[str] = None   # created | paid | expired | cancelled (newest link of this option)
     payment_link_url: Optional[str] = None
     booking_id: Optional[str] = None            # the booking a paid link became
+    shared_via: Optional[str] = None            # rate calculator: sent | copied (None = saved only)
+    valid_until: Optional[datetime] = None
+    label: Optional[str] = None                 # the package / trip name
 
 
 # ─── Lead Card ────────────────────────────────────────────────────────────────
@@ -154,6 +157,9 @@ class LeadCardSchema(BaseModel):
     # Lead autopilot: set when the lead's current stage was set by the autopilot (applied, not undone) --
     # {event_id, to_stage_label, reason, source, lost_reason, at}. Drives the list badge.
     autopilot_move: Optional[dict] = None
+
+    # Rate calculator: the lead's newest quote -- {quote_id, amount, status, shared_via, how, valid_until, valid_until_text, label}.
+    latest_quote: Optional[dict] = None
 
 
 # ─── Lead Detail (card + timeline) ───────────────────────────────────────────
