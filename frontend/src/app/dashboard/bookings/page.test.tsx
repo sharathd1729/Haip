@@ -96,6 +96,17 @@ describe("Bookings cards by date", () => {
     expect(document.querySelector('a[href^="tel:"], a[href*="wa.me"]')).toBeNull();
   });
 
+  it("day groups flow across columns, each group its heading with its cards stacked, in date order", async () => {
+    renderPage();
+    await screen.findByRole("button", { name: /^Open Neha Kulkarni/ });
+    const grid = screen.getByTestId("card-groups");
+    expect(grid.className).toContain("grid-cols-[repeat(auto-fill,minmax(min(100%,330px),1fr))]");
+    const groups = Array.from(grid.children) as HTMLElement[];
+    expect(groups.map(g => g.getAttribute("aria-label"))).toEqual([expect.stringMatching(/^Tomorrow/), expect.stringMatching(/^[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2}$/)]);
+    expect(within(groups[0]).getAllByRole("article")).toHaveLength(1);           // Neha, under her own day
+    expect(within(groups[1]).getByText("Manisha Rao")).toBeTruthy();
+  });
+
   it("an overdue booking says overdue on its card, not just due", async () => {
     renderPage();
     await screen.findByRole("button", { name: /^Open Manisha Rao/ });

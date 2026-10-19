@@ -141,7 +141,7 @@ function BookingsList() {
   return (
     <div className="flex h-full min-h-0 bg-[var(--haip-bg,var(--background))]">
       <div className="min-w-0 flex-1 overflow-y-auto">
-        <div className="mx-auto grid max-w-[980px] gap-3.5 px-4 pb-14 pt-4 sm:px-6">
+        <div className="mx-auto grid max-w-[1280px] gap-3.5 px-4 pb-14 pt-4 sm:px-6">
           <PageHeader title="Bookings"
             actions={<>
               <button type="button" onClick={exportCsv} disabled={exporting || pending || !rows.length} className={cn(outlineBtn, "max-sm:hidden")}>

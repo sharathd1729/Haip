@@ -1,7 +1,8 @@
 "use client";
 // The CRM Bookings list (layout A · Cards by date): one card per booking under its check-in day. A card: guest + status, caravan,
 // the stay in one line, guests, how much is paid, what is due (or overdue), and Call / WhatsApp / Collect.
-// A responsive grid: one column on a phone, two or three on wider screens (two while the booking pane is open).
+// The day groups themselves flow across columns (mock-up A ".groups"): each group is its heading with its cards stacked, in
+// chronological order left to right, then down. One column on a phone, three on a desktop, two while the booking pane is open.
 import { CreditCard, MessageCircle, Phone } from "@/lib/icons";
 import { cn, formatINR } from "@/lib/utils";
 import { StatusPill } from "@/components/ui/kit";
@@ -76,14 +77,17 @@ export function BookingCards({ rows, segment, today, selectedId, paneOpen, canCo
   onOpen: (id: string) => void; onCall: (r: AgendaRow) => void; onWhatsApp: (id: string) => void; onCollect: (id: string) => void;
 }) {
   return (
-    <div className="@container grid gap-4">
+    <div data-testid="card-groups" data-pane-open={paneOpen ? "true" : undefined}
+      className={cn("grid items-start gap-x-3 gap-y-4",
+        // Columns of at least 330px (one on a phone); with the pane open each is also at least 34% wide, so never more than two.
+        paneOpen ? "grid-cols-[repeat(auto-fill,minmax(min(100%,max(330px,34%)),1fr))]" : "grid-cols-[repeat(auto-fill,minmax(min(100%,330px),1fr))]")}>
       {groupCards(rows, segment, today).map(g => (
-        <section key={g.key} className="grid gap-2" aria-label={g.title}>
+        <section key={g.key} className="grid min-w-0 gap-2" aria-label={g.title}>
           <h3 className={cn("flex flex-wrap items-baseline gap-x-2 px-0.5 pt-1 text-[12.5px] font-bold uppercase tracking-[0.04em]",
             g.key === today ? "text-[var(--haip-accent-ink)]" : "text-[var(--haip-fg-subtle)]")}>
             {g.title} <span className="font-medium normal-case tracking-normal">· {g.hint}</span>
           </h3>
-          <div className={cn("grid grid-cols-1 gap-3 @xl:grid-cols-2", !paneOpen && "@3xl:grid-cols-3")}>
+          <div className="grid gap-2.5">
             {g.rows.map(r => (
               <BookingCard key={r.id} r={r} today={today} selected={r.id === selectedId} slot={slotOf(r)} canCollect={canCollect}
                 onOpen={onOpen} onCall={onCall} onWhatsApp={onWhatsApp} onCollect={onCollect} />
