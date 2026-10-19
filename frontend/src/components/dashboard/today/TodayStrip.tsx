@@ -11,6 +11,7 @@ import { ArrowRight, Zap } from "@/lib/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBusinessType } from "@/components/providers/WorkspaceProvider";
 import { useNav } from "@/components/layout/nav";
+import { SendQuoteButton } from "@/components/quotes/SendQuoteButton";
 
 interface Stay { id: string; check_in: string; check_out: string; status: string; guest_name: string; adults: number }
 interface Block { id: string; blocked_from: string; blocked_to: string; reason: string; event?: { title: string } | null }
@@ -93,7 +94,10 @@ export function TodayStrip({ role }: { role: string }) {
         <h2 id="today-title" className="font-[family-name:var(--font-display)] text-[17px] font-semibold tracking-[-0.01em] text-[var(--haip-fg)]">
           Today <span className="text-[14px] font-medium text-[var(--haip-fg-subtle)]">{weekday(today)}</span>
         </h2>
-        {canSeeCalendar && <Link href="/dashboard/portfolio/calendar" className="inline-flex min-h-11 items-center gap-1 text-[13.5px] font-semibold text-primary hover:underline sm:min-h-0">Calendar<ArrowRight size={14} /></Link>}
+        <span className="flex items-center gap-3">
+          <SendQuoteButton variant="link" label="New quote" args={{ from: "home" }} />
+          {canSeeCalendar && <Link href="/dashboard/portfolio/calendar" className="inline-flex min-h-11 items-center gap-1 text-[13.5px] font-semibold text-primary hover:underline sm:min-h-0">Calendar<ArrowRight size={14} /></Link>}
+        </span>
       </div>
 
       <div className={cn("mt-3 grid gap-px border-t border-[var(--haip-border)] bg-[var(--haip-border)] [&>*]:bg-[var(--haip-card)]", canSeeCalendar ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,1.7fr)]" : "grid-cols-1")}>

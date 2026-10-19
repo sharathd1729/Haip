@@ -11,6 +11,7 @@ import { ChannelIcon } from "@/components/inbox/ChannelIcon";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { useToast } from "@/components/ui/toast";
 import api from "@/lib/api";
+import { SendQuoteButton } from "@/components/quotes/SendQuoteButton";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,9 @@ export interface LeadCard {
   budget_currency?: string;
   budget_range_label?: string;
   quoted_amount?: number;
+  /** Rate calculator: the lead's newest quote (backend lead_quote_view.card_out). */
+  latest_quote?: { quote_id: string; amount: number; status: string; shared_via: string | null; how: string;
+    valid_until: string | null; valid_until_text: string | null; label: string | null } | null;
   property_interest?: string[];
   ai_summary?: string;
   ai_next_action?: string;
@@ -414,6 +418,14 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
         </p>
       )}
 
+      {/* Row 3c: the latest quote -- amount, how it reached the guest, until when it holds */}
+      {lead.latest_quote && (
+        <p className="text-xs truncate tabular-nums" style={{ color: "var(--haip-fg-2)" }}>
+          Quote ₹{Number(lead.latest_quote.amount).toLocaleString("en-IN")} · {lead.latest_quote.how}
+          {lead.latest_quote.valid_until_text && lead.latest_quote.status !== "accepted" ? ` · valid till ${lead.latest_quote.valid_until_text}` : ""}
+        </p>
+      )}
+
       {/* Row 4: Completeness bar */}
       <CompletenessBar pct={lead.profile_completeness_pct} />
 
@@ -434,6 +446,8 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
             <AssignToMeButton lead={lead} />
           </>
         )}
+        <SendQuoteButton variant="link" label="Quote" className="min-h-11 text-xs sm:min-h-0 sm:text-[11px]"
+          args={{ inquiryId: lead.inquiry_id, from: "leads", name: lead.display_name }} />
       </div>
 
       {/* Row 7: pending AI draft — one-click send */}

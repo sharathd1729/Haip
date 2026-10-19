@@ -15,6 +15,7 @@ import { AIRecommendationCard, type RecommendedAction } from "@/components/ai/AI
 import { SalesActionCard } from "@/components/sales/SalesActionCard";
 import { ActionableInsights } from "@/components/ai/ActionableInsights";
 import { AutopilotPanel } from "@/components/leads/AutopilotPanel";
+import { SendQuoteButton } from "@/components/quotes/SendQuoteButton";
 import type { Actionable } from "@/lib/actionable";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -51,6 +52,9 @@ interface QuoteHistory {
   option_rank?: number;
   payment_link_status?: "created" | "paid" | "expired" | "cancelled" | null;
   booking_id?: string | null;
+  status?: string | null;
+  shared_via?: "sent" | "copied" | null;
+  label?: string | null;
 }
 
 const QUOTE_LINK_LABEL = { created: "Link sent", paid: "Paid", expired: "Link expired", cancelled: "Link cancelled" } as const;
@@ -279,9 +283,9 @@ function ChatHistoryTab({ items }: { items: TimelineEntry[] }) {
           {visible.map(entry => {
             const c = entry.channel.toLowerCase();
             if (c === "call" || c === "voice") return <CallCard key={entry.id} entry={entry} />;
-            if (c === "system") {
+            if (c === "system" || c === "quote") {
               return (
-                <p key={entry.id} className="text-center text-[10px] text-[var(--haip-fg-subtle)] py-1">
+                <p key={entry.id} className={cn("text-center py-1", c === "quote" ? "text-[11px] font-semibold text-[var(--haip-fg-2)]" : "text-[10px] text-[var(--haip-fg-subtle)]")}>
                   {entry.content_preview} · {timeAgo(entry.occurred_at)}
                 </p>
               );
@@ -552,6 +556,8 @@ export default function LeadDetailPage() {
             <p className="text-[10px]" style={{ color: "var(--haip-fg-subtle)" }}>{data.inquiry_stage} · {data.source?.replace(/_/g, " ")}</p>
           </div>
           <div className="flex items-center gap-1.5">
+            <SendQuoteButton variant="primary" iconOnlyBelowSm className="min-h-9"
+              args={{ inquiryId, from: "lead", name: data.display_name }} />
             {SIGNAL_ROLES.has(role) && (
               <button
                 onClick={() => setShowSignalDrawer(true)}
@@ -804,6 +810,9 @@ export default function LeadDetailPage() {
                         <span className="font-medium tabular-nums" style={{ color: q.is_active ? "var(--haip-green)" : "var(--haip-fg-2)" }}>
                           {q.currency} {Number(q.amount).toLocaleString("en-IN")}
                           {(q.option_rank ?? 1) === 2 && <span className="ml-1 font-normal text-[var(--haip-fg-subtle)]">option 2</span>}
+                          {q.status === "pending_approval"
+                            ? <Link href={`/dashboard/quotes?quote=${q.id}`} className="ml-1.5 font-semibold text-[var(--haip-status-warning-fg)] underline">waiting for OK</Link>
+                            : q.shared_via ? <span className="ml-1.5 font-normal text-[var(--haip-fg-subtle)]">{q.shared_via === "sent" ? "sent" : "copied"}</span> : null}
                         </span>
                         {q.payment_link_status && (
                           q.booking_id

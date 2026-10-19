@@ -2,6 +2,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { TalkedOn, toGuestChannel } from "./ChannelBadges";
 import type { GuestChannel } from "@/store/inbox";
+import { SendQuoteButton } from "@/components/quotes/SendQuoteButton";
 import { useSession } from "next-auth/react";
 import { Star, Sparkles, Calendar, Users, Wallet, Phone, Mail, Loader2, MapPin, Heart, MessageSquare, FileText } from "@/lib/icons";
 import { Bed, UserCheck } from "lucide-react";
@@ -241,6 +242,7 @@ export function GuestPanel({ detail, mobileVariant }: { detail: ConversationDeta
           <>
             {/* The stay that matters now (in progress, else next), when the viewer may see bookings. */}
             <StayCard guestId={detail.guest_id ?? guest?.id} role={session?.user?.role} />
+            <SendQuoteButton className="w-full" args={{ conversationId: detail.id, inquiryId, from: "inbox", name: detail.guest_name || null }} />
             {/* Trip Details -- same card as leads/[inquiryId]/page.tsx's
                 Overview tab: guests, dates, property/route, budget,
                 occasion, special requests. Reads the same /leads/{inquiry_id}

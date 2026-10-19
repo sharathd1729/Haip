@@ -12,6 +12,7 @@ import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import { ChannelBadges } from "@/components/inbox/ChannelBadges";
+import { SendQuoteButton } from "@/components/quotes/SendQuoteButton";
 import type { GuestChannel } from "@/store/inbox";
 
 interface CallDetail {
@@ -256,7 +257,12 @@ export function CallDetailPanel({
 
   {call && (
   <div className="px-5 py-3 flex-shrink-0 space-y-2" style={{ borderTop: "1px solid var(--haip-border)" }}>
+  <div className="flex items-center justify-between gap-2">
   <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--haip-fg-subtle)" }}>Wrap-up</p>
+  {/* Price the trip from the call without leaving it (missed call with no lead: phone-only prefill). */}
+  <SendQuoteButton variant="primary" args={{ callId: call.id, inquiryId: call.inquiry_id ?? null, phone: call.inquiry_id ? null : call.guest_phone ?? null,
+    from: "call", name: call.guest_name || null }} />
+  </div>
   <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Outcome">
   {OUTCOMES.map(o => (
   <button key={o.value} role="radio" aria-checked={outcome === o.value} onClick={() => setOutcome(o.value)}
