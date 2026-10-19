@@ -145,6 +145,21 @@ def stay_lines(db: Session, tenant_id: str, stay: Stay) -> list[dict]:
     return [ln for ln in lines if ln["amount"] > 0 or ln is lines[0]]
 
 
+def quote_gst_rate(db: Session, tenant_id: str, stay_id: str) -> Optional[float]:
+    """The GST rate of the rate-calculator quote this booking was made from (its paid advance link), or None. The quote's total
+    already includes that GST (inclusive or added on top), and the booking total is that total, so splitting it at this rate
+    gives back the quote's own tax."""
+    from app.models.inquiry_360 import InquiryQuote
+    from app.models.stay_finance import StayPaymentLink
+    row = (db.query(InquiryQuote.snapshot).join(StayPaymentLink, StayPaymentLink.inquiry_quote_id == InquiryQuote.id)
+           .filter(StayPaymentLink.tenant_id == tenant_id, StayPaymentLink.stay_id == stay_id, InquiryQuote.tenant_id == tenant_id)
+           .first())
+    snap = (row[0] if row else None) or {}
+    if snap.get("kind") != "calculator" or snap.get("gst_percent") is None:
+        return None
+    return float(Decimal(str(snap["gst_percent"])))
+
+
 def _seller(profile: InvoiceProfile, tenant: Tenant) -> dict:
     return {"legal_name": profile.legal_name or tenant.brand_name or tenant.name, "gstin": profile.gstin,
             "address": profile.address, "state_code": profile.state_code,
@@ -182,6 +197,9 @@ def issue_invoice(db: Session, tenant: Tenant, stay: Stay, *, actor_id: Optional
         raise InvoiceError(f"Add the {', '.join(missing)} under Settings > Invoice details before invoices can be issued.")
     lines = stay_lines(db, tenant.id, stay)
     rate = profile.gst_rate if profile.gstin else 0.0
+    quoted = quote_gst_rate(db, tenant.id, stay.id)
+    if quoted is not None:                  # booked from a paid rate-calculator quote: its GST slab, not the profile's
+        rate = quoted
     calc = compute(lines, rate, profile.state_code, place_of_supply)
     if calc["total"] <= 0:
         raise InvoiceError("This booking has no amount to invoice yet.")

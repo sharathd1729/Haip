@@ -299,7 +299,6 @@ def create_manual_lead(
     than a hardcoded key that may not exist for this tenant's taxonomy.
     """
     from app.services import identity_service
-    from app.services.lead_auto_create import resolve_entry_stage_id
 
     if not phone and not email:
         raise ValueError("Provide at least a phone number or email to add a lead.")
@@ -334,8 +333,37 @@ def create_manual_lead(
     except ValueError:
         src = InquirySource.WALK_IN
 
-    stage_id = resolve_entry_stage_id(db, tenant_id, is_collab=False, has_phone=bool(phone))
+    inquiry = create_lead_for_guest(
+        db, tenant_id, guest_id, source=src, has_phone=bool(phone), property_id=property_id, check_in=check_in,
+        check_out=check_out, adults=adults, children=children, occasion=occasion, budget=budget, assigned_to=assigned_to,
+    )
+    log.info(
+        "lead_manually_created", inquiry_id=inquiry.id, guest_id=guest_id,
+        tenant_id=tenant_id, actor_user_id=actor_user_id, stage_id=inquiry.stage_id,
+    )
+    return inquiry
 
+
+def create_lead_for_guest(
+    db: Session, tenant_id: str, guest_id: str, *,
+    source: Optional[InquirySource],
+    has_phone: bool,
+    property_id: Optional[str] = None,
+    check_in: Optional[str] = None,
+    check_out: Optional[str] = None,
+    adults: Optional[int] = None,
+    children: Optional[int] = None,
+    occasion: Optional[str] = None,
+    budget: Optional[float] = None,
+    assigned_to: Optional[str] = None,
+    commit: bool = True,
+) -> Inquiry:
+    """A new lead (inquiry) for a person already resolved by identity_service, landing in the tenant's entry stage
+    (lead_auto_create rules) and assigned like every other new lead. Used by create_manual_lead and by the rate calculator
+    when a returning guest (all earlier leads Sold or Lost) asks for a new trip. ``source=None`` = not recorded."""
+    from app.services.lead_auto_create import resolve_entry_stage_id
+
+    stage_id = resolve_entry_stage_id(db, tenant_id, is_collab=False, has_phone=has_phone)
     inquiry = Inquiry(
         id=str(uuid.uuid4()),
         tenant_id=tenant_id,
@@ -343,7 +371,7 @@ def create_manual_lead(
         property_id=property_id,
         stage=InquiryStage.NEW,
         stage_id=stage_id or _stage_id_for(db, tenant_id, InquiryStage.NEW),
-        source=src,
+        source=source,
         check_in=check_in,
         check_out=check_out,
         adults=adults,
@@ -359,12 +387,11 @@ def create_manual_lead(
     if not assigned_to:
         from app.services.lead_assignment_service import assign_new_lead
         assign_new_lead(db, inquiry)
-    db.commit()
-    db.refresh(inquiry)
-    log.info(
-        "lead_manually_created", inquiry_id=inquiry.id, guest_id=guest_id,
-        tenant_id=tenant_id, actor_user_id=actor_user_id, stage_id=inquiry.stage_id,
-    )
+    if commit:
+        db.commit()
+        db.refresh(inquiry)
+    else:
+        db.flush()
     return inquiry
 
 

@@ -158,3 +158,44 @@ def check_still_valid(db: Session, tenant_id: str, row: InquiryQuote, at: Option
     if changed:
         reasons.append("the terms it was built on have changed since it was issued")
     return {"valid": not reasons, "reasons": reasons, "terms_changed": changed}
+
+
+def issue_calculated(
+    db: Session, tenant_id: str, inquiry_id: str, snapshot: dict, params_hash: str, actor_id: Optional[str], *,
+    pending_approval: bool,
+) -> InquiryQuote:
+    """Store a rate-calculator quote (services/rate_calculator.py snapshot). The same inputs on the same record versions return
+    the quote already saved (so re-sending an approved quote needs no second approval); anything else supersedes every active
+    quote of the lead. A lowered price that needs an owner's OK is stored as "pending_approval" and cannot be shared until
+    approved. The caller commits."""
+    if db.query(Inquiry.id).filter_by(id=inquiry_id, tenant_id=tenant_id).first() is None:
+        raise QuoteError("not_found", "Lead not found.", 404)
+    now = datetime.now(timezone.utc)
+    active = db.query(InquiryQuote).filter_by(tenant_id=tenant_id, inquiry_id=inquiry_id, is_active=True).all()
+    for q in active:
+        fresh = q.valid_until is None or _aware(q.valid_until) >= now
+        if (q.params_hash == params_hash and fresh and q.status in ("issued", "pending_approval")
+                and (q.snapshot or {}).get("kind") == "calculator"):
+            return q
+    for q in active:
+        q.is_active, q.status = False, "superseded"
+    inputs = snapshot["inputs"]
+    row = InquiryQuote(
+        tenant_id=tenant_id, inquiry_id=inquiry_id, amount=Decimal(str(snapshot["total"])), currency="INR",
+        valid_until=_end_of_day_utc(db, tenant_id, date.fromisoformat(snapshot["valid_until"])), created_by=actor_id,
+        is_active=True, package_key=(snapshot.get("package_key") or "custom")[:60], check_in=date.fromisoformat(inputs["check_in"]),
+        check_out=date.fromisoformat(inputs["check_out"]), guests=int(inputs["adults"]) + int(inputs.get("children") or 0),
+        snapshot=snapshot, record_refs=snapshot.get("record_refs") or [], params_hash=params_hash,
+        status="pending_approval" if pending_approval else "issued", option_rank=1,
+    )
+    db.add(row)
+    db.flush()
+    row.option_group_id = row.id
+    db.flush()
+    append_audit(
+        db, tenant_id=tenant_id, action="quote.issued", actor_user_id=actor_id, target_type="inquiry_quote", target_id=row.id,
+        payload={"inquiry_id": inquiry_id, "kind": "calculator", "package_key": row.package_key, "total": str(row.amount),
+                 "status": row.status, "valid_until": snapshot["valid_until"], "override": snapshot.get("override"),
+                 "record_refs": [(r["kind"], r["key"], r["version"]) for r in row.record_refs]},
+    )
+    return row

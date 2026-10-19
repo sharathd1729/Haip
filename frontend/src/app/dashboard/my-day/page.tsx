@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChannelBadges, toGuestChannel } from "@/components/inbox/ChannelBadges";
+import { SendQuoteButton } from "@/components/quotes/SendQuoteButton";
 import { Card, EmptyState, FilterBar, FilterChip, PageHeader, StatusPill, Tabs, type Tone } from "@/components/ui/kit";
 
 type Kind = "callback" | "new_lead" | "reply" | "no_reply" | "followup";
@@ -145,14 +146,22 @@ function Row({ item, active, index }: { item: Item; active: boolean; index: numb
 
   const wrap = cn("flex items-center border-t border-[var(--haip-border)] first:border-t-0", sev.stripe, active && "bg-primary/5");
 
+  // "Quote": the rate calculator for this person, beside the row (a button can't sit inside a link). Same work-queue item;
+  // the sheet resolves the lead (open lead, a new one after Sold/Lost, or "Add as new lead" for a number with none).
+  const quote = (
+    <SendQuoteButton iconOnlyBelowSm label="Quote" className="mr-1"
+      args={{ inquiryId: item.inquiry_id, guestId: item.guest_id, phone: item.inquiry_id || item.guest_id ? null : item.guest_phone,
+        from: "my_day", name: item.title }} />
+  );
   // Everything else opens where it says: the whole row is one link.
   if (!dialPayload) {
     return (
-      <div className={wrap} data-row={index}>
+      <div className={cn(wrap, "pr-3")} data-row={index}>
         <Link href={item.href} data-primary className={rowCls}>
           {body}
           <span className={actionCls} aria-hidden>{item.action}</span>
         </Link>
+        {quote}
       </div>
     );
   }
@@ -160,6 +169,7 @@ function Row({ item, active, index }: { item: Item; active: boolean; index: numb
   return (
     <div className={cn(wrap, "gap-3 pr-4")} data-row={index}>
       <Link href={item.href} className={rowCls}>{body}</Link>
+      {quote}
       <button type="button" data-primary onClick={() => dial.mutate()} disabled={dial.isPending} className={actionCls}>
         {dial.isPending ? "Calling…" : item.action}
       </button>

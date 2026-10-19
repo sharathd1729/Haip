@@ -16,6 +16,7 @@ import { useToast } from "@/components/ui/toast";
 import { AIRecommendationCard, type RecommendedAction } from "@/components/ai/AIRecommendationCard";
 import { ActionableInsights } from "@/components/ai/ActionableInsights";
 import { hasActionable, type Actionable } from "@/lib/actionable";
+import { SendQuoteButton } from "@/components/quotes/SendQuoteButton";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -241,6 +242,7 @@ export default function CallDetailPage() {
 
   {/* Meta badges */}
   <div className="flex items-center gap-2 flex-shrink-0">
+  <SendQuoteButton variant="primary" args={{ callId: call.id, from: "call", name: call.guest_name || null }} />
   <Badge variant={call.direction === "inbound" ? "info" : "secondary"} className="capitalize">
   <Phone size={11} /> {call.direction}
   </Badge>

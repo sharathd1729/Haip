@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react";
 import { Phone, ChevronDown, TrendingUp } from "@/lib/icons";
 import Link from "next/link";
 import { CallPlayer } from "@/components/calls/CallPlayer";
+import { SendQuoteButton } from "@/components/quotes/SendQuoteButton";
 
 /** HAIP Inbox prototype-wiring plan, ticket 2/5: renders one call item from
  * GET /conversations/{id}/timeline in the merged thread. Only real fields --
@@ -104,13 +105,15 @@ Call · {call.direction}
           </div>
         )}
 
-        <div className="mt-2 pt-2 border-t border-[var(--haip-border)]">
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--haip-border)]">
           <Link
             href={`/dashboard/calls/${call.id}`}
             className="text-[11px] font-semibold text-primary hover:underline"
           >
             View full call detail →
           </Link>
+          {/* After the call: quote the trip the guest just asked for, prefilled from the call summary. */}
+          <SendQuoteButton variant="link" args={{ callId: call.id, from: "call" }} />
         </div>
       </div>
     </div>

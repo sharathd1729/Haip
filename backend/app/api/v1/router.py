@@ -25,6 +25,7 @@ from app.api.v1.endpoints import (
     knowledge_freshness,
     business_data,
     quotes,
+    quote_calculator,
     sales_agent,
     targets,
     work_queue,
@@ -59,6 +60,7 @@ api_router.include_router(knowledge_freshness.router)
 api_router.include_router(knowledge.router)
 api_router.include_router(business_data.router)
 api_router.include_router(quotes.router)
+api_router.include_router(quote_calculator.router)
 api_router.include_router(sales_agent.router)
 api_router.include_router(targets.router)
 api_router.include_router(work_queue.router)

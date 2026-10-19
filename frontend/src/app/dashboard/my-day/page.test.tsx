@@ -10,6 +10,8 @@ vi.mock("next-auth/react", () => ({ useSession: () => ({ data: { user: { name: "
 const nav = vi.hoisted(() => ({ search: new URLSearchParams() }));
 vi.mock("next/navigation", () => ({ useSearchParams: () => nav.search }));
 vi.mock("@/components/ui/toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
+const openQuote = vi.fn();
+vi.mock("@/components/quotes/QuoteSheetProvider", () => ({ useQuoteSheet: () => ({ open: openQuote, close: vi.fn() }) }));
 
 import MyDayPage from "./page";
 
@@ -89,6 +91,22 @@ describe("My day", () => {
     get.mockRejectedValue(new Error("offline"));
     renderPage();
     expect(await screen.findByText("Couldn't load your list")).toBeTruthy();
+  });
+
+  it("every row has a Quote button that opens the calculator sheet for that person (no page change)", async () => {
+    get.mockResolvedValue({ data: queue([
+      item({ title: "Priya Nair", inquiry_id: "i1", guest_id: "g1" }),
+      item({ title: "+91 98450 12345", kind: "callback", action: "Call back", inquiry_id: null, guest_id: null, guest_phone: "+919845012345" }),
+    ]) });
+    renderPage();
+    expect(await screen.findByText("Priya Nair")).toBeTruthy();
+    const quotes = screen.getAllByRole("button", { name: "Quote" });
+    expect(quotes).toHaveLength(2);
+    await userEvent.click(quotes[0]);
+    expect(openQuote).toHaveBeenLastCalledWith({ inquiryId: "i1", guestId: "g1", phone: null, from: "my_day", name: "Priya Nair" });
+    await userEvent.click(quotes[1]);
+    expect(openQuote).toHaveBeenLastCalledWith({ inquiryId: null, guestId: null, phone: "+919845012345", from: "my_day", name: "+91 98450 12345" });
+    expect(post).not.toHaveBeenCalled();
   });
 
   it("opens on exactly the people a dashboard card counted (?flag=) and lists the not-replying kind", async () => {
