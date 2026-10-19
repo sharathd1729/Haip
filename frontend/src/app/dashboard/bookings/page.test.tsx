@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, cleanup, within } from "@testing-library/react";
+import { act, render, screen, waitFor, cleanup, within } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
+import { hydrateRoot } from "react-dom/client";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -109,6 +111,28 @@ describe("Bookings agenda", () => {
     expect(document.querySelector('a[href^="tel:"], a[href*="wa.me"]')).toBeNull();
     await userEvent.click(within(sheet).getByRole("button", { name: /^Call$/ }));
     await waitFor(() => expect(post).toHaveBeenCalledWith("/calls/click-to-call", { guest_number: "+919800000001" }));
+  });
+
+  it("hydrates without a mismatch even when the cache already holds the month and the list", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    // As restored from the persisted cache before hydration: the server never has this, so the first client render must ignore it.
+    client.setQueryData(["bookings-summary"], api("/bookings/summary").data);
+    client.setQueryData(["bookings", "agenda", "upcoming", {}], { pages: [api("/bookings", { params: { segment: "upcoming" } }).data], pageParams: [1] });
+    const ui = <QueryClientProvider client={client}><BookingsPage /></QueryClientProvider>;
+    const html = renderToString(ui);
+    expect(html).not.toContain('role="alert"');
+    expect(html).not.toContain("Neha Kulkarni");
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>.*?Export/);
+    const host = document.createElement("div");
+    host.innerHTML = html;
+    document.body.appendChild(host);
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    await act(async () => { hydrateRoot(host, ui); });
+    const mismatch = errors.mock.calls.filter(c => /hydrat|did not match/i.test(String(c[0])));
+    errors.mockRestore();
+    expect(mismatch).toEqual([]);
+    expect(await within(host).findByRole("button", { name: /Check-in: Neha Kulkarni/ })).toBeTruthy();
+    host.remove();
   });
 
   it("New booking goes to the New booking page", async () => {

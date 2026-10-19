@@ -29,7 +29,7 @@ import {
   CHANNEL_STYLE, PAYMENT_STYLE, PAYMENT_TONE, STATUS_OPTIONS, STATUS_STYLE, STATUS_TONE, LOAD_FAILURES, describeActivity, errorMessage, fmtDate, httpStatus, loadFailure,
   type BookingDetail,
 } from "@/lib/bookings";
-import { addDays, canEditBookings, clock, shortDay, todayIST, vehicleSlot } from "@/lib/bookingAgenda";
+import { addDays, canEditBookings, clock, shortDay, todayIST, useHydrated, vehicleSlot } from "@/lib/bookingAgenda";
 
 const field = "w-full text-sm border border-[var(--haip-border)] rounded-lg px-2.5 py-2 bg-[var(--haip-card)] text-[var(--haip-fg)] focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-[var(--haip-surface)] disabled:text-[var(--haip-fg-subtle)]";
 const label = "block text-xs font-medium text-[var(--haip-fg-subtle)]";
@@ -73,8 +73,10 @@ export function BookingDetailView({ id, variant = "page", onClose }: { id: strin
   const { toast } = useToast();
   const pane = variant === "pane";
   const call = useGuestCall();
+  // Pending until hydrated, so the server HTML and the first client render match even with a persisted cache.
+  const hydrated = useHydrated();
 
-  const { data: booking, isLoading, isError, error, refetch, isFetching } = useQuery<BookingDetail>({
+  const { data: booking, isPending, isError, error, refetch, isFetching } = useQuery<BookingDetail>({
     queryKey: ["booking", id],
     queryFn: () => api.get(`/bookings/${id}`).then(r => r.data),
     // a definite answer (not found, no permission, signed out) will not change on retry; a network or server error might
@@ -126,7 +128,7 @@ export function BookingDetailView({ id, variant = "page", onClose }: { id: strin
     },
   });
 
-  if (isLoading || !booking || !draft) {
+  if (!hydrated || isPending || !booking || !draft) {
     return (
       <div className={cn("space-y-4", pane ? "p-4" : "mx-auto max-w-5xl p-6")}>
         {pane && onClose && (
@@ -134,7 +136,7 @@ export function BookingDetailView({ id, variant = "page", onClose }: { id: strin
             <ChevronLeft size={20} />
           </button>
         )}
-        {isError ? (() => {
+        {hydrated && isError ? (() => {
           const f = loadFailure(error);
           return (
             <div role="alert" className="py-16 text-center">

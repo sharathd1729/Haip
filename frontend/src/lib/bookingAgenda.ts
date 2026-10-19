@@ -1,5 +1,6 @@
 // The Bookings agenda (layout B): pure rules for the segments, day rows, money chips, the vehicle strip and the filters.
 // Shapes mirror backend/app/services/booking_agenda_service.py and GET /bookings (bookings.py).
+import { useSyncExternalStore } from "react";
 import type { Tone } from "@/components/ui/page";
 import { formatINR } from "@/lib/utils";
 import type { BookingRow, BookingStatus, Deposit } from "@/lib/bookings";
@@ -109,17 +110,17 @@ export function isOverdue(r: AgendaRow, today: string): boolean {
 
 export interface MoneyChip { label: string; tone: Tone }
 
-/** The one money fact a day row shows. Check-in: what to collect. Check-out: the deposit to hand back. Otherwise: overdue money. */
+/** The one money fact a day row shows. Overdue money (the single isOverdue rule, the same one the month summary uses) always wins,
+ *  on any row. Otherwise a check-in shows what to collect and a check-out the deposit to hand back. */
 export function moneyChip(kind: EventKind, r: AgendaRow, today: string): MoneyChip | null {
   if (kind === "cancelled" || r.raw_status === "cancelled") return null;
-  const overdue = isOverdue(r, today);
+  if (isOverdue(r, today)) return { label: `${formatINR(r.total_outstanding)} overdue`, tone: "danger" };
   if (kind === "in" && r.total_outstanding > 0) {
-    return { label: `Collect ${formatINR(r.total_outstanding)}`, tone: overdue || r.payment_status === "unpaid" ? "danger" : "warning" };
+    return { label: `Collect ${formatINR(r.total_outstanding)}`, tone: r.payment_status === "unpaid" ? "danger" : "warning" };
   }
   if (kind === "out" && r.deposit && r.deposit.status === "held" && r.deposit.amount > 0 && r.raw_status !== "checked_out") {
     return { label: `Return ${formatINR(r.deposit.amount)} deposit`, tone: "neutral" };
   }
-  if (overdue) return { label: `${formatINR(r.total_outstanding)} overdue`, tone: "danger" };
   return null;
 }
 
@@ -218,6 +219,13 @@ export function filterParams(f: Filters): Record<string, string | undefined> {
 export function toggle(list: string[], v: string): string[] {
   return list.includes(v) ? list.filter(x => x !== v) : [...list, v];
 }
+
+/** False on the server and during hydration, true after (and at once on client-side navigation). Gate query-driven UI on it so
+ *  the first client render matches the server HTML even when the persisted query cache already holds data. */
+export function useHydrated(): boolean {
+  return useSyncExternalStore(noopSubscribe, () => true, () => false);
+}
+const noopSubscribe = () => () => {};
 
 /** Vehicle colour slot for the strip and the vehicle tag: Ratha 1 -> 1, Ratha 2 -> 2 (in name order), anything else -> 0. */
 export function vehicleSlot(name: string | null | undefined, order: string[]): number {

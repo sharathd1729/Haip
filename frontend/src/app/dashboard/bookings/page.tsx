@@ -20,11 +20,12 @@ import { WhatsAppSheet } from "@/components/bookings/WhatsAppSheet";
 import { useGuestCall } from "@/components/bookings/useGuestCall";
 import { PAYMENT_STYLE, STATUS_STYLE } from "@/lib/bookings";
 import {
-  NO_FILTERS, SEGMENTS, buildEvents, filterCount, filterParams, guestName, todayIST, vehicleSlot,
+  NO_FILTERS, SEGMENTS, buildEvents, filterCount, filterParams, guestName, todayIST, useHydrated, vehicleSlot,
   type AgendaList, type AgendaRow, type Filters, type Segment,
 } from "@/lib/bookingAgenda";
 
 const PER_PAGE = 50;
+const NO_ROWS: AgendaRow[] = [];
 // The Owner Command Center deep-links here with ?quick=..., so a figure opens the bookings it counted.
 const QUICK_SEGMENT: Record<string, Segment> = { upcoming: "upcoming", current: "staying", past: "past" };
 const outlineBtn = "inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-[var(--haip-border)] bg-[var(--haip-card)] px-3.5 text-[13.5px] font-semibold text-[var(--haip-fg-2)] hover:bg-[var(--haip-surface)] disabled:opacity-40 md:min-h-10";
@@ -52,6 +53,9 @@ function BookingsAgenda() {
   const [waFor, setWaFor] = useState<string | null>(null);
   const [picked, setPicked] = useState(params.get("b") ?? "");
   const wide = useIsPaneWide();
+  // Every query-driven branch waits for hydration: the server and the first client render then match even when the persisted
+  // query cache already holds bookings.
+  const hydrated = useHydrated();
 
   useEffect(() => { const t = setTimeout(() => setDebounced(search.trim()), 350); return () => clearTimeout(t); }, [search]);
 
@@ -95,12 +99,13 @@ function BookingsAgenda() {
     staleTime: 20_000,
   });
 
-  const first = list.data?.pages[0];
-  const rows = useMemo(() => list.data?.pages.flatMap(p => p.data) ?? [], [list.data]);
+  const pending = !hydrated || list.isPending;
+  const first = pending ? undefined : list.data?.pages[0];
+  const rows = useMemo(() => (pending ? [] : list.data?.pages.flatMap(p => p.data) ?? []), [pending, list.data]);
+  const stayingRows = (hydrated && segment === "upcoming" && staying.data?.data) || NO_ROWS;
   const today = first?.meta.today ?? todayIST();
   const counts = first?.meta.segment_counts;
-  const events = useMemo(() => buildEvents(rows, segment, segment === "upcoming" ? staying.data?.data ?? [] : []),
-    [rows, segment, staying.data]);
+  const events = useMemo(() => buildEvents(rows, segment, stayingRows), [rows, segment, stayingRows]);
   const nFilters = filterCount(filters) + (needsProperty ? 1 : 0);
   const filtered = !!(debounced || nFilters || guestId);
   const slotOf = (r: AgendaRow) => vehicleSlot(r.property?.name, vehicleNames);
@@ -144,7 +149,7 @@ function BookingsAgenda() {
         <div className="mx-auto grid max-w-[980px] gap-3.5 px-4 pb-14 pt-4 sm:px-6">
           <PageHeader title="Bookings"
             actions={<>
-              <button type="button" onClick={exportCsv} disabled={exporting || !rows.length} className={cn(outlineBtn, "max-sm:hidden")}>
+              <button type="button" onClick={exportCsv} disabled={exporting || pending || !rows.length} className={cn(outlineBtn, "max-sm:hidden")}>
                 <Download size={14} /> {exporting ? "Exporting…" : "Export"}
               </button>
               <Link href="/dashboard/bookings/new"
@@ -180,8 +185,8 @@ function BookingsAgenda() {
 
           {showStrip && <OccupancyStrip onOpen={open} selectedId={picked} />}
 
-          <div aria-busy={list.isLoading} aria-live="polite">
-            {list.isLoading ? (
+          <div aria-busy={pending} aria-live="polite">
+            {pending ? (
               <div className="grid gap-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-[74px] rounded-[14px]" />)}</div>
             ) : list.isError ? (
               <div className="haip-card">

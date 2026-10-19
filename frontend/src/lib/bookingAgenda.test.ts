@@ -49,6 +49,14 @@ describe("money chip", () => {
     expect(moneyChip("in", row({ id: "x", payment_status: "paid", total_paid: 70000, total_outstanding: 0 }), TODAY)).toBeNull();
   });
 
+  it("an overdue booking says overdue on its check-in row, not Collect (same rule as the month summary)", () => {
+    // Future check-in, but an instalment of the schedule is past due: the month summary counts it as overdue.
+    const fathima = row({ id: "Fathima", checkin: "2026-10-30", checkout: "2026-11-01", payment_overdue: true, total_outstanding: 9590 });
+    expect(isOverdue(fathima, TODAY)).toBe(true);
+    expect(moneyChip("in", fathima, TODAY)).toEqual({ label: "₹9,590 overdue", tone: "danger" });
+    expect(moneyChip("out", { ...fathima, deposit: { amount: 10000, status: "held" } }, TODAY)).toEqual({ label: "₹9,590 overdue", tone: "danger" });
+  });
+
   it("check-out: hand back a held deposit; otherwise money owed after the trip started is overdue", () => {
     const held = row({ id: "x", payment_status: "paid", total_outstanding: 0, deposit: { amount: 10000, status: "held" }, checkin: "2026-10-18" });
     expect(moneyChip("out", held, TODAY)).toEqual({ label: "Return ₹10,000 deposit", tone: "neutral" });

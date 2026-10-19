@@ -7,7 +7,7 @@ import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/kit";
 import { Skeleton } from "@/components/ui/skeleton";
-import { addDays, freeColumns, newBookingHref, shortDay, stripBlocks, type Occupancy } from "@/lib/bookingAgenda";
+import { useHydrated, addDays, freeColumns, newBookingHref, shortDay, stripBlocks, type Occupancy } from "@/lib/bookingAgenda";
 
 const DAYS = 14;
 const NARROW = ["S", "M", "T", "W", "T", "F", "S"];
@@ -26,7 +26,9 @@ const SLOT_BG: Record<number, string> = {
 export const shortVehicle = (name: string) => /^ratha\s*(\d+)$/i.test(name.trim()) ? `R${name.trim().match(/(\d+)$/)![1]}` : name.slice(0, 4);
 
 export function OccupancyStrip({ onOpen, selectedId }: { onOpen: (bookingId: string) => void; selectedId?: string }) {
-  const { data, isLoading, isError, refetch } = useQuery<Occupancy>({
+  // Pending until hydrated: the server and the first client render show the same skeleton, whatever the cache holds.
+  const hydrated = useHydrated();
+  const { data, isPending, isError, refetch } = useQuery<Occupancy>({
     queryKey: ["bookings-occupancy", DAYS], queryFn: () => api.get("/bookings/occupancy", { params: { days: DAYS } }).then(r => r.data),
     staleTime: 30_000,
   });
@@ -37,7 +39,7 @@ export function OccupancyStrip({ onOpen, selectedId }: { onOpen: (bookingId: str
         <strong className="text-[14px] text-[var(--haip-fg)]">Next 14 days</strong>
         <span className="text-[12.5px] text-[var(--haip-fg-subtle)]">noon to noon</span>
       </div>
-      {isLoading ? <Skeleton className="h-24 rounded-xl" /> : isError || !data ? (
+      {!hydrated || isPending ? <Skeleton className="h-24 rounded-xl" /> : isError || !data ? (
         <p role="alert" className="text-[13px] text-[var(--haip-status-danger-fg)]">
           Couldn&apos;t load the vehicles. <button type="button" className="min-h-11 font-semibold underline" onClick={() => refetch()}>Try again</button>
         </p>

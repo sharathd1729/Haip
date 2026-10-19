@@ -6,7 +6,7 @@ import api from "@/lib/api";
 import { cn, formatINR } from "@/lib/utils";
 import { Card } from "@/components/ui/kit";
 import { Skeleton } from "@/components/ui/skeleton";
-import { isRestricted, lakh, type Money, type MonthSummary as Summary } from "@/lib/bookingAgenda";
+import { useHydrated, isRestricted, lakh, type Money, type MonthSummary as Summary } from "@/lib/bookingAgenda";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const monthName = (ym: string) => { const [y, m] = ym.split("-").map(Number); return `${MONTHS[m - 1]} ${y}`; };
@@ -27,12 +27,14 @@ function money(m: Money) {
 }
 
 export function MonthSummary() {
-  const { data, isLoading, isError, refetch } = useQuery<Summary>({
+  // Pending until hydrated: the server and the first client render show the same skeleton, whatever the cache holds.
+  const hydrated = useHydrated();
+  const { data, isPending, isError, refetch } = useQuery<Summary>({
     queryKey: ["bookings-summary"], queryFn: () => api.get("/bookings/summary").then(r => r.data), staleTime: 30_000,
   });
   return (
     <Card className="grid gap-2.5 px-4 py-3.5" aria-label="This month">
-      {isLoading ? <Skeleton className="h-[78px] rounded-xl" /> : isError || !data ? (
+      {!hydrated || isPending ? <Skeleton className="h-[78px] rounded-xl" /> : isError || !data ? (
         <p role="alert" className="text-[13px] text-[var(--haip-status-danger-fg)]">
           Couldn&apos;t load this month&apos;s figures. <button type="button" className="min-h-11 font-semibold underline" onClick={() => refetch()}>Try again</button>
         </p>
