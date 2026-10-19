@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional, List, Any, Literal
 
 _SLA_DEFAULT_MINUTES = 15
@@ -93,3 +93,8 @@ class InquiryUpdateRequest(BaseModel):
     occasion: Optional[str] = None
     budget: Optional[float] = None
     quoted_amount: Optional[float] = None
+    # Lead page trip fields (Oct 2026). Empty string clears the field. `pickup` has no column: it is kept in
+    # inquiries.custom_fields["pickup"], the Lead Field Registry's place for custom values.
+    route_mentioned: Optional[str] = Field(None, max_length=255)
+    special_requests: Optional[str] = Field(None, max_length=2000)
+    pickup: Optional[str] = Field(None, max_length=255)
