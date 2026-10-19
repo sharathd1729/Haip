@@ -86,12 +86,12 @@ function DraftBubble({ item, canSend, inquiryId }: { item: FeedItem; canSend: bo
 }
 
 function Recording({ callId }: { callId: string }) {
-  const { data, isLoading, isError } = useQuery({
+  const { data, isPending, isError } = useQuery({
     queryKey: ["call", callId],
     queryFn: () => api.get(`/calls/${callId}`).then(r => r.data as { recording_url?: string | null }),
     staleTime: 5 * 60_000,
   });
-  if (isLoading) return <p className="text-[12.5px] text-[var(--haip-fg-subtle)]">Loading the recording…</p>;
+  if (isPending) return <p className="text-[12.5px] text-[var(--haip-fg-subtle)]">Loading the recording…</p>;
   if (isError || !data?.recording_url) return <p className="text-[12.5px] text-[var(--haip-fg-subtle)]">The recording is not available yet.</p>;
   return <audio controls autoPlay preload="none" src={data.recording_url} className="h-11 w-full" aria-label="Call recording" />;
 }

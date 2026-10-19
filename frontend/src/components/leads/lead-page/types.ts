@@ -86,5 +86,5 @@ export interface PipelineStage {
 }
 
 /** Everything a button on the page can ask for; the page owns the sheets and the call panel. */
-export type LeadActionKey = "call" | "message" | "quote" | "book" | "stage" | "lost" | "owner" | "task" | "more" | "open_booking" | "review_draft";
+export type LeadActionKey = "call" | "message" | "quote" | "book" | "stage" | "lost" | "owner" | "task" | "more" | "open_booking" | "review_draft" | "mark_sold";
 export type RunAction = (key: LeadActionKey, arg?: string) => void;

@@ -18,7 +18,7 @@ import type { LeadDetail, LeadFeed, PipelineStage, RunAction } from "./types";
 export interface LeadPerms { canCall: boolean; canSend: boolean; canQuote: boolean; canBook: boolean; canEdit: boolean; canReveal: boolean; canOpenBookings: boolean }
 
 const ACTION_LABEL: Record<NextStepAction, string> = {
-  call: "Call now", message: "Message", quote: "Send quote", book: "Add booking", open_booking: "Open booking", review_draft: "Review the AI reply", stage: "Move stage",
+  call: "Call now", message: "Message", quote: "Send quote", book: "Add booking", open_booking: "Open booking", review_draft: "Review the AI reply", stage: "Move stage", mark_sold: "Mark as Sold",
 };
 const btn = "inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3.5 text-[14px] font-semibold";
 const btnPrimary = `${btn} bg-primary text-primary-foreground`;
@@ -29,7 +29,7 @@ const btnOutline = `${btn} border border-[var(--haip-border-strong)] bg-[var(--h
 export function stepButtons(step: NextStep, perms: LeadPerms): NextStepAction[] {
   return step.actions.filter(a => (a !== "call" || perms.canCall) && (a !== "message" || perms.canSend) && (a !== "quote" || perms.canQuote)
     && (a !== "book" || perms.canBook) && (a !== "open_booking" || perms.canOpenBookings) && (a !== "review_draft" || perms.canSend)
-    && (a !== "stage" || perms.canEdit));
+    && (a !== "stage" || perms.canEdit) && (a !== "mark_sold" || perms.canEdit));
 }
 
 export function StepButton({ action, primary, run, small }: { action: NextStepAction; primary?: boolean; run: RunAction; small?: boolean }) {

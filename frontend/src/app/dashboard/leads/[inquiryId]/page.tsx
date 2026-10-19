@@ -18,7 +18,7 @@ import { useToast } from "@/components/ui/toast";
 import { useQuoteSheet } from "@/components/quotes/QuoteSheetProvider";
 import { useCanQuote } from "@/components/quotes/SendQuoteButton";
 import { BOOKING_READ_ROLES, canSendMessages } from "@/lib/permissions";
-import { deriveNextStep, leadTemperature } from "@/lib/leadNextStep";
+import { deriveNextStep, leadTemperature, pickLiveBooking } from "@/lib/leadNextStep";
 import { LeadThread } from "@/components/leads/lead-page/LeadThread";
 import { LeadComposer, type ComposerHandle } from "@/components/leads/lead-page/LeadComposer";
 import { CallPanel, useClickToCall } from "@/components/leads/lead-page/CallPanel";
@@ -84,6 +84,21 @@ export default function LeadDetailPage() {
     onSuccess: () => { toast({ title: "Summary queued", description: "It is rewritten in the background." }); setTimeout(() => qc.invalidateQueries({ queryKey: ["lead", inquiryId] }), 8000); },
   });
 
+  // "Mark Sold" from the next step: the same audited stage move as the stage menu (PATCH /inquiries/{id} {stage_id}).
+  const markSold = useMutation({
+    mutationFn: (stageId: string) => api.patch(`/inquiries/${inquiryId}`, { stage_id: stageId }),
+    onSuccess: () => {
+      toast({ variant: "success", title: "Marked Sold · logged" });
+      qc.invalidateQueries({ queryKey: ["lead", inquiryId] });
+      qc.invalidateQueries({ queryKey: ["lead-feed", inquiryId] });
+      qc.invalidateQueries({ queryKey: ["leads"] });
+    },
+    onError: (e: unknown) => {
+      const d = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+      toast({ variant: "error", title: "Not changed", description: typeof d === "string" ? d : "Please try again." });
+    },
+  });
+
   const lead = leadQ.data;
   const feed = feedQ.data;
   const stages = stagesQ.data ?? [];
@@ -104,14 +119,17 @@ export default function LeadDetailPage() {
   };
   const stage = stages.find(s => s.key === lead?.stage_key);
   const quote = (lead?.quote_history ?? []).find(q => (q.option_rank ?? 1) === 1 && LIVE_QUOTE.has(q.status || ""));
-  const booking = (feed?.bookings ?? []).find(b => b.inquiry_id === inquiryId && b.status !== "cancelled");
+  const booking = pickLiveBooking(feed?.bookings ?? [], inquiryId, lead?.check_in);
+  const pastBooking = (feed?.bookings ?? []).some(b => b.inquiry_id === inquiryId && b.status === "checked_out");
   const facts = {
     name, stage: { key: lead?.stage_key, label: stage?.label, category: stage?.category, is_closed_won: stage?.is_closed_won, is_closed_lost: stage?.is_closed_lost },
     hasPhone, lastInboundAt: feed?.facts.last_inbound_at, lastOutboundAt: feed?.facts.last_outbound_at,
     unansweredOutboundCalls: feed?.facts.unanswered_outbound_calls, missedInboundUnreturned: feed?.facts.missed_inbound_unreturned,
     pendingDrafts: feed?.facts.pending_drafts, lostReason: feed?.trip.lost_reason,
     openQuote: quote ? { amount: quote.amount, validUntil: quote.valid_until, sharedVia: quote.shared_via, status: quote.status } : null,
-    booking: booking ? { id: booking.booking_id, outstanding: booking.amount_restricted ? null : booking.outstanding, checkIn: booking.check_in } : null,
+    booking: booking ? { id: booking.booking_id, outstanding: booking.amount_restricted ? null : booking.outstanding, checkIn: booking.check_in,
+      checkOut: booking.check_out, propertyName: booking.property_name } : null,
+    pastBooking,
   };
   // Until the thread is in, the facts are unknown: show no step rather than a wrong one.
   const step = feed ? deriveNextStep(facts) : null;
@@ -136,6 +154,12 @@ export default function LeadDetailPage() {
       case "quote": setSheet(null); quoteSheet.open({ inquiryId, from: "lead", name: lead?.display_name }); return;
       case "book": router.push(`/dashboard/bookings/new?inquiry=${encodeURIComponent(inquiryId)}`); return;
       case "open_booking": if (booking) router.push(`/dashboard/bookings/${booking.booking_id}`); return;
+      case "mark_sold": {
+        const won = stages.find(st => st.is_closed_won);
+        if (!won) { toast({ variant: "error", title: "This workspace has no Sold stage", description: "Add one in Leads → Pipeline settings." }); return; }
+        markSold.mutate(won.id);
+        return;
+      }
       case "review_draft":
         closeSheetOnPhone();
         setTimeout(() => document.querySelector("[data-testid='thread-draft']")?.scrollIntoView({ block: "center", behavior: "smooth" }), 250);
@@ -144,7 +168,7 @@ export default function LeadDetailPage() {
     }
   };
 
-  if (leadQ.isLoading) {
+  if (leadQ.isPending) {
     return (
       <div className="mx-auto grid w-full max-w-3xl gap-3 p-4">
         <Skeleton className="h-16 w-full rounded-2xl" /><Skeleton className="h-12 w-full rounded-xl" /><Skeleton className="h-64 w-full rounded-2xl" />
@@ -181,8 +205,10 @@ export default function LeadDetailPage() {
   );
 
   return (
-    <div className="flex h-full min-h-0">
-      <div className="mx-auto flex min-h-0 w-full min-w-0 max-w-[860px] flex-1 flex-col px-4">
+    // Phones: the chat column is exactly the screen between the 52px app header and the 60px bottom bar (plus the notch and
+    // home-indicator insets), so the thread scrolls inside it and the composer sits just above the bottom bar.
+    <div className="flex h-[calc(100dvh_-_7rem_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom))] min-h-0 overflow-hidden md:h-full">
+      <div className="mx-auto flex min-h-0 w-full min-w-0 max-w-[860px] flex-1 flex-col overflow-x-hidden px-4">
         <header className="flex shrink-0 items-center gap-2 py-2">
           <Link href="/dashboard/leads" aria-label="Back to Leads" className="-ml-2 grid size-11 shrink-0 place-items-center rounded-xl text-primary hover:bg-[var(--haip-surface)]"><ChevronLeft size={20} aria-hidden /></Link>
           <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-[var(--haip-primary-tint)] font-[family-name:var(--font-display)] text-[17px] font-bold text-primary">{(lead.display_name || "?").charAt(0).toUpperCase()}</span>
@@ -212,8 +238,8 @@ export default function LeadDetailPage() {
           </div>
         ) : feedQ.isError ? null : <Skeleton className="mt-2 h-12 w-full shrink-0 rounded-xl" />}
 
-        <div className="mt-2 min-h-0 flex-1 overflow-y-auto overscroll-contain" data-testid="thread-scroll">
-          {feedQ.isLoading ? (
+        <div className="mt-2 min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain" data-testid="thread-scroll">
+          {feedQ.isPending ? (
             <div className="grid gap-2 py-2"><Skeleton className="h-12 w-2/3 rounded-2xl" /><Skeleton className="ml-auto h-12 w-1/2 rounded-2xl" /><Skeleton className="h-24 w-full rounded-2xl" /></div>
           ) : feedQ.isError ? (
             <EmptyState title="Couldn't load the conversation" hint="Check your connection and try again."

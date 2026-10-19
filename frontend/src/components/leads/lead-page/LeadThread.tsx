@@ -25,8 +25,8 @@ export function LeadThread({ items, inquiryId, canSend, canOpenBookings, capped,
   const shown = kinds ? items.filter(i => kinds.includes(i.kind)) : items;
 
   return (
-    <div className="grid gap-2">
-      <div role="group" aria-label="Show in the conversation" className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]">
+    <div className="grid min-w-0 gap-2">
+      <div role="group" aria-label="Show in the conversation" className="flex min-w-0 gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none]">
         {FILTERS.map(f => {
           const n = f.kinds ? items.filter(i => f.kinds!.includes(i.kind)).length : items.length;
           return (

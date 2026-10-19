@@ -17,7 +17,7 @@ export function TemplatePicker({ conversationId, name, onSent, onError }: {
 }) {
   const [picked, setPicked] = useState<string | null>(null);
   const [vars, setVars] = useState<string[]>([]);
-  const { data: templates = [], isLoading, isError } = useQuery<Template[]>({
+  const { data: templates = [], isPending, isError } = useQuery<Template[]>({
     queryKey: ["wa-templates"],
     queryFn: () => api.get("/messaging/templates").then(r => r.data),
     staleTime: 30_000,
@@ -34,7 +34,7 @@ export function TemplatePicker({ conversationId, name, onSent, onError }: {
     },
   });
 
-  if (isLoading) return <p className="text-[13px] text-[var(--haip-fg-subtle)]">Loading approved templates…</p>;
+  if (isPending) return <p className="text-[13px] text-[var(--haip-fg-subtle)]">Loading approved templates…</p>;
   if (isError) return <p className="text-[13px] text-[var(--haip-status-danger-fg)]">Couldn&apos;t load the templates. Check your connection and try again.</p>;
   if (approved.length === 0) return <p className="text-[13px] text-[var(--haip-fg-subtle)]">No approved WhatsApp templates yet. Create one in WhatsApp → Templates and submit it to Meta.</p>;
 

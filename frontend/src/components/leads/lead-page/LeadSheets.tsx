@@ -111,13 +111,13 @@ export function LostSheet({ open, onClose, inquiryId, name, lostStage }: {
 }
 
 export function OwnerSheet({ open, onClose, inquiryId, ownerId }: { open: boolean; onClose: () => void; inquiryId: string; ownerId?: string | null }) {
-  const { data: users = [], isLoading, isError } = useQuery<{ id: string; name: string }[]>({
+  const { data: users = [], isPending, isError } = useQuery<{ id: string; name: string }[]>({
     queryKey: ["users-lite"], queryFn: () => api.get("/users/lite").then(r => r.data), enabled: open, staleTime: 60_000,
   });
   const patch = useLeadPatch(inquiryId, onClose, () => "Owner changed");
   return (
     <Drawer open={open} onOpenChange={o => { if (!o) onClose(); }} title="Lead owner" description="The owner gets this lead's reminders in My day.">
-      {isLoading ? <p className="text-[14px] text-[var(--haip-fg-subtle)]">Loading the team…</p>
+      {isPending ? <p className="text-[14px] text-[var(--haip-fg-subtle)]">Loading the team…</p>
         : isError ? <p className="text-[14px] text-[var(--haip-status-danger-fg)]">Couldn&apos;t load the team. Try again.</p>
           : (
             <div className="grid gap-2" role="radiogroup" aria-label="Owner">
