@@ -103,8 +103,19 @@ def compose(db: Session, user: User, body: ComposeIn) -> dict:
 
     # 2 the lead
     lead = plan.lead if plan.lead is not None and plan.lead.guest_id == guest.id else people.open_lead(db, tid, guest.id, stages)
-    lead_before = people.lead_view(lead, stages) if lead is not None else None
+    lead_before = people.lead_view(lead, stages, db) if lead is not None else None
     lead_created = False
+    new_trip = None                                  # the lead already has a booking: this trip gets its own lead
+    if lead is not None and lead_before["booking"] is not None:
+        origin = lead
+        lead = inquiry_service.create_lead_for_guest(
+            db, tid, guest.id, source=origin.source, has_phone=bool(guest.phone and not str(guest.phone).startswith("DELETED_")),
+            check_in=body.check_in.isoformat(), check_out=body.check_out.isoformat(), adults=body.guests,
+            assigned_to=origin.assigned_to or user.id, commit=False)
+        new_trip = {"from_lead": origin.id, **lead_before["booking"]}
+        append_audit(db, tenant_id=tid, actor_user_id=user.id, action="lead.created_for_new_trip", target_type="inquiry",
+                     target_id=lead.id, payload={"guest_id": guest.id, "previous_lead": origin.id,
+                                                 "previous_booking": lead_before["booking"]["booking_id"]})
     if lead is None and body.new_guest is not None:
         lead = inquiry_service.create_lead_for_guest(
             db, tid, guest.id, source=svc.SOURCES.get(body.new_guest.source or "other"), has_phone=True,
@@ -190,9 +201,13 @@ def compose(db: Session, user: User, body: ComposeIn) -> dict:
             log.error("compose_cancel_links_enqueue_failed", tenant_id=tid, error=str(exc))
 
     # 6 the receipt
+    lead_item = _lead_line(first, plan, lead_before, lead_created, matched, body.new_guest.source if body.new_guest else None)
+    if new_trip is not None:
+        lead_item = {"done": True, "kind": "lead", "text": f"{first}'s lead already has booking {new_trip['ref']} ({new_trip['span']}), so "
+                     f"this trip got its own lead ({lead_before['source_label']}, same owner), marked Sold."}
     items = [{"done": True, "kind": "booking", "text": f"Booking {ref} created on {prop.name}: {bc.day(body.check_in)} "
               f"{bc.clock(body.check_in_time)} → {bc.day(body.check_out)} {bc.clock(body.check_out_time)}, {body.guests} guests."},
-             _lead_line(first, plan, lead_before, lead_created, matched, body.new_guest.source if body.new_guest else None)]
+             lead_item]
     if plan.quote is not None:
         extra = "" if not closed_quotes else (" The other quote for this lead is closed." if closed_quotes == 1
                                               else f" The other {closed_quotes} quotes for this lead are closed.")
@@ -223,4 +238,4 @@ def compose(db: Session, user: User, body: ComposeIn) -> dict:
         items.append({"done": True, "kind": "followup", "text": f"Follow-up for {send.first_name(user.name)}: collect the "
                       f"{inr(plan.balance)} balance on {bc.day(max(plan.today, plan.balance_due - timedelta(days=1)))}."})
     return {"booking_id": stay.id, "ref": ref, "vehicle": prop.name, "guest_name": guest.name, "total": str(plan.total),
-            "inquiry_id": stay.inquiry_id, "items": items}
+            "inquiry_id": stay.inquiry_id, "new_trip_lead": new_trip is not None, "items": items}

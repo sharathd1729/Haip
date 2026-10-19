@@ -117,6 +117,19 @@ export function pickGuest(f: BookingForm, g: GuestCard, ctx?: ComposeContext): B
   return next;
 }
 
+/** The dates a package sets from a check-in (as the mock-up): its nights from the package record (`nights`, from the rate
+ *  calculator's rules: 48 hours = 2 nights); a same-day trip returns the same day, 10 am to 8 pm; a package that does not say
+ *  keeps a later check-out, else one night. */
+export function packageLength(p: ComposeSetup["packages"][number], checkIn: string, f: BookingForm): Partial<BookingForm> {
+  if (p.nights === 0 || p.product === "same_day") {
+    return { checkOut: checkIn, ...(f.checkOutTime <= f.checkInTime || f.checkInTime === "12:00" ? { checkInTime: "10:00", checkOutTime: "20:00" } : {}) };
+  }
+  if (p.nights != null) {
+    return { checkOut: addDays(checkIn, p.nights), ...(f.checkOut && f.checkOut === f.checkIn ? { checkInTime: "12:00", checkOutTime: "12:00" } : {}) };
+  }
+  return !f.checkOut || f.checkOut <= checkIn ? { checkOut: addDays(checkIn, 1) } : {};
+}
+
 export function applyTrip(f: BookingForm, trip: ComposeContext["trip"] | undefined): BookingForm {
   if (!trip || f.checkIn) return f;
   return { ...f, checkIn: trip.check_in ?? f.checkIn, checkOut: trip.check_out ?? f.checkOut, guests: trip.guests ?? f.guests,

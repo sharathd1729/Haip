@@ -43,11 +43,17 @@ function Picked({ form, set, ctx, setup }: Pick<Props, "form" | "set" | "ctx" | 
         {form.fromLead ? <StatusPill tone="info">From lead</StatusPill>
           : <button type="button" className={BTN} onClick={() => set({ guest: null, newGuest: null, start: null, inquiryId: null })}>Change</button>}
       </div>
-      <p className={HINT}>
-        {!g ? "HAIP adds this guest and a lead from the source you picked, marked Sold, so the booking counts in source reports."
-          : lead ? `This booking is tied to ${firstName(name)}'s open lead (${lead.stage_label}). It moves to Sold when you create it.`
-            : "No open lead, so the booking is saved without one."}
-      </p>
+      {g && lead?.booking ? (
+        <Note tone="info">
+          <span data-testid="new-trip-note">{firstName(name)}&apos;s lead already has booking {lead.booking.ref} ({lead.booking.span}). This booking starts a new lead for the new trip.</span>
+        </Note>
+      ) : (
+        <p className={HINT}>
+          {!g ? "HAIP adds this guest and a lead from the source you picked, marked Sold, so the booking counts in source reports."
+            : lead ? `This booking is tied to ${firstName(name)}'s open lead (${lead.stage_label}). It moves to Sold when you create it.`
+              : "No open lead, so the booking is saved without one."}
+        </p>
+      )}
     </>
   );
 }

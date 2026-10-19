@@ -4,7 +4,7 @@
 import { BTN, Field, INPUT, Stepper } from "@/components/quotes/ui";
 import { StatusPill } from "@/components/ui/kit";
 import { cn } from "@/lib/utils";
-import { addDays, clock, cleanNumber, money, nightsBetween } from "./helpers";
+import { addDays, clock, cleanNumber, money, nightsBetween, packageLength } from "./helpers";
 import type { BookingForm, ComposeSetup } from "./types";
 import { HINT } from "./ui";
 
@@ -21,15 +21,16 @@ export function TripSection({ form, set, setup }: { form: BookingForm; set: (pat
     if (key === "__custom") return set({ mode: "custom" });
     const p = setup.packages.find(x => x.key === key);
     const patch: Partial<BookingForm> = { mode: "fixed", packageKey: key };
-    if (p && form.checkIn && p.product === "same_day") Object.assign(patch, { checkOut: form.checkIn, checkInTime: "10:00", checkOutTime: "20:00" });
-    else if (p && form.checkIn && p.min_days && (!form.checkOut || n < p.min_days)) patch.checkOut = addDays(form.checkIn, p.min_days);
+    if (p && form.checkIn) Object.assign(patch, packageLength(p, form.checkIn, form));
     set(patch);
   };
+  // A package that says how long it is sets check-out when check-in changes too; editing the dates afterwards is allowed
+  // (the server then warns "usually N nights").
   const setCheckIn = (v: string) => {
+    if (!v) return set({ checkIn: v });
+    if (form.mode === "fixed" && pkg && (pkg.nights != null || pkg.product === "same_day")) return set({ checkIn: v, ...packageLength(pkg, v, form) });
     const keep = form.checkIn && form.checkOut && form.checkOut >= form.checkIn ? n : null;
-    const out = !v ? form.checkOut : pkg?.product === "same_day" ? v : keep !== null ? addDays(v, keep)
-      : !form.checkOut || form.checkOut < v ? addDays(v, Math.max(1, pkg?.min_days ?? 1)) : form.checkOut;
-    set({ checkIn: v, checkOut: out });
+    set({ checkIn: v, checkOut: keep !== null ? addDays(v, keep) : !form.checkOut || form.checkOut < v ? addDays(v, 1) : form.checkOut });
   };
   const free = form.mode === "custom" ? setup.custom.free_guests : pkg?.free_guests;
   return (

@@ -85,11 +85,23 @@ def _lead_trip(inq: Inquiry) -> str:
     return ", ".join(bits)
 
 
-def lead_view(inq: Inquiry, stages: dict) -> dict:
+def lead_booking(db: Session, tenant_id: str, inquiry_id: str) -> Optional[dict]:
+    """The lead's live (not cancelled) booking, or None. One lead = one trip: a lead that has one cannot take a second booking,
+    so a new trip for the same person gets its own lead."""
+    s = (db.query(Stay).filter(Stay.tenant_id == tenant_id, Stay.inquiry_id == inquiry_id, Stay.status != "cancelled")
+         .order_by(Stay.created_at.desc()).first())
+    if s is None:
+        return None
+    return {"booking_id": s.id, "ref": booking_ref(s), "check_in": s.check_in.isoformat(), "check_out": s.check_out.isoformat(),
+            "span": bc.span(s.check_in, s.check_out)}
+
+
+def lead_view(inq: Inquiry, stages: dict, db: Optional[Session] = None) -> dict:
     label, _ = qcl._stage_label(inq, stages)
     src = inq.source.value if inq.source else None
     return {"inquiry_id": inq.id, "stage_label": label, "source": src, "source_label": qcl.SOURCE_LABEL.get(src or "", "Not recorded"),
-            "open": qcl.is_open(inq, stages), "trip": _lead_trip(inq)}
+            "open": qcl.is_open(inq, stages), "trip": _lead_trip(inq),
+            "booking": lead_booking(db, inq.tenant_id, inq.id) if db is not None else None}
 
 
 def open_lead(db: Session, tenant_id: str, guest_id: str, stages: dict) -> Optional[Inquiry]:
@@ -106,7 +118,7 @@ def guest_card(db: Session, tenant_id: str, guest: Guest, stages: Optional[dict]
     lead_ids = [i for (i,) in db.query(Inquiry.id).filter(Inquiry.tenant_id == tenant_id, Inquiry.guest_id == guest.id).all()]
     quotes = (db.query(func.count(InquiryQuote.id)).filter(InquiryQuote.tenant_id == tenant_id, InquiryQuote.inquiry_id.in_(lead_ids),
                                                           InquiryQuote.status.in_(QUOTE_STATUSES)).scalar() if lead_ids else 0)
-    lv = lead_view(lead, stages) if lead else None
+    lv = lead_view(lead, stages, db) if lead else None
     if lv and stays:
         tag = f"Past guest · lead {lv['stage_label']}"
     elif lv:
@@ -281,5 +293,5 @@ def context(db: Session, tenant_id: str, *, inquiry_id: Optional[str] = None, gu
         key = qcl.match_package(packages or [], t.get("route"))
         if key:
             trip["package_key"] = key
-    return {"guest": guest_card(db, tenant_id, guest, stages), "lead": lead_view(lead, stages) if lead is not None else None,
+    return {"guest": guest_card(db, tenant_id, guest, stages), "lead": lead_view(lead, stages, db) if lead is not None else None,
             "quotes": quotes, "quote_id": pre, "trip": trip}

@@ -11,7 +11,8 @@ export interface ComposeSetup {
   settings: CalcSetup["settings"];
   gst_slabs: string[];
   discount_options: string[];
-  packages: CalcPackage[];
+  /** nights: how long the package is (0 = same day; null = the package does not say). Check-out follows it. */
+  packages: (CalcPackage & { nights?: number | null })[];
   unpriced: number;
   unpublished: number;
   custom: CalcSetup["custom"];
@@ -23,7 +24,11 @@ export interface ComposeSetup {
   advance_days: number;
 }
 
-export interface LeadView { inquiry_id: string; stage_label: string; source: string | null; source_label: string; open: boolean; trip: string }
+export interface LeadView {
+  inquiry_id: string; stage_label: string; source: string | null; source_label: string; open: boolean; trip: string;
+  /** The lead's live booking: one lead = one trip, so a new booking for this person starts a new lead. */
+  booking?: { booking_id: string; ref: string; check_in: string; check_out: string; span: string } | null;
+}
 
 export interface GuestCard {
   guest_id: string;
@@ -60,6 +65,8 @@ export interface ComposeContext {
 }
 
 export interface Problem { section: Section; message: string; live: boolean }
+/** Why Create was refused (any non-2xx), shown in the side card and the review sheet until something changes. */
+export interface CreateError { status: number | null; message: string; problems: Problem[] }
 export interface Warning { section: Section; message: string }
 
 export interface VehicleRow {
@@ -90,6 +97,7 @@ export interface Preview {
 export interface ReceiptItem { done: boolean; text: string; kind: string }
 export interface ComposeReceipt {
   booking_id: string; ref: string; vehicle: string; guest_name: string | null; total: string; inquiry_id: string | null; items: ReceiptItem[];
+  new_trip_lead?: boolean;
 }
 
 export interface AddonRow { id: string; name: string; price: string; unit: Unit; on: boolean; custom: boolean }
