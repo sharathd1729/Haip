@@ -7,7 +7,7 @@ Outstanding  = owed - paid (never below zero; an overpayment shows as paid)
 from __future__ import annotations
 
 import re
-from datetime import date
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Iterable, Optional
 
@@ -88,25 +88,62 @@ def catalog_for_property(db: Session, tenant_id: str, property_id: str) -> list[
     )
 
 
+TIGHT_TURNAROUND = timedelta(hours=2)      # less than this between two trips on one vehicle = a warning, not a block
+_TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+def _at(d: date, t: Optional[str]) -> Optional[datetime]:
+    """date + "HH:MM" -> a naive local datetime, or None when the time is missing or malformed."""
+    if not t or not _TIME.match(t):
+        return None
+    return datetime.combine(d, time(int(t[:2]), int(t[3:])))
+
+
+def _timed(check_in: date, check_out: date, ci_time: Optional[str], co_time: Optional[str]) -> Optional[tuple[datetime, datetime]]:
+    a, b = _at(check_in, ci_time), _at(check_out, co_time)
+    return (a, b) if a is not None and b is not None and b > a else None
+
+
+def _booking_row(s: Stay) -> dict:
+    return {"type": "booking", "id": s.id, "from": s.check_in.isoformat(), "to": s.check_out.isoformat(),
+            "from_time": s.check_in_time, "to_time": s.check_out_time,
+            "guest": (s.guest.name if s.guest is not None else None)}
+
+
 def find_conflicts(db: Session, tenant_id: str, property_id: str, check_in: date, check_out: date,
-                   exclude_stay_id: Optional[str] = None, ignore_unassigned: bool = False) -> list[dict]:
+                   exclude_stay_id: Optional[str] = None, ignore_unassigned: bool = False,
+                   check_in_time: Optional[str] = None, check_out_time: Optional[str] = None) -> list[dict]:
     """Other bookings and blocks that overlap [check_in, check_out) on this property. ``ignore_unassigned`` skips the "bookings
-    with no vehicle yet already need the other vehicles" rule (used when those bookings are being given a vehicle one by one)."""
+    with no vehicle yet already need the other vehicles" rule (used when those bookings are being given a vehicle one by one).
+
+    Times (owner decision, Oct 2026): when this booking has a pickup and a return time ("HH:MM") AND the other booking has
+    both too, they clash only if [pickup, return) overlaps; a same-day turnaround with a gap is fine (``turnarounds`` warns
+    under 2 hours). Whenever either side has no times the date rule applies unchanged: [check_in, check_out) by date, a
+    same-day stay occupying its day. Calendar blocks and the unassigned-bookings rule are always by date. Called without
+    times (the iCal import, the paid-quote link, the sales agent) the result is exactly the date rule."""
     prop = db.query(Property.name).filter(Property.id == property_id, Property.tenant_id == tenant_id).first()
     if prop and vehicle_pool.is_placeholder_name(prop[0]):
         return []                                  # the "Unassigned" holder takes any number of bookings
     ci, co = check_in.isoformat(), check_out.isoformat()
     # a same-day stay still occupies its day
     end = co if check_out > check_in else (date.fromordinal(check_in.toordinal() + 1)).isoformat()
+    span = _timed(check_in, check_out, check_in_time, check_out_time)
     out: list[dict] = []
-    q = db.query(Stay).filter(
-        Stay.tenant_id == tenant_id, Stay.property_id == property_id,
-        Stay.status.in_(ACTIVE_STATUSES), Stay.check_in < end, Stay.check_out > ci,
-    )
+    q = db.query(Stay).filter(Stay.tenant_id == tenant_id, Stay.property_id == property_id, Stay.status.in_(ACTIVE_STATUSES))
+    if span is None:
+        q = q.filter(Stay.check_in < end, Stay.check_out > ci)
+    else:                                          # widen by a day each side, then decide per booking below
+        q = q.filter(Stay.check_in <= check_out, Stay.check_out >= check_in)
     if exclude_stay_id:
         q = q.filter(Stay.id != exclude_stay_id)
     for s in q.all():
-        out.append({"type": "booking", "id": s.id, "from": s.check_in.isoformat(), "to": s.check_out.isoformat()})
+        other = _timed(s.check_in, s.check_out, s.check_in_time, s.check_out_time) if span is not None else None
+        if other is not None:
+            if not (span[0] < other[1] and other[0] < span[1]):
+                continue
+        elif span is not None and not (s.check_in.isoformat() < end and s.check_out.isoformat() > ci):
+            continue
+        out.append(_booking_row(s))
     for b in db.query(BlockedDate).filter(
         BlockedDate.tenant_id == tenant_id, BlockedDate.property_id == property_id,
         BlockedDate.is_active.is_(True), BlockedDate.blocked_from < end, BlockedDate.blocked_to > ci,
@@ -121,24 +158,53 @@ def find_conflicts(db: Session, tenant_id: str, property_id: str, check_in: date
     return out
 
 
+def turnarounds(db: Session, tenant_id: str, property_id: str, check_in: date, check_out: date, check_in_time: Optional[str],
+                check_out_time: Optional[str], exclude_stay_id: Optional[str] = None) -> list[dict]:
+    """Bookings on this vehicle that do not clash but leave less than 2 hours between the two trips (a warning: the caravan
+    needs cleaning). Only when both bookings have times; [] otherwise."""
+    span = _timed(check_in, check_out, check_in_time, check_out_time)
+    if span is None:
+        return []
+    q = db.query(Stay).filter(Stay.tenant_id == tenant_id, Stay.property_id == property_id, Stay.status.in_(ACTIVE_STATUSES),
+                              Stay.check_in <= check_out + timedelta(days=1), Stay.check_out >= check_in - timedelta(days=1))
+    if exclude_stay_id:
+        q = q.filter(Stay.id != exclude_stay_id)
+    out = []
+    for s in q.all():
+        other = _timed(s.check_in, s.check_out, s.check_in_time, s.check_out_time)
+        if other is None or (span[0] < other[1] and other[0] < span[1]):
+            continue
+        gap = span[0] - other[1] if other[1] <= span[0] else other[0] - span[1]
+        if gap < TIGHT_TURNAROUND:
+            out.append({**_booking_row(s), "returns_before": other[1] <= span[0], "gap_minutes": int(gap.total_seconds() // 60)})
+    return out
+
+
 def _natural(name: str):
     """"Ratha 2" sorts before "Ratha 10"."""
     return [int(t) if t.isdigit() else t.lower() for t in re.split(r"(\d+)", name or "")]
 
 
 def pick_free_property(db: Session, tenant_id: str, check_in: date, check_out: date, candidate_ids: Optional[Iterable[str]] = None,
-                       exclude_stay_id: Optional[str] = None, ignore_unassigned: bool = False) -> Optional[Property]:
+                       exclude_stay_id: Optional[str] = None, ignore_unassigned: bool = False,
+                       check_in_time: Optional[str] = None, check_out_time: Optional[str] = None) -> Optional[Property]:
     """The first vehicle (by name: Ratha 1, then Ratha 2) with nothing booked or blocked on these dates, or None when all are taken.
 
     This is how a booking made without choosing a vehicle is assigned: the first booking lands on Ratha 1, an overlapping one
-    falls through to Ratha 2. The "Unassigned" placeholder is never a candidate."""
+    falls through to Ratha 2. The "Unassigned" placeholder is never a candidate. With pickup/return times, a vehicle with a
+    comfortable turnaround is preferred over one with a tight (< 2 h) turnaround; without times the result is the date rule's."""
     q = db.query(Property).filter(Property.tenant_id == tenant_id, Property.is_active.is_(True))
     if candidate_ids is not None:
         q = q.filter(Property.id.in_(list(candidate_ids)))
+    tight = None
     for prop in sorted((p for p in q.all() if not vehicle_pool.is_placeholder_name(p.name)), key=lambda p: _natural(p.name)):
-        if not find_conflicts(db, tenant_id, prop.id, check_in, check_out, exclude_stay_id, ignore_unassigned):
+        if find_conflicts(db, tenant_id, prop.id, check_in, check_out, exclude_stay_id, ignore_unassigned,
+                          check_in_time=check_in_time, check_out_time=check_out_time):
+            continue
+        if not turnarounds(db, tenant_id, prop.id, check_in, check_out, check_in_time, check_out_time, exclude_stay_id):
             return prop
-    return None
+        tight = tight or prop
+    return tight
 
 
 # ── Creating a booking ───────────────────────────────────────────────────────
@@ -155,13 +221,16 @@ def create_booking(db: Session, tenant_id: str, *, guest_id: str, prop: Property
                    status: str = "confirmed", special_requests: Optional[str] = None, occasion: Optional[str] = None,
                    channel_source: str = "direct", check_in_time: Optional[str] = None, check_out_time: Optional[str] = None,
                    internal_notes: Optional[str] = None, actor_user_id: Optional[str] = None, actor_role: str = "system",
-                   reason: str = "Booked in HAIP", strict_stage: bool = True, audit_extra: Optional[dict] = None) -> Stay:
+                   reason: str = "Booked in HAIP", strict_stage: bool = True, audit_extra: Optional[dict] = None,
+                   gst_percent=None) -> Stay:
     """The one way HAIP code makes a booking (POST /bookings, a paid quote link). Ties it to its lead and marks that lead
     Sold through the audited stage move, then audits ``booking.created``. Flushes; the caller commits. Raises
     BookingCreateError when the lead is not this guest's (422) or already has a booking (409).
 
     ``strict_stage=False`` (a payment webhook): a lead that cannot move to Sold (e.g. it was marked Lost) is logged and
-    audited instead of failing, because the guest has paid and the booking must stand."""
+    audited instead of failing, because the guest has paid and the booking must stand. A lead still on the legacy stage enum
+    only (no stage_id) first gets the stage_id its enum stage means (no move), so the same audited move and stage hooks run.
+    ``gst_percent``: the GST slab the total was priced with (the new-booking flow); the invoice then uses it."""
     from app.core.audit import append_audit
     from app.models.base import gen_uuid
     from app.models.inquiry import Inquiry
@@ -169,7 +238,8 @@ def create_booking(db: Session, tenant_id: str, *, guest_id: str, prop: Property
     stay = Stay(id=gen_uuid(), tenant_id=tenant_id, guest_id=guest_id, property_id=prop.id, check_in=check_in, check_out=check_out,
                 adults=adults, children=children, status=status, total_amount=total_amount, currency="INR",
                 special_requests=[special_requests] if special_requests else [], occasion=occasion, channel_source=channel_source,
-                check_in_time=check_in_time, check_out_time=check_out_time, internal_notes=internal_notes)
+                check_in_time=check_in_time, check_out_time=check_out_time, internal_notes=internal_notes,
+                gst_percent=gst_percent)
     if inquiry_id:
         lead = db.query(Inquiry).filter_by(id=inquiry_id, tenant_id=tenant_id).first()
         if lead is None or lead.guest_id != guest_id:
@@ -190,6 +260,9 @@ def create_booking(db: Session, tenant_id: str, *, guest_id: str, prop: Property
         from app.services import inquiry_service as _inq
         won = db.query(PipelineStage).filter_by(tenant_id=tenant_id, is_closed_won=True).order_by(PipelineStage.order).first()
         lead = db.query(Inquiry).filter_by(id=stay.inquiry_id, tenant_id=tenant_id).first()
+        if won is not None and lead is not None and lead.stage_id is None:
+            from app.models.inquiry import InquiryStage
+            lead.stage_id = _inq._stage_id_for(db, tenant_id, lead.stage or InquiryStage.NEW)
         if won is not None and lead is not None and lead.stage_id != won.id:
             try:
                 _inq.update_stage_by_id(db, tenant_id=tenant_id, inquiry_id=lead.id, new_stage_id=won.id,

@@ -29,6 +29,11 @@ export function DashboardSSEBridge() {
     // Feed every meaningful event into the notification store (powers bell UI)
     addNotification(payload as unknown as Record<string, unknown>);
 
+    // An open lead page shows messages and calls inline (GET /leads/{id}/feed): refresh it on any of them.
+    if (["message_received", "message_sent", "ai_draft_ready", "call_processed", "wrap_up_ready", "call_scored"].includes(payload.event)) {
+      queryClient.invalidateQueries({ queryKey: ["lead-feed"] });
+    }
+
     switch (payload.event) {
       case "call_processed":
       case "wrap_up_ready": {

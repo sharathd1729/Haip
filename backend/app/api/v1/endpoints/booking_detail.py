@@ -95,7 +95,11 @@ def _detail(db: Session, tenant_id: str, stay: Stay) -> dict:
     reqs = db.query(StayServiceRequest).filter_by(tenant_id=tenant_id, stay_id=stay.id).order_by(StayServiceRequest.created_at).all()
     team = db.query(User).filter_by(tenant_id=tenant_id, is_active=True).order_by(User.name).all()
     team_names = {u.id: u.name for u in team}
+    from app.services import booking_agenda_service as agenda
     return {
+        # The guest's WhatsApp thread and 24-hour reply window: a free-text message (or a pay link as text) only while open.
+        "whatsapp": agenda.whatsapp_state(db, tenant_id, stay.guest_id),
+        "trip": agenda.trips_for(db, tenant_id, [stay]).get(stay.id),
         "id": stay.id, "status": stay.status, "channel": stay.channel_source,
         "pms_managed": bool(stay.hostaway_booking_id),
         "check_in": stay.check_in.isoformat(), "check_out": stay.check_out.isoformat(),
@@ -296,8 +300,9 @@ def delete_payment(booking_id: str, payment_id: str,
 class PaymentLinkCreate(BaseModel):
     amount: Optional[float] = Field(None, gt=0, le=100_000_000)   # default: the outstanding balance
     expires_in_days: int = Field(3, ge=1, le=30)
-    # Also send it to the guest with the approved ratha_balance_due_v1 template. When the template is not approved
-    # the link is still made and the response says why it was not sent (the page then offers Copy instead).
+    # Also send it to the guest on WhatsApp: as a normal message while the guest's 24-hour window is open, otherwise with the
+    # approved ratha_balance_due_v1 template. When it cannot go, the link is still made and the response says why (the page
+    # then offers Copy instead).
     send_whatsapp: bool = False
 
 
@@ -319,13 +324,21 @@ def create_payment_link(booking_id: str, body: PaymentLinkCreate, current_user: 
     db.commit()
     out = _link_out(link)
     if body.send_whatsapp:
+        from app.services import booking_agenda_service as agenda
         tenant = db.query(Tenant).filter_by(id=tid).first()
-        due = bsvc.next_due(bsvc.schedules_for(db, tid, {stay.id: fin}).get(stay.id, []))
-        due_date = date.fromisoformat(due["due_date"]) if due else stay.check_in
-        res = wa_booking_messages.send_balance_due(db, tenant, stay, link, amount, max(due_date, date.today()),
-                                                   event=f"link:{link.id[:16]}", actor_user_id=current_user.id,
-                                                   sender_name=current_user.name or "HAIP")
-        out["whatsapp"] = {"status": res["status"], "reason": res["reason"]}
+        event = f"link:{link.id[:16]}"
+        if agenda.whatsapp_state(db, tid, stay.guest_id)["window_open"]:
+            res = wa_booking_messages.send_link_text(db, tenant, stay, link, amount, event=event, actor_user_id=current_user.id,
+                                                     sender_name=current_user.name or "HAIP")
+            via = "text"
+        else:
+            due = bsvc.next_due(bsvc.schedules_for(db, tid, {stay.id: fin}).get(stay.id, []))
+            due_date = date.fromisoformat(due["due_date"]) if due else stay.check_in
+            res = wa_booking_messages.send_balance_due(db, tenant, stay, link, amount, max(due_date, date.today()),
+                                                       event=event, actor_user_id=current_user.id,
+                                                       sender_name=current_user.name or "HAIP")
+            via = "template"
+        out["whatsapp"] = {"status": res["status"], "reason": res["reason"], "via": via}
     return out
 
 

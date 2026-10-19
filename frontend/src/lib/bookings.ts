@@ -86,7 +86,8 @@ export interface AddOnLine { id: string; addon_id: string | null; name: string; 
 export interface PaymentEntry { id: string; kind: "payment" | "refund"; amount: number; method: PayMethod; reference: string | null; paid_on: string; notes: string | null; via_gateway: boolean }
 export interface PaymentLink {
   id: string; short_url: string; amount: number; status: string; expires_at: string | null; created_at: string | null;
-  whatsapp?: { status: "queued" | "duplicate" | "skipped"; reason: string | null };   // only when sent with send_whatsapp
+  // only when sent with send_whatsapp: a normal message inside the guest's 24-hour window ("text"), else the template
+  whatsapp?: { status: "queued" | "duplicate" | "skipped"; reason: string | null; via?: "text" | "template" };
 }
 export interface CatalogAddOn { id: string; name: string; description: string | null; category: string; price: number; price_type: string; suggested_quantity: number }
 export interface ActivityEntry { id: string; action: string; at: string | null; by: string | null; payload: Record<string, unknown> }
@@ -123,7 +124,13 @@ export interface BookingDetail {
   payment_links: PaymentLink[];
   available_addons: CatalogAddOn[];
   activity: ActivityEntry[];
+  /** The guest's WhatsApp thread; free text (and a pay link as text) can go only while window_open (24 h from their last message). */
+  whatsapp?: WhatsAppState;
+  /** What the trip is, as the lead recorded it. */
+  trip?: string | null;
 }
+
+export interface WhatsAppState { conversation_id: string | null; last_inbound_at: string | null; window_open: boolean }
 
 export const CHANNEL_STYLE: Record<string, { label: string; cls: string }> = {
   direct:   { label: "Direct",       cls: "bg-primary/10 text-primary border-primary/20" },

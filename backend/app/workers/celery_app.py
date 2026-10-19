@@ -272,6 +272,7 @@ celery_app.conf.update(
         # Booking payments (invoice_tasks.py): same queue as the template send they trigger.
         "invoices.after_payment":                     {"queue": "whatsapp"},
         "invoices.render_pdf":                        {"queue": "whatsapp"},
+        "invoices.send_booking_confirmation":         {"queue": "whatsapp"},
         "payments.notify_staff":                      {"queue": "whatsapp"},
         "payments.balance_reminders":                 {"queue": "whatsapp"},
         # Sent quotes (quote_tasks.py): the quote PDF + WhatsApp send, and cancelling the other option's link.

@@ -357,6 +357,13 @@ export function canViewBookings(role: UserRole | string | undefined | null): boo
   return !!role && BOOKING_READ_ROLES.includes(role as UserRole);
 }
 
+/** Who may make a booking (POST /bookings and /bookings/compose: owner, manager, reservations). Display only. */
+export const BOOKING_CREATE_ROLES: UserRole[] = ["owner", "manager", "reservations"];
+
+export function canCreateBookings(role: UserRole | string | undefined | null): boolean {
+  return !!role && BOOKING_CREATE_ROLES.includes(role as UserRole);
+}
+
 export function canViewRevenue(role: UserRole | string | undefined | null): boolean {
   return !!role && REVENUE_READ_ROLES.includes(role as UserRole);
 }

@@ -247,7 +247,7 @@ def test_payment_link_send_whatsapp_uses_button_suffix_or_says_why(client, db, t
     fake = lambda key_id, key_secret, **kw: {"id": f"plink_{uuid.uuid4().hex[:8]}", "short_url": "https://rzp.io/i/Zx9"}  # noqa: E731
     with patch("app.adapters.payments.razorpay.create_payment_link", side_effect=fake):
         r = client.post(f"/api/v1/bookings/{stay.id}/payment-links", json={"send_whatsapp": True}, headers=h).json()
-        assert r["short_url"] == "https://rzp.io/i/Zx9" and r["whatsapp"] == {"status": "skipped", "reason": "template not approved"}
+        assert r["short_url"] == "https://rzp.io/i/Zx9" and r["whatsapp"] == {"status": "skipped", "reason": "template not approved", "via": "template"}
         _approve(db, tenant_and_user["tenant"].id, names=[wa_booking_pack.BALANCE_DUE])
         r = client.post(f"/api/v1/bookings/{stay.id}/payment-links", json={"send_whatsapp": True, "amount": 5000}, headers=h).json()
         assert r["whatsapp"]["status"] == "queued"

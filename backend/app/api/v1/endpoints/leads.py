@@ -4,6 +4,8 @@ Leads360 API — /api/v1/leads
 Endpoints:
   GET  /leads                         — pipeline view (one card per inquiry)
   GET  /leads/{inquiry_id}            — lead detail + timeline
+  GET  /leads/{inquiry_id}/feed       — the lead page's one chronological thread (leads.read)
+  POST /leads/{inquiry_id}/contact/reveal — unmasked phone/email, audited (guests.pii.reveal)
   POST /leads/{inquiry_id}/signals    — add identity signal (owner/manager/reservations)
   POST /leads/{inquiry_id}/refresh-summary — trigger async AI summary regen (all roles)
   POST /leads/{inquiry_id}/merge      — manual lead merge (owner/manager only)
@@ -33,7 +35,9 @@ from app.schemas.leads import (
     ManualMergeRequest, ManualMergeResponse,
     RefreshSummaryResponse,
 )
-from app.services import identity_service, inquiry_service, leads_service
+from app.schemas.lead_feed import LeadFeedSchema, RevealContactResponse
+from app.services import identity_service, inquiry_service, lead_feed_service, leads_service
+from app.services.authz_service import get_capabilities, require_capability
 from app.services.date_presets import clean_date_str, resolve_range, VALID_PRESETS
 
 router = APIRouter(prefix="/leads", tags=["leads360"])
@@ -229,6 +233,43 @@ def get_lead(
     if detail is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
     return detail
+
+
+# ── GET /leads/{inquiry_id}/feed ──────────────────────────────────────────────
+
+@router.get("/{inquiry_id}/feed", response_model=LeadFeedSchema)
+def get_lead_feed(
+    inquiry_id: str,
+    current_user: User = Depends(require_capability("leads.read")),
+    db: Session = Depends(get_db),
+) -> LeadFeedSchema:
+    """Messages, calls, quotes, bookings, stage changes, tasks and merges of this lead in one list, oldest first, capped
+    at 50 (`capped` = older items exist). Message text needs conversations.read, booking amounts bookings.read.
+    404 when the lead is another workspace's, or (for a scoped role) a teammate's."""
+    feed = lead_feed_service.get_lead_feed(
+        db, current_user.tenant_id, inquiry_id,
+        scope_user_id=_visibility_scope(current_user), capabilities=get_capabilities(db, current_user),
+    )
+    if feed is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+    return feed
+
+
+# ── POST /leads/{inquiry_id}/contact/reveal ───────────────────────────────────
+
+@router.post("/{inquiry_id}/contact/reveal", response_model=RevealContactResponse)
+def reveal_lead_contact(
+    inquiry_id: str,
+    current_user: User = Depends(require_capability("guests.pii.reveal")),
+    db: Session = Depends(get_db),
+) -> RevealContactResponse:
+    """The lead page shows a masked number; this returns the real one and writes a `guest.pii.reveal` audit row."""
+    out = lead_feed_service.reveal_contact(
+        db, current_user.tenant_id, inquiry_id, actor_user_id=current_user.id, scope_user_id=_visibility_scope(current_user),
+    )
+    if out is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+    return RevealContactResponse(**out)
 
 
 # ── POST /leads/{inquiry_id}/signals ─────────────────────────────────────────

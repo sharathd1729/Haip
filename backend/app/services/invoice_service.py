@@ -146,11 +146,15 @@ def stay_lines(db: Session, tenant_id: str, stay: Stay) -> list[dict]:
 
 
 def quote_gst_rate(db: Session, tenant_id: str, stay_id: str) -> Optional[float]:
-    """The GST rate of the rate-calculator quote this booking was made from (its paid advance link), or None. The quote's total
+    """The GST rate the booking was priced with: the slab saved on the booking by the new-booking flow, else the rate of the
+    rate-calculator quote this booking was made from (its paid advance link), or None. The quote's total
     already includes that GST (inclusive or added on top), and the booking total is that total, so splitting it at this rate
     gives back the quote's own tax."""
     from app.models.inquiry_360 import InquiryQuote
     from app.models.stay_finance import StayPaymentLink
+    own = db.query(Stay.gst_percent).filter(Stay.id == stay_id, Stay.tenant_id == tenant_id).first()
+    if own is not None and own[0] is not None:          # priced in the new-booking flow: the slab chosen there
+        return float(Decimal(str(own[0])))
     row = (db.query(InquiryQuote.snapshot).join(StayPaymentLink, StayPaymentLink.inquiry_quote_id == InquiryQuote.id)
            .filter(StayPaymentLink.tenant_id == tenant_id, StayPaymentLink.stay_id == stay_id, InquiryQuote.tenant_id == tenant_id)
            .first())

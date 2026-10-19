@@ -2,6 +2,10 @@
 
 Newest first. One entry per decision that changes how the UI is built. Rule from `HAIP_UI_Redesign_Plan.md`: when two sources disagree, follow `docs/DESIGN.md`; if it is silent, follow the plan; log the choice here.
 
+## 2026-10-19
+
+**Bookings is an agenda (owner chose layout B).** Segments Upcoming / Staying now / Past / Cancelled, a month summary, search + one Filters sheet, a 14-day strip per caravan, then each day's check-ins and check-outs. The Split/Table views and bulk "move to property" are gone (move one booking at a time with Edit). Two new tokens tint the caravans in the strip and on vehicle tags: `--haip-cal-vehicle-1` / `--haip-cal-vehicle-2` (+ `--haip-cal-vehicle-fg`), light and dark. A one-day block in the strip is about 21px wide on a 375px phone: accepted from the mock-up, the same booking is also a full-size row below.
+
 ## 2026-10-18
 
 **Palette: Sea Green & Coral replaces plum & marigold.** The owner wanted the theme closer to the brand (green/cyan family, not teal). Four combinations were compared on the real app with a temporary per-browser palette switcher (A Emerald & Marigold, B Sea Green & Coral, C Ocean Cyan & Sand, D Lagoon; screenshots in `docs/design/palette-lab/`, not committed). B was chosen: sea green `#1E7A5A` (dark `#5CC9A0`) for actions, coral `#E0694A` for highlights, sand-white canvas, green-charcoal dark mode; every pair AA in both themes. The lab was removed. Workspaces still on an old house default (teal + navy, or plum + white) follow the new default automatically (`brandTheme.ts` `LEGACY_DEFAULTS`); the Jamun preset was replaced by "Sea Green (HAIP)".
