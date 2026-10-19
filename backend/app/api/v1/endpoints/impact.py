@@ -1,6 +1,7 @@
 """Before / after impact view (owner + manager) and the public case study.
 
   GET    /dashboard/impact                      the view (go_live / days default to the saved settings)
+  GET    /dashboard/impact/since-haip           the compact "Since HAIP" card on the Owner Command Center
   GET    /dashboard/impact/export.pdf           the same, as a PDF for sales decks (aggregates only)
   PUT    /dashboard/impact/settings             go-live date + window (owner)
   GET    /dashboard/impact/baselines            the owner-entered "before" figures
@@ -27,6 +28,7 @@ from app.schemas.impact import BaselineIn, CaseStudyPublishIn, ImpactSettingsIn
 from app.services import impact_case_study as case_study
 from app.services import impact_pdf
 from app.services import impact_service as svc
+from app.services import impact_since
 from app.services.authz_service import get_capabilities, require_capability
 
 router = APIRouter(prefix="/dashboard/impact", tags=["impact"])
@@ -66,6 +68,24 @@ def impact_view(
     view["can_edit"] = current_user.role == UserRole.OWNER
     view["can_revenue"] = _can_revenue(db, current_user)
     view["tenant_name"] = _tenant(db, current_user).name
+    return view
+
+
+@router.get("/since-haip")
+def since_haip(
+    current_user: User = Depends(_VIEWERS),
+    db: Session = Depends(get_db),
+    _cap=Depends(require_capability("analytics.read")),
+):
+    """Leads, bookings, bookings value, the team's first reply and AI drafts sent: the N days before go-live vs the latest
+    N days (impact_since). Bookings need bookings.read and money revenue.read, else that tile is ``{"restricted": true}``."""
+    caps = get_capabilities(db, current_user)
+    try:
+        view = impact_since.build(db, current_user.tenant_id, can_bookings="bookings.read" in caps,
+                                  can_revenue="revenue.read" in caps)
+    except svc.ImpactError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    view["can_edit"] = current_user.role == UserRole.OWNER
     return view
 
 

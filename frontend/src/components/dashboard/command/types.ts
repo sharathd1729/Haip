@@ -89,6 +89,8 @@ export interface AgentRow {
   leads: number; qualified: number; bookings: number | null; booking_value: number | null;
   calls_answered: number; calls_missed: number; callbacks_waiting: number;
   avg_response_seconds: number | null; messages_sent: number;
+  /** First human reply by where the guest wrote; group chats and mirrored phone history left out. null = no replies there. */
+  response_by_source?: Record<"personal_whatsapp" | "whatsapp_cloud" | "instagram", { avg_seconds: number | null; response_count: number } | null> | null;
   followups_total: number; followups_completed: number; followups_overdue: number;
   ai_drafts_approved: number; ai_drafts_total: number; avg_call_score: number | null;
 }

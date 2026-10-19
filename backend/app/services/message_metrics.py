@@ -213,3 +213,134 @@ def _response_gap_sql(aggregate: str, until_clause: str, property_clause: str) -
         ) sub
         WHERE gap_seconds IS NOT NULL
     """
+
+
+# The chat a guest wrote on. Personal = the read-only personal WhatsApp bridge, judged on the conversation
+# (Conversation.source) OR on the message itself, because a bridged message can land in a known lead's open Cloud
+# thread (one open WhatsApp conversation per guest). Same keys as impact_metrics.CHANNELS.
+RESPONSE_SOURCES = ("personal_whatsapp", "whatsapp_cloud", "instagram")
+
+_SOURCE_SQL = """
+    CASE
+        WHEN c.channel = 'INSTAGRAM' THEN 'instagram'
+        WHEN c.source = 'personal_bridge' OR m.channel_metadata->>'source' = 'personal_bridge' THEN 'personal_whatsapp'
+        ELSE 'whatsapp_cloud'
+    END
+"""
+
+
+def chat_response_by_agent_source(
+    db: Session,
+    tenant_id: str,
+    since: datetime,
+    until: Optional[datetime] = None,
+    property_ids: Optional[List[str]] = None,
+    include_history: bool = False,
+) -> dict:
+    """
+    chat_response_by_agent split by SOURCE (where the guest wrote: personal
+    WhatsApp bridge, the official Cloud WhatsApp number, Instagram), plus the
+    per-source and overall totals, from one GROUPING SETS query.
+
+    Same turn rule and the same "human reply" rule (the matched outbound row
+    has a sender_id) as chat_response_by_agent, with two exclusions that only
+    ever hit the personal bridge:
+      * group chats (message channel_metadata.chat_type = 'group') are not
+        guest turns and their messages are not replies;
+      * messages mirrored from the phone's history sync (channel_metadata.
+        history = true: text only, at most 200 per chat, so gaps are not
+        reliable) are skipped, unless ``include_history`` -- the "Since HAIP"
+        card uses it on both of its windows, because that history is the only
+        record of reply times from before go-live.
+
+    Returns {"by_agent": [{agent_id, source, avg_seconds, p95_seconds,
+    response_count}], "by_source": {source: {...} | None}, "all": {...} | None}.
+    None means no answered turn (unknown), never 0 seconds.
+    """
+    until_clause = "AND m.created_at < :until" if until is not None else ""
+    property_clause = "AND c.property_id = ANY(:property_ids)" if property_ids else ""
+    history_clause = "" if include_history else "AND COALESCE(m.channel_metadata->>'history', '') <> 'true'"
+    reply_history_clause = "" if include_history else "AND COALESCE(o.channel_metadata->>'history', '') <> 'true'"
+    params = {"tid": tenant_id, "since": since}
+    if until is not None:
+        params["until"] = until
+    if property_ids:
+        params["property_ids"] = property_ids
+
+    rows = db.execute(
+        text(f"""
+            SELECT
+                agent_id,
+                source,
+                GROUPING(agent_id) AS all_agents,
+                GROUPING(source) AS all_sources,
+                AVG(gap_seconds) AS avg_seconds,
+                percentile_cont(0.95) WITHIN GROUP (ORDER BY gap_seconds) AS p95_seconds,
+                COUNT(*) AS response_count
+            FROM (
+                SELECT
+                    nxt.agent_id,
+                    turns.source,
+                    EXTRACT(EPOCH FROM (nxt.next_outbound_at - turns.created_at)) AS gap_seconds
+                FROM (
+                    SELECT
+                        m.id,
+                        m.conversation_id,
+                        m.created_at,
+                        m.direction,
+                        {_SOURCE_SQL} AS source,
+                        LAG(m.direction) OVER (
+                            PARTITION BY m.conversation_id ORDER BY m.created_at
+                        ) AS prev_direction
+                    FROM messages m
+                    JOIN conversations c ON c.id = m.conversation_id
+                    WHERE m.tenant_id = :tid
+                      AND c.tenant_id = :tid
+                      AND m.created_at >= :since
+                      {until_clause}
+                      {property_clause}
+                      AND c.channel IN ('WHATSAPP', 'INSTAGRAM')
+                      AND COALESCE(m.channel_metadata->>'chat_type', '') <> 'group'
+                      {history_clause}
+                ) turns
+                CROSS JOIN LATERAL (
+                    SELECT o.created_at AS next_outbound_at, o.sender_id AS agent_id
+                    FROM messages o
+                    WHERE o.conversation_id = turns.conversation_id
+                      AND o.tenant_id = :tid
+                      AND o.direction = 'OUTBOUND'
+                      AND o.created_at > turns.created_at
+                      AND COALESCE(o.channel_metadata->>'chat_type', '') <> 'group'
+                      {reply_history_clause}
+                    ORDER BY o.created_at ASC
+                    LIMIT 1
+                ) nxt
+                WHERE turns.direction = 'INBOUND'
+                  AND turns.prev_direction IS DISTINCT FROM 'INBOUND'
+                  AND nxt.next_outbound_at IS NOT NULL
+                  AND nxt.agent_id IS NOT NULL
+            ) sub
+            GROUP BY GROUPING SETS ((agent_id, source), (source), ())
+        """),
+        params,
+    ).mappings().all()
+
+    def _figures(row) -> dict:
+        return {
+            "avg_seconds": float(row["avg_seconds"]) if row["avg_seconds"] is not None else None,
+            "p95_seconds": float(row["p95_seconds"]) if row["p95_seconds"] is not None else None,
+            "response_count": int(row["response_count"]),
+        }
+
+    by_agent, by_source, overall = [], {s: None for s in RESPONSE_SOURCES}, None
+    for row in rows:
+        if not row["response_count"]:
+            continue                  # the () grouping set returns one empty row when nothing was answered
+        if row["all_sources"]:
+            overall = _figures(row)
+        elif row["all_agents"]:
+            by_source[row["source"]] = _figures(row)
+        else:
+            by_agent.append({"agent_id": row["agent_id"], "source": row["source"], **_figures(row)})
+    by_agent.sort(key=lambda r: -r["response_count"])
+    return {"by_agent": by_agent, "by_source": by_source, "all": overall}

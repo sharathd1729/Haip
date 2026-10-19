@@ -19,6 +19,21 @@ function Stat({ label, children, tone }: { label: string; children: ReactNode; t
   );
 }
 
+const SOURCE_SHORT = { personal_whatsapp: "Personal WA", whatsapp_cloud: "Business WA", instagram: "Instagram" } as const;
+
+/** The first reply split by where the guest wrote, only for the sources the agent answered on. */
+function BySource({ row }: { row: AgentRow }) {
+  const parts = (Object.keys(SOURCE_SHORT) as (keyof typeof SOURCE_SHORT)[])
+    .map(k => [k, row.response_by_source?.[k]] as const)
+    .filter(([, v]) => v && v.response_count > 0);
+  if (parts.length === 0) return null;
+  return (
+    <span className="block text-[11px] leading-snug text-[var(--haip-fg-subtle)]">
+      {parts.map(([k, v]) => `${SOURCE_SHORT[k]} ${duration(v!.avg_seconds)}`).join(" · ")}
+    </span>
+  );
+}
+
 export function Team({ rows }: { rows: AgentRow[] }) {
   return (
     <section aria-labelledby="team-title" className="haip-card px-4 py-4 sm:px-6 sm:py-5">
@@ -39,7 +54,7 @@ export function Team({ rows }: { rows: AgentRow[] }) {
                 <Stat label="Bookings">{a.bookings == null ? "—" : num(a.bookings)}{a.booking_value != null && <span className="block text-[11.5px] text-[var(--haip-fg-subtle)]">{inr(a.booking_value)}</span>}</Stat>
                 <Stat label="Calls answered / missed">{a.agent_id ? `${num(a.calls_answered)} / ${num(a.calls_missed)}` : "—"}</Stat>
                 <Stat label="Callbacks waiting" tone={a.callbacks_waiting > 0 ? "danger" : undefined}>{a.agent_id ? num(a.callbacks_waiting) : "—"}</Stat>
-                <Stat label="First reply">{duration(a.avg_response_seconds)}</Stat>
+                <Stat label="First reply">{duration(a.avg_response_seconds)}<BySource row={a} /></Stat>
                 <Stat label="Messages sent">{a.agent_id ? num(a.messages_sent) : "—"}</Stat>
                 <Stat label="Follow-ups done / overdue" tone={a.followups_overdue > 0 ? "danger" : undefined}>{a.agent_id ? `${num(a.followups_completed)} / ${num(a.followups_overdue)}` : "—"}</Stat>
                 <Stat label="Call quality">{a.avg_call_score == null ? "—" : `${a.avg_call_score}%`}</Stat>
@@ -47,7 +62,7 @@ export function Team({ rows }: { rows: AgentRow[] }) {
             ))}
           </ul>
           <p className="mt-2 text-[11.5px] text-[var(--haip-fg-subtle)]">
-            First reply is the average time to a human reply on WhatsApp and Instagram. Call quality is the average AI score of the agent’s analysed calls.
+            First reply is the average time to a human reply on WhatsApp and Instagram; the line under it splits it by where the guest wrote (personal WhatsApp leaves out group chats and mirrored phone history). Call quality is the average AI score of the agent’s analysed calls.
           </p>
         </>
       )}
