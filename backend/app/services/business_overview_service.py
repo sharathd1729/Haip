@@ -9,6 +9,7 @@ This module only COMPOSES. Every definition it uses already lives somewhere shar
   * work queue counts                                                     dashboard_service.needs_you_now     (-> work_queue_service)
   * integration health                                                    integration_health.classify
   * month target                                                          sales_performance_service.pickup_report
+  * the owner dashboard (layout A, ``owner``)                             owner_dashboard_attention / owner_dashboard_blocks
 
 A LEAD is a person HAIP holds a usable phone number for. A conversation or an enquiry is not a lead: one person who messages on
 Instagram and WhatsApp and enquires twice is two conversations, two enquiries and ONE lead. The page keeps those apart and never
@@ -38,6 +39,8 @@ from app.models.property import Stay
 from app.models.stay_finance import StayAddOn
 from app.services import booking_service, dashboard_service, integration_health, kpi_metrics, lead_metrics
 from app.services import business_overview_extras as extras
+from app.services import owner_dashboard_attention as owner_attention
+from app.services import owner_dashboard_blocks as owner_blocks
 from app.services import work_queue_service
 from app.services.date_presets import IST, ist_range_to_utc
 from app.services.business_overview_common import (  # noqa: F401  (Params, normalise_channel, previous_period are re-exported)
@@ -47,7 +50,8 @@ from app.services.business_overview_common import (  # noqa: F401  (Params, norm
 
 LIVE_STATUSES = ("confirmed", "checked_in")
 LIVE_STAY_CAP = 2000       # live bookings examined for "needs payment"; beyond this the answer says truncated
-UPCOMING_DAYS = 7
+UPCOMING_DAYS = 7          # default window for upcoming check-ins; the request's window_days (3/7/15/30) replaces it
+WINDOW_DAYS = (3, 7, 15, 30)
 
 LEAD_DEFINITION = ("A lead is a person we hold a usable phone number for. A conversation, a DM or an enquiry on its own is not a lead; "
                    "one person across Instagram, WhatsApp and calls is one lead.")
@@ -159,7 +163,7 @@ def _bookings_and_revenue(db: Session, p: Params, today: date) -> tuple[dict, di
     cur = _bookings_totals(db, p, p.start, p.end)
     prev = _bookings_totals(db, p, p.prev_start, p.prev_end)
 
-    upcoming_from, upcoming_to = today, today + timedelta(days=UPCOMING_DAYS - 1)
+    upcoming_from, upcoming_to = today, today + timedelta(days=p.window_days - 1)
     upcoming_q = db.query(func.count(Stay.id)).filter(
         Stay.tenant_id == p.tid, Stay.status == "confirmed",
         Stay.check_in >= upcoming_from, Stay.check_in <= upcoming_to)
@@ -181,7 +185,7 @@ def _bookings_and_revenue(db: Session, p: Params, today: date) -> tuple[dict, di
         "confirmed_created": cur["count"], "confirmed_change": _change(cur["count"], prev["count"]),
         "cancelled_of_created": cur["cancelled"],
         "pending": {"available": False, "reason": "HAIP bookings are confirmed, checked in, checked out or cancelled; there is no pending status."},
-        "upcoming_checkins": int(upcoming_q.scalar() or 0), "upcoming_window_days": UPCOMING_DAYS,
+        "upcoming_checkins": int(upcoming_q.scalar() or 0), "upcoming_window_days": p.window_days,
         "needs_payment": live["owing"], "payment_overdue": live["overdue"], "needs_payment_truncated": live["truncated"],
         "by_lead_cohort": by_lead,
         "no_identified_lead": None if narrowed else split["no_identified_lead"]["count"],
@@ -384,4 +388,21 @@ def build(db: Session, p: Params, tenant) -> dict:
         "attention": _attention(queue, bookings, at_risk, work),
         "stale_integrations": _integrations(db, p) if p.tenant_wide else [],
         "insights": dashboard_service.top_insights(db, p.tid) if p.tenant_wide else [],
+        "owner": _owner(db, p, work, today),
+    }
+
+
+def _owner(db: Session, p: Params, work: dict, today: date) -> dict:
+    """The owner dashboard, layout A (19 Oct 2026). Built from the same work-queue read as ``attention``."""
+    return {
+        "attention": owner_attention.attention_cards(work, owner_attention.owing_card(db, p, today) if p.can_bookings else None),
+        "kpis": owner_blocks.kpis(db, p),
+        "target": owner_blocks.target(db, p, today),
+        "movements": owner_attention.movements(db, p, today, p.window_days) if p.can_bookings else {"restricted": True},
+        "travel": owner_blocks.travel(db, p, today),
+        "stages": owner_blocks.stages(db, p),
+        "caravans": owner_blocks.caravans(db, p, today),
+        "ai_calls": owner_blocks.ai_calls(db, p),
+        "team": owner_blocks.team(db, p, today),
+        "today": today.isoformat(),
     }

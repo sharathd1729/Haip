@@ -7,7 +7,8 @@ const get = vi.fn();
 const post = vi.fn();
 vi.mock("@/lib/api", () => ({ default: { get: (...a: unknown[]) => get(...a), post: (...a: unknown[]) => post(...a) } }));
 vi.mock("next-auth/react", () => ({ useSession: () => ({ data: { user: { name: "Asha Rao", role: "concierge" } }, status: "authenticated" }) }));
-vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams() }));
+const nav = vi.hoisted(() => ({ search: new URLSearchParams() }));
+vi.mock("next/navigation", () => ({ useSearchParams: () => nav.search }));
 vi.mock("@/components/ui/toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
 import MyDayPage from "./page";
@@ -26,7 +27,7 @@ function item(patch: Record<string, unknown>) {
 function queue(items: ReturnType<typeof item>[]) {
   const sev = { fresh: 0, late: 0, urgent: 0, critical: 0, stale: 0 } as Record<string, number>;
   items.forEach(i => { sev[i.severity as string] += 1; });
-  const counts = { new_lead: 0, callback: 0, reply: 0, followup: 0 } as Record<string, number>;
+  const counts = { new_lead: 0, callback: 0, reply: 0, no_reply: 0, followup: 0 } as Record<string, number>;
   items.forEach(i => { counts[i.kind as string] += 1; });
   return { counts, oldest: { new_lead: null, callback: null, reply: null, followup: null }, severity: sev, total: items.length, people: items.length, unowned: items.filter(i => !i.owner_id).length, items, scope: "team" };
 }
@@ -36,7 +37,7 @@ function renderPage() {
   return render(<QueryClientProvider client={client}><MyDayPage /></QueryClientProvider>);
 }
 
-beforeEach(() => { cleanup(); get.mockReset(); post.mockReset(); });
+beforeEach(() => { cleanup(); get.mockReset(); post.mockReset(); nav.search = new URLSearchParams(); });
 
 describe("My day", () => {
   it("puts people past their target time first, new arrivals next, and hides the cold ones until asked", async () => {
@@ -88,5 +89,22 @@ describe("My day", () => {
     get.mockRejectedValue(new Error("offline"));
     renderPage();
     expect(await screen.findByText("Couldn't load your list")).toBeTruthy();
+  });
+
+  it("opens on exactly the people a dashboard card counted (?flag=) and lists the not-replying kind", async () => {
+    nav.search = new URLSearchParams("flag=not_called");
+    get.mockResolvedValue({ data: queue([
+      item({ title: "Kavya", flags: ["not_called"] }),
+      item({ title: "Rohan", guest_id: "g2", inquiry_id: "i2", flags: [] }),
+      item({ title: "Pooja", kind: "no_reply", guest_id: "g3", inquiry_id: "i3", detail: "Our last message: “Shall I hold the dates?”", flags: ["not_called"] }),
+    ]) });
+    renderPage();
+    expect(await screen.findByText("Kavya")).toBeTruthy();
+    expect(screen.getByText("Pooja")).toBeTruthy();
+    expect(screen.queryByText("Rohan")).toBeNull();
+    expect(screen.getByText("Not called yet")).toBeTruthy();
+    expect(screen.getByText("Not replying to us")).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Show everyone" }));
+    expect(await screen.findByText("Rohan")).toBeTruthy();
   });
 });

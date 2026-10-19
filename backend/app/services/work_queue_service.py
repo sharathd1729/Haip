@@ -10,9 +10,11 @@ answered a guest is not "waiting".
   new_lead   a lead (number captured) that no person has contacted yet, whatever channel it came from
   callback   missed call nobody has returned
   reply      a lead whose last message is theirs and nobody (person or bot) has answered
+  no_reply   a lead whose last message is OURS and who has been silent 24 h+ (D-23; work_queue_signals.py)
   followup   a task someone committed to is due or overdue
 
-Each person appears ONCE, under the most specific reason (callback > new_lead > reply), so counts are people, not rows.
+Each person appears ONCE, under the most specific reason (callback > new_lead > reply > no_reply), so counts are people, not
+rows. Items also carry ``flags`` (not_called, open_lead, at_risk; work_queue_signals.apply_flags) that the owner dashboard counts.
 Every item carries a ``severity`` (how far past its SLA it is) so the screen and the alerts agree on what is urgent:
 fresh -> late -> urgent -> critical, and ``stale`` once it is old enough that it is probably cold.
 
@@ -39,12 +41,14 @@ from app.models.inquiry import Inquiry
 from app.models.task import Task
 from app.models.tenant import Tenant
 from app.models.user import User
-from app.services import call_status_service
+from app.services import call_status_service, work_queue_signals
+from app.services.date_presets import IST
 
 log = structlog.get_logger()
 
 # Display / priority order. A person shows once, under the earliest kind that applies.
-KINDS = ("callback", "new_lead", "reply", "followup")
+KINDS = ("callback", "new_lead", "reply", "no_reply", "followup")
+PERSON_KINDS = ("callback", "new_lead", "reply", "no_reply")
 
 # Calls older than this are a lost cause for a call-back queue; the same window the Calls screen uses.
 CALLBACK_WINDOW = timedelta(days=7)
@@ -61,6 +65,8 @@ SLA_MINUTES = {
     "new_lead": (15, 60, 240, 72 * 60),
     "callback": (30, 120, 480, 72 * 60),
     "reply": (30, 120, 480, 72 * 60),
+    # Only listed once they have been silent 24 h: fresh up to 2 days, late at 2, urgent at 3, critical at 5, cold after 7.
+    "no_reply": (48 * 60, 72 * 60, 120 * 60, 7 * 24 * 60),
 }
 SEVERITIES = ("fresh", "late", "urgent", "critical", "stale")
 _SEV_RANK = {s: i for i, s in enumerate(SEVERITIES)}
@@ -85,6 +91,7 @@ class QueueItem:
     attempts: int = 0                  # calls we placed that nobody picked up
     facts: list[str] = field(default_factory=list)   # dates / party size / occasion, when known
     has_draft: bool = False            # the AI has a reply waiting for a person to send
+    flags: list[str] = field(default_factory=list)   # not_called / open_lead / at_risk (work_queue_signals.apply_flags)
 
     def as_dict(self) -> dict:
         return {
@@ -94,6 +101,7 @@ class QueueItem:
             "owner_id": self.owner_id, "owner_name": self.owner_name,
             "channels": self.channels, "since": _iso(self.since), "overdue": self.overdue,
             "severity": self.severity, "attempts": self.attempts, "facts": self.facts, "has_draft": self.has_draft,
+            "flags": self.flags,
         }
 
 
@@ -428,7 +436,7 @@ def _replies(db: Session, tenant_id: str, scope_user_id: Optional[str], now: dat
         return []
     # Drop leads whose enquiry is closed, and anyone a person has spoken to since their last message (a phone call counts:
     # the unanswered chat line is then already dealt with).
-    _, closed = _open_inquiries_by_guest(db, tenant_id, list({c.guest_id for c, _ in rows}))
+    open_by, closed = _open_inquiries_by_guest(db, tenant_id, list({c.guest_id for c, _ in rows}))
     rows = [(c, last_in) for c, last_in in rows if c.guest_id not in closed]
     last_in_by_guest: dict[str, datetime] = {}
     for c, last_in in rows:
@@ -459,6 +467,7 @@ def _replies(db: Session, tenant_id: str, scope_user_id: Optional[str], now: dat
             detail=f"“{preview}”" if preview else "Waiting for our reply",
             action="Reply",
             href=f"/dashboard/inbox?c={conv.id}",
+            inquiry_id=open_by[conv.guest_id].id if conv.guest_id in open_by else None,
             guest_id=conv.guest_id,
             guest_phone=guest.phone if guest else None,
             owner_id=conv.assigned_to,
@@ -510,7 +519,7 @@ def _followups(db: Session, tenant_id: str, scope_user_id: Optional[str]) -> lis
 def _dedupe_people(by_kind: dict[str, list[QueueItem]]) -> None:
     """One person, one row: the earliest kind in KINDS wins (a missed call beats a new lead beats a waiting reply)."""
     taken: set[str] = set()
-    for kind in ("callback", "new_lead", "reply"):
+    for kind in PERSON_KINDS:
         kept = []
         for item in by_kind[kind]:
             if item.guest_id and item.guest_id in taken:
@@ -530,17 +539,19 @@ def build(db: Session, tenant: Tenant, scope_user_id: Optional[str], kinds: Opti
         "callback": _callbacks(db, tenant),
         "new_lead": _new_leads(db, tenant.id, scope_user_id, now),
         "reply": _replies(db, tenant.id, scope_user_id, now),
+        "no_reply": work_queue_signals.no_replies(db, tenant.id, scope_user_id, now),
         "followup": _followups(db, tenant.id, scope_user_id),
     }
     _dedupe_people(by_kind)
 
-    for kind in ("callback", "new_lead", "reply"):
+    for kind in PERSON_KINDS:
         for item in by_kind[kind]:
             item.severity = severity_for(kind, item.since, now)
             item.overdue = item.severity != "fresh"
 
     all_items = [i for k in KINDS for i in by_kind[k]]
     all_items.sort(key=_sort_key)
+    flags = work_queue_signals.apply_flags(db, tenant.id, all_items, now, datetime.now(IST).date())
     counts = {k: len(by_kind[k]) for k in KINDS}
     oldest = {
         k: _iso(min((i.since for i in by_kind[k] if i.since), key=_aware, default=None))
@@ -556,6 +567,7 @@ def build(db: Session, tenant: Tenant, scope_user_id: Optional[str], kinds: Opti
         "people": len(people) + no_guest,
         "severity": severity,
         "unowned": sum(1 for i in by_kind["new_lead"] if not i.owner_id),
+        "flags": flags,
         "items": [i.as_dict() for i in all_items if i.kind in wanted],
         "scope": "mine" if scope_user_id else "team",
     }
@@ -564,4 +576,4 @@ def build(db: Session, tenant: Tenant, scope_user_id: Optional[str], kinds: Opti
 def counts(db: Session, tenant: Tenant, scope_user_id: Optional[str]) -> dict:
     """Counts only -- for the dashboard cards and nav badges."""
     res = build(db, tenant, scope_user_id)
-    return {k: res[k] for k in ("counts", "oldest", "total", "people", "severity", "unowned")}
+    return {k: res[k] for k in ("counts", "oldest", "total", "people", "severity", "unowned", "flags")}
