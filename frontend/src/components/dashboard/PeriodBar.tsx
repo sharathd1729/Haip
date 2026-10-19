@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 
 export const PERIOD_PRESETS = [
   { value: "today", label: "Today" },
+  { value: "yesterday", label: "Yesterday" },
   { value: "last_7d", label: "Last 7 days" },
   { value: "this_month", label: "This month" },
   { value: "last_month", label: "Last month" },

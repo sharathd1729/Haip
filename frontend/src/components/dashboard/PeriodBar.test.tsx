@@ -6,12 +6,12 @@ beforeEach(() => { window.localStorage.clear(); window.sessionStorage.clear(); }
 afterEach(cleanup);
 
 describe("PeriodBar", () => {
-  it("offers exactly Today, Last 7 days, This month and Last month, and marks the chosen one", () => {
+  it("offers exactly Today, Yesterday, Last 7 days, This month and Last month, and marks the chosen one", () => {
     render(<PeriodBar value="last_7d" onChange={() => {}} />);
     const tabs = screen.getAllByRole("tab");
-    expect(tabs.map(t => t.textContent)).toEqual(["Today", "Last 7 days", "This month", "Last month"]);
+    expect(tabs.map(t => t.textContent)).toEqual(["Today", "Yesterday", "Last 7 days", "This month", "Last month"]);
     expect(tabs.find(t => t.getAttribute("aria-selected") === "true")?.textContent).toBe("Last 7 days");
-    expect(PERIOD_PRESETS.map(p => p.value)).toEqual(["today", "last_7d", "this_month", "last_month"]);
+    expect(PERIOD_PRESETS.map(p => p.value)).toEqual(["today", "yesterday", "last_7d", "this_month", "last_month"]);
   });
 
   it("stays pinned while the page scrolls and reports the choice", () => {
