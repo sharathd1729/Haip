@@ -9,6 +9,7 @@ import { DashboardClientShell, StatusBarSlot } from "@/components/dashboard/Dash
 import { SampleDataBanner } from "@/components/dashboard/SampleDataBanner";
 import { BrandThemeProvider } from "@/components/providers/BrandThemeProvider";
 import { WorkspaceProvider } from "@/components/providers/WorkspaceProvider";
+import { QuoteSheetProvider } from "@/components/quotes/QuoteSheetProvider";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -40,6 +41,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <BrandThemeProvider>
     <WorkspaceProvider>
+    {/* The "Send quote" sheet: the rate calculator opened from any page (useQuoteSheet). */}
+    <QuoteSheetProvider>
       {/*
         Single layout — children render exactly once.
         Shell elements (top bar, phone header, bottom bar) are shown/hidden via CSS.
@@ -98,6 +101,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
       {/* Client-side overlays: CommandPalette, StatusBar */}
       <DashboardClientShell />
+    </QuoteSheetProvider>
     </WorkspaceProvider>
     </BrandThemeProvider>
   );

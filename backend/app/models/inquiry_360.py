@@ -68,6 +68,12 @@ class InquiryQuote(Base, TimestampMixin, TenantMixin):
     # Both share option_group_id = the primary's id. Older rows: rank 1, no group.
     option_rank     = Column(SmallInteger, nullable=False, default=1, server_default="1")
     option_group_id = Column(String, nullable=True, index=True)
+    # Rate calculator (migration 148): how it reached the guest ("sent" | "copied"; NULL = saved only) and who approved a price
+    # lowered past the tenant's limit (status "pending_approval" until then).
+    shared_via   = Column(String(20), nullable=True)
+    shared_at    = Column(DateTime(timezone=True), nullable=True)
+    approved_by  = Column(String, nullable=True)
+    approved_at  = Column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         Index("ix_inquiry_quotes_inquiry", "inquiry_id"),

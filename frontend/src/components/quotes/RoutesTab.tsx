@@ -45,7 +45,7 @@ export function useReview(kindLabel: string) {
   return { approve, reject };
 }
 
-export function RoutesTab({ catalog, onQuote }: { catalog: Catalog; onQuote: (key: string) => void }) {
+export function RoutesTab({ catalog, onQuote }: { catalog: Catalog; onQuote?: (key: string) => void }) {
   const [editing, setEditing] = useState<null | { entry: CatalogEntry | null }>(null);
   const { approve, reject } = useReview("Route");
   const perms = catalog.permissions;
@@ -74,7 +74,7 @@ export function RoutesTab({ catalog, onQuote }: { catalog: Catalog; onQuote: (ke
           </>
         )}
         {perms.can_draft && <button type="button" className={BTN} onClick={() => setEditing({ entry: e })}>Edit</button>}
-        {perms.can_quote && <button type="button" className={BTN} onClick={() => onQuote(e.key)}>Quote it</button>}
+        {perms.can_quote && onQuote && <button type="button" className={BTN} onClick={() => onQuote(e.key)}>Quote it</button>}
       </div>
     ) },
   ];

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { ChannelBadges } from "@/components/inbox/ChannelBadges";
 import { OUTCOMES } from "@/components/calls/CallDetailPanel";
+import { SendQuoteButton } from "@/components/quotes/SendQuoteButton";
 import type { GuestChannel } from "@/store/inbox";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -184,6 +185,9 @@ export function CallRow({
   </div>
 
   <div className="flex items-center gap-2.5 flex-shrink-0">
+  {/* Quote from the call row; a missed call with no lead opens with its number ready for "Add as new lead". */}
+  <SendQuoteButton iconOnlyBelowSm label="Quote" className="min-h-9 px-2.5 text-xs"
+    args={{ callId: call.id, from: "calls", name: call.guest_name || null }} />
   {call.is_missed ? (
   <>
   {call.called_back ? (

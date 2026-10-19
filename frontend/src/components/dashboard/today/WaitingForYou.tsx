@@ -11,11 +11,13 @@ import { ArrowRight, CheckCircle2 } from "@/lib/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GuestAvatar } from "@/components/crm/GuestAvatar";
 import { AvatarChannelBadges, toGuestChannel } from "@/components/inbox/ChannelBadges";
+import { SendQuoteButton } from "@/components/quotes/SendQuoteButton";
 
 type Kind = "callback" | "new_lead" | "reply" | "no_reply" | "followup" | "clash";
 type Severity = "fresh" | "late" | "urgent" | "critical" | "stale";
 interface Item {
   kind: Kind; title: string; detail: string; action: string; href: string; guest_id: string | null;
+  inquiry_id?: string | null; guest_phone?: string | null;
   channels: string[]; since: string | null; severity: Severity; has_draft: boolean;
 }
 interface Queue { total: number; severity: Record<Severity, number>; items: Item[] }
@@ -72,7 +74,7 @@ export function WaitingForYou({ role, limit = 4 }: { role: string; limit?: numbe
             const late = LATE.has(item.severity);
             const channels = item.channels.map(toGuestChannel).filter(Boolean) as NonNullable<ReturnType<typeof toGuestChannel>>[];
             return (
-              <li key={`${item.kind}:${item.guest_id ?? item.href}`}>
+              <li key={`${item.kind}:${item.guest_id ?? item.href}`} className="flex flex-col gap-1">
                 <Link href={item.href}
                   className={cn("haip-card group flex h-full min-h-[132px] flex-col gap-2.5 px-4 py-3.5 transition-shadow hover:shadow-[var(--haip-shadow-md)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                     late && "shadow-[inset_3px_0_0_var(--haip-status-danger-fg)]")}>
@@ -93,6 +95,9 @@ export function WaitingForYou({ role, limit = 4 }: { role: string; limit?: numbe
                     <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" aria-hidden />
                   </span>
                 </Link>
+                <SendQuoteButton variant="link" className="self-start"
+                  args={{ inquiryId: item.inquiry_id ?? null, guestId: item.guest_id, phone: item.inquiry_id || item.guest_id ? null : item.guest_phone ?? null,
+                    from: "home", name: item.title }} />
               </li>
             );
           })}

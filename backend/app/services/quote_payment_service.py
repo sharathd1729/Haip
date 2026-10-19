@@ -188,6 +188,9 @@ def _book(db: Session, tenant: Tenant, quote: InquiryQuote, inquiry: Inquiry, pr
     inputs, meta = snap.get("inputs") or {}, snap.get("meta") or {}
     reseller = (meta.get("channel") or inputs.get("channel")) == "reseller"
     notes = [f"Booked from quote {ref} (advance paid online, {pay_id})."]
+    if snap.get("kind") == "calculator":            # the invoice takes this GST rate from the quote (invoice_service.quote_gst_rate)
+        notes.append(f"Quoted {snap.get('package_name') or 'trip'}: total {snap.get('total')} with GST {snap.get('gst_percent')}% "
+                     f"{'included' if snap.get('prices_include_gst') else 'added on top'}.")
     if meta.get("stay_name"):
         notes.append(f"Overnight stay: {meta['stay_name']}.")
     if quote.notes:
