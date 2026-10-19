@@ -2,6 +2,7 @@
 
   invoices.after_payment     a booking payment landed: invoice/receipt + PDF + WhatsApp + staff push
   invoices.render_pdf        (re)render one issued document's PDF, e.g. after "Reissue invoice"
+  invoices.send_booking_confirmation  the new-booking flow's confirmation: render the invoice PDF, then send it
   payments.notify_staff      push a payment alert (used by the quote-link path, which has no booking yet)
   payments.balance_reminders beat, daily 09:35 IST: balance due in 3 days -> link + ratha_balance_due_v1 (opt-in)
 """
@@ -48,6 +49,24 @@ def render_pdf(self, tenant_id: str, invoice_id: str):
             raise self.retry(exc=exc)
         except MaxRetriesExceededError:
             log.error("invoice_render_gave_up", tenant_id=tenant_id, invoice_id=invoice_id)
+    finally:
+        db.close()
+
+
+@celery_app.task(bind=True, max_retries=4, default_retry_delay=60, name="invoices.send_booking_confirmation")
+def send_booking_confirmation(self, tenant_id: str, stay_id: str, invoice_id=None, text: str = "", channel: str = "template"):
+    from app.core.database import set_tenant_context
+    from app.services import booking_compose_send
+    db = SessionLocal()
+    try:
+        set_tenant_context(db, tenant_id)
+        return booking_compose_send.deliver_confirmation(db, tenant_id, stay_id, invoice_id, text, channel)
+    except Exception as exc:  # noqa: BLE001 -- storage/DB blip: the render and the send are safe to repeat
+        log.error("booking_confirmation_failed", tenant_id=tenant_id, stay_id=stay_id, error=str(exc))
+        try:
+            raise self.retry(exc=exc)
+        except MaxRetriesExceededError:
+            log.error("booking_confirmation_gave_up", tenant_id=tenant_id, stay_id=stay_id)
     finally:
         db.close()
 

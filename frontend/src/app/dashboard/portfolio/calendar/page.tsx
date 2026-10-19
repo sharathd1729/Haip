@@ -13,6 +13,9 @@ import {
   useState, useMemo, useRef, useCallback, useEffect, memo,
 } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { canCreateBookings } from "@/lib/permissions";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { addDays, addMonths, format, parseISO, isToday, startOfMonth, startOfWeek } from "date-fns";
 import { ChevronLeft, ChevronRight, Calendar, Users, TrendingUp, RefreshCw, CloudDownload, CheckCircle2, AlertCircle, LogIn, LogOut, Home, DollarSign, BarChart2, Eye, Phone, Hash } from "@/lib/icons";
@@ -867,6 +870,8 @@ function buildChannelOpts(isCaravan: boolean) {
 // ── Main Component ─────────────────────────────────────────────────────────────
 
 export default function PortfolioCalendarPage() {
+  const { data: session } = useSession();
+  const canBook = canCreateBookings(session?.user?.role);
   const businessType = useBusinessType();
   const isCaravan = businessType === "caravan";
   const LEGEND = useMemo(() => buildLegend(isCaravan), [isCaravan]);
@@ -1058,6 +1063,10 @@ export default function PortfolioCalendarPage() {
                 {properties.length > 1 && <option value="all">All vehicles</option>}
                 {properties.map(p => <option key={p.property_id} value={p.property_id}>{p.property_name}</option>)}
               </select>
+              {canBook && (
+                <Link href={!showAll && selected?.property_id ? `/dashboard/bookings/new?property=${selected.property_id}` : "/dashboard/bookings/new"}
+                  className="flex h-11 shrink-0 items-center rounded-xl bg-primary px-3 text-xs font-semibold text-primary-foreground">New booking</Link>
+              )}
               {!isCaravan && (
                 <select value={channelFilter} onChange={e => setChan(e.target.value)} aria-label="Channel"
                   className="min-h-11 w-32 rounded-xl border border-[var(--haip-border)] bg-white px-2 text-base text-[var(--haip-fg-2)] outline-none focus:ring-2 focus:ring-primary">
@@ -1176,6 +1185,11 @@ export default function PortfolioCalendarPage() {
                 RW Sync
               </button>
             </>
+          )}
+          {canBook && (
+            <Link href="/dashboard/bookings/new" className="flex min-h-11 md:min-h-8 items-center rounded-xl bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-[var(--haip-primary-hover)]">
+              New booking
+            </Link>
           )}
           <button onClick={() => refetch()} aria-label="Refresh" className="w-11 h-11 md:w-8 md:h-8 flex items-center justify-center rounded-xl hover:bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-subtle)]">
             <RefreshCw size={14} className={isFetching ? "animate-spin" : ""} />
