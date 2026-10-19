@@ -15,6 +15,13 @@ Flags on items (``QueueItem.flags``), each counted once per person in ``build()[
   at_risk      a promising lead: the AI read it as warm or hot (``ai_analysis.temperature``, else sentiment positive), its
                check-in is in the next 30 days (which covers the rest of this month), and nothing has happened with them --
                no message either way, no call -- for 48 hours
+
+Booked people (``booked_guests``, 19 Oct 2026): a person who already holds a booking is a guest, not a lead to chase. They are
+left out of new_lead and no_reply and never flagged not_called / at_risk, but still listed under ``reply`` (a booked guest
+waiting on an answer still needs one). See ``booked_guests`` for which booking counts.
+
+Calendar clashes (``calendar_items``): tasks the calendar sync raises (double booking, "Which vehicle?", "Not enough
+vehicles"; ical_clash_tasks.is_calendar_task) are the queue kind ``clash``, listed apart from lead follow-ups.
 """
 from __future__ import annotations
 
@@ -35,6 +42,7 @@ AT_RISK_QUIET = timedelta(hours=48)
 AT_RISK_DAYS = 30
 WARM = ("hot", "warm")
 LEAD_KINDS = ("new_lead", "reply", "no_reply")
+BOOKED_SLACK = timedelta(minutes=5)          # a booking made with the guest record can be stamped a moment before it
 
 
 def _ours_or_theirs():
@@ -131,12 +139,95 @@ def _check_in(value) -> Optional[date]:
         return None
 
 
-def apply_flags(db: Session, tenant_id: str, items: list, now: datetime, today: date) -> dict:
-    """Mark not_called / open_lead / at_risk on the queue's items and return how many PEOPLE (follow-ups: items) carry each."""
+def booked_guests(db: Session, tenant_id: str, guest_ids, today: date) -> set:
+    """The people among ``guest_ids`` who already hold a booking, so they are not a lead to chase.
+
+    A booking counts when it is not cancelled (confirmed, checked in or checked out) AND it belongs to this lead, i.e.
+      * it was made at or after the person became a lead (``lead_identified_at``; a staff manual booking creates both), or
+      * its stay is now or ahead of us (check-out today or later),
+    unless the person has an open enquiry NEWER than that booking: that is a fresh trip being sold, and they are a lead again.
+    Four queries for the whole list (stays, guests, the open-enquiry lookup), none per person."""
+    from app.models.property import Stay
+    from app.services import kpi_metrics
+    from app.services import work_queue_service as wq
+
+    ids = list({g for g in guest_ids if g})
+    if not ids:
+        return set()
+    stays = db.query(Stay.guest_id, Stay.created_at, Stay.check_out).filter(
+        Stay.tenant_id == tenant_id, Stay.guest_id.in_(ids), Stay.status.in_(list(kpi_metrics.OCCUPYING_STATUSES))).all()
+    if not stays:
+        return set()
+    with_stay = list({s.guest_id for s in stays})
+    identified = {g.id: g.lead_identified_at for g in db.query(Guest.id, Guest.lead_identified_at).filter(
+        Guest.tenant_id == tenant_id, Guest.id.in_(with_stay))}
+    open_by, _ = wq._open_inquiries_by_guest(db, tenant_id, with_stay)
+    out = set()
+    for guest_id, created, check_out in stays:
+        created = wq._aware(created)
+        since = wq._aware(identified.get(guest_id))
+        newer_enquiry = open_by.get(guest_id)
+        if (newer_enquiry is not None and created is not None and wq._aware(newer_enquiry.created_at) is not None
+                and wq._aware(newer_enquiry.created_at) > created + BOOKED_SLACK):
+            continue
+        leaves = _check_in(check_out)
+        if (leaves is not None and leaves >= today) or (created is not None and (since is None or created >= since - BOOKED_SLACK)):
+            out.add(guest_id)
+    return out
+
+
+def calendar_items(db: Session, tenant_id: str, scope_user_id: Optional[str], now: datetime, today: date) -> list:
+    """Open tasks the calendar sync raised (kind ``clash``): what clashes, on which vehicle and dates, and a link to that day
+    of the calendar. A clash does not go cold: critical when its dates start within two days, otherwise urgent."""
+    from app.models.property import Property
+    from app.models.task import Task
+    from app.services import ical_clash_tasks
+    from app.services import work_queue_service as wq
+
+    q = db.query(Task).filter(Task.tenant_id == tenant_id, Task.is_done.is_(False), ical_clash_tasks.calendar_task_sql())
+    if scope_user_id:
+        q = q.filter(or_(Task.assigned_to == scope_user_id, Task.assigned_to.is_(None)))
+    rows = q.order_by(Task.created_at.asc()).limit(wq.MAX_PER_KIND).all()
+    if not rows:
+        return []
+    props = {p.id: p.name for p in db.query(Property.id, Property.name).filter(Property.tenant_id == tenant_id).all()}
+    items = []
+    for t in rows:
+        info = ical_clash_tasks.describe(t.title, props)
+        start = _check_in(info["start"])
+        facts = []
+        if start is not None:
+            end = _check_in(info["end"])
+            facts.append(f"{start.day} {start:%b}" + (f" – {end.day} {end:%b}" if end is not None else ""))
+        if info["vehicle"]:
+            facts.append(info["vehicle"])
+        href = "/dashboard/portfolio/calendar"
+        if info["start"]:
+            href += f"?date={info['start']}" + (f"&property={info['property_id']}" if info["property_id"] else "")
+        is_clash = t.title.startswith(ical_clash_tasks.CLASH_PREFIX)
+        items.append(wq.QueueItem(
+            kind="clash",
+            title=t.title,
+            detail="Two bookings hold the same dates on this vehicle" if is_clash else "The calendar needs a person to decide",
+            action="Open",
+            href=href,
+            inquiry_id=t.inquiry_id,
+            owner_id=t.assigned_to,
+            since=wq._aware(t.due_date or t.created_at),
+            overdue=True,
+            severity="critical" if start is not None and start <= today + timedelta(days=2) else "urgent",
+            facts=facts,
+        ))
+    return items
+
+
+def apply_flags(db: Session, tenant_id: str, items: list, now: datetime, today: date, booked: frozenset = frozenset()) -> dict:
+    """Mark not_called / open_lead / at_risk on the queue's items and return how many PEOPLE (follow-ups: items) carry each.
+    People in ``booked`` (booked_guests) are guests, not leads: they get neither not_called nor at_risk."""
     from app.models.pipeline_stage import PipelineStage
     from app.services import work_queue_service as wq
 
-    lead_items = [i for i in items if i.kind in LEAD_KINDS and i.guest_id]
+    lead_items = [i for i in items if i.kind in LEAD_KINDS and i.guest_id and i.guest_id not in booked]
     called = {g for (g,) in db.query(Call.guest_id).filter(
         Call.tenant_id == tenant_id, Call.direction == CallDirection.OUTBOUND,
         Call.guest_id.in_([i.guest_id for i in lead_items] or [""])).distinct()}
@@ -162,7 +253,7 @@ def apply_flags(db: Session, tenant_id: str, items: list, now: datetime, today: 
     candidates = {}
     for i in items:
         inq = inquiries.get(i.inquiry_id) if i.inquiry_id else None
-        if inq is None or not i.guest_id or not _warm(inq.ai_analysis):
+        if inq is None or not i.guest_id or i.guest_id in booked or not _warm(inq.ai_analysis):
             continue
         ci = _check_in(inq.check_in)
         if ci is not None and today <= ci <= horizon:

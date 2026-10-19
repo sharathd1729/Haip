@@ -37,7 +37,8 @@ from app.services import call_status_service, inbox_service, work_queue_service 
 CHUNK = 500
 LABEL = {"reply": "Leads waiting for a reply", "callback": "Missed calls not called back",
          "followup": "Follow-ups overdue / due soon", "new_lead": "New leads to contact",
-         "no_reply": "Leads not replying to us (not cleared here)"}
+         "no_reply": "Leads not replying to us (not cleared here)",
+         "clash": "Calendar clashes (due ones are marked done with the follow-ups)"}
 
 
 def _chunks(items, n=CHUNK):

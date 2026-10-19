@@ -37,7 +37,7 @@ def _tenant(db: Session, current_user: User) -> Tenant:
 def get_work_queue(
     kinds: Optional[str] = Query(
         default=None,
-        description="Comma-separated: callback, new_lead, reply, followup",
+        description="Comma-separated: callback, new_lead, reply, no_reply, followup, clash",
     ),
     mine_only: Optional[bool] = Query(default=None),
     current_user: User = Depends(get_current_user),

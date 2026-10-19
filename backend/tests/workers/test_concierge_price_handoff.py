@@ -4,6 +4,7 @@ AI's own (price-free) reply. Mirrors test_concierge_phone_decline_alert.py's
 harness exactly.
 """
 import uuid
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 from app.models.conversation import ChannelType, Conversation, Message
@@ -13,22 +14,24 @@ from app.models.tenant import Tenant
 from app.workers.tasks.concierge_draft import concierge_draft
 
 
-def _setup(db, *, inbound_body):
+def _setup(db, *, inbound_body, phone=True, channel=ChannelType.WHATSAPP):
     tenant = Tenant(
         id=str(uuid.uuid4()), name="T", slug=f"t-{uuid.uuid4().hex[:6]}", plan="growth",
         wa_ai_mode_default="autonomous", wa_ai_confidence_threshold=0.5,
     )
     db.add(tenant); db.commit()
-    guest = Guest(id=str(uuid.uuid4()), tenant_id=tenant.id, name="Priya Sharma")
+    # A lead (we hold their number) unless phone=False: the pricing callback needs a number to call.
+    guest = Guest(id=str(uuid.uuid4()), tenant_id=tenant.id, name="Priya Sharma",
+                  phone="+919845612345" if phone else "", lead_identified_at=datetime.now(timezone.utc) if phone else None)
     db.add(guest); db.commit()
     conv = Conversation(
         id=str(uuid.uuid4()), tenant_id=tenant.id, guest_id=guest.id,
-        channel=ChannelType.WHATSAPP, is_open=True, ai_mode="shadow",
+        channel=channel, is_open=True, ai_mode="shadow",
     )
     db.add(conv); db.commit()
     inbound = Message(
         id=str(uuid.uuid4()), tenant_id=tenant.id, conversation_id=conv.id,
-        direction="inbound", channel="whatsapp", body=inbound_body,
+        direction="inbound", channel=channel.value, body=inbound_body,
     )
     db.add(inbound); db.commit()
     return tenant, guest, conv, inbound
@@ -106,3 +109,19 @@ class TestPriceHandoff:
 
         tasks = db.query(Task).filter_by(tenant_id=tenant_id, conversation_id=conv_id).all()
         assert len(tasks) == 1
+
+    def test_no_task_for_a_guest_with_no_phone_number(self, db):
+        """An Instagram DM asking the price is not a lead yet: no "Call lead about pricing" task (there is no number to call);
+        the reply itself still goes out and asks for the number. Other workspaces are untouched."""
+        tenant, guest, conv, inbound = _setup(db, inbound_body="How much for 2 nights?", phone=False, channel=ChannelType.INSTAGRAM)
+        tenant_id, conv_id, message_id = tenant.id, conv.id, inbound.id
+        other, _, other_conv, other_in = _setup(db, inbound_body="What's the price?")
+        other_id, other_conv_id, other_msg_id = other.id, other_conv.id, other_in.id
+        adapter = _FakeConciergeLLM("Our team will share pricing personally. Could you share a number to reach you on?")
+        with patch("app.workers.tasks.send_instagram_dm.send_instagram_dm.delay"):
+            _run(db, tenant_id, conv_id, message_id, adapter, intent="price_quote")
+        assert db.query(Task).filter(Task.tenant_id == tenant_id, Task.title.like("Call lead about pricing%")).count() == 0
+
+        _run(db, other_id, other_conv_id, other_msg_id, adapter, intent="price_quote")
+        assert db.query(Task).filter(Task.tenant_id == other_id, Task.title.like("Call lead about pricing%")).count() == 1
+        assert db.query(Task).filter(Task.tenant_id == tenant_id, Task.title.like("Call lead about pricing%")).count() == 0

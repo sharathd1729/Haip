@@ -891,6 +891,20 @@ export default function PortfolioCalendarPage() {
     mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
   }, []);
+  // My day's "Calendar clashes" link here with ?date=YYYY-MM-DD (and &property=<id>): open on that day and vehicle.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const day = q.get("date");
+    if (day && /^\d{4}-\d{2}-\d{2}$/.test(day)) {
+      const d = parseISO(day);
+      if (!Number.isNaN(d.getTime())) {
+        setStartDate(addDays(d, -3));
+        setMonthStart(startOfMonth(d));
+      }
+    }
+    const prop = q.get("property");
+    if (prop) setPropertyId(prop);
+  }, []);
   useEffect(() => {
     if (!fullscreen) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setFullscreen(false); };
