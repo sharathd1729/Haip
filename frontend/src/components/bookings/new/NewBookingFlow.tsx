@@ -21,7 +21,7 @@ import { AddonsSection, PriceSection } from "./PriceSections";
 import { ConfirmSection, PaymentSection } from "./PaySections";
 import { BottomBar, Receipt, ReviewSheet, SummaryAside } from "./Summary";
 import { allProblems, applyQuote, applyTrip, defaultForm, firstProblemSection, money, pickGuest, SECTIONS, sectionMark, shownProblems, span, toPayload } from "./helpers";
-import type { BookingForm, ComposeContext, ComposeReceipt, ComposeSetup, GuestCard, Preview, Problem, QuoteCard, Section, SourceKey } from "./types";
+import type { BookingForm, ComposeContext, ComposeReceipt, CreateError, ComposeSetup, GuestCard, Preview, Problem, QuoteCard, Section, SourceKey } from "./types";
 import { Messages, SectionCard } from "./ui";
 
 export interface FlowParams { inquiry?: string | null; guest?: string | null; quote?: string | null; property?: string | null; from?: string | null; to?: string | null }
@@ -38,10 +38,13 @@ export function NewBookingFlow({ params }: { params: FlowParams }) {
   const [review, setReview] = useState(false);
   const [done, setDone] = useState<ComposeReceipt | null>(null);
   const [serverProblems, setServerProblems] = useState<Problem[] | null>(null);
+  const [createError, setCreateError] = useState<CreateError | null>(null);
   const started = useRef(false);
   const setup = setupQ.data;
 
-  const set = useCallback((patch: Partial<BookingForm>) => { setForm(f => (f ? { ...f, ...patch } : f)); setServerProblems(null); }, []);
+  const set = useCallback((patch: Partial<BookingForm>) => {
+    setForm(f => (f ? { ...f, ...patch } : f)); setServerProblems(null); setCreateError(null);
+  }, []);
   const loadCtx = useCallback((p: Record<string, string>) =>
     qc.fetchQuery<ComposeContext>({ queryKey: ["new-booking-context", p], queryFn: () => api.get("/bookings/compose/context", { params: p }).then(r => r.data) }), [qc]);
 
@@ -111,17 +114,21 @@ export function NewBookingFlow({ params }: { params: FlowParams }) {
     mutationFn: (body: Record<string, unknown>) => api.post<ComposeReceipt>("/bookings/compose", body).then(r => r.data),
     onSuccess: r => { setDone(r); setReview(false); qc.invalidateQueries({ queryKey: ["bookings"] }); window.scrollTo({ top: 0 }); },
     onError: e => {
+      // Every refusal is said in plain words in the side card and the review sheet (and as a toast); never swallowed.
       const res = errDetail(e);
       const d = res?.data?.detail;
       const list = typeof d === "object" && d?.problems?.length ? d.problems : null;
+      const message = (typeof d === "string" ? d : d?.message)
+        || (res ? `Something went wrong (error ${res.status ?? "unknown"}). Nothing was saved. Try again.`
+          : "Couldn't reach HAIP. Check your connection. Nothing was saved.");
+      setCreateError({ status: res?.status ?? null, message, problems: list ?? [] });
       if (list) {
         setServerProblems(list);
         setShowErr(true);
         const first = firstProblemSection(list);
         if (first) jump(first);
       }
-      toast({ variant: "error", title: res?.status === 409 ? "That caravan is not free" : "Couldn't create the booking",
-              description: typeof d === "string" ? d : d?.message ?? "Something went wrong. Try again." });
+      toast({ variant: "error", title: "The booking was not created", description: message });
     },
   });
 
@@ -138,10 +145,11 @@ export function NewBookingFlow({ params }: { params: FlowParams }) {
       if (first) jump(first);
       return;
     }
+    setCreateError(null);
     create.mutate(payload);
   };
 
-  const again = () => { if (!setup) return; setForm(defaultForm(setup)); setCtx(undefined); setDone(null); setShowErr(false); setServerProblems(null); window.scrollTo({ top: 0 }); };
+  const again = () => { if (!setup) return; setForm(defaultForm(setup)); setCtx(undefined); setDone(null); setShowErr(false); setServerProblems(null); setCreateError(null); window.scrollTo({ top: 0 }); };
 
   const back = params.inquiry ? { href: `/dashboard/leads/${params.inquiry}`, label: "Back to the lead" }
     : params.property || params.from ? { href: "/dashboard/portfolio/calendar", label: "Back to the calendar" } : { href: "/dashboard/bookings", label: "Back to Bookings" };
@@ -211,11 +219,11 @@ export function NewBookingFlow({ params }: { params: FlowParams }) {
           {previewQ.isError && <p role="alert" className="text-[13px] text-[var(--haip-status-danger-fg)]">Couldn&apos;t update the price and checks. They refresh when you change something, or <button type="button" className="underline" onClick={() => previewQ.refetch()}>try again</button>.</p>}
         </div>
         <aside className="sticky top-3.5 hidden max-h-[calc(100vh-28px)] gap-3 overflow-auto lg:grid">
-          <SummaryAside {...sum} problems={ordered} showErr={showErr} onJump={jump} onCreate={onCreate} creating={create.isPending} />
+          <SummaryAside {...sum} problems={ordered} showErr={showErr} onJump={jump} onCreate={onCreate} creating={create.isPending} createError={createError} />
         </aside>
       </div>
       <BottomBar problems={ordered} showErr={showErr} preview={preview} form={form} onReview={() => setReview(true)} />
-      {review && <ReviewSheet {...sum} problems={ordered} onJump={jump} onClose={() => setReview(false)} onCreate={onCreate} creating={create.isPending} />}
+      {review && <ReviewSheet {...sum} problems={ordered} onJump={jump} onClose={() => setReview(false)} onCreate={onCreate} creating={create.isPending} createError={createError} />}
     </div>
   );
 }

@@ -13,7 +13,8 @@ vi.mock("next/link", () => ({ default: ({ href, children, ...p }: { href: string
 import type React from "react";
 import { setup as calcSetup } from "@/components/quotes/calc/testFixtures";
 import { NewBookingFlow } from "./NewBookingFlow";
-import { defaultForm, sectionMark, toPayload } from "./helpers";
+import { defaultForm, packageLength, sectionMark, toPayload } from "./helpers";
+import { GuestSection } from "./GuestSection";
 import { Receipt, ReviewSheet, SummaryAside } from "./Summary";
 import { VehicleSection } from "./VehicleSection";
 import type { ComposeSetup, Preview, Problem } from "./types";
@@ -179,5 +180,68 @@ describe("NewBookingFlow", () => {
     await userEvent.click(screen.getAllByRole("button", { name: "Create booking" })[0]);
     expect(await screen.findByTestId("receipt")).toBeTruthy();
     expect(post).toHaveBeenCalledWith("/bookings/compose", expect.objectContaining({ guest_id: "g1" }));
+  });
+});
+
+describe("refusals are always shown", () => {
+  function opened(postImpl: (url: string) => Promise<unknown>) {
+    get.mockImplementation((url: string) => url === "/bookings/compose/setup" ? Promise.resolve({ data: setup })
+      : Promise.resolve({ data: { guest, lead: guest.open_lead, quotes: [], quote_id: null, trip: {} } }));
+    post.mockImplementation(postImpl);
+    wrap(<NewBookingFlow params={{ guest: "g1" }} />);
+  }
+  const refuse = (status: number, detail: unknown) => Promise.reject({ response: { status, data: { detail } } });
+
+  it("a 409 from Create is said in plain words in the review sheet and the side card", async () => {
+    opened(url => url === "/bookings/compose/preview" ? Promise.resolve({ data: preview() })
+      : refuse(409, { code: "booking", message: "That lead already has a booking", problems: [] }));
+    await waitFor(() => expect(post).toHaveBeenCalledWith("/bookings/compose/preview", expect.anything()));
+    await waitFor(() => expect(screen.getByTestId("mark-sec-trip").textContent).toBe("✓"));
+    await userEvent.click(screen.getByRole("button", { name: "Review" }));
+    const dialog = screen.getByRole("dialog", { name: "Review booking" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Create booking" }));
+    const err = await within(dialog).findByTestId("create-error");
+    expect(err.textContent).toContain("The booking was not created");
+    expect(err.textContent).toContain("That lead already has a booking");
+    expect(screen.getAllByTestId("create-error")).toHaveLength(2);                      // side card too
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "error", description: "That lead already has a booking" }));
+  });
+
+  it("a 422 lists the problems and flags their section", async () => {
+    opened(url => url === "/bookings/compose/preview" ? Promise.resolve({ data: preview() })
+      : refuse(422, { code: "still_needed", message: "Both caravans are booked on these dates.",
+          problems: [{ section: "veh", message: "Both caravans are booked on these dates.", live: true }] }));
+    await waitFor(() => expect(screen.getByTestId("mark-sec-trip").textContent).toBe("✓"));
+    await userEvent.click(screen.getAllByRole("button", { name: "Create booking" })[0]);
+    const err = await screen.findByTestId("create-error");
+    expect(within(err).getByRole("button", { name: "Both caravans are booked on these dates." })).toBeTruthy();
+    expect(screen.getByTestId("mark-sec-veh").textContent).toBe("!");
+  });
+
+  it("an error with no message still says what happened", async () => {
+    opened(url => url === "/bookings/compose/preview" ? Promise.resolve({ data: preview() }) : refuse(500, undefined));
+    await waitFor(() => expect(screen.getByTestId("mark-sec-trip").textContent).toBe("✓"));
+    await userEvent.click(screen.getAllByRole("button", { name: "Create booking" })[0]);
+    expect((await screen.findByTestId("create-error")).textContent).toContain("Something went wrong (error 500). Nothing was saved.");
+  });
+});
+
+describe("one lead = one trip", () => {
+  it("says up front that a lead with a booking gets a new lead for this trip", () => {
+    const booked = { ...guest, open_lead: { ...guest.open_lead, booking: { booking_id: "s0", ref: "#AAE16D2A", check_in: "2026-10-25", check_out: "2026-10-27", span: "25–27 Oct" } } };
+    wrap(<GuestSection form={{ ...defaultForm(setup), guest: booked, start: "scratch" }} set={vi.fn()} setup={setup} ctx={undefined}
+      onPick={vi.fn()} onAddNew={vi.fn()} onUseQuote={vi.fn()} onScratch={vi.fn()} showErr={false} />);
+    expect(screen.getByTestId("new-trip-note").textContent).toBe(
+      "Sharath's lead already has booking #AAE16D2A (25–27 Oct). This booking starts a new lead for the new trip.");
+  });
+});
+
+describe("package length", () => {
+  const f = defaultForm(setup);
+  it("check-out follows the package's nights; same day returns the same day; no rule keeps one night", () => {
+    expect(packageLength({ ...setup.packages[0], nights: 2 }, "2026-11-12", f)).toMatchObject({ checkOut: "2026-11-14" });
+    expect(packageLength({ ...setup.packages[0], nights: 0, product: "same_day" }, "2026-11-12", f))
+      .toEqual({ checkOut: "2026-11-12", checkInTime: "10:00", checkOutTime: "20:00" });
+    expect(packageLength({ ...setup.packages[1], nights: null }, "2026-11-12", f)).toEqual({ checkOut: "2026-11-13" });
   });
 });

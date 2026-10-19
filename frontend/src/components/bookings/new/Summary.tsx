@@ -9,7 +9,7 @@ import { BTN, BTN_PRIMARY } from "@/components/quotes/ui";
 import { Card, CardBody } from "@/components/ui/kit";
 import { cn } from "@/lib/utils";
 import { clock, day, firstName, masked, money, nightsBetween, span } from "./helpers";
-import type { BookingForm, ComposeReceipt, ComposeSetup, Preview, Problem, Section } from "./types";
+import type { BookingForm, ComposeReceipt, ComposeSetup, CreateError, Preview, Problem, Section } from "./types";
 import { HINT, Note } from "./ui";
 
 interface SumProps { form: BookingForm; setup: ComposeSetup; preview: Preview | undefined }
@@ -52,6 +52,23 @@ export function SummaryRows({ form, setup, preview }: SumProps) {
   );
 }
 
+/** Why Create was refused, in plain words; never swallowed. */
+export function CreateFailed({ error, onJump }: { error: CreateError; onJump: (s: Section) => void }) {
+  return (
+    <div role="alert" data-testid="create-error" className="grid gap-1 rounded-xl bg-[var(--haip-status-danger-bg)] px-3 py-2.5 text-[14px] text-[var(--haip-status-danger-fg)]">
+      <b>The booking was not created</b>
+      <span>{error.message}</span>
+      {error.problems.length > 0 && (
+        <ul className="grid list-disc gap-0.5 pl-4">
+          {error.problems.map(p => (
+            <li key={p.section + p.message}><button type="button" className="min-h-8 text-left underline" onClick={() => onJump(p.section)}>{p.message}</button></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function StillNeeded({ problems, showErr, onJump, underline }: { problems: Problem[]; showErr: boolean; onJump: (s: Section) => void; underline?: boolean }) {
   return (
     <Note tone={showErr ? "bad" : "info"}>
@@ -67,8 +84,8 @@ function StillNeeded({ problems, showErr, onJump, underline }: { problems: Probl
   );
 }
 
-export function SummaryAside({ problems, showErr, onJump, onCreate, creating, ...rest }: SumProps & {
-  problems: Problem[]; showErr: boolean; onJump: (s: Section) => void; onCreate: () => void; creating: boolean;
+export function SummaryAside({ problems, showErr, onJump, onCreate, creating, createError, ...rest }: SumProps & {
+  problems: Problem[]; showErr: boolean; onJump: (s: Section) => void; onCreate: () => void; creating: boolean; createError?: CreateError | null;
 }) {
   const s = rest.preview?.schedule;
   const due = rest.form.advanceDue || s?.advance_due;
@@ -82,6 +99,7 @@ export function SummaryAside({ problems, showErr, onJump, onCreate, creating, ..
             <div className="flex justify-between text-[13px] text-[var(--haip-fg-subtle)]"><span>Advance {rest.form.payNow === "paid" ? "paid" : `due ${day(due)}`}</span><span>{money(s?.advance)}</span></div>
             <div className="flex justify-between text-[13px] text-[var(--haip-fg-subtle)]"><span>Deposit, kept apart</span><span>{money(rest.form.deposit || 0)}</span></div>
           </div>
+          {createError && <CreateFailed error={createError} onJump={onJump} />}
           {problems.length ? <StillNeeded problems={problems} showErr={showErr} onJump={onJump} />
             : <Note tone="ok">Ready. {rest.preview?.vehicle?.name ?? "The caravan"} is free and held while you create.</Note>}
           <button type="button" className={cn(BTN_PRIMARY, "min-h-[50px] w-full text-[15.5px]")} onClick={onCreate} disabled={creating}>
@@ -112,8 +130,8 @@ export function BottomBar({ problems, showErr, preview, form, onReview }: {
   );
 }
 
-export function ReviewSheet({ problems, onJump, onClose, onCreate, creating, ...rest }: SumProps & {
-  problems: Problem[]; onJump: (s: Section) => void; onClose: () => void; onCreate: () => void; creating: boolean;
+export function ReviewSheet({ problems, onJump, onClose, onCreate, creating, createError, ...rest }: SumProps & {
+  problems: Problem[]; onJump: (s: Section) => void; onClose: () => void; onCreate: () => void; creating: boolean; createError?: CreateError | null;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -132,6 +150,7 @@ export function ReviewSheet({ problems, onJump, onClose, onCreate, creating, ...
           <button type="button" aria-label="Close" className="grid size-11 place-items-center rounded-xl" onClick={onClose}><X size={18} /></button>
         </div>
         <SummaryRows {...rest} />
+        {createError && <CreateFailed error={createError} onJump={onJump} />}
         {problems.length > 0 && <StillNeeded problems={problems} showErr onJump={onJump} underline />}
         {form.confirm === "now" && preview?.message_text && (
           <div className="grid gap-1">

@@ -302,3 +302,42 @@ def go_create(db, w) -> str:
     from app.schemas.booking_compose import ComposeIn
     from app.services import booking_compose_create as create
     return create.compose(db, w.res, ComposeIn(**body(guest_id=person(db, w.t.id).id)))["booking_id"]
+
+
+# ─── one lead = one trip; package nights ──────────────────────────────────────────────────────────────────
+
+def test_a_lead_that_already_has_a_booking_gets_a_new_lead_for_the_new_trip(client, db, w):
+    first = lead(db, w, assigned_to=w.res.id)
+    one = go(client, w.res, guest_id=first.guest_id)
+    assert one.status_code == 201, one.text
+    db.expire_all()
+    # The lead went to Sold; put it back on an open stage like a lead whose booking came from a paid link (stage left as is).
+    first = db.query(Inquiry).filter_by(id=first.id).one()
+    first.stage_id = w.stages["general_enquiry"].id
+    db.commit()
+    later = (CI + timedelta(days=20)).isoformat()
+    prev = client.post(f"{API}/preview", json=body(guest_id=first.guest_id, inquiry_id=first.id, check_in=later,
+                                                   check_out=(CI + timedelta(days=22)).isoformat()), headers=_h(w.res)).json()
+    assert prev["lead"]["booking"]["booking_id"] == one.json()["booking_id"]
+    r = go(client, w.res, guest_id=first.guest_id, inquiry_id=first.id, check_in=later, check_out=(CI + timedelta(days=22)).isoformat())
+    assert r.status_code == 201, r.text
+    out = r.json()
+    assert out["new_trip_lead"] is True
+    new = db.query(Inquiry).filter_by(id=out["inquiry_id"]).one()
+    assert new.id != first.id and new.guest_id == first.guest_id and new.stage_id == sold(w)
+    assert new.source == InquirySource.WA_DIRECT and new.assigned_to == w.res.id                # source and owner kept
+    assert db.query(Stay).filter_by(inquiry_id=first.id).count() == 1                           # the first trip untouched
+    lead_line = next(i for i in out["items"] if i["kind"] == "lead")
+    assert lead_line["done"] and f"already has booking {one.json()['ref']}" in lead_line["text"]
+
+
+def test_package_nights_come_from_the_package_and_a_different_length_warns(client, db, w):
+    pkgs = {p["key"]: p for p in client.get(f"{API}/setup", headers=_h(w.res)).json()["packages"]}
+    assert pkgs["coorg-48"]["nights"] == 2                       # 48 hours
+    g = person(db, w.t.id)
+    out = client.post(f"{API}/preview", json=body(guest_id=g.id, check_out=(CI + timedelta(days=3)).isoformat()), headers=_h(w.res)).json()
+    assert {"section": "trip", "message": "Coorg 48-hour Retreat · 48 hours is usually 2 nights. These dates are 3 nights. "
+                                          "The package price does not change."} in out["warnings"] or \
+        any("is usually 2 nights. These dates are 3 nights." in x["message"] for x in out["warnings"])
+    ok = client.post(f"{API}/preview", json=body(guest_id=g.id), headers=_h(w.res)).json()
+    assert not any("is usually" in x["message"] for x in ok["warnings"])

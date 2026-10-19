@@ -112,7 +112,7 @@ def setup(db: Session, user: User) -> dict:
     statuses = pack.statuses(db, tenant.id)
     return {
         "today": today.isoformat(), "brand": tenant.brand_name or tenant.name, "settings": cat.settings_out(s),
-        "gst_slabs": list(cat.GST_SLABS), "discount_options": cat.discount_options(s), **cat.packages(db, tenant.id, today),
+        "gst_slabs": list(cat.GST_SLABS), "discount_options": cat.discount_options(s), **_packages(db, tenant.id, today),
         "custom": cat.custom_rules_out(cat.custom_rules(db, tenant, today)), "addons": cat.addon_defaults(db, tenant, today),
         "sources": [{"value": k, "label": v} for k, v in SOURCE_LABELS.items()],
         "vehicles": [{"id": v.id, "name": v.name} for v in bc.vehicles(db, tenant.id)],
@@ -121,6 +121,29 @@ def setup(db: Session, user: User) -> dict:
         "user": {"id": user.id, "name": user.name, "privileged": privileged(user)},
         "advance_days": ADVANCE_DAYS,
     }
+
+
+def package_nights(pkg) -> Optional[int]:
+    """How many nights a package is (the record the rate calculator prices from): a same-day trip 0; a fixed-length package
+    its hours / 24; else its fewest nights, else its fewest billed days; None when the package does not say."""
+    if pkg.product == "same_day":
+        return 0
+    if pkg.duration_hours:
+        return max(1, -(-pkg.duration_hours // 24))
+    if pkg.min_nights:
+        return pkg.min_nights
+    if pkg.min_days:
+        return pkg.min_days
+    return 1 if pkg.product == "overnight" else None
+
+
+def _packages(db: Session, tenant_id: str, today: date) -> dict:
+    """The calculator's package list, each with ``nights`` (check-out = check-in + nights when it is picked)."""
+    out = cat.packages(db, tenant_id, today)
+    for e in out["packages"]:
+        _rec, pkg, _level = cat.find_package(db, tenant_id, e["key"], today)
+        e["nights"] = package_nights(pkg) if pkg is not None else None
+    return out
 
 
 # ─── evaluate ────────────────────────────────────────────────────────────────────────────────────────────
@@ -255,6 +278,13 @@ def _price(db: Session, tenant: Tenant, user: User, body: ComposeIn, p: Plan) ->
     p.total, p.gst = Decimal(t["total"]), Decimal(t["gst"])
     for w in p.calc.warnings:
         p.warn("trip", w)
+    if body.mode == "fixed" and body.package_key and body.check_out is not None:
+        _rec, pkg, _level = cat.find_package(db, tenant.id, body.package_key, p.today)
+        usual = package_nights(pkg) if pkg is not None else None
+        got = (body.check_out - body.check_in).days
+        if usual is not None and got >= 0 and got != usual:
+            p.warn("trip", f"{p.calc.title or pkg.name} is usually {_nights(usual)}. These dates are {_nights(got)}. "
+                           "The package price does not change.")
     if p.total <= 0:
         p.need("price", "The price is ₹0. Enter the rate for this trip.", True)
     ov = body.override
@@ -265,6 +295,10 @@ def _price(db: Session, tenant: Tenant, user: User, body: ComposeIn, p: Plan) ->
     if t["needs_approval"] and not privileged(user):
         p.need("price", f"This price needs the owner's or a manager's OK ({'; '.join(t['approval_reasons'])}). Ask them to "
                         "create the booking, or change the price.", True)
+
+
+def _nights(n: int) -> str:
+    return f"{n} night{'' if n == 1 else 's'}" if n else "a day trip"
 
 
 def _payment(db: Session, tid: str, body: ComposeIn, p: Plan) -> None:
@@ -404,7 +438,7 @@ def preview(db: Session, user: User, body: ComposeIn) -> dict:
                      "paid": str(p.paid), "deposit": str(body.deposit_amount)},
         "nights": (body.check_out - body.check_in).days if body.check_in and body.check_out and body.check_out >= body.check_in else None,
         "message_text": text, "window_open": p.window_open, "quote_match": quote_match,
-        "lead": people.lead_view(p.lead, qcl._stages(db, user.tenant_id)) if p.lead is not None else None,
+        "lead": people.lead_view(p.lead, qcl._stages(db, user.tenant_id), db) if p.lead is not None else None,
         "existing_guest": people.guest_card(db, user.tenant_id, p.guest) if p.existing_for_new and p.guest is not None else None,
         "staff_notes": staff_notes(body),
     }
