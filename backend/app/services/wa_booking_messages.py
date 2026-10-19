@@ -225,6 +225,51 @@ def send_balance_due(db: Session, tenant: Tenant, stay: Stay, link, amount, due:
                                  actor_user_id=actor_user_id, sender_name=sender_name)
 
 
+def send_link_text(db: Session, tenant: Tenant, stay: Stay, link, amount, *, event: str,
+                   actor_user_id: Optional[str] = None, sender_name: str = "HAIP") -> dict:
+    """The pay link as a normal WhatsApp message, for a guest whose 24-hour window is open (no template needed). Goes on the
+    guest's Cloud API conversation, at most once per (booking, event). Same return as send_booking_template."""
+    from app.services.booking_agenda_service import whatsapp_state
+    from app.workers.tasks.send_whatsapp import _bad_number_reason, send_whatsapp
+
+    target = Target("booking", stay.id, IDEM_PREFIX, {}, "booking")
+    key = idempotency_key(stay.id, event)
+    prior = db.query(Message.id).filter_by(tenant_id=tenant.id, idempotency_key=key).first()
+    if prior:
+        return {"status": "duplicate", "reason": "Already sent.", "message_id": prior[0]}
+    phone = stay.guest.phone if stay.guest else ""
+    if _bad_number_reason(phone if phone and not str(phone).startswith("DELETED_") else ""):
+        return _skip(db, tenant.id, target, "text", event, "the guest's phone number is not a valid WhatsApp number", actor_user_id)
+    state = whatsapp_state(db, tenant.id, stay.guest_id)
+    conv = db.query(Conversation).filter_by(id=state["conversation_id"], tenant_id=tenant.id).first() if state["conversation_id"] else None
+    if not state["window_open"] or conv is None:
+        return _skip(db, tenant.id, target, "text", event, "the guest's 24-hour WhatsApp window is closed", actor_user_id)
+    body = (f"Hi {_first(stay)}, here is the secure link to pay {inr(amount)} for your trip on {day(stay.check_in)}: "
+            f"{link.short_url}")
+    msg = Message(id=str(uuid.uuid4()), tenant_id=tenant.id, conversation_id=conv.id, direction=MessageDirection.OUTBOUND,
+                  channel=ChannelType.WHATSAPP, body=body, sender_id=actor_user_id, sender_name=sender_name[:255],
+                  was_approved=True, delivery_state=MessageDeliveryState.QUEUED, channel_status="queued", idempotency_key=key,
+                  channel_metadata={"source": "booking", "booking_id": stay.id, "booking_event": event})
+    db.add(msg)
+    conv.last_message_at = datetime.now(timezone.utc).isoformat()
+    append_audit(db, tenant_id=tenant.id, actor_user_id=actor_user_id, action="booking.message_queued", target_type="booking",
+                 target_id=stay.id, payload={"template": None, "event": event, "message_id": msg.id})
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return {"status": "duplicate", "reason": "Already sent.", "message_id": None}
+    try:
+        send_whatsapp.delay(message_id=msg.id, tenant_id=tenant.id)
+    except Exception as exc:  # noqa: BLE001 -- broker down: say so on the message instead of leaving it "queued" forever
+        log.error("booking_message_enqueue_failed", tenant_id=tenant.id, message_id=msg.id, error=str(exc))
+        msg.delivery_state, msg.channel_status = MessageDeliveryState.FAILED, "failed"
+        msg.delivery_error = "Could not queue the message. Use Retry in the inbox."
+        db.commit()
+        return {"status": "skipped", "reason": "could not queue the message", "message_id": msg.id}
+    return {"status": "queued", "reason": None, "message_id": msg.id}
+
+
 def messages_for_stay(db: Session, tenant_id: str, stay_id: str, limit: int = 30) -> list[dict]:
     rows = (db.query(Message).filter(Message.tenant_id == tenant_id, Message.idempotency_key.like(f"{IDEM_PREFIX}{stay_id}:%"))
             .order_by(Message.created_at.desc()).limit(limit).all())

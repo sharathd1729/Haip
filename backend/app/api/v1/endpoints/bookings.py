@@ -49,6 +49,7 @@ _SORT_MAP = {
     "newest": (Stay.created_at, True),
     "oldest": (Stay.created_at, False),
     "check_in": (Stay.check_in, True),
+    "check_in_asc": (Stay.check_in, False),
     "check_out": (Stay.check_out, True),
     "total_desc": (Stay.total_amount, True),
     "total_asc": (Stay.total_amount, False),
@@ -63,15 +64,22 @@ def _thumb(prop: Property) -> Optional[str]:
     return first if isinstance(first, str) and first.startswith("http") else None
 
 
-def _serialize_stay(s: Stay, seq: int, fin: Optional[dict] = None, due: Optional[dict] = None) -> dict:
+def _serialize_stay(s: Stay, seq: int, fin: Optional[dict] = None, due: Optional[dict] = None,
+                    extras: Optional[dict] = None) -> dict:
     # fin comes from booking_service.financials_for(); computed from the add-on
     # lines and the payment ledger, never inferred from the booking status.
     fin = fin or bsvc.summarize(s.total_amount, 0, 0)
     guest = s.guest
     prop = s.property
     first_name, _, last_name = (guest.name or "Unknown").partition(" ") if guest else ("Unknown", "", "")
+    extras = extras or {}
     return {
         "id": s.id,
+        "inquiry_id": s.inquiry_id,
+        # What the trip is (as the lead recorded it) and the refundable deposit {amount, status}, never part of the total.
+        "trip": extras.get("trip"),
+        "deposit": extras.get("deposit"),
+        "raw_status": s.status,
         "checkin": s.check_in,
         "checkout": s.check_out,
         "adults": s.adults or 0,
@@ -113,13 +121,33 @@ def _seq_for_stay(db: Session, tenant_id: str, stay_id: str) -> int:
     seq_subq = (
         db.query(
             Stay.id.label("stay_id"),
-            func.row_number().over(order_by=Stay.created_at.asc()).label("seq"),
+            func.row_number().over(order_by=(Stay.created_at.asc(), Stay.id.asc())).label("seq"),
         )
         .filter(Stay.tenant_id == tenant_id)
         .subquery()
     )
     row = db.query(seq_subq.c.seq).filter(seq_subq.c.stay_id == stay_id).first()
     return row.seq if row else 1
+
+
+def _many(raw: Optional[str], allowed: Optional[tuple] = None, what: str = "value") -> list[str]:
+    """"a,b" -> ["a", "b"]: the Filters sheet can pick several values of one filter."""
+    vals = [v.strip() for v in (raw or "").split(",") if v.strip()]
+    if allowed is not None and any(v not in allowed for v in vals):
+        raise HTTPException(status_code=422, detail=f"{what} must be one of {', '.join(allowed)}")
+    return vals
+
+
+def _iso(raw: Optional[str], what: str) -> Optional[date]:
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw)
+    except ValueError:
+        raise HTTPException(status_code=422, detail=f"{what} must be YYYY-MM-DD")
+
+
+_PAY = ("unpaid", "partial", "paid", "due", "overdue")
 
 
 @router.get("")
@@ -131,15 +159,19 @@ def list_bookings(
     # substitute (two guests sharing a name/phone prefix would leak into
     # each other's list).
     guest_id: Optional[str] = Query(None),
-    status: Optional[str] = Query(None),
-    channel: Optional[str] = Query(None),
-    property_id: Optional[str] = Query(None),
-    payment_status: Optional[str] = Query(None, description="unpaid|partial|paid|due (money still owed: unpaid or part paid)"),
+    status: Optional[str] = Query(None, description="one or more, comma separated"),
+    channel: Optional[str] = Query(None, description="one or more, comma separated"),
+    property_id: Optional[str] = Query(None, description="one or more, comma separated"),
+    payment_status: Optional[str] = Query(None, description="unpaid|partial|paid|due|overdue, comma separated (due = money still owed)"),
     when: Optional[str] = Query(None, description="upcoming|current|past, judged against today in the workspace timezone"),
+    segment: Optional[str] = Query(None, description="upcoming|staying|past|cancelled (see booking_agenda_service)"),
+    counts: bool = Query(False, description="Also return meta.segment_counts for the same filters"),
     needs_property: bool = Query(False, description="Only bookings still on a placeholder 'Unassigned...' property"),
     sort: str = Query("newest"),
     date_from: Optional[str] = Query(None, description="ISO date -- stays overlapping [date_from, date_to]"),
     date_to: Optional[str] = Query(None, description="ISO date -- stays overlapping [date_from, date_to]"),
+    check_in_from: Optional[str] = Query(None, description="ISO date -- check-in on or after"),
+    check_in_to: Optional[str] = Query(None, description="ISO date -- check-in on or before"),
     date_preset: Optional[str] = Query(None, description="today|yesterday|this_month|last_month|last_7d|last_14d|custom"),
     page: int = Query(1, ge=1),
     per_page: int = Query(25, ge=1, le=100),
@@ -149,6 +181,7 @@ def list_bookings(
     # read_only by default), not any signed-in user.
     _cap=Depends(require_capability("bookings.read")),
 ):
+    from app.services import booking_agenda_service as agenda
     tenant_id = current_user.tenant_id
 
     if date_preset and date_preset not in VALID_PRESETS:
@@ -157,74 +190,49 @@ def list_bookings(
         date_from, date_to = resolve_range(date_preset, date_from, date_to)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=f"Invalid date: {exc}")
+    if segment and segment not in agenda.SEGMENTS:
+        raise HTTPException(status_code=422, detail=f"segment must be one of {', '.join(agenda.SEGMENTS)}")
+    statuses, channels, prop_ids = _many(status), _many(channel), _many(property_id)
+    pays = _many(payment_status, _PAY, "payment_status")
+    ci_from, ci_to = _iso(check_in_from, "check_in_from"), _iso(check_in_to, "check_in_to")
+    today = agenda.tenant_today(db, tenant_id)
 
-    # Short, human-friendly booking number (order of creation) instead of the
-    # raw UUID -- RentalWise bookings already have a short numeric id; this
-    # gives local (HAIP-native) bookings the same feel.
-    seq_subq = (
-        db.query(
-            Stay.id.label("stay_id"),
-            func.row_number().over(order_by=Stay.created_at.asc()).label("seq"),
-        )
-        .filter(Stay.tenant_id == tenant_id)
-        .subquery()
-    )
-
-    q = (
-        db.query(Stay, seq_subq.c.seq)
-        .join(seq_subq, seq_subq.c.stay_id == Stay.id)
-        .options(joinedload(Stay.guest), joinedload(Stay.property))
-        .filter(Stay.tenant_id == tenant_id)
-    )
-
+    q = db.query(Stay).filter(Stay.tenant_id == tenant_id)
     if guest_id:
         q = q.filter(Stay.guest_id == guest_id)
-    if status:
-        q = q.filter(Stay.status == status)
-    if channel:
-        q = q.filter(Stay.channel_source == channel)
-    if property_id:
-        q = q.filter(Stay.property_id == property_id)
+    if statuses:
+        q = q.filter(Stay.status.in_(statuses))
+    if channels:
+        q = q.filter(Stay.channel_source.in_(channels))
+    if prop_ids:
+        q = q.filter(Stay.property_id.in_(prop_ids))
     if when:
         if when not in ("upcoming", "current", "past"):
             raise HTTPException(status_code=422, detail="when must be upcoming, current or past")
-        from app.models.tenant import Tenant
-        from app.core.tenant_tz import get_tenant_now
-        tenant = db.get(Tenant, tenant_id)
-        today = get_tenant_now(tenant).date().isoformat() if tenant else date.today().isoformat()
+        iso = today.isoformat()
         if when == "upcoming":
-            q = q.filter(Stay.check_in >= today, Stay.status == "confirmed")
+            q = q.filter(Stay.check_in >= iso, Stay.status == "confirmed")
         elif when == "current":
-            q = q.filter(Stay.check_in <= today, Stay.check_out >= today, Stay.status != "cancelled")
+            q = q.filter(Stay.check_in <= iso, Stay.check_out >= iso, Stay.status != "cancelled")
         else:
-            q = q.filter(Stay.check_out < today)
+            q = q.filter(Stay.check_out < iso)
     if needs_property:
         placeholder_ids = db.query(Property.id).filter(
             Property.tenant_id == tenant_id, Property.name.ilike("Unassigned%"),
         )
         q = q.filter(Stay.property_id.in_(placeholder_ids))
-    if payment_status:
-        if payment_status not in ("unpaid", "partial", "paid", "due"):
-            raise HTTPException(status_code=422, detail="payment_status must be unpaid, partial, paid or due")
-        addons_sub = (
-            db.query(func.coalesce(func.sum(StayAddOn.quantity * StayAddOn.unit_price), 0))
-            .filter(StayAddOn.stay_id == Stay.id).correlate(Stay).scalar_subquery()
-        )
-        paid_sub = (
-            db.query(func.coalesce(func.sum(case((StayPayment.kind == "refund", -StayPayment.amount), else_=StayPayment.amount)), 0))
-            .filter(StayPayment.stay_id == Stay.id).correlate(Stay).scalar_subquery()
-        )
-        owed = func.coalesce(Stay.total_amount, 0) + addons_sub
+    if pays:
+        owed, paid_sub = agenda.owed_and_paid()
         fully_paid = (paid_sub > 0) & (owed > 0) & (paid_sub + 0.005 >= owed)
-        if payment_status == "unpaid":
-            q = q.filter(paid_sub <= 0)
-        elif payment_status == "paid":
-            q = q.filter(fully_paid)
-        elif payment_status == "due":
+        rules = {
+            "unpaid": paid_sub <= 0,
+            "paid": fully_paid,
             # Something is still owed: a priced booking that is not fully paid. Cancelled stays owe nothing.
-            q = q.filter(owed > 0, ~fully_paid, Stay.status != "cancelled")
-        else:
-            q = q.filter((paid_sub > 0) & ~fully_paid)
+            "due": (owed > 0) & ~fully_paid & (Stay.status != "cancelled"),
+            "partial": (paid_sub > 0) & ~fully_paid,
+            "overdue": agenda.overdue_clause(today),
+        }
+        q = q.filter(or_(*[rules[p] for p in pays]))
     # Range overlap, not "check_in falls inside the range" -- a booking that
     # spans across the filtered window (e.g. checked in before date_from,
     # still staying through it) should still show up. check_in/check_out
@@ -235,6 +243,10 @@ def list_bookings(
         q = q.filter(Stay.check_out >= date_from)
     if date_to:
         q = q.filter(Stay.check_in <= date_to)
+    if ci_from:
+        q = q.filter(Stay.check_in >= ci_from)
+    if ci_to:
+        q = q.filter(Stay.check_in <= ci_to)
     if search:
         like = f"%{search}%"
         q = (
@@ -248,27 +260,52 @@ def list_bookings(
             ))
         )
 
+    # Counts per segment use every filter except the segment itself, so the tabs always add up to the list.
+    segment_counts = agenda.segment_counts(q, today) if counts else None
+    if segment:
+        q = q.filter(agenda.segment_clause(segment, today))
+
+    # Short, human-friendly booking number (order of creation) instead of the
+    # raw UUID -- RentalWise bookings already have a short numeric id; this
+    # gives local (HAIP-native) bookings the same feel.
+    seq_subq = (
+        db.query(
+            Stay.id.label("stay_id"),
+            func.row_number().over(order_by=(Stay.created_at.asc(), Stay.id.asc())).label("seq"),
+        )
+        .filter(Stay.tenant_id == tenant_id)
+        .subquery()
+    )
+
+    total = q.order_by(None).count()
     sort_col, desc = _SORT_MAP.get(sort, _SORT_MAP["newest"])
-    q = q.order_by(sort_col.desc() if desc else sort_col.asc())
+    rows = (
+        q.join(seq_subq, seq_subq.c.stay_id == Stay.id).add_columns(seq_subq.c.seq)
+        .options(joinedload(Stay.guest), joinedload(Stay.property))
+        .order_by(sort_col.desc() if desc else sort_col.asc(), Stay.id)
+        .offset((page - 1) * per_page).limit(per_page).all()
+    )
 
-    total = q.count()
-    rows = q.offset((page - 1) * per_page).limit(per_page).all()
-
-    fins = bsvc.financials_for(db, tenant_id, [s for s, _ in rows])
+    stays = [s for s, _ in rows]
+    fins = bsvc.financials_for(db, tenant_id, stays)
     schedules = bsvc.schedules_for(db, tenant_id, fins)
-    data = [_serialize_stay(s, seq, fins.get(s.id), bsvc.next_due(schedules.get(s.id, []))) for s, seq in rows]
+    trips = agenda.trips_for(db, tenant_id, stays)
+    deposits = agenda.deposits_for(db, tenant_id, [s.id for s in stays])
+    data = [_serialize_stay(s, seq, fins.get(s.id), bsvc.next_due(schedules.get(s.id, [])),
+                            extras={"trip": trips.get(s.id), "deposit": deposits.get(s.id)}) for s, seq in rows]
 
-    return {
-        "data": data,
-        "meta": {
-            "current_page": page,
-            "last_page": max(1, (total + per_page - 1) // per_page),
-            "per_page": per_page,
-            "from": (page - 1) * per_page + 1 if total else 0,
-            "to": min(page * per_page, total),
-            "total": total,
-        },
+    meta = {
+        "current_page": page,
+        "last_page": max(1, (total + per_page - 1) // per_page),
+        "per_page": per_page,
+        "from": (page - 1) * per_page + 1 if total else 0,
+        "to": min(page * per_page, total),
+        "total": total,
+        "today": today.isoformat(),
     }
+    if segment_counts is not None:
+        meta["segment_counts"] = segment_counts
+    return {"data": data, "meta": meta}
 
 
 # ── Lookups for the manual booking form ─────────────────────────────────────

@@ -487,6 +487,8 @@
   --haip-cal-direct: #2E7D4F;
   --haip-cal-maint:  #B4322F;
   --haip-cal-block:  #D6D3D1; --haip-cal-block-fg: #292524;
+  /* Bookings vehicle strip and vehicle tags: one soft tint per caravan (Ratha 1, Ratha 2), dark ink on top. */
+  --haip-cal-vehicle-1: #CFE7DB; --haip-cal-vehicle-2: #D9E4F2; --haip-cal-vehicle-fg: #1C1917;
   --haip-on-accent:  #1C1917;
 
   /* Sign-in brand panel: always dark (deep sea green) in both themes, with a light coral accent that passes AA on it. */
@@ -506,6 +508,7 @@
   --haip-avatar-4-bg: rgba(143,168,232,0.15); --haip-avatar-4-fg: #AFC2F0;
   --haip-avatar-5-bg: rgba(240,140,128,0.15); --haip-avatar-5-fg: #F5A99F;
   --haip-cal-block:  #57534E; --haip-cal-block-fg: #F3EFEC;
+  --haip-cal-vehicle-1: #24453A; --haip-cal-vehicle-2: #263649; --haip-cal-vehicle-fg: #F3EFEC;
   --haip-status-success-bg: rgba(111,207,151,0.12); --haip-status-success-fg: #8EDBAE; --haip-status-success-border: rgba(111,207,151,0.28);
   --haip-status-warning-bg: rgba(232,169,58,0.13);  --haip-status-warning-fg: #F1C26B; --haip-status-warning-border: rgba(232,169,58,0.30);
   --haip-status-danger-bg:  rgba(240,140,128,0.13); --haip-status-danger-fg:  #F5A99F; --haip-status-danger-border:  rgba(240,140,128,0.30);
