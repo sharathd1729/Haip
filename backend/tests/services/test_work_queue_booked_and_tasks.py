@@ -158,6 +158,26 @@ def test_booked_guests_reads_only_its_own_workspace(db):
     assert work_queue_signals.booked_guests(db, other.id, [g.id], TODAY) == {g.id}
 
 
+def test_a_quote_shared_from_the_calculator_counts_as_contact_but_only_in_its_own_workspace(db):
+    """A copied quote leaves no message behind (the agent pastes it into their own WhatsApp); shared_at is the record."""
+    from app.models.inquiry_360 import InquiryQuote
+
+    t, other = _tenant(db), _tenant(db)
+    quoted, waiting = _guest(db, t.id, "Quoted", days_ago=1), _guest(db, t.id, "Waiting", days_ago=1)
+    for g in (quoted, waiting):
+        inq = Inquiry(id=str(uuid.uuid4()), tenant_id=t.id, guest_id=g.id, stage=InquiryStage.NEW, source=InquirySource.WA_DIRECT,
+                      created_at=NOW - timedelta(days=1))
+        db.add(inq); db.flush()
+        db.add(InquiryQuote(id=str(uuid.uuid4()), tenant_id=t.id, inquiry_id=inq.id, amount=35000,
+                            shared_via="copied" if g is quoted else None, shared_at=NOW - timedelta(minutes=5) if g is quoted else None))
+    db.commit()
+
+    titles = _by_title(wq.build(db, t, scope_user_id=None))
+    assert "Quoted" not in titles
+    assert titles["Waiting"]["kind"] == "new_lead"
+    assert wq.human_touch(db, other.id, {quoted.id: NOW - timedelta(days=1)})[0] == set()
+
+
 # ── follow-ups only about leads (bug 2) ──────────────────────────────────────
 
 def _task(db, tid, title, **kw):

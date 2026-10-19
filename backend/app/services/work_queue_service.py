@@ -211,8 +211,10 @@ def _open_inquiries_by_guest(db: Session, tenant_id: str, guest_ids: list[str]) 
 def human_touch(db: Session, tenant_id: str, since_by_guest: dict[str, datetime]) -> tuple[set[str], dict[str, int]]:
     """({guests a person has contacted since their own cut-off}, {guest: unanswered outbound attempts since}).
 
-    Contact = a message a human sent or approved, an outbound call that was answered, or an inbound call that was answered.
-    The AI's own autonomous replies are not contact. An unanswered outbound call is an attempt, not contact."""
+    Contact = a message a human sent or approved, an outbound call that was answered, an inbound call that was answered, or a
+    quote an agent shared from the rate calculator (sent, or copied to paste into their own WhatsApp -- the copy leaves no
+    message behind, so the quote's shared_at is the only record). The AI's own autonomous replies are not contact. An
+    unanswered outbound call is an attempt, not contact."""
     if not since_by_guest:
         return set(), {}
     ids = list(since_by_guest)
@@ -248,6 +250,23 @@ def human_touch(db: Session, tenant_id: str, since_by_guest: dict[str, datetime]
                 touched.add(call.guest_id)
         elif not call_status_service.is_missed_call(call):
             touched.add(call.guest_id)
+
+    from app.models.inquiry_360 import InquiryQuote
+    shared = (
+        db.query(Inquiry.guest_id, InquiryQuote.shared_at)
+        .join(InquiryQuote, InquiryQuote.inquiry_id == Inquiry.id)
+        .filter(
+            Inquiry.tenant_id == tenant_id,
+            InquiryQuote.tenant_id == tenant_id,
+            Inquiry.guest_id.in_(ids),
+            InquiryQuote.shared_at.isnot(None),
+            InquiryQuote.shared_at >= earliest,
+        )
+        .all()
+    )
+    for guest_id, at in shared:
+        if at and _aware(at) >= _aware(since_by_guest[guest_id]):
+            touched.add(guest_id)
     return touched, attempts
 
 
