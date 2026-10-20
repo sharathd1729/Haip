@@ -79,6 +79,22 @@ services:
     depends_on:
       - api
 
+  # Client websites (website builder): every hostname that is not the HAIP app is a client site. nginx (host)
+  # sends *.SITES_BASE_DOMAIN and verified custom domains here; see docs/website-builder/DEPLOY.md.
+  sites:
+    build:
+      context: .
+      dockerfile: sites/Dockerfile
+    container_name: haip_sites
+    restart: unless-stopped
+    environment:
+      - HAIP_API_URL=${HAIP_API_URL:-http://haip_api:8000}
+      - SITES_REVALIDATE_SECRET=${SITES_REVALIDATE_SECRET:-}
+    ports:
+      - "127.0.0.1:3020:3020"
+    mem_limit: 512m
+    depends_on:
+      - api
   whatsapp-bridge:
     build:
       context: ./bridge/whatsapp-personal
