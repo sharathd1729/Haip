@@ -139,3 +139,22 @@ def test_include_past_puts_a_cancelled_booking_on_ratha_1_even_when_both_are_bus
     db.commit()
     db.refresh(dead)
     assert db.query(Property).filter_by(id=dead.property_id).one().name == "Ratha 1"
+
+
+def test_include_past_splits_checked_out_trips_on_the_same_dates_across_the_caravans(db, world):
+    # Production, 20 Oct 2026: checked-out trips never blocked a vehicle, so two trips on the same day both got Ratha 1.
+    a = _stay(db, world["tid"], world["ph"], -30, -29)
+    b = _stay(db, world["tid"], world["ph"], -30, -29)
+    day = _stay(db, world["tid"], world["ph"], -20, -20)      # two day trips on one day
+    day2 = _stay(db, world["tid"], world["ph"], -20, -20)
+    third = _stay(db, world["tid"], world["ph"], -30, -28)    # both caravans already out: Ratha 1, flagged
+    for s in (a, b, day, third):
+        s.status = "checked_out"
+    db.commit()                                                 # day2 stays "confirmed" though its date passed: same rule
+    out = rv.run(db, world["tid"], None, include_past=True)
+    db.commit()
+    names = {p.id: p.name for p in db.query(Property).filter_by(tenant_id=world["tid"]).all()}
+    for s in (a, b, day, day2, third):
+        db.refresh(s)
+    assert [names[s.property_id] for s in (a, b, day, day2, third)] == ["Ratha 1", "Ratha 2", "Ratha 1", "Ratha 2", "Ratha 1"]
+    assert [m["stay_id"] for m in out["moved"] if m.get("overlap")] == [third.id]
