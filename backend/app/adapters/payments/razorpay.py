@@ -54,13 +54,17 @@ def create_payment_link(
     customer_name: Optional[str], customer_phone: Optional[str], customer_email: Optional[str],
     expire_by: Optional[int], notes: dict,
 ) -> dict:
+    # Razorpay rejects the whole link (HTTP 400) when contact is not 8-14 characters
+    # including the country code, so an unusable number is left off instead.
+    if customer_phone and not 8 <= len(customer_phone.strip()) <= 14:
+        customer_phone = None
     customer = {k: v for k, v in {"name": customer_name, "contact": customer_phone, "email": customer_email}.items() if v}
     body = {
         "amount": int(round(amount_inr * 100)),
         "currency": "INR",
         "accept_partial": False,
         "description": description[:2000],
-        "reference_id": reference_id[:40],
+        "reference_id": reference_id[:40],   # Razorpay requires it unique per link
         "customer": customer,
         "notify": {"sms": False, "email": False},   # staff send it themselves (WhatsApp)
         "reminder_enable": False,

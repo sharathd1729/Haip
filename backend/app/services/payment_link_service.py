@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.adapters.payments import razorpay as rzp
 from app.core.audit import append_audit
 from app.core.encryption import decrypt_credentials
+from app.models.base import gen_uuid
 from app.models.integration import Integration
 from app.models.guest import Guest
 from app.models.inquiry_360 import InquiryQuote
@@ -46,14 +47,19 @@ def create_booking_link(db: Session, tenant_id: str, stay: Stay, amount: float, 
         raise PaymentLinkError("Razorpay is not connected. Add your keys in Settings > Payments first.")
     if amount <= 0:
         raise PaymentLinkError("Nothing is outstanding on this booking.")
+    if amount < 1:
+        raise PaymentLinkError("Razorpay links need at least ₹1. Record smaller amounts as a manual payment.")
     guest, prop = stay.guest, stay.property
+    # Razorpay rejects a reused reference_id, so each link carries its own id
+    # (a booking often needs a second link: balance after advance, or after expiry).
+    link_id = gen_uuid()
     expires = datetime.now(timezone.utc) + timedelta(days=expires_in_days)
     phone = guest.phone if guest and guest.phone and not guest.phone.startswith("DELETED_") else None
     try:
         res = rzp.create_payment_link(
             creds["key_id"], creds["key_secret"], amount_inr=amount,
             description=f"{prop.name if prop else 'Stay'}, {stay.check_in:%d %b} to {stay.check_out:%d %b %Y}",
-            reference_id=stay.id.replace("-", "")[:32],
+            reference_id=link_id.replace("-", ""),
             customer_name=guest.name if guest else None, customer_phone=phone,
             customer_email=guest.email if guest else None,
             expire_by=int(expires.timestamp()) if expires.timestamp() > time.time() + 900 else None,
@@ -61,7 +67,7 @@ def create_booking_link(db: Session, tenant_id: str, stay: Stay, amount: float, 
         )
     except rzp.RazorpayError as exc:
         raise PaymentLinkError(str(exc), status=502) from exc
-    link = StayPaymentLink(tenant_id=tenant_id, stay_id=stay.id, provider="razorpay", external_id=res["id"],
+    link = StayPaymentLink(id=link_id, tenant_id=tenant_id, stay_id=stay.id, provider="razorpay", external_id=res["id"],
                            short_url=res["short_url"], amount=amount, status="created", expires_at=expires,
                            created_by=created_by)
     db.add(link)

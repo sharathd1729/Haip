@@ -19,7 +19,7 @@ Quote link (link.inquiry_quote_id set, no stay yet)
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Optional
 
 import structlog
@@ -27,6 +27,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.audit import append_audit
+from app.core.tenant_tz import get_tz
 from app.models.stay_finance import StayPayment, StayPaymentLink
 from app.models.tenant import Tenant
 
@@ -41,6 +42,17 @@ def _enqueue(task_name: str, **kwargs) -> None:
         task.delay(**kwargs)
     except Exception as exc:  # noqa: BLE001
         log.error("payment_followup_enqueue_failed", task=task.name, error=str(exc), **{k: v for k, v in kwargs.items() if k.endswith("_id")})
+
+
+def razorpay_paid_on(payment_payload: dict, tenant: Tenant) -> date:
+    """The business day the guest paid, in the tenant's timezone (IST by default).
+
+    The server runs in UTC, so date.today() put payments made 00:00-05:30 IST on the previous day. Razorpay's
+    created_at (unix seconds) is the payment time, so a late webhook retry still lands on the day the money moved.
+    """
+    created = (payment_payload or {}).get("created_at")
+    when = datetime.fromtimestamp(created, timezone.utc) if isinstance(created, (int, float)) and created > 0 else datetime.now(timezone.utc)
+    return when.astimezone(get_tz(tenant)).date()
 
 
 def on_payment_link_paid(db: Session, tenant: Tenant, link: StayPaymentLink, payment_payload: dict,
@@ -59,7 +71,7 @@ def on_payment_link_paid(db: Session, tenant: Tenant, link: StayPaymentLink, pay
 
     link.status = "paid"
     payment = StayPayment(tenant_id=tenant.id, stay_id=link.stay_id, kind="payment", amount=amount, method="razorpay",
-                          reference=pay_id, external_id=pay_id, paid_on=date.today(),
+                          reference=pay_id, external_id=pay_id, paid_on=razorpay_paid_on(payment_payload, tenant),
                           notes=f"Paid via Razorpay link ({method})")
     try:
         with db.begin_nested():

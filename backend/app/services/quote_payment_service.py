@@ -21,7 +21,6 @@ payment" staff task. A quote that is no longer "issued" (re-quoted since) or a b
 """
 from __future__ import annotations
 
-from datetime import date
 from typing import Optional
 
 import structlog
@@ -30,6 +29,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.audit import append_audit
+from app.core.tenant_tz import get_tenant_now
 from app.models.inquiry import Inquiry
 from app.models.inquiry_360 import InquiryQuote
 from app.models.property import Property
@@ -204,7 +204,7 @@ def _book(db: Session, tenant: Tenant, quote: InquiryQuote, inquiry: Inquiry, pr
     )
     link.stay_id = stay.id
     payment = StayPayment(tenant_id=tenant.id, stay_id=stay.id, kind="payment", amount=amount, method="razorpay", reference=pay_id,
-                          external_id=pay_id, paid_on=date.today(), notes=f"Advance via Razorpay quote link ({method})")
+                          external_id=pay_id, paid_on=get_tenant_now(tenant).date(), notes=f"Advance via Razorpay quote link ({method})")
     db.add(payment)
     db.flush()
     append_audit(db, tenant_id=tenant.id, actor_user_id=None, action="quote.accepted", target_type="inquiry_quote", target_id=quote.id,
