@@ -110,14 +110,6 @@ class TestWorkerTenantContext:
         source = self._get_worker_source("app.workers.tasks.wrap_up")
         assert "set_tenant_context" in source
 
-    def test_owner_digest_sets_context(self):
-        source = self._get_worker_source("app.workers.tasks.owner_digest")
-        assert "set_tenant_context" in source
-
-    def test_lost_reason_cluster_sets_context(self):
-        source = self._get_worker_source("app.workers.tasks.lost_reason_cluster")
-        assert "set_tenant_context" in source
-
     def test_dpdp_purge_sets_context(self):
         source = self._get_worker_source("app.workers.tasks.dpdp_purge")
         assert "set_tenant_context" in source

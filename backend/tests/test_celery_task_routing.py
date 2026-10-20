@@ -57,11 +57,7 @@ def _queue_of(app, task_name):
 # found by the Phase 0 audit (docs/HAIP_Phase0_Failure_Register.md). They are listed so that the
 # guard stays strict for everything else; the test also fails when an entry is fixed, so the list
 # can only shrink. Do not add to it -- route the new task instead.
-_KNOWN_UNROUTED = {
-    # Scheduled nightly by beat ("classify-intent-nightly") but unrouted, so it never runs.
-    # Routing it starts an LLM job that has never run in production -- needs an owner decision.
-    "app.workers.tasks.classify_intent.run",
-}
+_KNOWN_UNROUTED: set[str] = set()   # classify_intent was routed on 20 Oct 2026 (owner OK)
 
 
 def test_every_registered_task_routes_to_a_consumed_queue(celery_app_instance):
@@ -92,13 +88,9 @@ def test_every_registered_task_routes_to_a_consumed_queue(celery_app_instance):
 # decision, not a drive-by edit. The test fails if an entry is fixed (shrink this dict) or if a
 # new broken entry appears.
 _KNOWN_DEAD_BEAT = {
-    "app.workers.tasks.lost_reason_cluster.run": "lost_reason_cluster.nightly",
-    "app.workers.tasks.dpdp_purge.run": "tasks.dpdp_purge",
     "app.workers.tasks.retention_purge.nightly_purge": "retention.nightly_purge",
-    "app.workers.tasks.meta_quality_poll.poll_all_tenants": "meta_quality.poll_all_tenants",
     "app.workers.tasks.sync_all_pms.sync_retalwise_all_tenants": "sync_retalwise_all_tenants",
     "app.workers.tasks.sync_all_pms.sync_hostaway_all_tenants": "sync_hostaway_all_tenants",
-    "app.workers.tasks.owner_digest.orchestrate": "owner_digest.orchestrate",
 }
 
 

@@ -74,6 +74,10 @@ class Settings(BaseSettings):
     # Operational kill switch: when true, new call recordings are stored but
     # NOT enqueued for transcription. Existing in-flight jobs are unaffected.
     TRANSCRIPTION_PAUSED: bool = False
+    # DPDP right-to-erasure job (workers/tasks/dpdp_purge.py). Off = the nightly job only reports which deletion requests
+    # are past their 30-day grace period. On = it erases them (dpdp_erasure_service). Check
+    # scripts/dpdp_erasure_report.py on production before switching it on.
+    DPDP_ERASURE_ENABLED: bool = False
 
     # CallerDesk
     CALLERDESK_API_KEY: str = ""

@@ -242,3 +242,22 @@ def get_presigned_media_url(s3_key: str, expires_in: int = 3600) -> str | None:
     except Exception as exc:
         log.warning("media_presign_failed", s3_key=s3_key, error=str(exc))
         return None
+
+
+def delete_tenant_objects(tenant_id: str, keys: list[str]) -> int:
+    """Delete stored files (call recordings, WhatsApp media) for a DPDP erasure. Only keys inside this tenant's own
+    prefix ("{tenant_id}/...") are touched, so a bad key can never reach another workspace's files. Best-effort and
+    batched (1,000 per call); failures are logged, never raised. Returns how many keys were sent for deletion."""
+    own = sorted({k for k in keys if k and isinstance(k, str) and k.startswith(f"{tenant_id}/")})
+    if not own:
+        return 0
+    try:
+        s3 = _s3_client()
+        for i in range(0, len(own), 1000):
+            s3.delete_objects(Bucket=settings.S3_BUCKET_NAME,
+                              Delete={"Objects": [{"Key": k} for k in own[i:i + 1000]], "Quiet": True})
+    except Exception as exc:  # noqa: BLE001 -- the rows are already erased; a storage hiccup is logged for a re-run
+        log.error("dpdp_file_delete_failed", tenant_id=tenant_id, files=len(own), error=str(exc)[:300])
+        return 0
+    log.info("dpdp_files_deleted", tenant_id=tenant_id, files=len(own))
+    return len(own)
