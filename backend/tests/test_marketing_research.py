@@ -64,7 +64,7 @@ def test_other_tenant_cannot_touch_competitors(client, db, ws):  # noqa: F811
     other = Tenant(id=str(uuid.uuid4()), name="O", slug=f"o-{uuid.uuid4().hex[:6]}", plan="growth")
     db.add(other)
     db.commit()
-    comp = research.add_competitor(db, other.id, CompetitorIn(handle="theirs"), "u")
+    comp = research.add_competitor(db, other.id, CompetitorIn(handle="theirs"), None)
     db.commit()
     r = client.post(f"{R}/competitors/{comp.id}/posts", json={"permalink": POST_URL}, headers=ws["mkt_h"])
     assert r.status_code == 404
@@ -105,8 +105,8 @@ def test_adapter_error_kinds(status, body, kind):
 def test_snapshots_upsert_posts_and_stop_on_refused_token(db, ws):  # noqa: F811
     tid = ws["tenant"].id
     integ = _fb(db, tid)
-    research.add_competitor(db, tid, CompetitorIn(handle="rival"), "u")
-    research.add_competitor(db, tid, CompetitorIn(handle="second"), "u")
+    research.add_competitor(db, tid, CompetitorIn(handle="rival"), None)
+    research.add_competitor(db, tid, CompetitorIn(handle="second"), None)
     db.commit()
     assert research.snapshot_competitors(db, tid, discover=lambda *a: DISCOVERED) == {"done": 2, "failed": 0}
     research.snapshot_competitors(db, tid, discover=lambda *a: DISCOVERED)
@@ -122,9 +122,9 @@ def test_snapshots_upsert_posts_and_stop_on_refused_token(db, ws):  # noqa: F811
 def test_measured_engagement_and_labels(db, ws):  # noqa: F811
     tid = ws["tenant"].id
     _fb(db, tid)
-    comp = research.add_competitor(db, tid, CompetitorIn(handle="rival"), "u")
+    comp = research.add_competitor(db, tid, CompetitorIn(handle="rival"), None)
     research.snapshot_competitors(db, tid, discover=lambda *a: DISCOVERED)
-    research.add_manual_post(db, tid, comp.id, CompetitorPostIn(permalink=POST_URL, like_count=60, comments_count=0), "u")
+    research.add_manual_post(db, tid, comp.id, CompetitorPostIn(permalink=POST_URL, like_count=60, comments_count=0), None)
     db.commit()
     c = research.measured(db, tid)["competitors"][0]
     assert c["followers"] == 2000 and c["manual_posts"] == 1 and c["posts_known"] == 3
@@ -134,17 +134,17 @@ def test_measured_engagement_and_labels(db, ws):  # noqa: F811
 
 def test_brief_needs_posts_then_keeps_only_real_example_links(db, ws):  # noqa: F811
     tid = ws["tenant"].id
-    comp = research.add_competitor(db, tid, CompetitorIn(handle="rival"), "u")
+    comp = research.add_competitor(db, tid, CompetitorIn(handle="rival"), None)
     db.commit()
-    brief = research.run_brief(db, ws["tenant"], "u")
+    brief = research.run_brief(db, ws["tenant"], None)
     assert brief.status == "failed" and "No competitor posts" in brief.error
 
-    research.add_manual_post(db, tid, comp.id, CompetitorPostIn(permalink=POST_URL, like_count=90), "u")
+    research.add_manual_post(db, tid, comp.id, CompetitorPostIn(permalink=POST_URL, like_count=90), None)
     db.commit()
     answer = {"summary": "Reels of mornings win.", "themes": [
         {"name": "Slow mornings", "why_it_works": "Calm, aspirational", "examples": [POST_URL, "https://www.instagram.com/p/MADEUP/"]}]}
     with patch.object(ai, "_call", return_value=(answer, {"model": "m"}, "nvidia")):
-        brief = research.run_brief(db, ws["tenant"], "u")
+        brief = research.run_brief(db, ws["tenant"], None)
     assert brief.status == "ready" and brief.assessment["themes"][0]["examples"] == [POST_URL]
     assert brief.measured["competitors"][0]["handle"] == "rival"
 
@@ -152,9 +152,9 @@ def test_brief_needs_posts_then_keeps_only_real_example_links(db, ws):  # noqa: 
 def test_disconnect_deletes_api_data_and_keeps_manual(db, ws):  # noqa: F811
     tid = ws["tenant"].id
     integ = _fb(db, tid)
-    comp = research.add_competitor(db, tid, CompetitorIn(handle="rival"), "u")
+    comp = research.add_competitor(db, tid, CompetitorIn(handle="rival"), None)
     research.snapshot_competitors(db, tid, discover=lambda *a: DISCOVERED)
-    research.add_manual_post(db, tid, comp.id, CompetitorPostIn(permalink=POST_URL), "u")
+    research.add_manual_post(db, tid, comp.id, CompetitorPostIn(permalink=POST_URL), None)
     db.commit()
     out = research.disconnect_fb(db, tid, ws["owner"].id)
     db.commit()
@@ -241,8 +241,8 @@ def test_oauth_callback_without_linked_instagram_fails_cleanly(client, ws, fb_en
 
 def test_manual_followers_give_an_engagement_rate(db, ws):  # noqa: F811
     tid = ws["tenant"].id
-    comp = research.add_competitor(db, tid, CompetitorIn(handle="rival", followers=1000), "u")
-    research.add_manual_post(db, tid, comp.id, CompetitorPostIn(permalink=POST_URL, like_count=40, comments_count=10), "u")
+    comp = research.add_competitor(db, tid, CompetitorIn(handle="rival", followers=1000), None)
+    research.add_manual_post(db, tid, comp.id, CompetitorPostIn(permalink=POST_URL, like_count=40, comments_count=10), None)
     db.commit()
     c = research.measured(db, tid)["competitors"][0]
     assert (c["followers"], c["followers_source"], c["median_engagement"], c["median_engagement_rate"]) == (1000, "manual", 50, 0.05)

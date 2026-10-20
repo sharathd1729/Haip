@@ -208,15 +208,15 @@ def test_upload_is_reencoded_deduplicated_and_tenant_scoped(db, tid, tenant_and_
                                       (b"<svg onload=alert(1)></svg>", "not_an_image")])
 def test_upload_rejects_non_images(db, tid, raw, code):
     with pytest.raises(media.MediaError) as exc:
-        media.add_upload(db, tid, raw, actor_id="u")
+        media.add_upload(db, tid, raw, actor_id=None)
     assert exc.value.code == code
 
 
 def test_render_creative_makes_a_new_template_asset(db, tid, tenant_and_user):
     with patch("app.services.media_storage.upload_marketing_media", side_effect=lambda t, c, m, e: f"{t}/marketing/{uuid.uuid4().hex}.{e}"):
-        src = media.add_upload(db, tid, _png(), actor_id="u")
+        src = media.add_upload(db, tid, _png(), actor_id=None)
         out = media.render_creative(db, tenant_and_user["tenant"], src.id, template="portrait_panel",
-                                    headline="Monsoon in Coorg", subline="DM us to plan yours", actor_id="u",
+                                    headline="Monsoon in Coorg", subline="DM us to plan yours", actor_id=None,
                                     read_bytes=lambda key: _png())
     db.commit()
     assert out.source == "template" and (out.width, out.height) == (1080, 1350)
@@ -228,7 +228,7 @@ def test_render_refuses_another_tenants_asset(db, tid, tenant_and_user):
     other = MediaAsset(tenant_id=str(uuid.uuid4()), storage_key="x", mime_type="image/png", bytes=1, sha256="0" * 64)
     with pytest.raises(media.MediaError) as exc:
         media.render_creative(db, tenant_and_user["tenant"], other.id, template="square_panel", headline="Hi",
-                              subline=None, actor_id="u", read_bytes=lambda k: _png())
+                              subline=None, actor_id=None, read_bytes=lambda k: _png())
     assert exc.value.code == "asset_not_found"
 
 
@@ -330,7 +330,7 @@ def test_plan_refuses_six_pillars_and_calendar_pillars_outside_the_plan(db, tid)
 def test_first_comment_goes_through_the_price_check(db, tid, item):
     with pytest.raises(svc.MarketingError) as exc:
         svc.add_version(db, tid, item.id, {"caption": "Monsoon mornings", "first_comment": "Weekends from Rs 15,000 per night!"},
-                        origin="human", actor_id="u")
+                        origin="human", actor_id=None)
     assert exc.value.code == "content_not_allowed"
 
 
