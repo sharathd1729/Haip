@@ -181,7 +181,8 @@ def test_a_quote_shared_from_the_calculator_counts_as_contact_but_only_in_its_ow
 # ── follow-ups only about leads (bug 2) ──────────────────────────────────────
 
 def _task(db, tid, title, **kw):
-    t = Task(id=str(uuid.uuid4()), tenant_id=tid, title=title, is_done=False, due_date=NOW - timedelta(hours=2), **kw)
+    kw.setdefault("due_date", NOW - timedelta(hours=2))
+    t = Task(id=str(uuid.uuid4()), tenant_id=tid, title=title, is_done=False, **kw)
     db.add(t); db.flush(); return t
 
 
@@ -204,9 +205,26 @@ def test_follow_ups_list_lead_tasks_and_manual_tasks_but_not_tasks_about_a_guest
     db.commit()
 
     res = wq.build(db, t, scope_user_id=None)
-    assert {i["title"] for i in res["items"] if i["kind"] == "followup"} == {
-        "Call lead about pricing — Asha", "Order a new gas cylinder"}
-    assert res["counts"]["followup"] == 2
+    # Asha is on the list as a new lead, so her task rides on that row instead of a second one (owner, 20 Oct 2026).
+    assert {i["title"] for i in res["items"] if i["kind"] == "followup"} == {"Order a new gas cylinder"}
+    assert res["counts"]["followup"] == 2                       # counts still count every task (dashboard cards, scripts)
+    asha = next(i for i in res["items"] if i["guest_id"] == lead.id)
+    assert asha["kind"] == "new_lead" and [x["title"] for x in asha["tasks"]] == ["Call lead about pricing — Asha"]
+    assert asha["tasks"][0]["overdue"] is True
+
+
+def test_a_call_back_request_folds_into_the_guests_row_and_puts_it_in_call_now(db):
+    t = _tenant(db)
+    g = _guest(db, t.id, "Ananya", days_ago=1)
+    _task(db, t.id, "Callback requested — Ananya", guest_id=g.id, due_date=NOW + timedelta(minutes=30))
+    nobody = _task(db, t.id, "Order a new gas cylinder")
+    db.commit()
+    res = wq.build(db, t, scope_user_id=None)
+    rows = [i for i in res["items"] if i["guest_id"] == g.id]
+    assert len(rows) == 1                                                       # one row per person
+    assert rows[0]["lane"] == "now" and "Asked for a call back" in rows[0]["reasons"]
+    assert rows[0]["tasks"][0]["overdue"] is False
+    assert [i["title"] for i in res["items"] if i["kind"] == "followup"] == [nobody.title]
 
 
 # ── calendar clashes (bug 3) ─────────────────────────────────────────────────

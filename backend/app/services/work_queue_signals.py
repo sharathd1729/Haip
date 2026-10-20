@@ -359,3 +359,26 @@ def touch_rows(db: Session, tenant_id: str, since_by_guest: dict) -> list[tuple]
         if after(guest_id, at):
             rows.append((guest_id, _aware_dt(at), "contact", "quote"))
     return rows
+
+
+# ── one row per person ───────────────────────────────────────────────────────────────────────────────────────
+
+def merge_tasks_into_people(items: list) -> list:
+    """A guest with a person row (missed call, new lead, waiting reply, not replying) AND an open task showed twice on My day
+    (owner, 20 Oct 2026: "Callback requested — Ananya" above Ananya's own lead row). Returns the list to SHOW: the task rides
+    on the person's row (it has the Call button, number and trip facts) as ``item.tasks`` = [{title, due, overdue}], with the
+    task's flags, and the task row is left out. Tasks about nobody, or about someone with no person row, stay as rows."""
+    from app.services import work_queue_service as wq
+    people = {}
+    for item in items:
+        if item.kind in wq.PERSON_KINDS and item.guest_id and item.guest_id not in people:
+            people[item.guest_id] = item
+    shown = []
+    for item in items:
+        host = people.get(item.guest_id) if item.kind == "followup" and item.guest_id else None
+        if host is None:
+            shown.append(item)
+            continue
+        host.tasks.append({"title": item.title, "due": wq._iso(item.since), "overdue": item.overdue})
+        host.flags.extend(f for f in item.flags if f not in host.flags)
+    return shown
