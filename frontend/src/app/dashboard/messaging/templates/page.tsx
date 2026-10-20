@@ -38,6 +38,21 @@ function headerFormat(t: Template): string | null {
   return fmt && fmt !== "TEXT" ? fmt.toLowerCase() : null;
 }
 
+// A document header with no sample file yet: Submit first asks HAIP to attach a generated sample PDF
+// (a dummy quote / invoice / receipt, marked SAMPLE), since Meta's review needs one.
+function needsSampleDoc(t: Template): boolean {
+  const h = t.components.find(c => c.type === "HEADER");
+  return h?.format?.toUpperCase() === "DOCUMENT" && !h.example?.header_handle?.[0]?.trim();
+}
+
+// Mirrors wa_template_sample_doc.document_kind on the backend.
+function sampleKind(name: string): string {
+  const n = name.toLowerCase();
+  if (n.includes("quote")) return "quote";
+  if (n.includes("receipt") || n.includes("payment_received")) return "receipt";
+  return "invoice";
+}
+
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
 function Toast({ msg, type, onClose }: { msg: string; type: "success" | "error"; onClose: () => void }) {
@@ -110,7 +125,10 @@ export default function TemplatesPage() {
   });
 
   const submitMutation = useMutation({
-    mutationFn: (id: string) => api.post(`/messaging/templates/${id}/submit`),
+    mutationFn: async (tmpl: Template) => {
+      if (needsSampleDoc(tmpl)) await api.post(`/messaging/templates/${tmpl.id}/sample-document`);
+      return api.post(`/messaging/templates/${tmpl.id}/submit`);
+    },
     onSuccess: (res) => {
       refresh();
       if (res.data?.status === "pending") {
@@ -122,6 +140,7 @@ export default function TemplatesPage() {
       }
     },
     onError: (err) => {
+      refresh();
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       showToast(msg || "Submission failed.", "error");
     },
@@ -199,7 +218,7 @@ export default function TemplatesPage() {
               const sc = STATUS_CFG[tmpl.status] ?? STATUS_CFG.draft;
               const editable = EDITABLE.includes(tmpl.status);
               const media = headerFormat(tmpl);
-              const submitting = submitMutation.isPending && submitMutation.variables === tmpl.id;
+              const submitting = submitMutation.isPending && submitMutation.variables?.id === tmpl.id;
               return (
                 <div key={tmpl.id} className="haip-card p-4 hover:shadow-sm transition-shadow">
                   <div className="flex items-start gap-4">
@@ -235,7 +254,7 @@ export default function TemplatesPage() {
                       <button onClick={() => setEditor({ duplicateOf: tmpl })} title="Duplicate" aria-label="Duplicate"
                         className="text-[var(--haip-fg-subtle)] hover:text-primary transition-colors p-1.5 rounded-lg hover:bg-[var(--haip-primary-tint)]"><Copy size={14} /></button>
                       {editable && (
-                        <button onClick={() => submitMutation.mutate(tmpl.id)} disabled={submitMutation.isPending}
+                        <button onClick={() => submitMutation.mutate(tmpl)} disabled={submitMutation.isPending}
                           className="flex items-center gap-1.5 text-xs bg-primary text-white px-3 py-1.5 rounded-lg font-medium hover:bg-primary transition-colors disabled:opacity-50">
                           {submitting ? <Loader2 size={11} className="animate-spin" /> : tmpl.status === "draft" ? <Send size={11} /> : <RotateCcw size={11} />}
                           {tmpl.status === "draft" ? "Submit" : "Resubmit"}
@@ -245,6 +264,9 @@ export default function TemplatesPage() {
                         className="text-[var(--haip-fg-subtle)] hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-50"><Trash2 size={14} /></button>
                     </div>
                   </div>
+                  {editable && needsSampleDoc(tmpl) && (
+                    <p className="text-[11px] text-[var(--haip-fg-subtle)] mt-2">No sample PDF yet. Submit adds a sample {sampleKind(tmpl.name)} (dummy guest, marked SAMPLE).</p>
+                  )}
                 </div>
               );
             })}

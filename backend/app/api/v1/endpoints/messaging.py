@@ -430,6 +430,52 @@ def upload_template_media(
     }
 
 
+@router.post("/templates/{template_id}/sample-document", response_model=TemplateOut)
+def add_sample_document(
+    template_id: str,
+    current_user: User = Depends(require_roles(UserRole.OWNER, UserRole.MANAGER, UserRole.MARKETING)),
+    db: Session = Depends(get_db),
+):
+    """Attach a generated sample PDF to a template's DOCUMENT header, so it can be submitted.
+
+    Meta's review needs a sample file. This draws a dummy quote / receipt / invoice ("Sample Guest", marked SAMPLE)
+    with the workspace's seller details, sends it to Meta as the header sample and keeps it in our storage, exactly
+    like an uploaded file. Real sends still attach each guest's own document."""
+    from app.services import wa_template_service as wts
+    from app.services import wa_template_sample_doc as sample_doc
+    from app.models.tenant import Tenant
+    from app.services.media_storage import upload_wa_template_media
+
+    tmpl = db.query(WATemplate).filter_by(id=template_id, tenant_id=current_user.tenant_id).first()
+    if not tmpl:
+        raise HTTPException(status_code=404, detail="Template not found")
+    if tmpl.status not in _EDITABLE_STATUSES:
+        raise HTTPException(status_code=409, detail=f"This template is {tmpl.status.value}; it can't be changed.")
+    if not any((c.get("type") or "").upper() == "HEADER" and (c.get("format") or "").upper() == "DOCUMENT"
+               for c in tmpl.components or []):
+        raise HTTPException(status_code=400, detail="This template has no document header.")
+    tenant = db.query(Tenant).filter_by(id=current_user.tenant_id).first()
+    content, filename = sample_doc.sample_pdf(tenant, tmpl.name)
+    try:
+        wa_int, access_token = _wa_integration_and_token(db, current_user.tenant_id)
+        if not wa_int or not access_token:
+            raise wts.TemplateError(
+                "WhatsApp Business API is not connected for this workspace. "
+                "Connect it under Settings -> Integrations first."
+            )
+        handle = wts.upload_sample_to_meta(access_token, content, "application/pdf", filename)
+    except wts.TemplateError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    tmpl.header_media_key = upload_wa_template_media(current_user.tenant_id, content, "application/pdf", "pdf")
+    tmpl.components = sample_doc.with_handle(tmpl.components, handle)
+    db.commit()
+    db.refresh(tmpl)
+    log.info("wa_template_sample_document_added", tenant_id=current_user.tenant_id, template_id=tmpl.id,
+             kind=sample_doc.document_kind(tmpl.name), bytes=len(content))
+    return _template_out(tmpl)
+
+
 @router.post("/templates/lint")
 def lint_template(
     body: TemplateCreateRequest,
