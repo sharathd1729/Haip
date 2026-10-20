@@ -42,26 +42,38 @@ function renderPage() {
 beforeEach(() => { cleanup(); get.mockReset(); post.mockReset(); nav.search = new URLSearchParams(); });
 
 describe("My day", () => {
-  it("puts people past their target time first, new arrivals next, and hides the cold ones until asked", async () => {
+  it("shows the three lanes in the server's order, with the score and the reasons behind it", async () => {
     get.mockResolvedValue({ data: queue([
-      item({ title: "Priya Nair", severity: "critical", since: ago(600), detail: "“Is the caravan free this weekend?”", facts: ["12–14 Dec", "2 adults"] }),
-      item({ title: "Karan", severity: "fresh", since: ago(3), guest_id: "g2", inquiry_id: "i2" }),
-      item({ title: "Old Lead", severity: "stale", since: ago(60 * 24 * 5), guest_id: "g3", inquiry_id: "i3" }),
+      item({ title: "Ananya", kind: "followup", action: "Open", since: new Date(Date.now() + 36 * 60_000).toISOString(),
+             detail: "Due soon", lane: "now", priority: 86, reasons: ["Asked for a call back", "Travels in 6 days"],
+             guest_id: "g4", inquiry_id: "i4" }),
+      item({ title: "Priya Nair", severity: "critical", since: ago(600), detail: "“Is the caravan free this weekend?”",
+             facts: ["12–14 Dec", "2 adults"], lane: "today", priority: 48, reasons: ["Quote sent"] }),
+      item({ title: "Karan", severity: "fresh", since: ago(3), guest_id: "g2", inquiry_id: "i2", lane: "chase", priority: 20 }),
+      ...[1, 2, 3, 4, 5, 6].map(n => item({ title: `Cold ${n}`, severity: "stale", since: ago(60 * 24 * 5), guest_id: `c${n}`,
+             inquiry_id: `ci${n}`, lane: "chase", priority: 10 - n })),
     ]) });
     renderPage();
 
     expect(await screen.findByText("Priya Nair")).toBeTruthy();
-    expect(screen.getByText(/3 people are waiting/)).toBeTruthy();
-    expect(screen.getByText(/1 past their target time/)).toBeTruthy();
-    expect(screen.getByText("Past their target time")).toBeTruthy();
-    expect(screen.getByText("Just arrived")).toBeTruthy();
-    expect(screen.getByText("Very overdue")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /Call now/ }).textContent).toContain("1");
+    expect(screen.getByRole("heading", { name: /Reply or follow up today/ }).textContent).toContain("1");
+    expect(screen.getByRole("heading", { name: /Chase when free/ }).textContent).toContain("7");
+    // Top to bottom: Call now, then today, then chase.
+    const text = document.body.textContent ?? "";
+    expect(text.indexOf("Ananya")).toBeLessThan(text.indexOf("Priya Nair"));
+    expect(text.indexOf("Priya Nair")).toBeLessThan(text.indexOf("Karan"));
+    expect(screen.getByText("86")).toBeTruthy();
+    expect(screen.getByText("Asked for a call back")).toBeTruthy();
+    expect(screen.getByText("Quote sent")).toBeTruthy();
     expect(screen.getByText("12–14 Dec")).toBeTruthy();
-    expect(screen.getAllByText(/Nobody owns this yet/).length).toBeGreaterThan(0);
-    // The cold lead is behind a toggle, not in the way.
-    expect(screen.queryByText("Old Lead")).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: /Gone cold \(1\)/ }));
-    expect(screen.getByText("Old Lead")).toBeTruthy();
+    // A task that is not due yet says "due", not "overdue".
+    expect(screen.getByText("due")).toBeTruthy();
+    // Chase shows its best five; the rest are behind a button.
+    expect(screen.getByText("Cold 4")).toBeTruthy();
+    expect(screen.queryByText("Cold 5")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /Show 2 more/ }));
+    expect(screen.getByText("Cold 6")).toBeTruthy();
   });
 
   it("places the call from the row instead of opening a page", async () => {
@@ -140,8 +152,8 @@ describe("My day", () => {
     expect(link?.getAttribute("href")).toBe("/dashboard/portfolio/calendar?date=2026-10-21&property=p1");
     expect(screen.getByText("21 Oct – 22 Oct")).toBeTruthy();
     expect(screen.getByText("Ratha 1")).toBeTruthy();
-    // The clash is not one of the people past their target time.
-    expect(screen.getByText("Past their target time").parentElement?.textContent).toContain("1");
+    // The clash is not one of the people in the lanes.
+    expect(screen.getByRole("heading", { name: /Reply or follow up today/ }).textContent).toContain("1");
     expect(screen.getByRole("button", { name: /Calendar clashes/ })).toBeTruthy();
   });
 });

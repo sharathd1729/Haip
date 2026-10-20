@@ -45,7 +45,7 @@ from app.models.inquiry import Inquiry
 from app.models.task import Task
 from app.models.tenant import Tenant
 from app.models.user import User
-from app.services import call_status_service, work_queue_signals
+from app.services import call_status_service, lead_priority, work_queue_signals
 from app.services.date_presets import IST
 
 log = structlog.get_logger()
@@ -96,6 +96,9 @@ class QueueItem:
     facts: list[str] = field(default_factory=list)   # dates / party size / occasion, when known
     has_draft: bool = False            # the AI has a reply waiting for a person to send
     flags: list[str] = field(default_factory=list)   # not_called / open_lead / at_risk (work_queue_signals.apply_flags)
+    priority: int = 0                  # 0-100, who to work on first (lead_priority)
+    lane: str = "today"                # now / today / chase -- the My day section (lead_priority)
+    reasons: list[str] = field(default_factory=list)  # why it scored that way, as short chips
 
     def as_dict(self) -> dict:
         return {
@@ -105,7 +108,7 @@ class QueueItem:
             "owner_id": self.owner_id, "owner_name": self.owner_name,
             "channels": self.channels, "since": _iso(self.since), "overdue": self.overdue,
             "severity": self.severity, "attempts": self.attempts, "facts": self.facts, "has_draft": self.has_draft,
-            "flags": self.flags,
+            "flags": self.flags, "priority": self.priority, "lane": self.lane, "reasons": self.reasons,
         }
 
 
@@ -140,15 +143,6 @@ def severity_for(kind: str, since: Optional[datetime], now: Optional[datetime] =
     if minutes < limits[3]:
         return "critical"
     return "stale"
-
-
-def _sort_key(item: QueueItem):
-    # Worst first (critical before urgent ...), then the kind order, then whoever has waited longest. "stale" goes last:
-    # it is the "probably cold" tail, not the most urgent thing on the list.
-    rank = _SEV_RANK[item.severity]
-    if item.severity == "stale":
-        rank = -1
-    return (-rank, KINDS.index(item.kind), _aware(item.since) or _now())
 
 
 def _names(db: Session, tenant_id: str, ids: Iterable[str]) -> dict[str, str]:
@@ -558,7 +552,9 @@ def build(db: Session, tenant: Tenant, scope_user_id: Optional[str], kinds: Opti
             item.overdue = item.severity != "fresh"
 
     all_items = [i for k in KINDS for i in by_kind[k]]
-    all_items.sort(key=_sort_key)
+    # Best chance first (lead_priority): lane, then score, then longest wait. Severity above still drives alerts.
+    lead_priority.apply(db, tenant.id, all_items, now, today)
+    all_items.sort(key=lambda i: lead_priority.sort_key(i, _aware))
     flags = work_queue_signals.apply_flags(db, tenant.id, all_items, now, today, frozenset(booked))
     counts = {k: len(by_kind[k]) for k in KINDS}
     oldest = {
