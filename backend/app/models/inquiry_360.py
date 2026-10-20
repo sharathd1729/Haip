@@ -72,6 +72,7 @@ class InquiryQuote(Base, TimestampMixin, TenantMixin):
     # lowered past the tenant's limit (status "pending_approval" until then).
     shared_via   = Column(String(20), nullable=True)
     shared_at    = Column(DateTime(timezone=True), nullable=True)
+    shared_message_id = Column(String, nullable=True)   # the WhatsApp Message that carried it, when sent (migration 151)
     approved_by  = Column(String, nullable=True)
     approved_at  = Column(DateTime(timezone=True), nullable=True)
 

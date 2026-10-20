@@ -479,6 +479,14 @@ def _notify_stage_hooks(db: Session, inquiry: Inquiry, actor_user_id: Optional[s
         lead_autopilot_service.on_stage_changed(db, inquiry, inquiry.stage_id, actor_user_id)
     except Exception as exc:
         log.warning("lead_autopilot_stage_hook_failed", inquiry_id=inquiry.id, error=str(exc)[:200])
+    try:   # lead workflows: the journey's outcome follows the stage; a closed lead stops its waiting playbook runs
+        from app.services import lead_journey_tracker, lead_playbook_engine
+        with db.begin_nested():
+            lead_journey_tracker.on_stage_changed(db, inquiry)
+            if lead_journey_tracker.outcome_of(db, inquiry) != "active":
+                lead_playbook_engine.stop_runs(db, inquiry.tenant_id, inquiry.id, "the lead was closed")
+    except Exception as exc:
+        log.warning("lead_journey_stage_hook_failed", inquiry_id=inquiry.id, error=str(exc)[:200])
 
 
 def revert_automatic_move(

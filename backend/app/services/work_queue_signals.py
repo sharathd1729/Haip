@@ -272,3 +272,90 @@ def apply_flags(db: Session, tenant_id: str, items: list, now: datetime, today: 
         return len({i.guest_id or id(i) for i in items if flag in i.flags})
     return {"not_called": people("not_called"), "at_risk": people("at_risk"),
             "followup_open_lead": sum(1 for i in items if "open_lead" in i.flags)}
+
+
+# ── The contact rule (shared with work_queue_service.human_touch and lead_journey_tracker) ─────────────────────────────
+
+# Outbound messages that are never a person's contact: our own automatic sends and mirrored history.
+NOT_CONTACT_KINDS = ("playbook", "system", "campaign", "bridge_history", "ai_auto")
+
+
+def _aware_dt(dt: Optional[datetime]) -> Optional[datetime]:
+    from datetime import timezone
+    if dt is None:
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def _message_channel(channel, source: Optional[str]) -> str:
+    if source == "personal_bridge":
+        return "personal_whatsapp"
+    value = str(getattr(channel, "value", channel) or "").lower()
+    return value if value in ("whatsapp", "instagram") else (value or "other")
+
+
+def touch_rows(db: Session, tenant_id: str, since_by_guest: dict) -> list[tuple]:
+    """Every contact and call attempt with these people since their own cut-off: [(guest_id, at, kind, channel)], kind
+    "contact" | "attempt", channel whatsapp | instagram | personal_whatsapp | call | quote.
+
+    Contact = a message a human sent or approved, an outbound call that was answered, an inbound call that was answered, or a
+    quote an agent shared from the rate calculator (sent, or copied to paste into their own WhatsApp -- the copy leaves no
+    message behind, so the quote's shared_at is the only record). The AI's own autonomous replies and HAIP's automatic
+    messages (playbook / system / campaign, ``Message.sender_kind``) are not contact. An unanswered outbound call is an
+    attempt, not contact."""
+    from app.services import call_status_service
+
+    if not since_by_guest:
+        return []
+    ids = list(since_by_guest)
+    earliest = min(_aware_dt(s) for s in since_by_guest.values())
+    rows: list[tuple] = []
+
+    def after(guest_id, at) -> bool:
+        return at is not None and _aware_dt(at) >= _aware_dt(since_by_guest[guest_id])
+
+    msgs = (
+        db.query(Conversation.guest_id, Message.created_at, Conversation.channel, Conversation.source)
+        .join(Message, Message.conversation_id == Conversation.id)
+        .filter(
+            Conversation.tenant_id == tenant_id,
+            Conversation.guest_id.in_(ids),
+            Message.direction == MessageDirection.OUTBOUND,
+            Message.is_internal.isnot(True),
+            Message.sent_autonomously.isnot(True),
+            or_(Message.sender_kind.is_(None), Message.sender_kind.notin_(NOT_CONTACT_KINDS)),
+            or_(Message.is_ai_generated.isnot(True), Message.was_approved.is_(True)),
+            Message.created_at >= earliest,
+        )
+        .all()
+    )
+    for guest_id, at, channel, source in msgs:
+        if after(guest_id, at):
+            rows.append((guest_id, _aware_dt(at), "contact", _message_channel(channel, source)))
+
+    for call in db.query(Call).filter(Call.tenant_id == tenant_id, Call.guest_id.in_(ids), Call.created_at >= earliest):
+        if not after(call.guest_id, call.created_at):
+            continue
+        if call.direction == CallDirection.OUTBOUND:
+            kind = "attempt" if call_status_service.is_unanswered_outbound(call) else "contact"
+            rows.append((call.guest_id, _aware_dt(call.created_at), kind, "call"))
+        elif not call_status_service.is_missed_call(call):
+            rows.append((call.guest_id, _aware_dt(call.created_at), "contact", "call"))
+
+    from app.models.inquiry_360 import InquiryQuote
+    shared = (
+        db.query(Inquiry.guest_id, InquiryQuote.shared_at)
+        .join(InquiryQuote, InquiryQuote.inquiry_id == Inquiry.id)
+        .filter(
+            Inquiry.tenant_id == tenant_id,
+            InquiryQuote.tenant_id == tenant_id,
+            Inquiry.guest_id.in_(ids),
+            InquiryQuote.shared_at.isnot(None),
+            InquiryQuote.shared_at >= earliest,
+        )
+        .all()
+    )
+    for guest_id, at in shared:
+        if after(guest_id, at):
+            rows.append((guest_id, _aware_dt(at), "contact", "quote"))
+    return rows

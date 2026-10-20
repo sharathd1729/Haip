@@ -14,6 +14,7 @@ from app.api.v1.endpoints import (
     calculator, calendar, bookings,
     leads,
     lead_autopilot,
+    workflows,
     pipeline_stages,
     lead_fields,
     automations,
@@ -81,6 +82,7 @@ api_router.include_router(calls.router)
 # Leads360 — unified sales pipeline
 api_router.include_router(leads.router)
 api_router.include_router(lead_autopilot.router)
+api_router.include_router(workflows.router)   # lead workflows: /workflows/* + /leads/{id}/journey|viewed|playbooks
 
 # Intelligence
 api_router.include_router(qa.router)

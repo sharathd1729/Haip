@@ -10,7 +10,7 @@ import api from "@/lib/api";
 import {
   AtSign, BarChart2, Bot, BookmarkIcon, Building2, Calculator, Calendar, CreditCard, FileText, HelpCircle, Home, Inbox, Key,
   LayoutDashboard, Link2, ListChecks, Megaphone, MessageCircle, Palette, Phone, Send, Settings, Shield, Shuffle, Star, Target,
-  TrendingUp, UserCircle, Users, Zap,
+  TrendingUp, UserCircle, Users, Workflow, Zap,
 } from "@/lib/icons";
 import { GitBranch, UserCheck } from "lucide-react";
 import { BOOKING_READ_ROLES, QUOTE_WRITE_ROLES, REVENUE_READ_ROLES, canSeeNav, type Resource } from "@/lib/permissions";
@@ -76,6 +76,7 @@ export const NAV_SECTIONS: NavSection[] = [
     { label: "Team", href: "/dashboard/settings/team", icon: Users, resource: "users" },
     { label: "Lead assignment", href: "/dashboard/settings/lead-assignment", icon: Shuffle, resource: "settings" },
     { label: "Lead autopilot", href: "/dashboard/settings/lead-autopilot", icon: Bot, resource: "settings", onlyRoles: ["owner", "manager"] },
+    { label: "Lead workflows", href: "/dashboard/workflows", icon: Workflow, resource: "settings", onlyRoles: ["owner", "manager"] },
     { label: "Calendar sync", href: "/dashboard/settings/calendar-sync", icon: Calendar, resource: "settings" },
     { label: "Payments", href: "/dashboard/settings/payments", icon: CreditCard, resource: "settings" },
     { label: "Invoice details", href: "/dashboard/settings/invoices", icon: FileText, resource: "settings", onlyRoles: ["owner", "manager"] },

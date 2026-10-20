@@ -211,61 +211,15 @@ def _open_inquiries_by_guest(db: Session, tenant_id: str, guest_ids: list[str]) 
 def human_touch(db: Session, tenant_id: str, since_by_guest: dict[str, datetime]) -> tuple[set[str], dict[str, int]]:
     """({guests a person has contacted since their own cut-off}, {guest: unanswered outbound attempts since}).
 
-    Contact = a message a human sent or approved, an outbound call that was answered, an inbound call that was answered, or a
-    quote an agent shared from the rate calculator (sent, or copied to paste into their own WhatsApp -- the copy leaves no
-    message behind, so the quote's shared_at is the only record). The AI's own autonomous replies are not contact. An
-    unanswered outbound call is an attempt, not contact."""
-    if not since_by_guest:
-        return set(), {}
-    ids = list(since_by_guest)
-    earliest = min(_aware(s) for s in since_by_guest.values())
+    The contact rule itself lives in work_queue_signals.touch_rows (shared with the lead journey): a message a human sent
+    or approved, an answered call either way, or a quote an agent shared. HAIP's automatic messages and the AI's own
+    autonomous replies are not contact; an unanswered outbound call is an attempt, not contact."""
     touched: set[str] = set()
     attempts: dict[str, int] = {}
-
-    msgs = (
-        db.query(Conversation.guest_id, Message.created_at)
-        .join(Message, Message.conversation_id == Conversation.id)
-        .filter(
-            Conversation.tenant_id == tenant_id,
-            Conversation.guest_id.in_(ids),
-            Message.direction == MessageDirection.OUTBOUND,
-            Message.is_internal.isnot(True),
-            Message.sent_autonomously.isnot(True),
-            or_(Message.is_ai_generated.isnot(True), Message.was_approved.is_(True)),
-            Message.created_at >= earliest,
-        )
-        .all()
-    )
-    for guest_id, at in msgs:
-        if at and _aware(at) >= _aware(since_by_guest[guest_id]):
-            touched.add(guest_id)
-
-    for call in db.query(Call).filter(Call.tenant_id == tenant_id, Call.guest_id.in_(ids), Call.created_at >= earliest):
-        if _aware(call.created_at) < _aware(since_by_guest[call.guest_id]):
-            continue
-        if call.direction == CallDirection.OUTBOUND:
-            if call_status_service.is_unanswered_outbound(call):
-                attempts[call.guest_id] = attempts.get(call.guest_id, 0) + 1
-            else:
-                touched.add(call.guest_id)
-        elif not call_status_service.is_missed_call(call):
-            touched.add(call.guest_id)
-
-    from app.models.inquiry_360 import InquiryQuote
-    shared = (
-        db.query(Inquiry.guest_id, InquiryQuote.shared_at)
-        .join(InquiryQuote, InquiryQuote.inquiry_id == Inquiry.id)
-        .filter(
-            Inquiry.tenant_id == tenant_id,
-            InquiryQuote.tenant_id == tenant_id,
-            Inquiry.guest_id.in_(ids),
-            InquiryQuote.shared_at.isnot(None),
-            InquiryQuote.shared_at >= earliest,
-        )
-        .all()
-    )
-    for guest_id, at in shared:
-        if at and _aware(at) >= _aware(since_by_guest[guest_id]):
+    for guest_id, _at, kind, _channel in work_queue_signals.touch_rows(db, tenant_id, since_by_guest):
+        if kind == "attempt":
+            attempts[guest_id] = attempts.get(guest_id, 0) + 1
+        else:
             touched.add(guest_id)
     return touched, attempts
 

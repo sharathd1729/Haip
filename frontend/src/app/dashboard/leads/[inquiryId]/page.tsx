@@ -77,6 +77,13 @@ export default function LeadDetailPage() {
     queryKey: ["lead-feed", inquiryId], queryFn: () => api.get(`/leads/${inquiryId}/feed`).then(r => r.data),
     refetchOnWindowFocus: true, staleTime: 10_000, enabled: leadQ.isSuccess,
   });
+  // Lead journey: record that this person opened the lead (POST /leads/{id}/viewed), once per visit. Best-effort.
+  const viewedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!leadQ.isSuccess || viewedFor.current === inquiryId) return;
+    viewedFor.current = inquiryId;
+    try { void Promise.resolve(api.post(`/leads/${inquiryId}/viewed`)).catch(() => undefined); } catch { /* tracking only */ }
+  }, [leadQ.isSuccess, inquiryId]);
   const stagesQ = useQuery<PipelineStage[]>({ queryKey: ["pipeline-stages"], queryFn: () => api.get("/pipeline-stages").then(r => r.data), staleTime: 5 * 60_000 });
   const { data: me } = useQuery<{ id: string }>({ queryKey: ["users", "me"], queryFn: () => api.get("/users/me").then(r => r.data), staleTime: 60_000 });
   const refresh = useMutation({

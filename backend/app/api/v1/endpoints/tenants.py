@@ -67,6 +67,8 @@ def update_my_tenant(
             raise HTTPException(status_code=422, detail=f"{', '.join(guarded)}: change this in Settings > AI (PUT /ai/sales-agent, owner only)")
         if "lead_autopilot" in incoming:
             raise HTTPException(status_code=422, detail="Change lead autopilot settings in Settings > Lead autopilot")
+        if "lead_playbooks" in incoming:
+            raise HTTPException(status_code=422, detail="Change lead playbooks in Workflows (PUT /workflows/settings)")
         merged.update(incoming)
         tenant.brand_config = merged
 
@@ -78,6 +80,8 @@ def update_my_tenant(
             raise HTTPException(status_code=422, detail="price_disclosure / sales_agent: change this in Settings > AI (owner only)")
         if "lead_autopilot" in incoming:
             raise HTTPException(status_code=422, detail="Change lead autopilot settings in Settings > Lead autopilot")
+        if "lead_playbooks" in incoming:
+            raise HTTPException(status_code=422, detail="Change lead playbooks in Workflows (PUT /workflows/settings)")
         merged.update(incoming)
         tenant.brand_config = merged
 

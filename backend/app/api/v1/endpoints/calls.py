@@ -665,6 +665,13 @@ async def click_to_call(
 
     from app.workers.tasks.call_ingest import cache_click_to_call_agent
     cache_click_to_call_agent(current_user.tenant_id, call_id, current_user.id)
+    try:   # lead journey: the only record of the attempt itself (the IVR reports the call later, or never)
+        from app.services.lead_journey_tracker import record_call_attempt
+        record_call_attempt(db, current_user.tenant_id, req.inquiry_id, current_user.id, str(call_id))
+        db.commit()
+    except Exception as exc:  # noqa: BLE001 -- tracking must never fail the call
+        db.rollback()
+        log.warning("click_to_call_journey_failed", tenant=current_user.tenant_id, error=str(exc)[:200])
 
     # Hashed, not raw -- but real enough to answer "did this ring the
     # clicking agent's own number or fall back?" without needing to

@@ -52,6 +52,8 @@ celery_app = Celery(
         "app.workers.tasks.generate_ai_summary",
         # Lead autopilot: stage decisions from calls, chats, bookings and timing
         "app.workers.tasks.lead_autopilot",
+        # Lead workflows: missed-call / no-answer WhatsApp playbooks + the lead journey sweep
+        "app.workers.tasks.lead_playbooks",
         # AI concierge knowledge base: embedding pipeline
         "app.workers.tasks.embed_knowledge",
         # Knowledge from Instagram posts, running ads and the tenant's website (re-crawl)
@@ -268,6 +270,12 @@ celery_app.conf.update(
         # Lead autopilot (lead_autopilot.py): short names, so exact-name routes.
         "lead_autopilot.evaluate_inquiry":            {"queue": "ai_scoring"},
         "lead_autopilot.sweep_all_tenants":           {"queue": "ai_scoring"},
+        # Lead workflows (lead_playbooks.py): the playbook steps queue WhatsApp sends, so they share that queue.
+        "lead_playbooks.on_call":                     {"queue": "whatsapp"},
+        "lead_playbooks.on_callback_tap":             {"queue": "whatsapp"},
+        "lead_playbooks.drain_due":                   {"queue": "whatsapp"},
+        "lead_journey.sweep_tenant":                  {"queue": "default"},
+        "lead_journey.sweep_all_tenants":             {"queue": "default"},
         "backfill_missing_instagram_inquiries":       {"queue": "ai_scoring"},
         # Booking payments (invoice_tasks.py): same queue as the template send they trigger.
         "invoices.after_payment":                     {"queue": "whatsapp"},
@@ -289,6 +297,16 @@ celery_app.conf.update(
 
 # Scheduled tasks (Celery Beat)
 celery_app.conf.beat_schedule = {
+    # Lead workflows: playbook steps whose time has come (lead_playbooks.py), and the lead journey refresh every 5 minutes
+    # (minutes 4/9/14/...: clear of the :00/:05/:10 jobs).
+    "lead-playbooks-drain-1min": {
+        "task": "lead_playbooks.drain_due",
+        "schedule": crontab(minute="*"),
+    },
+    "lead-journey-sweep-5min": {
+        "task": "lead_journey.sweep_all_tenants",
+        "schedule": crontab(minute="4,9,14,19,24,29,34,39,44,49,54,59"),
+    },
     # Safety net for guest replies: a message with no AI draft and no reply after 4 minutes is queued for the concierge again (see
     # reply_recovery.py). Minutes 3/13/23/...: clear of the :00/:05/:10/:20/:30/:40 jobs.
     "concierge-missed-reply-recovery-10min": {

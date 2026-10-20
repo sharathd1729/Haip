@@ -55,6 +55,7 @@ const ROUTE_LABELS: Record<string, string> = {
   knowledge:    "AI knowledge base",
   "lead-assignment": "Lead assignment",
   "lead-autopilot": "Lead autopilot",
+  workflows:    "Lead workflows",
   "platform-leads": "Website leads",
   "leads-activity": "Lead activity",
   "mcp-access": "AI assistants",
