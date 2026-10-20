@@ -278,6 +278,9 @@ celery_app.conf.update(
         "lead_journey.sweep_all_tenants":             {"queue": "default"},
         "lead_alerts.tick_tenant":                    {"queue": "whatsapp"},
         "lead_alerts.tick_all_tenants":               {"queue": "whatsapp"},
+        "lead_followups.sweep_tenant":                {"queue": "whatsapp"},
+        "lead_followups.sweep_all_tenants":           {"queue": "whatsapp"},
+        "lead_playbooks.draft_followup":              {"queue": "ai_scoring"},     # one LLM call (lead_followup_draft)
         "backfill_missing_instagram_inquiries":       {"queue": "ai_scoring"},
         # Booking payments (invoice_tasks.py): same queue as the template send they trigger.
         "invoices.after_payment":                     {"queue": "whatsapp"},
@@ -309,6 +312,11 @@ celery_app.conf.beat_schedule = {
     "lead-alerts-tick-2min": {
         "task": "lead_alerts.tick_all_tenants",
         "schedule": crontab(minute="1-59/2"),
+    },
+    # Follow-up cadences (P5/P6/P8, lead_followup_service): start runs for new triggers every 15 minutes.
+    "lead-followups-sweep-15min": {
+        "task": "lead_followups.sweep_all_tenants",
+        "schedule": crontab(minute="6,21,36,51"),
     },
     "lead-journey-sweep-5min": {
         "task": "lead_journey.sweep_all_tenants",

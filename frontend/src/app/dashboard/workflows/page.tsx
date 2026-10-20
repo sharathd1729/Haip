@@ -33,9 +33,14 @@ interface Activity {
 
 const TEMPLATE_TONE: Record<string, Tone> = { approved: "success", pending: "info", draft: "neutral", rejected: "danger", submission_failed: "danger" };
 const TEMPLATE_LABEL: Record<string, string> = { approved: "Approved", pending: "With Meta", draft: "Draft", rejected: "Rejected", submission_failed: "Not submitted" };
-const ACTION_LABEL: Record<string, string> = { wa_template: "WhatsApp template", wa_text: "WhatsApp message", task: "Callback task", push: "App notification", staff_wa: "Team WhatsApp" };
+const ACTION_LABEL: Record<string, string> = { wa_template: "WhatsApp template", wa_text: "WhatsApp message", task: "Callback task", push: "App notification", staff_wa: "Team WhatsApp", draft: "AI draft to approve" };
 const STATUS_TONE: Record<string, Tone> = { queued: "success", done: "success", skipped: "warning", failed: "danger", held: "neutral" };
 const STATUS_LABEL: Record<string, string> = { queued: "Sent", done: "Done", skipped: "Skipped", failed: "Failed", held: "Held overnight" };
+const MODES = [
+  { id: "tasks", title: "Tasks only", desc: "A reminder for the lead's owner. Nothing goes to the guest." },
+  { id: "drafts", title: "AI drafts", desc: "An AI draft to approve in the inbox (or the template to send when the chat window is closed)." },
+  { id: "autopilot", title: "Automatic", desc: "Our fixed wording goes by itself, 9:30 am to 8 pm. Never AI text." },
+] as const;
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
 const hourLabel = (h: number) => `${h % 12 || 12}:00 ${h < 12 ? "am" : "pm"}`;
 const selectCls = "min-h-[44px] rounded-lg border border-[var(--haip-border)] bg-[var(--haip-card)] px-2.5 text-[16px] text-[var(--haip-fg)] sm:text-sm";
@@ -171,6 +176,25 @@ export default function WorkflowsPage() {
                     {p.actions.map(a => <li key={a}>{a}</li>)}
                   </ul>
                   <p className="mt-2 text-xs text-[var(--haip-fg-subtle)]">Skips when: {p.stops}</p>
+                  {typeof p.settings.mode === "string" && (
+                    <div className="mt-3">
+                      <p className="mb-1.5 text-xs font-semibold text-[var(--haip-fg)]">How messages to the guest go</p>
+                      <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label={`${p.name}: mode`}>
+                        {MODES.map(m => {
+                          const on = p.settings.mode === m.id;
+                          return (
+                            <button key={m.id} type="button" role="radio" aria-checked={on} disabled={save.isPending}
+                              onClick={() => save.mutate({ playbooks: { [p.key]: { mode: m.id } } })}
+                              className={on ? "min-h-[44px] rounded-xl border border-primary bg-[var(--haip-primary-tint)] p-2.5 text-left"
+                                : "min-h-[44px] rounded-xl border border-[var(--haip-border)] p-2.5 text-left hover:bg-[var(--haip-surface)]"}>
+                              <span className="block text-sm font-semibold text-[var(--haip-fg)]">{m.title}</span>
+                              <span className="block text-xs text-[var(--haip-fg-subtle)]">{m.desc}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     {p.template && <TemplatePill status={p.template.status} />}
                     <StatusPill tone="neutral">Today: {sent} done{skipped ? `, ${skipped} skipped` : ""}</StatusPill>

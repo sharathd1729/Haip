@@ -65,6 +65,21 @@ def settings_from_config(brand_config) -> dict:
         return AutopilotSettings().model_dump()
 
 
+# The proposal follow-up playbook (P5) runs to day 8 ("decide won or lost"). While it is on, the autopilot does not call a
+# quote "Lost: no reply" before the follow-up has had its say.
+FOLLOWUP_QUOTE_SILENCE_DAYS = 9
+
+
+def _with_followups(db: Session, tenant_id: str, settings: dict) -> dict:
+    from app.models.tenant import Tenant
+    from app.services import lead_playbook_catalog as cat
+    from app.services import lead_playbook_settings as pb_settings
+    tenant = db.query(Tenant).filter_by(id=tenant_id).first()
+    if tenant is None or not pb_settings.playbook(tenant, cat.PROPOSAL_FOLLOWUP)["active"]:
+        return settings
+    return {**settings, "quote_silence_days": max(int(settings["quote_silence_days"]), FOLLOWUP_QUOTE_SILENCE_DAYS)}
+
+
 def get_settings(db: Session, tenant_id: str) -> dict:
     from app.models.tenant import Tenant
     tenant = db.query(Tenant).filter_by(id=tenant_id).first()
@@ -226,6 +241,7 @@ def evaluate(db: Session, tenant_id: str, inquiry_id: str, *, allow_ai: bool = F
     if inquiry is None or not inquiry.stage_id or inquiry.autopilot_paused_at is not None:
         return None
     stages = stages or StageMap.load(db, tenant_id)
+    settings = _with_followups(db, tenant_id, settings)
     decision = rules.evaluate(db, tenant_id, inquiry, stages, settings, now=now)
     if decision is None and allow_ai and settings["ai_enabled"]:
         decision = _ai_decision(db, tenant_id, inquiry, stages)

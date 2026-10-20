@@ -121,12 +121,13 @@ def test_catalog_settings_and_roles(client, db, tenant_and_user, capabilities_se
     assert r.status_code == 200
     assert next(p for p in r.json()["playbooks"] if p["key"] == "missed_inbound_call")["settings"]["enabled"] is True
     assert db.query(AuditEvent).filter_by(tenant_id=tid, action="workflows.settings_changed").count() == 1
-    r = client.put(f"{API}/workflows/settings", headers=owner_h, json={"playbooks": {"proposal_followup": {"enabled": True}}})
+    r = client.put(f"{API}/workflows/settings", headers=owner_h, json={"playbooks": {"no_such_playbook": {"enabled": True}}})
     assert r.status_code == 422
 
     r = client.post(f"{API}/workflows/templates/lead-pack", headers=owner_h)
     assert r.status_code == 200 and set(r.json()["created"]) == {
-        "haip_missed_call_v1", "haip_tried_calling_v1", "haip_staff_lead_alert_v1", "haip_staff_escalation_v1", "haip_staff_digest_v1"}
+        "haip_missed_call_v1", "haip_tried_calling_v1", "haip_staff_lead_alert_v1", "haip_staff_escalation_v1", "haip_staff_digest_v1",
+        "haip_quote_followup_v1", "haip_quote_final_v1", "haip_checkin_v1", "haip_reengage_v1"}
 
     _, agent_token = _user(db, tid, UserRole.CONCIERGE)
     assert client.get(f"{API}/workflows/catalog", headers=_h(agent_token)).status_code == 403

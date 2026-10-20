@@ -32,3 +32,7 @@ class Task(Base, TimestampMixin, TenantMixin):
 
     assigned_to = Column(String, ForeignKey("users.id"), nullable=True, index=True)
     created_by = Column(String, ForeignKey("users.id"), nullable=True)
+    # Lead workflows (migration 152): what the task is for (followup | call | decide ...) and the playbook run that
+    # made it. NULL on older tasks and on tasks people create.
+    kind = Column(String(30), nullable=True)
+    playbook_run_id = Column(String, nullable=True, index=True)
