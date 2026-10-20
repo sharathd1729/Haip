@@ -91,6 +91,8 @@ celery_app = Celery(
         "app.workers.tasks.lead_assignment",
         # Organic Instagram account insights -- daily snapshot
         "app.workers.tasks.instagram_insights_poll",
+        # Marketing Studio AI runs (audit, plan, content)
+        "app.workers.tasks.marketing_studio",
         # Automations engine + timer triggers
         "app.workers.tasks.automation_engine",
         "app.workers.tasks.check_automation_timers",
@@ -111,6 +113,12 @@ celery_app = Celery(
         "app.workers.tasks.backfill_missing_inquiries",
     ],
 )
+# Make this the process-wide default app, not just the current app of the thread that imported it. Celery's
+# "current app" is thread-local, and FastAPI runs sync endpoints in a thread pool, so a @shared_task queued from a
+# request handler resolved to Celery's fallback app (amqp://localhost, broker None) and .delay() failed with
+# "connection refused" (found 18 Oct 2026 on Marketing Studio; module activation, knowledge re-index, Hostaway /
+# Retalwise sync and the Meta Ads backfill use @shared_task too). Regression: tests/test_celery_default_app.py.
+celery_app.set_default()
 
 celery_app.conf.update(
     task_serializer="json",
@@ -227,6 +235,15 @@ celery_app.conf.update(
         "instagram_token.refresh_all_tenants":       {"queue": "whatsapp"},
         "instagram_token.refresh_tenant":            {"queue": "whatsapp"},
         "instagram_insights.poll_all_tenants":       {"queue": "whatsapp"},
+        "marketing_studio.generate_audit":           {"queue": "default"},
+        "marketing_studio.generate_plan":            {"queue": "default"},
+        "marketing_studio.generate_content":         {"queue": "default"},
+        "marketing_studio.generate_image":           {"queue": "default"},
+        "marketing_agency.orchestrate":              {"queue": "default"},
+        "marketing_agency.run_week":                 {"queue": "default"},
+        "marketing_research.refresh":                {"queue": "default"},
+        "marketing_publish.dispatch":                {"queue": "default"},
+        "marketing_publish.publish_one":             {"queue": "default"},
         # Registered under short names, so the "app.workers.tasks.<module>.*" globs above never
         # matched them and they fell into the unconsumed "celery" queue. The inbox "rewrite"
         # buttons enqueue the first two on every click; the last three are only reached from
@@ -430,6 +447,16 @@ celery_app.conf.beat_schedule = {
     "instagram-insights-daily": {
         "task": "instagram_insights.poll_all_tenants",
         "schedule": crontab(hour=6, minute=30),
+    },
+    # Marketing agency weekly run: hourly check, fires per workspace at its local Monday 09:00 (once per week).
+    "marketing-agency-orchestrate-hourly": {
+        "task": "marketing_agency.orchestrate",
+        "schedule": crontab(minute=5),
+    },
+    # Instagram publisher: posts approved, scheduled content whose time has come.
+    "marketing-publish-dispatch": {
+        "task": "marketing_publish.dispatch",
+        "schedule": crontab(minute="*/5"),
     },
     "sync-retalwise-hourly": {
         "task": "app.workers.tasks.sync_all_pms.sync_retalwise_all_tenants",

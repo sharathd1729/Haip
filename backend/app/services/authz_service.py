@@ -61,6 +61,11 @@ _DEFAULT_GRANTS: dict[str, set[str]] = {
     "quotes.write": {"owner", "manager", "reservations", "concierge"},
     "business_data.draft": {"owner", "manager", "reservations"},
     "business_data.publish": {"owner", "manager"},
+    # Marketing Studio (migration 153). Approve is owner + manager by owner decision D3
+    # (docs/marketing-website/PHASE0_AUDIT.md); nobody may approve a version they wrote or asked the AI for, except the owner.
+    "marketing.read": {"owner", "manager", "marketing"},
+    "marketing.edit": {"owner", "manager", "marketing"},
+    "marketing.approve": {"owner", "manager"},
 }
 
 

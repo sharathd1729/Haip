@@ -24,6 +24,10 @@ _PENDING_KEY = "audit_pending_tail"
 # stuck transaction cannot hang every request that writes an audit event for that tenant.
 LOCK_WAIT = "10s"
 
+# Actors that are not rows in `users` (audit_events.actor_user_id is a foreign key to users.id). Their events are
+# stored with a NULL user and the actor's name in payload["actor"], so the chain still says who acted.
+NON_USER_ACTORS = frozenset({"agency", "system"})
+
 
 def _lock_chain(db: Session, tenant_id: str) -> None:
     """Serialise appends to one tenant's chain across every worker process (PostgreSQL only).
@@ -78,6 +82,9 @@ def append_audit(
     Must be called within an open db session; caller commits.
     """
     payload = payload or {}
+    if actor_user_id in NON_USER_ACTORS:
+        payload = {**payload, "actor": actor_user_id}
+        actor_user_id = None
 
     _lock_chain(db, tenant_id)   # before reading the tail, so a concurrent writer's committed event is visible
 
