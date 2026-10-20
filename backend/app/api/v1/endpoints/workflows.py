@@ -8,6 +8,10 @@
   GET  /leads/{id}/journey                leads.read       the lead's milestones (received ... proposal) + automations
   POST /leads/{id}/viewed                 leads.read       the lead page was opened (the only "an agent saw it" record)
   POST /leads/{id}/playbooks/pause        leads.write      stop / resume automatic messages on this lead (audited)
+  GET  /workflows/alerts/recipients       owner, manager   who the team-alert ladder reaches, and how (WhatsApp / push)
+  GET  /workflows/alerts/me               anyone           my own WhatsApp-alert opt-in
+  PUT  /workflows/alerts/me               anyone           opt in / out of lead alerts on my own WhatsApp (audited)
+  POST /workflows/alerts/{id}/ack         the recipient    acknowledge a team alert from the app (audited)
 
 Lead visibility matches GET /leads/{id}: a non owner/manager only reaches their own and unassigned leads (404 otherwise,
 like a lead of another workspace). No LLM and no sends here: playbooks run in Celery (lead_playbooks.py).
@@ -21,13 +25,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.api.v1.deps import require_roles
+from app.api.v1.deps import get_current_user, require_roles
 from app.core.audit import append_audit
 from app.core.database import get_db
 from app.models.inquiry import Inquiry
 from app.models.lead_workflow import PlaybookAction
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
+from app.services import lead_alert_service as alerts
 from app.services import lead_journey_tracker as journey
 from app.services import lead_playbook_catalog as cat
 from app.services import lead_playbook_engine as engine
@@ -45,7 +50,14 @@ class SettingsUpdate(BaseModel):
     guest_cap_hours: Optional[int] = None
     daily_cap: Optional[int] = None
     bridge_quiet_minutes: Optional[int] = None
+    staff_whatsapp: Optional[bool] = None
+    quiet_start_hour: Optional[int] = None
+    quiet_end_hour: Optional[int] = None
     playbooks: Optional[dict[str, dict]] = None
+
+
+class OptInRequest(BaseModel):
+    enabled: bool
 
 
 class PauseRequest(BaseModel):
@@ -78,7 +90,8 @@ def _catalog(db: Session, tenant: Tenant) -> dict:
             "today": counts.get(p["key"], {}),
         })
     return {"enabled": s["enabled"], "guest_cap_hours": s["guest_cap_hours"], "daily_cap": s["daily_cap"],
-            "bridge_quiet_minutes": s["bridge_quiet_minutes"], "playbooks": items,
+            "bridge_quiet_minutes": s["bridge_quiet_minutes"], "staff_whatsapp": s["staff_whatsapp"],
+            "quiet_start_hour": s["quiet_start_hour"], "quiet_end_hour": s["quiet_end_hour"], "playbooks": items,
             "templates": list(templates.values()), "conflicts": conflicts}
 
 
@@ -168,3 +181,32 @@ def pause_playbooks(inquiry_id: str, body: PauseRequest, current_user: User = De
     return {"paused": bool(row.playbooks_paused_at),
             "paused_at": row.playbooks_paused_at.isoformat() if row.playbooks_paused_at else None}
 
+
+@router.get("/workflows/alerts/recipients")
+def alert_recipients(current_user: User = Depends(_MANAGERS), db: Session = Depends(get_db)):
+    return {"people": alerts.recipients_view(db, current_user.tenant_id)}
+
+
+@router.get("/workflows/alerts/me")
+def my_alerts(current_user: User = Depends(get_current_user)):
+    return {"whatsapp_opt_in": bool(current_user.whatsapp_alerts_opt_in_at), "has_phone": bool(current_user.phone)}
+
+
+@router.put("/workflows/alerts/me")
+def set_my_alerts(body: OptInRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    try:
+        out = alerts.set_opt_in(db, current_user, body.enabled)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    db.commit()
+    return out
+
+
+@router.post("/workflows/alerts/{action_id}/ack")
+def ack_alert(action_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    action = db.query(PlaybookAction).filter_by(id=action_id, tenant_id=current_user.tenant_id).first()
+    if action is None or action.recipient_user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
+    alerts.acknowledge(db, action, current_user, via="app")
+    db.commit()
+    return {"acked_at": action.acked_at.isoformat() if action.acked_at else None}

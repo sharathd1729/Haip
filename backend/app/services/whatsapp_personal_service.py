@@ -358,6 +358,8 @@ def ingest_chat_message(
         direction=MessageDirection.OUTBOUND if outbound else MessageDirection.INBOUND, channel=ChannelType.WHATSAPP,
         body=text, media_url=media_key, media_type=media_type, channel_message_id=bridge_message_id,
         channel_status="sent" if outbound else "received", channel_metadata=meta, created_at=when,
+        # Mirrored history is never fresh contact; a live reply from the agent's own phone is (work_queue_signals.touch_rows).
+        sender_kind="bridge_history" if history else ("bridge_live" if outbound else None),
     )
     if outbound:
         message.sender_id = session.user_id

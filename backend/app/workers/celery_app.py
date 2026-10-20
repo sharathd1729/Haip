@@ -276,6 +276,8 @@ celery_app.conf.update(
         "lead_playbooks.drain_due":                   {"queue": "whatsapp"},
         "lead_journey.sweep_tenant":                  {"queue": "default"},
         "lead_journey.sweep_all_tenants":             {"queue": "default"},
+        "lead_alerts.tick_tenant":                    {"queue": "whatsapp"},
+        "lead_alerts.tick_all_tenants":               {"queue": "whatsapp"},
         "backfill_missing_instagram_inquiries":       {"queue": "ai_scoring"},
         # Booking payments (invoice_tasks.py): same queue as the template send they trigger.
         "invoices.after_payment":                     {"queue": "whatsapp"},
@@ -302,6 +304,11 @@ celery_app.conf.beat_schedule = {
     "lead-playbooks-drain-1min": {
         "task": "lead_playbooks.drain_due",
         "schedule": crontab(minute="*"),
+    },
+    # Team alerts (P3/P4, lead_alert_service): every 2 minutes, odd minutes, so they never pile onto the even-minute jobs.
+    "lead-alerts-tick-2min": {
+        "task": "lead_alerts.tick_all_tenants",
+        "schedule": crontab(minute="1-59/2"),
     },
     "lead-journey-sweep-5min": {
         "task": "lead_journey.sweep_all_tenants",

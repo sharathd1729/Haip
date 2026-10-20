@@ -20,11 +20,19 @@ LANGUAGE = "en"
 
 MISSED_CALL = "haip_missed_call_v1"
 TRIED_CALLING = "haip_tried_calling_v1"
+# To the TEAM (staff personal numbers, lead_alert_service): no guest phone number in any of them.
+STAFF_ALERT = "haip_staff_lead_alert_v1"
+STAFF_ESCALATION = "haip_staff_escalation_v1"
+STAFF_DIGEST = "haip_staff_digest_v1"
 
 # Quick-reply button texts. The webhook matches a tap on these (lead_playbook_engine.on_guest_button).
 BTN_CALL_ME_BACK = "Call me back"
 BTN_CALL_ME_LATER = "Call me later"
 BTN_SHARE_HERE = "Share details here"
+# Staff alert buttons; each send carries its own payload "la:{action_id}:ack|take" (lead_alert_sender).
+BTN_ACK = "Acknowledge"
+BTN_TAKE = "I'll take it"
+ACK_INDEX, TAKE_INDEX = 0, 1
 
 
 def _body(text: str, examples: list[str]) -> dict:
@@ -52,6 +60,32 @@ PACK: list[dict] = [
                   "the details and proposal right here on WhatsApp.",
                   ["Kiran", "Asha", "Ratha"]),
             _quick(BTN_SHARE_HERE, BTN_CALL_ME_LATER),
+        ],
+    },
+    {
+        "name": STAFF_ALERT, "label": "Team alert", "when": "A lead waits too long: first alert to the lead's owner (P3, P4).",
+        "components": [
+            _body("HAIP alert ({{1}}): {{2}} needs the team. {{3}}. Waiting {{4}}, owner {{5}}. Open My day in HAIP to act "
+                  "on it.",
+                  ["Late", "Kiran, new lead", "Coorg, 6 guests, 30 Oct", "25 min", "Asha"]),
+            _quick(BTN_ACK, BTN_TAKE),
+        ],
+    },
+    {
+        "name": STAFF_ESCALATION, "label": "Team escalation", "when": "Still waiting: the manager, then the owner (P3, P4).",
+        "components": [
+            _body("HAIP escalation ({{1}}): {{2}} still needs the team. {{3}}. Waiting {{4}}; {{5}} has not acted yet. "
+                  "Open My day in HAIP to act on it.",
+                  ["Urgent", "Kiran, new lead", "Coorg, 6 guests, 30 Oct", "1 h 10 min", "Asha"]),
+            _quick(BTN_ACK, BTN_TAKE),
+        ],
+    },
+    {
+        "name": STAFF_DIGEST, "label": "Morning summary", "when": "After quiet hours: one message instead of the alerts held overnight.",
+        "components": [
+            _body("Good morning. {{1}} leads waited overnight for the team. The oldest is {{2}}, waiting {{3}}. Open My "
+                  "day in HAIP to act on them.",
+                  ["4", "Kiran", "9 h"]),
         ],
     },
 ]

@@ -105,6 +105,7 @@ def _store(db: Session, tenant_id: str, campaign: Any, template: Any, recipient:
         channel_metadata={"kind": "campaign", "campaign_id": campaign.id, "template_id": template.id,
                           "template_name": template.name},
         sender_name=f"Campaign: {campaign.name}"[:255],
+        sender_kind="campaign",                      # a broadcast is not a person contacting this guest
     )
     msg.created_at = when
     db.add(msg)

@@ -1,16 +1,16 @@
 "use client";
 // Lead workflows: the ready-made playbooks that make sure no lead goes unnoticed (missed call -> WhatsApp, no answer ->
-// WhatsApp, "Call me back" -> task), their WhatsApp templates and what they did recently.
-// Backend: GET /workflows/catalog, PUT /workflows/settings, POST /workflows/templates/lead-pack, GET /workflows/activity
-// (owner/manager; settings changes are audited). Every playbook is off until switched on here.
+// WhatsApp, "Call me back" -> task, team alerts when a lead waits too long), their WhatsApp templates and what they did.
+// Backend: GET /workflows/catalog, PUT /workflows/settings, POST /workflows/templates/lead-pack, GET /workflows/activity,
+// GET /workflows/alerts/recipients (owner/manager; settings changes are audited). Every playbook is off until switched on here.
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import api from "@/lib/api";
-import { cn } from "@/lib/utils";
 import { Loader2 } from "@/lib/icons";
 import { useToast } from "@/components/ui/toast";
 import { Card, CardBody, CardHeader, EmptyState, PageHeader, StatusPill, type Tone } from "@/components/ui/kit";
+import { Switch } from "@/components/workflows/Switch";
 
 interface Playbook {
   key: string; code: string; name: string; kind: string; built: boolean;
@@ -22,8 +22,10 @@ interface Playbook {
 interface Template { name: string; label: string; when: string; body: string; buttons: string[]; status: string | null; rejection_reason: string | null }
 interface Catalog {
   enabled: boolean; guest_cap_hours: number; daily_cap: number;
+  staff_whatsapp: boolean; quiet_start_hour: number; quiet_end_hour: number;
   playbooks: Playbook[]; templates: Template[]; conflicts: string[];
 }
+interface Person { id: string; name: string; role: string; has_phone: boolean; whatsapp_opt_in: boolean; channel: "whatsapp" | "push" }
 interface Activity {
   id: string; playbook_name: string; action: string; status: string; reason: string | null;
   template: string | null; inquiry_id: string | null; guest_name: string | null; at: string | null;
@@ -31,26 +33,18 @@ interface Activity {
 
 const TEMPLATE_TONE: Record<string, Tone> = { approved: "success", pending: "info", draft: "neutral", rejected: "danger", submission_failed: "danger" };
 const TEMPLATE_LABEL: Record<string, string> = { approved: "Approved", pending: "With Meta", draft: "Draft", rejected: "Rejected", submission_failed: "Not submitted" };
-const ACTION_LABEL: Record<string, string> = { wa_template: "WhatsApp template", wa_text: "WhatsApp message", task: "Callback task", push: "Push", staff_wa: "Staff alert" };
-const STATUS_TONE: Record<string, Tone> = { queued: "success", done: "success", skipped: "warning", failed: "danger" };
-const STATUS_LABEL: Record<string, string> = { queued: "Sent", done: "Done", skipped: "Skipped", failed: "Failed" };
+const ACTION_LABEL: Record<string, string> = { wa_template: "WhatsApp template", wa_text: "WhatsApp message", task: "Callback task", push: "App notification", staff_wa: "Team WhatsApp" };
+const STATUS_TONE: Record<string, Tone> = { queued: "success", done: "success", skipped: "warning", failed: "danger", held: "neutral" };
+const STATUS_LABEL: Record<string, string> = { queued: "Sent", done: "Done", skipped: "Skipped", failed: "Failed", held: "Held overnight" };
+const HOURS = Array.from({ length: 24 }, (_, h) => h);
+const hourLabel = (h: number) => `${h % 12 || 12}:00 ${h < 12 ? "am" : "pm"}`;
+const selectCls = "min-h-[44px] rounded-lg border border-[var(--haip-border)] bg-[var(--haip-card)] px-2.5 text-[16px] text-[var(--haip-fg)] sm:text-sm";
 
 const fmt = new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 
 function errorText(e: unknown, fallback: string): string {
   const detail = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
   return typeof detail === "string" ? detail : fallback;
-}
-
-function Switch({ on, label, disabled, onChange }: { on: boolean; label: string; disabled?: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button type="button" role="switch" aria-checked={on} aria-label={label} disabled={disabled} onClick={() => onChange(!on)}
-      className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center disabled:cursor-not-allowed disabled:opacity-50">
-      <span className={cn("relative block h-6 w-11 rounded-full transition-colors", on ? "bg-primary" : "bg-[var(--haip-border-strong,var(--haip-border))]")}>
-        <span className={cn("absolute left-0 top-0.5 h-5 w-5 rounded-full bg-[var(--haip-card)] shadow transition-transform", on ? "translate-x-[22px]" : "translate-x-0.5")} />
-      </span>
-    </button>
-  );
 }
 
 function TemplatePill({ status }: { status: string | null }) {
@@ -71,6 +65,10 @@ export default function WorkflowsPage() {
   const activity = useQuery<{ items: Activity[] }>({
     queryKey: ["workflows-activity"], queryFn: () => api.get("/workflows/activity", { params: { limit: 30 } }).then(r => r.data),
     enabled: canView,
+  });
+
+  const people = useQuery<{ people: Person[] }>({
+    queryKey: ["workflows-alert-people"], queryFn: () => api.get("/workflows/alerts/recipients").then(r => r.data), enabled: canView,
   });
 
   const save = useMutation({
@@ -182,6 +180,55 @@ export default function WorkflowsPage() {
             );
           })}
         </section>
+
+        <Card>
+          <CardHeader title="Team alerts"
+            description="How the team hears about a lead that waits too long: the lead's owner first, then the managers, then the owners." />
+          <CardBody className="space-y-1">
+            <div className="flex items-center justify-between gap-4 border-b border-[var(--haip-border)] pb-2">
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-[var(--haip-fg)]">WhatsApp the team</span>
+                <span className="block text-xs text-[var(--haip-fg-subtle)]">To people who turned it on in their Profile. Everyone else gets app notifications.</span>
+              </span>
+              <Switch on={data.staff_whatsapp} label="WhatsApp the team" disabled={save.isPending} onChange={v => save.mutate({ staff_whatsapp: v })} />
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--haip-border)] py-2">
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-[var(--haip-fg)]">Quiet hours</span>
+                <span className="block text-xs text-[var(--haip-fg-subtle)]">Alerts wait, then each person gets one morning summary.</span>
+              </span>
+              <span className="flex items-center gap-2 text-sm text-[var(--haip-fg-muted)]">
+                <select aria-label="Quiet hours start" className={selectCls} value={data.quiet_start_hour} disabled={save.isPending}
+                  onChange={e => save.mutate({ quiet_start_hour: Number(e.target.value) })}>
+                  {HOURS.map(h => <option key={h} value={h}>{hourLabel(h)}</option>)}
+                </select>
+                to
+                <select aria-label="Quiet hours end" className={selectCls} value={data.quiet_end_hour} disabled={save.isPending}
+                  onChange={e => save.mutate({ quiet_end_hour: Number(e.target.value) })}>
+                  {HOURS.map(h => <option key={h} value={h}>{hourLabel(h)}</option>)}
+                </select>
+              </span>
+            </div>
+            <p className="pt-2 text-xs font-semibold uppercase tracking-wide text-[var(--haip-fg-subtle)]">Who gets alerts</p>
+            {people.isPending ? (
+              <p className="text-sm text-[var(--haip-fg-muted)]">Loading…</p>
+            ) : people.isError ? (
+              <p className="text-sm text-[var(--haip-fg-muted)]">Couldn&apos;t load the team. Refresh to try again.</p>
+            ) : !people.data?.people.length ? (
+              <p className="text-sm text-[var(--haip-fg-muted)]">No team members yet.</p>
+            ) : (
+              <ul className="divide-y divide-[var(--haip-border)]">
+                {people.data.people.map(p => (
+                  <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                    <span className="min-w-0 text-sm text-[var(--haip-fg)]">{p.name} <span className="text-xs capitalize text-[var(--haip-fg-subtle)]">· {p.role}</span></span>
+                    {p.channel === "whatsapp" ? <StatusPill tone="success">WhatsApp + app</StatusPill>
+                      : <StatusPill tone="neutral">{p.has_phone ? "App only: WhatsApp not turned on" : "App only: no phone on profile"}</StatusPill>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardBody>
+        </Card>
 
         <Card>
           <CardHeader title="Coming next" description="Planned playbooks. They switch on here once they ship." />

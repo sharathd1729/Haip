@@ -6,6 +6,7 @@ import { UserCircle, Camera, Save, Lock, Bell, Trash2, CheckCircle, AlertCircle,
 import { cn } from "@/lib/utils";
 import api from "@/lib/api";
 import { UserAvatar } from "@/components/crm/UserAvatar";
+import { WhatsAppAlertsCard } from "@/components/workflows/WhatsAppAlertsCard";
 
 export default function ProfilePage() {
   return (
@@ -16,6 +17,7 @@ export default function ProfilePage() {
       </div>
       <div className="p-6 max-w-2xl space-y-6">
         <PersonalInfoCard />
+        <WhatsAppAlertsCard />
         <ChangePasswordCard />
         <PreferencesCard />
         <DangerZoneCard />
@@ -75,6 +77,7 @@ function PersonalInfoCard() {
     setLoading(true);
     try {
       await api.patch("/users/me", { name: form.name, phone: form.phone, bio: form.bio });
+      qc.invalidateQueries({ queryKey: ["workflows-alerts-me"] });   // the WhatsApp-alert switch needs a phone
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch { /* silent */ }

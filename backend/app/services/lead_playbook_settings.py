@@ -21,7 +21,9 @@ KEY = "lead_playbooks"
 
 # What an owner may set per playbook, and its bounds.
 _INT_FIELDS = {"delay_seconds": (15, 600), "callback_minutes": (5, 240)}
-_WORKSPACE_INT = {"guest_cap_hours": (1, 72), "daily_cap": (1, 2000), "bridge_quiet_minutes": (0, 1440)}
+_WORKSPACE_INT = {"guest_cap_hours": (1, 72), "daily_cap": (1, 2000), "bridge_quiet_minutes": (0, 1440),
+                  "quiet_start_hour": (0, 23), "quiet_end_hour": (0, 23)}
+_WORKSPACE_BOOL = ("enabled", "staff_whatsapp")
 
 
 def _raw(tenant) -> dict:
@@ -76,10 +78,11 @@ def update(db: Session, tenant, actor_id: str, patch: dict) -> dict:
     raw = dict(_raw(tenant))
     changes: dict = {}
 
-    if "enabled" in patch:
-        if not isinstance(patch["enabled"], bool):
-            raise ValueError("enabled must be true or false")
-        raw["enabled"] = patch["enabled"]
+    for name in _WORKSPACE_BOOL:
+        if name in patch:
+            if not isinstance(patch[name], bool):
+                raise ValueError(f"{name} must be true or false")
+            raw[name] = patch[name]
     for name, bounds in _WORKSPACE_INT.items():
         if name in patch:
             raw[name] = _check_int(name, patch[name], bounds)

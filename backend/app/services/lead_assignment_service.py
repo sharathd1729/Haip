@@ -158,11 +158,12 @@ def open_uncontacted_counts(db: Session, tenant_id: str, user_ids: Iterable[str]
 # ── "Has anyone contacted this lead?" ───────────────────────────────────────
 
 def contacted_since(db: Session, tenant_id: str, leads: list[Inquiry]) -> set[str]:
-    """Lead ids whose guest got a human contact after the lead was assigned
-    (or created, if never assigned): a message a person sent or approved, an
-    outbound call, or an answered inbound call. AI messages sent on their own
-    don't count -- the point is whether a person has reached out."""
-    from app.services.call_status_service import is_missed_call
+    """Lead ids whose guest a person has reached out to after the lead was assigned (or created, if never assigned): a
+    message a person sent or approved, a quote they shared, any outbound call (an unanswered one still counts as reaching
+    out), or an answered inbound call. HAIP's own messages (AI sent on its own, lead playbooks, campaigns, booking
+    templates) don't count -- the point is whether a person has reached out. The rule itself is
+    work_queue_signals.touch_rows, shared with My day and the lead journey."""
+    from app.services.work_queue_signals import touch_rows
 
     by_guest: dict[str, list[Inquiry]] = {}
     for inq in leads:
@@ -174,33 +175,9 @@ def contacted_since(db: Session, tenant_id: str, leads: list[Inquiry]) -> set[st
     def since(inq: Inquiry) -> datetime:
         return _aware(inq.assigned_at) or _aware(inq.created_at) or datetime.min.replace(tzinfo=timezone.utc)
 
-    earliest = min(since(i) for i in leads)
-    touches: list[tuple[str, datetime]] = []
-
-    msgs = (
-        db.query(Conversation.guest_id, Message.created_at)
-        .join(Message, Message.conversation_id == Conversation.id)
-        .filter(
-            Conversation.tenant_id == tenant_id,
-            Conversation.guest_id.in_(list(by_guest)),
-            Message.direction == MessageDirection.OUTBOUND,
-            Message.is_internal.is_(False),
-            or_(Message.is_ai_generated.isnot(True), Message.was_approved.is_(True)),
-            Message.created_at >= earliest,
-        )
-        .all()
-    )
-    touches += [(g, _aware(t)) for g, t in msgs if t]
-
-    for call in db.query(Call).filter(
-        Call.tenant_id == tenant_id, Call.guest_id.in_(list(by_guest)), Call.created_at >= earliest,
-    ):
-        if call.direction != CallDirection.OUTBOUND and is_missed_call(call):
-            continue
-        touches.append((call.guest_id, _aware(call.created_at)))
-
+    since_by_guest = {g: min(since(i) for i in inqs) for g, inqs in by_guest.items()}
     out: set[str] = set()
-    for guest_id, at in touches:
+    for guest_id, at, _kind, _channel in touch_rows(db, tenant_id, since_by_guest):
         for inq in by_guest.get(guest_id, []):
             if at >= since(inq):
                 out.add(inq.id)
