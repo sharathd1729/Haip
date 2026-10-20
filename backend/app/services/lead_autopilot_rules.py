@@ -38,6 +38,8 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
 
 IST = ZoneInfo("Asia/Kolkata")
+# Stages a "qualified" decision never targets, whatever their order: dead ends the work queue treats as done.
+NEVER_QUALIFIED_KEYS = frozenset({"unsuitable"})
 
 
 @dataclass
@@ -75,11 +77,13 @@ class StageMap:
         m.valid_entry = next((s for s in stages if s.is_valid_lead_entry), None)
         m.rnr = next((s for s in stages if s.key == "rnr"), None)
         anchor = m.valid_entry.order if m.valid_entry else None
-        m.qualified = next(
-            (s for s in stages if anchor is not None and s.order > anchor and (s.category or "valid") == "valid"
-             and not s.is_closed_won and not s.is_closed_lost and not s.is_collab_entry),
-            None,
-        )
+        # "unsuitable" is a dead end (the work queue treats it as done), never where a qualified lead goes. Ratha had
+        # Unsuitable and Active at the same order, and the first one by order was Unsuitable: autopilot moved every
+        # qualified lead there (20 Oct 2026). Prefer the stage keyed "active" when the tenant has one.
+        open_valid = [s for s in stages if anchor is not None and s.order > anchor and (s.category or "valid") == "valid"
+                      and not s.is_closed_won and not s.is_closed_lost and not s.is_collab_entry
+                      and s.key not in NEVER_QUALIFIED_KEYS]
+        m.qualified = next((s for s in open_valid if s.key == "active"), open_valid[0] if open_valid else None)
         return m
 
     def by_id(self, stage_id):

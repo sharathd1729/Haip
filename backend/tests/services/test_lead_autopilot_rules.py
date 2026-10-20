@@ -19,6 +19,21 @@ class TestStageMap:
         assert (m.won.key, m.lost.key, m.default_entry.key, m.valid_entry.key, m.rnr.key, m.qualified.key) == \
                ("sold", "lost", "unqualified", "general_enquiry", "rnr", "active")
 
+    def test_qualified_is_never_unsuitable_even_when_it_comes_first(self, db):
+        # Ratha's real pipeline (20 Oct 2026): Unsuitable and Active share order 3, and Unsuitable sorted first, so every
+        # qualified lead was moved to Unsuitable and dropped out of My day and the team alerts.
+        t, s = tenant(db)
+        orders = {"unqualified": 0, "rnr": 1, "general_enquiry": 1, "unsuitable": 3, "active": 3, "lost": 4, "sold": 5,
+                  "collaboration_engagement": 6}
+        for key, order in orders.items():
+            s[key].order = order
+        s["unsuitable"].order = 2                      # strictly before Active: the order alone would pick it
+        db.commit()
+        assert StageMap.load(db, t.id).qualified.key == "active"
+        s["active"].key = "working"                    # a tenant without an "active" key: first open valid, not Unsuitable
+        db.commit()
+        assert StageMap.load(db, t.id).qualified.key == "working"
+
 
 class TestBookingAndDates:
     def test_a_linked_booking_means_sold(self, db):
