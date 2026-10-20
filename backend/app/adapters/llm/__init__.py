@@ -158,6 +158,9 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     "marketing_plan":    ("nvidia", "openai/gpt-oss-20b"),
     "marketing_content": ("nvidia", "openai/gpt-oss-20b"),
     "marketing_research": ("nvidia", "openai/gpt-oss-20b"),
+    # Website builder AI developer (website_ai_service): structured JSON operations on the site draft via one tool,
+    # every operation re-validated against website_blocks.json; never publishes. Same tool-calling tier as marketing_*.
+    "website_content": ("nvidia", "openai/gpt-oss-20b"),
 }
 
 
@@ -183,6 +186,7 @@ _GEMINI_FALLBACK_TASKS: dict[str, float] = {
     "marketing_plan":              90,
     "marketing_content":           60,
     "marketing_research":          60,
+    "website_content":             90,
 }
 
 

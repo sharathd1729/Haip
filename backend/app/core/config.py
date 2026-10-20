@@ -152,6 +152,17 @@ class Settings(BaseSettings):
     # platform_leads table; when this names a workspace (tenant slug), the lead also becomes a Leads360 inquiry there
     # and that workspace's owners are notified. Empty = stored only (logged as platform_lead_unrouted).
     PLATFORM_LEADS_TENANT_SLUG: str = ""
+
+    # Website builder (docs/website-builder/README.md). Every site gets "{slug}.{SITES_BASE_DOMAIN}"; custom domains
+    # CNAME to SITES_CNAME_TARGET. The renderer (sites/ app) is told to refresh a site after a publish via
+    # SITES_RENDERER_URL + SITES_REVALIDATE_SECRET. Cloudflare for SaaS is used for custom-domain TLS only when both
+    # CLOUDFLARE_* values are set; otherwise domains are verified by DNS and TLS is handled at the proxy.
+    SITES_BASE_DOMAIN: str = "genhaip.site"
+    SITES_CNAME_TARGET: str = ""
+    SITES_RENDERER_URL: str = ""
+    SITES_REVALIDATE_SECRET: str = ""
+    CLOUDFLARE_API_TOKEN: str = ""
+    CLOUDFLARE_ZONE_ID: str = ""
     # Optional AI write-up of a property assessment (Celery, router task "assessment_narrative").
     ASSESSMENT_NARRATIVE_ENABLED: bool = True
 

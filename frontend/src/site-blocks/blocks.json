@@ -1,0 +1,176 @@
+{
+  "version": 1,
+  "packs": ["goa", "kerala", "rajasthan", "malnad", "himalaya", "chettinad"],
+  "personalities": ["playful", "calm", "heritage"],
+  "backgrounds": ["page", "soft", "brand"],
+  "icons": ["pool", "wifi", "kitchen", "parking", "ac", "breakfast", "pets", "gym", "spa", "bonfire", "garden", "view",
+            "beach", "workspace", "tv", "washer", "family", "accessible", "caravan", "driver", "mountain", "coffee"],
+  "review_sources": ["google", "airbnb", "booking", "tripadvisor", "direct"],
+  "system_pages": {
+    "home": {"path": "/", "title": "Home", "required": true},
+    "stays": {"path": "/stays", "title": "Stays"},
+    "stay": {"path": "/stays/[slug]", "title": "Stay page", "template": true, "block": "StayDetail"},
+    "book": {"path": "/book", "title": "Book", "system": true, "block": "BookingEngine"},
+    "manage": {"path": "/my-booking", "title": "My booking", "system": true, "block": "ManageBooking"},
+    "policies": {"path": "/policies", "title": "Policies", "required": true, "system": true, "block": "Policies"},
+    "contact": {"path": "/contact", "title": "Contact", "required": true}
+  },
+  "blocks": {
+    "Hero": {
+      "label": "Hero", "desc": "First screen: headline, photos, proof", "layouts": ["split", "full", "centred"],
+      "fields": [
+        {"key": "kicker", "label": "Small line above", "kind": "text", "max": 60},
+        {"key": "title", "label": "Headline (wrap a word in *stars* to colour it)", "kind": "textarea", "max": 120, "required": true},
+        {"key": "text", "label": "Intro", "kind": "textarea", "max": 280},
+        {"key": "chips", "label": "Proof chips, one per line", "kind": "lines", "max": 40, "max_items": 4},
+        {"key": "image1", "label": "Main photo", "kind": "image"},
+        {"key": "image2", "label": "Photo 2", "kind": "image"},
+        {"key": "image3", "label": "Photo 3", "kind": "image"},
+        {"key": "cta_label", "label": "Button", "kind": "text", "max": 30},
+        {"key": "cta_link", "label": "Button goes to", "kind": "link"}
+      ]
+    },
+    "BookingBar": {
+      "label": "Booking bar", "desc": "Dates and guests search", "live": "Searches live availability in HAIP Bookings.",
+      "fields": [{"key": "cta_label", "label": "Button", "kind": "text", "max": 30}]
+    },
+    "Stays": {
+      "label": "Stays", "desc": "Your rooms, villas or vehicles with live prices", "layouts": ["cards", "list"],
+      "live": "Names, photos, capacity and prices come from HAIP Properties and Rate plans.",
+      "fields": [
+        {"key": "kicker", "label": "Small line above", "kind": "text", "max": 60},
+        {"key": "heading", "label": "Heading", "kind": "text", "max": 80},
+        {"key": "intro", "label": "Intro", "kind": "textarea", "max": 280},
+        {"key": "limit", "label": "Show", "kind": "select", "options": ["all", "2", "3", "4"]}
+      ]
+    },
+    "Amenities": {
+      "label": "Amenities", "desc": "Icon row of what every stay has",
+      "fields": [
+        {"key": "kicker", "label": "Small line above", "kind": "text", "max": 60},
+        {"key": "heading", "label": "Heading", "kind": "text", "max": 80},
+        {"key": "icons", "label": "Icons to show", "kind": "tags", "options_from": "icons", "max_items": 12}
+      ]
+    },
+    "Offer": {
+      "label": "Offer banner", "desc": "Seasonal or promo message",
+      "fields": [
+        {"key": "kicker", "label": "Small line above", "kind": "text", "max": 60},
+        {"key": "title", "label": "Headline", "kind": "text", "max": 80, "required": true},
+        {"key": "text", "label": "Details", "kind": "textarea", "max": 280},
+        {"key": "cta_label", "label": "Button", "kind": "text", "max": 30},
+        {"key": "cta_link", "label": "Button goes to", "kind": "link"},
+        {"key": "tone", "label": "Colour", "kind": "select", "options": ["brand", "bright", "ink"]},
+        {"key": "starts", "label": "Show from (optional)", "kind": "date"},
+        {"key": "ends", "label": "Show until (optional)", "kind": "date"}
+      ]
+    },
+    "Highlights": {
+      "label": "Highlights", "desc": "Reasons to book, beside a photo", "layouts": ["image_left", "image_right", "grid"],
+      "fields": [
+        {"key": "kicker", "label": "Small line above", "kind": "text", "max": 60},
+        {"key": "heading", "label": "Heading", "kind": "text", "max": 80},
+        {"key": "items", "label": "Points, one per line", "kind": "lines", "max": 120, "max_items": 6},
+        {"key": "image", "label": "Photo", "kind": "image"}
+      ]
+    },
+    "Reviews": {
+      "label": "Reviews", "desc": "What guests said, quoted with their name and source", "layouts": ["grid", "single"],
+      "fields": [
+        {"key": "kicker", "label": "Small line above", "kind": "text", "max": 60},
+        {"key": "heading", "label": "Heading", "kind": "text", "max": 80},
+        {"key": "items", "label": "Reviews", "kind": "list", "max_items": 8, "item": [
+          {"key": "quote", "label": "What they wrote", "kind": "textarea", "max": 400, "required": true},
+          {"key": "name", "label": "Guest's first name", "kind": "text", "max": 40, "required": true},
+          {"key": "source", "label": "Where", "kind": "select", "options_from": "review_sources"},
+          {"key": "rating", "label": "Stars", "kind": "select", "options": ["5", "4", "3"]},
+          {"key": "date", "label": "When (e.g. Oct 2026)", "kind": "text", "max": 20}
+        ]}
+      ]
+    },
+    "Gallery": {
+      "label": "Gallery", "desc": "Photo grid with zoom", "layouts": ["grid", "mosaic"],
+      "fields": [
+        {"key": "heading", "label": "Heading", "kind": "text", "max": 80},
+        {"key": "images", "label": "Photos", "kind": "images", "max_items": 12}
+      ]
+    },
+    "FAQ": {
+      "label": "FAQ", "desc": "Questions and answers",
+      "fields": [
+        {"key": "heading", "label": "Heading", "kind": "text", "max": 80},
+        {"key": "items", "label": "Questions", "kind": "list", "max_items": 12, "item": [
+          {"key": "q", "label": "Question", "kind": "text", "max": 160, "required": true},
+          {"key": "a", "label": "Answer", "kind": "textarea", "max": 600, "required": true}
+        ]}
+      ]
+    },
+    "Text": {
+      "label": "Text", "desc": "Heading and a paragraph", "layouts": ["left", "centred"],
+      "fields": [
+        {"key": "kicker", "label": "Small line above", "kind": "text", "max": 60},
+        {"key": "heading", "label": "Heading", "kind": "text", "max": 120},
+        {"key": "body", "label": "Paragraph", "kind": "textarea", "max": 1500}
+      ]
+    },
+    "Contact": {
+      "label": "Contact", "desc": "WhatsApp, phone and an enquiry form",
+      "live": "Enquiries from this form arrive in HAIP as leads (Leads, My day).",
+      "fields": [
+        {"key": "heading", "label": "Heading", "kind": "text", "max": 80},
+        {"key": "text", "label": "Text", "kind": "textarea", "max": 280},
+        {"key": "show_form", "label": "Show the enquiry form", "kind": "toggle"}
+      ]
+    },
+    "Location": {
+      "label": "Location", "desc": "Address, map link and travel times",
+      "fields": [
+        {"key": "heading", "label": "Heading", "kind": "text", "max": 80},
+        {"key": "text", "label": "Text", "kind": "textarea", "max": 400},
+        {"key": "address", "label": "Address", "kind": "textarea", "max": 300},
+        {"key": "map_link", "label": "Google Maps link", "kind": "link"},
+        {"key": "items", "label": "Travel times", "kind": "list", "max_items": 8, "item": [
+          {"key": "place", "label": "Place", "kind": "text", "max": 60, "required": true},
+          {"key": "time", "label": "Time or distance", "kind": "text", "max": 40, "required": true}
+        ]}
+      ]
+    },
+    "Band": {
+      "label": "Call to action", "desc": "A coloured band with a message and a button",
+      "fields": [
+        {"key": "kicker", "label": "Small line above", "kind": "text", "max": 60},
+        {"key": "heading", "label": "Heading", "kind": "text", "max": 80, "required": true},
+        {"key": "text", "label": "Text", "kind": "textarea", "max": 280},
+        {"key": "chips", "label": "Chips, one per line", "kind": "lines", "max": 40, "max_items": 6},
+        {"key": "cta_label", "label": "Button", "kind": "text", "max": 30},
+        {"key": "cta_link", "label": "Button goes to", "kind": "link"}
+      ]
+    },
+    "StayDetail": {
+      "label": "Stay details", "desc": "Gallery, rooms, amenities and the live price box", "system": true,
+      "live": "One page per stay, filled from HAIP Properties: photos, rooms, rules and the live price box. You can edit the intro.",
+      "fields": [{"key": "intro", "label": "Line shown on every stay page", "kind": "textarea", "max": 600}]
+    },
+    "BookingEngine": {
+      "label": "Booking engine", "desc": "Dates, extras, details and payment", "system": true,
+      "live": "Built by HAIP: live availability, prices with GST, extras, guest details and Razorpay payment.",
+      "fields": [
+        {"key": "heading", "label": "Heading", "kind": "text", "max": 80},
+        {"key": "intro", "label": "Intro", "kind": "textarea", "max": 280}
+      ]
+    },
+    "ManageBooking": {
+      "label": "My booking", "desc": "Guests find their booking with their reference and phone", "system": true,
+      "live": "Built by HAIP: shows the booking, what's paid and what's due.",
+      "fields": [{"key": "heading", "label": "Heading", "kind": "text", "max": 80}]
+    },
+    "Policies": {
+      "label": "Policies", "desc": "Cancellation, payments, house rules, terms and privacy", "system": true,
+      "live": "Cancellation, payment and house rules come from Settings › Business data, so the site and your replies say the same thing.",
+      "fields": [
+        {"key": "heading", "label": "Heading", "kind": "text", "max": 80},
+        {"key": "extra", "label": "Anything else guests should know", "kind": "textarea", "max": 2000}
+      ]
+    }
+  }
+}

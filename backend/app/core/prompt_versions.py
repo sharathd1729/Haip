@@ -144,6 +144,9 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v3: the strategist also reads the research analyst's latest competitor brief (agency phase B).
     "marketing_plan": "marketing-plan-v3",
     "marketing_research": "marketing-research-v1",
+    # Website builder AI developer (services/website_ai_prompts.py): first full copy, and chat edits as operations.
+    "website_generate": "website-generate-v1",
+    "website_edit": "website-edit-v1",
     "marketing_content": "marketing-content-v2",
     # Fixed suffix appended to AI image prompts (marketing_image_service.PROMPT_SUFFIX).
     "marketing_image": "marketing-image-v1",
