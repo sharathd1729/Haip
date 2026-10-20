@@ -46,25 +46,28 @@ CATALOG: list[dict] = [
         "name": "Guest asks for a call back",
         "trigger": "The guest taps 'Call me back' on one of these WhatsApps.",
         "actions": ["Reply 'Sure, we'll call you shortly'", "Add a high-priority callback task due in 15 minutes",
-                    "Push the lead's owner"],
+                    "Push the lead's owner, and WhatsApp them when team alerts are set up"],
         "stops": "Runs once per tap.",
         "template": None,
         "defaults": {"enabled": True, "callback_minutes": 15},
     },
     {
-        "key": NEW_LEAD_ALERT, "code": "P3", "built": False, "kind": "alert",
+        "key": NEW_LEAD_ALERT, "code": "P3", "built": True, "kind": "alert",
         "name": "New lead not contacted: alert the team",
         "trigger": "A new lead nobody has contacted yet (My day 'New lead').",
-        "actions": ["Push now", "WhatsApp the agent when late (15 min)", "then the manager (1 h)", "then the owner (4 h)"],
+        "actions": ["Late (15 min): push + WhatsApp the lead's owner (managers when nobody owns it)",
+                    "Urgent (1 h): the managers", "Critical (4 h): the owners",
+                    "Buttons on the WhatsApp: Acknowledge, or I'll take it (the lead becomes yours)"],
         "stops": "A person contacts the guest.",
         "template": "haip_staff_lead_alert_v1",
         "defaults": {"enabled": False},
     },
     {
-        "key": SLA_ESCALATION, "code": "P4", "built": False, "kind": "alert",
+        "key": SLA_ESCALATION, "code": "P4", "built": True, "kind": "alert",
         "name": "Waiting too long: escalate",
-        "trigger": "A guest waiting for a reply or a callback goes late / urgent / critical.",
-        "actions": ["Same alert chain: agent, then manager, then owner, with Acknowledge buttons"],
+        "trigger": "A lead waiting for a reply (30 min) or a missed call to return (30 min) is still waiting.",
+        "actions": ["Late: the lead's owner", "Urgent (2 h): the managers", "Critical (8 h): the owners",
+                    "Same WhatsApp buttons: Acknowledge, or I'll take it"],
         "stops": "The item leaves My day.",
         "template": "haip_staff_escalation_v1",
         "defaults": {"enabled": False},
@@ -106,4 +109,9 @@ BUILT = {p["key"] for p in CATALOG if p["built"]}
 GUEST_MESSAGE_PLAYBOOKS = (MISSED_INBOUND_CALL, UNANSWERED_OUTBOUND, CALLBACK_REQUESTED)
 
 # Defaults for the workspace-wide part of the settings.
-WORKSPACE_DEFAULTS = {"enabled": True, "guest_cap_hours": 4, "daily_cap": 150, "bridge_quiet_minutes": 120}
+WORKSPACE_DEFAULTS = {"enabled": True, "guest_cap_hours": 4, "daily_cap": 150, "bridge_quiet_minutes": 120,
+                      # Team alerts (P3/P4/P7): WhatsApp to staff who opted in, held during quiet hours (local time) and
+                      # sent as one morning summary instead.
+                      "staff_whatsapp": True, "quiet_start_hour": 22, "quiet_end_hour": 8}
+
+ALERT_PLAYBOOKS = {NEW_LEAD_ALERT: ("new_lead",), SLA_ESCALATION: ("reply", "callback")}

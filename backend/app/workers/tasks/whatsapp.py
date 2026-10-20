@@ -205,6 +205,29 @@ def _describe_other_message(msg_type: str, msg: dict) -> str:
     return f"[{msg_type or 'unknown'} message — this type can't be shown here]"
 
 
+def _staff_reply(db, tenant: Tenant, msg: dict, msg_type: str, from_number: str) -> bool:
+    """A team member answering a lead alert (Acknowledge / I'll take it), or writing from an opted-in staff number: handled
+    by lead_alert_service and never turned into a guest, lead, inbox thread or AI reply. True when it was one of those."""
+    from app.core.cache import get_cached, set_cached
+    from app.services import lead_alert_service
+    payload = None
+    if msg_type == "button":
+        payload = (msg.get("button") or {}).get("payload")
+    elif msg_type == "interactive":
+        payload = ((msg.get("interactive") or {}).get("button_reply") or {}).get("id")
+    is_alert_tap = bool(payload and payload.startswith("la:"))
+    if not is_alert_tap and lead_alert_service.staff_by_phone(db, tenant.id, from_number) is None:
+        return False
+    key = f"haip:lead_alert:inbound:{msg.get('id', '')}"
+    if msg.get("id") and get_cached(key):           # Meta redelivers webhooks; a tap is handled once
+        return True
+    outcome = lead_alert_service.handle_staff_inbound(db, tenant.id, from_number, payload)
+    if msg.get("id"):
+        set_cached(key, "1", ttl=86400)
+    log.info("wa_staff_reply", tenant_id=tenant.id, outcome=outcome, type=msg_type)
+    return True
+
+
 def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
     from_number = "+" + msg.get("from", "").lstrip("+")
     wa_msg_id = msg.get("id", "")
@@ -217,6 +240,14 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
     existing = db.query(Message).filter_by(channel_message_id=wa_msg_id).first()
     if existing:
         return
+
+    # Lead workflows: staff are not guests. A tap on a team alert's button (or any message from an opted-in staff
+    # number) goes to lead_alert_service before identity resolution, so it never becomes a lead.
+    try:
+        if _staff_reply(db, tenant, msg, msg_type, from_number):
+            return
+    except Exception as exc:  # noqa: BLE001 -- never lose a guest message because the staff check broke
+        log.warning("wa_staff_reply_failed", tenant_id=tenant.id, error=str(exc)[:200])
 
     # T1.3: identity resolution goes through the canonical facade --
     # identity_service is the only place for GID resolution, never direct
@@ -538,6 +569,10 @@ def _handle_status_update(db, tenant: Tenant, status_obj: dict):
     ).first()
 
     if not message:
+        # A team alert to a staff member has no Message row either (playbook_actions.wa_message_id).
+        from app.services import lead_alert_sender
+        if lead_alert_sender.apply_status_callback(db, str(tenant.id), status_obj):
+            return
         # Not an inbox message. A message sent by a campaign has no Message
         # row: its status goes to the campaign's per-recipient record (and the
         # campaign's delivered/read counters).

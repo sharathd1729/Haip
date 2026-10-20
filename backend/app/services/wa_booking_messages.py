@@ -86,6 +86,12 @@ def _open_conversation(db: Session, tenant: Tenant, guest_id: str) -> Conversati
     return conv
 
 
+def _default_kind(actor_user_id: Optional[str]) -> str:
+    """A person pressed Send (a quote, a pay link) = their contact; HAIP sending by itself (booking confirmation,
+    payment received, balance reminder) = "system", which never counts as a person contacting the guest."""
+    return "human" if actor_user_id else "system"
+
+
 def send_booking_template(db: Session, tenant_id: str, stay: Stay, template_name: str, variables: list[str], *,
                           event: str, document: Optional[dict] = None, url_suffix: Optional[str] = None,
                           actor_user_id: Optional[str] = None, sender_name: str = "HAIP") -> dict:
@@ -147,7 +153,8 @@ def send_guest_template(db: Session, tenant_id: str, guest, template_name: str, 
     msg = Message(id=str(uuid.uuid4()), tenant_id=tenant_id, conversation_id=conv.id, direction=MessageDirection.OUTBOUND,
                   channel=ChannelType.WHATSAPP, body=body, sender_id=actor_user_id, sender_name=sender_name[:255],
                   was_approved=True, delivery_state=MessageDeliveryState.QUEUED, channel_status="queued",
-                  idempotency_key=key, channel_metadata=meta, sender_kind=sender_kind, sent_autonomously=autonomous)
+                  idempotency_key=key, channel_metadata=meta, sender_kind=sender_kind or _default_kind(actor_user_id),
+                  sent_autonomously=autonomous)
     db.add(msg)
     conv.last_message_at = datetime.now(timezone.utc).isoformat()
     append_audit(db, tenant_id=tenant_id, actor_user_id=actor_user_id, action=f"{target.audit_prefix}.message_queued",
@@ -295,7 +302,8 @@ def send_guest_text(db: Session, tenant_id: str, guest, text: str, *, target: Ta
     msg = Message(id=str(uuid.uuid4()), tenant_id=tenant_id, conversation_id=conv.id, direction=MessageDirection.OUTBOUND,
                   channel=ChannelType.WHATSAPP, body=text, sender_id=actor_user_id, sender_name=sender_name[:255],
                   was_approved=True, delivery_state=MessageDeliveryState.QUEUED, channel_status="queued", idempotency_key=key,
-                  channel_metadata=dict(target.meta), sender_kind=sender_kind, sent_autonomously=autonomous)
+                  channel_metadata=dict(target.meta), sender_kind=sender_kind or _default_kind(actor_user_id),
+                  sent_autonomously=autonomous)
     db.add(msg)
     conv.last_message_at = datetime.now(timezone.utc).isoformat()
     append_audit(db, tenant_id=tenant_id, actor_user_id=actor_user_id, action=f"{target.audit_prefix}.message_queued",

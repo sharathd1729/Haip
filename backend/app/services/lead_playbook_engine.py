@@ -340,6 +340,12 @@ def _run_callback_requested(db: Session, tenant: Tenant, run: PlaybookRun) -> di
     if _push(db, run.tenant_id, "Guest asked for a call", f"{label} tapped '{(run.context or {}).get('button')}'.",
              f"/dashboard/leads/{inquiry.id}" if inquiry else "/dashboard/my-day", owner):
         _record(db, run, "push", "done", recipient=owner)
+    from app.services import lead_alert_service   # and the owner's own WhatsApp, once team alerts are set up
+    first = first_name(guest)
+    lead_alert_service.notify_now(db, tenant, run, inquiry, f"{label} asked for a call",
+                                  ["Now", f"{first if first != 'there' else 'A guest'}, asked for a call back",
+                                   "Tapped the button on our WhatsApp", "just now",
+                                   (inquiry.assigned_user.name if inquiry is not None and inquiry.assigned_user else "nobody yet")])
     _fired(db, run, "Guest asked for a call back")
     return {"status": "done", "reason": None}
 
