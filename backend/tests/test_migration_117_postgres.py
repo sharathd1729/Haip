@@ -69,7 +69,7 @@ def narrow_column():
 def test_alembic_head_is_117_and_118_is_not_auto_applied():
     """Alembic only sees alembic/versions. 118 lives in alembic/proposed, so it cannot ship by accident.
 
-    (Name kept because the failure register refers to it.) The chain tip is now 150 (new booking: stays.gst_percent), on 148 (rate calculator: inquiry_quotes shared/approved
+    (Name kept because the failure register refers to it.) The chain tip is now 151 (lead workflows: journeys, views, playbook runs/actions), on 150 (new booking: stays.gst_percent), on 148 (rate calculator: inquiry_quotes shared/approved
     columns; 147 is reserved by another branch), after 145 (public lead intake + ROI benchmarks),
     after 146 (impact baselines + profiles), after 144 (lead autopilot + calls.ai_insights), after 143 (knowledge source
     dates + flags), after 142 (sales_actions, the AI sales agent), after 141 (invoices + payment idempotency + quote-owned
@@ -78,7 +78,8 @@ def test_alembic_head_is_117_and_118_is_not_auto_applied():
     migration; 119 follows 117 directly because number 118 is reserved for the proposed RLS migration.
     """
     script = ScriptDirectory.from_config(Config(str(BACKEND / "alembic.ini")))
-    assert script.get_heads() == ["150"]
+    assert script.get_heads() == ["151"]
+    assert script.get_revision("151").down_revision == "150"
     assert script.get_revision("150").down_revision == "148"
     assert script.get_revision("148").down_revision == "145"
     assert script.get_revision("145").down_revision == "146"
