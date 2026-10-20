@@ -28,6 +28,19 @@ def _make_tenant_and_guest(db):
     return t, g
 
 
+def _open_window(db, tenant_id, guest_id, hours_ago=1):
+    """The guest wrote to the business number recently: their 24-hour WhatsApp window is open."""
+    from datetime import datetime, timedelta, timezone
+    from app.models.conversation import ChannelType, Conversation, Message, MessageDirection
+    conv = Conversation(id=str(uuid.uuid4()), tenant_id=tenant_id, guest_id=guest_id, channel=ChannelType.WHATSAPP, is_open=True)
+    db.add(conv)
+    db.flush()
+    db.add(Message(id=str(uuid.uuid4()), tenant_id=tenant_id, conversation_id=conv.id, direction=MessageDirection.INBOUND,
+                   channel=ChannelType.WHATSAPP, body="Hi", created_at=datetime.now(timezone.utc) - timedelta(hours=hours_ago)))
+    db.commit()
+    return conv
+
+
 def _make_flow(db, tenant_id, nodes, edges, trigger="new_inquiry"):
     flow = WAFlow(
         id=str(uuid.uuid4()), tenant_id=tenant_id, name="Test Flow",
@@ -50,6 +63,7 @@ def test_linear_walk_message_action_end(db):
         {"from": "n1", "to": "n2"}, {"from": "n2", "to": "n3"}, {"from": "n3", "to": "n4"},
     ]
     flow = _make_flow(db, t.id, nodes, edges)
+    _open_window(db, t.id, g.id)
 
     with patch("app.workers.tasks.send_whatsapp.send_whatsapp.delay"):
         run_flow(db, t.id, flow, g.id)
@@ -59,6 +73,36 @@ def test_linear_walk_message_action_end(db):
     assert "message" in types
     assert "action" in types
     assert all(r.status in ("success",) for r in runs)
+    from app.models.conversation import Message
+    sent = db.query(Message).filter_by(tenant_id=t.id, sender_name="Flow").one()
+    assert sent.sender_kind == "system"                  # an automatic flow message is not a person's contact
+
+
+def test_message_outside_the_24h_window_is_skipped_not_queued(db):
+    t, g = _make_tenant_and_guest(db)
+    nodes = [{"id": "n1", "type": "trigger", "content": "new_inquiry"}, {"id": "n2", "type": "message", "content": "Hi"},
+             {"id": "n3", "type": "end"}]
+    flow = _make_flow(db, t.id, nodes, [{"from": "n1", "to": "n2"}, {"from": "n2", "to": "n3"}])
+    _open_window(db, t.id, g.id, hours_ago=30)
+    with patch("app.workers.tasks.send_whatsapp.send_whatsapp.delay") as send:
+        run_flow(db, t.id, flow, g.id)
+    send.assert_not_called()
+    msg_run = db.query(WAFlowRun).filter_by(tenant_id=t.id, flow_id=flow.id, node_type="message").one()
+    assert msg_run.status == "skipped" and "window is closed" in (msg_run.detail or "")
+
+
+def test_message_never_goes_into_a_personal_whatsapp_mirror(db):
+    from app.models.conversation import ChannelType, Conversation, Message
+    t, g = _make_tenant_and_guest(db)
+    db.add(Conversation(id=str(uuid.uuid4()), tenant_id=t.id, guest_id=g.id, channel=ChannelType.WHATSAPP, is_open=True,
+                        source="personal_bridge"))
+    db.commit()
+    nodes = [{"id": "n1", "type": "trigger", "content": "new_inquiry"}, {"id": "n2", "type": "message", "content": "Hi"}]
+    flow = _make_flow(db, t.id, nodes, [{"from": "n1", "to": "n2"}])
+    with patch("app.workers.tasks.send_whatsapp.send_whatsapp.delay") as send:
+        run_flow(db, t.id, flow, g.id)
+    send.assert_not_called()
+    assert db.query(Message).filter_by(tenant_id=t.id, sender_name="Flow").count() == 0
 
 
 def test_condition_false_ends_flow(db):

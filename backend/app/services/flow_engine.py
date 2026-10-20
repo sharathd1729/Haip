@@ -205,6 +205,8 @@ def run_flow(
                 text = _render_template(node.get("content", ""), guest, {})
                 _send_flow_message(db, tenant_id, guest_id, conversation_id, text)
                 _log_run(db, tenant_id, flow.id, guest_id, node, "success", "Message sent")
+            except FlowMessageNotSent as exc:
+                _log_run(db, tenant_id, flow.id, guest_id, node, "skipped", f"Message not sent: {exc}")
             except Exception as exc:
                 _log_run(db, tenant_id, flow.id, guest_id, node, "failed", error=str(exc))
             current_id = _next_node_id(edges_by_from, current_id)
@@ -250,35 +252,34 @@ def run_flow(
     db.commit()
 
 
-def _send_flow_message(db: Session, tenant_id: str, guest_id: str, conversation_id: Optional[str], text: str) -> None:
-    """Send a flow "message" node's text directly to the guest, reusing
-    the same Message-row + send_whatsapp task pipeline agent replies use
-    (not a draft -- flow messages are pre-authored, not AI-generated)."""
-    import uuid
-    from app.models.conversation import Conversation, Message, ChannelType, MessageDirection, MessageDeliveryState
+class FlowMessageNotSent(Exception):
+    """A flow message that must not go out; the reason is logged on the flow run."""
 
-    conversation = None
-    if conversation_id:
-        conversation = db.query(Conversation).filter_by(id=conversation_id, tenant_id=tenant_id).first()
-    if not conversation:
-        conversation = (
-            db.query(Conversation)
-            .filter_by(tenant_id=tenant_id, guest_id=guest_id, channel=ChannelType.WHATSAPP, is_open=True)
-            .first()
-        )
-    if not conversation:
-        conversation = Conversation(
-            id=str(uuid.uuid4()), tenant_id=tenant_id, guest_id=guest_id,
-            channel=ChannelType.WHATSAPP, is_open=True, ai_mode="shadow",
-        )
-        db.add(conversation)
-        db.flush()
+
+def _send_flow_message(db: Session, tenant_id: str, guest_id: str, conversation_id: Optional[str], text: str) -> None:
+    """Send a flow "message" node's text to the guest on their official WhatsApp thread (Message row + send_whatsapp, the
+    pipeline agent replies use; pre-authored, not AI-generated).
+
+    Plain text only reaches a guest inside WhatsApp's 24-hour window (Meta drops it otherwise), so outside the window the
+    step is refused with a reason instead of queueing a message that never arrives. Never written into a thread mirrored
+    from an agent's personal WhatsApp (whatsapp_state only returns official threads). Stamped sender_kind="system": an
+    automatic flow message is not a person contacting the guest (work_queue_signals.touch_rows)."""
+    import uuid
+    from app.models.conversation import ChannelType, Message, MessageDirection, MessageDeliveryState
+    from app.services.booking_agenda_service import whatsapp_state
+
+    del conversation_id   # the flow's own thread may be Instagram or a personal-WhatsApp mirror: always the official one
+    state = whatsapp_state(db, tenant_id, guest_id)
+    if not state["conversation_id"]:
+        raise FlowMessageNotSent("the guest has no WhatsApp chat with the business number yet")
+    if not state["window_open"]:
+        raise FlowMessageNotSent("the guest's 24-hour WhatsApp window is closed; a plain message would not be delivered")
 
     message = Message(
-        id=str(uuid.uuid4()), tenant_id=tenant_id, conversation_id=conversation.id,
+        id=str(uuid.uuid4()), tenant_id=tenant_id, conversation_id=state["conversation_id"],
         direction=MessageDirection.OUTBOUND, channel=ChannelType.WHATSAPP,
         body=text, delivery_state=MessageDeliveryState.QUEUED, channel_status="queued",
-        sender_name="Flow",
+        sender_name="Flow", sender_kind="system",
     )
     db.add(message)
     db.flush()

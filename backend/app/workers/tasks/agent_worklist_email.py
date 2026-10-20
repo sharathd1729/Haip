@@ -1,13 +1,13 @@
 """Per-agent worklist reminder email -- morning/afternoon/evening nudge for
 leads still pending this agent's action (unanswered messages, missed calls,
-overdue follow-ups, unactioned shared contact details, new DMs).
+new leads nobody contacted, guests who went quiet, follow-ups due).
 
 Distinct from daily_agent_report.py (an end-of-day performance summary, sent
-once): this is a standing-backlog reminder, sent three times a day, built
-directly on worklist_service.build_worklist() -- the same data the agent's
-own /dashboard/worklist page shows, not a new query. Skips the send entirely
-when the agent has nothing pending, so nobody gets three "all clear" emails
-a day.
+once): this is a standing-backlog reminder, sent three times a day, built on
+work_queue_service.build() -- the ONE source behind My day (CLAUDE.md: never a
+parallel "what to do now" query) -- keeping only the items this agent owns.
+Skips the send entirely when the agent has nothing pending, so nobody gets
+three "all clear" emails a day.
 """
 
 import asyncio
@@ -19,8 +19,8 @@ from app.core.database import SessionLocal, set_tenant_context
 from app.core.config import settings
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
-from app.services import worklist_service, phone_decline_detector
-from app.services.agent_worklist_email import render_agent_worklist_html, render_agent_worklist_subject
+from app.services import phone_decline_detector
+from app.services.agent_worklist_email import QUEUE_SECTIONS, queue_rows, render_agent_worklist_html, render_agent_worklist_subject
 
 log = structlog.get_logger()
 
@@ -70,31 +70,19 @@ def send_agent_worklist_email(
             log.warning("agent_worklist_email_agent_missing", tenant_id=tenant_id, agent_id=agent_id)
             return {"tenant_id": tenant_id, "agent_id": agent_id, "status": "no_agent"}
 
-        # Built from the two worklist_service queries that actually take a
-        # scope_user_id (awaiting_reply, overdue_followups) -- NOT
-        # build_worklist() as a whole. Its other three sections (missed
-        # calls, shared contact details, new DMs) are tenant-wide by design
-        # (meant for the owner's/whole-team's worklist view); reusing them
-        # here would show every agent the same tenant-wide data regardless
-        # of who it's actually assigned to. See agent_worklist_email.py's
-        # module docstring for the full reasoning.
-        #
-        # hours=None on both: this is a standing-backlog reminder, not a
-        # rolling window -- a lead that's been waiting 3 days should still
-        # show up, not just leads from "today".
-        worklist = {
-            "awaiting_reply": worklist_service.awaiting_reply(
-                db, tenant_id, scope_user_id=agent_id, since=None, limit=worklist_service.SECTION_LIMIT,
-            ),
-            "overdue_followups": worklist_service.overdue_followups(
-                db, tenant_id, scope_user_id=agent_id, limit=worklist_service.SECTION_LIMIT,
-            ),
+        # The agent's own items from the work queue (My day): the same kinds, severities and "who already contacted
+        # them" rule as the app, so the email never disagrees with My day. Only items this agent OWNS: unowned leads
+        # go to the whole team (team alerts, owner report), not into one person's reminder.
+        from app.services import work_queue_service
+        items = [i for i in work_queue_service.build(db, tenant, agent_id)["items"] if i.get("owner_id") == agent_id]
+        worklist = {kind: queue_rows([i for i in items if i["kind"] == kind]) for kind in QUEUE_SECTIONS}
+        worklist.update({
             # Phone-decline alert plan: rendered as its own section
             # (agent_worklist_email.py's _phone_declines_html), not folded
             # into overdue_followups even though it's the same Task model --
             # these read differently and deserve their own count/heading.
             "phone_declines": phone_decline_detector.open_tasks(db, tenant_id, agent_id=agent_id),
-        }
+        })
         worklist["counts"] = {k: len(v) for k, v in worklist.items()}
         total_pending = sum(worklist["counts"].values())
         if total_pending == 0:

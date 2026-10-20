@@ -36,11 +36,15 @@ def _make_user(db, tenant_id, role=UserRole.CONCIERGE, name="Agent", email=None)
 
 
 def _make_pending_lead(db, tenant, agent):
-    """One conversation, assigned to `agent`, with an unanswered inbound
-    message -- the simplest row that makes worklist_service.awaiting_reply()
-    (and therefore build_worklist()'s total pending count) non-zero."""
-    guest = Guest(id=str(uuid.uuid4()), tenant_id=tenant.id, phone="+919876500099", name="Pending Guest")
+    """A lead (phone on file) owned by `agent` whose WhatsApp message has waited 20 minutes with no answer: a "reply"
+    item in the agent's own work queue (My day), which is what the email lists."""
+    from datetime import datetime, timedelta, timezone
+    from app.models.inquiry import Inquiry
+    now = datetime.now(timezone.utc)
+    guest = Guest(id=str(uuid.uuid4()), tenant_id=tenant.id, phone="+919876500099", name="Pending Guest",
+                  lead_identified_at=now - timedelta(hours=2))
     db.add(guest); db.commit()
+    db.add(Inquiry(id=str(uuid.uuid4()), tenant_id=tenant.id, guest_id=guest.id, assigned_to=agent.id)); db.commit()
     conv = Conversation(
         id=str(uuid.uuid4()), tenant_id=tenant.id, guest_id=guest.id,
         channel=ChannelType.WHATSAPP, is_open=True, assigned_to=agent.id,
@@ -49,6 +53,7 @@ def _make_pending_lead(db, tenant, agent):
     msg = Message(
         id=str(uuid.uuid4()), tenant_id=tenant.id, conversation_id=conv.id,
         direction="inbound", channel="whatsapp", body="Are you available this weekend?",
+        created_at=now - timedelta(minutes=20),
     )
     db.add(msg); db.commit()
     return conv

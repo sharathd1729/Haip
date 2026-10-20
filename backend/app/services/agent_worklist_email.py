@@ -1,18 +1,9 @@
 """HTML rendering for the agent worklist reminder email.
 
 Same plain-table, inline-style conventions as daily_report_email.py (Gmail
-strips <style> blocks, Outlook's renderer ignores flexbox/grid) -- built on
-two of worklist_service's own section queries (awaiting_reply,
-overdue_followups), not a new query.
-
-Deliberately NOT built on the full build_worklist(): three of its five
-sections (missed_calls, shared_contact_details, new_dms) have no
-scope_user_id filter at all -- they're tenant-wide by design, meant for the
-owner's/whole-team's worklist view. Reusing build_worklist() wholesale for a
-PER-AGENT email would silently show every agent the same tenant-wide
-missed-calls/shared-details/new-DMs data regardless of who it's actually
-assigned to. Only the two sections worklist_service itself scopes to one
-agent belong in a personal reminder."""
+strips <style> blocks, Outlook's renderer ignores flexbox/grid). The sections are
+the agent's own work-queue items (work_queue_service, the source behind My day),
+by kind, plus their open "declined to share a phone number" tasks."""
 
 from __future__ import annotations
 
@@ -30,11 +21,41 @@ AMBER_INK = "#92400E"
 # the rest; the in-app worklist has no such cap.
 _MAX_ROWS = 5
 
+# Work-queue kinds, in My day's order.
+QUEUE_SECTIONS = ("callback", "new_lead", "reply", "no_reply", "followup")
 _SECTION_TITLES = {
-    "awaiting_reply": "Waiting on your reply",
-    "overdue_followups": "Overdue follow-ups",
+    "callback": "Missed calls to return",
+    "new_lead": "New leads nobody has contacted",
+    "reply": "Waiting on your reply",
+    "no_reply": "Quiet since your last message",
+    "followup": "Follow-ups due",
 }
-_SECTION_ORDER = ("awaiting_reply", "overdue_followups")
+_SECTION_ORDER = QUEUE_SECTIONS
+_SEVERITY = {"late": "late", "urgent": "urgent", "critical": "very late", "stale": "gone quiet"}
+
+
+def queue_rows(items: list[dict]) -> list[dict]:
+    """Work-queue items (QueueItem.as_dict) as email rows: {"lead": {...}, "meta": "..."}."""
+    from datetime import datetime, timezone
+    rows = []
+    for i in items:
+        since, mins = i.get("since"), None
+        if since:
+            try:
+                at = datetime.fromisoformat(since)
+                at = at if at.tzinfo else at.replace(tzinfo=timezone.utc)
+                mins = max(0, int((datetime.now(timezone.utc) - at).total_seconds() // 60))
+            except ValueError:
+                mins = None
+        bits = [i.get("detail") or ""]
+        if mins is not None:
+            bits.append(f"waiting {_waiting_label(mins)}")
+        if i.get("severity") in _SEVERITY:
+            bits.append(_SEVERITY[i["severity"]])
+        rows.append({"lead": {"name": i.get("title"), "guest_id": i.get("guest_id"), "has_contact": bool(i.get("guest_phone") or i.get("guest_id")),
+                              "ai_summary": None},
+                     "meta": " · ".join(b for b in bits if b)})
+    return rows
 
 
 def _e(v) -> str:
@@ -82,10 +103,7 @@ def _section_rows(kind: str, rows: list[dict], dashboard_url: str) -> list[str]:
     out = []
     for r in rows[:_MAX_ROWS]:
         lead = r.get("lead") or {}
-        if kind == "awaiting_reply":
-            meta = f"{r.get('channel', '')} · waiting {_waiting_label(r.get('waiting_minutes'))}"
-        else:  # overdue_followups
-            meta = r.get("title") or "Follow-up overdue"
+        meta = r.get("meta") or ""
         out.append(_lead_row_html(lead, meta, dashboard_url))
     return out
 
@@ -98,10 +116,10 @@ def _section_html(kind: str, rows: list[dict], total: int, dashboard_url: str) -
     more = ""
     if total > len(rows[:_MAX_ROWS]):
         more = (
-            f'<tr><td style="padding-top:6px"><a href="{_e(dashboard_url)}/worklist" '
+            f'<tr><td style="padding-top:6px"><a href="{_e(dashboard_url)}/my-day" '
             f'style="display:block;text-align:center;padding:8px;font:700 11.5px -apple-system,Segoe UI,Roboto,sans-serif;'
             f'color:{BRAND};text-decoration:none;border:1.5px dashed {LINE};border-radius:8px">'
-            f'+{total - len(rows[:_MAX_ROWS])} more in your worklist →</a></td></tr>'
+            f'+{total - len(rows[:_MAX_ROWS])} more in My day →</a></td></tr>'
         )
     return f"""
     <tr><td style="padding:18px 24px 0">
@@ -167,7 +185,7 @@ def render_agent_worklist_html(
     {sections_html}
 
     <tr><td style="padding:24px" align="center">
-      <a href="{_e(dashboard_url)}/worklist" style="display:inline-block;background:{BRAND};color:#fff;text-decoration:none;font:600 14px -apple-system,Segoe UI,Roboto,sans-serif;padding:11px 22px;border-radius:8px">Open your worklist</a>
+      <a href="{_e(dashboard_url)}/my-day" style="display:inline-block;background:{BRAND};color:#fff;text-decoration:none;font:600 14px -apple-system,Segoe UI,Roboto,sans-serif;padding:11px 22px;border-radius:8px">Open My day</a>
     </td></tr>
 
     <tr><td style="padding:0 24px 22px" align="center">
