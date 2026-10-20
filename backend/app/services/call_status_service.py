@@ -109,6 +109,12 @@ def is_unanswered_outbound(call) -> bool:
         return False
 
     decided = _unanswered_by_disposition(call)
+    # An outbound leg the IVR reports as "completed" can still be voicemail or a carrier announcement ("the number you are
+    # calling is not answering"): Vobiz counts any media as answered. When the AI heard no answer / voicemail and no person
+    # said otherwise, that wins over the dial status (Ratha, 20 Oct 2026: 9 of 20 outbound calls were "completed" + AI
+    # no_answer, so the "we tried calling" WhatsApp never went). Inbound keeps the shared chain.
+    if decided is False and _disp(getattr(call, "human_disposition", None)) not in ANSWERED             and _disp(getattr(call, "ivr_dial_status", None)) in _DIAL_STATUS_ANSWERED             and _disp(getattr(call, "ai_disposition", None)) in NOT_ANSWERED:
+        return True
     if decided is not None:
         return decided
 

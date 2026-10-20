@@ -95,3 +95,33 @@ class TestMissedCallSqlFilterMatchesPython:
         assert missed.id in missed_ids
         assert call_status_service.is_missed_call(answered) is False
         assert call_status_service.is_missed_call(missed) is True
+
+
+class TestOutboundCompletedButNoAnswer:
+    """Ratha, 20 Oct 2026: Vobiz reported 9 of 20 outbound calls "completed" (voicemail / carrier announcement counts as
+    media) while the AI heard nobody, so the "we tried calling" WhatsApp (playbook P2) never went out."""
+
+    def test_ai_no_answer_beats_a_completed_outbound_leg(self):
+        call = _call(direction=CallDirection.OUTBOUND, ivr_dial_status="completed", ai_disposition="no_answer", duration_seconds=24)
+        assert call_status_service.is_unanswered_outbound(call) is True
+
+    def test_voicemail_counts_too(self):
+        call = _call(direction=CallDirection.OUTBOUND, ivr_dial_status="completed", ai_disposition="voicemail")
+        assert call_status_service.is_unanswered_outbound(call) is True
+
+    def test_a_person_saying_it_was_answered_still_wins(self):
+        call = _call(direction=CallDirection.OUTBOUND, ivr_dial_status="completed", ai_disposition="no_answer",
+                     human_disposition="callback")
+        assert call_status_service.is_unanswered_outbound(call) is False
+
+    def test_completed_with_a_real_conversation_stays_answered(self):
+        call = _call(direction=CallDirection.OUTBOUND, ivr_dial_status="completed", ai_disposition="callback", duration_seconds=58)
+        assert call_status_service.is_unanswered_outbound(call) is False
+
+    def test_completed_before_the_ai_has_run_is_answered_for_now(self):
+        call = _call(direction=CallDirection.OUTBOUND, ivr_dial_status="completed", ai_disposition=None, duration_seconds=27)
+        assert call_status_service.is_unanswered_outbound(call) is False
+
+    def test_inbound_keeps_the_shared_rule(self):
+        call = _call(direction=CallDirection.INBOUND, ivr_dial_status="completed", ai_disposition="no_answer")
+        assert call_status_service.is_missed_call(call) is False
