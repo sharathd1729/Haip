@@ -707,6 +707,7 @@ const DEFAULT_PREFS = {
   call_summary_email: false,
   call_summary_push: true,
   daily_digest_email: false,   // A7: explicit opt-in — default false
+  morning_brief_email: true,   // owners/managers: the daily brief email (owner_brief_service), on unless switched off
   weekly_report_email: true,
   system_alerts_email: true,
 };
@@ -880,6 +881,7 @@ function NotificationSettings() {
     {
       label: "Reports & Digests",
       items: [
+        { key: "morning_brief_email",   label: "Daily brief: 8 AM morning brief + 7 PM evening check (owners & managers)", channel: "Email" },
         { key: "daily_digest_email",    label: "Daily KPI digest via WhatsApp (9 AM local)", channel: "WhatsApp" },
         { key: "weekly_report_email",   label: "Weekly performance report (Monday 9 AM)",    channel: "Email" },
         { key: "system_alerts_email",   label: "System alerts (integrations, errors)",        channel: "Email" },

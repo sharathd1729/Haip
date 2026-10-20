@@ -18,7 +18,7 @@ log = structlog.get_logger()
 RESEND_API_URL = "https://api.resend.com/emails"
 
 
-async def _send(to: str, subject: str, html: str) -> bool:
+async def _send(to: str, subject: str, html: str, text: str | None = None) -> bool:
     """Send via Resend when key is set, otherwise log to console."""
     if not settings.RESEND_API_KEY:
         # Returns False, not True. This previously reported success when
@@ -50,6 +50,7 @@ async def _send(to: str, subject: str, html: str) -> bool:
                     "to": [to],
                     "subject": subject,
                     "html": html,
+                    **({"text": text} if text else {}),   # plain-text part: better deliverability, readable anywhere
                 },
             )
             if resp.status_code in (200, 201):
