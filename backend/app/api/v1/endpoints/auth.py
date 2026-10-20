@@ -209,6 +209,22 @@ _REFRESH_GRACE_WINDOW_SECONDS = 24 * 60 * 60
 _REFRESH_RACE_SECONDS = 60
 
 
+def _revoke_lineage(db: Session, stored: "RefreshToken", now: datetime) -> int:
+    """Revoke every still-live token descended from ``stored`` by rotation (follows replaced_by_token_hash). Returns how
+    many were revoked. Bounded walk; a reissue made inside the grace window is not linked and expires on its own (30 d)."""
+    revoked, seen, next_hash = 0, set(), stored.replaced_by_token_hash
+    while next_hash and next_hash not in seen and len(seen) < 500:
+        seen.add(next_hash)
+        tok = db.query(RefreshToken).filter_by(token_hash=next_hash, user_id=stored.user_id).first()
+        if tok is None:
+            break
+        if not tok.is_revoked:
+            tok.is_revoked, tok.revoked_at = True, now
+            revoked += 1
+        next_hash = tok.replaced_by_token_hash
+    return revoked
+
+
 @router.post("/refresh")
 def refresh_token(body: dict, db: Session = Depends(get_db)):
     token = body.get("refresh_token", "")
@@ -292,14 +308,11 @@ def refresh_token(body: dict, db: Session = Depends(get_db)):
             )
             return {"access_token": new_access, "refresh_token": new_refresh, "token_type": "bearer"}
 
-    # Reuse outside the grace window (or no known successor) — genuine reuse
-    # of a dead token. Treat as theft: kill every active refresh token for
-    # this user, forcing a full re-login on all devices/tabs.
-    revoked_count = (
-        db.query(RefreshToken)
-        .filter_by(user_id=decoded["sub"], is_revoked=False)
-        .update({"is_revoked": True, "revoked_at": now})
-    )
+    # Reuse outside the grace window (or no known successor) -- a dead token turning up again. Revoke the sessions that
+    # grew out of THIS token (its chain of successors: the same device/browser), not every session the user has. Revoking
+    # everything signed the owner out on the laptop whenever a phone or a sleeping tab woke up holding an old token
+    # (20 Oct 2026: an 8-hour-old token presented 29 times). Login sessions on other devices are separate chains.
+    revoked_count = _revoke_lineage(db, stored, now)
     append_audit(
         db,
         tenant_id=decoded["tenant_id"],

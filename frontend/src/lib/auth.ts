@@ -6,7 +6,9 @@ import GoogleProvider from "next-auth/providers/google";
 function getTokenExpiry(token: string): number {
   try {
     const payload = token.split(".")[1];
-    const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    // atob, not Buffer: this also runs in the edge middleware, where Buffer may be missing (expiry 0 = refresh every call).
+    const b64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const decoded = JSON.parse(atob(b64));
     return (decoded.exp || 0) * 1000; // convert to ms
   } catch {
     return 0;
@@ -51,7 +53,9 @@ function sleep(ms: number) {
 // real rejection (invalid/revoked token) that retrying can't fix and
 // shouldn't be treated the same as a transient blip.
 function isRetryableStatus(status: number): boolean {
-  return status >= 500 && status < 600;
+  // 429: /auth/refresh shares the per-IP limit for unauthenticated calls, and server-side refreshes reach the API from
+  // a few shared egress IPs -- a rate-limit blip is transient, not a revoked token.
+  return status === 429 || (status >= 500 && status < 600);
 }
 
 export async function refreshAccessToken(refreshToken: string): Promise<RefreshResult> {

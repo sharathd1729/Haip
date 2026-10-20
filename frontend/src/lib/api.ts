@@ -62,7 +62,7 @@ function decodeExp(jwt: string): number {
  *  straight back to a getSession() per request. */
 const OPAQUE_TOKEN_TTL_MS = 60_000;
 
-async function getToken(force = false): Promise<string | null> {
+export async function getToken(force = false): Promise<string | null> {
   // 30s skew so we never send a token that expires mid-flight
   if (!force && cachedToken && Date.now() < cachedExp - 30_000) return cachedToken;
   // `force` only means "don't trust the cached token's freshness" — it must
@@ -175,8 +175,10 @@ api.interceptors.response.use(
       // SessionExpired (the deliberate 12h cutoff) is unaffected.
       const sessionErrorSince = (session as { errorSince?: number } | null)?.errorSince;
       const withinGrace = isWithinRefreshErrorGrace(sessionError, sessionErrorSince);
+      // Not gated on `!token`: after a failed refresh the session still carries the EXPIRED access token, so `token` is
+      // never empty -- every request kept 401ing and pages showed stale cached data until the user navigated (20 Oct 2026).
       const unrecoverable =
-        !token && (!session || (sessionError === "RefreshAccessTokenError" && !withinGrace) || sessionError === "SessionExpired");
+        (!token && !session) || (sessionError === "RefreshAccessTokenError" && !withinGrace) || sessionError === "SessionExpired";
 
       if (unrecoverable) {
         clearTokenCache();

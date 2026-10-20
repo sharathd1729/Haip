@@ -13,7 +13,7 @@ import { useNotificationsStore } from "@/store/useNotificationsStore";
  *  – React Query cache invalidation so list views auto-refresh
  */
 export function DashboardSSEBridge() {
-  const { data: session } = useSession();
+  const { status } = useSession();
   const queryClient = useQueryClient();
   const pushWrapUp = useCallsStore(s => s.pushWrapUp);
   const setAiDraft = useInboxStore(s => s.setAiDraft);
@@ -21,11 +21,8 @@ export function DashboardSSEBridge() {
   const upsertConversation = useInboxStore(s => s.upsertConversation);
   const addNotification = useNotificationsStore(s => s.addEvent);
 
-  // Extract raw JWT access token – shape depends on next-auth callbacks
-  const accessToken =
-    (session as unknown as { accessToken?: string })?.accessToken ?? null;
-
-  useInboxStream(accessToken, (payload: SSEPayload) => {
+  // The stream fetches a fresh access token itself on every (re)connect (useInboxStream).
+  useInboxStream(status === "authenticated", (payload: SSEPayload) => {
     // Feed every meaningful event into the notification store (powers bell UI)
     addNotification(payload as unknown as Record<string, unknown>);
 
