@@ -24,6 +24,11 @@ TRIED_CALLING = "haip_tried_calling_v1"
 STAFF_ALERT = "haip_staff_lead_alert_v1"
 STAFF_ESCALATION = "haip_staff_escalation_v1"
 STAFF_DIGEST = "haip_staff_digest_v1"
+# Follow-ups to the GUEST (lead_followup_service, playbooks P5 / P6 / P8).
+QUOTE_FOLLOWUP = "haip_quote_followup_v1"
+QUOTE_FINAL = "haip_quote_final_v1"
+CHECKIN = "haip_checkin_v1"
+REENGAGE = "haip_reengage_v1"                 # MARKETING: only to guests who agreed to offers
 
 # Quick-reply button texts. The webhook matches a tap on these (lead_playbook_engine.on_guest_button).
 BTN_CALL_ME_BACK = "Call me back"
@@ -32,6 +37,12 @@ BTN_SHARE_HERE = "Share details here"
 # Staff alert buttons; each send carries its own payload "la:{action_id}:ack|take" (lead_alert_sender).
 BTN_ACK = "Acknowledge"
 BTN_TAKE = "I'll take it"
+BTN_QUESTION = "I have a question"
+BTN_HOLD = "Yes, hold them"
+BTN_NOT_NOW = "Not now"
+BTN_STILL_PLANNING = "Still planning"
+BTN_SHOW_OPTIONS = "Show me options"
+BTN_STOP_PROMOS = "Stop promotions"
 ACK_INDEX, TAKE_INDEX = 0, 1
 
 
@@ -88,6 +99,42 @@ PACK: list[dict] = [
                   ["4", "Kiran", "9 h"]),
         ],
     },
+    {
+        "name": QUOTE_FOLLOWUP, "label": "Proposal follow-up", "when": "6 hours after a proposal, if the guest has not replied (P5).",
+        "components": [
+            _body("Hi {{1}}, just checking you received the proposal for {{2}} we shared on {{3}}. Happy to answer any "
+                  "questions or adjust it for you.",
+                  ["Kiran", "the Coorg 48-hour retreat", "Mon, 19 Oct"]),
+            _quick(BTN_QUESTION, BTN_CALL_ME_BACK),
+        ],
+    },
+    {
+        "name": QUOTE_FINAL, "label": "Proposal last call", "when": "Day 7 after a proposal with no reply (P5).",
+        "components": [
+            _body("Hi {{1}}, your proposal for {{2}} is valid until {{3}}. Shall we hold these dates for you?",
+                  ["Kiran", "the Coorg 48-hour retreat", "Wed, 21 Oct"]),
+            _quick(BTN_HOLD, BTN_NOT_NOW),
+        ],
+    },
+    {
+        "name": CHECKIN, "label": "Check-in", "when": "Day 3 after our last message with no reply, before any proposal (P6).",
+        "components": [
+            _body("Hi {{1}}, following up on your enquiry about {{2}}. Are you still planning the trip? Reply with your "
+                  "dates and we'll check availability.",
+                  ["Kiran", "a Ratha trip"]),
+            _quick(BTN_STILL_PLANNING, BTN_NOT_NOW),
+        ],
+    },
+    {
+        "name": REENGAGE, "label": "Win back (offer)", "category": "MARKETING",
+        "when": "45 days after a lead was lost, only if the guest agreed to offers (P8).",
+        "components": [
+            _body("Hi {{1}}, planning a getaway soon? {{2}} has new dates open this season. Reply here and we'll share "
+                  "what's available.",
+                  ["Kiran", "Ratha"]),
+            _quick(BTN_SHOW_OPTIONS, BTN_STOP_PROMOS),
+        ],
+    },
 ]
 BY_NAME = {t["name"]: t for t in PACK}
 
@@ -105,6 +152,25 @@ def tried_calling_text(first: str, agent: str, brand: str) -> str:
 
 def callback_ack_text(first: str, when: str) -> str:
     return f"Sure {first}, we'll call you {when}."
+
+
+# Plain-text versions of the follow-ups (24-hour window open, autopilot mode): the same words as the templates.
+def quote_followup_text(first: str, trip: str, shared: str) -> str:
+    return (f"Hi {first}, just checking you received the proposal for {trip} we shared on {shared}. Happy to answer any "
+            f"questions or adjust it for you.")
+
+
+def quote_final_text(first: str, trip: str, valid: str) -> str:
+    return f"Hi {first}, your proposal for {trip} is valid until {valid}. Shall we hold these dates for you?"
+
+
+def checkin_text(first: str, trip: str) -> str:
+    return (f"Hi {first}, following up on your enquiry about {trip}. Are you still planning the trip? Reply with your "
+            f"dates and we'll check availability.")
+
+
+def reengage_text(first: str, brand: str) -> str:
+    return f"Hi {first}, planning a getaway soon? {brand} has new dates open this season. Reply here and we'll share what's available."
 
 
 def _model():
@@ -147,7 +213,8 @@ def create_drafts(db: Session, tenant_id: str, actor_id: Optional[str]) -> dict:
     for t in PACK:
         if t["name"] in existing:
             continue
-        db.add(WATemplate(tenant_id=tenant_id, name=t["name"], language=LANGUAGE, category=TemplateCategory.UTILITY,
+        category = TemplateCategory.MARKETING if t.get("category") == "MARKETING" else TemplateCategory.UTILITY
+        db.add(WATemplate(tenant_id=tenant_id, name=t["name"], language=LANGUAGE, category=category,
                           status=TemplateStatus.DRAFT, components=[dict(c) for c in t["components"]]))
         created.append(t["name"])
     if created:

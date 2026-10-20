@@ -135,6 +135,8 @@ PROMPT_VERSIONS: dict[str, str] = {
     "lead_autopilot_classify": "lead-autopilot-classify-v1",
     # Public property assessment: plain-language write-up of numbers the engine computed (assessment_narrative.py).
     "assessment_narrative": "assessment-narrative-v1",
+    # Lead workflows follow-up draft (lead_followup_draft.py): one short follow-up a person approves; never a price.
+    "lead_followup_draft": "lead-followup-draft-v1",
 }
 
 UNKNOWN = "unregistered"

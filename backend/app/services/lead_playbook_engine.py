@@ -200,8 +200,9 @@ def _callback_task(db: Session, run: PlaybookRun, guest: Guest, inquiry: Optiona
 
 
 def _fired(db: Session, run: PlaybookRun, preview: str) -> None:
+    """One ledger event per run STEP (the ledger is idempotent per entity, so a multi-step run names each step)."""
     emit_event(db, tenant_id=run.tenant_id, event_type=GuestEventType.PLAYBOOK_FIRED, entity_type="playbook_run",
-               entity_id=run.id, source_module=SourceModule.WORKFLOWS, occurred_at=_now(), guest_id=run.guest_id,
+               entity_id=run.id if run.step <= 1 else f"{run.id}:{run.step}", source_module=SourceModule.WORKFLOWS, occurred_at=_now(), guest_id=run.guest_id,
                inquiry_id=run.inquiry_id, is_ai_generated=False, payload={"playbook": run.playbook_key}, preview=preview,
                commit=True)
 
@@ -244,6 +245,9 @@ def run_step(db: Session, run: PlaybookRun) -> dict:
             out = _run_call_playbook(db, tenant, run)
         elif run.playbook_key == cat.CALLBACK_REQUESTED:
             out = _run_callback_requested(db, tenant, run)
+        elif run.playbook_key in cat.FOLLOWUP_PLAYBOOKS:
+            from app.services import lead_followup_service     # multi-step: it schedules the next step or finishes
+            return {**lead_followup_service.run_step(db, tenant, run), "run_id": run.id}
         else:
             _finish(db, run, "stopped", "this playbook does not run yet")
             return {"status": "stopped", "run_id": run.id}
