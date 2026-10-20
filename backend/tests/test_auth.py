@@ -186,7 +186,7 @@ def test_refresh_reuse_after_the_successor_was_used_revokes_family(client, tenan
     assert r2.status_code == 401
 
     active_count = db.query(RefreshToken).filter_by(user_id=user_id, is_revoked=False).count()
-    assert active_count == 0, "reuse after the successor was used must revoke the whole token family"
+    assert active_count == 0, "reuse after the successor was used must revoke that token's whole chain"
 
     audit_row = (
         db.query(AuditEvent)
@@ -285,3 +285,25 @@ def test_refresh_reuse_detection_does_not_affect_other_tenant(client, db):
     assert b_active == 1
     r3 = client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_b})
     assert r3.status_code == 200, "tenant B's refresh must still work after tenant A's reuse-detection"
+
+
+def test_reuse_on_one_device_does_not_sign_the_user_out_elsewhere(client, tenant_and_user, db):
+    """20 Oct 2026: a phone / sleeping tab presented an 8-hour-old token, which revoked EVERY session of the owner, so the
+    laptop was signed out at a random moment. Now only the chain that grew out of the reused token is revoked; a separate
+    login (another device) keeps working."""
+    from app.core.security import create_refresh_token
+    from app.models.user import RefreshToken
+
+    user = tenant_and_user["user"]
+    laptop = create_refresh_token({"sub": user.id, "tenant_id": user.tenant_id, "role": user.role.value})
+    db.add(RefreshToken(id=str(uuid.uuid4()), user_id=user.id, tenant_id=user.tenant_id,
+                        token_hash=hashlib.sha256(laptop.encode()).hexdigest()))
+    db.commit()
+
+    phone = tenant_and_user["refresh_token"]
+    _rotate_twice_then_backdate(client, db, phone, seconds_ago=8 * 3600)
+    assert client.post("/api/v1/auth/refresh", json={"refresh_token": phone}).status_code == 401
+
+    r = client.post("/api/v1/auth/refresh", json={"refresh_token": laptop})
+    assert r.status_code == 200, "the laptop's own session must survive the phone's reuse"
+

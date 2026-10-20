@@ -7,13 +7,14 @@
  * on disconnect (exponential back-off, capped at 30s).
  *
  * Usage:
- *   useInboxStream(accessToken, (event) => {
+ *   useInboxStream(enabled, (event) => {
  *     if (event.event === "wrap_up_ready") { invalidate calls query … }
  *     if (event.event === "ai_draft_ready") { show notification … }
  *   });
  */
 
 import { useEffect, useRef, useCallback } from "react";
+import { getToken } from "@/lib/api";
 
 export type SSEEventName =
   | "connected"
@@ -44,16 +45,20 @@ const MIN_RETRY_MS = 1_000;
 const MAX_RETRY_MS = 30_000;
 
 export function useInboxStream(
-  accessToken: string | undefined | null,
+  enabled: boolean,
   onEvent: Handler
 ) {
   const esRef = useRef<EventSource | null>(null);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryMsRef = useRef(MIN_RETRY_MS);
   const mountedRef = useRef(true);
   const onEventRef = useRef(onEvent);
   onEventRef.current = onEvent; // always call the latest callback
 
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
+    if (!enabled || !mountedRef.current) return;
+    // A fresh token on every (re)connect: the access token lasts 15 min, the page can stay open all day.
+    const accessToken = await getToken();
     if (!accessToken || !mountedRef.current) return;
 
     // EventSource doesn't support custom headers natively — pass token as query param
@@ -82,9 +87,9 @@ export function useInboxStream(
       // Exponential back-off reconnect
       const delay = retryMsRef.current;
       retryMsRef.current = Math.min(delay * 2, MAX_RETRY_MS);
-      setTimeout(connect, delay);
+      retryTimerRef.current = setTimeout(connect, delay);
     };
-  }, [accessToken]);
+  }, [enabled]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -92,6 +97,7 @@ export function useInboxStream(
 
     return () => {
       mountedRef.current = false;
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
       esRef.current?.close();
       esRef.current = null;
     };
