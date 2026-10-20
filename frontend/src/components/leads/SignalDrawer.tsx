@@ -82,18 +82,18 @@ export function SignalDrawer({ inquiryId, onClose, onSuccess }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="font-semibold text-gray-900 text-[15px]">Add Identity Signal</h3>
-            <p className="text-[11px] text-gray-500 mt-0.5">Enrich this lead's profile</p>
+            <h3 className="font-semibold text-[var(--haip-fg)] text-[15px]">Add Identity Signal</h3>
+            <p className="text-[11px] text-[var(--haip-fg-subtle)] mt-0.5">Enrich this lead's profile</p>
           </div>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 transition-colors">
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full text-[var(--haip-fg-subtle)] hover:bg-[var(--haip-status-neutral-bg)] transition-colors">
             <X size={15} />
           </button>
         </div>
 
         {/* DPDP consent notice */}
-        <div className="flex items-start gap-2 bg-teal-50 border border-teal-100 rounded-lg p-2.5 mb-4">
-          <Shield size={13} className="text-teal-600 flex-shrink-0 mt-0.5" />
-          <p className="text-[10px] text-teal-700 leading-relaxed">
+        <div className="flex items-start gap-2 bg-[var(--haip-primary-tint)] border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] rounded-lg p-2.5 mb-4">
+          <Shield size={13} className="text-primary flex-shrink-0 mt-0.5" />
+          <p className="text-[10px] text-primary leading-relaxed">
             By adding this signal, you confirm the guest has consented to data collection. A consent record will be created automatically per DPDP compliance.
           </p>
         </div>
@@ -101,7 +101,7 @@ export function SignalDrawer({ inquiryId, onClose, onSuccess }: Props) {
         <form onSubmit={handleSubmit} className="space-y-3">
           {/* Signal type selector */}
           <div>
-            <label className="block text-[11px] font-medium text-gray-700 mb-1">Signal type</label>
+            <label className="block text-[11px] font-medium text-[var(--haip-fg-2)] mb-1">Signal type</label>
             <div className="flex gap-2 flex-wrap">
               {SIGNAL_TYPES.map(st => (
                 <button
@@ -110,8 +110,8 @@ export function SignalDrawer({ inquiryId, onClose, onSuccess }: Props) {
                   onClick={() => { setSignalType(st.value); setValue(""); setError(""); }}
                   className={`text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${
                     signalType === st.value
-                      ? "border-teal-500 bg-teal-50 text-teal-700 font-medium"
-                      : "border-gray-200 text-gray-600 hover:border-gray-300"
+                      ? "border-primary bg-[var(--haip-primary-tint)] text-primary font-medium"
+                      : "border-[var(--haip-border)] text-[var(--haip-fg-muted)] hover:border-[var(--haip-border-strong)]"
                   }`}
                 >
                   {st.label}
@@ -122,13 +122,13 @@ export function SignalDrawer({ inquiryId, onClose, onSuccess }: Props) {
 
           {/* Value input */}
           <div>
-            <label className="block text-[11px] font-medium text-gray-700 mb-1">Value</label>
+            <label className="block text-[11px] font-medium text-[var(--haip-fg-2)] mb-1">Value</label>
             <input
               type={signalType === "email" ? "email" : "tel"}
               value={value}
               onChange={e => { setValue(e.target.value); setError(""); }}
               placeholder={PLACEHOLDERS[signalType]}
-              className="w-full text-[13px] border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+              className="w-full text-[13px] border border-[var(--haip-border)] rounded-lg px-3 py-2 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
             />
             {error && <p className="text-[11px] text-red-500 mt-1">{error}</p>}
           </div>
@@ -137,7 +137,7 @@ export function SignalDrawer({ inquiryId, onClose, onSuccess }: Props) {
           <button
             type="submit"
             disabled={mutation.isPending || !value.trim()}
-            className="w-full flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-medium text-[13px] py-2.5 rounded-xl transition-colors"
+            className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-[var(--haip-primary-hover)] disabled:opacity-50 text-white font-medium text-[13px] py-2.5 rounded-xl transition-colors"
           >
             {mutation.isPending ? (
               <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

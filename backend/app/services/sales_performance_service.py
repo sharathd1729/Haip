@@ -17,6 +17,11 @@ Two different dates matter and must not be confused:
 
 A revenue report that mixes them up silently double-counts, so the two
 are kept explicitly separate throughout.
+
+D-24 (owner, 19 Oct 2026): a target is measured on BOOKED VALUE = the stay
+charge (Stay.total_amount, "rental") + the booking's add-ons, for bookings
+made in the month on the IST calendar (kpi_metrics.stays.booked_value). The
+owner dashboard's target card reads the same numbers.
 """
 from __future__ import annotations
 
@@ -33,8 +38,10 @@ from sqlalchemy.orm import Session
 from app.models.inquiry import Inquiry
 from app.models.property import Property, Stay
 from app.models.sales_target import SCOPE_AGENT, SCOPE_PROPERTY, SCOPE_TENANT
+from app.models.stay_finance import StayAddOn
 from app.models.user import User, UserRole
 from app.services import targets_service
+from app.services.date_presets import IST
 
 log = structlog.get_logger()
 
@@ -56,11 +63,26 @@ def _month_bounds(month: date) -> tuple[date, date]:
 
 def _as_utc_range(day_from: date, day_to: date) -> tuple[datetime, datetime]:
     """created_at is a timestamptz -- compare against real datetimes, not
-    dates, so the last day of the month isn't silently excluded."""
+    dates, so the last day of the month isn't silently excluded. The days
+    are IST calendar days (D-24), as UTC instants."""
     return (
-        datetime.combine(day_from, time.min, tzinfo=timezone.utc),
-        datetime.combine(day_to, time.max, tzinfo=timezone.utc),
+        datetime.combine(day_from, time.min, tzinfo=IST).astimezone(timezone.utc),
+        datetime.combine(day_to, time.max, tzinfo=IST).astimezone(timezone.utc),
     )
+
+
+def _ist_date(dt: Optional[datetime]) -> Optional[date]:
+    if dt is None:
+        return None
+    return (dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)).astimezone(IST).date()
+
+
+def _addons(db: Session, tenant_id: str, stay_ids: list[str]) -> dict[str, Decimal]:
+    """Add-on value per booking (quantity x unit price), the second half of booked value (D-24)."""
+    if not stay_ids:
+        return {}
+    return {sid: _d(v) for sid, v in db.query(StayAddOn.stay_id, func.sum(StayAddOn.quantity * StayAddOn.unit_price))
+            .filter(StayAddOn.tenant_id == tenant_id, StayAddOn.stay_id.in_(stay_ids)).group_by(StayAddOn.stay_id).all()}
 
 
 def _stay_query(db: Session, tenant_id: str):
@@ -88,7 +110,7 @@ def pickup_report(db: Session, tenant_id: str, month: date, as_of: Optional[date
     remaining runway is visible.
     """
     m_start, m_end = _month_bounds(month)
-    today = as_of or datetime.now(timezone.utc).date()
+    today = as_of or datetime.now(IST).date()
 
     target_row = targets_service.get_target(db, tenant_id, SCOPE_TENANT, None, m_start)
     monthly_target = _d(target_row.target_amount) if target_row else Decimal(0)
@@ -96,6 +118,7 @@ def pickup_report(db: Session, tenant_id: str, month: date, as_of: Optional[date
 
     lo, hi = _as_utc_range(m_start, m_end)
     stays = _stay_query(db, tenant_id).filter(Stay.created_at >= lo, Stay.created_at <= hi).all()
+    addons = _addons(db, tenant_id, [s.id for s in stays])
 
     # Bucket each booking by the day it was MADE, splitting its value by
     # which month the guest actually stays in.
@@ -104,8 +127,8 @@ def pickup_report(db: Session, tenant_id: str, month: date, as_of: Optional[date
         lambda: {"total": Decimal(0), "this_month": Decimal(0), "next_month": Decimal(0), "future": Decimal(0)}
     )
     for s in stays:
-        booked_on = s.created_at.date() if s.created_at else m_start
-        amt = _d(s.total_amount)
+        booked_on = _ist_date(s.created_at) or m_start
+        amt = _d(s.total_amount) + addons.get(s.id, Decimal(0))
         b = by_day[booked_on]
         b["total"] += amt
         if s.check_in and s.check_in <= m_end and s.check_in >= m_start:
@@ -173,8 +196,8 @@ def agent_performance(db: Session, tenant_id: str, month: date) -> dict:
     m_start, m_end = _month_bounds(month)
     lo, hi = _as_utc_range(m_start, m_end)
 
-    rows = (
-        db.query(Inquiry.assigned_to, func.sum(Stay.total_amount))
+    per_stay = (
+        db.query(Inquiry.assigned_to, Stay.id, Stay.total_amount)
         .select_from(Stay)
         .outerjoin(Inquiry, Inquiry.id == Stay.inquiry_id)
         .filter(
@@ -184,11 +207,17 @@ def agent_performance(db: Session, tenant_id: str, month: date) -> dict:
             Stay.created_at >= lo,
             Stay.created_at <= hi,
         )
-        .group_by(Inquiry.assigned_to)
         .all()
     )
-    revenue_by_user = {uid: _d(amt) for uid, amt in rows if uid}
-    unattributed = sum((_d(amt) for uid, amt in rows if not uid), Decimal(0))
+    addons = _addons(db, tenant_id, [sid for _, sid, _ in per_stay])
+    revenue_by_user: dict = defaultdict(Decimal)
+    unattributed = Decimal(0)
+    for uid, sid, amt in per_stay:
+        value = _d(amt) + addons.get(sid, Decimal(0))
+        if uid:
+            revenue_by_user[uid] += value
+        else:
+            unattributed += value
 
     agents = (
         db.query(User)
@@ -246,8 +275,8 @@ def property_performance(db: Session, tenant_id: str, month: date) -> dict:
     m_start, m_end = _month_bounds(month)
     lo, hi = _as_utc_range(m_start, m_end)
 
-    booked = dict(
-        db.query(Stay.property_id, func.sum(Stay.total_amount))
+    booked_rows = (
+        db.query(Stay.property_id, Stay.id, Stay.total_amount)
         .filter(
             Stay.tenant_id == tenant_id,
             Stay.status.notin_(EXCLUDED_STAY_STATUSES),
@@ -255,9 +284,12 @@ def property_performance(db: Session, tenant_id: str, month: date) -> dict:
             Stay.created_at >= lo,
             Stay.created_at <= hi,
         )
-        .group_by(Stay.property_id)
         .all()
     )
+    addons = _addons(db, tenant_id, [sid for _, sid, _ in booked_rows])
+    booked: dict = defaultdict(Decimal)
+    for pid, sid, amt in booked_rows:
+        booked[pid] += _d(amt) + addons.get(sid, Decimal(0))
 
     # Holding = value of stays whose CHECK-IN falls in the next month,
     # whenever they were booked. Different date field on purpose.

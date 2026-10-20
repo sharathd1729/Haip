@@ -19,8 +19,8 @@
  */
 
 export interface BrandTheme {
-  primaryColor: string;        // hex, e.g. "#14b8a6"
-  sidebarColor: string;        // hex, e.g. "#0B1F3A"
+  primaryColor: string;        // hex, e.g. "#1E7A5A"
+  sidebarColor: string;        // hex, e.g. "#FFFFFF"
   logoUrl?: string;            // uploaded logo URL
   logoDarkUrl?: string;        // dark-bg variant
   fontFamily: string;          // Google Font name or "Inter"
@@ -29,19 +29,21 @@ export interface BrandTheme {
   tagline?: string;
 }
 
+// Hospitality Hybrid (Oct 2026): sea green with coral highlights on warm sand-white, Figtree. The shell is light, so "sidebarColor" is white.
 export const DEFAULT_THEME: BrandTheme = {
-  primaryColor: "#14b8a6",
-  sidebarColor: "#0B1F3A",
+  primaryColor: "#1E7A5A",
+  sidebarColor: "#FFFFFF",
   logoUrl: "/logo-wordmark.png",
   logoDarkUrl: "/logo-wordmark.png",
-  fontFamily: "Inter",
+  fontFamily: "Figtree",
   radiusScale: "rounded",
   companyName: "HAIP",
   tagline: "Hospitality AI",
 };
 
 export const PRESET_THEMES: { name: string; primaryColor: string; sidebarColor: string }[] = [
-  { name: "HAIP Teal",      primaryColor: "#14b8a6", sidebarColor: "#0B1F3A" },
+  { name: "Sea Green (HAIP)", primaryColor: "#1E7A5A", sidebarColor: "#FFFFFF" },
+  { name: "Teal",           primaryColor: "#0F766E", sidebarColor: "#0B1F3A" },
   { name: "Ocean Blue",     primaryColor: "#3b82f6", sidebarColor: "#1e3a5f" },
   { name: "Indigo",         primaryColor: "#6366f1", sidebarColor: "#1e1b4b" },
   { name: "Violet",         primaryColor: "#8b5cf6", sidebarColor: "#1d0f3b" },
@@ -56,6 +58,7 @@ export const PRESET_THEMES: { name: string; primaryColor: string; sidebarColor: 
 ];
 
 export const FONT_OPTIONS = [
+  "Figtree",
   "Inter",
   "Poppins",
   "Nunito",
@@ -111,12 +114,25 @@ export function brightness(hex: string | null | undefined): number {
   return (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
 }
 
-// "rounded" is the default scale and sets the app's overall corner language.
-// 8px/7px per HAIP_Prototype.html (--radius:8px, .btn{border-radius:7px}) —
-// tighter than the previous 12px/10px, which read softer and more consumer
-// than the dense operator tooling this is.
-const RADIUS_MAP = { sharp: "4px", rounded: "8px", pill: "9999px" };
-const RADIUS_BTN_MAP = { sharp: "4px", rounded: "7px", pill: "9999px" };
+// "rounded" is the default scale and sets the app's corner language. Hospitality Hybrid uses 12px for controls (cards add
+// 4px on top), friendlier than the old 8px without becoming pill-shaped.
+const RADIUS_MAP = { sharp: "4px", rounded: "12px", pill: "9999px" };
+const RADIUS_BTN_MAP = { sharp: "4px", rounded: "10px", pill: "9999px" };
+
+// The app's own type and colour defaults. A theme that still carries the PREVIOUS defaults (teal + navy, Inter) was never
+// customised by the tenant, so it follows the current house style instead of freezing the old one.
+// Earlier house defaults, as [primary, sidebar] pairs. A workspace still on one never customised its colours, so it follows
+// the current default: teal + navy (until Oct 2026) and plum + white (Hybrid launch, 17-18 Oct 2026).
+const LEGACY_DEFAULTS: [string, string][] = [["#14b8a6", "#0b1f3a"], ["#0f766e", "#0b1f3a"], ["#5a2d6b", "#ffffff"]];
+const APP_FONTS = ["Figtree", "Inter"];
+
+/** Primary as seen in dark mode: the house sea green has a designed lift; any other brand colour is lifted towards white
+ *  until it reads on the dark canvas. */
+function primaryOnDark(p: string): string {
+  if (p.toLowerCase() === DEFAULT_THEME.primaryColor.toLowerCase()) return "#5CC9A0";
+  const b = brightness(p);
+  return b < 90 ? mixWithWhite(p, 0.55) : b < 140 ? mixWithWhite(p, 0.35) : p;
+}
 
 /** Build the full CSS variable map from a BrandTheme */
 export function buildCSSVars(theme: BrandTheme): Record<string, string> {
@@ -148,21 +164,16 @@ export function buildCSSVars(theme: BrandTheme): Record<string, string> {
       return rgb ? `${rgb.r}, ${rgb.g}, ${rgb.b}` : "11, 31, 58";
     })(),
 
-    // ── Canonical token overrides ──────────────────────────────────────────
-    // The --brand-* vars above are only read by a couple of components. These
-    // override the canonical tokens in globals.css, which every Tailwind
-    // utility (bg-primary, ring-*) and the whole --haip-* alias layer resolve
-    // through — so a tenant's colours actually reach the UI. See docs/DESIGN.md.
-    "--primary":            p,
-    "--primary-foreground": brightness(p) > 160 ? "#111827" : "#ffffff",
-    "--ring":               p,
-    "--sidebar":            s,
-    "--sidebar-primary":    p,
-    "--sidebar-foreground": brightness(s) > 160 ? "#111827" : mixWithWhite(s, 0.65),
-    "--radius":             RADIUS_MAP[theme.radiusScale],
-    // NOTE: --font-sans is deliberately NOT set here. It is owned by next/font
-    // (app/layout.tsx), which self-hosts an optimised Inter. applyTheme() only
-    // overrides it when a tenant picks a different font — see below.
+    // ── Canonical token feeds ───────────────────────────────────────────────
+    // globals.css maps --primary, --ring, --radius and friends onto these per theme (light and dark), so a tenant's colour
+    // reaches every Tailwind utility and the --haip-* layer, and dark mode can still lift it. They used to be written here
+    // straight onto <html>, which beat the .dark rules and left a dark brand colour on a dark page.
+    "--brand-on-primary":        brightness(p) > 160 ? "#1C1917" : "#FFFFFF",
+    "--brand-primary-on-dark":   primaryOnDark(p),
+    "--brand-on-primary-dark":   brightness(primaryOnDark(p)) > 150 ? "#1C1917" : "#FFFFFF",
+    "--brand-radius":            RADIUS_MAP[theme.radiusScale],
+    // NOTE: --font-sans is deliberately NOT set here. It is owned by next/font (app/layout.tsx, Figtree); applyTheme()
+    // only overrides it when a tenant picks a different font, see below.
   };
 }
 
@@ -173,9 +184,9 @@ export function applyTheme(theme: BrandTheme): void {
   const root = document.documentElement;
   Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v));
 
-  // Font injection (Google Fonts). Only a non-default font overrides
-  // --font-sans; the "Inter" default stays on next/font's optimised copy.
-  if (theme.fontFamily && theme.fontFamily !== "Inter") {
+  // Font injection (Google Fonts). Only a non-default font overrides --font-sans; the app font stays on next/font's
+  // self-hosted copy. Choosing the app font again removes an earlier override.
+  if (theme.fontFamily && !APP_FONTS.includes(theme.fontFamily)) {
     root.style.setProperty(
       "--font-sans",
       `"${theme.fontFamily}", ui-sans-serif, system-ui, sans-serif`,
@@ -192,7 +203,12 @@ export function applyTheme(theme: BrandTheme): void {
       (existingLink as HTMLLinkElement).href =
         `https://fonts.googleapis.com/css2?family=${fontName}:wght@300;400;500;600;700&display=swap`;
     }
+  } else {
+    root.style.removeProperty("--font-sans");
   }
+  // Themes applied by an older build wrote these straight onto <html>; clear them so globals.css owns the mapping.
+  ["--primary", "--primary-foreground", "--ring", "--sidebar", "--sidebar-primary", "--sidebar-foreground", "--radius"]
+    .forEach(k => root.style.removeProperty(k));
 }
 
 /** Themes saved before the wordmark was cropped still point at /logo.png,
@@ -201,7 +217,15 @@ export function applyTheme(theme: BrandTheme): void {
  * left alone. */
 export function withCurrentDefaultLogo(t: BrandTheme): BrandTheme {
   const fix = (u?: string) => (u === "/logo.png" ? "/logo-wordmark.png" : u);
-  return { ...t, logoUrl: fix(t.logoUrl), logoDarkUrl: fix(t.logoDarkUrl) };
+  const legacyColours = LEGACY_DEFAULTS.some(([pr, sb]) => (t.primaryColor || "").toLowerCase() === pr && (t.sidebarColor || "").toLowerCase() === sb);
+  return {
+    ...t,
+    logoUrl: fix(t.logoUrl),
+    logoDarkUrl: fix(t.logoDarkUrl),
+    // Never customised: follow the current house style (see LEGACY_DEFAULTS).
+    ...(legacyColours ? { primaryColor: DEFAULT_THEME.primaryColor, sidebarColor: DEFAULT_THEME.sidebarColor } : {}),
+    ...(t.fontFamily === "Inter" ? { fontFamily: DEFAULT_THEME.fontFamily } : {}),
+  };
 }
 
 /** Load saved theme from localStorage (instant, no flash) */

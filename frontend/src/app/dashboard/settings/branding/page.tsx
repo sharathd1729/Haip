@@ -99,7 +99,7 @@ function SidebarPreview({ t }: { t: BrandTheme }) {
       </div>
 
       {/* Main area */}
-      <div className="flex-1 bg-gray-50 p-2 flex flex-col gap-2 overflow-hidden">
+      <div className="flex-1 bg-[var(--haip-surface)] p-2 flex flex-col gap-2 overflow-hidden">
         {/* Topbar */}
         <div
           className="rounded flex items-center justify-between px-2 py-1"
@@ -122,8 +122,8 @@ function SidebarPreview({ t }: { t: BrandTheme }) {
         <div className="grid grid-cols-2 gap-1.5">
           {["Calls", "Inquiries", "QA Avg", "Revenue"].map((kpi, i) => (
             <div key={kpi} className="bg-white rounded p-1.5" style={{ borderRadius: radius, border: "1px solid #f0f0f0" }}>
-              <p className="text-[7px] text-gray-400">{kpi}</p>
-              <p className="text-[11px] font-bold text-gray-800 mt-0.5">
+              <p className="text-[7px] text-[var(--haip-fg-subtle)]">{kpi}</p>
+              <p className="text-[11px] font-bold text-[var(--haip-fg)] mt-0.5">
                 {["847", "34", "78%", "₹2.1L"][i]}
               </p>
             </div>
@@ -144,7 +144,7 @@ function SidebarPreview({ t }: { t: BrandTheme }) {
 
         {/* Card */}
         <div className="bg-white rounded p-1.5 flex-1" style={{ borderRadius: radius, border: "1px solid #f0f0f0" }}>
-          <p className="text-[7px] text-gray-400 mb-1">Recent Calls</p>
+          <p className="text-[7px] text-[var(--haip-fg-subtle)] mb-1">Recent Calls</p>
           {["Priya S.", "Arjun R.", "Meera D."].map(name => (
             <div key={name} className="flex items-center gap-1 py-0.5">
               <div
@@ -153,7 +153,7 @@ function SidebarPreview({ t }: { t: BrandTheme }) {
               >
                 {name[0]}
               </div>
-              <span className="text-[7px] text-gray-600">{name}</span>
+              <span className="text-[7px] text-[var(--haip-fg-muted)]">{name}</span>
               <span
                 className="ml-auto text-[6px] px-1 rounded"
                 style={{ backgroundColor: primaryRgba(0.1), color: t.primaryColor }}
@@ -207,14 +207,14 @@ function Section({
   icon: React.ReactNode; title: string; sub?: string; children: React.ReactNode;
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+    <div className="bg-white rounded-2xl border border-[var(--haip-border)] shadow-sm p-5">
       <div className="flex items-center gap-3 mb-4">
-        <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-500">
+        <div className="w-8 h-8 rounded-lg bg-[var(--haip-surface)] flex items-center justify-center text-[var(--haip-fg-subtle)]">
           {icon}
         </div>
         <div>
-          <p className="text-sm font-semibold text-gray-900">{title}</p>
-          {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+          <p className="text-sm font-semibold text-[var(--haip-fg)]">{title}</p>
+          {sub && <p className="text-xs text-[var(--haip-fg-subtle)] mt-0.5">{sub}</p>}
         </div>
       </div>
       {children}
@@ -266,18 +266,18 @@ export default function BrandingPage() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="px-6 py-5 bg-white border-b border-gray-100 flex-shrink-0">
+      <div className="px-6 py-5 bg-white border-b border-[var(--haip-border)] flex-shrink-0">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="haip-page-title">Brand & Theme</h1>
-            <p className="text-sm text-gray-400 mt-0.5">
+            <p className="text-sm text-[var(--haip-fg-subtle)] mt-0.5">
               Tailor HAIP's look to match your brand — colours, logo, fonts, and shape. Changes apply instantly.
             </p>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={handleReset}
-              className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-xl text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2 border border-[var(--haip-border)] rounded-xl text-xs font-medium text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)] transition-colors"
             >
               <RefreshCw size={12} /> Reset to default
             </button>
@@ -288,7 +288,7 @@ export default function BrandingPage() {
                 "flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-colors",
                 saved
                   ? "bg-green-50 text-green-700 border border-green-200"
-                  : "bg-teal-500 text-white hover:bg-teal-600 disabled:opacity-50"
+                  : "bg-primary text-white hover:bg-primary disabled:opacity-50"
               )}
               style={!saved ? { backgroundColor: local.primaryColor, color: bright ? "#111" : "#fff" } : {}}
             >
@@ -314,7 +314,7 @@ export default function BrandingPage() {
                     onClick={() => update({ primaryColor: p.primaryColor, sidebarColor: p.sidebarColor })}
                     className={cn(
                       "flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-medium transition-all",
-                      isActive ? "border-gray-700 shadow-sm" : "border-gray-200 hover:border-gray-300 bg-white"
+                      isActive ? "border-gray-700 shadow-sm" : "border-[var(--haip-border)] hover:border-[var(--haip-border-strong)] bg-white"
                     )}
                   >
                     {/* Mini dual swatch */}
@@ -323,7 +323,7 @@ export default function BrandingPage() {
                       <div className="w-4 h-4 rounded-full border border-white shadow-sm" style={{ backgroundColor: p.primaryColor }} />
                     </div>
                     {p.name}
-                    {isActive && <Check size={10} className="text-gray-600" />}
+                    {isActive && <Check size={10} className="text-[var(--haip-fg-muted)]" />}
                   </button>
                 );
               })}
@@ -335,11 +335,11 @@ export default function BrandingPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-xs font-medium text-gray-700 mb-2">
-                    Light logo <span className="text-gray-400 font-normal">(for any bg)</span>
+                  <p className="text-xs font-medium text-[var(--haip-fg-2)] mb-2">
+                    Light logo <span className="text-[var(--haip-fg-subtle)] font-normal">(for any bg)</span>
                   </p>
                   {local.logoUrl ? (
-                    <div className="relative bg-gray-100 rounded-xl p-3 flex items-center justify-center h-16">
+                    <div className="relative bg-[var(--haip-status-neutral-bg)] rounded-xl p-3 flex items-center justify-center h-16">
                       <img src={local.logoUrl} alt="Logo" className="max-h-10 max-w-full object-contain" />
                       <button
                         onClick={() => update({ logoUrl: "" })}
@@ -349,10 +349,10 @@ export default function BrandingPage() {
                   ) : (
                     <button
                       onClick={() => logoInputRef.current?.click()}
-                      className="w-full h-16 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-1 hover:border-teal-400 transition-colors"
+                      className="w-full h-16 border-2 border-dashed border-[var(--haip-border)] rounded-xl flex flex-col items-center justify-center gap-1 hover:border-primary transition-colors"
                     >
-                      <Upload size={14} className="text-gray-400" />
-                      <span className="text-[10px] text-gray-400">Upload PNG/SVG</span>
+                      <Upload size={14} className="text-[var(--haip-fg-subtle)]" />
+                      <span className="text-[10px] text-[var(--haip-fg-subtle)]">Upload PNG/SVG</span>
                     </button>
                   )}
                   <input ref={logoInputRef} type="file" accept="image/*" className="hidden"
@@ -360,8 +360,8 @@ export default function BrandingPage() {
                 </div>
 
                 <div>
-                  <p className="text-xs font-medium text-gray-700 mb-2">
-                    Dark logo <span className="text-gray-400 font-normal">(sidebar variant)</span>
+                  <p className="text-xs font-medium text-[var(--haip-fg-2)] mb-2">
+                    Dark logo <span className="text-[var(--haip-fg-subtle)] font-normal">(sidebar variant)</span>
                   </p>
                   {local.logoDarkUrl ? (
                     <div
@@ -382,10 +382,10 @@ export default function BrandingPage() {
                         inp.onchange = (ev) => handleLogoUpload(ev as any, "logoDarkUrl");
                         inp.click();
                       }}
-                      className="w-full h-16 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-1 hover:border-teal-400 transition-colors"
+                      className="w-full h-16 border-2 border-dashed border-[var(--haip-border)] rounded-xl flex flex-col items-center justify-center gap-1 hover:border-primary transition-colors"
                     >
-                      <Upload size={14} className="text-gray-400" />
-                      <span className="text-[10px] text-gray-400">Upload for dark bg</span>
+                      <Upload size={14} className="text-[var(--haip-fg-subtle)]" />
+                      <span className="text-[10px] text-[var(--haip-fg-subtle)]">Upload for dark bg</span>
                     </button>
                   )}
                 </div>
@@ -393,21 +393,21 @@ export default function BrandingPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Company name</label>
+                  <label className="block text-xs font-medium text-[var(--haip-fg-2)] mb-1">Company name</label>
                   <input
                     type="text" value={local.companyName ?? ""}
                     onChange={e => update({ companyName: e.target.value })}
                     placeholder="HAIP"
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                    className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Tagline <span className="text-gray-400 font-normal">(optional)</span></label>
+                  <label className="block text-xs font-medium text-[var(--haip-fg-2)] mb-1">Tagline <span className="text-[var(--haip-fg-subtle)] font-normal">(optional)</span></label>
                   <input
                     type="text" value={local.tagline ?? ""}
                     onChange={e => update({ tagline: e.target.value })}
                     placeholder="Hospitality AI"
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                    className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
                   />
                 </div>
               </div>
@@ -419,18 +419,18 @@ export default function BrandingPage() {
             <div className="space-y-5">
               {/* Primary */}
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-2">
-                  Primary colour <span className="text-gray-400 font-normal">— buttons, active nav, badges</span>
+                <label className="block text-xs font-semibold text-[var(--haip-fg-2)] mb-2">
+                  Primary colour <span className="text-[var(--haip-fg-subtle)] font-normal">— buttons, active nav, badges</span>
                 </label>
                 <div className="flex items-center gap-3 flex-wrap">
-                  <div className="flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-2 bg-white">
+                  <div className="flex items-center gap-2 border border-[var(--haip-border)] rounded-xl px-3 py-2 bg-white">
                     <input
                       type="color"
                       value={local.primaryColor}
                       onChange={e => update({ primaryColor: e.target.value })}
                       className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent p-0"
                     />
-                    <span className="text-xs font-mono text-gray-700 w-16">{local.primaryColor}</span>
+                    <span className="text-xs font-mono text-[var(--haip-fg-2)] w-16">{local.primaryColor}</span>
                   </div>
                   <div className="flex gap-1.5 flex-wrap">
                     {PRESET_THEMES.map(p => (
@@ -472,7 +472,7 @@ export default function BrandingPage() {
                     return (
                       <div key={label} className="flex-1 text-center">
                         <div className="w-full h-6 rounded-lg" style={{ backgroundColor: makeColor(mix) }} />
-                        <p className="text-[9px] text-gray-400 mt-1">{label}</p>
+                        <p className="text-[9px] text-[var(--haip-fg-subtle)] mt-1">{label}</p>
                       </div>
                     );
                   })}
@@ -481,18 +481,18 @@ export default function BrandingPage() {
 
               {/* Sidebar */}
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-2">
+                <label className="block text-xs font-semibold text-[var(--haip-fg-2)] mb-2">
                   Sidebar & navigation background
                 </label>
                 <div className="flex items-center gap-3 flex-wrap">
-                  <div className="flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-2 bg-white">
+                  <div className="flex items-center gap-2 border border-[var(--haip-border)] rounded-xl px-3 py-2 bg-white">
                     <input
                       type="color"
                       value={local.sidebarColor}
                       onChange={e => update({ sidebarColor: e.target.value })}
                       className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent p-0"
                     />
-                    <span className="text-xs font-mono text-gray-700 w-16">{local.sidebarColor}</span>
+                    <span className="text-xs font-mono text-[var(--haip-fg-2)] w-16">{local.sidebarColor}</span>
                   </div>
                   <div className="flex gap-1.5 flex-wrap">
                     {[
@@ -521,13 +521,13 @@ export default function BrandingPage() {
                   className={cn(
                     "px-4 py-3 rounded-xl border-2 text-left transition-all",
                     local.fontFamily === font
-                      ? "border-gray-700 bg-gray-50 shadow-sm"
-                      : "border-gray-200 bg-white hover:border-gray-300"
+                      ? "border-gray-700 bg-[var(--haip-surface)] shadow-sm"
+                      : "border-[var(--haip-border)] bg-white hover:border-[var(--haip-border-strong)]"
                   )}
                   style={{ fontFamily: `"${font}", ui-sans-serif, system-ui, sans-serif` }}
                 >
-                  <p className="text-sm font-semibold text-gray-900">{font}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">The quick brown fox</p>
+                  <p className="text-sm font-semibold text-[var(--haip-fg)]">{font}</p>
+                  <p className="text-xs text-[var(--haip-fg-subtle)] mt-0.5">The quick brown fox</p>
                 </button>
               ))}
             </div>
@@ -543,9 +543,9 @@ export default function BrandingPage() {
           <Section icon={<Sliders size={16} />} title="Shape" sub="Border radius applied to cards, buttons, and inputs">
             <div className="grid grid-cols-3 gap-3">
               {[
-                { id: "sharp",   label: "Sharp",   radius: "2px",     preview: "w-full h-10 bg-gray-200" },
-                { id: "rounded", label: "Rounded", radius: "10px",    preview: "w-full h-10 bg-gray-200" },
-                { id: "pill",    label: "Pill",    radius: "9999px",  preview: "w-full h-10 bg-gray-200" },
+                { id: "sharp",   label: "Sharp",   radius: "2px",     preview: "w-full h-10 bg-[var(--haip-border)]" },
+                { id: "rounded", label: "Rounded", radius: "10px",    preview: "w-full h-10 bg-[var(--haip-border)]" },
+                { id: "pill",    label: "Pill",    radius: "9999px",  preview: "w-full h-10 bg-[var(--haip-border)]" },
               ].map(opt => (
                 <button
                   key={opt.id}
@@ -553,13 +553,13 @@ export default function BrandingPage() {
                   className={cn(
                     "flex flex-col items-center gap-3 p-4 rounded-2xl border-2 transition-all",
                     local.radiusScale === opt.id
-                      ? "border-gray-700 bg-gray-50"
-                      : "border-gray-200 bg-white hover:border-gray-300"
+                      ? "border-gray-700 bg-[var(--haip-surface)]"
+                      : "border-[var(--haip-border)] bg-white hover:border-[var(--haip-border-strong)]"
                   )}
                 >
                   {/* Visual representation */}
                   <div
-                    className="w-full h-8 flex items-center justify-center text-[11px] font-semibold text-gray-600"
+                    className="w-full h-8 flex items-center justify-center text-[11px] font-semibold text-[var(--haip-fg-muted)]"
                     style={{
                       backgroundColor: local.primaryColor,
                       borderRadius: opt.radius,
@@ -568,16 +568,16 @@ export default function BrandingPage() {
                   >
                     Button
                   </div>
-                  <div className="text-xs font-semibold text-gray-700">{opt.label}</div>
-                  {local.radiusScale === opt.id && <Check size={12} className="text-gray-600" />}
+                  <div className="text-xs font-semibold text-[var(--haip-fg-2)]">{opt.label}</div>
+                  {local.radiusScale === opt.id && <Check size={12} className="text-[var(--haip-fg-muted)]" />}
                 </button>
               ))}
             </div>
           </Section>
 
           {/* Save footer */}
-          <div className="flex items-center justify-between bg-white rounded-2xl border border-gray-100 p-4">
-            <p className="text-xs text-gray-400">Changes are previewed instantly. Click Save to persist across sessions.</p>
+          <div className="flex items-center justify-between bg-white rounded-2xl border border-[var(--haip-border)] p-4">
+            <p className="text-xs text-[var(--haip-fg-subtle)]">Changes are previewed instantly. Click Save to persist across sessions.</p>
             <button
               onClick={handleSave}
               disabled={isSaving}
@@ -595,20 +595,20 @@ export default function BrandingPage() {
         </div>
 
         {/* Live Preview panel */}
-        <div className="w-80 flex-shrink-0 border-l border-gray-100 bg-white flex flex-col">
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
-            <Eye size={14} className="text-gray-400" />
-            <p className="text-xs font-semibold text-gray-700">Live preview</p>
-            <span className="ml-auto text-[10px] text-gray-400">Updates in real time</span>
+        <div className="w-80 flex-shrink-0 border-l border-[var(--haip-border)] bg-white flex flex-col">
+          <div className="px-4 py-3 border-b border-[var(--haip-border)] flex items-center gap-2">
+            <Eye size={14} className="text-[var(--haip-fg-subtle)]" />
+            <p className="text-xs font-semibold text-[var(--haip-fg-2)]">Live preview</p>
+            <span className="ml-auto text-[10px] text-[var(--haip-fg-subtle)]">Updates in real time</span>
           </div>
           <div className="flex-1 p-4">
-            <div className="rounded-2xl overflow-hidden border border-gray-200 shadow-sm h-full" style={{ minHeight: "460px" }}>
+            <div className="rounded-2xl overflow-hidden border border-[var(--haip-border)] shadow-sm h-full" style={{ minHeight: "460px" }}>
               <SidebarPreview t={local} />
             </div>
           </div>
           <div className="px-4 pb-4">
-            <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500 space-y-1">
-              <p className="font-semibold text-gray-700 mb-1.5">Applied to</p>
+            <div className="bg-[var(--haip-surface)] rounded-xl p-3 text-xs text-[var(--haip-fg-subtle)] space-y-1">
+              <p className="font-semibold text-[var(--haip-fg-2)] mb-1.5">Applied to</p>
               {[
                 "Sidebar background & icons",
                 "Top navigation bar",

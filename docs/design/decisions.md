@@ -2,6 +2,28 @@
 
 Newest first. One entry per decision that changes how the UI is built. Rule from `HAIP_UI_Redesign_Plan.md`: when two sources disagree, follow `docs/DESIGN.md`; if it is silent, follow the plan; log the choice here.
 
+## 2026-10-20
+
+**CRM Bookings shows one card per booking (layout A · Cards by date); the agenda is reserved for the Ops module.** Separate check-in and check-out rows confused agents and the owner. The CRM page now groups one card per booking under its check-in day (Staying now: one "On a trip now" group; Past and Cancelled newest first), keeping the 14-day strip, month summary, tabs, Filters, detail pane and sheets. The agenda (check-in/check-out rows: `components/bookings/agenda/AgendaDays`, `lib/bookingAgenda.buildEvents`) stays in the codebase, unused, for the Ops module.
+
+## 2026-10-19
+
+**Bookings is an agenda (owner chose layout B).** Segments Upcoming / Staying now / Past / Cancelled, a month summary, search + one Filters sheet, a 14-day strip per caravan, then each day's check-ins and check-outs. The Split/Table views and bulk "move to property" are gone (move one booking at a time with Edit). Two new tokens tint the caravans in the strip and on vehicle tags: `--haip-cal-vehicle-1` / `--haip-cal-vehicle-2` (+ `--haip-cal-vehicle-fg`), light and dark. A one-day block in the strip is about 21px wide on a 375px phone: accepted from the mock-up, the same booking is also a full-size row below.
+
+## 2026-10-18
+
+**Palette: Sea Green & Coral replaces plum & marigold.** The owner wanted the theme closer to the brand (green/cyan family, not teal). Four combinations were compared on the real app with a temporary per-browser palette switcher (A Emerald & Marigold, B Sea Green & Coral, C Ocean Cyan & Sand, D Lagoon; screenshots in `docs/design/palette-lab/`, not committed). B was chosen: sea green `#1E7A5A` (dark `#5CC9A0`) for actions, coral `#E0694A` for highlights, sand-white canvas, green-charcoal dark mode; every pair AA in both themes. The lab was removed. Workspaces still on an old house default (teal + navy, or plum + white) follow the new default automatically (`brandTheme.ts` `LEGACY_DEFAULTS`); the Jamun preset was replaced by "Sea Green (HAIP)".
+
+## 2026-10-17
+
+**Hospitality Hybrid replaces "Calm operations room".** Six directions were built side by side on synthetic data in a dev-only lab (`/design-lab`, 4 screens each, layout-checked at 320-1440px); the owner chose F, Hospitality Hybrid. Teal, the navy sidebar and Outfit are retired; plum `#5A2D6B` + marigold, Figtree + Bricolage Grotesque, light top bar on desktop, bottom bar with a raised "Now" on phones. `docs/DESIGN.md` section 7.
+
+**Calendar colours keep their taught meanings.** Owners were told green = direct, gray = blocked, red = maintenance, so calendar bars stay green/gray/red (theme-safe `--haip-cal-*` tokens) rather than becoming plum.
+
+**Old colour systems swept, not hand-edited.** A scripted pass replaced 2,902 teal and raw-gray classes in the CRM app with tokens (marketing site, auth pages and the lab excluded); the separate indigo accents on Leads, Inbox and Calls now resolve to the brand primary.
+
+**Skills.** impeccable (guidance read directly; its launcher binary is absent and was not downloaded), Replica (11 skills copied into `~/.claude/skills` after reading them; its contrast script checked the palettes), taste-skill / emil-design-eng / ui-ux-pro-max for hierarchy and motion restraint, dataviz for chart colour checks. No hooks enabled.
+
 ## 2026-10-12
 
 **The five design skills are now installed locally (user-level); how the Owner Command Center used them.**

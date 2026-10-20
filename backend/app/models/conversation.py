@@ -67,6 +67,11 @@ class Conversation(Base, TimestampMixin, TenantMixin):
     # "personal_bridge" only by whatsapp_personal_service.ingest_inbound_message.
     source = Column(String(30), nullable=True)
 
+    @property
+    def is_personal_bridge(self) -> bool:
+        """Mirrored from the read-only personal WhatsApp bridge: HAIP must never reply on it from the official number."""
+        return self.source == "personal_bridge"
+
     # SLA
     first_response_at = Column(String, nullable=True)
     last_message_at = Column(String, nullable=True)
@@ -168,6 +173,11 @@ class Message(Base, TimestampMixin, TenantMixin):
     # one-click action and the auto-send path all set to True -- so it alone
     # cannot answer "what did the AI send unsupervised?" (migration 081).
     sent_autonomously = Column(Boolean, default=False, nullable=False)
+
+    # Who or what wrote an outbound message (migration 151): human | ai_approved | ai_auto | system | playbook | campaign |
+    # bridge_live | bridge_history. NULL on older rows and on writers not yet stamped; the contact rule
+    # (work_queue_signals.touch_rows) never counts playbook / system / campaign / bridge_history rows as a person's contact.
+    sender_kind = Column(String(20), nullable=True)
 
     # Per-message intent the concierge classified while drafting
     # (availability_check | price_quote | faq_answer | complaint | general).

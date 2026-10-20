@@ -14,12 +14,12 @@ export function FilterSearch({ value, onChange, placeholder, label = "Search", c
   return (
     <label className={cn("relative block min-w-[200px] flex-1 sm:max-w-sm", className)}>
       <span className="sr-only">{label}</span>
-      <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-icon-neutral)]" />
+      <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--haip-icon-neutral)]" />
       <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        className="h-9 w-full rounded-lg border border-[var(--haip-border)] bg-[var(--haip-card)] pl-9 pr-8 text-[13px] text-[var(--haip-fg)] placeholder:text-[var(--haip-fg-subtle)] focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20" />
+        className="h-10 w-full rounded-xl border border-[var(--haip-border)] bg-[var(--haip-card)] pl-10 pr-10 text-[16px] text-[var(--haip-fg)] placeholder:text-[var(--haip-fg-subtle)] focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 max-md:h-11 sm:text-[14px]" />
       {value && (
         <button type="button" aria-label="Clear search" onClick={() => onChange("")}
-          className="absolute right-2 top-1/2 flex size-6 -translate-y-1/2 items-center justify-center rounded text-[var(--haip-icon-neutral)] hover:text-[var(--haip-fg)]">
+          className="absolute right-1 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-lg text-[var(--haip-icon-neutral)] hover:text-[var(--haip-fg)]">
           <X size={13} />
         </button>
       )}
@@ -34,11 +34,11 @@ export function FilterChip({ active, onClick, count, children }: {
   return (
     <button type="button" aria-pressed={!!active} onClick={onClick}
       className={cn(
-        "flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-[12.5px] font-medium transition-colors active:scale-[0.97]",
-        active ? "border-primary bg-primary/10 text-primary" : "border-[var(--haip-border)] bg-[var(--haip-card)] text-[var(--haip-fg-2)] hover:border-[var(--haip-border-strong)]",
+        "relative flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-[13.5px] font-semibold transition-colors active:scale-[0.97] max-md:before:absolute max-md:before:-inset-y-1 max-md:before:inset-x-0 max-md:before:content-['']",
+        active ? "border-[color-mix(in_srgb,var(--primary)_35%,transparent)] bg-[var(--haip-primary-tint)] text-primary" : "border-[var(--haip-border)] bg-[var(--haip-card)] text-[var(--haip-fg-muted)] hover:border-[var(--haip-border-strong)] hover:text-[var(--haip-fg)]",
       )}>
       {children}
-      {count != null && <span className="text-[11px] tabular-nums opacity-70">{count}</span>}
+      {count != null && <span className="num text-[12px] font-bold opacity-80">{count}</span>}
     </button>
   );
 }

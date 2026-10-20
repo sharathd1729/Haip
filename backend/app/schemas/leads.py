@@ -55,6 +55,14 @@ class QuoteHistorySchema(BaseModel):
     created_at: Optional[datetime] = None
     is_active: bool = False
     age_days: Optional[int] = None
+    status: Optional[str] = None             # issued | superseded | accepted | withdrawn ...
+    option_rank: int = 1
+    payment_link_status: Optional[str] = None   # created | paid | expired | cancelled (newest link of this option)
+    payment_link_url: Optional[str] = None
+    booking_id: Optional[str] = None            # the booking a paid link became
+    shared_via: Optional[str] = None            # rate calculator: sent | copied (None = saved only)
+    valid_until: Optional[datetime] = None
+    label: Optional[str] = None                 # the package / trip name
 
 
 # ─── Lead Card ────────────────────────────────────────────────────────────────
@@ -146,6 +154,13 @@ class LeadCardSchema(BaseModel):
     needs_agent_followup: bool = False
     needs_agent_followup_reason: Optional[str] = None
 
+    # Lead autopilot: set when the lead's current stage was set by the autopilot (applied, not undone) --
+    # {event_id, to_stage_label, reason, source, lost_reason, at}. Drives the list badge.
+    autopilot_move: Optional[dict] = None
+
+    # Rate calculator: the lead's newest quote -- {quote_id, amount, status, shared_via, how, valid_until, valid_until_text, label}.
+    latest_quote: Optional[dict] = None
+
 
 # ─── Lead Detail (card + timeline) ───────────────────────────────────────────
 
@@ -162,6 +177,8 @@ class LeadDetailSchema(LeadCardSchema):
     # already uses on the call detail page -- see lead_recommendation_service.py.
     # Human clicks "Apply"; nothing here moves the pipeline on its own.
     recommended_actions: List[dict] = []
+    # Lead autopilot (lead_autopilot_view.lead_block): {mode, pinned, pinned_at, last_move, suggestion, history}.
+    autopilot: Optional[dict] = None
 
 
 # ─── List Response ────────────────────────────────────────────────────────────

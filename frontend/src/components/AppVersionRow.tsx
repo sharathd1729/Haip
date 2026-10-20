@@ -46,7 +46,7 @@ export function AppVersionRow({ dark = false }: { dark?: boolean }) {
       <span style={{ color: textColor }}>
         {version ? `v${version}` : "…"}
         {updateAvailable && (
-          <span className="ml-1.5 font-semibold" style={{ color: "var(--haip-sidebar-accent, #14b8a6)" }}>
+          <span className="ml-1.5 font-semibold" style={{ color: "var(--primary)" }}>
             · update ready
           </span>
         )}

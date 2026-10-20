@@ -218,7 +218,7 @@ def build_quote(
 # ── Share via WhatsApp ────────────────────────────────────────────────────────
 
 @router.post("/calculator/share")
-def share_quote_whatsapp(
+async def share_quote_whatsapp(
     body: ShareRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -260,7 +260,7 @@ def share_quote_whatsapp(
                 phone_number_id=creds.get("phone_number_id", ""),
                 access_token=creds.get("access_token", ""),
             )
-            result = adapter.send_text(to=body.guest_phone, text=message)
+            result = await adapter.send_text(to=body.guest_phone, body=message)   # async adapter; the kwarg is `body`
             return {
                 "status": "sent",
                 "message_preview": message[:200],

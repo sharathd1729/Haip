@@ -57,7 +57,7 @@ function ResetPasswordForm() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-6 py-12">
+    <div className="min-h-screen bg-[var(--haip-surface)] flex flex-col items-center justify-center px-6 py-12">
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-8">
@@ -66,30 +66,30 @@ function ResetPasswordForm() {
           </Link>
         </div>
 
-        <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
+        <div className="bg-white rounded-2xl p-8 shadow-sm border border-[var(--haip-border)]">
           {done ? (
             <div className="text-center">
-              <div className="w-14 h-14 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center mx-auto mb-4">
-                <CheckCircle2 size={28} className="text-teal-500" />
+              <div className="w-14 h-14 rounded-2xl bg-[var(--haip-primary-tint)] border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] flex items-center justify-center mx-auto mb-4">
+                <CheckCircle2 size={28} className="text-primary" />
               </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">Password updated!</h2>
-              <p className="text-gray-500 text-sm leading-relaxed mb-4">
+              <h2 className="text-xl font-bold text-[var(--haip-fg)] mb-2">Password updated!</h2>
+              <p className="text-[var(--haip-fg-subtle)] text-sm leading-relaxed mb-4">
                 Your password has been reset successfully. Redirecting you to sign in…
               </p>
-              <Link href="/login" className="text-sm text-[#3D9E7E] font-medium hover:underline">
+              <Link href="/login" className="text-sm text-primary font-medium hover:underline">
                 Go to sign in →
               </Link>
             </div>
           ) : (
             <>
-              <h2 className="text-xl font-bold text-gray-900 mb-1">Set new password</h2>
-              <p className="text-gray-500 text-sm mb-6 leading-relaxed">
+              <h2 className="text-xl font-bold text-[var(--haip-fg)] mb-1">Set new password</h2>
+              <p className="text-[var(--haip-fg-subtle)] text-sm mb-6 leading-relaxed">
                 Choose a strong password for your account.
               </p>
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  <label className="block text-sm font-medium text-[var(--haip-fg-2)] mb-1.5">
                     New password
                   </label>
                   <div className="relative">
@@ -99,13 +99,13 @@ function ResetPasswordForm() {
                       value={password}
                       onChange={e => setPassword(e.target.value)}
                       placeholder="Min. 8 characters"
-                      className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
+                      className="w-full px-4 py-3 pr-11 border border-[var(--haip-border)] rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow"
                       suppressHydrationWarning
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(v => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)]"
                     >
                       {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
@@ -113,7 +113,7 @@ function ResetPasswordForm() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  <label className="block text-sm font-medium text-[var(--haip-fg-2)] mb-1.5">
                     Confirm password
                   </label>
                   <input
@@ -122,7 +122,7 @@ function ResetPasswordForm() {
                     value={confirm}
                     onChange={e => setConfirm(e.target.value)}
                     placeholder="Repeat your password"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
+                    className="w-full px-4 py-3 border border-[var(--haip-border)] rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow"
                     suppressHydrationWarning
                   />
                 </div>
@@ -136,14 +136,14 @@ function ResetPasswordForm() {
                 <button
                   type="submit"
                   disabled={loading || !token}
-                  className="w-full py-3 bg-[#0E1210] hover:bg-[#1B2419] disabled:opacity-60 text-white font-semibold rounded-xl text-sm transition-colors"
+                  className="w-full py-3 bg-primary hover:bg-[var(--haip-primary-hover)] disabled:opacity-60 text-white font-semibold rounded-xl text-sm transition-colors"
                 >
                   {loading ? "Updating…" : "Update password"}
                 </button>
               </form>
 
               <div className="mt-6 text-center">
-                <Link href="/login" className="text-sm text-gray-500 hover:text-gray-700 font-medium transition-colors">
+                <Link href="/login" className="text-sm text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-2)] font-medium transition-colors">
                   Back to sign in
                 </Link>
               </div>
@@ -158,7 +158,7 @@ function ResetPasswordForm() {
 export default function ResetPasswordPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-[var(--haip-surface)] flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-[#C8964A] border-t-transparent rounded-full animate-spin" />
       </div>
     }>

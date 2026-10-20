@@ -273,8 +273,18 @@ def ingest_call(self, payload: dict, tenant_id: str, ivr_provider: str):
             log.info("call_created", call_id=call.id, guest_token=_phone_token(guest_number))
 
             if normalized.direction == "outbound":
-                _link_recovered_call(db, tenant_id, guest.id, call)
+                # A callback the guest never picked up has not recovered the
+                # missed call: it stays open (and gets its own reminder below).
+                from app.services.call_status_service import is_unanswered_outbound_at_ingest
+                if not is_unanswered_outbound_at_ingest(call):
+                    _link_recovered_call(db, tenant_id, guest.id, call)
                 _maybe_create_callback_task(db, tenant_id, call, guest, inquiry)
+
+            # Lead workflows: missed call / no answer -> WhatsApp the guest (lead_playbooks.py; off unless switched on).
+            from app.services.lead_playbook_engine import playbook_for_call
+            if playbook_for_call(call):
+                from app.workers.tasks.lead_playbooks import queue_on_call
+                queue_on_call(tenant_id, call.id)
 
             # Queue recording fetch + transcription
             fetch_and_store_recording.delay(

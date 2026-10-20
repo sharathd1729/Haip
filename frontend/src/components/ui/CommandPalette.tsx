@@ -179,18 +179,18 @@ export function CommandPalette() {
 
       {/* Palette */}
       <div className="fixed top-[20dvh] left-1/2 -translate-x-1/2 z-50 w-full max-w-xl px-4">
-        <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-2xl border border-[var(--haip-border)] overflow-hidden">
           {/* Search input */}
-          <div className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-100">
-            <Search size={16} className="text-gray-400 flex-shrink-0" />
+          <div className="flex items-center gap-3 px-4 py-3.5 border-b border-[var(--haip-border)]">
+            <Search size={16} className="text-[var(--haip-fg-subtle)] flex-shrink-0" />
             <input
               ref={inputRef}
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder="Search pages, guests, conversations…"
-              className="flex-1 text-sm text-gray-800 placeholder:text-gray-400 outline-none bg-transparent"
+              className="flex-1 text-sm text-[var(--haip-fg)] placeholder:text-[var(--haip-fg-subtle)] outline-none bg-transparent"
             />
-            <kbd className="hidden sm:flex items-center gap-0.5 text-[10px] text-gray-400 bg-gray-100 rounded px-1.5 py-0.5 font-mono">
+            <kbd className="hidden sm:flex items-center gap-0.5 text-[10px] text-[var(--haip-fg-subtle)] bg-[var(--haip-status-neutral-bg)] rounded px-1.5 py-0.5 font-mono">
               Esc
             </kbd>
           </div>
@@ -198,11 +198,11 @@ export function CommandPalette() {
           {/* Results */}
           <div className="max-h-80 overflow-y-auto py-2">
             {flat.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-8">No results for &quot;{query}&quot;</p>
+              <p className="text-sm text-[var(--haip-fg-subtle)] text-center py-8">No results for &quot;{query}&quot;</p>
             ) : (
               Object.entries(grouped).map(([group, items]) => (
                 <div key={group}>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-4 py-1.5">{group}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--haip-fg-subtle)] px-4 py-1.5">{group}</p>
                   {items.map(item => {
                     const idx = flatIdx++;
                     const isActive = cursor === idx;
@@ -213,21 +213,21 @@ export function CommandPalette() {
                         onMouseEnter={() => setCursor(idx)}
                         className={cn(
                           "w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors",
-                          isActive ? "bg-teal-50" : "hover:bg-gray-50"
+                          isActive ? "bg-[var(--haip-primary-tint)]" : "hover:bg-[var(--haip-surface)]"
                         )}
                       >
-                        <span className={cn("flex-shrink-0", isActive ? "text-teal-600" : "text-gray-400")}>
+                        <span className={cn("flex-shrink-0", isActive ? "text-primary" : "text-[var(--haip-fg-subtle)]")}>
                           {item.icon}
                         </span>
                         <div className="flex-1 min-w-0">
-                          <p className={cn("text-sm font-medium truncate", isActive ? "text-teal-700" : "text-gray-800")}>
+                          <p className={cn("text-sm font-medium truncate", isActive ? "text-primary" : "text-[var(--haip-fg)]")}>
                             {item.label}
                           </p>
                           {item.subtitle && (
-                            <p className="text-xs text-gray-400 truncate">{item.subtitle}</p>
+                            <p className="text-xs text-[var(--haip-fg-subtle)] truncate">{item.subtitle}</p>
                           )}
                         </div>
-                        {isActive && <ArrowRight size={13} className="text-teal-500 flex-shrink-0" />}
+                        {isActive && <ArrowRight size={13} className="text-primary flex-shrink-0" />}
                       </button>
                     );
                   })}
@@ -237,10 +237,10 @@ export function CommandPalette() {
           </div>
 
           {/* Footer */}
-          <div className="px-4 py-2.5 border-t border-gray-100 flex items-center gap-4 text-[10px] text-gray-400">
-            <span className="flex items-center gap-1"><kbd className="bg-gray-100 rounded px-1 py-0.5 font-mono">↑↓</kbd> navigate</span>
-            <span className="flex items-center gap-1"><kbd className="bg-gray-100 rounded px-1 py-0.5 font-mono">↵</kbd> open</span>
-            <span className="flex items-center gap-1"><kbd className="bg-gray-100 rounded px-1 py-0.5 font-mono">Esc</kbd> close</span>
+          <div className="px-4 py-2.5 border-t border-[var(--haip-border)] flex items-center gap-4 text-[10px] text-[var(--haip-fg-subtle)]">
+            <span className="flex items-center gap-1"><kbd className="bg-[var(--haip-status-neutral-bg)] rounded px-1 py-0.5 font-mono">↑↓</kbd> navigate</span>
+            <span className="flex items-center gap-1"><kbd className="bg-[var(--haip-status-neutral-bg)] rounded px-1 py-0.5 font-mono">↵</kbd> open</span>
+            <span className="flex items-center gap-1"><kbd className="bg-[var(--haip-status-neutral-bg)] rounded px-1 py-0.5 font-mono">Esc</kbd> close</span>
             <span className="ml-auto flex items-center gap-1">
               <Clock size={10} />
               {flat.length} result{flat.length !== 1 ? "s" : ""}

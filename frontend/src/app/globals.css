@@ -59,12 +59,12 @@
 @theme {
   --default-transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
   --default-transition-duration: 160ms;
-  --shadow-xs: 0 1px 2px 0 rgb(15 23 42 / 0.05);
-  --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06);
-  --shadow-md: 0 2px 4px -1px rgb(15 23 42 / 0.05), 0 6px 14px -2px rgb(15 23 42 / 0.08);
-  --shadow-lg: 0 4px 6px -2px rgb(15 23 42 / 0.05), 0 12px 28px -4px rgb(15 23 42 / 0.10);
-  --shadow-xl: 0 8px 16px -4px rgb(15 23 42 / 0.06), 0 24px 48px -8px rgb(15 23 42 / 0.14);
-  --shadow-2xl: 0 24px 64px -12px rgb(15 23 42 / 0.28);
+  --shadow-xs: 0 1px 2px 0 rgb(28 25 23 / 0.05);
+  --shadow-sm: 0 1px 2px 0 rgb(28 25 23 / 0.05), 0 2px 6px -2px rgb(28 25 23 / 0.06);
+  --shadow-md: 0 1px 2px 0 rgb(28 25 23 / 0.05), 0 6px 16px -6px rgb(28 25 23 / 0.12);
+  --shadow-lg: 0 2px 4px -1px rgb(28 25 23 / 0.05), 0 14px 32px -10px rgb(28 25 23 / 0.16);
+  --shadow-xl: 0 4px 8px -2px rgb(28 25 23 / 0.06), 0 24px 48px -12px rgb(28 25 23 / 0.20);
+  --shadow-2xl: 0 24px 64px -12px rgb(28 25 23 / 0.30);
 }
 
 /* ── Canonical token layer ───────────────────────────────────────────────────
@@ -75,56 +75,44 @@
    See docs/DESIGN.md.
 ────────────────────────────────────────────────────────────────────────────── */
 :root {
-  /* Body/UI font -- system stack, not next/font/google's Inter fetch.
-     That fetch has started 404ing at build time on both Vercel and the
-     VPS Docker build (fonts.gstatic.com rejecting the specific woff2 URLs
-     Next/Turbopack requests for this Inter subset) -- blocking every
-     deploy. A system stack has near-identical metrics to Inter and zero
-     network dependency at build time. Outfit (--font-display) is
-     untouched -- it wasn't in the failing set. */
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --background: oklch(1 0 0);
-  --foreground: #111827;
-  /* Slightly off-white so bg-card is visible on bg-background */
-  --card: oklch(0.994 0 0);
-  --card-foreground: #111827;
-  --popover: oklch(1 0 0);
-  --popover-foreground: #111827;
-  /* HAIP teal so bg-primary/10, text-primary etc. work. Literal hex, not
-     oklch: the previous oklch(0.47 0.085 175) resolved to rgb(13,106,88),
-     a duller teal than the #0F766E it claimed to be — the --haip-* layer
-     used the correct hex, so the two drifted. */
-  --primary: #0F766E;
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: #374151;
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: #475569;
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: #374151;
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: #E5E7EB;
-  --input: #E5E7EB;
-  --ring: #0F766E;
-  --chart-1: #0F766E;
-  --chart-2: oklch(0.65 0.15 150);
-  --chart-3: oklch(0.72 0.15 60);
-  --chart-4: oklch(0.60 0.18 290);
-  --chart-5: oklch(0.60 0.20 25);
-  /* 0.75rem = 12px — rounded-xl lands at a clean 16.8px.
-     NOTE: inside the dashboard this is overridden at runtime by
-     brandTheme.ts's RADIUS_MAP (tenant-configurable sharp/rounded/pill), so
-     changing it here only affects surfaces outside BrandThemeProvider —
-     the marketing site and auth pages. Change RADIUS_MAP for the app. */
-  --radius: 0.75rem;
-  --sidebar: oklch(1 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #0F766E;
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* Hospitality Hybrid (docs/DESIGN.md): warm sand-white neutrals, sea green for the brand and every primary action, coral for
+     highlights. --primary/--radius come from the tenant's brand theme (brandTheme.ts writes --brand-primary and friends on
+     <html>); the literal after each var() is the default when no theme is applied (marketing, auth, first paint). */
+  --font-sans: var(--font-figtree), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-inbox: var(--font-sans);
+  --background: #FFFFFF;
+  --foreground: #1C1917;
+  --card: #FFFFFF;
+  --card-foreground: #1C1917;
+  --popover: #FFFFFF;
+  --popover-foreground: #1C1917;
+  --primary: var(--brand-primary, #1E7A5A);
+  --primary-foreground: var(--brand-on-primary, #FFFFFF);
+  --secondary: #F0EFED;
+  --secondary-foreground: #44403C;
+  --muted: #F0EFED;
+  --muted-foreground: #5F5A55;
+  --accent: #E6F2EC;
+  --accent-foreground: #145240;
+  --destructive: #B4322F;
+  --border: #E7E5E4;
+  /* Form-field borders need 3:1 against the field (WCAG 1.4.11). */
+  --input: #A8A29E;
+  --ring: var(--primary);
+  --chart-1: var(--primary);
+  --chart-2: #E0694A;
+  --chart-3: #2E7D4F;
+  --chart-4: #3B5BA9;
+  --chart-5: #B4322F;
+  --radius: var(--brand-radius, 12px);
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #1C1917;
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: #E6F2EC;
+  --sidebar-accent-foreground: #145240;
+  --sidebar-border: #E7E5E4;
+  --sidebar-ring: var(--primary);
 
   /* Marketing palette — LIGHT mode (clean white + teal) */
   --mkt-bg:          #FFFFFF;
@@ -140,38 +128,38 @@
 }
 
 .dark {
-  /* HAIP dark navy palette */
-  --background:          #0f1521;          /* main page bg — deep navy */
-  --foreground:          #e8edf8;          /* primary text */
-  --card:                #161e30;          /* card / panel bg */
-  --card-foreground:     #e8edf8;
-  --popover:             #1a2337;
-  --popover-foreground:  #e8edf8;
-  --primary:             #4f8ef7;          /* HAIP blue accent */
-  --primary-foreground:  #ffffff;
-  --secondary:           #1e2a42;
-  --secondary-foreground:#c5cfe0;
-  --muted:               #1a2337;
-  --muted-foreground:    #7a8ba8;
-  --accent:              #1e2a42;
-  --accent-foreground:   #c5cfe0;
-  --destructive:         oklch(0.704 0.191 22.216);
-  --border:              rgba(255, 255, 255, 0.07);
-  --input:               rgba(255, 255, 255, 0.08);
-  --ring:                rgba(79, 142, 247, 0.4);
-  --chart-1: #4f8ef7;
-  --chart-2: #34d399;
-  --chart-3: #f59e0b;
-  --chart-4: #a78bfa;
-  --chart-5: #f87171;
-  --sidebar:                    #0b1120;
-  --sidebar-foreground:         rgba(255,255,255,0.65);
-  --sidebar-primary:            #4f8ef7;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent:             rgba(255,255,255,0.05);
-  --sidebar-accent-foreground:  #ffffff;
-  --sidebar-border:             rgba(255,255,255,0.06);
-  --sidebar-ring:               rgba(79,142,247,0.4);
+  /* Hybrid at night: deep green-charcoal (never blue-black), lifted sea green for actions so it stays readable on dark. */
+  --background:          #111412;
+  --foreground:          #F3EFEC;
+  --card:                #1A201C;
+  --card-foreground:     #F3EFEC;
+  --popover:             #202722;
+  --popover-foreground:  #F3EFEC;
+  --primary:             var(--brand-primary-on-dark, #5CC9A0);
+  --primary-foreground:  var(--brand-on-primary-dark, #1C1917);
+  --secondary:           #212824;
+  --secondary-foreground:#D6CFC9;
+  --muted:               #212824;
+  --muted-foreground:    #B3ABA4;
+  --accent:              #1F2E27;
+  --accent-foreground:   #CFEFE1;
+  --destructive:         #F08C80;
+  --border:              rgba(255, 255, 255, 0.09);
+  --input:               #6E6560;
+  --ring:                var(--primary);
+  --chart-1: var(--primary);
+  --chart-2: #F08A6E;
+  --chart-3: #6FCF97;
+  --chart-4: #8FA8E8;
+  --chart-5: #F08C80;
+  --sidebar:                    #1A1614;
+  --sidebar-foreground:         #F3EFEC;
+  --sidebar-primary:            var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent:             #1F2E27;
+  --sidebar-accent-foreground:  #CFEFE1;
+  --sidebar-border:             rgba(255,255,255,0.08);
+  --sidebar-ring:               var(--primary);
 
   /* Marketing palette — DARK mode (deep teal) */
   --mkt-bg:          #041C1A;
@@ -191,20 +179,20 @@
    var(--text-secondary) automatically adapt to both themes.
 ────────────────────────────────────────────────────────────────────────────── */
 :root {
-  --page-bg:           #ffffff;
-  --panel-bg:          #f8fafc;
-  --text-primary:      #111827;
-  --text-secondary:    #4b5563;
-  --input-bg:          #f1f5f9;
-  --hover-bg:          rgba(0, 0, 0, 0.04);
+  --page-bg:           #F7F5F2;
+  --panel-bg:          #FAFAF9;
+  --text-primary:      #1C1917;
+  --text-secondary:    #5F5A55;
+  --input-bg:          #F5F5F4;
+  --hover-bg:          rgba(28, 25, 23, 0.04);
 }
 .dark {
-  --page-bg:           #0f1521;
-  --panel-bg:          #161e30;
-  --text-primary:      #e8edf8;
-  --text-secondary:    #7a8ba8;
+  --page-bg:           #111412;
+  --panel-bg:          #1A201C;
+  --text-primary:      #F3EFEC;
+  --text-secondary:    #B3ABA4;
   --input-bg:          rgba(255, 255, 255, 0.05);
-  --hover-bg:          rgba(255, 255, 255, 0.04);
+  --hover-bg:          rgba(255, 255, 255, 0.05);
 }
 
 /* ── Global dark-mode overrides ───────────────────────────────────────────────
@@ -213,20 +201,20 @@
 ────────────────────────────────────────────────────────────────────────────── */
 @layer utilities {
   /* Backgrounds */
-  .dark .bg-white          { background-color: #161e30 !important; }
-  .dark .bg-gray-50        { background-color: #0f1521 !important; }
-  .dark .bg-gray-50\/50    { background-color: rgba(15,21,33,0.5) !important; }
-  .dark .bg-gray-100       { background-color: #1a2337 !important; }
-  .dark .bg-gray-200       { background-color: #1e2a42 !important; }
+  .dark .bg-white          { background-color: var(--card) !important; }
+  .dark .bg-gray-50        { background-color: var(--background) !important; }
+  .dark .bg-gray-50\/50    { background-color: rgba(20,17,16,0.5) !important; }
+  .dark .bg-gray-100       { background-color: var(--muted) !important; }
+  .dark .bg-gray-200       { background-color: #332C28 !important; }
 
   /* Text */
-  .dark .text-gray-900     { color: #e8edf8 !important; }
-  .dark .text-gray-800     { color: #d0d9ee !important; }
-  .dark .text-gray-700     { color: #b0bcda !important; }
-  .dark .text-gray-600     { color: #8a9abc !important; }
-  .dark .text-gray-500     { color: #6b7a96 !important; }
-  .dark .text-gray-400     { color: #4e5e7a !important; }
-  .dark .text-gray-300     { color: #3a4a66 !important; }
+  .dark .text-gray-900     { color: var(--foreground) !important; }
+  .dark .text-gray-800     { color: #E7E1DC !important; }
+  .dark .text-gray-700     { color: #D6CFC9 !important; }
+  .dark .text-gray-600     { color: #B3ABA4 !important; }
+  .dark .text-gray-500     { color: #A39A93 !important; }
+  .dark .text-gray-400     { color: #8C847D !important; }
+  .dark .text-gray-300     { color: #6E6560 !important; }
 
   /* Borders */
   .dark .border-gray-50    { border-color: rgba(255,255,255,0.04) !important; }
@@ -418,102 +406,146 @@
      sidebar regardless of their brand. Aliasing here means per-tenant
      white-labelling drives the sidebar for free. Literals are fallbacks for
      when the provider hasn't painted yet (SSR/first frame). */
-  --haip-sidebar:            var(--brand-sidebar-bg, #0B1F3A);
-  --haip-sidebar-accent:     var(--brand-sidebar-active, #14B8A6);
-  --haip-sidebar-fg:         var(--brand-sidebar-text, rgba(255,255,255,0.65));
-  --haip-sidebar-fg-active:  #FFFFFF;
-  --haip-sidebar-fg-subtle:  rgba(255,255,255,0.38);
-  --haip-sidebar-border:     rgba(255,255,255,0.07);
-  --haip-sidebar-hover:      rgba(255,255,255,0.06);
-  --haip-sidebar-active-bg:  color-mix(in srgb, var(--haip-sidebar-accent) 16%, transparent);
+  /* The old dark sidebar island is retired (Hybrid uses a light top bar); these stay so any leftover consumer still reads. */
+  --haip-sidebar:            #FFFFFF;
+  --haip-sidebar-accent:     var(--primary);
+  --haip-sidebar-fg:         #5F5A55;
+  --haip-sidebar-fg-active:  #1C1917;
+  --haip-sidebar-fg-subtle:  #78716C;
+  --haip-sidebar-border:     #E7E5E4;
+  --haip-sidebar-hover:      rgba(28,25,23,0.04);
+  --haip-sidebar-active-bg:  color-mix(in srgb, var(--primary) 10%, transparent);
 
-  /* App canvas — cool grey behind white cards, so cards read as raised
-     surfaces. Deliberately NOT --background: that stays white for the
-     marketing site and auth pages, which have their own palettes. */
-  --haip-app-bg:        #F3F4F6;
+  /* App canvas: stone, so white cards read as raised. --background stays white for marketing and auth. */
+  --haip-app-bg:        #F7F5F2;
 
   /* Brand — follows --primary so per-tenant white-labelling propagates */
   --haip-primary:       var(--primary);
-  --haip-primary-hover: color-mix(in srgb, var(--primary) 85%, black);
-  --haip-accent:        #5EEAD4;
-  --haip-accent-light:  rgba(94,234,212,0.15);
-  /* Secondary accent — used for highlights/warm emphasis alongside teal */
-  --haip-gold:          #F59E0B;
-  --haip-gold-light:    #FEF3C7;
+  --haip-primary-hover: color-mix(in srgb, var(--primary) 86%, black);
+  --haip-primary-tint:  color-mix(in srgb, var(--primary) 9%, var(--card));
+  /* Coral: highlights only (today, the selected day, a "new" mark, VIP), never a primary action. */
+  --haip-accent:        #E0694A;
+  --haip-accent-light:  #FCE6DF;
+  --haip-accent-ink:    #9E3A22;
+  --haip-gold:          #E0694A;
+  --haip-gold-light:    #FCE6DF;
 
   /* Surfaces */
-  --haip-surface:       #F8FAFC;
+  --haip-surface:       #FAFAF9;
   --haip-card:          var(--card);
   --haip-border:        var(--border);
-  --haip-border-strong: #D1D5DB;
+  --haip-border-strong: #D6D3D1;
 
   /* Typography */
   --haip-fg:            var(--foreground);
   --haip-fg-2:          var(--secondary-foreground);
   --haip-fg-muted:      var(--muted-foreground);
-  --haip-fg-subtle:     #64748B;
+  --haip-fg-subtle:     #6B6560;
 
   /* Legacy aliases (keep for pages not yet migrated) */
   --haip-text:          var(--foreground);
   --haip-text-2:        var(--secondary-foreground);
   --haip-text-muted:    var(--muted-foreground);
-  --haip-text-subtle:   #94A3B8;
+  --haip-text-subtle:   #78716C;
 
   /* Status */
-  --haip-green:         #10B981;
-  --haip-amber:         #F59E0B;
-  --haip-red:           #EF4444;
+  --haip-green:         #2E7D4F;
+  --haip-amber:         #D9930D;
+  --haip-red:           #C2412D;
 
-  /* Shadows — shadow-sm light, none in dark */
-  --haip-shadow-sm:     0 1px 2px rgba(0,0,0,0.04), 0 1px 1px rgba(0,0,0,0.03);
-  --haip-shadow-md:     0 4px 6px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
-  --haip-shadow-lg:     0 10px 15px rgba(0,0,0,0.08), 0 4px 6px rgba(0,0,0,0.04);
+  /* Shadows: warm, soft, offset (cards lift off the stone canvas) */
+  --haip-shadow-sm:     0 1px 2px rgba(28,25,23,0.05), 0 2px 6px -2px rgba(28,25,23,0.06);
+  --haip-shadow-md:     0 1px 2px rgba(28,25,23,0.05), 0 6px 16px -6px rgba(28,25,23,0.12);
+  --haip-shadow-lg:     0 2px 4px -1px rgba(28,25,23,0.05), 0 14px 32px -10px rgba(28,25,23,0.16);
 
-  /* Radius + spacing: ONE six-step ramp for both (4 / 6 / 8 / 12 / 16 / 20). Use these, not new numbers.
-     (docs/DESIGN.md section 5; the white-label --radius still scales card corners.) */
+  /* Radius + spacing: ONE six-step ramp (4 / 6 / 8 / 12 / 16 / 20). Hybrid leans on the larger steps: 12 for controls,
+     16 for cards, full pills for chips. */
   --haip-radius-xs: 4px;  --haip-radius-s: 6px;  --haip-radius-m: 8px;
   --haip-radius-l: 12px;  --haip-radius-xl: 16px; --haip-radius-xxl: 20px;
   --haip-space-xs: 4px;   --haip-space-s: 6px;   --haip-space-m: 8px;
   --haip-space-l: 12px;   --haip-space-xl: 16px; --haip-space-xxl: 20px;
 
-  /* Status triplets (surface / text / border). A label always accompanies the colour. All text pairs meet
-     WCAG AA on their own surface. */
-  --haip-status-success-bg: #ECFDF5; --haip-status-success-fg: #047857; --haip-status-success-border: #A7F3D0;
-  --haip-status-warning-bg: #FFFBEB; --haip-status-warning-fg: #B45309; --haip-status-warning-border: #FDE68A;
-  --haip-status-danger-bg:  #FEF2F2; --haip-status-danger-fg:  #B91C1C; --haip-status-danger-border:  #FECACA;
-  --haip-status-info-bg:    #EFF6FF; --haip-status-info-fg:    #1D4ED8; --haip-status-info-border:    #BFDBFE;
-  --haip-status-neutral-bg: #F1F5F9; --haip-status-neutral-fg: #475569; --haip-status-neutral-border: #E2E8F0;
+  /* Status triplets (surface / text / border). A label always accompanies the colour. Every text pair meets WCAG AA. */
+  --haip-status-success-bg: #E7F4EC; --haip-status-success-fg: #276B43; --haip-status-success-border: #BFE3CC;
+  --haip-status-warning-bg: #FCF0D6; --haip-status-warning-fg: #8C5A06; --haip-status-warning-border: #F0D394;
+  --haip-status-danger-bg:  #FBE7E5; --haip-status-danger-fg:  #A92D29; --haip-status-danger-border:  #F1C2BD;
+  --haip-status-info-bg:    #ECF0FA; --haip-status-info-fg:    #34509A; --haip-status-info-border:    #C9D5F0;
+  --haip-status-neutral-bg: #F0EFED; --haip-status-neutral-fg: #57534E; --haip-status-neutral-border: #E7E5E4;
 
-  /* Structural icons (chevrons, close, menus) are neutral; teal is for what is actionable or branded. */
-  --haip-icon-neutral: #64748B;
+  /* Structural icons (chevrons, close, menus) are neutral; sea green is for what is actionable or branded. */
+  --haip-icon-neutral: #78716C;
+
+  /* Person avatars: five warm tints, picked by a hash of the name (lib/avatarTint.ts). Every pair meets AA for initials. */
+  --haip-avatar-1-bg: #E6F2EC; --haip-avatar-1-fg: #17604A;
+  --haip-avatar-2-bg: #FCE6DF; --haip-avatar-2-fg: #9E3A22;
+  --haip-avatar-3-bg: #E5F0E8; --haip-avatar-3-fg: #24613E;
+  --haip-avatar-4-bg: #E8EEF8; --haip-avatar-4-fg: #2F4F8F;
+  --haip-avatar-5-bg: #F8E6E2; --haip-avatar-5-fg: #8E3227;
+
+  /* Calendar bars keep the meanings owners were taught: green = direct booking, gray = blocked, red = maintenance.
+     Solid fills with white text (AA in both themes); today is coral with dark ink. */
+  --haip-cal-direct: #2E7D4F;
+  --haip-cal-maint:  #B4322F;
+  --haip-cal-block:  #D6D3D1; --haip-cal-block-fg: #292524;
+  /* Bookings vehicle strip and vehicle tags: one soft tint per caravan (Ratha 1, Ratha 2), dark ink on top. */
+  --haip-cal-vehicle-1: #CFE7DB; --haip-cal-vehicle-2: #D9E4F2; --haip-cal-vehicle-fg: #1C1917;
+  --haip-on-accent:  #1C1917;
+
+  /* Sign-in brand panel: always dark (deep sea green) in both themes, with a light coral accent that passes AA on it. */
+  --haip-brand-panel:  #0D2A21;
+  --haip-panel-accent: #F6A58E;
+
+  /* Two-series charts (impact revenue: booked vs collected). Validated with the dataviz palette checker in both themes. */
+  --haip-series-1: #3B5BA9;
+  --haip-series-2: #E0694A;
 }
 .dark {
-  --haip-status-success-bg: rgba(16,185,129,0.12); --haip-status-success-fg: #6EE7B7; --haip-status-success-border: rgba(16,185,129,0.28);
-  --haip-status-warning-bg: rgba(245,158,11,0.12); --haip-status-warning-fg: #FCD34D; --haip-status-warning-border: rgba(245,158,11,0.28);
-  --haip-status-danger-bg:  rgba(239,68,68,0.12);  --haip-status-danger-fg:  #FCA5A5; --haip-status-danger-border:  rgba(239,68,68,0.30);
-  --haip-status-info-bg:    rgba(79,142,247,0.12); --haip-status-info-fg:    #93C5FD; --haip-status-info-border:    rgba(79,142,247,0.30);
-  --haip-status-neutral-bg: rgba(255,255,255,0.06); --haip-status-neutral-fg: #A8B5CC; --haip-status-neutral-border: rgba(255,255,255,0.10);
-  --haip-icon-neutral: #7a8ba8;
-  /* Only the literals need a dark variant — aliases follow automatically */
-  --haip-surface:       var(--background);
-  --haip-border-strong: rgba(255,255,255,0.12);
-  --haip-fg-subtle:     #5a6e8a;
-  --haip-text-subtle:   #4e5e7a;
-  /* Sidebar is already dark in light mode; in dark mode sink it slightly
-     BELOW the page so it still reads as a separate plane rather than
-     merging into the content area. */
-  --haip-sidebar:       #080f1a;
+  --haip-series-1: #5A7FE0;
+  --haip-series-2: #E06A48;
+  --haip-avatar-1-bg: rgba(92,201,160,0.16);  --haip-avatar-1-fg: #5CC9A0;
+  --haip-avatar-2-bg: rgba(240,138,110,0.16); --haip-avatar-2-fg: #F6A58E;
+  --haip-avatar-3-bg: rgba(111,207,151,0.14); --haip-avatar-3-fg: #8EDBAE;
+  --haip-avatar-4-bg: rgba(143,168,232,0.15); --haip-avatar-4-fg: #AFC2F0;
+  --haip-avatar-5-bg: rgba(240,140,128,0.15); --haip-avatar-5-fg: #F5A99F;
+  --haip-cal-block:  #57534E; --haip-cal-block-fg: #F3EFEC;
+  --haip-cal-vehicle-1: #24453A; --haip-cal-vehicle-2: #263649; --haip-cal-vehicle-fg: #F3EFEC;
+  --haip-status-success-bg: rgba(111,207,151,0.12); --haip-status-success-fg: #8EDBAE; --haip-status-success-border: rgba(111,207,151,0.28);
+  --haip-status-warning-bg: rgba(232,169,58,0.13);  --haip-status-warning-fg: #F1C26B; --haip-status-warning-border: rgba(232,169,58,0.30);
+  --haip-status-danger-bg:  rgba(240,140,128,0.13); --haip-status-danger-fg:  #F5A99F; --haip-status-danger-border:  rgba(240,140,128,0.30);
+  --haip-status-info-bg:    rgba(143,168,232,0.13); --haip-status-info-fg:    #AFC2F0; --haip-status-info-border:    rgba(143,168,232,0.30);
+  --haip-status-neutral-bg: rgba(255,255,255,0.06); --haip-status-neutral-fg: #C7BFB8; --haip-status-neutral-border: rgba(255,255,255,0.10);
+  --haip-icon-neutral: #A39A93;
+  /* Only the literals need a dark variant; aliases follow automatically */
+  --haip-surface:       #151A17;
+  --haip-border-strong: rgba(255,255,255,0.14);
+  --haip-fg-subtle:     #A39A93;
+  --haip-text-subtle:   #8C847D;
+  --haip-accent:        #F08A6E;
+  --haip-accent-light:  rgba(240,138,110,0.14);
+  --haip-accent-ink:    #F6A58E;
+  --haip-gold:          #F08A6E;
+  --haip-gold-light:    rgba(240,138,110,0.14);
+  --haip-green:         #6FCF97;
+  --haip-amber:         #E8A93A;
+  --haip-red:           #F08C80;
+  --haip-sidebar:       #1A1614;
+  --haip-sidebar-fg:    #B3ABA4;
+  --haip-sidebar-fg-active: #F3EFEC;
+  --haip-sidebar-fg-subtle: #8C847D;
+  --haip-sidebar-border: rgba(255,255,255,0.08);
+  --haip-sidebar-hover: rgba(255,255,255,0.05);
   --haip-app-bg:        var(--background);
-  /* No shadow in dark mode */
+  --haip-primary-tint:  color-mix(in srgb, var(--primary) 14%, var(--card));
+  /* Depth in the dark comes from surface steps, not shadows */
   --haip-shadow-sm:     none;
-  --haip-shadow-md:     none;
-  --haip-shadow-lg:     none;
+  --haip-shadow-md:     0 8px 24px -12px rgba(0,0,0,0.6);
+  --haip-shadow-lg:     0 16px 40px -16px rgba(0,0,0,0.7);
 }
 
 /* ── HAIP Stitch utility classes ─────────────────────────────────────────── */
 .haip-heading {
   font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--haip-fg);
 }
@@ -522,9 +554,10 @@
    which also hardcoded a light-mode-only colour. */
 .haip-page-title {
   font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-size: 28px;
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -0.025em;
   color: var(--haip-fg);
 }
 /* Phones: the top bar already names the page, so a static page title and its one-line description only push the content down.
@@ -536,6 +569,14 @@
   }
   .haip-page-title:not(.haip-page-title--keep) + p { display: none; }
   :is(div, header).flex-shrink-0:has(h1.haip-page-title) { padding: 8px 12px; }
+}
+/* Touch screens: every text-sized control inside the app is at least 44px tall, so pages built before the kit meet the
+   tap-target rule without per-page edits. Absolutely positioned controls (calendar bars, input adornments) and fixed-size
+   icon buttons keep their size; checkboxes and radios rely on their label row. */
+@media (hover: none) and (pointer: coarse) {
+  main :is(button, [role="button"], [role="tab"], select, input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"])):not(.absolute, [class*="size-"], [class*="w-5 "], [class*="w-6 "], [class*="w-7 "], [class*="w-8 "]) {
+    min-height: 44px;
+  }
 }
 .haip-label {
   font-size: 0.6875rem;
@@ -549,8 +590,8 @@
   /* Bordered card on a grey canvas (HAIP_Prototype.html .card). The previous
      borderless treatment relied on background contrast alone, which vanished
      once the page behind it was also near-white. */
-  border: 1px solid var(--haip-border);
-  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--haip-border) 70%, transparent);
+  border-radius: calc(var(--radius) + 4px);
   box-shadow: var(--haip-shadow-sm);
 }
 /* Card header strip — title row with a teal accent tick, per the prototype's
@@ -567,18 +608,13 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13.5px;
-  font-weight: 700;
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   color: var(--haip-fg);
 }
-.haip-card-title::before {
-  content: "";
-  width: 3px;
-  height: 14px;
-  border-radius: 2px;
-  background: var(--primary);
-  flex-shrink: 0;
-}
+/* Hybrid drops the old accent tick before card titles; the heading carries its own weight. */
 /* Dense list row (conversation list, etc.) -- same border colour token as
    .haip-card so a themed border is consistent app-wide, without the full
    bordered-box/radius treatment a stacked list can't use. */
@@ -592,32 +628,22 @@
   position: relative;
   overflow: hidden;
   background: var(--haip-card);
-  border: 1px solid var(--haip-border);
-  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--haip-border) 70%, transparent);
+  border-radius: calc(var(--radius) + 4px);
   box-shadow: var(--haip-shadow-sm);
   padding: 16px 18px;
 }
-.haip-kpi::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: var(--kpi-accent, var(--primary));
-}
+/* Hybrid drops the coloured bar across the KPI's top edge. */
 .haip-kpi-label {
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 12.5px;
+  font-weight: 500;
   color: var(--haip-fg-muted);
   margin-bottom: 6px;
 }
 .haip-kpi-value {
   font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
-  font-size: 24px;
-  font-weight: 700;
+  font-size: 26px;
+  font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--haip-fg);
   font-variant-numeric: tabular-nums;
@@ -636,36 +662,36 @@
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  border-radius: 6px;
-  font-size: 11px;
+  border-radius: 999px;
+  font-size: 11.5px;
   font-weight: 600;
-  background: rgba(15,118,110,0.08);
-  color: #0F766E;
-  border: 1px solid rgba(15,118,110,0.15);
+  background: var(--haip-primary-tint);
+  color: var(--primary);
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, transparent);
 }
 .haip-badge-amber {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  border-radius: 6px;
-  font-size: 11px;
+  border-radius: 999px;
+  font-size: 11.5px;
   font-weight: 600;
-  background: rgba(245,158,11,0.08);
-  color: #B45309;
-  border: 1px solid rgba(245,158,11,0.18);
+  background: var(--haip-status-warning-bg);
+  color: var(--haip-status-warning-fg);
+  border: 1px solid var(--haip-status-warning-border);
 }
 .haip-badge-red {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  border-radius: 6px;
-  font-size: 11px;
+  border-radius: 999px;
+  font-size: 11.5px;
   font-weight: 600;
-  background: rgba(239,68,68,0.07);
-  color: #B91C1C;
-  border: 1px solid rgba(239,68,68,0.14);
+  background: var(--haip-status-danger-bg);
+  color: var(--haip-status-danger-fg);
+  border: 1px solid var(--haip-status-danger-border);
 }
 /* Sidebar nav — sits on the dark navy sidebar, so these use the
    --haip-sidebar-fg-* scale rather than the page foreground tokens. */
@@ -805,8 +831,8 @@
   --ibx-grad: linear-gradient(135deg, #25D366 0%, #0F9E7E 100%);
   --ibx-shadow-glow: 0 6px 20px rgba(37, 211, 102, 0.22);
 
-  --ibx-iris: #5B5BCE;
-  --ibx-iris-soft: rgba(91, 91, 206, 0.12);
+  --ibx-iris: var(--primary);            /* Hybrid: one accent, the brand primary */
+  --ibx-iris-soft: var(--haip-primary-tint);
   --ibx-red: #D45453;
   --ibx-red-soft: rgba(212, 84, 83, 0.12);
   --ibx-amber: #C77D0A;
@@ -967,8 +993,8 @@
   --clx-teal: #14B8A6;
   --clx-teal-soft: rgba(20, 184, 166, 0.12);
 
-  --clx-iris: #5B5BCE;
-  --clx-iris-soft: rgba(91, 91, 206, 0.12);
+  --clx-iris: var(--primary);            /* Hybrid: one accent, the brand primary */
+  --clx-iris-soft: var(--haip-primary-tint);
   --clx-green: #059669;
   --clx-green-soft: rgba(5, 150, 105, 0.10);
   --clx-amber: #B45309;
@@ -986,8 +1012,6 @@
 .dark .haip-calls-v2 {
   --clx-teal: #2DD4C4;
   --clx-teal-soft: rgba(45, 212, 196, 0.16);
-  --clx-iris: #8382E8;
-  --clx-iris-soft: rgba(131, 130, 232, 0.16);
   --clx-green: #34D399;
   --clx-green-soft: rgba(52, 211, 153, 0.14);
   --clx-amber: #F0B33D;
@@ -1173,16 +1197,15 @@
   --lx-font: var(--font-inbox), ui-sans-serif, system-ui, sans-serif;
   --lx-mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
 
-  --lx-iris: #5B5BCE;
-  --lx-iris-soft: rgba(91, 91, 206, 0.10);
+  /* Hybrid: the leads accent IS the brand primary (was a separate indigo), so white-labelling reaches it. */
+  --lx-iris: var(--primary);
+  --lx-iris-soft: var(--haip-primary-tint);
   --lx-card-radius: 16px;
   --lx-shadow-card: 0 2px 10px rgba(16, 36, 60, 0.06), 0 1px 2px rgba(16, 36, 60, 0.05);
 
   font-family: var(--lx-font);
 }
 .dark .haip-leads-v2 {
-  --lx-iris: #8382E8;
-  --lx-iris-soft: rgba(131, 130, 232, 0.16);
   --lx-shadow-card: 0 2px 10px rgba(0, 0, 0, 0.35);
 }
 
@@ -1224,7 +1247,7 @@
   background: var(--lx-iris) !important;
   color: #fff !important;
   border-radius: 999px !important;
-  box-shadow: 0 4px 14px rgba(91, 91, 206, 0.25);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--primary) 25%, transparent);
 }
 .lx-icon-btn {
   border-radius: 999px !important;

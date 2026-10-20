@@ -56,9 +56,11 @@ def add_signal(
     value: str,
     source: str = "system",
     actor_user_id: Optional[str] = None,
+    observed_at: Optional[datetime] = None,
 ) -> float:
     """
     Add a new identity signal to an existing guest.
+    ``observed_at`` = when the guest actually gave it (a backfill of an old message); default now.
 
     Steps:
       1. Delegate to identity_resolution.enrich_guest() for signal storage + merge detection
@@ -81,6 +83,7 @@ def add_signal(
         identity_type=signal_type,
         identity_value=value,
         source=source,
+        observed_at=observed_at,
     )
 
     # DPDP: auto-write consent for PII signals added by a human agent
@@ -123,6 +126,61 @@ def resolve_gid(
         source=source,
         guest_fields=guest_fields or {},
     )
+
+
+def find_person_by_phone(db: Session, tenant_id: str, phone: str) -> Optional[str]:
+    """The guest who already has this number, or None. Read-only. Exact normalised (E.164) match on a phone or WhatsApp
+    signal first, then on a guest's own phone column -- a mirrored personal-WhatsApp chat or an Instagram guest whose number
+    was saved without a signal is the same person, never a new one."""
+    from app.models.guest import Guest
+    from app.services import phone_identity
+
+    region = phone_identity.region_for_tenant(db, tenant_id)
+    e164 = phone_identity.normalize(phone, region)
+    if not e164:
+        return None
+    for kind in ("phone", "whatsapp_number"):
+        sig = identity_resolution._lookup_signal(db, tenant_id, kind, e164)
+        if sig is not None:
+            guest = db.query(Guest.id).filter_by(id=sig.guest_id, tenant_id=tenant_id, is_deleted=False).first()
+            if guest is not None:
+                return sig.guest_id
+    tail = "".join(ch for ch in e164 if ch.isdigit())[-8:]
+    rows = (db.query(Guest).filter(Guest.tenant_id == tenant_id, Guest.is_deleted.is_(False), Guest.phone.like(f"%{tail}"))
+            .order_by(Guest.created_at.asc()).limit(20).all())
+    for g in rows:
+        if phone_identity.normalize(g.phone, region) == e164:
+            return g.id
+    return None
+
+
+def resolve_person_by_phone(
+    db: Session,
+    tenant_id: str,
+    phone: str,
+    *,
+    name: Optional[str] = None,
+    source: str = "agent_manual",
+    actor_user_id: Optional[str] = None,
+) -> tuple[str, bool]:
+    """(guest_id, created) for a number an agent typed in. Reuses the person find_person_by_phone() finds (attaching the
+    phone signal when they only had the number on the guest row, which also makes them a counted lead), else creates one.
+    DPDP consent is written for the agent-added number either way. Raises ValueError for an unusable number."""
+    from app.services import phone_identity
+
+    e164 = phone_identity.normalize(phone, phone_identity.region_for_tenant(db, tenant_id))
+    if not e164:
+        raise ValueError("That is not a usable phone number.")
+    existing = find_person_by_phone(db, tenant_id, e164)
+    if existing:
+        has_signal = any(identity_resolution._lookup_signal(db, tenant_id, k, e164) for k in ("phone", "whatsapp_number"))
+        if not has_signal:
+            add_signal(db, tenant_id, existing, "phone", e164, source=source, actor_user_id=actor_user_id)
+        return existing, False
+    guest_id, created = resolve_gid(db, tenant_id, "phone", e164, source=source, guest_fields={"name": name} if name else {})
+    if created and actor_user_id:
+        _write_consent(db, tenant_id=tenant_id, guest_id=guest_id, signal_type="phone", actor_user_id=actor_user_id)
+    return guest_id, created
 
 
 def merge_guests(

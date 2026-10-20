@@ -47,8 +47,8 @@ export default function ForgotPasswordPage() {
         <div className="bg-card rounded-2xl p-8 shadow-sm border border-border">
           {sent ? (
             <div className="text-center">
-              <div className="w-14 h-14 rounded-2xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center mx-auto mb-4">
-                <Mail size={24} className="text-teal-500" />
+              <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-4">
+                <Mail size={24} className="text-primary" />
               </div>
               <h2 className="text-xl font-bold text-foreground mb-2">Check your inbox</h2>
               <p className="text-muted-foreground text-sm leading-relaxed mb-6">
@@ -58,7 +58,7 @@ export default function ForgotPasswordPage() {
               </p>
               <p className="text-xs text-muted-foreground/70 mb-6">
                 Don&apos;t see it? Check your spam folder, or{" "}
-                <button onClick={() => setSent(false)} className="text-teal-500 hover:underline font-medium">
+                <button onClick={() => setSent(false)} className="text-primary hover:underline font-medium">
                   try again
                 </button>
                 .
@@ -88,7 +88,7 @@ export default function ForgotPasswordPage() {
                     value={email}
                     onChange={e => setEmail(e.target.value)}
                     placeholder="you@company.com"
-                    className="w-full px-4 py-3 border border-border rounded-xl text-sm bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow"
+                    className="w-full px-4 py-3 border border-border rounded-xl text-sm bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow"
                     suppressHydrationWarning
                   />
                 </div>
@@ -102,7 +102,7 @@ export default function ForgotPasswordPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 bg-teal-600 hover:bg-teal-500 disabled:opacity-60 text-white font-semibold rounded-xl text-sm transition-colors"
+                  className="w-full py-3 bg-primary hover:bg-primary disabled:opacity-60 text-white font-semibold rounded-xl text-sm transition-colors"
                 >
                   {loading ? "Sending…" : "Send reset link"}
                 </button>

@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     auth, calls, workspace_context,
     tenants, users, guests, inquiries, conversations, properties,
-    qa, integrations, ical_feeds, api_keys, meta_ads, webhook_endpoints, booking_detail, booking_extras, payments_razorpay, analytics, analytics_executive, instagram_insights, audit, sse, messaging, messaging_campaign_reports, reports, saved_replies, saved_views,
+    qa, integrations, ical_feeds, api_keys, meta_ads, webhook_endpoints, booking_agenda, booking_compose, booking_detail, booking_extras, invoices, payments_razorpay, analytics, analytics_executive, instagram_insights, audit, sse, messaging, messaging_campaign_reports, reports, saved_replies, saved_views,
     webhooks_callerdesk, webhooks_acefone, webhooks_mcube, webhooks_whatsapp, webhooks_instagram,
     webhooks_dograh, webhooks_vobiz, webhooks_whatsapp_personal,
     whatsapp_personal,
@@ -13,18 +13,26 @@ from app.api.v1.endpoints import (
     grievance, incidents, health, changelog, sample_data, admin_dlq,
     calculator, calendar, bookings,
     leads,
+    lead_autopilot,
+    workflows,
     pipeline_stages,
     lead_fields,
     automations,
     tasks,
     ivr,
     push,
-    dashboard_overview, business_overview,
+    dashboard_overview, business_overview, impact,
     knowledge,
+    knowledge_freshness,
     business_data,
+    quotes,
+    quote_calculator,
+    sales_agent,
     targets,
     work_queue,
     lead_activity,
+    public_leads,
+    public_assessment,
 )
 
 api_router = APIRouter(prefix="/api/v1")
@@ -35,6 +43,8 @@ api_router.include_router(auth.router)
 # Dashboard
 api_router.include_router(dashboard_overview.router)
 api_router.include_router(business_overview.router)
+api_router.include_router(impact.router)
+api_router.include_router(impact.public_router)
 api_router.include_router(workspace_context.router)
 
 # Metrics & Widgets catalogue
@@ -47,8 +57,12 @@ api_router.include_router(inquiries.router)
 api_router.include_router(pipeline_stages.router)
 api_router.include_router(lead_fields.router)
 api_router.include_router(conversations.router)
+api_router.include_router(knowledge_freshness.router)
 api_router.include_router(knowledge.router)
 api_router.include_router(business_data.router)
+api_router.include_router(quotes.router)
+api_router.include_router(quote_calculator.router)
+api_router.include_router(sales_agent.router)
 api_router.include_router(targets.router)
 api_router.include_router(work_queue.router)
 api_router.include_router(lead_activity.router)
@@ -58,12 +72,17 @@ api_router.include_router(properties.router)
 api_router.include_router(calculator.router)
 api_router.include_router(calendar.router)
 api_router.include_router(bookings.router)
+api_router.include_router(booking_agenda.router)   # before booking_detail: /bookings/summary is not a booking id
+api_router.include_router(booking_compose.router)   # /bookings/compose/* before /bookings/{id}
 api_router.include_router(booking_detail.router)
 api_router.include_router(booking_extras.router)
+api_router.include_router(invoices.router)
 api_router.include_router(calls.router)
 
 # Leads360 — unified sales pipeline
 api_router.include_router(leads.router)
+api_router.include_router(lead_autopilot.router)
+api_router.include_router(workflows.router)   # lead workflows: /workflows/* + /leads/{id}/journey|viewed|playbooks
 
 # Intelligence
 api_router.include_router(qa.router)
@@ -88,6 +107,9 @@ api_router.include_router(sse.router)
 
 # Compliance
 api_router.include_router(grievance.router)
+# HAIP's own website leads (public intake + sales-workspace list)
+api_router.include_router(public_leads.router)
+api_router.include_router(public_assessment.router)
 api_router.include_router(incidents.router)
 
 # Health / status bar (X8)

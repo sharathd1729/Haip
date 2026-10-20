@@ -9,6 +9,8 @@ What it does. Every 10 minutes, per tenant: find open WhatsApp/Instagram threads
 and has NO outbound message after it (an AI draft counts: a draft that failed produces a holding reply, so a failing provider does not
 make this loop), and queue ``concierge_draft`` for that message. At most once per message per hour, at most 25 per tenant per run.
 ``concierge_draft`` itself still decides everything (AI off, shadow or autonomous, guards, "already drafted").
+Never for the read-only personal WhatsApp bridge (a mirrored thread, or a guest message that came in on the agent's personal
+phone): the official number must not answer a chat the agent is having on their own phone.
 """
 from datetime import datetime, timedelta, timezone
 
@@ -52,6 +54,9 @@ def missed_replies(db, tenant_id: str, now: datetime) -> list[tuple[str, str]]:
         body = (msg.body or "").strip() if msg else ""
         if msg is None or not body or body.startswith("["):        # media-only / reactions / Instagram "[...]" placeholders: no text to answer
             continue
+        meta = msg.channel_metadata
+        if isinstance(meta, dict) and meta.get("source") == "personal_bridge":    # written to the agent's personal phone: not ours to answer
+            continue
         out.append((msg.id, conversation_id, at))
     out.sort(key=lambda r: r[2])
     return [(m, c) for m, c, _ in out]
@@ -74,7 +79,7 @@ def recover_missed_replies(tenant_id: str) -> dict:
             if queued >= MAX_PER_TENANT_RUN:
                 break
             conv = db.query(Conversation).filter_by(id=conversation_id, tenant_id=tenant_id).first()
-            if (conv is None or not conv.is_open or conv.is_sample or conv.channel not in _CHANNELS
+            if (conv is None or not conv.is_open or conv.is_sample or conv.channel not in _CHANNELS or conv.is_personal_bridge
                     or ai_mode_service.resolve_mode(tenant, conv) == "off" or get_cached(_guard_key(message_id))):
                 skipped += 1
                 continue

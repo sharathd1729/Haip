@@ -4,19 +4,25 @@ import Link from "next/link";
 import { useState, FormEvent } from "react";
 import { ArrowRight, MessageSquare, Mail, Phone, MapPin, Building2, HelpCircle, CheckCircle2, Clock, Sparkles } from "@/lib/icons";
 import { Handshake } from "lucide-react";
+import { ConsentCheckbox, Honeypot } from "@/components/marketing/LeadFormParts";
+import { newSubmissionId, submitPublicLead } from "@/lib/publicLeads";
 
 type ContactForm = {
   fullName: string;
   workEmail: string;
+  phone: string;
   topic: string;
   message: string;
 };
 
 export default function ContactPage() {
-  const [form, setForm] = useState<ContactForm>({ fullName: "", workEmail: "", topic: "sales", message: "" });
+  const [form, setForm] = useState<ContactForm>({ fullName: "", workEmail: "", phone: "", topic: "sales", message: "" });
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [consent, setConsent] = useState(false);
+  const [honeypot, setHoneypot] = useState("");
+  const [submissionId] = useState(newSubmissionId);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -31,14 +37,26 @@ export default function ContactPage() {
       return;
     }
 
+    if (!consent) {
+      setError("Please accept the privacy notice so we can reply to you.");
+      return;
+    }
+
     setSubmitting(true);
     try {
-      await fetch("/api/leads/contact", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      }).catch(() => null);
-      setSuccess(true);
+      const result = await submitPublicLead({
+        kind: "contact",
+        submission_id: submissionId,
+        name: form.fullName,
+        email: form.workEmail,
+        phone: form.phone || null,
+        message: form.message,
+        details: { topic: form.topic },
+        consent,
+        website: honeypot,
+      });
+      if (result.ok) setSuccess(true);
+      else setError(result.message);
     } finally {
       setSubmitting(false);
     }
@@ -107,7 +125,7 @@ export default function ContactPage() {
                   </p>
                 </div>
               ) : (
-                <form onSubmit={handleSubmit} className="space-y-5">
+                <form onSubmit={handleSubmit} className="relative space-y-5">
                   <div>
                     <h3 className="text-lg font-bold mb-1" style={{ color: "#0F172A" }}>Send us a message</h3>
                     <p className="text-xs" style={{ color: "#94A3B8" }}>Anything you&apos;d rather just type out. We read everything.</p>
@@ -123,6 +141,11 @@ export default function ContactPage() {
                       <input type="email" value={form.workEmail} onChange={e => setForm({ ...form, workEmail: e.target.value })} className="haip-input" placeholder="you@brand.com" />
                     </label>
                   </div>
+
+                  <label className="block">
+                    <span className="text-xs font-semibold mb-1.5 inline-block" style={{ color: "#475569" }}>Phone (WhatsApp, optional)</span>
+                    <input type="tel" inputMode="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="haip-input" placeholder="+91 98xxx xxxxx" />
+                  </label>
 
                   <label className="block">
                     <span className="text-xs font-semibold mb-1.5 inline-block" style={{ color: "#475569" }}>What&apos;s this about?</span>
@@ -141,8 +164,11 @@ export default function ContactPage() {
                     <textarea value={form.message} onChange={e => setForm({ ...form, message: e.target.value })} rows={5} className="haip-input resize-none" placeholder="Tell us what you need. The more specific you are, the faster we can help." />
                   </label>
 
+                  <ConsentCheckbox checked={consent} onChange={setConsent} />
+                  <Honeypot value={honeypot} onChange={setHoneypot} />
+
                   {error && (
-                    <div className="text-sm rounded-xl px-4 py-3" style={{ backgroundColor: "rgba(225,29,72,0.06)", border: "1px solid rgba(225,29,72,0.25)", color: "#be123c" }}>{error}</div>
+                    <div role="alert" className="text-sm rounded-xl px-4 py-3" style={{ backgroundColor: "rgba(225,29,72,0.06)", border: "1px solid rgba(225,29,72,0.25)", color: "#be123c" }}>{error}</div>
                   )}
 
                   <button type="submit" disabled={submitting} className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-2xl transition-all" style={{ backgroundColor: "#00555a", boxShadow: "0 8px 24px rgba(0,85,90,0.28)" }}>
@@ -187,7 +213,7 @@ export default function ContactPage() {
           color: #0F172A;
           border-radius: 12px;
           padding: 11px 14px;
-          font-size: 14px;
+          font-size: 16px; /* >= 16px: no zoom-on-focus on phones */
           outline: none;
           transition: border-color .15s, background .15s, box-shadow .15s;
         }

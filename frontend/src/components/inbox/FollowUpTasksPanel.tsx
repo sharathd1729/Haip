@@ -79,7 +79,7 @@ export function FollowUpTasksPanel({ conversationId }: { conversationId: string 
                 <span
                   className={cn(
                     "w-4 h-4 rounded flex items-center justify-center border flex-shrink-0",
-                    t.is_done ? "bg-emerald-500 border-emerald-500 text-white" : "border-gray-300"
+                    t.is_done ? "bg-emerald-500 border-emerald-500 text-white" : "border-[var(--haip-border-strong)]"
                   )}
                 >
                   {t.is_done && <Check size={11} />}

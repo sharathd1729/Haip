@@ -198,5 +198,5 @@ phase after the plan's Batches A–D, and only after the business rules are writ
 | D-19 | Should managers/agents be limited to certain properties (needs a user–property assignment)? |
 | D-20 | Should every booking require or offer a lead link (for attribution), including manual bookings? |
 | D-21 | Is a won lead's `quoted_amount` the booking value, or must it be confirmed before it counts? |
-| D-22 | Do we build property-owner statements at all, and on which agreement types? |
-| D-23 | Record a cancellation time (new column) so cancellations can be reported by period? |
+| D-25 | Do we build property-owner statements at all, and on which agreement types? |
+| D-26 | Record a cancellation time (new column) so cancellations can be reported by period? |

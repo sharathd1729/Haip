@@ -27,12 +27,12 @@ export function MobileFilterSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="max-h-[80dvh] overflow-y-auto rounded-t-2xl">
-        <SheetHeader className="pb-3 border-b" style={{ borderColor: "var(--haip-border)" }}>
-          <SheetTitle className="flex items-center gap-1.5">
-            <Filter size={14} />
+        <SheetHeader className="border-b border-[var(--haip-border)] pb-3">
+          <SheetTitle className="flex items-center gap-2 font-[family-name:var(--font-display)] text-[18px] font-semibold">
+            <Filter size={16} />
             {title}
             {hasActiveFilters && (
-              <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--primary)" }} />
+              <span className="size-2 rounded-full bg-primary" />
             )}
           </SheetTitle>
         </SheetHeader>
@@ -42,9 +42,8 @@ export function MobileFilterSheet({
   );
 }
 
-/** Matches the Calls page's canonical header-button styling
- * (text-xs px-3 py-1.5 rounded-lg font-medium) so the mobile filter
- * trigger reads as the same family of control everywhere it appears. */
+/** The phone "Filters" button: a pill like the kit's FilterChip, tinted with the brand colour while any filter is on, so it reads as the
+ * same family of control everywhere it appears. */
 export function MobileFilterTrigger({
   onClick,
   hasActiveFilters,
@@ -59,15 +58,15 @@ export function MobileFilterTrigger({
       type="button"
       onClick={onClick}
       className={cn(
-        "md:hidden flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors duration-150",
+        "md:hidden flex min-h-11 items-center gap-1.5 rounded-full border px-4 text-[14px] font-semibold transition-colors duration-150",
+        hasActiveFilters
+          ? "border-[color-mix(in_srgb,var(--primary)_35%,transparent)] bg-[var(--haip-primary-tint)] text-primary"
+          : "border-[var(--haip-border)] bg-[var(--haip-card)] text-[var(--haip-fg-muted)]",
         className,
       )}
-      style={hasActiveFilters
-        ? { background: "color-mix(in srgb, var(--primary) 8%, transparent)", borderColor: "var(--primary)", color: "var(--primary)" }
-        : { background: "transparent", borderColor: "var(--haip-border)", color: "var(--haip-fg-muted)" }}
     >
-      <Filter size={12} /> Filters
-      {hasActiveFilters && <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--primary)" }} />}
+      <Filter size={15} /> Filters
+      {hasActiveFilters && <span className="size-2 rounded-full bg-primary" />}
     </button>
   );
 }

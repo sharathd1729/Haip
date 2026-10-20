@@ -13,7 +13,12 @@ POST   /business-data/records/{id}/reject
 POST   /business-data/records/{kind}/{key}/deactivate
 POST   /business-data/records/{kind}/{key}/rollback   new draft copied from an older version (optionally published)
 
-Writes need `settings.manage` (owner by default); reads of what is in force are open to anyone who can see bookings or settings.
+Who may do what (capabilities, editable per workspace):
+  * settings.manage (owner): everything, every kind;
+  * business_data.draft (owner, manager, reservations): create / edit / validate drafts of routes, packages and itineraries;
+  * business_data.publish (owner, manager): publish / reject / roll back routes, packages and itineraries.
+  Payment, cancellation, discount, stay and reseller terms stay with settings.manage. Four eyes: whoever drafted or edited a
+  version may not publish it unless they are the owner. Reads of what is in force are open to anyone who can see bookings or settings.
 """
 from datetime import date
 from typing import Any, Optional
@@ -22,19 +27,58 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.api.v1.deps import get_current_user, require_module
+from app.api.v1.deps import get_current_user, get_workspace_context, require_module
 from app.core.database import get_db
 from app.models.business_record import BusinessRecord
 from app.models.user import User
 from app.schemas.business_data import KIND_MODELS, KINDS, SINGLETON_KEY, SINGLETON_KINDS
 from app.services import business_data_service as svc
-from app.services.authz_service import require_capability
+from app.services.authz_service import has_capability, require_capability
 
 router = APIRouter(prefix="/business-data", tags=["business-data"])
 
 _write = Depends(require_capability("settings.manage"))
+_draft = Depends(require_capability("business_data.draft", "settings.manage"))
+_approve = Depends(require_capability("business_data.publish", "settings.manage"))
+_editors = Depends(require_capability("settings.manage", "business_data.draft", "business_data.publish"))
 _read = Depends(require_capability("settings.manage", "bookings.read"))
-_module = Depends(require_module("ai_concierge"))
+_concierge_module = require_module("ai_concierge")
+
+
+def _business_data_access(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    ctx=Depends(get_workspace_context),
+):
+    """These records feed the AI concierge AND the staff quote builder. A workspace without the ai_concierge module
+    still needs its routes and packages for quoting, so quote-builder roles pass without the module."""
+    if "ai_concierge" in ctx.active_modules:
+        return ctx
+    if any(has_capability(db, current_user, k) for k in ("quotes.write", "business_data.draft", "business_data.publish")):
+        return ctx
+    return _concierge_module(ctx=ctx, current_user=current_user)   # raises the usual module_not_enabled 403
+
+
+_module = Depends(_business_data_access)
+
+# Kinds the quote builder's drafters and approvers may touch; every other kind needs settings.manage.
+QUOTE_KINDS = ("destination", "package", "itinerary")
+
+
+def _role(user: User) -> str:
+    return user.role.value if hasattr(user.role, "value") else str(user.role)
+
+
+def _allow_kind(db: Session, user: User, kind: str) -> None:
+    if kind not in QUOTE_KINDS and not has_capability(db, user, "settings.manage"):
+        raise HTTPException(status_code=403, detail={"code": "forbidden_kind", "problems": [],
+                                                     "message": "Only the owner can change this kind of record."})
+
+
+def _record_for(db: Session, user: User, record_id: str) -> BusinessRecord:
+    rec = _run(svc._get, db, user.tenant_id, record_id)
+    _allow_kind(db, user, rec.kind)
+    return rec
 
 
 class DraftCreate(BaseModel):
@@ -95,11 +139,13 @@ def kinds(current_user: User = Depends(get_current_user), _cap=_read, _m=_module
 @router.get("/records")
 def list_records(
     kind: Optional[str] = Query(None),
-    current_user: User = Depends(get_current_user), db: Session = Depends(get_db), _cap=_write, _m=_module,
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db), _cap=_editors, _m=_module,
 ):
     q = db.query(BusinessRecord).filter(BusinessRecord.tenant_id == current_user.tenant_id)
     if kind:
         q = q.filter(BusinessRecord.kind == kind)
+    if not has_capability(db, current_user, "settings.manage"):
+        q = q.filter(BusinessRecord.kind.in_(QUOTE_KINDS))
     rows = q.order_by(BusinessRecord.kind, BusinessRecord.key, BusinessRecord.version.desc()).all()
     grouped: dict[tuple, dict] = {}
     today = svc.tenant_today(db, current_user.tenant_id)
@@ -125,14 +171,15 @@ def import_existing(current_user: User = Depends(get_current_user), db: Session 
 
 
 @router.get("/records/{record_id}/diff")
-def diff(record_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db), _cap=_write, _m=_module):
-    rec = _run(svc._get, db, current_user.tenant_id, record_id)
+def diff(record_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db), _cap=_editors, _m=_module):
+    rec = _record_for(db, current_user, record_id)
     live = svc.get_effective(db, current_user.tenant_id, rec.kind, rec.key)
     return {"against_version": live.version if live else None, "changes": svc.diff_data(live.data if live else {}, rec.data)}
 
 
 @router.get("/records/{kind}/{key}")
-def record_history(kind: str, key: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db), _cap=_write, _m=_module):
+def record_history(kind: str, key: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db), _cap=_editors, _m=_module):
+    _allow_kind(db, current_user, kind)
     return [_out(r) for r in svc.history(db, current_user.tenant_id, kind, _run(svc.normalise_key, kind, key))]
 
 
@@ -150,7 +197,8 @@ def effective_one(kind: str, key: str, at: Optional[date] = None, current_user: 
 
 
 @router.post("/records", status_code=201)
-def create_draft(body: DraftCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db), _cap=_write, _m=_module):
+def create_draft(body: DraftCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db), _cap=_draft, _m=_module):
+    _allow_kind(db, current_user, body.kind)
     rec = _run(svc.create_draft, db, current_user.tenant_id, body.kind, body.key, body.data, current_user.id,
                effective_from=body.effective_from, effective_to=body.effective_to, note=body.note)
     db.commit()
@@ -158,7 +206,8 @@ def create_draft(body: DraftCreate, current_user: User = Depends(get_current_use
 
 
 @router.patch("/records/{record_id}")
-def update_draft(record_id: str, body: DraftUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db), _cap=_write, _m=_module):
+def update_draft(record_id: str, body: DraftUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db), _cap=_draft, _m=_module):
+    _record_for(db, current_user, record_id)
     sent = body.model_fields_set
     rec = _run(svc.update_draft, db, current_user.tenant_id, record_id, current_user.id, data=body.data,
                effective_from=body.effective_from, effective_to=body.effective_to, note=body.note,
@@ -168,20 +217,23 @@ def update_draft(record_id: str, body: DraftUpdate, current_user: User = Depends
 
 
 @router.post("/records/{record_id}/validate")
-def validate(record_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db), _cap=_write, _m=_module):
-    rec = _run(svc._get, db, current_user.tenant_id, record_id)
+def validate(record_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db), _cap=_draft, _m=_module):
+    rec = _record_for(db, current_user, record_id)
     return svc.validate_record(db, current_user.tenant_id, rec)
 
 
 @router.post("/records/{record_id}/publish")
-def publish(record_id: str, body: PublishRequest = PublishRequest(), current_user: User = Depends(get_current_user), db: Session = Depends(get_db), _cap=_write, _m=_module):
-    rec = _run(svc.publish, db, current_user.tenant_id, record_id, current_user.id, effective_from=body.effective_from)
+def publish(record_id: str, body: PublishRequest = PublishRequest(), current_user: User = Depends(get_current_user), db: Session = Depends(get_db), _cap=_approve, _m=_module):
+    _record_for(db, current_user, record_id)
+    rec = _run(svc.publish, db, current_user.tenant_id, record_id, current_user.id, effective_from=body.effective_from,
+               actor_role=_role(current_user))
     db.commit()
     return _out(rec)
 
 
 @router.post("/records/{record_id}/reject")
-def reject(record_id: str, body: RejectRequest = RejectRequest(), current_user: User = Depends(get_current_user), db: Session = Depends(get_db), _cap=_write, _m=_module):
+def reject(record_id: str, body: RejectRequest = RejectRequest(), current_user: User = Depends(get_current_user), db: Session = Depends(get_db), _cap=_approve, _m=_module):
+    _record_for(db, current_user, record_id)
     rec = _run(svc.reject, db, current_user.tenant_id, record_id, current_user.id, body.reason)
     db.commit()
     return _out(rec)
@@ -195,7 +247,9 @@ def deactivate(kind: str, key: str, body: RejectRequest = RejectRequest(), curre
 
 
 @router.post("/records/{kind}/{key}/rollback")
-def rollback(kind: str, key: str, body: RollbackRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db), _cap=_write, _m=_module):
-    rec = _run(svc.rollback, db, current_user.tenant_id, kind, key, body.to_version, current_user.id, note=body.note, publish_now=body.publish)
+def rollback(kind: str, key: str, body: RollbackRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db), _cap=_approve, _m=_module):
+    _allow_kind(db, current_user, kind)
+    rec = _run(svc.rollback, db, current_user.tenant_id, kind, key, body.to_version, current_user.id, note=body.note,
+               publish_now=body.publish, actor_role=_role(current_user))
     db.commit()
     return _out(rec)

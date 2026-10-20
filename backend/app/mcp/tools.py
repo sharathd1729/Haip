@@ -248,6 +248,8 @@ def _list_bookings(db: Session, user: User, tenant_id: str, args: dict) -> Any:
         # be passed: an omitted one arrives as a truthy Query(...) placeholder and breaks the filter.
         property_id=args.get("property_id"), payment_status=args.get("payment_status"),
         when=args.get("when"), needs_property=bool(args.get("needs_property", False)),
+        segment=args.get("segment"), counts=bool(args.get("counts", False)),
+        check_in_from=args.get("check_in_from"), check_in_to=args.get("check_in_to"),
         current_user=user, db=db,
     )
     return _dump(result)

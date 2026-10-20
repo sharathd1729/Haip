@@ -285,8 +285,10 @@ def test_webhook_records_payment_once_and_rejects_bad_signature(client, db, tena
     assert client.post(url, content=wrong, headers={"x-razorpay-signature": wsig}).status_code == 401
     assert db.query(StayPayment).filter_by(stay_id=stay.id).count() == 0
 
-    assert client.post(url, content=body, headers={"x-razorpay-signature": sig}).json()["status"] == "recorded"
-    assert client.post(url, content=body, headers={"x-razorpay-signature": sig}).json()["status"] == "duplicate"   # Razorpay retries
+    with patch("app.workers.tasks.invoice_tasks.after_payment.delay") as followup:      # invoice + WhatsApp, never inline
+        assert client.post(url, content=body, headers={"x-razorpay-signature": sig}).json()["status"] == "recorded"
+        assert client.post(url, content=body, headers={"x-razorpay-signature": sig}).json()["status"] == "duplicate"   # Razorpay retries
+    assert followup.call_count == 1
     pays = db.query(StayPayment).filter_by(stay_id=stay.id).all()
     assert len(pays) == 1 and float(pays[0].amount) == 2500 and pays[0].method == "razorpay"
     assert db.query(StayPaymentLink).filter_by(external_id="plink_1").first().status == "paid"

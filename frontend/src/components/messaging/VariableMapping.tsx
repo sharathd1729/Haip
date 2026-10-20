@@ -90,33 +90,33 @@ export function VariableMapping({ template, value, onChange }: {
         {sections.map(({ section, indices }) => indices.map(i => {
           const spec = value[section]?.[String(i)] ?? { source: "static" as VarSource, value: "" };
           return (
-            <div key={`${section}${i}`} className="border border-gray-200 rounded-xl p-3">
-              <p className="text-[11px] font-semibold text-gray-700 mb-2">
-                <span className="font-mono text-teal-700">{`{{${i}}}`}</span> in the {section}
+            <div key={`${section}${i}`} className="border border-[var(--haip-border)] rounded-xl p-3">
+              <p className="text-[11px] font-semibold text-[var(--haip-fg-2)] mb-2">
+                <span className="font-mono text-primary">{`{{${i}}}`}</span> in the {section}
               </p>
               <select value={spec.source} aria-label={`What to put in ${section} variable ${i}`}
                 onChange={e => setSpec(section, i, { source: e.target.value as VarSource, value: spec.value, fallback: spec.fallback })}
-                className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+                className="w-full px-2.5 py-2 border border-[var(--haip-border)] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-primary/30">
                 {SOURCES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
               {spec.source === "static" ? (
                 <input value={spec.value ?? ""} onChange={e => setSpec(section, i, { ...spec, value: e.target.value })}
                   placeholder="Text to send" aria-label="Text to send"
-                  className={cn("mt-2 w-full px-2.5 py-2 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-teal-500/30",
-                    (spec.value ?? "").trim() ? "border-gray-200" : "border-amber-300")} />
+                  className={cn("mt-2 w-full px-2.5 py-2 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-primary/30",
+                    (spec.value ?? "").trim() ? "border-[var(--haip-border)]" : "border-amber-300")} />
               ) : (
                 <input value={spec.fallback ?? ""} onChange={e => setSpec(section, i, { ...spec, fallback: e.target.value })}
                   placeholder={spec.source === "phone" ? "If missing, send… (optional)" : "If we don't have it, send… (e.g. Guest)"}
                   aria-label="Fallback text"
-                  className="mt-2 w-full px-2.5 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
+                  className="mt-2 w-full px-2.5 py-2 border border-[var(--haip-border)] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-primary/30" />
               )}
             </div>
           );
         }))}
-        <p className="text-[10px] text-gray-400">A guest with no value and no fallback is skipped, and counted as failed in the campaign.</p>
+        <p className="text-[10px] text-[var(--haip-fg-subtle)]">A guest with no value and no fallback is skipped, and counted as failed in the campaign.</p>
       </div>
       <div>
-        <p className="text-[11px] font-semibold text-gray-700 mb-2">Preview for “{SAMPLE.name}”</p>
+        <p className="text-[11px] font-semibold text-[var(--haip-fg-2)] mb-2">Preview for “{SAMPLE.name}”</p>
         <WhatsAppPreview form={previewForm} />
       </div>
     </div>

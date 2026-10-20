@@ -3,13 +3,15 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Clock, AlertCircle, ChevronDown, MessageSquare, Loader2, Calendar } from "@/lib/icons";
+import { Clock, AlertCircle, ChevronDown, MessageSquare, Loader2, Calendar, Bot } from "@/lib/icons";
+import type { AutopilotMoveBadge } from "@/lib/actionable";
 import { UserCheck } from "lucide-react";
 import { cn, timeAgo } from "@/lib/utils";
 import { ChannelIcon } from "@/components/inbox/ChannelIcon";
 import { usePipelineStages } from "@/hooks/usePipelineStages";
 import { useToast } from "@/components/ui/toast";
 import api from "@/lib/api";
+import { SendQuoteButton } from "@/components/quotes/SendQuoteButton";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,6 +36,9 @@ export interface LeadCard {
   budget_currency?: string;
   budget_range_label?: string;
   quoted_amount?: number;
+  /** Rate calculator: the lead's newest quote (backend lead_quote_view.card_out). */
+  latest_quote?: { quote_id: string; amount: number; status: string; shared_via: string | null; how: string;
+    valid_until: string | null; valid_until_text: string | null; label: string | null } | null;
   property_interest?: string[];
   ai_summary?: string;
   ai_next_action?: string;
@@ -56,6 +61,8 @@ export interface LeadCard {
   // personal follow-up -- e.g. a complex custom quote or a frustrated guest.
   needs_agent_followup?: boolean;
   needs_agent_followup_reason?: string | null;
+  // Lead autopilot: the current stage was set automatically (backend lead_autopilot_view.batch_moves).
+  autopilot_move?: AutopilotMoveBadge | null;
 }
 
 function formatCardDate(iso?: string): string | null {
@@ -93,6 +100,20 @@ export function ResponseTimeBadge({ seconds, status }: { seconds?: number | null
       title={waiting ? "Guest is waiting for a reply" : "Time to first reply"}
     >
       {waiting ? `waiting ${formatDuration(seconds)}` : `replied in ${formatDuration(seconds)}`}
+    </span>
+  );
+}
+
+/** "auto" pill: the lead autopilot set this stage. The lead page explains why and offers Undo. */
+export function AutopilotBadge({ move }: { move?: AutopilotMoveBadge | null }) {
+  if (!move) return null;
+  return (
+    <span
+      className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-[var(--haip-primary-tint)] px-1.5 py-0.5 text-[11px] font-semibold text-primary sm:text-[9px]"
+      title={`Moved to ${move.to_stage_label ?? "this stage"} by autopilot: ${move.reason}`}
+    >
+      <Bot size={9} />
+      auto
     </span>
   );
 }
@@ -216,7 +237,7 @@ function StageSelect({ lead }: { lead: LeadCard }) {
         value={current?.id ?? ""}
         disabled={saving}
         onChange={e => handleChange(e.target.value)}
-        className="appearance-none text-xs sm:text-[10px] font-medium rounded-full pl-3 pr-7 min-h-11 sm:min-h-0 py-1 cursor-pointer disabled:opacity-50"
+        className="appearance-none max-w-[10.5rem] truncate text-xs sm:text-[10px] font-medium rounded-full pl-3 pr-7 min-h-11 sm:min-h-0 py-1 cursor-pointer disabled:opacity-50"
         style={{
           background: current?.color ? `color-mix(in srgb, ${current.color} 15%, transparent)` : "var(--muted)",
           color: current?.color ?? "var(--haip-fg-subtle)",
@@ -353,8 +374,20 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
         <ChannelIcon channel={src} showLabel className="flex-shrink-0" />
       </div>
 
-      {/* Row 1b: stage dropdown on its own line so it never squeezes the name */}
-      <StageSelect lead={lead} />
+      {/* Row 1b: stage dropdown on its own line so it never squeezes the name, sharing it with "last touch" and the
+          reply-time badge (they used to take a row of their own further down, making every card one line taller). */}
+      <div className="flex items-center justify-between gap-2">
+        <StageSelect lead={lead} />
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="flex items-center gap-1 whitespace-nowrap text-[11px] sm:text-[10px]" style={{ color: "var(--haip-fg-subtle)" }}>
+            <Clock size={9} />
+            {lead.last_touch_at ? timeAgo(lead.last_touch_at) : "—"}
+          </span>
+          <AutopilotBadge move={lead.autopilot_move} />
+          <NeedsFollowupBadge reason={lead.needs_agent_followup_reason} />
+          <ResponseTimeBadge seconds={lead.response_time_seconds} status={lead.response_time_status} />
+        </div>
+      </div>
 
       {/* Row 2: Occasion + group type pills */}
       {(lead.occasion || lead.group_type) && (
@@ -385,20 +418,16 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
         </p>
       )}
 
+      {/* Row 3c: the latest quote -- amount, how it reached the guest, until when it holds */}
+      {lead.latest_quote && (
+        <p className="text-xs truncate tabular-nums" style={{ color: "var(--haip-fg-2)" }}>
+          Quote ₹{Number(lead.latest_quote.amount).toLocaleString("en-IN")} · {lead.latest_quote.how}
+          {lead.latest_quote.valid_until_text && lead.latest_quote.status !== "accepted" ? ` · valid till ${lead.latest_quote.valid_until_text}` : ""}
+        </p>
+      )}
+
       {/* Row 4: Completeness bar */}
       <CompletenessBar pct={lead.profile_completeness_pct} />
-
-      {/* Row 5: Last activity + response time */}
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] sm:text-[10px] flex items-center gap-1" style={{ color: "var(--haip-fg-subtle)" }}>
-          <Clock size={9} />
-          {lead.last_touch_at ? timeAgo(lead.last_touch_at) : "—"}
-        </p>
-        <div className="flex items-center gap-1">
-          <NeedsFollowupBadge reason={lead.needs_agent_followup_reason} />
-          <ResponseTimeBadge seconds={lead.response_time_seconds} status={lead.response_time_status} />
-        </div>
-      </div>
 
       {/* Row 6: Assigned agent — AI summary intentionally removed from this
           card (kept on the lead detail page); the card now stays scoped to
@@ -417,6 +446,8 @@ export function LeadCard({ lead }: { lead: LeadCard }) {
             <AssignToMeButton lead={lead} />
           </>
         )}
+        <SendQuoteButton variant="link" label="Quote" className="min-h-11 text-xs sm:min-h-0 sm:text-[11px]"
+          args={{ inquiryId: lead.inquiry_id, from: "leads", name: lead.display_name }} />
       </div>
 
       {/* Row 7: pending AI draft — one-click send */}

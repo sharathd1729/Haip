@@ -26,8 +26,8 @@ const inputStyle = {
 };
 const focusHandlers = {
   onFocus: (e: React.FocusEvent<HTMLElement>) => {
-    e.currentTarget.style.borderColor = "#14B8A6";
-    e.currentTarget.style.boxShadow = "0 0 0 2px rgba(20,184,166,0.15)";
+    e.currentTarget.style.borderColor = "var(--primary)";
+    e.currentTarget.style.boxShadow = "0 0 0 2px var(--haip-primary-tint)";
   },
   onBlur: (e: React.FocusEvent<HTMLElement>) => {
     e.currentTarget.style.borderColor = "var(--haip-border)";
@@ -96,7 +96,7 @@ export function AddLeadModal({ onClose, onCreated }: { onClose: () => void; onCr
           <h3 className="font-bold text-[15px]" style={{ fontFamily: "var(--font-display), sans-serif", color: "#111827" }}>
             Add Lead
           </h3>
-          <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700">
+          <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-2)]">
             <X size={15} />
           </button>
         </div>
@@ -226,7 +226,7 @@ export function AddLeadModal({ onClose, onCreated }: { onClose: () => void; onCr
               type="submit"
               disabled={!canSubmit}
               className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
-              style={{ background: "#0F766E" }}
+              style={{ background: "var(--primary)" }}
             >
               {mutation.isPending && <Loader2 size={14} className="animate-spin" />}
               Add Lead

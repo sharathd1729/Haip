@@ -299,7 +299,6 @@ def create_manual_lead(
     than a hardcoded key that may not exist for this tenant's taxonomy.
     """
     from app.services import identity_service
-    from app.services.lead_auto_create import resolve_entry_stage_id
 
     if not phone and not email:
         raise ValueError("Provide at least a phone number or email to add a lead.")
@@ -334,8 +333,37 @@ def create_manual_lead(
     except ValueError:
         src = InquirySource.WALK_IN
 
-    stage_id = resolve_entry_stage_id(db, tenant_id, is_collab=False, has_phone=bool(phone))
+    inquiry = create_lead_for_guest(
+        db, tenant_id, guest_id, source=src, has_phone=bool(phone), property_id=property_id, check_in=check_in,
+        check_out=check_out, adults=adults, children=children, occasion=occasion, budget=budget, assigned_to=assigned_to,
+    )
+    log.info(
+        "lead_manually_created", inquiry_id=inquiry.id, guest_id=guest_id,
+        tenant_id=tenant_id, actor_user_id=actor_user_id, stage_id=inquiry.stage_id,
+    )
+    return inquiry
 
+
+def create_lead_for_guest(
+    db: Session, tenant_id: str, guest_id: str, *,
+    source: Optional[InquirySource],
+    has_phone: bool,
+    property_id: Optional[str] = None,
+    check_in: Optional[str] = None,
+    check_out: Optional[str] = None,
+    adults: Optional[int] = None,
+    children: Optional[int] = None,
+    occasion: Optional[str] = None,
+    budget: Optional[float] = None,
+    assigned_to: Optional[str] = None,
+    commit: bool = True,
+) -> Inquiry:
+    """A new lead (inquiry) for a person already resolved by identity_service, landing in the tenant's entry stage
+    (lead_auto_create rules) and assigned like every other new lead. Used by create_manual_lead and by the rate calculator
+    when a returning guest (all earlier leads Sold or Lost) asks for a new trip. ``source=None`` = not recorded."""
+    from app.services.lead_auto_create import resolve_entry_stage_id
+
+    stage_id = resolve_entry_stage_id(db, tenant_id, is_collab=False, has_phone=has_phone)
     inquiry = Inquiry(
         id=str(uuid.uuid4()),
         tenant_id=tenant_id,
@@ -343,7 +371,7 @@ def create_manual_lead(
         property_id=property_id,
         stage=InquiryStage.NEW,
         stage_id=stage_id or _stage_id_for(db, tenant_id, InquiryStage.NEW),
-        source=src,
+        source=source,
         check_in=check_in,
         check_out=check_out,
         adults=adults,
@@ -359,12 +387,11 @@ def create_manual_lead(
     if not assigned_to:
         from app.services.lead_assignment_service import assign_new_lead
         assign_new_lead(db, inquiry)
-    db.commit()
-    db.refresh(inquiry)
-    log.info(
-        "lead_manually_created", inquiry_id=inquiry.id, guest_id=guest_id,
-        tenant_id=tenant_id, actor_user_id=actor_user_id, stage_id=inquiry.stage_id,
-    )
+    if commit:
+        db.commit()
+        db.refresh(inquiry)
+    else:
+        db.flush()
     return inquiry
 
 
@@ -441,6 +468,62 @@ def update_stage(
         f"'{current.value}' → '{new_stage.value}' is not an allowed transition. "
         f"Allowed: {[s.value for s in ALLOWED_FORWARD.get(current, set())]} or any exit stage."
     )
+
+
+def _notify_stage_hooks(db: Session, inquiry: Inquiry, actor_user_id: Optional[str]) -> None:
+    """Called by BOTH transition paths (_apply_stage and _apply_stage_by_id), like _emit_stage_ledger_event: a hook on
+    only one would miss every move made through the other. Today: the lead autopilot closes its open decisions when a
+    person moves the lead (lead_autopilot_service.on_stage_changed). Best-effort -- never blocks the transition."""
+    try:
+        from app.services import lead_autopilot_service
+        lead_autopilot_service.on_stage_changed(db, inquiry, inquiry.stage_id, actor_user_id)
+    except Exception as exc:
+        log.warning("lead_autopilot_stage_hook_failed", inquiry_id=inquiry.id, error=str(exc)[:200])
+    try:   # lead workflows: the journey's outcome follows the stage; a closed lead stops its waiting playbook runs
+        from app.services import lead_journey_tracker, lead_playbook_engine
+        with db.begin_nested():
+            lead_journey_tracker.on_stage_changed(db, inquiry)
+            if lead_journey_tracker.outcome_of(db, inquiry) != "active":
+                lead_playbook_engine.stop_runs(db, inquiry.tenant_id, inquiry.id, "the lead was closed")
+    except Exception as exc:
+        log.warning("lead_journey_stage_hook_failed", inquiry_id=inquiry.id, error=str(exc)[:200])
+
+
+def revert_automatic_move(
+    db: Session,
+    *,
+    tenant_id: str,
+    inquiry_id: str,
+    expected_stage_id: str,
+    restore_stage_id: str,
+    actor_user_id: str,
+    reason: str,
+) -> Inquiry:
+    """Undo ONE lead-autopilot move: put the lead back in the stage it was in before.
+
+    Narrower than update_stage_by_id/reopen_lost_inquiry on purpose: it only works while the lead is still in the stage
+    the autopilot put it in (expected_stage_id -- otherwise a person has moved it since and their move wins), never out
+    of a Sold stage (that is a booking: cancel the booking instead), and only back into an open stage. Writes the same
+    stage log, ledger event and audit row as any move. Clears the lost reason when leaving Lost (the caller restores
+    the previous one). Caller commits."""
+    inquiry = db.query(Inquiry).filter_by(id=inquiry_id, tenant_id=tenant_id).first()
+    if not inquiry:
+        raise ValueError(f"Inquiry {inquiry_id} not found")
+    current = db.query(PipelineStage).filter_by(id=expected_stage_id, tenant_id=tenant_id).first()
+    target = db.query(PipelineStage).filter_by(id=restore_stage_id, tenant_id=tenant_id).first()
+    if current is None or target is None:
+        raise ValueError("Pipeline stage not found")
+    if inquiry.stage_id != current.id:
+        raise InvalidStageTransition(current.key, target.key, "The lead has been moved since; this change can't be undone.")
+    if current.is_closed_won:
+        raise InvalidStageTransition(current.key, target.key, "A Sold lead is a booking. Cancel the booking instead.")
+    if target.is_closed_won or target.is_closed_lost:
+        raise InvalidStageTransition(current.key, target.key, "An undo can only return the lead to an open stage.")
+    _apply_stage_by_id(db, inquiry, current, target, actor_user_id, reason)
+    if current.is_closed_lost:
+        inquiry.lost_reason = None
+        inquiry.lost_note = None
+    return inquiry
 
 
 def _emit_stage_ledger_event(
@@ -552,6 +635,8 @@ def _apply_stage(
         )
     except Exception as exc:
         log.warning("audit_write_failed", error=str(exc))
+
+    _notify_stage_hooks(db, inquiry, actor_user_id)
 
     log.info(
         "inquiry_stage_changed",
@@ -754,6 +839,8 @@ def _apply_stage_by_id(
         )
     except Exception as exc:
         log.warning("audit_write_failed", error=str(exc))
+
+    _notify_stage_hooks(db, inquiry, actor_user_id)
 
     log.info(
         "inquiry_stage_changed", inquiry_id=inquiry.id,

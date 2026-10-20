@@ -122,7 +122,7 @@ const MODULES = [
     id: "analytics",
     label: "Analytics & Reports",
     icon: <BarChart2 size={16} />,
-    color: "from-teal-500 to-teal-600",
+    color: "from-primary to-[var(--haip-primary-hover)]",
     faqs: [
       {
         q: "What is the difference between Analytics and Reports?",
@@ -199,18 +199,18 @@ const MODULES = [
 function FAQItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="border-b border-gray-100 last:border-0">
+    <div className="border-b border-[var(--haip-border)] last:border-0">
       <button
         onClick={() => setOpen(o => !o)}
         className="w-full flex items-start justify-between gap-4 py-4 text-left group"
       >
-        <span className="text-sm font-medium text-gray-800 group-hover:text-teal-700 transition-colors">{q}</span>
+        <span className="text-sm font-medium text-[var(--haip-fg)] group-hover:text-primary transition-colors">{q}</span>
         <span className="flex-shrink-0 mt-0.5">
-          {open ? <ChevronUp size={15} className="text-teal-500" /> : <ChevronDown size={15} className="text-gray-400" />}
+          {open ? <ChevronUp size={15} className="text-primary" /> : <ChevronDown size={15} className="text-[var(--haip-fg-subtle)]" />}
         </span>
       </button>
       {open && (
-        <p className="pb-4 text-sm text-gray-600 leading-relaxed -mt-1">{a}</p>
+        <p className="pb-4 text-sm text-[var(--haip-fg-muted)] leading-relaxed -mt-1">{a}</p>
       )}
     </div>
   );
@@ -232,23 +232,23 @@ export default function HelpPage() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="px-6 py-6 bg-white border-b border-gray-100">
+      <div className="px-6 py-6 bg-white border-b border-[var(--haip-border)]">
         <div className="max-w-2xl">
           <h1 className="haip-page-title">Help & Support</h1>
-          <p className="text-sm text-gray-400 mt-0.5 mb-4">Find answers to common questions, or get in touch with our team</p>
+          <p className="text-sm text-[var(--haip-fg-subtle)] mt-0.5 mb-4">Find answers to common questions, or get in touch with our team</p>
 
           {/* Search */}
           <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
             <input
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search FAQs… e.g. 'connect WhatsApp' or 'QA score'"
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white"
+              className="w-full pl-10 pr-4 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white"
             />
             {search && (
-              <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)]">
                 ×
               </button>
             )}
@@ -260,20 +260,20 @@ export default function HelpPage() {
         <div className="max-w-3xl space-y-6">
           {/* Search results */}
           {searchResults !== null ? (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
+            <div className="bg-white rounded-2xl border border-[var(--haip-border)] shadow-sm p-5">
+              <p className="text-xs font-bold text-[var(--haip-fg-subtle)] uppercase tracking-wider mb-1">
                 {searchResults.length} result{searchResults.length !== 1 ? "s" : ""} for "{search}"
               </p>
               {searchResults.length === 0 ? (
-                <div className="py-8 text-center text-gray-400">
+                <div className="py-8 text-center text-[var(--haip-fg-subtle)]">
                   <HelpCircle size={32} className="mx-auto mb-3 opacity-30" />
                   <p className="text-sm">No FAQs match your search.</p>
-                  <p className="text-xs mt-1">Try a different keyword or <a href="mailto:hello@haip.app" className="text-teal-600 hover:underline">email support</a>.</p>
+                  <p className="text-xs mt-1">Try a different keyword or <a href="mailto:hello@haip.app" className="text-primary hover:underline">email support</a>.</p>
                 </div>
               ) : (
                 searchResults.map((f, i) => (
                   <div key={i}>
-                    <p className="text-[10px] font-bold text-teal-600 uppercase tracking-wider mt-3 mb-0.5">{f.module}</p>
+                    <p className="text-[10px] font-bold text-primary uppercase tracking-wider mt-3 mb-0.5">{f.module}</p>
                     <FAQItem q={f.q} a={f.a} />
                   </div>
                 ))
@@ -290,22 +290,22 @@ export default function HelpPage() {
                     className={cn(
                       "flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all text-center",
                       activeModule === m.id
-                        ? "border-teal-400 bg-teal-50 shadow-sm"
-                        : "bg-white border-gray-100 hover:border-teal-200 hover:shadow-sm"
+                        ? "border-primary bg-[var(--haip-primary-tint)] shadow-sm"
+                        : "bg-white border-[var(--haip-border)] hover:border-[color-mix(in_srgb,var(--primary)_25%,transparent)] hover:shadow-sm"
                     )}
                   >
                     <div className={cn("w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center text-white shadow-sm", m.color)}>
                       {m.icon}
                     </div>
-                    <span className="text-xs font-semibold text-gray-700">{m.label}</span>
-                    <span className="text-[10px] text-gray-400">{m.faqs.length} FAQs</span>
+                    <span className="text-xs font-semibold text-[var(--haip-fg-2)]">{m.label}</span>
+                    <span className="text-[10px] text-[var(--haip-fg-subtle)]">{m.faqs.length} FAQs</span>
                   </button>
                 ))}
               </div>
 
               {/* FAQ accordion for selected module, or all */}
               {MODULES.filter(m => !activeModule || m.id === activeModule).map(m => (
-                <div key={m.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div key={m.id} className="bg-white rounded-2xl border border-[var(--haip-border)] shadow-sm overflow-hidden">
                   <div className={cn("px-5 py-4 bg-gradient-to-r text-white flex items-center gap-3", m.color)}>
                     {m.icon}
                     <span className="font-semibold text-sm">{m.label}</span>
@@ -321,10 +321,10 @@ export default function HelpPage() {
           )}
 
           {/* Contact section */}
-          <div className="rounded-2xl p-6 text-white" style={{ background: "linear-gradient(135deg, #0F766E, #0d9488)" }}>
+          <div className="rounded-2xl p-6 text-white" style={{ background: "var(--primary)" }}>
             <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-xl bg-teal-500/20 flex items-center justify-center flex-shrink-0">
-                <Mail size={22} className="text-teal-400" />
+              <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
+                <Mail size={22} className="text-primary" />
               </div>
               <div className="flex-1">
                 <h3 className="text-base font-bold mb-1">Still need help?</h3>
@@ -334,7 +334,7 @@ export default function HelpPage() {
                 <div className="flex flex-wrap gap-3">
                   <a
                     href="mailto:hello@haip.app?subject=HAIP Support Request"
-                    className="flex items-center gap-2 px-4 py-2.5 bg-teal-500 hover:bg-teal-400 text-white rounded-xl text-sm font-semibold transition-colors"
+                    className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary text-white rounded-xl text-sm font-semibold transition-colors"
                   >
                     <Mail size={14} />
                     Email support
@@ -368,11 +368,11 @@ export default function HelpPage() {
               <a
                 key={l.label}
                 href={l.href}
-                className="flex items-center gap-2.5 bg-white rounded-xl border border-gray-100 px-4 py-3 text-sm text-gray-700 hover:border-teal-200 hover:text-teal-700 hover:shadow-sm transition-all group"
+                className="flex items-center gap-2.5 bg-white rounded-xl border border-[var(--haip-border)] px-4 py-3 text-sm text-[var(--haip-fg-2)] hover:border-[color-mix(in_srgb,var(--primary)_25%,transparent)] hover:text-primary hover:shadow-sm transition-all group"
               >
-                <span className="text-gray-400 group-hover:text-teal-500">{l.icon}</span>
+                <span className="text-[var(--haip-fg-subtle)] group-hover:text-primary">{l.icon}</span>
                 {l.label}
-                <ChevronDown size={12} className="ml-auto rotate-[-90deg] text-gray-300 group-hover:text-teal-400" />
+                <ChevronDown size={12} className="ml-auto rotate-[-90deg] text-[var(--haip-fg-subtle)]/70 group-hover:text-primary" />
               </a>
             ))}
           </div>

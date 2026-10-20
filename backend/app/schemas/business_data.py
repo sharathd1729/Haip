@@ -40,6 +40,7 @@ class Rate(_Strict):
     unit: Literal["package", "night", "day"] = "package"
     min_nights: Optional[int] = Field(default=None, ge=0, le=60)
     days_of_week: Optional[list[int]] = None             # 0 = Monday ... 6 = Sunday; None = every day
+    level: Optional[str] = Field(default=None, min_length=1, max_length=40)   # e.g. "40000" for an all-inclusive level; the agent picks one
 
     @field_validator("days_of_week")
     @classmethod
@@ -55,23 +56,84 @@ class Rate(_Strict):
         return self
 
     def signature(self) -> tuple:
-        return (self.unit, self.min_nights or 0, tuple(self.days_of_week or ()))
+        return (self.unit, self.min_nights or 0, tuple(self.days_of_week or ()), self.level or "")
 
 
 class ExtraGuestCharge(_Strict):
+    """Guests above `free_guests`. Older records give `per_guest_per_night`; newer ones give `per_guest` with its `unit`
+    (night, billed day, or once for the whole trip). Exactly one of the two amounts is set."""
     free_guests: int = Field(default=0, ge=0, le=50)
-    per_guest_per_night: Money
+    per_guest_per_night: Optional[Money] = None
+    per_guest: Optional[Money] = None
+    unit: Literal["night", "day", "trip"] = "night"
+
+    @model_validator(mode="after")
+    def _one_amount(self):
+        if (self.per_guest_per_night is None) == (self.per_guest is None):
+            raise ValueError("give exactly one of per_guest_per_night or per_guest")
+        if self.per_guest_per_night is not None and self.unit != "night":
+            raise ValueError("per_guest_per_night is charged per night; use per_guest with a unit instead")
+        return self
+
+    @property
+    def amount(self) -> Decimal:
+        return self.per_guest if self.per_guest is not None else self.per_guest_per_night
+
+
+class KmStep(_Strict):
+    up_to_extra_km: Optional[Decimal] = Field(default=None, gt=0)    # None = any distance above the previous step
+    per_km: Money
 
 
 class ExtraKmCharge(_Strict):
-    per_km: Money
+    """Kilometres above the allowance. Either one fixed `per_km`, or a range the agent picks from (`max_per_km` down to
+    `min_per_km`) with an optional `ladder` of suggested rates by extra distance. The applied rate is stored in the quote."""
+    per_km: Optional[Money] = None
+    max_per_km: Optional[Money] = None
+    min_per_km: Optional[Money] = None
+    ladder: list[KmStep] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _shape(self):
+        ranged = self.max_per_km is not None or self.min_per_km is not None
+        if self.per_km is not None and (ranged or self.ladder):
+            raise ValueError("give either a fixed per_km or a range (max_per_km / min_per_km), not both")
+        if self.per_km is None:
+            if self.max_per_km is None or self.min_per_km is None:
+                raise ValueError("give a fixed per_km, or both max_per_km and min_per_km")
+            if self.min_per_km > self.max_per_km:
+                raise ValueError("min_per_km is above max_per_km")
+            for st in self.ladder:
+                if not (self.min_per_km <= st.per_km <= self.max_per_km):
+                    raise ValueError(f"ladder rate {st.per_km} is outside {self.min_per_km}-{self.max_per_km}")
+            limits = [st.up_to_extra_km for st in self.ladder]
+            if None in limits[:-1] or any(a is not None and b is not None and b <= a for a, b in zip(limits, limits[1:])):
+                raise ValueError("ladder steps must go up in distance; only the last step may be open-ended")
+        return self
+
+    @property
+    def ranged(self) -> bool:
+        return self.per_km is None
+
+    def suggested(self, extra_km: Decimal) -> Decimal:
+        """The rate to propose for this many extra km: the fixed rate, else the first ladder step that covers it, else the top."""
+        if not self.ranged:
+            return self.per_km
+        for st in self.ladder:
+            if st.up_to_extra_km is None or extra_km <= st.up_to_extra_km:
+                return st.per_km
+        return self.ladder[-1].per_km if self.ladder else self.max_per_km
+
+
+class ExtraHourCharge(_Strict):
+    per_hour: Money
 
 
 class Charge(_Strict):
     name: str = Field(min_length=1, max_length=80)
     kind: Literal["experience", "driver", "toll", "night_halt", "other"] = "other"
     amount: Money
-    unit: Literal["per_stay", "per_night", "per_person", "per_unit"] = "per_stay"
+    unit: Literal["per_stay", "per_night", "per_day", "per_person", "per_unit"] = "per_stay"     # per_day = per billed day
     optional: bool = True
 
 
@@ -93,10 +155,25 @@ class PackageData(_Strict):
     destination_keys: list[Slug] = Field(default_factory=list)
     gst_percent: Percent = Decimal("12")
     quote_valid_days: int = Field(default=3, ge=1, le=60)
+    # Quote-builder terms (all optional: older records keep these defaults and price exactly as before).
+    day_count: Literal["calendar", "noon_to_noon"] = "calendar"         # noon_to_noon: a day is 24 h, billed days = nights (min 1)
+    min_days: Optional[int] = Field(default=None, ge=1, le=60)          # fewest billed days
+    duration_hours: Optional[int] = Field(default=None, ge=1, le=720)   # a fixed-length package, e.g. 48 (shown on the quote)
+    included_km_per_day: Optional[Decimal] = Field(default=None, ge=0)  # kilometres included per billed day
+    extra_hour_charge: Optional[ExtraHourCharge] = None                 # none = a late return cannot be quoted
+    kits_included: bool = False                                         # experience charges are part of the price (shown at 0)
+    at_actuals: list[str] = Field(default_factory=list)                 # e.g. "Tolls and parking": billed at actuals, outside the total
+    # The AI sales agent (autopilot) may send this package's quote + payment link without a person first confirming the
+    # overnight stay with the partner. Owner's call; off by default.
+    auto_bookable: bool = False
 
     @model_validator(mode="after")
     def _consistent(self):
         problems = []
+        if self.included_km is not None and self.included_km_per_day is not None:
+            problems.append("give included_km (whole trip) or included_km_per_day, not both")
+        if len({r.level is not None for r in self.rates}) > 1:
+            problems.append("either every rate has a level or none does")
         if self.max_nights is not None and self.max_nights < self.min_nights:
             problems.append("max_nights is below min_nights")
         norm = lambda items: {i.strip().lower() for i in items if i.strip()}
@@ -127,20 +204,34 @@ class Stop(_Strict):
     travel_hours_from_previous: Optional[Decimal] = Field(default=None, ge=0)
 
 
+class Sight(_Strict):
+    """An optional place a guest can add to the route, with the kilometres there and back."""
+    name: str = Field(min_length=1, max_length=120)
+    km_round_trip: Decimal = Field(ge=0, le=5000)
+
+
 class DestinationData(_Strict):
+    """`stops` are the route in order, each with its distance from the previous one (the first from base; the return to base is
+    the last stop). A quote's planned km = the sum of those distances + the sights the guest adds."""
     name: str = Field(min_length=1, max_length=120)
     description: str = Field(default="", max_length=2000)
     stops: list[Stop] = Field(default_factory=list)
+    sights: list[Sight] = Field(default_factory=list)
+    usual_nights: Optional[int] = Field(default=None, ge=0, le=30)
     distance_km_from_base: Decimal = Field(ge=0)
     travel_hours_from_base: Decimal = Field(ge=0)
     best_months: list[int] = Field(default_factory=list)
     notes: str = Field(default="", max_length=1000)
+    auto_bookable: bool = False          # the overnight stays on this route need no partner check before the AI sends a quote
 
     @model_validator(mode="after")
     def _stops(self):
         orders = [s.order for s in self.stops]
         if len(set(orders)) != len(orders):
             raise ValueError("two stops have the same order")
+        names = [x.name.lower() for x in self.sights]
+        if len(set(names)) != len(names):
+            raise ValueError("two sights have the same name")
         if any(m < 1 or m > 12 for m in self.best_months):
             raise ValueError("best_months must be 1-12")
         if self.travel_hours_from_base and self.distance_km_from_base and self.distance_km_from_base / self.travel_hours_from_base > 120:
@@ -180,6 +271,20 @@ class ResellerTier(_Strict):
     commission_percent: Percent
     applies_to_package_keys: list[Slug] = Field(default_factory=list)   # empty = all packages
     max_discount_percent: Percent = Decimal("0")
+    # Optional: the agent picks the commission within this range (commission_percent is the default), and the tier's minimums.
+    min_commission_percent: Optional[Percent] = None
+    max_commission_percent: Optional[Percent] = None
+    min_days: Optional[int] = Field(default=None, ge=1, le=60)
+    min_billing: Optional[Money] = None                                 # before tax
+
+    @model_validator(mode="after")
+    def _range(self):
+        lo, hi = self.min_commission_percent, self.max_commission_percent
+        if (lo is None) != (hi is None):
+            raise ValueError("give both min_commission_percent and max_commission_percent, or neither")
+        if lo is not None and not (lo <= self.commission_percent <= hi):
+            raise ValueError("commission_percent must lie within min_commission_percent and max_commission_percent")
+        return self
 
 
 class ResellerTermsData(_Strict):
@@ -300,6 +405,35 @@ def validate_data(kind: str, data: dict) -> tuple[Optional[BaseModel], list[str]
         return None, problems
 
 
+# Fields added for the quote builder are stored only when used, so a record saved today without them has exactly the shape
+# (and the version diffs) it had before they existed.
+_OMIT_IF_DEFAULT: dict[type, tuple[str, ...]] = {
+    Rate: ("level",),
+    ExtraGuestCharge: ("per_guest_per_night", "per_guest", "unit"),
+    ExtraKmCharge: ("per_km", "max_per_km", "min_per_km", "ladder"),
+    Charge: (),
+    PackageData: ("day_count", "min_days", "duration_hours", "included_km_per_day", "extra_hour_charge", "kits_included", "at_actuals",
+                  "auto_bookable"),
+    DestinationData: ("sights", "usual_nights", "auto_bookable"),
+    ResellerTier: ("min_commission_percent", "max_commission_percent", "min_days", "min_billing"),
+}
+
+
+def _prune(model: BaseModel, dumped: dict) -> dict:
+    omit = _OMIT_IF_DEFAULT.get(type(model), ())
+    for name in list(dumped):
+        value = getattr(model, name, None)
+        if name in omit and value == type(model).model_fields[name].get_default(call_default_factory=True):
+            del dumped[name]
+        elif isinstance(value, BaseModel) and isinstance(dumped[name], dict):
+            _prune(value, dumped[name])
+        elif isinstance(value, list) and isinstance(dumped[name], list):
+            for m, d in zip(value, dumped[name]):
+                if isinstance(m, BaseModel) and isinstance(d, dict):
+                    _prune(m, d)
+    return dumped
+
+
 def canonical(model: BaseModel) -> dict:
     """JSON-safe dict of a validated model (Decimals and dates as strings): what is stored."""
-    return model.model_dump(mode="json")
+    return _prune(model, model.model_dump(mode="json"))

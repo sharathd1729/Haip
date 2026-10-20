@@ -59,15 +59,15 @@ export function DataTable<T>({
 
   return (
     <div className={cn("haip-card overflow-hidden", className)}>
-      <div className="flex items-center justify-between gap-2 border-b border-[var(--haip-border)] px-3 py-1.5">
-        <p className="text-xs text-[var(--haip-fg-subtle)]" aria-live="polite">
+      <div className="flex items-center justify-between gap-2 border-b border-[var(--haip-border)] px-4 py-2">
+        <p className="text-[12.5px] text-[var(--haip-fg-subtle)]" aria-live="polite">
           {loading ? "Loading…" : `${rows.length} ${rows.length === 1 ? "row" : "rows"}`}
           {selectable && selectedKeys!.size > 0 && ` · ${selectedKeys!.size} selected`}
         </p>
-        <div role="group" aria-label="Row density" className="flex rounded-md bg-[var(--haip-surface)] p-0.5">
+        <div role="group" aria-label="Row density" className="flex rounded-full bg-[var(--haip-status-neutral-bg)] p-0.5">
           {(["comfortable", "compact"] as const).map(d => (
             <button key={d} type="button" aria-pressed={density === d} onClick={() => setDensity(d)}
-              className={cn("h-7 rounded px-2.5 text-[11px] font-semibold capitalize transition-colors",
+              className={cn("h-7 rounded-full px-3 text-[12px] font-semibold capitalize transition-colors",
                 density === d ? "bg-[var(--haip-card)] text-[var(--haip-fg)] shadow-sm" : "text-[var(--haip-fg-subtle)]")}>
               {d}
             </button>
@@ -76,17 +76,17 @@ export function DataTable<T>({
       </div>
 
       <div className={cn("overflow-auto", maxHeightClass)}>
-        <table className="w-full border-collapse text-[13px]">
+        <table className="w-full border-collapse text-[14px]">
           <thead className="sticky top-0 z-10 bg-[var(--haip-surface)]">
             <tr>
               {selectable && (
                 <th className="w-10 px-3 py-2">
-                  <input type="checkbox" aria-label="Select all rows" checked={allOn} onChange={toggleAll} className="size-4 accent-primary" />
+                  <label className="-m-2 flex size-11 cursor-pointer items-center justify-center"><input type="checkbox" aria-label="Select all rows" checked={allOn} onChange={toggleAll} className="size-4 accent-primary" /></label>
                 </th>
               )}
               {columns.map(c => (
                 <th key={c.key} scope="col"
-                  className={cn("whitespace-nowrap px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--haip-fg-subtle)]",
+                  className={cn("whitespace-nowrap px-4 py-2.5 text-[12.5px] font-semibold text-[var(--haip-fg-muted)]",
                     c.align === "right" ? "text-right" : "text-left", c.hideBelow && HIDE[c.hideBelow])}>
                   {c.header}
                 </th>
@@ -96,14 +96,14 @@ export function DataTable<T>({
           <tbody>
             {loading && Array.from({ length: 6 }, (_, i) => (
               <tr key={`sk${i}`} className="border-t border-[var(--haip-border)]">
-                <td colSpan={colSpan} className={cn("px-3", ROW_PAD[density])}><Skeleton className="h-4 w-full" /></td>
+                <td colSpan={colSpan} className={cn("px-4", ROW_PAD[density])}><Skeleton className="h-4 w-full" /></td>
               </tr>
             ))}
 
             {!loading && error && (
               <tr><td colSpan={colSpan}>
                 <EmptyState title="Could not load this list" hint={error}
-                  action={onRetry && <button type="button" onClick={onRetry} className="h-9 rounded-lg border border-[var(--haip-border)] px-4 text-[13px] font-semibold hover:bg-[var(--haip-surface)]">Try again</button>} />
+                  action={onRetry && <button type="button" onClick={onRetry} className="h-10 rounded-xl border border-[var(--haip-border)] px-4 text-[14px] font-semibold hover:bg-[var(--hover-bg)]">Try again</button>} />
               </td></tr>
             )}
 
@@ -117,15 +117,15 @@ export function DataTable<T>({
               return (
                 <tr key={k} onClick={onRowClick ? () => onRowClick(r) : undefined}
                   className={cn("border-t border-[var(--haip-border)] transition-colors",
-                    onRowClick && "cursor-pointer hover:bg-[var(--haip-surface)]", on && "bg-primary/5")}>
+                    onRowClick && "cursor-pointer hover:bg-[var(--hover-bg)]", on && "bg-[var(--haip-primary-tint)]")}>
                   {selectable && (
                     <td className="w-10 px-3" onClick={e => e.stopPropagation()}>
-                      <input type="checkbox" aria-label="Select row" checked={!!on} onChange={() => toggleOne(k)} className="size-4 accent-primary" />
+                      <label className="-m-2 flex size-11 cursor-pointer items-center justify-center"><input type="checkbox" aria-label="Select row" checked={!!on} onChange={() => toggleOne(k)} className="size-4 accent-primary" /></label>
                     </td>
                   )}
                   {columns.map(c => (
                     <td key={c.key}
-                      className={cn("px-3 text-[var(--haip-fg)]", ROW_PAD[density], c.align === "right" ? "text-right tabular-nums" : "text-left",
+                      className={cn("px-4 text-[var(--haip-fg)]", ROW_PAD[density], c.align === "right" ? "text-right tabular-nums" : "text-left",
                         c.hideBelow && HIDE[c.hideBelow], c.className)}>
                       {c.cell(r)}
                     </td>

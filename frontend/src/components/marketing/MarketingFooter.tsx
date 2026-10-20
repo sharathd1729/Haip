@@ -27,6 +27,7 @@ const links = {
     { label: "About",       href: "/about" },
     { label: "Contact",     href: "/contact" },
     { label: "Book a demo", href: "/book-demo" },
+    { label: "Free property assessment", href: "/assess" },
   ],
   Legal: [
     { label: "Privacy Policy",      href: "/privacy" },

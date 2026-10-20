@@ -39,48 +39,36 @@ _COLLAB_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Loose international-friendly phone match: 7-15 digits, optional +/spaces/dashes.
-_PHONE_RE = re.compile(r"(\+?\d[\d\-\s]{6,14}\d)")
-
-
 def is_collab_message(text: str) -> bool:
     if not text:
         return False
     return bool(_COLLAB_RE.search(text))
 
 
-def text_contains_phone(text: str) -> bool:
-    if not text:
-        return False
-    return bool(_PHONE_RE.search(text))
+# A number without a country code is read as Indian unless the caller passes the workspace's own region (every chat path
+# did this before phone_identity.find_phones existed; kept so nothing that worked stops working).
+DEFAULT_REGION = "IN"
 
 
-def extract_phone(text: str) -> Optional[str]:
-    """Extract + normalize a real phone number from message text, or None.
+def text_contains_phone(text: str, region: Optional[str] = DEFAULT_REGION) -> bool:
+    """True only when the text holds a usable phone number -- the SAME rule extract_phone() uses.
 
-    Deliberately stricter than text_contains_phone() -- that's a loose
-    boolean used only for pipeline-stage routing (a false positive there
-    just picks a slightly different landing stage). This result gets
-    written as an identity signal, where a false positive is worse: a
-    guest typing a date like "24-08-2026" matches the same loose
-    digit-dash pattern, and phone is a high-confidence signal that can
-    trigger a guest merge -- writing a garbage "phone" could wrongly
-    merge this guest with an unrelated one. phonenumbers.is_valid_number()
-    rejects that (an 8-digit run isn't a valid Indian number) in a way
-    the regex alone can't."""
-    if not text:
-        return None
-    match = _PHONE_RE.search(text)
-    if not match:
-        return None
-    import phonenumbers
-    try:
-        parsed = phonenumbers.parse(match.group(1), "IN")
-        if not phonenumbers.is_valid_number(parsed):
-            return None
-        return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
-    except phonenumbers.NumberParseException:
-        return None
+    This used to be a loose digit regex (7-15 digits with spaces/dashes). A date such as "24-10-2026 to 26-10-2026" matched
+    it, so a first DM with dates and no number routed the new enquiry into the valid-lead entry stage ("General Enquiry")
+    while no phone was ever captured: the team's lists then showed an Instagram lead with dates and "no number on file".
+    Routing and capture now agree."""
+    return bool(extract_phone(text, region))
+
+
+def extract_phone(text: str, region: Optional[str] = DEFAULT_REGION) -> Optional[str]:
+    """The first usable phone number in message text, as E.164, or None (phone_identity.find_phones).
+
+    Strict on purpose: the result becomes an identity signal, and a phone is a high-confidence signal that can merge two
+    guests, so a date, price, pincode or booking reference must never come back as a "phone". Only the first number is
+    returned -- a second number in the same message is often someone else's (a driver, a spouse)."""
+    from app.services.phone_identity import find_phones
+    found = find_phones(text, region)
+    return found[0] if found else None
 
 
 def resolve_entry_stage_id(

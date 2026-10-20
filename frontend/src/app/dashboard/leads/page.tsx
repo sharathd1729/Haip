@@ -8,6 +8,7 @@ import { Target, RefreshCw, Settings2, ChevronDown, Plus } from "@/lib/icons";
 import { UserCheck } from "lucide-react";
 import api from "@/lib/api";
 import { LeadCard, type LeadCard as LeadCardType } from "@/components/leads/LeadCard";
+import { groupLeads, LEAD_GROUP_LABEL } from "@/components/leads/leadGroups";
 import { SkeletonCard } from "@/components/ui/SkeletonCard";
 import { cn, formatINR } from "@/lib/utils";
 import { DataTable, StatusPill, type Column } from "@/components/ui/kit";
@@ -203,42 +204,44 @@ function MobileStageSection({
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: stage.color }} />
-          <span className="text-sm font-semibold truncate" style={{ color: "var(--haip-fg)" }}>
-            {stage.label}
-          </span>
-          <span
-            className="rounded-full px-2 py-0.5 text-[10px] font-medium tabular-nums flex-shrink-0"
-            style={{ background: "var(--muted)", color: "var(--haip-fg-subtle)" }}
-          >
-            {count}
-          </span>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          {/* The stage's own colour is tenant data (pipeline settings), so it stays a runtime value. */}
+          <span className="size-2.5 flex-shrink-0 rounded-full" style={{ background: stage.color }} />
+          <span className="truncate font-[family-name:var(--font-display)] text-[17px] font-semibold text-[var(--haip-fg)]">{stage.label}</span>
+          <span className="num flex-shrink-0 rounded-full bg-[var(--haip-status-neutral-bg)] px-2 py-0.5 text-[12px] font-semibold text-[var(--haip-fg-muted)]">{count}</span>
         </div>
         {revenue > 0 && (
-          <p className="text-[10px] flex-shrink-0" style={{ color: "var(--haip-fg-subtle)" }}>
-            ₹{Number(revenue).toLocaleString("en-IN")}
-          </p>
+          <p className="num flex-shrink-0 text-[12.5px] text-[var(--haip-fg-subtle)]">₹{Number(revenue).toLocaleString("en-IN")}</p>
         )}
       </div>
       {isLoading ? (
         <SkeletonCard />
       ) : leads.length === 0 ? (
-        <div className="flex items-center justify-center py-6 text-[11px] rounded-xl" style={{ background: "var(--muted)", color: "var(--haip-fg-subtle)" }}>
-          No leads here
+        <div className="flex items-center justify-center rounded-2xl bg-[var(--haip-status-neutral-bg)] py-8 text-[13.5px] text-[var(--haip-fg-subtle)]">
+          No leads in this stage
         </div>
       ) : (
-        <div className="space-y-2">
-          {leads.map(lead => <LeadCard key={lead.inquiry_id} lead={lead} />)}
+        <div className="space-y-4">
+          {/* Grouped by what to do next (Act now / Today / Later); within a group the server's order stands. */}
+          {groupLeads(leads).map(group => (
+            <section key={group.key} aria-label={`${LEAD_GROUP_LABEL[group.key]}, ${group.leads.length}`}>
+              <h3 className={cn("mb-2 flex items-center gap-2 px-0.5 text-[13px] font-semibold",
+                group.key === "now" ? "text-[var(--haip-status-danger-fg)]" : "text-[var(--haip-fg-muted)]")}>
+                {group.key === "now" && <span className="size-2 rounded-full bg-[var(--haip-status-danger-fg)]" aria-hidden />}
+                {LEAD_GROUP_LABEL[group.key]}
+                <span className="num font-medium text-[var(--haip-fg-subtle)]">{group.leads.length}</span>
+              </h3>
+              <div className="space-y-2">{group.leads.map(lead => <LeadCard key={lead.inquiry_id} lead={lead} />)}</div>
+            </section>
+          ))}
           {hasNextPage && (
             <button
               onClick={() => fetchNextPage()}
               disabled={isFetchingNextPage}
-              className="w-full flex items-center justify-center gap-1 text-[11px] font-medium py-2.5 rounded-xl border transition-colors duration-150 disabled:opacity-50"
-              style={{ borderColor: "var(--haip-border)", color: "var(--haip-fg-subtle)" }}
+              className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-[var(--haip-border)] bg-[var(--haip-card)] text-[13.5px] font-semibold text-[var(--haip-fg-muted)] transition-colors duration-150 disabled:opacity-50"
             >
-              <ChevronDown size={12} className={isFetchingNextPage ? "animate-spin" : ""} />
+              <ChevronDown size={14} className={isFetchingNextPage ? "animate-spin" : ""} />
               {isFetchingNextPage ? "Loading…" : `Load more (${count - leads.length} left)`}
             </button>
           )}

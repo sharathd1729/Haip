@@ -10,6 +10,9 @@ import { Tabs } from "@/components/ui/kit";
 import { KnowledgeTestBox } from "@/components/knowledge/KnowledgeTestBox";
 import { StructuredDataTab } from "@/components/knowledge/StructuredDataTab";
 import { KnowledgeHistoryDrawer } from "@/components/knowledge/KnowledgeHistoryDrawer";
+import { KnowledgeFreshnessPanel } from "@/components/knowledge/KnowledgeFreshnessPanel";
+import { SocialApprovalQueue } from "@/components/knowledge/SocialApprovalQueue";
+import { FlagBadges, SourceBadge } from "@/components/knowledge/SourceBadge";
 
 interface KnowledgeEntry {
   id: string;
@@ -27,6 +30,8 @@ interface KnowledgeEntry {
   embedding_attempts?: number;
   embedded_at?: string | null;
   stale_since?: string | null;
+  source_published_at?: string | null;
+  content_flags?: string[] | null;
   property_id?: string | null;
   updated_at: string;
 }
@@ -116,6 +121,8 @@ function KnowledgeAndTrainingTab() {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["knowledge"] });
     queryClient.invalidateQueries({ queryKey: ["knowledge-stats"] });
+    queryClient.invalidateQueries({ queryKey: ["knowledge-approvals"] });
+    queryClient.invalidateQueries({ queryKey: ["knowledge-freshness"] });
   };
 
   const saveMutation = useMutation({
@@ -263,11 +270,11 @@ function KnowledgeAndTrainingTab() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="px-6 py-5 bg-white border-b border-gray-100 flex-shrink-0">
+      <div className="px-6 py-5 bg-white border-b border-[var(--haip-border)] flex-shrink-0">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="haip-page-title">AI Knowledge Base</h1>
-            <p className="text-sm text-gray-400 mt-0.5 max-w-2xl">
+            <p className="text-sm text-[var(--haip-fg-subtle)] mt-0.5 max-w-2xl">
               What your AI concierge knows about your properties. Live availability and rates come from your
               calendar and rate card — everything else (amenities, add-ons, routes, policies) it learns here.
               Edits are used only after the entry shows as indexed.
@@ -289,7 +296,7 @@ function KnowledgeAndTrainingTab() {
               onClick={() => fileInputRef.current?.click()}
               disabled={uploadMutation.isPending}
               title="Upload a PDF, Word doc, or text file -- added as pending entries for you to review"
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-[var(--haip-border)] text-[var(--haip-fg-2)] rounded-xl text-sm font-semibold hover:bg-[var(--haip-surface)] transition-colors disabled:opacity-50"
             >
               {uploadMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
               Upload document
@@ -297,13 +304,13 @@ function KnowledgeAndTrainingTab() {
             <button
               onClick={() => setCrawlOpen(true)}
               title="Pull content from your website (e.g. your FAQ or amenities page) -- added as pending entries for you to review"
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-[var(--haip-border)] text-[var(--haip-fg-2)] rounded-xl text-sm font-semibold hover:bg-[var(--haip-surface)] transition-colors"
             >
               <Globe size={15} /> Add from website
             </button>
             <button
               onClick={() => setForm({ ...EMPTY_FORM })}
-              className="flex items-center gap-1.5 px-4 py-2 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors"
+              className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary transition-colors"
             >
               <Plus size={15} /> Add knowledge
             </button>
@@ -312,14 +319,14 @@ function KnowledgeAndTrainingTab() {
 
         {stats && (
           <div className="flex flex-wrap items-center gap-4 mt-4 text-xs">
-            <span className="inline-flex items-center gap-1.5 text-teal-700 font-medium">
+            <span className="inline-flex items-center gap-1.5 text-primary font-medium">
               <CheckCircle2 size={13} /> {stats.retrievable} answers the AI can use
             </span>
             {stats.last_indexed_at && (
-              <span className="text-gray-400">last indexed {timeAgo(stats.last_indexed_at)}</span>
+              <span className="text-[var(--haip-fg-subtle)]">last indexed {timeAgo(stats.last_indexed_at)}</span>
             )}
             {stats.embedding_pending > 0 && (
-              <span className="inline-flex items-center gap-1.5 text-gray-500">
+              <span className="inline-flex items-center gap-1.5 text-[var(--haip-fg-subtle)]">
                 <Loader2 size={12} className="animate-spin" /> {stats.embedding_pending} indexing — not usable yet
               </span>
             )}
@@ -338,7 +345,7 @@ function KnowledgeAndTrainingTab() {
               <button
                 onClick={() => reindexAll.mutate()}
                 disabled={reindexAll.isPending}
-                className="inline-flex items-center gap-1 text-teal-700 font-semibold hover:underline disabled:opacity-50"
+                className="inline-flex items-center gap-1 text-primary font-semibold hover:underline disabled:opacity-50"
               >
                 <RefreshCw size={11} className={reindexAll.isPending ? "animate-spin" : undefined} /> Retry indexing
               </button>
@@ -362,6 +369,8 @@ function KnowledgeAndTrainingTab() {
 
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-4xl space-y-5">
+          <KnowledgeFreshnessPanel />
+          <SocialApprovalQueue />
           <KnowledgeTestBox properties={properties} />
 
           {/* Category filter */}
@@ -371,8 +380,8 @@ function KnowledgeAndTrainingTab() {
               className={cn(
                 "px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors",
                 !categoryFilter
-                  ? "bg-teal-50 border-teal-300 text-teal-800"
-                  : "bg-white border-gray-200 text-gray-600 hover:border-gray-300",
+                  ? "bg-[var(--haip-primary-tint)] border-[color-mix(in_srgb,var(--primary)_25%,transparent)] text-[var(--accent-foreground)]"
+                  : "bg-white border-[var(--haip-border)] text-[var(--haip-fg-muted)] hover:border-[var(--haip-border-strong)]",
               )}
             >
               All
@@ -384,8 +393,8 @@ function KnowledgeAndTrainingTab() {
                 className={cn(
                   "px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors",
                   categoryFilter === c.key
-                    ? "bg-teal-50 border-teal-300 text-teal-800"
-                    : "bg-white border-gray-200 text-gray-600 hover:border-gray-300",
+                    ? "bg-[var(--haip-primary-tint)] border-[color-mix(in_srgb,var(--primary)_25%,transparent)] text-[var(--accent-foreground)]"
+                    : "bg-white border-[var(--haip-border)] text-[var(--haip-fg-muted)] hover:border-[var(--haip-border-strong)]",
                 )}
               >
                 {c.label}
@@ -414,18 +423,18 @@ function KnowledgeAndTrainingTab() {
               </button>
             </div>
           ) : entries.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center">
-              <div className="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center mx-auto mb-3">
-                <BookOpen size={18} className="text-teal-500" />
+            <div className="bg-white rounded-2xl border border-[var(--haip-border)] shadow-sm p-10 text-center">
+              <div className="w-10 h-10 rounded-full bg-[var(--haip-primary-tint)] flex items-center justify-center mx-auto mb-3">
+                <BookOpen size={18} className="text-primary" />
               </div>
-              <p className="text-sm font-semibold text-gray-700">Nothing here yet</p>
-              <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
+              <p className="text-sm font-semibold text-[var(--haip-fg-2)]">Nothing here yet</p>
+              <p className="text-xs text-[var(--haip-fg-subtle)] mt-1 max-w-sm mx-auto">
                 Until you add something, the AI can only answer availability and pricing questions. Start with
                 your most-asked questions — pets, check-in time, what&apos;s included.
               </p>
               <button
                 onClick={() => setForm({ ...EMPTY_FORM })}
-                className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors"
+                className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary transition-colors"
               >
                 <Plus size={14} /> Add the first one
               </button>
@@ -437,20 +446,17 @@ function KnowledgeAndTrainingTab() {
                   key={e.id}
                   className={cn(
                     "bg-white rounded-2xl border shadow-sm p-4 transition-all",
-                    e.is_active ? "border-gray-100" : "border-gray-100 opacity-60",
+                    e.is_active ? "border-[var(--haip-border)]" : "border-[var(--haip-border)] opacity-60",
                   )}
                 >
                   <div className="flex items-start gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-primary bg-[var(--haip-primary-tint)] px-1.5 py-0.5 rounded">
                           {CATEGORY_LABEL[e.category] ?? e.category}
                         </span>
-                        {e.source !== "manual" && (
-                          <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded capitalize">
-                            from {e.source}
-                          </span>
-                        )}
+                        <SourceBadge source={e.source} />
+                        <FlagBadges flags={e.content_flags} />
                         {e.property_id && (
                           <span className="text-[10px] text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded">
                             only {propertyName(e.property_id)}
@@ -462,7 +468,7 @@ function KnowledgeAndTrainingTab() {
                           </span>
                         )}
                         {e.review_status === "rejected" && (
-                          <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">rejected</span>
+                          <span className="text-[10px] text-[var(--haip-fg-subtle)] bg-[var(--haip-status-neutral-bg)] px-1.5 py-0.5 rounded">rejected</span>
                         )}
                         {e.stale_since && (
                           <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
@@ -470,7 +476,7 @@ function KnowledgeAndTrainingTab() {
                           </span>
                         )}
                         {e.embedding_status === "pending" && (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-gray-500">
+                          <span className="inline-flex items-center gap-1 text-[10px] text-[var(--haip-fg-subtle)]">
                             <Loader2 size={9} className="animate-spin" /> indexing — not usable until done
                           </span>
                         )}
@@ -483,31 +489,31 @@ function KnowledgeAndTrainingTab() {
                           </span>
                         )}
                         {e.embedding_status === "done" && e.embedded_at && (
-                          <span className="text-[10px] text-gray-400">indexed {timeAgo(e.embedded_at)}</span>
+                          <span className="text-[10px] text-[var(--haip-fg-subtle)]">indexed {timeAgo(e.embedded_at)}</span>
                         )}
                         {!e.is_active && (
-                          <span className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">off</span>
+                          <span className="text-[10px] text-[var(--haip-fg-subtle)] bg-[var(--haip-status-neutral-bg)] px-1.5 py-0.5 rounded">off</span>
                         )}
                       </div>
                       {e.embedding_status === "failed" && e.embedding_error && (
                         <p className="text-[11px] text-red-500 mb-1 break-words">{e.embedding_error}</p>
                       )}
-                      {e.question && <p className="text-sm font-semibold text-gray-900">{e.question}</p>}
-                      <p className="text-xs text-gray-600 leading-relaxed mt-0.5 whitespace-pre-wrap">{e.content}</p>
+                      {e.question && <p className="text-sm font-semibold text-[var(--haip-fg)]">{e.question}</p>}
+                      <p className="text-xs text-[var(--haip-fg-muted)] leading-relaxed mt-0.5 whitespace-pre-wrap">{e.content}</p>
 
                       {/* Generated automatically -- shown so the owner can
                           see what the AI will recognise, and remove any that
                           miss the point. */}
                       {!!e.alt_phrasings?.length && (
                         <div className="mt-2">
-                          <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">
+                          <p className="text-[10px] uppercase tracking-wider text-[var(--haip-fg-subtle)] mb-1">
                             Also recognises
                           </p>
                           <div className="flex flex-wrap gap-1">
                             {e.alt_phrasings.map(p => (
                               <span
                                 key={p}
-                                className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-50 border border-gray-200 rounded text-[10px] text-gray-600"
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-[var(--haip-surface)] border border-[var(--haip-border)] rounded text-[10px] text-[var(--haip-fg-muted)]"
                               >
                                 {p}
                                 <button
@@ -517,7 +523,7 @@ function KnowledgeAndTrainingTab() {
                                       phrasings: (e.alt_phrasings ?? []).filter(x => x !== p),
                                     })
                                   }
-                                  className="text-gray-300 hover:text-red-500"
+                                  className="text-[var(--haip-fg-subtle)]/70 hover:text-red-500"
                                   title="Remove this phrasing"
                                 >
                                   ×
@@ -536,7 +542,7 @@ function KnowledgeAndTrainingTab() {
                             onClick={() => review.mutate({ id: e.id, review_status: "approved" })}
                             disabled={review.isPending}
                             title="Let the AI use this"
-                            className="px-2 py-1.5 text-teal-700 hover:text-teal-900 text-[11px] font-semibold whitespace-nowrap"
+                            className="px-2 py-1.5 text-primary hover:text-[var(--accent-foreground)] text-[11px] font-semibold whitespace-nowrap"
                           >
                             Approve
                           </button>
@@ -544,7 +550,7 @@ function KnowledgeAndTrainingTab() {
                             onClick={() => review.mutate({ id: e.id, review_status: "rejected" })}
                             disabled={review.isPending}
                             title="Never use this"
-                            className="px-2 py-1.5 text-gray-500 hover:text-red-600 text-[11px] font-medium whitespace-nowrap"
+                            className="px-2 py-1.5 text-[var(--haip-fg-subtle)] hover:text-red-600 text-[11px] font-medium whitespace-nowrap"
                           >
                             Reject
                           </button>
@@ -554,7 +560,7 @@ function KnowledgeAndTrainingTab() {
                         <button
                           onClick={() => keepOutOfDate.mutate(e.id)}
                           title="The source no longer has this, but it is still true — let the AI use it"
-                          className="px-2 py-1.5 text-teal-700 hover:text-teal-900 text-[11px] font-semibold whitespace-nowrap"
+                          className="px-2 py-1.5 text-primary hover:text-[var(--accent-foreground)] text-[11px] font-semibold whitespace-nowrap"
                         >
                           Keep
                         </button>
@@ -563,7 +569,7 @@ function KnowledgeAndTrainingTab() {
                         <button
                           onClick={() => reembed.mutate(e.id)}
                           title="Retry indexing"
-                          className="p-1.5 text-gray-400 hover:text-teal-600 transition-colors"
+                          className="p-1.5 text-[var(--haip-fg-subtle)] hover:text-primary transition-colors"
                         >
                           <RefreshCw size={14} />
                         </button>
@@ -574,7 +580,7 @@ function KnowledgeAndTrainingTab() {
                       <button
                         onClick={() => toggleActive.mutate({ id: e.id, is_active: !e.is_active })}
                         title={e.is_active ? "Stop the AI using this" : "Let the AI use this"}
-                        className="px-2 py-1.5 text-gray-500 hover:text-gray-800 transition-colors text-[11px] font-medium whitespace-nowrap"
+                        className="px-2 py-1.5 text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg)] transition-colors text-[11px] font-medium whitespace-nowrap"
                       >
                         {e.is_active ? "Turn off" : "Turn on"}
                       </button>
@@ -590,7 +596,7 @@ function KnowledgeAndTrainingTab() {
                           })
                         }
                         title="Edit"
-                        className="p-1.5 text-gray-400 hover:text-teal-600 transition-colors"
+                        className="p-1.5 text-[var(--haip-fg-subtle)] hover:text-primary transition-colors"
                       >
                         <Pencil size={14} />
                       </button>
@@ -598,7 +604,7 @@ function KnowledgeAndTrainingTab() {
                         onClick={() => setHistoryFor(e.id)}
                         title="History — who changed this and what it said before"
                         aria-label="History"
-                        className="p-1.5 text-gray-400 hover:text-teal-600 transition-colors"
+                        className="p-1.5 text-[var(--haip-fg-subtle)] hover:text-primary transition-colors"
                       >
                         <History size={14} />
                       </button>
@@ -609,7 +615,7 @@ function KnowledgeAndTrainingTab() {
                           }
                         }}
                         title="Delete"
-                        className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"
+                        className="p-1.5 text-[var(--haip-fg-subtle)] hover:text-red-600 transition-colors"
                       >
                         <Trash2 size={14} />
                       </button>
@@ -628,22 +634,22 @@ function KnowledgeAndTrainingTab() {
       {form && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" style={{ maxHeight: "calc(100dvh - 2rem)" }}>
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white">
-              <p className="text-sm font-semibold text-gray-800">
+            <div className="px-5 py-4 border-b border-[var(--haip-border)] flex items-center justify-between sticky top-0 bg-white">
+              <p className="text-sm font-semibold text-[var(--haip-fg)]">
                 {form.id ? "Edit knowledge" : "Add knowledge"}
               </p>
-              <button onClick={() => setForm(null)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setForm(null)} className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)]">
                 <X size={16} />
               </button>
             </div>
 
             <div className="p-5 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">Category</label>
+                <label className="block text-xs font-medium text-[var(--haip-fg-muted)] mb-1.5">Category</label>
                 <select
                   value={form.category}
                   onChange={(e) => setForm({ ...form, category: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                  className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
                 >
                   {CATEGORIES.map((c) => (
                     <option key={c.key} value={c.key}>
@@ -651,33 +657,33 @@ function KnowledgeAndTrainingTab() {
                     </option>
                   ))}
                 </select>
-                <p className="text-[11px] text-gray-400 mt-1">
+                <p className="text-[11px] text-[var(--haip-fg-subtle)] mt-1">
                   {CATEGORIES.find((c) => c.key === form.category)?.hint}
                 </p>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                <label className="block text-xs font-medium text-[var(--haip-fg-muted)] mb-1.5">
                   Guest question{" "}
                   {form.category === "faq" ? (
                     <span className="text-red-500">*</span>
                   ) : (
-                    <span className="text-gray-400 font-normal">(optional)</span>
+                    <span className="text-[var(--haip-fg-subtle)] font-normal">(optional)</span>
                   )}
                 </label>
                 <input
                   value={form.question}
                   onChange={(e) => setForm({ ...form, question: e.target.value })}
                   placeholder="Do you allow pets?"
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                  className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
                 />
-                <p className="text-[11px] text-gray-400 mt-1">
+                <p className="text-[11px] text-[var(--haip-fg-subtle)] mt-1">
                   Write it the way a guest would ask — that&apos;s what the AI matches against.
                 </p>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                <label className="block text-xs font-medium text-[var(--haip-fg-muted)] mb-1.5">
                   What the AI should know <span className="text-red-500">*</span>
                 </label>
                 <textarea
@@ -685,9 +691,9 @@ function KnowledgeAndTrainingTab() {
                   onChange={(e) => setForm({ ...form, content: e.target.value })}
                   rows={5}
                   placeholder="Pets are welcome in our garden caravans at no extra charge…"
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30 resize-y"
+                  className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 resize-y"
                 />
-                <p className="text-[11px] text-gray-400 mt-1">
+                <p className="text-[11px] text-[var(--haip-fg-subtle)] mt-1">
                   Be specific and factual. The AI will paraphrase this in your brand voice — it won&apos;t quote
                   it word for word.
                 </p>
@@ -695,11 +701,11 @@ function KnowledgeAndTrainingTab() {
 
               {properties.length > 1 && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Applies to</label>
+                  <label className="block text-xs font-medium text-[var(--haip-fg-muted)] mb-1.5">Applies to</label>
                   <select
                     value={form.property_id}
                     onChange={(e) => setForm({ ...form, property_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                    className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
                   >
                     <option value="">Every property</option>
                     {properties.map((p) => (
@@ -708,15 +714,15 @@ function KnowledgeAndTrainingTab() {
                       </option>
                     ))}
                   </select>
-                  <p className="text-[11px] text-gray-400 mt-1">
+                  <p className="text-[11px] text-[var(--haip-fg-subtle)] mt-1">
                     A property-only entry is never offered to guests asking about another property.
                   </p>
                 </div>
               )}
 
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Priority <span className="text-gray-400 font-normal">(0–100)</span>
+                <label className="block text-xs font-medium text-[var(--haip-fg-muted)] mb-1.5">
+                  Priority <span className="text-[var(--haip-fg-subtle)] font-normal">(0–100)</span>
                 </label>
                 <input
                   type="number"
@@ -724,18 +730,18 @@ function KnowledgeAndTrainingTab() {
                   max={100}
                   value={form.priority}
                   onChange={(e) => setForm({ ...form, priority: Number(e.target.value) })}
-                  className="w-32 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                  className="w-32 px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
                 />
-                <p className="text-[11px] text-gray-400 mt-1">
+                <p className="text-[11px] text-[var(--haip-fg-subtle)] mt-1">
                   Breaks ties when two entries match a question equally well. Leave at 0 unless something must win.
                 </p>
               </div>
             </div>
 
-            <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-end gap-2 sticky bottom-0 bg-white">
+            <div className="px-5 py-4 border-t border-[var(--haip-border)] flex items-center justify-end gap-2 sticky bottom-0 bg-white">
               <button
                 onClick={() => setForm(null)}
-                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+                className="px-4 py-2 text-sm text-[var(--haip-fg-muted)] hover:text-[var(--haip-fg)] transition-colors"
               >
                 Cancel
               </button>
@@ -746,7 +752,7 @@ function KnowledgeAndTrainingTab() {
                   !form.content.trim() ||
                   (form.category === "faq" && !form.question.trim())
                 }
-                className="flex items-center gap-1.5 px-5 py-2 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-5 py-2 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary transition-colors disabled:opacity-50"
               >
                 {saveMutation.isPending && <Loader2 size={13} className="animate-spin" />}
                 Save
@@ -760,15 +766,15 @@ function KnowledgeAndTrainingTab() {
       {crawlOpen && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" style={{ maxHeight: "calc(100dvh - 2rem)" }}>
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white">
-              <p className="text-sm font-semibold text-gray-800">Add from website</p>
-              <button onClick={() => setCrawlOpen(false)} className="text-gray-400 hover:text-gray-600">
+            <div className="px-5 py-4 border-b border-[var(--haip-border)] flex items-center justify-between sticky top-0 bg-white">
+              <p className="text-sm font-semibold text-[var(--haip-fg)]">Add from website</p>
+              <button onClick={() => setCrawlOpen(false)} className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)]">
                 <X size={16} />
               </button>
             </div>
 
             <div className="p-5 space-y-3">
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">
+              <label className="block text-xs font-medium text-[var(--haip-fg-muted)] mb-1.5">
                 Page URLs <span className="text-red-500">*</span>
               </label>
               <textarea
@@ -776,19 +782,19 @@ function KnowledgeAndTrainingTab() {
                 onChange={(e) => setCrawlUrls(e.target.value)}
                 rows={5}
                 placeholder={"https://yourproperty.com/faq\nhttps://yourproperty.com/amenities"}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30 resize-y font-mono"
+                className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 resize-y font-mono"
               />
-              <p className="text-[11px] text-gray-400">
+              <p className="text-[11px] text-[var(--haip-fg-subtle)]">
                 One URL per line, up to 5 pages at a time. Point it at specific pages that actually matter — your
                 FAQ, amenities, or policies page — not your homepage. Content lands as pending entries for you to
                 review before the AI can use it.
               </p>
             </div>
 
-            <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-end gap-2 sticky bottom-0 bg-white">
+            <div className="px-5 py-4 border-t border-[var(--haip-border)] flex items-center justify-end gap-2 sticky bottom-0 bg-white">
               <button
                 onClick={() => setCrawlOpen(false)}
-                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+                className="px-4 py-2 text-sm text-[var(--haip-fg-muted)] hover:text-[var(--haip-fg)] transition-colors"
               >
                 Cancel
               </button>
@@ -798,7 +804,7 @@ function KnowledgeAndTrainingTab() {
                   if (urls.length) crawlMutation.mutate(urls);
                 }}
                 disabled={crawlMutation.isPending || !crawlUrls.trim()}
-                className="flex items-center gap-1.5 px-5 py-2 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-5 py-2 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary transition-colors disabled:opacity-50"
               >
                 {crawlMutation.isPending && <Loader2 size={13} className="animate-spin" />}
                 Fetch &amp; add

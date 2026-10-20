@@ -31,9 +31,9 @@ const FILTERS = [
 ] as const;
 
 const STATUS_STYLE: Record<Recipient["status"], { label: string; cls: string }> = {
-  queued:    { label: "Waiting",   cls: "bg-gray-50 text-gray-600 border-gray-200" },
+  queued:    { label: "Waiting",   cls: "bg-[var(--haip-surface)] text-[var(--haip-fg-muted)] border-[var(--haip-border)]" },
   sent:      { label: "Accepted",  cls: "bg-blue-50 text-blue-700 border-blue-200" },
-  delivered: { label: "Delivered", cls: "bg-teal-50 text-teal-700 border-teal-200" },
+  delivered: { label: "Delivered", cls: "bg-[var(--haip-primary-tint)] text-primary border-[color-mix(in_srgb,var(--primary)_25%,transparent)]" },
   read:      { label: "Read",      cls: "bg-green-50 text-green-700 border-green-200" },
   failed:    { label: "Failed",    cls: "bg-red-50 text-red-600 border-red-200" },
 };
@@ -43,10 +43,10 @@ const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString([], { d
 
 function Tile({ label, value, sub, icon, tone }: { label: string; value: number; sub?: string; icon: React.ReactNode; tone: string }) {
   return (
-    <div className="rounded-xl bg-gray-50 p-3">
+    <div className="rounded-xl bg-[var(--haip-surface)] p-3">
       <div className={cn("flex items-center gap-1.5 text-[11px] font-medium", tone)}>{icon}{label}</div>
-      <p className="text-2xl font-bold text-gray-900 mt-1 tabular-nums">{value.toLocaleString()}</p>
-      {sub && <p className="text-[10px] text-gray-400">{sub}</p>}
+      <p className="text-2xl font-bold text-[var(--haip-fg)] mt-1 tabular-nums">{value.toLocaleString()}</p>
+      {sub && <p className="text-[10px] text-[var(--haip-fg-subtle)]">{sub}</p>}
     </div>
   );
 }
@@ -95,10 +95,10 @@ export function CampaignReport({ campaignId, campaignName, onClose }: { campaign
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-3 sm:p-6" role="dialog" aria-modal="true" aria-label="Campaign report">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[94vh] flex flex-col overflow-hidden" style={{ maxHeight: "calc(100dvh - 3rem)" }}>
-        <div className="px-6 pt-5 pb-4 border-b border-gray-100 flex items-start justify-between gap-4 flex-shrink-0">
+        <div className="px-6 pt-5 pb-4 border-b border-[var(--haip-border)] flex items-start justify-between gap-4 flex-shrink-0">
           <div className="min-w-0">
-            <h2 className="text-base font-bold text-gray-900 truncate">{campaignName}</h2>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <h2 className="text-base font-bold text-[var(--haip-fg)] truncate">{campaignName}</h2>
+            <p className="text-xs text-[var(--haip-fg-subtle)] mt-0.5">
               {data?.campaign.template_name ? <>Template <span className="font-mono">{data.campaign.template_name}</span> · </> : null}
               <span className="capitalize">{data?.campaign.status ?? "…"}</span>
               {data?.campaign.status === "running" && " · updating live"}
@@ -106,10 +106,10 @@ export function CampaignReport({ campaignId, campaignName, onClose }: { campaign
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <button onClick={exportCsv} disabled={exporting || !s || s.total === 0}
-              className="flex items-center gap-1.5 text-xs border border-gray-200 text-gray-600 px-3 py-2 rounded-xl hover:bg-gray-50 font-medium disabled:opacity-50">
+              className="flex items-center gap-1.5 text-xs border border-[var(--haip-border)] text-[var(--haip-fg-muted)] px-3 py-2 rounded-xl hover:bg-[var(--haip-surface)] font-medium disabled:opacity-50">
               {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Export CSV
             </button>
-            <button onClick={onClose} aria-label="Close" className="w-11 h-11 flex items-center justify-center"><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
+            <button onClick={onClose} aria-label="Close" className="w-11 h-11 flex items-center justify-center"><X size={18} className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)]" /></button>
           </div>
         </div>
 
@@ -117,41 +117,41 @@ export function CampaignReport({ campaignId, campaignName, onClose }: { campaign
           {isError && (
             <div className="py-10 text-center">
               <AlertCircle size={28} className="text-red-300 mx-auto mb-2" />
-              <p className="text-sm text-gray-700 font-medium">Couldn't load the report</p>
-              <button onClick={() => refetch()} className="mt-3 text-xs font-semibold text-teal-600 border border-teal-200 bg-teal-50 px-3 py-1.5 rounded-lg">Retry</button>
+              <p className="text-sm text-[var(--haip-fg-2)] font-medium">Couldn't load the report</p>
+              <button onClick={() => refetch()} className="mt-3 text-xs font-semibold text-primary border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] bg-[var(--haip-primary-tint)] px-3 py-1.5 rounded-lg">Retry</button>
             </div>
           )}
-          {isLoading && !data && <div className="py-16 flex justify-center"><Loader2 className="animate-spin text-gray-300" /></div>}
+          {isLoading && !data && <div className="py-16 flex justify-center"><Loader2 className="animate-spin text-[var(--haip-fg-subtle)]/70" /></div>}
 
           {s && (
             <>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 <Tile label="Accepted" value={s.sent} sub={s.total ? `by WhatsApp, of ${s.total.toLocaleString()} guests` : undefined} icon={<Send size={12} />} tone="text-blue-600" />
-                <Tile label="Delivered" value={s.delivered} sub={`${pct(s.delivery_rate)} of accepted`} icon={<CheckCircle2 size={12} />} tone="text-teal-600" />
+                <Tile label="Delivered" value={s.delivered} sub={`${pct(s.delivery_rate)} of accepted`} icon={<CheckCircle2 size={12} />} tone="text-primary" />
                 <Tile label="Read" value={s.read} sub={`${pct(s.read_rate)} of delivered`} icon={<Eye size={12} />} tone="text-green-600" />
                 <Tile label="Replied" value={s.replied} sub={`${pct(s.reply_rate)} of accepted, within 7 days`} icon={<MessageSquare size={12} />} tone="text-violet-600" />
                 <Tile label="Failed" value={s.failed} sub={s.failed ? `${pct(s.failure_rate)} of attempts` : "none"} icon={<AlertCircle size={12} />} tone="text-red-500" />
               </div>
-              <p className="text-[11px] text-gray-500 -mt-3">
+              <p className="text-[11px] text-[var(--haip-fg-subtle)] -mt-3">
                 Each step includes the ones after it: everything read was also delivered, and everything delivered was accepted. Failed messages are counted
                 separately and are not in the other numbers. Replies are guests who wrote back on WhatsApp within a week of the message.
               </p>
 
               {s.total === 0 && (
-                <p className="text-sm text-gray-500 text-center py-6">Nothing has been sent yet. Once the campaign runs, each guest appears here.</p>
+                <p className="text-sm text-[var(--haip-fg-subtle)] text-center py-6">Nothing has been sent yet. Once the campaign runs, each guest appears here.</p>
               )}
 
               {data!.failures.length > 0 && (
                 <section>
-                  <h3 className="text-xs font-semibold text-gray-700 mb-2">Why messages failed</h3>
+                  <h3 className="text-xs font-semibold text-[var(--haip-fg-2)] mb-2">Why messages failed</h3>
                   <ul className="space-y-2">
                     {data!.failures.map((f, i) => (
                       <li key={`${f.code}-${i}`} className="flex items-start gap-3 rounded-xl border border-red-100 bg-red-50/40 p-3">
                         <span className="text-sm font-bold text-red-600 tabular-nums w-10 text-right flex-shrink-0">{f.count}</span>
                         <div className="min-w-0">
-                          <p className="text-xs font-semibold text-gray-800">{f.group_label}</p>
-                          <p className="text-xs text-gray-600">{f.reason}</p>
-                          {f.hint && <p className="text-[11px] text-gray-500 mt-0.5">→ {f.hint}</p>}
+                          <p className="text-xs font-semibold text-[var(--haip-fg)]">{f.group_label}</p>
+                          <p className="text-xs text-[var(--haip-fg-muted)]">{f.reason}</p>
+                          {f.hint && <p className="text-[11px] text-[var(--haip-fg-subtle)] mt-0.5">→ {f.hint}</p>}
                         </div>
                       </li>
                     ))}
@@ -161,26 +161,26 @@ export function CampaignReport({ campaignId, campaignName, onClose }: { campaign
 
               <section>
                 <div className="flex flex-wrap items-center gap-2 mb-3">
-                  <div className="inline-flex rounded-xl bg-gray-100 p-0.5">
+                  <div className="inline-flex rounded-xl bg-[var(--haip-status-neutral-bg)] p-0.5">
                     {FILTERS.map(f => (
                       <button key={f.value} onClick={() => { setStatus(f.value); setPage(0); }}
                         className={cn("px-3 min-h-11 sm:min-h-0 sm:py-1.5 rounded-[10px] text-xs font-medium transition-colors",
-                          status === f.value ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700")}>
+                          status === f.value ? "bg-white text-[var(--haip-fg)] shadow-sm" : "text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-2)]")}>
                         {f.label}
                       </button>
                     ))}
                   </div>
                   <div className="relative flex-1 min-w-[160px] max-w-xs">
-                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--haip-fg-subtle)]" />
                     <input value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} placeholder="Search name or number"
-                      className="w-full pl-8 pr-3 min-h-11 sm:min-h-0 sm:py-2 border border-gray-200 rounded-xl text-base sm:text-xs focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
+                      className="w-full pl-8 pr-3 min-h-11 sm:min-h-0 sm:py-2 border border-[var(--haip-border)] rounded-xl text-base sm:text-xs focus:outline-none focus:ring-2 focus:ring-primary/30" />
                   </div>
                   {exportError && <span className="text-[11px] text-red-600">{exportError}</span>}
                 </div>
 
-                <div className="border border-gray-100 rounded-xl overflow-x-auto">
+                <div className="border border-[var(--haip-border)] rounded-xl overflow-x-auto">
                   <table className="w-full text-xs">
-                    <thead className="bg-gray-50 text-gray-500">
+                    <thead className="bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)]">
                       <tr>
                         <th className="text-left font-medium px-3 py-2">Guest</th>
                         <th className="text-left font-medium px-3 py-2">Status</th>
@@ -189,25 +189,25 @@ export function CampaignReport({ campaignId, campaignName, onClose }: { campaign
                         <th className="text-left font-medium px-3 py-2">Details</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-50">
+                    <tbody className="divide-y divide-[var(--haip-border)]">
                       {data!.recipients.length === 0 ? (
-                        <tr><td colSpan={5} className="px-3 py-8 text-center text-gray-400">No guests match.</td></tr>
+                        <tr><td colSpan={5} className="px-3 py-8 text-center text-[var(--haip-fg-subtle)]">No guests match.</td></tr>
                       ) : data!.recipients.map(r => {
                         const st = STATUS_STYLE[r.status];
                         return (
                           <tr key={r.id}>
                             <td className="px-3 py-2">
-                              <p className="font-medium text-gray-800">{r.name || "—"}</p>
-                              <p className="text-[10px] text-gray-400 font-mono">{r.phone}</p>
+                              <p className="font-medium text-[var(--haip-fg)]">{r.name || "—"}</p>
+                              <p className="text-[10px] text-[var(--haip-fg-subtle)] font-mono">{r.phone}</p>
                             </td>
                             <td className="px-3 py-2"><span className={cn("inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border", st.cls)}>{st.label}</span></td>
-                            <td className="px-3 py-2 text-gray-500 hidden sm:table-cell whitespace-nowrap">{when(r.sent_at)}</td>
+                            <td className="px-3 py-2 text-[var(--haip-fg-subtle)] hidden sm:table-cell whitespace-nowrap">{when(r.sent_at)}</td>
                             <td className="px-3 py-2 whitespace-nowrap">
                               {r.replied
                                 ? <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-violet-50 text-violet-700 border-violet-200" title={`Replied ${when(r.replied_at)}`}>Replied {when(r.replied_at)}</span>
-                                : <span className="text-gray-300">—</span>}
+                                : <span className="text-[var(--haip-fg-subtle)]/70">—</span>}
                             </td>
-                            <td className="px-3 py-2 text-gray-600">
+                            <td className="px-3 py-2 text-[var(--haip-fg-muted)]">
                               {r.status === "failed" ? <span className="text-red-600">{r.error_reason ?? "Failed"}</span>
                                 : r.status === "read" ? `Read ${when(r.read_at)}`
                                 : r.status === "delivered" ? `Delivered ${when(r.delivered_at)}` : ""}
@@ -220,13 +220,13 @@ export function CampaignReport({ campaignId, campaignName, onClose }: { campaign
                 </div>
 
                 {data!.total_matching > PAGE && (
-                  <div className="flex items-center justify-between mt-3 text-xs text-gray-500">
+                  <div className="flex items-center justify-between mt-3 text-xs text-[var(--haip-fg-subtle)]">
                     <span>{data!.offset + 1}–{Math.min(data!.offset + PAGE, data!.total_matching)} of {data!.total_matching.toLocaleString()}</span>
                     <div className="flex gap-2">
                       <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
-                        className="px-3 py-1.5 border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">Previous</button>
+                        className="px-3 py-1.5 border border-[var(--haip-border)] rounded-lg disabled:opacity-40 hover:bg-[var(--haip-surface)]">Previous</button>
                       <button onClick={() => setPage(p => Math.min(pages - 1, p + 1))} disabled={page >= pages - 1}
-                        className="px-3 py-1.5 border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">Next</button>
+                        className="px-3 py-1.5 border border-[var(--haip-border)] rounded-lg disabled:opacity-40 hover:bg-[var(--haip-surface)]">Next</button>
                     </div>
                   </div>
                 )}

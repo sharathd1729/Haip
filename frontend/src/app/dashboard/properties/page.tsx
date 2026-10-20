@@ -35,7 +35,7 @@ const TYPE_ICON: Record<string, string> = {
 };
 
 const SOURCE_COLOR: Record<string, { bg: string; text: string }> = {
-  rentalwise: { bg: "rgba(20,184,166,0.12)", text: "#0F766E" },
+  rentalwise: { bg: "var(--haip-primary-tint)", text: "var(--primary)" },
   airbnb:     { bg: "rgba(255,90,95,0.12)",  text: "#e11d48" },
   booking:    { bg: "rgba(0,99,191,0.12)",   text: "#0057a8" },
   manual:     { bg: "rgba(148,163,184,0.12)", text: "#64748b" },
@@ -50,15 +50,15 @@ function PropertySkeleton() {
   return (
     <div className="haip-card p-5 rounded-2xl animate-pulse">
       <div className="flex items-start justify-between mb-4">
-        <div className="w-11 h-11 rounded-xl bg-gray-100" />
-        <div className="w-16 h-5 rounded-full bg-gray-100" />
+        <div className="w-11 h-11 rounded-xl bg-[var(--haip-status-neutral-bg)]" />
+        <div className="w-16 h-5 rounded-full bg-[var(--haip-status-neutral-bg)]" />
       </div>
-      <div className="h-4 bg-gray-100 rounded w-3/4 mb-2" />
-      <div className="h-3 bg-gray-100 rounded w-1/2 mb-4" />
+      <div className="h-4 bg-[var(--haip-status-neutral-bg)] rounded w-3/4 mb-2" />
+      <div className="h-3 bg-[var(--haip-status-neutral-bg)] rounded w-1/2 mb-4" />
       <div className="flex gap-2">
-        <div className="h-3 bg-gray-100 rounded w-12" />
-        <div className="h-3 bg-gray-100 rounded w-12" />
-        <div className="h-3 bg-gray-100 rounded w-12" />
+        <div className="h-3 bg-[var(--haip-status-neutral-bg)] rounded w-12" />
+        <div className="h-3 bg-[var(--haip-status-neutral-bg)] rounded w-12" />
+        <div className="h-3 bg-[var(--haip-status-neutral-bg)] rounded w-12" />
       </div>
     </div>
   );
@@ -75,8 +75,8 @@ function PropertyCard({ p, onEdit, noun }: { p: Property; onEdit: (p: Property) 
       className="haip-card rounded-2xl p-5 flex flex-col gap-4 group relative overflow-hidden transition-all duration-200"
       style={{ border: "1px solid var(--haip-border)" }}
       onMouseEnter={e => {
-        (e.currentTarget as HTMLElement).style.borderColor = "#14B8A6";
-        (e.currentTarget as HTMLElement).style.boxShadow = "0 0 0 1px #14B8A6, 0 4px 20px rgba(20,184,166,0.10)";
+        (e.currentTarget as HTMLElement).style.borderColor = "var(--primary)";
+        (e.currentTarget as HTMLElement).style.boxShadow = "0 0 0 1px var(--primary), 0 4px 20px var(--haip-primary-tint)";
       }}
       onMouseLeave={e => {
         (e.currentTarget as HTMLElement).style.borderColor = "var(--haip-border)";
@@ -88,7 +88,7 @@ function PropertyCard({ p, onEdit, noun }: { p: Property; onEdit: (p: Property) 
         <div className="flex items-center gap-3">
           <div
             className="w-11 h-11 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
-            style={{ background: "rgba(15,118,110,0.08)" }}
+            style={{ background: "var(--haip-primary-tint)" }}
           >
             {emoji}
           </div>
@@ -97,7 +97,7 @@ function PropertyCard({ p, onEdit, noun }: { p: Property; onEdit: (p: Property) 
               className="font-semibold text-[14.5px] leading-snug line-clamp-2"
               style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--haip-fg)" }}
             >
-              {p.name || <span className="text-gray-400 italic text-sm">Unnamed {noun}</span>}
+              {p.name || <span className="text-[var(--haip-fg-subtle)] italic text-sm">Unnamed {noun}</span>}
             </h3>
             {(p.city || p.address) && (
               <div className="flex items-center gap-1 mt-0.5">
@@ -128,7 +128,7 @@ function PropertyCard({ p, onEdit, noun }: { p: Property; onEdit: (p: Property) 
         {/* type badge */}
         <span
           className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-medium capitalize"
-          style={{ background: "rgba(15,118,110,0.08)", color: "#0F766E" }}
+          style={{ background: "var(--haip-primary-tint)", color: "var(--primary)" }}
         >
           {typeKey}
         </span>
@@ -146,7 +146,7 @@ function PropertyCard({ p, onEdit, noun }: { p: Property; onEdit: (p: Property) 
         {/* active/inactive */}
         {active ? (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium"
-            style={{ background: "rgba(20,184,166,0.10)", color: "#0F766E" }}>
+            style={{ background: "var(--haip-primary-tint)", color: "var(--primary)" }}>
             <CheckCircle2 size={9} /> Active
           </span>
         ) : (
@@ -298,9 +298,9 @@ export default function PropertiesPage() {
           <button
             onClick={openCreate}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-semibold transition-all text-white"
-            style={{ background: "#0F766E" }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#0d6660"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#0F766E"; }}
+            style={{ background: "var(--primary)" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "var(--haip-primary-hover)"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "var(--primary)"; }}
           >
             <Plus size={14} />
             Add {noun}
@@ -321,7 +321,7 @@ export default function PropertiesPage() {
             <div>
               <p className="text-[11px]" style={{ color: "#9CA3AF" }}>Active</p>
               <p className="text-[22px] font-bold leading-none mt-0.5"
-                style={{ fontFamily: "var(--font-display), sans-serif", color: "#0F766E" }}>
+                style={{ fontFamily: "var(--font-display), sans-serif", color: "var(--primary)" }}>
                 {activeCount}
               </p>
             </div>
@@ -351,9 +351,9 @@ export default function PropertiesPage() {
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <div
               className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
-              style={{ background: "rgba(15,118,110,0.08)" }}
+              style={{ background: "var(--haip-primary-tint)" }}
             >
-              <Building2 size={28} style={{ color: "#0F766E" }} />
+              <Building2 size={28} style={{ color: "var(--primary)" }} />
             </div>
             <p className="font-semibold" style={{ color: "var(--haip-fg)", fontFamily: "var(--font-display), sans-serif" }}>
               No {nounPlural} yet
@@ -364,9 +364,9 @@ export default function PropertiesPage() {
             <button
               onClick={openCreate}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
-              style={{ background: "#14B8A6", color: "#fff" }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#0F766E"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#14B8A6"; }}
+              style={{ background: "var(--primary)", color: "#fff" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "var(--primary)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "var(--primary)"; }}
             >
               <Plus size={15} /> Add {noun}
             </button>
@@ -426,7 +426,7 @@ export default function PropertiesPage() {
                     background: "var(--haip-surface)",
                     color: "var(--haip-fg)",
                   }}
-                  onFocus={e => { (e.currentTarget as HTMLElement).style.borderColor = "#14B8A6"; (e.currentTarget as HTMLElement).style.boxShadow = "0 0 0 2px rgba(20,184,166,0.15)"; }}
+                  onFocus={e => { (e.currentTarget as HTMLElement).style.borderColor = "var(--primary)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 0 0 2px var(--haip-primary-tint)"; }}
                   onBlur={e => { (e.currentTarget as HTMLElement).style.borderColor = "var(--haip-border)"; (e.currentTarget as HTMLElement).style.boxShadow = ""; }}
                 />
               </div>
@@ -445,7 +445,7 @@ export default function PropertiesPage() {
                     background: "var(--haip-surface)",
                     color: "var(--haip-fg)",
                   }}
-                  onFocus={e => { (e.currentTarget as HTMLElement).style.borderColor = "#14B8A6"; (e.currentTarget as HTMLElement).style.boxShadow = "0 0 0 2px rgba(20,184,166,0.15)"; }}
+                  onFocus={e => { (e.currentTarget as HTMLElement).style.borderColor = "var(--primary)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 0 0 2px var(--haip-primary-tint)"; }}
                   onBlur={e => { (e.currentTarget as HTMLElement).style.borderColor = "var(--haip-border)"; (e.currentTarget as HTMLElement).style.boxShadow = ""; }}
                 />
               </div>
@@ -484,9 +484,9 @@ export default function PropertiesPage() {
                   type="submit"
                   disabled={isPending}
                   className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-                  style={{ background: "#14B8A6" }}
-                  onMouseEnter={e => { if (!isPending) (e.currentTarget as HTMLElement).style.background = "#0F766E"; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#14B8A6"; }}
+                  style={{ background: "var(--primary)" }}
+                  onMouseEnter={e => { if (!isPending) (e.currentTarget as HTMLElement).style.background = "var(--primary)"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "var(--primary)"; }}
                 >
                   {isPending && <Loader2 size={14} className="animate-spin" />}
                   {editing ? "Save changes" : `Create ${noun}`}
@@ -502,7 +502,7 @@ export default function PropertiesPage() {
         <div
           className="fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg transition-all"
           style={{
-            background: toastMsg.type === "success" ? "#0F766E" : "#dc2626",
+            background: toastMsg.type === "success" ? "var(--primary)" : "#dc2626",
             color: "#fff",
           }}
         >

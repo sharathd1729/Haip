@@ -50,8 +50,14 @@ celery_app = Celery(
         # Phase 6: Alert monitoring
         # Leads360: async AI summary generation
         "app.workers.tasks.generate_ai_summary",
+        # Lead autopilot: stage decisions from calls, chats, bookings and timing
+        "app.workers.tasks.lead_autopilot",
+        # Lead workflows: missed-call / no-answer WhatsApp playbooks + the lead journey sweep
+        "app.workers.tasks.lead_playbooks",
         # AI concierge knowledge base: embedding pipeline
         "app.workers.tasks.embed_knowledge",
+        # Knowledge from Instagram posts, running ads and the tenant's website (re-crawl)
+        "app.workers.tasks.knowledge_sources_sync",
         # Daily owner report email
         "app.workers.tasks.daily_owner_report",
         # Per-agent end-of-day performance report email
@@ -66,6 +72,13 @@ celery_app = Celery(
         "app.workers.tasks.ical_sync",
         # Public API: signed webhook deliveries + retries
         "app.workers.tasks.webhook_delivery",
+        # Booking payments: invoices/receipts, WhatsApp confirmations, balance reminders
+        "app.workers.tasks.invoice_tasks",
+        "app.workers.tasks.quote_tasks",
+        "app.workers.tasks.sales_agent_tasks",
+        # HAIP's own website leads (book-demo, contact, assessment): owner alerts
+        "app.workers.tasks.platform_leads",
+        "app.workers.tasks.assessment_narrative",
         # WhatsApp: campaign runner + template status sync
         "app.workers.tasks.run_campaign",
         "app.workers.tasks.campaign_scheduler",
@@ -236,6 +249,10 @@ celery_app.conf.update(
         "knowledge.embed_entry":   {"queue": "ai_scoring"},
         "knowledge.embed_pending": {"queue": "ai_scoring"},
         "knowledge.sweep_all_tenants": {"queue": "ai_scoring"},
+        "knowledge_sources.sync_all_tenants":    {"queue": "ai_scoring"},
+        "knowledge_sources.sync_tenant":         {"queue": "ai_scoring"},
+        "knowledge_sources.recrawl_all_tenants": {"queue": "ai_scoring"},
+        "knowledge_sources.recrawl_tenant":      {"queue": "ai_scoring"},
         # Short-name tasks again -- these need exact-name routes or they
         # land in the unconsumed default "celery" queue.
         "reports.send_daily_owner_report":      {"queue": "ai_scoring"},
@@ -250,12 +267,46 @@ celery_app.conf.update(
         "concierge.recover_missed_replies":              {"queue": "whatsapp"},
         "concierge.recover_missed_replies_all_tenants":  {"queue": "whatsapp"},
         "tasks.daily_briefing.generate":              {"queue": "ai_scoring"},
+        # Lead autopilot (lead_autopilot.py): short names, so exact-name routes.
+        "lead_autopilot.evaluate_inquiry":            {"queue": "ai_scoring"},
+        "lead_autopilot.sweep_all_tenants":           {"queue": "ai_scoring"},
+        # Lead workflows (lead_playbooks.py): the playbook steps queue WhatsApp sends, so they share that queue.
+        "lead_playbooks.on_call":                     {"queue": "whatsapp"},
+        "lead_playbooks.on_callback_tap":             {"queue": "whatsapp"},
+        "lead_playbooks.drain_due":                   {"queue": "whatsapp"},
+        "lead_journey.sweep_tenant":                  {"queue": "default"},
+        "lead_journey.sweep_all_tenants":             {"queue": "default"},
         "backfill_missing_instagram_inquiries":       {"queue": "ai_scoring"},
+        # Booking payments (invoice_tasks.py): same queue as the template send they trigger.
+        "invoices.after_payment":                     {"queue": "whatsapp"},
+        "invoices.render_pdf":                        {"queue": "whatsapp"},
+        "invoices.send_booking_confirmation":         {"queue": "whatsapp"},
+        "payments.notify_staff":                      {"queue": "whatsapp"},
+        "payments.balance_reminders":                 {"queue": "whatsapp"},
+        # Sent quotes (quote_tasks.py): the quote PDF + WhatsApp send, and cancelling the other option's link.
+        "quotes.send_with_links":                     {"queue": "whatsapp"},
+        "quotes.cancel_payment_links":                {"queue": "whatsapp"},
+        # AI sales agent on autopilot (sales_agent_tasks.py): the agent's own quote send, same queue as the staff send.
+        "sales_agent.send_quote":                     {"queue": "whatsapp"},
+        # HAIP's own website leads (platform_leads.py): owner push + email.
+        "platform_leads.notify":                      {"queue": "default"},
+        # Property assessment write-up (assessment_narrative.py): an LLM call, same queue as the other AI tasks.
+        "assessment.narrative":                       {"queue": "ai_scoring"},
     },
 )
 
 # Scheduled tasks (Celery Beat)
 celery_app.conf.beat_schedule = {
+    # Lead workflows: playbook steps whose time has come (lead_playbooks.py), and the lead journey refresh every 5 minutes
+    # (minutes 4/9/14/...: clear of the :00/:05/:10 jobs).
+    "lead-playbooks-drain-1min": {
+        "task": "lead_playbooks.drain_due",
+        "schedule": crontab(minute="*"),
+    },
+    "lead-journey-sweep-5min": {
+        "task": "lead_journey.sweep_all_tenants",
+        "schedule": crontab(minute="4,9,14,19,24,29,34,39,44,49,54,59"),
+    },
     # Safety net for guest replies: a message with no AI draft and no reply after 4 minutes is queued for the concierge again (see
     # reply_recovery.py). Minutes 3/13/23/...: clear of the :00/:05/:10/:20/:30/:40 jobs.
     "concierge-missed-reply-recovery-10min": {
@@ -278,6 +329,23 @@ celery_app.conf.beat_schedule = {
         "task": "knowledge.sweep_all_tenants",
         "schedule": crontab(minute="7,22,37,52"),
     },
+    # Instagram posts/reels and running ads into the knowledge base (pending approval unless the owner turned on auto-approve).
+    # Every 4 hours at :27, clear of the other jobs.
+    "knowledge-social-sync-4h": {
+        "task": "knowledge_sources.sync_all_tenants",
+        "schedule": crontab(minute="27", hour="*/4"),
+    },
+    # Re-read the website pages each workspace imported (only workspaces that switched it on). Sundays 03:47 IST (beat timezone).
+    "knowledge-website-recrawl-weekly": {
+        "task": "knowledge_sources.recrawl_all_tenants",
+        "schedule": crontab(minute="47", hour="3", day_of_week="sun"),
+    },
+    # Lead autopilot, time-based rules (dates passed, unanswered calls, silence). 07:45 IST, before the team starts;
+    # rules only, no LLM. Minute 45 is clear of the other jobs.
+    "lead-autopilot-daily-sweep": {
+        "task": "lead_autopilot.sweep_all_tenants",
+        "schedule": crontab(hour=7, minute=45),
+    },
     "ical-sync-30min": {
         "task": "ical.sync_all_feeds",
         "schedule": crontab(minute="12,42"),
@@ -286,6 +354,11 @@ celery_app.conf.beat_schedule = {
     "webhooks-retry-due-1min": {
         "task": "webhooks.retry_due",
         "schedule": crontab(minute="*"),
+    },
+    # Balance reminders (opt-in per tenant: brand_config.payments.auto_balance_reminder). 09:35 IST, clear of :30/:40.
+    "payments-balance-reminders-daily": {
+        "task": "payments.balance_reminders",
+        "schedule": crontab(hour=9, minute=35),
     },
     "webhooks-purge-old-daily": {
         "task": "webhooks.purge_old",

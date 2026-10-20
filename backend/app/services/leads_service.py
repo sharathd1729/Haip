@@ -546,6 +546,10 @@ def build_timeline(
                 "is_ai_generated": False,
             })
 
+    # ── Quotes (rate calculator and quote builder) ────────────────────────────
+    from app.services.lead_quote_view import timeline_entries
+    entries.extend(timeline_entries(db, tenant_id, inquiry_id))
+
     # ── Sort, cap, return ─────────────────────────────────────────────────────
     entries.sort(key=lambda e: e["occurred_at"] or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
     capped = len(entries) > limit
@@ -717,6 +721,7 @@ def get_leads_pipeline(
     page: int = 1,
     page_size: int = 25,
     scope_user_id: Optional[str] = None,
+    autopilot: Optional[str] = None,
 ) -> LeadsListResponse:
     """
     Paginated pipeline query. One row per inquiry.
@@ -806,6 +811,9 @@ def get_leads_pipeline(
         q = q.filter(Inquiry.id.in_(
             _booked_inquiry_ids(db, tenant_id, booked_date_from, booked_date_to)
         ))
+    if autopilot == "moved":
+        from app.services.lead_autopilot_view import moved_filter
+        q = q.filter(moved_filter(db, tenant_id))
 
     total = q.count()
 
@@ -843,6 +851,20 @@ def get_leads_pipeline(
         )
         for inq in inquiries
     ]
+    try:
+        from app.services.lead_autopilot_view import batch_moves
+        moves = batch_moves(db, tenant_id, [inq.id for inq in inquiries])
+        for card in leads:
+            card.autopilot_move = moves.get(card.inquiry_id)
+    except Exception as exc:   # a badge must never break the list
+        log.warning("lead_autopilot_badges_failed", tenant_id=tenant_id, error=str(exc)[:200])
+    try:
+        from app.services.lead_quote_view import latest_for
+        latest = latest_for(db, tenant_id, [inq.id for inq in inquiries])
+        for card in leads:
+            card.latest_quote = latest.get(card.inquiry_id)
+    except Exception as exc:   # the quote line must never break the list
+        log.warning("lead_latest_quote_failed", tenant_id=tenant_id, error=str(exc)[:200])
 
     # Stage summary (count + potential revenue across ALL filtered leads, not just this page)
     stage_meta = _build_stage_summary(
@@ -1028,6 +1050,9 @@ def get_lead_detail(
         .all()
     )
     today = datetime.now(timezone.utc).date()
+    from app.services.quote_journey import link_out
+    from app.services.quote_send_service import latest_links
+    quote_links = {k: link_out(v) for k, v in latest_links(db, tenant_id, [q.id for q in quotes_raw]).items()}
     quote_history = [
         QuoteHistorySchema(
             id=str(q.id),
@@ -1036,6 +1061,14 @@ def get_lead_detail(
             created_at=q.created_at,
             is_active=q.is_active,
             age_days=(today - q.created_at.date()).days if q.created_at else None,
+            status=q.status,
+            option_rank=q.option_rank or 1,
+            payment_link_status=(quote_links.get(q.id) or {}).get("status"),
+            payment_link_url=(quote_links.get(q.id) or {}).get("short_url"),
+            booking_id=(quote_links.get(q.id) or {}).get("booking_id"),
+            shared_via=q.shared_via,
+            valid_until=q.valid_until,
+            label=(q.snapshot or {}).get("package_name") or q.package_key,
         )
         for q in quotes_raw
     ]
@@ -1047,6 +1080,9 @@ def get_lead_detail(
         inquiry, completeness, signals, property_interest, response_time, pending_draft,
         needs_agent_followup_reason=needs_followup_reason,
     )
+    from app.services.lead_quote_view import card_out
+    newest = next((q for q in quotes_raw if q.status in ("issued", "pending_approval", "accepted") and (q.option_rank or 1) == 1), None)
+    card.latest_quote = card_out(newest) if newest else None
 
     from app.services.lead_field_service import get_field_values_for_inquiry
     try:
@@ -1066,6 +1102,20 @@ def get_lead_detail(
         recommendation = None
     recommended_actions = [recommendation] if recommendation else []
 
+    # Lead autopilot: what it did (with Undo) and what it suggests. Its open suggestion replaces the older call-only
+    # recommendation above (same RecommendedAction shape, same audited Apply path); none at all while the lead is pinned.
+    autopilot_block = None
+    try:
+        from app.services import lead_autopilot_view
+        autopilot_block = lead_autopilot_view.lead_block(db, tenant_id, inquiry)
+        suggested = lead_autopilot_view.as_recommended_action(autopilot_block)
+        if autopilot_block["pinned"] or autopilot_block["mode"] == "off":
+            recommended_actions = []
+        elif suggested:
+            recommended_actions = [suggested]
+    except Exception as exc:
+        log.warning("lead_autopilot_block_failed", inquiry_id=inquiry_id, error=str(exc)[:200])
+
     return LeadDetailSchema(
         **card.model_dump(),
         timeline=timeline,
@@ -1074,6 +1124,7 @@ def get_lead_detail(
         quote_history=quote_history,
         custom_field_values=custom_field_values,
         recommended_actions=recommended_actions,
+        autopilot=autopilot_block,
     )
 
 
@@ -1270,6 +1321,8 @@ def get_needs_action(
     spoken = _batch_spoken_since(db, tenant_id, inquiries)
 
     buckets: dict[str, list[LeadCardSchema]] = {k: [] for k in NEEDS_ACTION_BUCKETS}
+    from app.services.lead_quote_view import latest_for
+    latest_quotes = latest_for(db, tenant_id, ids)
     for inq in inquiries:
         card = _build_lead_card(
             inq,
@@ -1280,6 +1333,7 @@ def get_needs_action(
             pending_draft=pending_draft_map.get(inq.id),
             needs_agent_followup_reason=needs_followup_map.get(inq.id),
         )
+        card.latest_quote = latest_quotes.get(inq.id)
         waiting = (
             card.response_time_status == "waiting"
             and (card.response_time_seconds or 0) <= _WAITING_MAX_SECONDS

@@ -136,6 +136,10 @@ class Inquiry(Base, TimestampMixin, TenantMixin):
     upsell_offered = Column(String(255), nullable=True)   # what was offered, null = nothing offered
     upsell_accepted = Column(Boolean, nullable=True)       # null = n/a (nothing offered)
 
+    # Lead autopilot (migration 144): staff pinned this lead, so the autopilot neither moves it nor suggests a move.
+    autopilot_paused_at = Column(DateTime(timezone=True), nullable=True)
+    autopilot_paused_by = Column(String, nullable=True)
+
     # Metadata
     tags = Column(JSON, default=list)
     custom_fields = Column(JSON, default=dict)

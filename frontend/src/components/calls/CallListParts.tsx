@@ -7,6 +7,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { ChannelBadges } from "@/components/inbox/ChannelBadges";
 import { OUTCOMES } from "@/components/calls/CallDetailPanel";
+import { SendQuoteButton } from "@/components/quotes/SendQuoteButton";
 import type { GuestChannel } from "@/store/inbox";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -94,7 +95,7 @@ export function SummaryTiles({
   s, rangeLabel, onPick,
 }: { s?: CallsSummary; rangeLabel: string; onPick: (tab: Tab) => void }) {
   const tiles: { label: string; value: string; note: string; tone: string; dot: string; tab?: Tab; href?: string }[] = [
-  { label: `Calls · ${rangeLabel.toLowerCase()}`, value: s ? String(s.total) : "–", note: s ? `${s.inbound} in · ${s.outbound} out` : "", tone: "text-[var(--haip-fg)] ", dot: "bg-gray-400", tab: "all" },
+  { label: `Calls · ${rangeLabel.toLowerCase()}`, value: s ? String(s.total) : "–", note: s ? `${s.inbound} in · ${s.outbound} out` : "", tone: "text-[var(--haip-fg)] ", dot: "bg-[var(--haip-border-strong)]", tab: "all" },
   { label: "Missed · not called back", value: s ? String(s.missed_not_called_back) : "–", note: s?.oldest_missed_at ? `oldest ${ago(s.oldest_missed_at)}` : "all returned", tone: "text-[var(--haip-status-danger-fg)]", dot: "bg-red-600", tab: "callback" },
   { label: "Answered", value: s?.answer_rate != null ? `${s.answer_rate}%` : "–", note: "of incoming", tone: "text-[var(--haip-status-success-fg)]", dot: "bg-[var(--haip-status-success-fg)]", tab: "incoming" },
   { label: "Avg call length", value: s?.avg_answered_seconds != null ? fmt(s.avg_answered_seconds) : "–", note: "answered calls", tone: "text-primary", dot: "bg-primary", tab: "incoming" },
@@ -184,6 +185,9 @@ export function CallRow({
   </div>
 
   <div className="flex items-center gap-2.5 flex-shrink-0">
+  {/* Quote from the call row; a missed call with no lead opens with its number ready for "Add as new lead". */}
+  <SendQuoteButton iconOnlyBelowSm label="Quote" className="min-h-9 px-2.5 text-xs"
+    args={{ callId: call.id, from: "calls", name: call.guest_name || null }} />
   {call.is_missed ? (
   <>
   {call.called_back ? (

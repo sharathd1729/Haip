@@ -33,7 +33,7 @@ export function activeFilters(vals: Record<string, FilterValue>): Record<string,
 }
 
 const box =
-  "w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/30";
+  "w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30";
 
 export function FilterControl({
   def, value, onChange,
@@ -47,16 +47,16 @@ export function FilterControl({
   if (def.type === "boolean") {
     const current = typeof value === "string" ? value : "";
     return (
-      <div role="group" aria-label={def.label} className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+      <div role="group" aria-label={def.label} className="inline-flex rounded-lg border border-[var(--haip-border)] bg-[var(--haip-surface)] p-0.5">
         {[["", "Any"], ["true", "Yes"], ["false", "No"]].map(([v, label]) => (
           <button
             key={v || "any"} type="button" aria-pressed={current === v}
             onClick={() => onChange(v)}
             className={cn(
-              "px-3 py-1 rounded-md text-xs font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-teal-500",
+              "px-3 py-1 rounded-md text-xs font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary",
               current === v
-                ? v === "true" ? "bg-teal-600 text-white" : v === "false" ? "bg-gray-700 text-white" : "bg-white text-gray-800 shadow-sm"
-                : "text-gray-500 hover:text-gray-800",
+                ? v === "true" ? "bg-primary text-white" : v === "false" ? "bg-gray-700 text-white" : "bg-white text-[var(--haip-fg)] shadow-sm"
+                : "text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg)]",
             )}
           >
             {label}
@@ -77,8 +77,8 @@ export function FilterControl({
             <button
               key={o.value} type="button" aria-pressed={on} onClick={() => toggle(o.value)}
               className={cn(
-                "px-2.5 py-1 rounded-full border text-xs font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-teal-500",
-                on ? "border-teal-500 bg-teal-50 text-teal-800" : "border-gray-200 bg-white text-gray-600 hover:border-gray-300",
+                "px-2.5 py-1 rounded-full border text-xs font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                on ? "border-primary bg-[var(--haip-primary-tint)] text-[var(--accent-foreground)]" : "border-[var(--haip-border)] bg-white text-[var(--haip-fg-muted)] hover:border-[var(--haip-border-strong)]",
               )}
             >
               {o.label}
@@ -86,7 +86,7 @@ export function FilterControl({
           );
         })}
         {picked.length > 0 && (
-          <button type="button" onClick={() => onChange([])} className="text-[11px] text-gray-400 hover:text-gray-700 hover:underline ml-1">
+          <button type="button" onClick={() => onChange([])} className="text-[11px] text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-2)] hover:underline ml-1">
             Clear
           </button>
         )}

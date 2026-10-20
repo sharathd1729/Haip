@@ -72,7 +72,7 @@ class TestListConversationsEnrichment:
         assert row["stage_label"] == "Active"
         assert row["profile_completeness_pct"] == 80  # phone-only tier, per _COMPLETENESS_MAP
         assert row["is_waiting_reply"] is True
-        assert row["sla_status"] == "on_time"  # already has first_response_at
+        assert row["sla_status"] == "on_time"  # waiting, but only for a moment
 
     def test_sla_breached_when_unresponded_past_30_minutes(self, client, db, tenant_and_user):
         tenant_id = _tenant_id(tenant_and_user)
@@ -90,6 +90,9 @@ class TestListConversationsEnrichment:
             inquiry_id=inquiry.id, channel=ChannelType.WHATSAPP, is_open=True,
         )
         db.add(conv); db.commit()
+        db.add(Message(id=str(uuid.uuid4()), tenant_id=tenant_id, conversation_id=conv.id, direction="inbound",
+                       channel="whatsapp", body="Hello?", created_at=old_created))
+        db.commit()
 
         resp = client.get("/api/v1/conversations", headers=_auth_headers(tenant_and_user))
         assert resp.status_code == 200, resp.text
@@ -98,6 +101,29 @@ class TestListConversationsEnrichment:
         assert row["sla_status"] == "breached"
         assert row["assigned_owner_name"] is None
         assert row["stage_key"] is None
+
+    def test_a_chat_that_was_answered_is_on_time_even_if_old(self, client, db, tenant_and_user):
+        """Regression: the label read Inquiry.first_response_at, which nothing writes, so every chat older than 30 minutes
+        said "SLA breached" forever, including ones the bot or a person had already answered."""
+        tenant_id = _tenant_id(tenant_and_user)
+        guest = _make_guest(db, tenant_id, phone="+919999044556")
+        old = datetime.now(timezone.utc) - timedelta(hours=5)
+        inquiry = Inquiry(id=str(uuid.uuid4()), tenant_id=tenant_id, guest_id=guest.id, stage=InquiryStage.NEW, created_at=old)
+        db.add(inquiry); db.flush()
+        conv = Conversation(id=str(uuid.uuid4()), tenant_id=tenant_id, guest_id=guest.id, inquiry_id=inquiry.id,
+                            channel=ChannelType.WHATSAPP, is_open=True)
+        db.add(conv); db.commit()
+        db.add(Message(id=str(uuid.uuid4()), tenant_id=tenant_id, conversation_id=conv.id, direction="inbound",
+                       channel="whatsapp", body="Is it free?", created_at=old))
+        db.add(Message(id=str(uuid.uuid4()), tenant_id=tenant_id, conversation_id=conv.id, direction="outbound",
+                       channel="whatsapp", body="Yes!", is_ai_generated=True, was_approved=True, sent_autonomously=True,
+                       created_at=old + timedelta(minutes=1)))
+        db.commit()
+
+        resp = client.get("/api/v1/conversations", headers=_auth_headers(tenant_and_user))
+        row = next(r for r in resp.json() if r["id"] == conv.id)
+        assert row["is_waiting_reply"] is False
+        assert row["sla_status"] == "on_time"
 
     def test_no_inquiry_yields_null_stage_and_sla(self, client, db, tenant_and_user):
         tenant_id = _tenant_id(tenant_and_user)

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Outfit, Manrope } from "next/font/google";
+import { Bricolage_Grotesque, Figtree } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { PWARegister } from "@/components/PWARegister";
@@ -7,25 +7,20 @@ import { UpdateBanner } from "@/components/UpdateBanner";
 import { ConnectionBanner } from "@/components/ConnectionBanner";
 import { ResumeRevalidator } from "@/components/ResumeRevalidator";
 
-// Display / heading font: Outfit — per HAIP_Prototype.html, which pairs it
-// with Inter. Geometric with a tighter, more architectural feel than Manrope
-// at the 700–800 weights used for page titles, KPI values and scores.
-const displayFont = Outfit({
+// Hospitality Hybrid type system (docs/DESIGN.md): Figtree for everything people read and operate, Bricolage Grotesque for
+// page titles, headline figures and section headings. Both self-hosted by next/font; --font-sans and --font-display in
+// globals.css point at these variables, with a system fallback if either fails to load.
+const uiFont = Figtree({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-display",
+  variable: "--font-figtree",
   display: "swap",
 });
 
-// Inbox visual-redesign pass: Manrope, scoped to .haip-inbox-v2 only (see
-// globals.css) -- not a replacement for Outfit as the app's primary display
-// font (that choice is deliberate, see the comment above), just the one
-// module currently being redesigned toward the Wati/Gupshup/Twenty CRM
-// reference direction, which verified against Manrope specifically.
-const inboxFont = Manrope({
+const displayFont = Bricolage_Grotesque({
   subsets: ["latin"],
   weight: ["500", "600", "700", "800"],
-  variable: "--font-inbox",
+  variable: "--font-display",
   display: "swap",
 });
 
@@ -34,7 +29,10 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#041C1A",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#FFFFFF" },
+    { media: "(prefers-color-scheme: dark)", color: "#111412" },
+  ],
   viewportFit: "cover",
 };
 
@@ -76,7 +74,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
+    <html lang="en" className={`${uiFont.variable} ${displayFont.variable} h-full antialiased`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: `
           try {
@@ -92,7 +90,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           } catch(e) {}
         `}} />
       </head>
-      <body className={`${displayFont.variable} ${inboxFont.variable} min-h-full bg-background`}>
+      <body className="min-h-full bg-background font-sans">
         <Providers>{children}</Providers>
         <PWARegister />
         <UpdateBanner />

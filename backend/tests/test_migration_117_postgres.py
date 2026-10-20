@@ -69,11 +69,27 @@ def narrow_column():
 def test_alembic_head_is_117_and_118_is_not_auto_applied():
     """Alembic only sees alembic/versions. 118 lives in alembic/proposed, so it cannot ship by accident.
 
-    (Name kept because the failure register refers to it.) The chain tip is now 127 (merge of the 122-125 chain with 126, the organic_call source), after 125 (quote snapshot), 124 (business records), 123 (knowledge index health), 122 (lead identification), 121 (iCal event bookings) and 120 (iCal vehicle rules), which follows 119, the front-of-house data
+    (Name kept because the failure register refers to it.) The chain tip is now 151 (lead workflows: journeys, views, playbook runs/actions), on 150 (new booking: stays.gst_percent), on 148 (rate calculator: inquiry_quotes shared/approved
+    columns; 147 is reserved by another branch), after 145 (public lead intake + ROI benchmarks),
+    after 146 (impact baselines + profiles), after 144 (lead autopilot + calls.ai_insights), after 143 (knowledge source
+    dates + flags), after 142 (sales_actions, the AI sales agent), after 141 (invoices + payment idempotency + quote-owned
+    payment links), after 140 (quote options + quote capabilities; 129-139 are taken by unmerged branches), after 128
+    (ical_event_bookings.locked repair), after 127 (merge of the 122-125 chain with 126, the organic_call source), after 125 (quote snapshot), 124 (business records), 123 (knowledge index health), 122 (lead identification), 121 (iCal event bookings) and 120 (iCal vehicle rules), which follows 119, the front-of-house data
     migration; 119 follows 117 directly because number 118 is reserved for the proposed RLS migration.
     """
     script = ScriptDirectory.from_config(Config(str(BACKEND / "alembic.ini")))
-    assert script.get_heads() == ["127"]
+    assert script.get_heads() == ["151"]
+    assert script.get_revision("151").down_revision == "150"
+    assert script.get_revision("150").down_revision == "148"
+    assert script.get_revision("148").down_revision == "145"
+    assert script.get_revision("145").down_revision == "146"
+    assert script.get_revision("146").down_revision == "144"
+    assert script.get_revision("144").down_revision == "143"
+    assert script.get_revision("143").down_revision == "142"
+    assert script.get_revision("142").down_revision == "141"
+    assert script.get_revision("141").down_revision == "140"
+    assert script.get_revision("140").down_revision == "128"
+    assert script.get_revision("128").down_revision == "127"
     assert script.get_revision("127").down_revision == ("125", "126")
     assert script.get_revision("126").down_revision == "121"
     assert script.get_revision("125").down_revision == "124"

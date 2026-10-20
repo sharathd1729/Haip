@@ -917,3 +917,95 @@ def test_answer_webhook_parallel_ring_stops_before_carrier_voicemail(client, ten
     assert res.status_code == 200
     assert res.text.count("<Number>") == 2
     assert 'timeout="18"' in res.text
+
+
+# ── outbound guest-leg dial status (no-answer detection) ─────────────────────
+
+def _connect_vobiz_with_did(db, tenant_id):
+    _connect_vobiz(db, tenant_id, webhook_secret="correct-secret", forward_number="+919000000000")
+    from app.core.encryption import encrypt_credentials
+    integration = db.query(Integration).filter_by(tenant_id=tenant_id, kind="vobiz").first()
+    integration.credentials_kms_blob = encrypt_credentials({
+        "webhook_secret": "correct-secret", "api_key": "MA123", "api_secret": "tok",
+        "forward_number": "+919000000000", "did_number": "+912271264296",
+    })
+    db.commit()
+
+
+def test_outbound_answer_xml_asks_vobiz_for_the_guest_leg_dial_status(client, tenant_and_user, db):
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz_with_did(db, tenant.id)
+
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/outbound-answer?guest_number=%2B919876543210",
+        data={"CallUUID": "call-out-9"},
+    )
+    assert res.status_code == 200
+    assert f'action="http' in res.text
+    assert f"/webhooks/vobiz/{tenant.slug}/correct-secret/outbound-dial-status" in res.text
+    # redirect stays false: Vobiz posts the result, then falls through to <Hangup/>.
+    assert 'redirect="false" action=' in res.text
+
+
+def test_outbound_dial_status_rejects_a_wrong_secret(client, tenant_and_user, db):
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz_with_did(db, tenant.id)
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/wrong/outbound-dial-status",
+        data={"CallUUID": "c", "DialStatus": "no-answer"},
+    )
+    assert res.status_code == 401
+
+
+def test_outbound_dial_status_reaches_the_recording_payload_and_never_touches_the_agent(
+    client, tenant_and_user, db, monkeypatch,
+):
+    """The guest's DialStatus must be merged into the ingest payload, and the
+    guest leg's DialBLegTo must NOT be treated as an agent (an agent calling a
+    colleague's number would otherwise overwrite the click-to-call agent)."""
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz_with_did(db, tenant.id)
+
+    from app.core.cache import get_cached, set_cached
+    from app.api.v1.endpoints.webhooks_vobiz import _cache_key, _dial_bleg_provisional_key
+    from app.workers.tasks.call_ingest import _lookup_click_to_call_agent, cache_click_to_call_agent
+
+    cache_click_to_call_agent(tenant.id, "call-out-7", "agent-from-click")
+    set_cached(
+        _cache_key(tenant.id, "call-out-7"),
+        {"From": "+912271264296", "To": "+919876543210", "Direction": "outbound", "started_at": "2026-10-17T10:00:00Z"},
+        ttl=60,
+    )
+
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/outbound-dial-status",
+        data={"CallUUID": "call-out-7", "DialStatus": "no-answer", "DialBLegTo": "+919000000000"},
+    )
+    assert res.status_code == 200
+    assert "<Hangup/>" in res.text
+    assert get_cached(_dial_bleg_provisional_key(tenant.id, "call-out-7")) is None
+    assert _lookup_click_to_call_agent(tenant.id, "call-out-7") == "agent-from-click"
+
+    dispatched = {}
+    from app.workers.tasks import call_ingest
+    monkeypatch.setattr(call_ingest.ingest_call, "delay", lambda **kw: dispatched.update(kw))
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/recording",
+        data={"CallUUID": "call-out-7", "RecordFile": "https://api.vobiz.ai/x", "RecordingDuration": "21"},
+    )
+    assert res.status_code == 200
+    assert dispatched["payload"]["Direction"] == "outbound"
+    assert dispatched["payload"]["ivr_dial_status"] == "no-answer"
+
+
+def test_outbound_dial_status_ignores_a_payload_without_status(client, tenant_and_user, db):
+    tenant = tenant_and_user["tenant"]
+    _connect_vobiz_with_did(db, tenant.id)
+    res = client.post(
+        f"/api/v1/webhooks/vobiz/{tenant.slug}/correct-secret/outbound-dial-status",
+        data={"CallUUID": "call-out-8"},
+    )
+    assert res.status_code == 200
+    from app.core.cache import get_cached
+    from app.api.v1.endpoints.webhooks_vobiz import _dial_status_cache_key
+    assert get_cached(_dial_status_cache_key(tenant.id, "call-out-8")) is None

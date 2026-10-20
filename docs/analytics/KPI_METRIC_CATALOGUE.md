@@ -39,6 +39,7 @@ identity match.** The moment that first became true is stored once on the guest 
 | New lead | a person whose phone number was captured in the period | people, once each, across every channel | `leads.identified_new` |
 | Lead active in the period | a lead who messaged, called or enquired in the period | people | `leads.identified_active` |
 | Qualified lead | a new lead with a non-spam enquiry in a `valid` pipeline stage, as of now | people | `leads.qualified_new` |
+| Qualified lead (owner dashboard) | a new lead with a non-spam enquiry that carries a **check-in date** (phone + date) | people | `leads.qualified_dated` |
 | Enquiry | an enquiry record (`inquiries` row); repeat enquiries from one person count each time | records | `enquiries.created` |
 | Booking | a stay record (`stays`), by its own status | records | `stays.booked` |
 | Payment | money on a stay (`stay_payments`) | amounts | `payments.collected` |
@@ -120,7 +121,22 @@ taken from the guest's earliest identity record; with nothing to go on it is lef
 - **Shared by:** the Owner Command Center (`/dashboard/business-overview`). Not yet by the other consumers listed in section 3.
 - **Tests:** `tests/api/test_business_overview.py` (counts, value, cancelled-of-created, period edges, filters, tenant isolation).
 
-### `payments.collected` — Cash collected  *(shared; evidence T)*
+### `stays.booked_value` — Booked value (rental + add-ons)  *(shared; evidence T; added 19 Oct 2026, D-24)*
+- **Definition:** for the bookings made in the period (`stays.booked`): **rental** = sum of `Stay.total_amount` (the stay
+  charge), **add-ons** = sum of `StayAddOn.quantity x unit_price` on those bookings, **booked value** = rental + add-ons.
+- **Date basis:** `Stay.created_at`, IST calendar days as UTC instants. Cancelled bookings excluded (the `stays.booked` statuses).
+- **Function:** `kpi_metrics.booked_value` / `booked_value_rows` (per booking, so property and agent splits add up).
+- **Shared by:** the owner dashboard KPI row, the monthly target card, the Caravans card and the Team card; the Targets page
+  (`sales_performance_service.pickup_report`, `agent_performance`, `property_performance`) now uses the same rental + add-ons on
+  IST days (D-24). "Holding next month" there stays the stay charge by check-in month.
+- **Tests:** `tests/services/test_owner_metrics.py`, `tests/api/test_owner_dashboard.py`, `tests/services/test_sales_performance_service.py`.
+
+### `leads.qualified_dated` — Qualified leads (phone + check-in date)  *(shared; evidence T; added 19 Oct 2026)*
+- **Definition:** of the people who became leads in the period (`leads.identified_new`), those with a non-spam enquiry that
+  carries a check-in date, as of now. A cohort, like `leads.qualified_new` (valid stage), which the journey band keeps.
+- **Function:** `lead_metrics.count_qualified_dated`. **Tests:** `tests/services/test_owner_metrics.py`.
+
+### `payments.collected` — Payment received (was "Cash collected")  *(shared; evidence T)*
 - **Definition:** payments (`StayPayment.kind = payment`) with a payment date in the period, and refunds (`kind = refund`)
   paid out in the period. Two figures, never merged; "net" is their difference and is labelled as cash, not revenue.
 - **Date basis:** `StayPayment.paid_on` (a calendar date), inclusive IST dates. Payments on cancelled stays count (the money moved).
@@ -246,6 +262,7 @@ Not captured anywhere: UTM/landing-page, other ad networks, first/last-touch rul
 |---|---|---|---|
 | **Tenant average / p95 first reply** (`message_metrics`) | per guest *turn* (inbound message whose predecessor was not inbound): seconds until the next outbound message in the conversation; mean / 95th percentile | WhatsApp and Instagram only. "Outbound" is **any** outbound row: AI auto-replies, **internal notes**, scheduled-but-unsent messages and failed sends all count as replies (R). Window on the inbound message time. | PG |
 | By agent | same turns, but the matched reply must have a `sender_id` (a human) | so AI replies are excluded here but included above | PG |
+| By agent **and source** (`chat_response_by_agent_source`, 19 Oct 2026) | the by-agent turns split by where the guest wrote: `personal_whatsapp` (conversation `source = personal_bridge` **or** the message's `channel_metadata.source = personal_bridge`, since a bridged message can land in a lead's open Cloud thread), `whatsapp_cloud`, `instagram`; per (agent, source), per source and overall from one `GROUPING SETS` query | **Group chats** (`channel_metadata.chat_type = group`) are neither turns nor replies; **mirrored phone history** (`channel_metadata.history = true`, text only, ≤200/chat) is left out unless `include_history` (the Since HAIP card uses it in both windows: it is the only pre-go-live record). Shown as `response_by_source` on each Business Overview agent row. No answered turn = `null`, never 0 s. | PG |
 | SLA compliance (executive) | `1 − breached ÷ answered` of enquiries with `first_response_at`, % | uses stored flags `sla_breached`; **100.0 when there is no data** | T |
 | Automation coverage (overview) | `1 − no_match_no_response ÷ inbound messages`, % | **100.0 when there are no inbound messages** | PG |
 | AI draft acceptance | `sent_verbatim + sent_edited` ÷ drafts | `0.0` when no drafts | PG |
@@ -301,6 +318,63 @@ not shared:
 | Executive analytics | cached 5 minutes per tenant/params | no timestamp or "cached" flag in the payload |
 | Dashboard overview | none | no generated-at, no period echo beyond `date_from/date_to` |
 | Empty-denominator behaviour | `0.0` (conversion, callback rate, AI acceptance), `100.0` (automation coverage, SLA), `None` (WhatsApp rates, cost per lead), hard-coded `0` (team report) | needs one rule |
+
+## 14. Impact view: before / after go-live  *(shared; evidence T; added 18 Oct 2026)*
+
+Page `/dashboard/impact`, `GET /dashboard/impact` (owner/manager), PDF `GET /dashboard/impact/export.pdf`. Two windows of N IST days
+(default 30): **Before** = the N days before the go-live date, **With HAIP** = the latest N days up to today (not before go-live).
+"Before" shows the **owner-entered baseline** (`impact_baselines`: value, period in the owner's words, source note; owner only,
+audited) labelled *owner-entered*, and what HAIP itself recorded in the before window labelled *measured* (often thin: personal
+WhatsApp history reaches back 30 days). The change is against the owner figure when there is one, else the measured one; none when the
+reference is missing or 0. `%` metrics change in points, others in percent. Per-30-day figures scale the window's total by 30 / N.
+Reused unchanged: `leads.identified_new`, `leads.conversion_cohort`, `enquiries.created`, `stays.booked`, `payments.collected`.
+
+| Metric id | Definition | Notes |
+|---|---|---|
+| `replies.first_response` | Per **guest turn**: a guest message (WhatsApp or Instagram) whose previous message in the chat was ours, or was more than 24 h earlier, or none; later guest messages before our reply join that turn. Reply = first outbound that really went out (not internal, not failed / rejected / pending / queued). Median and p90 over answered turns; answered within 5/15/60 min over **all** turns (unanswered count as not answered). | Channel = where the guest wrote: `whatsapp_cloud`, `personal_whatsapp` (message `channel_metadata.source = personal_bridge`, read-only mirror; replies typed on the agent's phone count as staff), `instagram`. Group chats excluded. Responder: `ai` (sent by itself), `staff_ai_draft`, `staff`. Turns younger than 60 min left out. **Differs from `message_metrics`** (any outbound row, no 24 h rule): it answers D-09 for this view only. |
+| `replies.after_hours` | The guest turns above that started outside business hours (`Tenant.business_hours`, else `tenant_tz` defaults Mon-Fri 9-21, Sat 10-18, Sun 10-14), share answered within 15 min, and share of the answered ones sent by the AI on its own. | `ivr_routing_service` treats no hours as always open; this view uses the `tenant_tz` defaults. |
+| `leads.quoted_cohort` | Of the people who became leads in the period, those with a quote so far (`inquiry_quotes` row or `Inquiry.quoted_at` on any of their enquiries). | Shown next to the cohort booked share; enquiry records are shown but never divided by leads. |
+| `calls.missed_returned` | Inbound calls missed in the period (`call_status_service`), returned = `recovered_by_call_id` set, median minutes to that callback, share returned within 60 min (of all missed). | All IVR providers counted (D-15 still open). |
+| `enquiries.lost` | Non-spam enquiry records now in a closed-lost stage whose `current_stage_entered_at` (else `updated_at`) is in the period, by `lost_reason` (empty = Not recorded). | Records, not people. |
+
+**Since HAIP card** (Owner Command Center, `GET /dashboard/impact/since-haip`, `impact_since.py`, 19 Oct 2026): five tiles, the
+latest N days vs the **same number of days** just before go-live (go-live date + N from the impact profile): `leads.identified_new`,
+`stays.booked` count and stay charge (split by `Stay.channel_source` so the before figure names its source: shared calendar, entered
+in HAIP, PMS import...), average first **human** reply (`chat_response_by_agent_source` with mirrored history, see section 9) and AI
+drafts sent (`ai_draft_outcomes` `sent_verbatim` + `sent_edited`, the scorecard's "approved"). Every before figure carries a
+`source` line; 0 or none = `has_data: false`, shown "No data", no change. Bookings need `bookings.read`, money `revenue.read`.
+
+Money (bookings value, cash collected, revenue per IST month) needs `revenue.read`; without it the tiles and the revenue block are
+`{"restricted": true}`. The public case study (`/case-studies/{slug}`) shows only an owner-published **snapshot** of these aggregates
+(no guest data; money only if the owner ticked it); until published it says "coming soon".
+
+## 15. Owner dashboard, layout A  *(19 Oct 2026)*
+
+`GET /dashboard/business-overview` returns the page in `owner` (services `owner_dashboard_attention.py`, `owner_dashboard_blocks.py`);
+the older blocks stay in the payload for other readers.
+
+| Block | Source |
+|---|---|
+| Needs attention (six cards) | the shared work queue: kind `no_reply` (D-23), flag `not_called` (a lead item whose person never had an outbound call; an unanswered attempt counts as called), kind `callback`, follow-ups flagged `open_lead` (open enquiry in a `valid` stage, not won/lost), flag `at_risk` (AI temperature hot/warm or sentiment positive, check-in in the next 30 days, no message or call for 48 h); plus live bookings checking in within 30 days that still owe money (count needs `bookings.read`, amounts `revenue.read`). The cold tail (severity `stale`) is left out, as on Home. |
+| KPI row | `leads.identified_new`, `leads.qualified_dated`, `stays.booked`, `stays.booked_value` (rental / add-ons), `payments.collected` labelled **Payment received**; each vs the equal period before, no change against 0. |
+| Monthly target | D-24 below. |
+| Check-ins and check-outs | live bookings (confirmed / checked in) with a check-in or check-out in the next 3 / 7 / 15 / 30 days (`window_days`, default 7, also drives `bookings.upcoming_checkins`). |
+| When leads want to travel | Active enquiries = open leads with a phone and a check-in date, each person once at their earliest upcoming date; Booked = confirmed stays; by check-in week (Monday weeks, 5 weeks + later). |
+| Where leads came from | `leads.identified_new` by first touch. First touch = `Guest.first_touch_channel`; a phone first touch whose first enquiry is `organic_call` reads **Organic calls**; with no first touch the first enquiry's source decides (`lead_state.CHANNEL_BY_SOURCE`, which now maps every `InquirySource`), so organic calls are never Unknown. The "Calls" filter includes organic calls. |
+| Leads by stage | enquiries created in the period by people with a phone (D-22), by the stage they are in now; Lost by `lost_reason`; unqualified (spam) counted apart. |
+| Caravans | per active property this month: `stays.booked_value` of bookings made this month, `stays.occupied_nights` this month, nights / days in month. The "Unassigned" placeholder only when it holds something. |
+| AI and calls | `sales_actions` pending, `lead_autopilot_events` suggested, calls in the period with `calls.missed_returned`. |
+| Team | per selling agent this month: target (`sales_targets` scope agent) vs achieved booked value (`agent_performance`, D-24), calls handled (`Call.agent_id`), new leads owned (`lead_metrics.by_owner`), median first reply = `replies.first_response` turns answered by that person. |
+
+**Decisions recorded 19 Oct 2026 (owner):**
+
+| Id | Decision |
+|---|---|
+| D-22 | DMs and contacts **without a phone number** are handled by the bot. The owner dashboard never counts or flags them: conversations, contacts without a phone and "guests with no phone number" are not shown there. |
+| D-23 | **Not replying** = a lead (phone) whose last message is OURS (a staff send, or an AI reply that was approved or sent on its own) and the guest has been silent 24 h or more; the lead is still open (not Sold, Lost, Unsuitable, Unqualified/spam); our message is inside the 14-day look-back. A call with them after our message clears it. Work-queue kind `no_reply`, also in My day; severity thresholds 48 h / 72 h / 5 d / 7 d (stale). |
+| D-24 | The monthly target is measured on **booked value** = rental (stay charge) + add-ons of bookings made in the month (IST days), against the tenant monthly target (`sales_targets`, scope tenant). Pace = days elapsed / days in month; "where you should be today" = target x pace. |
+
+(The open questions numbered D-22 / D-23 in `OWNER_DASHBOARD_AUDIT.md` were renumbered D-25 / D-26 so the ids stay unique.)
 
 ## 13. Decisions needed (none is assumed)
 

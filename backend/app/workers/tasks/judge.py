@@ -67,6 +67,20 @@ JUDGE_TOOL = {
             "confidence":         {"type": "number"},
             "agent_strengths":    {"type": "string"},
             "agent_growth_areas": {"type": "string"},
+            # judge.jinja v5: what was missed + the turn it rests on; est_value only when a figure was said on the call.
+            "missed_revenue": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "kind":      {"type": "string"},
+                        "what":      {"type": "string"},
+                        "quote":     {"type": "string"},
+                        "est_value": {"type": "number"},
+                    },
+                    "required": ["kind"],
+                },
+            },
         },
         "required": ["criterion_scores", "confidence", "sentiment"],
     },

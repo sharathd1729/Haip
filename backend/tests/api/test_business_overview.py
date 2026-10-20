@@ -41,9 +41,11 @@ URL = "/api/v1/dashboard/business-overview"
 @pytest.fixture(autouse=True)
 def _agent_scorecard(monkeypatch):
     """The per-agent scorecard (shared with the old dashboard) computes response times with PostgreSQL-only SQL
-    (LATERAL, percentile_cont). On SQLite it is replaced by an empty scorecard; on PostgreSQL the real one runs."""
+    (LATERAL, percentile_cont), as does the reply time by source. On SQLite both are replaced by empty answers; on PostgreSQL
+    the real ones run."""
     if "sqlite" in os.environ.get("DATABASE_URL", "sqlite"):
         monkeypatch.setattr(extras, "get_agent_scorecard_rows", lambda *a, **k: [])
+        monkeypatch.setattr(extras, "chat_response_by_agent_source", lambda *a, **k: {"by_agent": [], "by_source": {}, "all": None})
 
 
 # ── a small, fully known workspace ──────────────────────────────────────────────────────────────────────────
@@ -181,7 +183,7 @@ def test_the_leads_block_counts_people_not_enquiries(client, world):
     c = leads["conversion"]
     assert (c["numerator"], c["denominator"], c["rate"]) == (2, 5, 40.0)    # l1 and l2 booked; the cancelled one does not count
     assert "cohort" in c["basis"]
-    assert leads["unassigned_now"] >= 1                    # l4 (and l5/l6 may count as open too); the work queue owns that rule
+    assert isinstance(leads["unassigned_now"], int)        # new leads nobody owns: the work queue owns that rule (tested there)
 
 
 def test_the_funnel_is_a_cohort_with_a_rate_from_the_stated_base(client, world):
@@ -415,7 +417,7 @@ def test_a_stale_polled_integration_is_surfaced_for_the_owner(client, db, world)
 def test_the_response_says_when_it_was_made(client, world):
     j = _get(client, world["h_owner"]).json()
     assert datetime.fromisoformat(j["generated_at"]).tzinfo is not None
-    assert [a["key"] for a in j["attention"]][:4] == ["unassigned", "waiting_reply", "missed_calls", "followups"]
+    assert [a["key"] for a in j["attention"]][:4] == ["new_leads", "missed_calls", "waiting_reply", "followups"]
 
 
 # ── the fuller owner view: lost leads, expected check-in, breakdowns, trend, Meta detail, agents, at-risk ──────
@@ -522,14 +524,33 @@ def test_the_agent_table_merges_leads_bookings_messages_and_the_scorecard(client
     assert agents["Bala"]["leads"] == 1 and agents["Bala"]["qualified"] == 0 and agents["Bala"]["avg_response_seconds"] is None   # no scorecard data: unknown, not 0
 
 
+def test_the_agent_table_splits_first_reply_by_source(client, db, world, monkeypatch):
+    a1 = world["a1"]
+    seen = {}
+
+    def fake(db_, tid, since, until=None, **k):
+        seen.update(tid=tid, history=k.get("include_history", False))
+        return {"by_agent": [{"agent_id": a1.id, "source": "personal_whatsapp", "avg_seconds": 610.4, "p95_seconds": 900.0, "response_count": 3},
+                             {"agent_id": "someone-else", "source": "instagram", "avg_seconds": 60.0, "p95_seconds": 60.0, "response_count": 1}],
+                "by_source": {}, "all": None}
+    monkeypatch.setattr(extras, "chat_response_by_agent_source", fake)
+    agents = {a["name"]: a for a in _get(client, world["h_owner"]).json()["agents"]}
+    assert agents["Asha"]["response_by_source"] == {"personal_whatsapp": {"avg_seconds": 610, "response_count": 3},
+                                                    "whatsapp_cloud": None, "instagram": None}
+    assert agents["Bala"]["response_by_source"] == {"personal_whatsapp": None, "whatsapp_cloud": None, "instagram": None}
+    assert seen == {"tid": world["tid"], "history": False}         # live figures: mirrored phone history left out
+
+
 def test_promising_leads_at_risk_come_from_the_work_queue_and_the_ai_reading(client, db, world):
     l4 = world["leads"][3]                                   # unassigned and open
     l4.ai_analysis = {"sentiment": "positive"}
     world["leads"][0].ai_analysis = {"sentiment": "neutral"}
+    # Its number arrived two hours ago and nobody has contacted them: the queue's "new lead" rule.
+    db.query(Guest).filter(Guest.id == l4.guest_id).update({Guest.lead_identified_at: datetime.now(timezone.utc) - timedelta(hours=2)})
     db.commit()
     j = _get(client, world["h_owner"]).json()
     risk = j["leads"]["high_intent_at_risk"]
-    assert risk["count"] == 1 and risk["items"][0]["inquiry_id"] == l4.id and risk["items"][0]["reason"] == "nobody owns it"
+    assert risk["count"] == 1 and risk["items"][0]["inquiry_id"] == l4.id and risk["items"][0]["reason"] == "nobody has contacted them"
     assert {"key": "high_intent_risk", "label": "Promising enquiries at risk", "count": 1, "oldest_at": None, "href": "/dashboard/leads",
             "people": 1} in j["attention"]
 

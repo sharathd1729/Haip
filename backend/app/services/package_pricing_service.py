@@ -6,8 +6,14 @@ the language model. The result is either a priced quote with its lines and the e
     package_not_published  dates_in_past  invalid_dates  over_capacity  below_min_nights  above_max_nights
     no_rate_for_dates      conflicting_rates  unknown_extra  needs_confirmation  unavailable  vehicle_not_in_package
     no_discount_policy
+  quote-builder rules (package_pricing_rules.py):
+    below_min_days  level_required  unknown_level  no_hour_rate  km_rate_out_of_range  destination_not_published
+    destination_not_in_package  unknown_sight  route_km_unknown  no_reseller_terms  unknown_reseller_tier  package_not_for_reseller
+    commission_out_of_range  reseller_min_days  reseller_min_billing
 
-A refusal never carries a price. A caller (the concierge, a tool, the test box) turns it into "the team will confirm" and, where it
+A refusal never carries a price; where one change would fix it, `fix` names that change (e.g. {"nights": 3}) for a one-click button.
+A PREVIEW (allow_drafts=True) may price a draft package or route that is not published yet; the quote then says so
+(`uses_drafts`) and cannot be issued -- issuing re-prices with published records only. A caller (the concierge, a tool, the test box) turns it into "the team will confirm" and, where it
 matters, a task or incident. Nothing here is rounded in the guest's favour or against it silently: rupee amounts are exact to two
 places, GST and the advance are rounded to whole rupees (the same convention as calculator_service).
 
@@ -31,6 +37,7 @@ from sqlalchemy.orm import Session
 
 from app.schemas.business_data import SINGLETON_KEY
 from app.services import business_data_service as bds
+from app.services import package_pricing_rules as rules
 
 ONE = Decimal("1")
 CENT = Decimal("0.01")
@@ -75,6 +82,16 @@ class PackageQuote:
     warnings: list[str] = field(default_factory=list)
     inclusions: list[str] = field(default_factory=list)
     exclusions: list[str] = field(default_factory=list)
+    nights: Optional[int] = None
+    days: Optional[int] = None                    # billed days (package_pricing_rules.billed_days)
+    level: Optional[str] = None
+    duration_hours: Optional[int] = None
+    destination: Optional[dict] = None            # {key, name, version, status}
+    km: Optional[dict] = None                     # planned / included / extra km, suggested and applied rate
+    commission: Optional[dict] = None             # reseller: tier, percent, amount, net_to_business
+    at_actuals: list[str] = field(default_factory=list)   # billed at actuals, outside the total (tolls, parking)
+    uses_drafts: bool = False
+    fix: Optional[dict] = None                    # refusal: the one change that would fix it
 
     @property
     def ok(self) -> bool:
@@ -95,11 +112,20 @@ class PackageQuote:
             "gst": self.gst, "total": self.total, "advance_percent": self.advance_percent, "advance": self.advance,
             "currency": self.currency, "valid_until": self.valid_until, "inputs": self.inputs, "record_refs": self.record_refs,
             "warnings": self.warnings, "inclusions": self.inclusions, "exclusions": self.exclusions,
+            "nights": self.nights, "days": self.days, "level": self.level, "duration_hours": self.duration_hours,
+            "destination": self.destination, "km": self.km, "commission": self.commission, "at_actuals": self.at_actuals,
         }, default=j))
 
+    def to_api(self) -> dict:
+        """The snapshot plus the refusal and availability (what the quote builder shows)."""
+        out = self.to_snapshot()
+        out.update(json.loads(json.dumps({"status": self.status, "reason": self.reason, "message": self.message, "fix": self.fix,
+                                          "availability": self.availability, "uses_drafts": self.uses_drafts}, default=str)))
+        return out
 
-def _refuse(code: str, message: str, **kw) -> PackageQuote:
-    return PackageQuote(status="refused", reason=code, message=message, **kw)
+
+def _refuse(code: str, message: str, fix: Optional[dict] = None, **kw) -> PackageQuote:
+    return PackageQuote(status="refused", reason=code, message=message, fix=fix, **kw)
 
 
 def _rate_applies(rate, d: date, nights: int) -> bool:
@@ -133,8 +159,11 @@ def _open_vehicles(db: Session, tenant_id: str, vehicle_ids: list[str], ci: date
     q = db.query(Property).filter(Property.tenant_id == tenant_id, Property.is_active.is_(True))
     if vehicle_ids:
         q = q.filter(Property.id.in_(vehicle_ids))
+    from app.services.vehicle_pool import is_placeholder_name
     out = []
     for p in q.order_by(Property.name).all():
+        if is_placeholder_name(p.name):
+            continue                         # the "Unassigned" holder is not a vehicle anyone can be quoted on
         cap = (p.max_adults or 0) + (p.max_children or 0)
         if cap and guests > cap:
             status = "over_capacity"
@@ -161,7 +190,10 @@ def evaluate_discount(pol, percent: Decimal, base_total: Decimal) -> dict:
 def quote(
     db: Session, tenant_id: str, package_key: str, check_in: date, check_out: date, adults: int, children: int = 0,
     planned_km: Optional[Decimal] = None, extras: Optional[list[dict]] = None, discount_percent: Optional[Decimal] = None,
-    vehicle_property_id: Optional[str] = None, as_of: Optional[date] = None,
+    vehicle_property_id: Optional[str] = None, as_of: Optional[date] = None, *,
+    level: Optional[str] = None, destination_key: Optional[str] = None, sights: Optional[list[str]] = None,
+    km_rate: Optional[Decimal] = None, extra_hours: int = 0, channel: str = "direct", reseller_tier: Optional[str] = None,
+    commission_percent: Optional[Decimal] = None, allow_drafts: bool = False,
 ) -> PackageQuote:
     today = as_of or bds.tenant_today(db, tenant_id)
     inputs = {
@@ -170,52 +202,106 @@ def quote(
         "extras": sorted(({"name": e.get("name"), "quantity": int(e.get("quantity", 1))} for e in (extras or [])), key=lambda e: str(e["name"])),
         "discount_percent": str(discount_percent) if discount_percent is not None else None, "vehicle_property_id": vehicle_property_id,
     }
+    # Quote-builder inputs are recorded only when used, so the hash of an older-style quote is unchanged.
+    optional = {
+        "level": level, "destination_key": destination_key, "sights": sorted(sights) if sights else None,
+        "km_rate": str(km_rate) if km_rate is not None else None, "extra_hours": extra_hours or None,
+        "channel": channel if channel != "direct" else None, "reseller_tier": reseller_tier,
+        "commission_percent": str(commission_percent) if commission_percent is not None else None,
+    }
+    inputs.update({k: v for k, v in optional.items() if v is not None})
 
-    rec = bds.get_effective(db, tenant_id, "package", package_key, today)
+    rec, pkg_draft = rules.resolve_record(db, tenant_id, "package", package_key, today, allow_drafts)
     if rec is None:
         return _refuse("package_not_published", f"No published package '{package_key}' is in effect.", package_key=package_key, inputs=inputs)
     pkg = bds.parse(rec)
-    refs = [{"kind": "package", "key": rec.key, "version": rec.version, "record_id": rec.id}]
-    base = dict(package_key=rec.key, package_name=pkg.name, inputs=inputs, record_refs=refs, inclusions=list(pkg.inclusions), exclusions=list(pkg.exclusions))
+    refs = [_ref("package", rec, pkg_draft)]
+    warnings: list[str] = []
+    if pkg_draft:
+        warnings.append(f"{pkg.name} is a draft waiting for approval: it can be priced here, but not saved or sent until it is published.")
+    base = dict(package_key=rec.key, package_name=pkg.name, inputs=inputs, record_refs=refs, inclusions=list(pkg.inclusions),
+                exclusions=list(pkg.exclusions), warnings=warnings, uses_drafts=pkg_draft, duration_hours=pkg.duration_hours)
 
     if check_out < check_in:
         return _refuse("invalid_dates", "Check-out is before check-in.", **base)
     if check_in < today:
         return _refuse("dates_in_past", "The check-in date has already passed.", **base)
     nights = (check_out - check_in).days
+    days = rules.billed_days(pkg, nights)
+    base.update(nights=nights, days=days)
     guests = adults + children
     if adults < 1:
         return _refuse("invalid_dates", "At least one adult is required.", **base)
     if guests > pkg.max_guests:
         return _refuse("over_capacity", f"{guests} guests exceed the {pkg.max_guests} this package allows.", **base)
     if pkg.product == "same_day" and nights != 0:
-        return _refuse("invalid_dates", "A same-day package starts and ends on the same date.", **base)
+        return _refuse("invalid_dates", "A same-day package starts and ends on the same date.", fix={"nights": 0}, **base)
     if nights < pkg.min_nights:
-        return _refuse("below_min_nights", f"This package needs at least {pkg.min_nights} night(s); {nights} requested.", **base)
+        return _refuse("below_min_nights", f"This package needs at least {pkg.min_nights} night(s); {nights} requested.", fix={"nights": pkg.min_nights}, **base)
     if pkg.max_nights is not None and nights > pkg.max_nights:
-        return _refuse("above_max_nights", f"This package allows at most {pkg.max_nights} night(s); {nights} requested.", **base)
+        return _refuse("above_max_nights", f"This package allows at most {pkg.max_nights} night(s); {nights} requested.", fix={"nights": pkg.max_nights}, **base)
+    if pkg.min_days and days < pkg.min_days:
+        return _refuse("below_min_days", f"{pkg.name} needs at least {pkg.min_days} days; this is {days}.",
+                       fix={"nights": rules.nights_for_days(pkg, pkg.min_days)}, **base)
     if vehicle_property_id and pkg.vehicle_property_ids and vehicle_property_id not in pkg.vehicle_property_ids:
         return _refuse("vehicle_not_in_package", "That vehicle is not part of this package.", **base)
 
+    # ── route and kilometres ──────────────────────────────────────────────────────────────────────────────
+    route = None
+    needs_km = (pkg.included_km is not None or pkg.included_km_per_day is not None) and pkg.extra_km_charge is not None
+    if destination_key:
+        if pkg.destination_keys and destination_key not in pkg.destination_keys:
+            return _refuse("destination_not_in_package", f"{pkg.name} is only for: {', '.join(pkg.destination_keys)}.",
+                           fix={"destination_key": pkg.destination_keys[0]}, **base)
+        drec, d_draft = rules.resolve_record(db, tenant_id, "destination", destination_key, today, allow_drafts)
+        if drec is None:
+            pending = bds.open_draft(db, tenant_id, "destination", destination_key) is not None
+            return _refuse("destination_not_published", f"The route '{destination_key}' is not published"
+                           + (" yet: it is waiting for approval." if pending else "."), **base)
+        dest = bds.parse(drec)
+        refs.append(_ref("destination", drec, d_draft))
+        if d_draft:
+            warnings.append(f"{dest.name} is a new route waiting for approval: it can be priced here, but not saved or sent until it is published.")
+            base["uses_drafts"] = True
+        base["destination"] = {"key": drec.key, "name": dest.name, "version": drec.version, "status": "draft" if d_draft else "published"}
+        route = rules.route_km(dest, sights or [])
+        if route.unknown:
+            return _refuse("unknown_sight", f"Not a sight on this route: {', '.join(route.unknown)}.", **base)
+        if planned_km is None and route.route_km is not None:
+            planned_km = route.route_km + sum((s["km"] for s in route.sights), Decimal("0"))
+        elif planned_km is None and needs_km:
+            return _refuse("route_km_unknown", "A stop on this route has no distance recorded, so the kilometres cannot be counted.", **base)
+    elif sights:
+        return _refuse("unknown_sight", "Sights belong to a route: choose the route first.", **base)
+
     # ── base price ────────────────────────────────────────────────────────────────────────────────────────
+    rate_pool = list(pkg.rates)
+    levels = sorted({r.level for r in rate_pool if r.level is not None}, key=lambda x: (len(x), x))
+    if levels:
+        if not level:
+            return _refuse("level_required", f"Pick a level for {pkg.name}: {', '.join(levels)}.", fix={"level": levels[0], "levels": levels}, **base)
+        rate_pool = [r for r in rate_pool if r.level == level]
+        if not rate_pool:
+            return _refuse("unknown_level", f"{pkg.name} has no level '{level}'. Levels: {', '.join(levels)}.", fix={"level": levels[0], "levels": levels}, **base)
+        base["level"] = level
     lines: list[Line] = []
-    pkg_rates = [r for r in pkg.rates if r.unit == "package"]
-    unit_rates = [r for r in pkg.rates if r.unit != "package"]
+    pkg_rates = [r for r in rate_pool if r.unit == "package"]
+    unit_rates = [r for r in rate_pool if r.unit != "package"]
     chosen, why = _pick(pkg_rates, check_in, nights) if pkg_rates else (None, "none")
     if why == "conflict":
         return _refuse("conflicting_rates", f"Two equally specific package rates cover {check_in}.", **base)
     base_total = Decimal("0")
     if chosen is not None:
         base_total = chosen.amount
-        lines.append(Line(f"{pkg.name} - {chosen.label}", chosen.amount, "package price (by check-in date)"))
+        detail = f"{pkg.duration_hours} hours, package price" if pkg.duration_hours else "package price (by check-in date)"
+        lines.append(Line(f"{pkg.name} - {chosen.label}", chosen.amount, detail))
     else:
         if not unit_rates:
             return _refuse("no_rate_for_dates", f"No rate covers {check_in}.", **base)
-        units = (nights + 1) if any(r.unit == "day" for r in unit_rates) and pkg.product != "same_day" else max(nights, 1)
-        dates = [check_in + timedelta(days=i) for i in range(units)]
+        units = days if any(r.unit == "day" for r in unit_rates) else max(nights, 1)
         grouped: dict[tuple, int] = {}
         missing = []
-        for d in dates:
+        for d in (check_in + timedelta(days=i) for i in range(units)):
             r, reason = _pick(unit_rates, d, nights)
             if reason == "conflict":
                 return _refuse("conflicting_rates", f"Two equally specific rates cover {d}.", **base)
@@ -231,15 +317,40 @@ def quote(
 
     # ── charges ───────────────────────────────────────────────────────────────────────────────────────────
     billable_nights = max(nights, 1)
-    if pkg.extra_guest_charge and guests > pkg.extra_guest_charge.free_guests:
-        n = guests - pkg.extra_guest_charge.free_guests
-        amount = pkg.extra_guest_charge.per_guest_per_night * n * billable_nights
-        lines.append(Line("Extra guests", amount, f"{n} guest(s) x {billable_nights} night(s) @ {pkg.extra_guest_charge.per_guest_per_night}"))
-    if planned_km is not None and pkg.included_km is not None and planned_km > pkg.included_km:
-        over = planned_km - pkg.included_km
+    g = pkg.extra_guest_charge
+    if g and guests > g.free_guests:
+        n = guests - g.free_guests
+        mult, what = {"night": (billable_nights, f"{billable_nights} night(s)"), "day": (days, f"{days} day(s)"), "trip": (1, "the trip")}[g.unit]
+        detail = (f"{n} guest(s) x {billable_nights} night(s) @ {g.amount}" if g.unit == "night"
+                  else f"{n} guest(s) x {what} @ {g.amount}, {g.free_guests} included")
+        lines.append(Line("Extra guests", g.amount * n * mult, detail))
+    if extra_hours:
+        if pkg.extra_hour_charge is None:
+            return _refuse("no_hour_rate", f"{pkg.name} has no extra-hour rate, so a late return cannot be quoted.", fix={"extra_hours": 0}, **base)
+        rate = pkg.extra_hour_charge.per_hour
+        lines.append(Line("Extra hours", rate * extra_hours, f"{extra_hours} hour(s) @ {rate}"))
+
+    included = pkg.included_km if pkg.included_km is not None else (
+        pkg.included_km_per_day * days if pkg.included_km_per_day is not None else None)
+    km = None
+    if planned_km is not None or route is not None:
+        km = {"planned_km": planned_km, "route_km": route.route_km if route else None, "sights": route.sights if route else [],
+              "stops": route.stops if route else [], "included_km": included, "extra_km": Decimal("0"), "rate_mode": None,
+              "suggested_rate": None, "applied_rate": None, "min_rate": None, "max_rate": None}
+    if planned_km is not None and included is not None and planned_km > included:
+        over = planned_km - included
+        km["extra_km"] = over
         if pkg.extra_km_charge is None:
-            return _refuse("needs_confirmation", f"{planned_km} km is {over} km above the {pkg.included_km} km included and no extra-km rate is published.", **base)
-        lines.append(Line("Extra kilometres", over * pkg.extra_km_charge.per_km, f"{over} km @ {pkg.extra_km_charge.per_km}"))
+            return _refuse("needs_confirmation", f"{planned_km} km is {over} km above the {included} km included and no extra-km rate is published.", **base)
+        c = pkg.extra_km_charge
+        applied, suggested, problem = rules.km_rate(c, over, km_rate)
+        km.update(rate_mode="range" if c.ranged else "fixed", suggested_rate=suggested, applied_rate=applied,
+                  min_rate=c.min_per_km if c.ranged else c.per_km, max_rate=c.max_per_km if c.ranged else c.per_km)
+        if problem:
+            return _refuse("km_rate_out_of_range", problem, fix={"km_rate": str(suggested)}, km=km, **base)
+        lines.append(Line("Extra kilometres", over * applied, f"{over} km @ {applied}"))
+    base["km"] = km
+
     wanted = {e.get("name"): max(int(e.get("quantity", 1)), 1) for e in (extras or [])}
     by_name = {c.name: c for c in pkg.charges}
     unknown = [n for n in wanted if n not in by_name]
@@ -248,8 +359,11 @@ def quote(
     for c in pkg.charges:
         if c.optional and c.name not in wanted:
             continue
-        mult = {"per_stay": 1, "per_night": billable_nights, "per_person": guests, "per_unit": wanted.get(c.name, 1)}[c.unit]
-        lines.append(Line(c.name, c.amount * mult, f"{mult} x {c.amount} ({c.unit.replace('_', ' ')})"))
+        mult = {"per_stay": 1, "per_night": billable_nights, "per_day": days, "per_person": guests, "per_unit": wanted.get(c.name, 1)}[c.unit]
+        if c.kind == "experience" and pkg.kits_included:
+            lines.append(Line(c.name, Decimal("0"), "included in this package"))
+        else:
+            lines.append(Line(c.name, c.amount * mult, f"{mult} x {c.amount} ({c.unit.replace('_', ' ')})"))
 
     subtotal = _money(sum((l.amount for l in lines), Decimal("0")))
 
@@ -259,27 +373,37 @@ def quote(
     if discount_percent is not None and discount_percent > 0:
         pol_rec = bds.get_effective(db, tenant_id, "discount_policy", SINGLETON_KEY, today)
         if pol_rec is None:
-            return _refuse("no_discount_policy", "No discount policy is published, so no discount can be offered.", **base)
+            return _refuse("no_discount_policy", "No discount policy is published, so no discount can be offered.", fix={"discount_percent": None}, **base)
         pol = bds.parse(pol_rec)
-        refs.append({"kind": "discount_policy", "key": pol_rec.key, "version": pol_rec.version, "record_id": pol_rec.id})
+        refs.append(_ref("discount_policy", pol_rec, False))
         discount = evaluate_discount(pol, discount_percent, base_total)         # a discount applies to the package price, not to extras
         if discount["status"] == "applied":
             amount = Decimal(discount["amount"])
             lines.append(Line(f"Discount {discount_percent}%", -amount, "within the published discount policy"))
             taxable = _money(subtotal - amount)
 
+    # ── reseller (B2B): commission on the pre-tax billing, within the published tier ──────────────────────
+    commission = None
+    if channel == "reseller":
+        rr = rules.reseller_terms(db, tenant_id, today, rec.key, reseller_tier, commission_percent, days, taxable)
+        if rr.ref:
+            refs.append(rr.ref)
+        if not rr.ok:
+            fix = {"nights": rules.nights_for_days(pkg, rr.min_days)} if rr.min_days else None
+            return _refuse(rr.code, rr.message, fix=fix, **base)
+        commission = rr.detail
+
     gst = _rupee(taxable * pkg.gst_percent / 100)
     total = taxable + gst
 
     # ── advance (only from a published, Ratha-confirmed payment policy) ───────────────────────────────────
-    warnings: list[str] = []
     advance_percent = advance = None
     pay_rec = bds.get_effective(db, tenant_id, "payment_policy", SINGLETON_KEY, today)
     if pay_rec is not None:
         pay = bds.parse(pay_rec)
         advance_percent = pay.advance_percent
         advance = _rupee(total * advance_percent / 100)
-        refs.append({"kind": "payment_policy", "key": pay_rec.key, "version": pay_rec.version, "record_id": pay_rec.id})
+        refs.append(_ref("payment_policy", pay_rec, False))
     else:
         warnings.append("No payment policy is published: the advance amount must be confirmed by the team.")
 
@@ -290,8 +414,14 @@ def quote(
         return _refuse("unavailable", f"Not available: {why}.", availability=vehicles, **base)
 
     return PackageQuote(
-        status="ok", package_key=rec.key, package_name=pkg.name, lines=lines, subtotal=subtotal, discount=discount, taxable=taxable,
-        gst_percent=pkg.gst_percent, gst=gst, total=total, advance_percent=advance_percent, advance=advance,
-        valid_until=today + timedelta(days=pkg.quote_valid_days), inputs=inputs, record_refs=refs, availability=vehicles,
-        warnings=warnings, inclusions=list(pkg.inclusions), exclusions=list(pkg.exclusions),
+        status="ok", lines=lines, subtotal=subtotal, discount=discount, taxable=taxable, gst_percent=pkg.gst_percent, gst=gst, total=total,
+        advance_percent=advance_percent, advance=advance, valid_until=today + timedelta(days=pkg.quote_valid_days), availability=vehicles,
+        commission=commission, at_actuals=list(pkg.at_actuals), **base,
     )
+
+
+def _ref(kind: str, rec, is_draft: bool) -> dict:
+    ref = {"kind": kind, "key": rec.key, "version": rec.version, "record_id": rec.id}
+    if is_draft:
+        ref["status"] = "draft"
+    return ref

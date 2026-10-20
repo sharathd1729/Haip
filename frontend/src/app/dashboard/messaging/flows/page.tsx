@@ -42,11 +42,11 @@ interface Flow {
 
 const NODE_TYPES = {
   trigger: { label: "Trigger", icon: <Zap size={14} />, color: "bg-amber-50 border-amber-300 text-amber-700", dot: "bg-amber-400" },
-  message: { label: "Send Message", icon: <MessageSquare size={14} />, color: "bg-teal-50 border-teal-300 text-teal-700", dot: "bg-teal-400" },
+  message: { label: "Send Message", icon: <MessageSquare size={14} />, color: "bg-[var(--haip-primary-tint)] border-[color-mix(in_srgb,var(--primary)_25%,transparent)] text-primary", dot: "bg-primary" },
   condition: { label: "Condition", icon: <GitBranch size={14} />, color: "bg-blue-50 border-blue-300 text-blue-700", dot: "bg-blue-400" },
   delay: { label: "Wait / Delay", icon: <Clock size={14} />, color: "bg-purple-50 border-purple-300 text-purple-700", dot: "bg-purple-400" },
   action: { label: "Action", icon: <Zap size={14} />, color: "bg-pink-50 border-pink-300 text-pink-700", dot: "bg-pink-400" },
-  end: { label: "End", icon: <Hash size={14} />, color: "bg-gray-50 border-gray-300 text-gray-500", dot: "bg-gray-400" },
+  end: { label: "End", icon: <Hash size={14} />, color: "bg-[var(--haip-surface)] border-[var(--haip-border-strong)] text-[var(--haip-fg-subtle)]", dot: "bg-[var(--haip-border-strong)]" },
 };
 
 // "Keyword reply" and "Campaign reply" were offered here with no fire
@@ -108,7 +108,7 @@ function FlowCanvas({
                 className={cn(
                   "w-72 rounded-2xl border-2 p-4 cursor-pointer transition-all shadow-sm hover:shadow-md group relative",
                   cfg.color,
-                  isSelected && "ring-2 ring-offset-2 ring-teal-500 shadow-md"
+                  isSelected && "ring-2 ring-offset-2 ring-primary shadow-md"
                 )}
               >
                 <div className="flex items-start gap-3">
@@ -135,18 +135,18 @@ function FlowCanvas({
               {/* Connector + add button */}
               {node.type !== "end" && (
                 <div className="flex flex-col items-center py-1">
-                  <div className="w-0.5 h-4 bg-gray-300" />
+                  <div className="w-0.5 h-4 bg-[var(--haip-border-strong)]" />
                   {edge?.label && (
-                    <span className="text-[9px] bg-white border border-gray-200 rounded px-1.5 py-0.5 text-gray-500 font-medium">{edge.label}</span>
+                    <span className="text-[9px] bg-white border border-[var(--haip-border)] rounded px-1.5 py-0.5 text-[var(--haip-fg-subtle)] font-medium">{edge.label}</span>
                   )}
                   <button
                     onClick={() => onAddNode("message", node.id)}
-                    className="w-6 h-6 rounded-full bg-white border-2 border-gray-300 flex items-center justify-center text-gray-400 hover:border-teal-500 hover:text-teal-500 hover:bg-teal-50 transition-all"
+                    className="w-6 h-6 rounded-full bg-white border-2 border-[var(--haip-border-strong)] flex items-center justify-center text-[var(--haip-fg-subtle)] hover:border-primary hover:text-primary hover:bg-[var(--haip-primary-tint)] transition-all"
                     title="Add step"
                   >
                     <Plus size={12} />
                   </button>
-                  <div className="w-0.5 h-4 bg-gray-300" />
+                  <div className="w-0.5 h-4 bg-[var(--haip-border-strong)]" />
                 </div>
               )}
             </div>
@@ -171,19 +171,19 @@ function NodeEditorPanel({
   const [local, setLocal] = useState({ ...node });
 
   return (
-    <div className="w-72 bg-white border-l border-gray-100 flex flex-col h-full shadow-xl">
-      <div className="px-4 py-4 border-b border-gray-100 flex items-center justify-between">
+    <div className="w-72 bg-white border-l border-[var(--haip-border)] flex flex-col h-full shadow-xl">
+      <div className="px-4 py-4 border-b border-[var(--haip-border)] flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-bold text-gray-900">Edit step</span>
+          <span className="text-sm font-bold text-[var(--haip-fg)]">Edit step</span>
         </div>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
+        <button onClick={onClose} className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)]"><X size={16} /></button>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div>
-          <label className="text-xs font-semibold text-gray-700 block mb-1.5">Step type</label>
+          <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Step type</label>
           <select value={local.type}
             onChange={e => setLocal(l => ({ ...l, type: e.target.value as FlowNode["type"] }))}
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+            className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
             {Object.entries(NODE_TYPES).map(([t, cfg]) => (
               <option key={t} value={t}>{cfg.label}</option>
             ))}
@@ -191,16 +191,16 @@ function NodeEditorPanel({
         </div>
 
         <div>
-          <label className="text-xs font-semibold text-gray-700 block mb-1.5">Step label</label>
+          <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Step label</label>
           <input value={local.label} onChange={e => setLocal(l => ({ ...l, label: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
+            className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
         </div>
 
         {local.type === "trigger" && (
           <div>
-            <label className="text-xs font-semibold text-gray-700 block mb-1.5">Trigger event</label>
+            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Trigger event</label>
             <select value={local.content ?? ""} onChange={e => setLocal(l => ({ ...l, content: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+              className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
               <option value="">Select trigger…</option>
               {TRIGGER_OPTIONS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
@@ -209,19 +209,19 @@ function NodeEditorPanel({
 
         {local.type === "message" && (
           <div>
-            <label className="text-xs font-semibold text-gray-700 block mb-1.5">Message content</label>
+            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Message content</label>
             <textarea value={local.content ?? ""} onChange={e => setLocal(l => ({ ...l, content: e.target.value }))} rows={4}
               placeholder={"Hi {{name}}, welcome to our villa!\n\nYour booking is confirmed."}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
-            <p className="text-[10px] text-gray-400 mt-1">Use {`{{name}}`}, {`{{property}}`} etc. for personalization.</p>
+              className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            <p className="text-[10px] text-[var(--haip-fg-subtle)] mt-1">Use {`{{name}}`}, {`{{property}}`} etc. for personalization.</p>
           </div>
         )}
 
         {local.type === "condition" && (
           <div>
-            <label className="text-xs font-semibold text-gray-700 block mb-1.5">Condition</label>
+            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Condition</label>
             <select value={local.condition ?? ""} onChange={e => setLocal(l => ({ ...l, condition: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+              className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
               <option value="">Select condition…</option>
               <option value="message_read">Message was read</option>
               <option value="replied">Contact replied</option>
@@ -233,18 +233,18 @@ function NodeEditorPanel({
 
         {local.type === "delay" && (
           <div>
-            <label className="text-xs font-semibold text-gray-700 block mb-1.5">Wait duration (minutes)</label>
+            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Wait duration (minutes)</label>
             <input type="number" min={1} value={local.delay_minutes ?? 60}
               onChange={e => setLocal(l => ({ ...l, delay_minutes: parseInt(e.target.value) || 60 }))}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
+              className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
           </div>
         )}
 
         {local.type === "action" && (
           <div>
-            <label className="text-xs font-semibold text-gray-700 block mb-1.5">Action</label>
+            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Action</label>
             <select value={local.content ?? ""} onChange={e => setLocal(l => ({ ...l, content: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+              className="w-full px-3 py-2 border border-[var(--haip-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
               <option value="">Select action…</option>
               <option value="tag_vip">Add tag: VIP</option>
               <option value="create_inquiry">Create inquiry</option>
@@ -254,10 +254,10 @@ function NodeEditorPanel({
           </div>
         )}
       </div>
-      <div className="px-4 pb-4 pt-2 border-t border-gray-100">
+      <div className="px-4 pb-4 pt-2 border-t border-[var(--haip-border)]">
         <button
           onClick={() => { onUpdate(node.id, local); onClose(); }}
-          className="w-full py-2.5 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors"
+          className="w-full py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary transition-colors"
         >
           Apply changes
         </button>
@@ -312,27 +312,27 @@ function CreateFlowModal({ onClose, onCreated }: { onClose: () => void; onCreate
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-        <div className="px-6 pt-6 pb-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-base font-bold text-gray-900">New flow</h2>
-          <button onClick={onClose}><X size={18} className="text-gray-400" /></button>
+        <div className="px-6 pt-6 pb-4 border-b border-[var(--haip-border)] flex items-center justify-between">
+          <h2 className="text-base font-bold text-[var(--haip-fg)]">New flow</h2>
+          <button onClick={onClose}><X size={18} className="text-[var(--haip-fg-subtle)]" /></button>
         </div>
         <div className="px-6 py-5 space-y-4">
           <div>
-            <label className="text-xs font-semibold text-gray-700 block mb-1.5">Flow name <span className="text-red-500">*</span></label>
+            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Flow name <span className="text-red-500">*</span></label>
             <input value={name} onChange={e => setName(e.target.value)} placeholder="Welcome series"
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
+              className="w-full px-3 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
           </div>
           <div>
-            <label className="text-xs font-semibold text-gray-700 block mb-1.5">Description <span className="text-gray-400 font-normal">(optional)</span></label>
+            <label className="text-xs font-semibold text-[var(--haip-fg-2)] block mb-1.5">Description <span className="text-[var(--haip-fg-subtle)] font-normal">(optional)</span></label>
             <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Sent to new opt-ins"
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
+              className="w-full px-3 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
           </div>
           {error && <div className="flex items-center gap-2 text-xs text-red-700 bg-red-50 rounded-xl px-3 py-2"><AlertCircle size={13} /> {error}</div>}
         </div>
         <div className="px-6 pb-5 flex gap-3">
-          <button onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
+          <button onClick={onClose} className="flex-1 py-2.5 border border-[var(--haip-border)] rounded-xl text-sm text-[var(--haip-fg-muted)] hover:bg-[var(--haip-surface)] transition-colors">Cancel</button>
           <button onClick={handleCreate} disabled={submitting}
-            className="flex-1 py-2.5 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+            className="flex-1 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
             {submitting ? <Loader2 size={14} className="animate-spin" /> : <GitBranch size={14} />}
             Create flow
           </button>
@@ -436,25 +436,25 @@ function FlowEditor({ flow: initialFlow, onBack, onSaved }: {
   return (
     <div className="h-full flex flex-col">
       {/* Toolbar */}
-      <div className="px-4 py-3 bg-white border-b border-gray-100 flex items-center gap-3 flex-shrink-0">
-        <button onClick={onBack} className="text-xs text-gray-500 hover:text-gray-800 flex items-center gap-1 transition-colors">
+      <div className="px-4 py-3 bg-white border-b border-[var(--haip-border)] flex items-center gap-3 flex-shrink-0">
+        <button onClick={onBack} className="text-xs text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg)] flex items-center gap-1 transition-colors">
           <ChevronRight size={14} className="rotate-180" /> Flows
         </button>
-        <span className="text-gray-300">/</span>
-        <span className="text-sm font-semibold text-gray-900 flex-1">{flow.name}</span>
+        <span className="text-[var(--haip-fg-subtle)]/70">/</span>
+        <span className="text-sm font-semibold text-[var(--haip-fg)] flex-1">{flow.name}</span>
 
         <div className="flex items-center gap-2">
           {/* Add node buttons */}
           {(["message", "condition", "delay", "action"] as const).map(t => (
             <button key={t} onClick={() => addNode(t)}
-              className="flex items-center gap-1.5 text-xs border border-gray-200 text-gray-600 px-2.5 py-1.5 rounded-lg hover:bg-gray-50 transition-colors font-medium">
+              className="flex items-center gap-1.5 text-xs border border-[var(--haip-border)] text-[var(--haip-fg-muted)] px-2.5 py-1.5 rounded-lg hover:bg-[var(--haip-surface)] transition-colors font-medium">
               <Plus size={11} />
               {NODE_TYPES[t].label}
             </button>
           ))}
-          <div className="w-px h-5 bg-gray-200" />
+          <div className="w-px h-5 bg-[var(--haip-border)]" />
           <button onClick={handleSave} disabled={saving}
-            className="flex items-center gap-1.5 text-xs bg-teal-500 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-teal-600 transition-colors disabled:opacity-50">
+            className="flex items-center gap-1.5 text-xs bg-primary text-white px-3 py-1.5 rounded-lg font-medium hover:bg-primary transition-colors disabled:opacity-50">
             {saving ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
             Save
           </button>
@@ -529,14 +529,14 @@ export default function FlowsPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="px-6 py-5 bg-white border-b border-gray-100 flex-shrink-0">
+      <div className="px-6 py-5 bg-white border-b border-[var(--haip-border)] flex-shrink-0">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="haip-page-title">Flow Builder</h1>
-            <p className="text-sm text-gray-400 mt-0.5">Automate multi-step WhatsApp conversations triggered by guest actions.</p>
+            <p className="text-sm text-[var(--haip-fg-subtle)] mt-0.5">Automate multi-step WhatsApp conversations triggered by guest actions.</p>
           </div>
           <button onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 bg-teal-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors shadow-sm shadow-teal-200">
+            className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-primary transition-colors shadow-sm shadow-[color-mix(in_srgb,var(--primary)_18%,transparent)]">
             <Plus size={15} /> New flow
           </button>
         </div>
@@ -546,12 +546,12 @@ export default function FlowsPage() {
         {isError ? (
           <div className="py-20 text-center">
             <AlertCircle size={32} className="text-red-300 mx-auto mb-3" />
-            <p className="text-sm text-gray-700 font-medium">Couldn't load flows</p>
-            <p className="text-xs text-gray-400 mt-1">The server didn't respond — this isn't your saved flow list.</p>
+            <p className="text-sm text-[var(--haip-fg-2)] font-medium">Couldn't load flows</p>
+            <p className="text-xs text-[var(--haip-fg-subtle)] mt-1">The server didn't respond — this isn't your saved flow list.</p>
             <button
               onClick={() => refetch()}
               disabled={isFetching}
-              className="mt-4 text-xs font-semibold text-teal-600 border border-teal-200 bg-teal-50 hover:bg-teal-100 px-3 py-1.5 rounded-lg transition-colors"
+              className="mt-4 text-xs font-semibold text-primary border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] bg-[var(--haip-primary-tint)] hover:bg-[var(--haip-primary-tint)] px-3 py-1.5 rounded-lg transition-colors"
             >
               {isFetching ? "Retrying…" : "Retry"}
             </button>
@@ -560,11 +560,11 @@ export default function FlowsPage() {
           <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}</div>
         ) : flows.length === 0 ? (
           <div className="py-20 text-center">
-            <GitBranch size={40} className="text-gray-200 mx-auto mb-3" />
-            <p className="text-sm text-gray-500 font-medium">No flows yet</p>
-            <p className="text-xs text-gray-400 mt-1">Build automated message sequences triggered by guest actions.</p>
+            <GitBranch size={40} className="text-[var(--haip-fg-subtle)]/70 mx-auto mb-3" />
+            <p className="text-sm text-[var(--haip-fg-subtle)] font-medium">No flows yet</p>
+            <p className="text-xs text-[var(--haip-fg-subtle)] mt-1">Build automated message sequences triggered by guest actions.</p>
             <button onClick={() => setShowCreate(true)}
-              className="mt-4 flex items-center gap-2 bg-teal-500 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-teal-600 transition-colors mx-auto">
+              className="mt-4 flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-primary transition-colors mx-auto">
               <Plus size={14} /> Create flow
             </button>
           </div>
@@ -579,39 +579,39 @@ export default function FlowsPage() {
                 <div key={flow.id} className="haip-card p-5 hover:shadow-sm transition-shadow">
                   <div className="flex items-start gap-4">
                     <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0",
-                      flow.is_active ? "bg-teal-50" : "bg-gray-100")}>
-                      <GitBranch size={18} className={flow.is_active ? "text-teal-600" : "text-gray-400"} />
+                      flow.is_active ? "bg-[var(--haip-primary-tint)]" : "bg-[var(--haip-status-neutral-bg)]")}>
+                      <GitBranch size={18} className={flow.is_active ? "text-primary" : "text-[var(--haip-fg-subtle)]"} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-sm font-bold text-gray-900">{flow.name}</h3>
+                        <h3 className="text-sm font-bold text-[var(--haip-fg)]">{flow.name}</h3>
                         <span className={cn("inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border",
-                          flow.is_active ? "bg-teal-50 text-teal-700 border-teal-200" : "bg-gray-50 text-gray-500 border-gray-200")}>
+                          flow.is_active ? "bg-[var(--haip-primary-tint)] text-primary border-[color-mix(in_srgb,var(--primary)_25%,transparent)]" : "bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)] border-[var(--haip-border)]")}>
                           {flow.is_active ? <><Play size={8} /> Active</> : <><Pause size={8} /> Inactive</>}
                         </span>
                       </div>
-                      {flow.description && <p className="text-xs text-gray-500 mb-1">{flow.description}</p>}
-                      <div className="flex items-center gap-3 text-[11px] text-gray-400 flex-wrap">
+                      {flow.description && <p className="text-xs text-[var(--haip-fg-subtle)] mb-1">{flow.description}</p>}
+                      <div className="flex items-center gap-3 text-[11px] text-[var(--haip-fg-subtle)] flex-wrap">
                         <span className="flex items-center gap-1"><Zap size={10} /> Trigger: {triggerLabel}</span>
                         <span className="flex items-center gap-1"><GitBranch size={10} /> {stepCount} steps</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <button onClick={() => setViewingLogsFlow(flow)}
-                        className="flex items-center gap-1.5 text-xs border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors font-medium">
+                        className="flex items-center gap-1.5 text-xs border border-[var(--haip-border)] text-[var(--haip-fg-muted)] px-3 py-1.5 rounded-lg hover:bg-[var(--haip-surface)] transition-colors font-medium">
                         <History size={12} /> Logs
                       </button>
                       <button onClick={() => setEditingFlow(flow)}
-                        className="flex items-center gap-1.5 text-xs border border-gray-200 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors font-medium">
+                        className="flex items-center gap-1.5 text-xs border border-[var(--haip-border)] text-[var(--haip-fg-muted)] px-3 py-1.5 rounded-lg hover:bg-[var(--haip-surface)] transition-colors font-medium">
                         <Settings size={12} /> Edit
                       </button>
                       <button onClick={() => toggleMutation.mutate(flow.id)}
                         className={cn("text-xs px-3 py-1.5 rounded-lg font-medium transition-colors border",
-                          flow.is_active ? "text-amber-600 border-amber-200 hover:bg-amber-50" : "text-teal-600 border-teal-200 hover:bg-teal-50")}>
+                          flow.is_active ? "text-amber-600 border-amber-200 hover:bg-amber-50" : "text-primary border-[color-mix(in_srgb,var(--primary)_25%,transparent)] hover:bg-[var(--haip-primary-tint)]")}>
                         {flow.is_active ? "Pause" : "Activate"}
                       </button>
                       <button onClick={() => { if (confirm("Delete this flow?")) deleteMutation.mutate(flow.id); }}
-                        className="text-gray-400 hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-50">
+                        className="text-[var(--haip-fg-subtle)] hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-50">
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -624,7 +624,7 @@ export default function FlowsPage() {
 
         {/* How it works */}
         <div className="mt-8 haip-card p-5">
-          <p className="text-sm font-bold text-gray-800 mb-3">How Flow Builder works</p>
+          <p className="text-sm font-bold text-[var(--haip-fg)] mb-3">How Flow Builder works</p>
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             {[
               { step: "1", title: "Set a trigger", desc: "Choose what event starts the flow (opt-in, keyword, check-in…)" },
@@ -633,10 +633,10 @@ export default function FlowsPage() {
               { step: "4", title: "Measure", desc: "Track delivery, read rates, and drop-off per step" },
             ].map(s => (
               <div key={s.step} className="flex gap-3">
-                <div className="w-6 h-6 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-[11px] font-bold flex-shrink-0 mt-0.5">{s.step}</div>
+                <div className="w-6 h-6 rounded-full bg-[var(--haip-primary-tint)] text-primary flex items-center justify-center text-[11px] font-bold flex-shrink-0 mt-0.5">{s.step}</div>
                 <div>
-                  <p className="text-xs font-semibold text-gray-800">{s.title}</p>
-                  <p className="text-[10px] text-gray-400 leading-relaxed mt-0.5">{s.desc}</p>
+                  <p className="text-xs font-semibold text-[var(--haip-fg)]">{s.title}</p>
+                  <p className="text-[10px] text-[var(--haip-fg-subtle)] leading-relaxed mt-0.5">{s.desc}</p>
                 </div>
               </div>
             ))}
@@ -676,10 +676,10 @@ interface FlowRun {
 }
 
 const RUN_STATUS_STYLE: Record<string, string> = {
-  success: "bg-teal-50 text-teal-700 border-teal-200",
+  success: "bg-[var(--haip-primary-tint)] text-primary border-[color-mix(in_srgb,var(--primary)_25%,transparent)]",
   failed: "bg-red-50 text-red-700 border-red-200",
   waiting: "bg-amber-50 text-amber-700 border-amber-200",
-  skipped: "bg-gray-50 text-gray-500 border-gray-200",
+  skipped: "bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)] border-[var(--haip-border)]",
 };
 
 function FlowLogsModal({ flow, onClose }: { flow: Flow; onClose: () => void }) {
@@ -692,12 +692,12 @@ function FlowLogsModal({ flow, onClose }: { flow: Flow; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col" style={{ maxHeight: "calc(100dvh - 2rem)" }}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--haip-border)]">
           <div>
-            <h2 className="text-sm font-bold text-gray-900">Execution Logs</h2>
-            <p className="text-xs text-gray-400">{flow.name}</p>
+            <h2 className="text-sm font-bold text-[var(--haip-fg)]">Execution Logs</h2>
+            <p className="text-xs text-[var(--haip-fg-subtle)]">{flow.name}</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
+          <button onClick={onClose} className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)]"><X size={16} /></button>
         </div>
         <div className="flex-1 overflow-y-auto p-4">
           {isLoading ? (
@@ -706,22 +706,22 @@ function FlowLogsModal({ flow, onClose }: { flow: Flow; onClose: () => void }) {
             <p className="text-sm text-red-500 text-center py-8">Couldn't load logs.</p>
           ) : runs.length === 0 ? (
             <div className="text-center py-10">
-              <History size={32} className="text-gray-200 mx-auto mb-2" />
-              <p className="text-sm text-gray-500 font-medium">No runs yet</p>
-              <p className="text-xs text-gray-400 mt-1">
+              <History size={32} className="text-[var(--haip-fg-subtle)]/70 mx-auto mb-2" />
+              <p className="text-sm text-[var(--haip-fg-subtle)] font-medium">No runs yet</p>
+              <p className="text-xs text-[var(--haip-fg-subtle)] mt-1">
                 {flow.is_active ? "Nothing has triggered this flow yet." : "Activate this flow to start seeing execution logs here."}
               </p>
             </div>
           ) : (
             <div className="space-y-1.5">
               {runs.map(run => (
-                <div key={run.id} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-gray-100 text-xs">
-                  <span className={cn("px-2 py-0.5 rounded-full border font-medium flex-shrink-0", RUN_STATUS_STYLE[run.status] ?? "bg-gray-50 text-gray-500 border-gray-200")}>
+                <div key={run.id} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-[var(--haip-border)] text-xs">
+                  <span className={cn("px-2 py-0.5 rounded-full border font-medium flex-shrink-0", RUN_STATUS_STYLE[run.status] ?? "bg-[var(--haip-surface)] text-[var(--haip-fg-subtle)] border-[var(--haip-border)]")}>
                     {run.status}
                   </span>
-                  <span className="text-gray-700 font-medium flex-shrink-0">{run.node_type}</span>
-                  <span className="text-gray-400 truncate flex-1">{run.error || run.detail || "—"}</span>
-                  <span className="text-gray-300 flex-shrink-0">{run.ran_at ? new Date(run.ran_at).toLocaleString("en-IN") : ""}</span>
+                  <span className="text-[var(--haip-fg-2)] font-medium flex-shrink-0">{run.node_type}</span>
+                  <span className="text-[var(--haip-fg-subtle)] truncate flex-1">{run.error || run.detail || "—"}</span>
+                  <span className="text-[var(--haip-fg-subtle)]/70 flex-shrink-0">{run.ran_at ? new Date(run.ran_at).toLocaleString("en-IN") : ""}</span>
                 </div>
               ))}
             </div>

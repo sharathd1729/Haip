@@ -10,7 +10,7 @@ import { KpiCard } from "@/components/analytics/KpiCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import api from "@/lib/api";
 
-const TEAL = "#14b8a6"; const PINK = "#e1306c"; const AMBER = "#fbbf24"; const GRAY = "#e5e7eb";
+const TEAL = "var(--primary)"; const PINK = "#e1306c"; const AMBER = "#fbbf24"; const GRAY = "#e5e7eb";
 
 interface InstagramInsightPoint {
   date: string;
@@ -72,18 +72,18 @@ function DemographicBar({ title, results }: { title: string; results: Demographi
   const max = Math.max(...results.map(r => r.value), 1);
   return (
     <div>
-      <p className="text-[11px] font-semibold text-gray-500 mb-2">{title}</p>
+      <p className="text-[11px] font-semibold text-[var(--haip-fg-subtle)] mb-2">{title}</p>
       {results.length === 0 ? (
-        <p className="text-[11px] text-gray-400">Not enough data yet</p>
+        <p className="text-[11px] text-[var(--haip-fg-subtle)]">Not enough data yet</p>
       ) : (
         <div className="space-y-1.5">
           {results.map((r, i) => (
             <div key={i} className="flex items-center gap-2">
-              <span className="w-24 text-[10px] text-gray-500 flex-shrink-0 truncate" title={r.label}>{r.label}</span>
+              <span className="w-24 text-[10px] text-[var(--haip-fg-subtle)] flex-shrink-0 truncate" title={r.label}>{r.label}</span>
               <div className="flex-1 h-3.5 rounded-full overflow-hidden" style={{ background: GRAY }}>
                 <div className="h-full rounded-full" style={{ width: `${(r.value / max) * 100}%`, background: PINK }} />
               </div>
-              <span className="w-8 text-right text-[10px] font-mono font-bold text-gray-700">{r.value}</span>
+              <span className="w-8 text-right text-[10px] font-mono font-bold text-[var(--haip-fg-2)]">{r.value}</span>
             </div>
           ))}
         </div>
@@ -114,15 +114,15 @@ export default function InstagramInsightsPage() {
           <Instagram size={16} style={{ color: PINK }} />
           <h1 className="haip-page-title">Instagram Insights</h1>
         </div>
-        <p className="text-[12px] mt-0.5 text-gray-400">Followers, engagement, audience &amp; post performance &mdash; last 30 days</p>
+        <p className="text-[12px] mt-0.5 text-[var(--haip-fg-subtle)]">Followers, engagement, audience &amp; post performance &mdash; last 30 days</p>
       </div>
 
       <div className="flex-1 overflow-y-auto haip-scrollbar px-6 py-5 space-y-5">
         {!s?.connected ? (
           <div className="haip-card rounded-2xl p-8 text-center" style={{ border: "1px solid var(--haip-border)" }}>
             <Instagram size={28} style={{ color: PINK, margin: "0 auto" }} className="mb-3" />
-            <p className="text-sm font-semibold text-gray-700 mb-1">No Instagram insights yet</p>
-            <p className="text-[12px] text-gray-400">
+            <p className="text-sm font-semibold text-[var(--haip-fg-2)] mb-1">No Instagram insights yet</p>
+            <p className="text-[12px] text-[var(--haip-fg-subtle)]">
               Snapshots are collected once daily once Instagram is connected in Settings &rarr; Integrations.
               Check back tomorrow, or reconnect if it was recently disconnected.
             </p>
@@ -201,7 +201,7 @@ export default function InstagramInsightsPage() {
                 Audience Demographics
               </h2>
               {!hasDemographics ? (
-                <p className="text-[12px] text-gray-400">
+                <p className="text-[12px] text-[var(--haip-fg-subtle)]">
                   Not enough follower data yet for a demographic breakdown. This fills in automatically once Meta has enough audience data for this account.
                 </p>
               ) : (
@@ -220,24 +220,24 @@ export default function InstagramInsightsPage() {
                 Recent Posts
               </h2>
               {posts.length === 0 ? (
-                <p className="text-[12px] text-gray-400 py-4 text-center">No posts synced yet</p>
+                <p className="text-[12px] text-[var(--haip-fg-subtle)] py-4 text-center">No posts synced yet</p>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                   {posts.map(p => (
                     <a key={p.media_id} href={p.permalink ?? "#"} target="_blank" rel="noopener noreferrer"
                       className="block rounded-xl overflow-hidden border hover:shadow-md transition-shadow"
                       style={{ borderColor: "var(--haip-border)" }}>
-                      <div className="aspect-square bg-gray-100 flex items-center justify-center overflow-hidden">
+                      <div className="aspect-square bg-[var(--haip-status-neutral-bg)] flex items-center justify-center overflow-hidden">
                         {p.thumbnail_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={p.thumbnail_url} alt={p.caption ?? "Instagram post"} className="w-full h-full object-cover" />
                         ) : (
-                          <ImageIcon size={24} className="text-gray-300" />
+                          <ImageIcon size={24} className="text-[var(--haip-fg-subtle)]/70" />
                         )}
                       </div>
                       <div className="p-2.5">
-                        <p className="text-[10px] text-gray-500 truncate mb-1">{p.caption ?? "—"}</p>
-                        <div className="flex items-center gap-2.5 text-[10px] text-gray-500">
+                        <p className="text-[10px] text-[var(--haip-fg-subtle)] truncate mb-1">{p.caption ?? "—"}</p>
+                        <div className="flex items-center gap-2.5 text-[10px] text-[var(--haip-fg-subtle)]">
                           <span className="flex items-center gap-0.5"><Heart size={10} />{p.like_count ?? 0}</span>
                           <span className="flex items-center gap-0.5"><MessageSquare size={10} />{p.comments_count ?? 0}</span>
                           {p.reach != null && <span className="flex items-center gap-0.5"><Eye size={10} />{p.reach}</span>}

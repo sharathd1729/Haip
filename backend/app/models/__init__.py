@@ -29,14 +29,21 @@ from app.models.ical_feed import ICalEventBooking, ICalEventDetail, ICalFeed, IC
 from app.models.api_key import ApiKey
 from app.models.webhook import WebhookDelivery, WebhookEndpoint
 from app.models.stay_finance import StayAddOn, StayPayment, StayPaymentLink, StayInstalment, StayDeposit, StayServiceRequest
+from app.models.invoice import Invoice, InvoiceSequence
+from app.models.impact import ImpactBaseline, ImpactProfile
 from app.models.flow_execution import FlowPendingExecution, WAFlowRun
 from app.models.mcp_token import PersonalAccessToken
 from app.models.capability import Capability, RoleCapability
 from app.models.mcp_oauth import OAuthClient, OAuthGrant
 from app.models.ai_draft_outcome import AIDraftOutcome
 from app.models.task import Task
+from app.models.sales_action import SalesAction
 from app.models.lead_attribution import LeadAttribution
 from app.models.whatsapp_personal_session import WhatsAppPersonalSession, WhatsAppPersonalSessionStatus
+from app.models.lead_autopilot import LeadAutopilotEvent
+from app.models.lead_workflow import LeadJourney, LeadView, PlaybookAction, PlaybookRun
+from app.models.platform_lead import PlatformLead
+from app.models.roi_benchmark import RoiBenchmarkVersion
 
 __all__ = [
     "BusinessRecord",
@@ -52,7 +59,9 @@ __all__ = [
     "WATemplate", "WACampaign", "WASubscriber", "WAFlow",
     "FlowPendingExecution", "WAFlowRun",
     "Capability", "RoleCapability",
-    "AIDraftOutcome", "Task",
+    "AIDraftOutcome", "Task", "SalesAction",
     "LeadAttribution",
     "WhatsAppPersonalSession", "WhatsAppPersonalSessionStatus",
+    "LeadAutopilotEvent",
+    "PlatformLead", "RoiBenchmarkVersion",
 ]

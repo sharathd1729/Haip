@@ -86,29 +86,29 @@ export function TemplatePickerModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[80vh] flex flex-col" style={{ maxHeight: "calc(100dvh - 2rem)" }}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--haip-border)]">
           <div className="flex items-center gap-2">
             <LayoutTemplate size={16} className="text-amber-600" />
-            <h2 className="text-sm font-bold text-gray-900">Send WhatsApp Template</h2>
+            <h2 className="text-sm font-bold text-[var(--haip-fg)]">Send WhatsApp Template</h2>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
+          <button onClick={onClose} className="text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-muted)]"><X size={16} /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {isLoading ? (
-            <p className="text-xs text-gray-400 text-center py-6">Loading templates…</p>
+            <p className="text-xs text-[var(--haip-fg-subtle)] text-center py-6">Loading templates…</p>
           ) : approved.length === 0 ? (
-            <p className="text-xs text-gray-400 text-center py-6">No approved templates yet. Create and submit one for Meta review first.</p>
+            <p className="text-xs text-[var(--haip-fg-subtle)] text-center py-6">No approved templates yet. Create and submit one for Meta review first.</p>
           ) : !selectedId ? (
             <div className="space-y-1.5">
               {approved.map(t => (
                 <button
                   key={t.id}
                   onClick={() => selectTemplate(t)}
-                  className="w-full text-left px-3 py-2.5 rounded-lg border border-gray-100 hover:border-teal-200 hover:bg-teal-50/50 transition-colors"
+                  className="w-full text-left px-3 py-2.5 rounded-lg border border-[var(--haip-border)] hover:border-[color-mix(in_srgb,var(--primary)_25%,transparent)] hover:bg-[var(--haip-primary-tint)] transition-colors"
                 >
-                  <p className="text-sm font-medium text-gray-800">{t.name}</p>
-                  <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">
+                  <p className="text-sm font-medium text-[var(--haip-fg)]">{t.name}</p>
+                  <p className="text-xs text-[var(--haip-fg-subtle)] mt-0.5 line-clamp-2">
                     {t.components.find(c => c.type === "BODY")?.text ?? ""}
                   </p>
                 </button>
@@ -116,17 +116,17 @@ export function TemplatePickerModal({
             </div>
           ) : (
             <div className="space-y-3">
-              <button onClick={() => setSelectedId(null)} className="text-xs text-teal-600 font-medium">← Choose a different template</button>
+              <button onClick={() => setSelectedId(null)} className="text-xs text-primary font-medium">← Choose a different template</button>
 
               {placeholderCount > 0 && (
                 <div className="space-y-2">
                   {variables.map((v, i) => (
                     <div key={i}>
-                      <label className="text-[11px] font-semibold text-gray-600 block mb-1">Variable {`{{${i + 1}}}`}</label>
+                      <label className="text-[11px] font-semibold text-[var(--haip-fg-muted)] block mb-1">Variable {`{{${i + 1}}}`}</label>
                       <input
                         value={v}
                         onChange={e => setVariables(prev => prev.map((p, idx) => idx === i ? e.target.value : p))}
-                        className="w-full text-sm px-2.5 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                        className="w-full text-sm px-2.5 py-1.5 border border-[var(--haip-border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
                         placeholder={`Value for {{${i + 1}}}`}
                       />
                     </div>
@@ -134,7 +134,7 @@ export function TemplatePickerModal({
                 </div>
               )}
 
-              <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 whitespace-pre-wrap">
+              <div className="bg-[var(--haip-surface)] rounded-lg p-3 text-sm text-[var(--haip-fg-2)] whitespace-pre-wrap">
                 {preview() || "…"}
               </div>
 
@@ -144,8 +144,8 @@ export function TemplatePickerModal({
         </div>
 
         {selectedId && (
-          <div className="px-5 py-3.5 border-t border-gray-100 flex justify-end gap-2">
-            <button onClick={onClose} className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600">Cancel</button>
+          <div className="px-5 py-3.5 border-t border-[var(--haip-border)] flex justify-end gap-2">
+            <button onClick={onClose} className="text-xs px-3 py-1.5 rounded-lg border border-[var(--haip-border)] text-[var(--haip-fg-muted)]">Cancel</button>
             <button
               onClick={() => sendMutation.mutate()}
               disabled={sendMutation.isPending || variables.some(v => !v.trim())}

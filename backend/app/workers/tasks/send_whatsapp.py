@@ -225,20 +225,39 @@ def _bad_number_reason(phone: str):
 def _template_components(db, tenant_id: str, message: Message, variables: list) -> list:
     """The full components array for a template send: the body's values in
     order, plus the header image/video/PDF when the template has one. Meta
-    rejects a template message whose components don't match the template."""
+    rejects a template message whose components don't match the template.
+
+    Per-message extras live in ``message.channel_metadata`` (written by
+    services/wa_booking_messages.py): ``document`` = {"key": storage key,
+    "filename": ...} replaces the template's fixed DOCUMENT header with this
+    guest's own file (a fresh link is signed on every attempt, so a retry never
+    sends an expired one); ``button_params`` = {"0": "i/abc"} fills the {{1}}
+    at the end of a URL button. Messages without them send exactly as before."""
     from app.api.v1.endpoints.messaging import WATemplate
     from app.services import wa_template_service as wts
     from app.services.media_storage import get_presigned_media_url
 
-    template_id = (message.channel_metadata or {}).get("template_id")
+    meta = message.channel_metadata or {}
+    template_id = meta.get("template_id")
     tmpl = db.query(WATemplate).filter_by(id=template_id, tenant_id=tenant_id).first() if template_id else None
     if tmpl is None:
         # Older messages without a stored template id: body values only, as before.
         return [{"type": "body", "parameters": [{"type": "text", "text": str(v)} for v in (variables or [])]}] if variables else []
 
     vmap = {"body": {str(i): {"source": "static", "value": str(v)} for i, v in enumerate(variables or [], start=1)}}
-    link = get_presigned_media_url(tmpl.header_media_key, expires_in=3600) if tmpl.header_media_key else None
-    return wts.build_send_components(tmpl.components, vmap, None, header_media_link=link)
+    doc = meta.get("document") if isinstance(meta.get("document"), dict) else None
+    filename = None
+    if doc and doc.get("key") and str(doc["key"]).startswith(f"{tenant_id}/"):
+        link = get_presigned_media_url(doc["key"], expires_in=6 * 3600)
+        filename = doc.get("filename")
+        if not link:
+            raise RuntimeError("Could not sign a link to the document for this message")   # retryable: storage blip
+    else:
+        link = get_presigned_media_url(tmpl.header_media_key, expires_in=3600) if tmpl.header_media_key else None
+    raw_buttons = meta.get("button_params") if isinstance(meta.get("button_params"), dict) else {}
+    buttons = {int(k): str(v) for k, v in raw_buttons.items() if str(k).isdigit()}
+    return wts.build_send_components(tmpl.components, vmap, None, header_media_link=link,
+                                     header_document_filename=filename, button_params=buttons)
 
 
 def _already_sent(message) -> bool:

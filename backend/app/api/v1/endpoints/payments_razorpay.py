@@ -7,13 +7,13 @@
 
 Security: per-tenant webhook secret (generated here, pasted by the client into
 their Razorpay dashboard), HMAC-SHA256 over the raw body, constant-time compare,
-idempotent on the Razorpay payment id.
+idempotent on the Razorpay payment id (unique index uq_stay_payments_external).
 """
 from __future__ import annotations
 
 import json
 import secrets
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from typing import Optional
 
 import structlog
@@ -27,9 +27,8 @@ from app.core.audit import append_audit
 from app.core.config import settings
 from app.core.database import get_db, set_tenant_context
 from app.core.encryption import decrypt_credentials, encrypt_credentials
-from app.core.tenant_tz import get_tz
 from app.models.integration import Integration
-from app.models.stay_finance import StayPayment, StayPaymentLink
+from app.models.stay_finance import StayPaymentLink
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
 
@@ -115,18 +114,6 @@ def disconnect(current_user: User = Depends(require_roles(*_MANAGE)), db: Sessio
 
 # ─── Webhook ──────────────────────────────────────────────────────────────────
 
-def _paid_on(pay_ent: dict, tenant: Tenant) -> date:
-    """The business day the guest paid, in the tenant's timezone (IST by default).
-
-    The server runs in UTC, so date.today() put payments made 00:00-05:30 IST on
-    the previous day. Razorpay's created_at (unix seconds) is the payment time;
-    a late webhook retry still lands on the day the money moved.
-    """
-    created = pay_ent.get("created_at")
-    when = datetime.fromtimestamp(created, timezone.utc) if isinstance(created, (int, float)) and created > 0 else datetime.now(timezone.utc)
-    return when.astimezone(get_tz(tenant)).date()
-
-
 @webhook_router.post("/razorpay/{tenant_slug}")
 async def razorpay_webhook(tenant_slug: str, request: Request, db: Session = Depends(get_db)):
     body = await request.body()                      # raw bytes: the signature covers them exactly
@@ -155,21 +142,11 @@ async def razorpay_webhook(tenant_slug: str, request: Request, db: Session = Dep
         return {"status": "ignored"}                 # not a link HAIP created
 
     if name == "payment_link.paid":
+        # Records the payment (idempotent on the Razorpay payment id via the unique index), then queues the invoice,
+        # the guest's WhatsApp confirmation and the staff alert. See services/payment_events_service.py.
+        from app.services.payment_events_service import on_payment_link_paid
         pay_ent = (payload.get("payment") or {}).get("entity") or {}
-        pay_id = pay_ent.get("id")
-        if not pay_id:
-            return {"status": "ignored"}
-        link.status = "paid"
-        already = db.query(StayPayment.id).filter_by(tenant_id=tenant.id, external_id=pay_id).first()
-        if not already:
-            amount = (pay_ent.get("amount") or link_ent.get("amount_paid") or 0) / 100
-            db.add(StayPayment(tenant_id=tenant.id, stay_id=link.stay_id, kind="payment", amount=amount,
-                               method="razorpay", reference=pay_id, external_id=pay_id, paid_on=_paid_on(pay_ent, tenant),
-                               notes=f"Paid via Razorpay link ({pay_ent.get('method') or 'online'})"))
-            append_audit(db, tenant_id=tenant.id, actor_user_id=None, action="booking.payment_received_razorpay",
-                         target_type="booking", target_id=link.stay_id, payload={"amount": amount, "payment_id": pay_id})
-        db.commit()
-        return {"status": "recorded" if not already else "duplicate"}
+        return {"status": on_payment_link_paid(db, tenant, link, pay_ent, link_ent)}
 
     if name in ("payment_link.expired", "payment_link.cancelled"):
         if link.status == "created":

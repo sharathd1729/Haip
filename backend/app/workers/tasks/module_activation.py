@@ -23,9 +23,9 @@ log = structlog.get_logger()
 @shared_task(name="app.workers.tasks.module_activation.activate", bind=True, max_retries=3)
 def activate(self, workspace_id: str, module_code: str, activated_by: str):
     """Provision module: enable WorkspaceModule + flush cache."""
+    from app.core.audit import append_audit
     from app.core.database import SessionLocal
     from app.models.module import Module, WorkspaceModule
-    from app.models.audit_event import AuditEvent
     from app.models.base import gen_uuid
 
     with SessionLocal() as db:
@@ -51,16 +51,15 @@ def activate(self, workspace_id: str, module_code: str, activated_by: str):
                 activated_at=datetime.now(timezone.utc),
             ))
 
-        db.add(AuditEvent(
-            id=gen_uuid(),
+        append_audit(
+            db,
             tenant_id=workspace_id,
             actor_user_id=activated_by,
             action="module.activated",
             target_type="module",
             target_id=module_code,
             payload={"module_code": module_code},
-            hash="",
-        ))
+        )
         db.commit()
 
     # Flush WorkspaceCtx cache so next request gets fresh context
@@ -74,10 +73,9 @@ def activate(self, workspace_id: str, module_code: str, activated_by: str):
 @shared_task(name="app.workers.tasks.module_activation.deactivate", bind=True, max_retries=3)
 def deactivate(self, workspace_id: str, module_code: str, deactivated_by: str):
     """De-provision module: disable WorkspaceModule + flush all workspace cache."""
+    from app.core.audit import append_audit
     from app.core.database import SessionLocal
     from app.models.module import Module, WorkspaceModule
-    from app.models.audit_event import AuditEvent
-    from app.models.base import gen_uuid
 
     with SessionLocal() as db:
         mod = db.query(Module).filter(Module.code == module_code).first()
@@ -91,16 +89,15 @@ def deactivate(self, workspace_id: str, module_code: str, deactivated_by: str):
         if existing:
             existing.enabled = False
 
-        db.add(AuditEvent(
-            id=gen_uuid(),
+        append_audit(
+            db,
             tenant_id=workspace_id,
             actor_user_id=deactivated_by,
             action="module.deactivated",
             target_type="module",
             target_id=module_code,
             payload={"module_code": module_code},
-            hash="",
-        ))
+        )
         db.commit()
 
     from app.workers.tasks.invalidate_cache import full_workspace as flush_all

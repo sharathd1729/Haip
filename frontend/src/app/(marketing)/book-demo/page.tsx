@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState, FormEvent } from "react";
 import { ArrowRight, CheckCircle2, Sparkles, Phone, MessageSquare, Building2, Users, Calendar, Clock, Shield } from "@/lib/icons";
+import { ConsentCheckbox, Honeypot } from "@/components/marketing/LeadFormParts";
+import { newSubmissionId, submitPublicLead } from "@/lib/publicLeads";
 
 type FormState = {
   fullName: string;
@@ -31,6 +33,11 @@ export default function BookDemoPage() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [consent, setConsent] = useState(false);
+  const [marketing, setMarketing] = useState(false);
+  const [honeypot, setHoneypot] = useState("");
+  // One id per form fill: a retry after an error re-sends it, so the server never stores the same request twice.
+  const [submissionId] = useState(newSubmissionId);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm(prev => ({ ...prev, [key]: value }));
@@ -49,15 +56,28 @@ export default function BookDemoPage() {
       return;
     }
 
+    if (!consent) {
+      setError("Please accept the privacy notice so we can contact you.");
+      return;
+    }
+
     setSubmitting(true);
     try {
-      // Best-effort submit; backend endpoint stub
-      await fetch("/api/leads/demo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      }).catch(() => null);
-      setSuccess(true);
+      const result = await submitPublicLead({
+        kind: "demo",
+        submission_id: submissionId,
+        name: form.fullName,
+        email: form.workEmail,
+        phone: form.phone,
+        company: form.company,
+        message: form.notes || null,
+        details: { segment: form.segment, properties: form.properties, ...(form.source ? { source: form.source } : {}) },
+        consent,
+        marketing_opt_in: marketing,
+        website: honeypot,
+      });
+      if (result.ok) setSuccess(true);
+      else setError(result.message);
     } finally {
       setSubmitting(false);
     }
@@ -139,7 +159,7 @@ export default function BookDemoPage() {
                   </div>
                 </div>
               ) : (
-                <form onSubmit={handleSubmit} className="space-y-5">
+                <form onSubmit={handleSubmit} className="relative space-y-5">
                   <div>
                     <h2 className="text-xl font-bold mb-1" style={{ color: "#0F172A" }}>Tell us about you</h2>
                     <p className="text-xs" style={{ color: "#94A3B8" }}>All fields except notes are required. We&apos;ll WhatsApp you with calendar slots.</p>
@@ -191,8 +211,11 @@ export default function BookDemoPage() {
                     <textarea value={form.notes} onChange={e => update("notes", e.target.value)} rows={3} className="haip-input resize-none" placeholder="E.g., How AI Concierge handles weekend volume; Hostaway integration depth; security questions for compliance team." />
                   </Field>
 
+                  <ConsentCheckbox checked={consent} onChange={setConsent} marketing={marketing} onMarketingChange={setMarketing} />
+                  <Honeypot value={honeypot} onChange={setHoneypot} />
+
                   {error && (
-                    <div className="text-sm rounded-xl px-4 py-3" style={{ backgroundColor: "rgba(225,29,72,0.06)", border: "1px solid rgba(225,29,72,0.25)", color: "#be123c" }}>{error}</div>
+                    <div role="alert" className="text-sm rounded-xl px-4 py-3" style={{ backgroundColor: "rgba(225,29,72,0.06)", border: "1px solid rgba(225,29,72,0.25)", color: "#be123c" }}>{error}</div>
                   )}
 
                   <button type="submit" disabled={submitting} className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-2xl transition-all" style={{ backgroundColor: "#00555a", boxShadow: "0 8px 24px rgba(0,85,90,0.28)" }}>
@@ -200,7 +223,7 @@ export default function BookDemoPage() {
                   </button>
 
                   <p className="text-[11px] text-center leading-relaxed" style={{ color: "#94A3B8" }}>
-                    By submitting you agree to HAIP&apos;s <Link href="/privacy" className="underline" style={{ color: "#00555a" }}>privacy policy</Link> and <Link href="/terms" className="underline" style={{ color: "#00555a" }}>terms</Link>. We&apos;ll never share your data. DPDP compliant.
+                    See also HAIP&apos;s <Link href="/terms" className="underline" style={{ color: "#00555a" }}>terms</Link>.
                   </p>
                 </form>
               )}
@@ -243,7 +266,7 @@ export default function BookDemoPage() {
           color: #0F172A;
           border-radius: 12px;
           padding: 11px 14px;
-          font-size: 14px;
+          font-size: 16px; /* >= 16px: no zoom-on-focus on phones */
           outline: none;
           transition: border-color .15s, background .15s, box-shadow .15s;
         }

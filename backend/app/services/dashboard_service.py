@@ -72,7 +72,7 @@ def _ist_day(dt: datetime) -> date:
 # ── Needs you now ─────────────────────────────────────────────────────────────
 
 def needs_you_now(db: Session, tenant, scope_user_id: Optional[str]) -> dict:
-    """The four dashboard cards. Thin wrapper over work_queue_service so the
+    """The dashboard cards. Thin wrapper over work_queue_service so the
     cards, My day and the Calls call-back tab can never disagree -- this used
     to be its own set of queries, which is exactly how they drifted apart."""
     from app.services import work_queue_service
@@ -85,11 +85,14 @@ def needs_you_now_from(res: dict) -> dict:
     oldest), so a caller that also needs the items does not query the queue twice."""
     c, oldest = res["counts"], res["oldest"]
     return {
+        "new_leads": c["new_lead"], "new_leads_oldest_at": oldest["new_lead"],
         "waiting_reply": c["reply"], "waiting_oldest_at": oldest["reply"],
+        "not_replying": c.get("no_reply", 0), "not_replying_oldest_at": oldest.get("no_reply"),
         "missed_not_called_back": c["callback"], "missed_oldest_at": oldest["callback"],
-        "phone_not_called": c["call_new"],
         "followups_overdue": c["followup"], "followups_oldest_due": oldest["followup"],
-        "unassigned": c["unassigned"],
+        "unassigned": res.get("unowned", 0),
+        "people": res.get("people", 0),
+        "breached": sum(n for s, n in res.get("severity", {}).items() if s != "fresh"),
     }
 
 

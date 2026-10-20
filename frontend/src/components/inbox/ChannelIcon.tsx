@@ -75,7 +75,7 @@ const CONFIGS: Record<string, ChannelConfig> = {
   // Channel manager / referral / other
   channel_manager: { icon: <Building2 size={14} />, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950" },
   referral:        { icon: <Users size={14} />,     color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-950" },
-  walk_in:         { icon: <Users size={14} />,     color: "text-teal-600 dark:text-teal-400", bg: "bg-teal-50 dark:bg-teal-950" },
+  walk_in:         { icon: <Users size={14} />,     color: "text-primary dark:text-primary", bg: "bg-[var(--haip-primary-tint)] dark:bg-[var(--haip-primary-tint)]" },
   website:         { icon: <Globe size={14} />,     color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950" },
   web_chat:        { icon: <Globe size={14} />,     color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950" },
   web:             { icon: <Globe size={14} />,     color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-950" },

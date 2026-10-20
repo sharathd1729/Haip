@@ -9,6 +9,7 @@ Instagram DM with no number is a conversation and a contact, not a lead. Six thi
   leads.identified_new   unique people who BECAME leads in the period (identification date)
   leads.identified_active  unique leads who did something in the period (a message, a call or an enquiry)
   leads.qualified_new    of the new leads, those with an enquiry that is not spam and sits in a "valid" pipeline stage
+  leads.qualified_dated  of the new leads, those with a non-spam enquiry that carries a check-in date (D-22..D-24, 19 Oct 2026)
   enquiries.created      enquiry records created in the period (repeat enquiries from one person count each time)
 
 Bookings and cash are the existing kpi_metrics (stays.booked, payments.collected). Conversion is a COHORT figure: of the leads
@@ -24,20 +25,22 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Optional
 
-from sqlalchemy import case, exists, func, literal_column, or_, select
+from sqlalchemy import and_, case, exists, func, literal, or_, select
 from sqlalchemy.orm import Session, aliased
 
 from app.models.call import Call
 from app.models.conversation import ChannelType, Conversation, Message
 from app.models.guest import Guest
-from app.models.inquiry import Inquiry
+from app.models.inquiry import Inquiry, InquirySource
 from app.models.pipeline_stage import PipelineStage
 from app.models.property import Stay
 from app.models.stay_finance import StayPayment
 from app.services.kpi_metrics import OCCUPYING_STATUSES, UNQUALIFIED, Bound, as_datetime
+from app.services.lead_state import CHANNEL_BY_SOURCE
 
 CHANNEL_LABELS = {"whatsapp": "WhatsApp", "instagram": "Instagram", "facebook": "Facebook", "call": "Phone calls",
-                  "website": "Website", "other": "Other", "unknown": "Unknown"}
+                  "organic_call": "Organic calls", "website": "Website", "other": "Other", "unknown": "Unknown"}
+_SOURCE_VALUES = {s.value for s in InquirySource}
 
 # A conversation's channel -> the channel key the dashboard filters by.
 CONVERSATION_CHANNEL_KEY = {
@@ -57,12 +60,31 @@ def _owner_expr(tenant_id: str):
     return func.coalesce(latest_inquiry, latest_conversation)
 
 
+def first_touch_expr(tenant_id: str):
+    """The person's first-touch channel as the dashboard shows it. ``Guest.first_touch_channel`` (written once, never guessed) wins,
+    except that a first touch by phone whose first enquiry is an ``organic_call`` (an inbound call with no ad behind it) is shown as
+    "organic_call". With no first touch recorded, the source of the person's FIRST enquiry decides (lead_state.CHANNEL_BY_SOURCE),
+    so an organic-call lead is never "unknown"; with neither it stays "unknown"."""
+    i = aliased(Inquiry)
+    first_source = (select(i.source).where(i.guest_id == Guest.id, i.tenant_id == tenant_id)
+                    .order_by(i.created_at.asc()).limit(1).correlate(Guest).scalar_subquery())
+    by_source = [(first_source == InquirySource(raw), literal(channel)) for raw, channel in CHANNEL_BY_SOURCE.items()
+                 if raw in _SOURCE_VALUES]
+    return case(
+        (and_(Guest.first_touch_channel == "call", first_source == InquirySource.ORGANIC_CALL), literal("organic_call")),
+        (Guest.first_touch_channel.isnot(None), Guest.first_touch_channel),
+        *by_source,
+        else_=literal("unknown"))
+
+
 def people(tenant_id: str, *, property_id: Optional[str] = None, channel: Optional[str] = None,
            scope_user_id: Optional[str] = None) -> list:
-    """Conditions selecting the people a metric may count. Merged, erased and sample guests are never counted."""
+    """Conditions selecting the people a metric may count. Merged, erased and sample guests are never counted. The channel filter
+    reads ``first_touch_expr``; "call" keeps its organic calls (they are calls too), "organic_call" is only those."""
     conds = [Guest.tenant_id == tenant_id, Guest.is_deleted.is_(False), Guest.is_sample.is_(False)]
     if channel:
-        conds.append(Guest.first_touch_channel == channel)
+        touch = first_touch_expr(tenant_id)
+        conds.append(touch.in_(["call", "organic_call"]) if channel == "call" else touch == channel)
     if scope_user_id:
         conds.append(_owner_expr(tenant_id) == scope_user_id)
     if property_id:
@@ -139,6 +161,18 @@ def _qualified_exists(tenant_id: str):
 def count_qualified_new(db: Session, tenant_id: str, start: Bound, end: Bound, **filters) -> int:
     """leads.qualified_new: of the new leads, those with a non-spam enquiry in a valid pipeline stage (as of now)."""
     return _count(db, [*new_leads_conditions(tenant_id, start, end, **filters), _qualified_exists(tenant_id)])
+
+
+def _dated_exists(tenant_id: str):
+    """A non-spam enquiry of the person that carries a check-in date (any stage)."""
+    i = aliased(Inquiry)
+    return exists().where(i.guest_id == Guest.id, i.tenant_id == tenant_id, i.qualification_status != UNQUALIFIED,
+                          i.check_in.isnot(None), i.check_in != "")
+
+
+def count_qualified_dated(db: Session, tenant_id: str, start: Bound, end: Bound, **filters) -> int:
+    """leads.qualified_dated: of the new leads, those with a non-spam enquiry carrying a check-in date (phone + travel date)."""
+    return _count(db, [*new_leads_conditions(tenant_id, start, end, **filters), _dated_exists(tenant_id)])
 
 
 def count_active_leads(db: Session, tenant_id: str, start: Bound, end: Bound, **filters) -> int:
@@ -229,19 +263,19 @@ def lead_to_booking(cohort_counts: dict) -> dict:
 # ── breakdowns of the new leads ──────────────────────────────────────────────────────────────────────────────
 
 def by_first_touch(db: Session, tenant_id: str, start: Bound, end: Bound, *, with_bookings: bool, **filters) -> list[dict]:
-    """New leads (unique people) by first-touch channel. An unknown first touch is its own row, never folded into another."""
+    """New leads (unique people) by first-touch channel (``first_touch_expr``). An unknown first touch is its own row, never folded
+    into another. Counted in Python, not GROUP BY: the channel expression carries bound parameters, which PostgreSQL will not match
+    between SELECT and GROUP BY."""
     base = new_leads_conditions(tenant_id, start, end, **filters)
     rows: dict[str, dict] = defaultdict(lambda: {"leads": 0, "bookings": 0, "value": 0.0})
-    channel = func.coalesce(Guest.first_touch_channel, literal_column("'unknown'"))     # inlined, so SELECT and GROUP BY match exactly
-    for key, n in db.query(channel, func.count(Guest.id)).filter(*base).group_by(channel).all():
-        rows[key]["leads"] += int(n)
+    channel = first_touch_expr(tenant_id)
+    for (key,) in db.query(channel).filter(*base).all():
+        rows[key or "unknown"]["leads"] += 1
     if with_bookings:
-        for key, n, v in (db.query(channel, func.count(Stay.id), func.coalesce(func.sum(Stay.total_amount), 0))
-                          .select_from(Guest).join(Stay, Stay.guest_id == Guest.id)
-                          .filter(*base, Stay.tenant_id == tenant_id, Stay.status.in_(list(OCCUPYING_STATUSES)))
-                          .group_by(channel).all()):
-            rows[key]["bookings"] += int(n)
-            rows[key]["value"] += float(v or 0)
+        for key, amount in (db.query(channel, Stay.total_amount).select_from(Guest).join(Stay, Stay.guest_id == Guest.id)
+                            .filter(*base, Stay.tenant_id == tenant_id, Stay.status.in_(list(OCCUPYING_STATUSES))).all()):
+            rows[key or "unknown"]["bookings"] += 1
+            rows[key or "unknown"]["value"] += float(amount or 0)
     return [{"key": k, "label": CHANNEL_LABELS.get(k, k.title()), **v} for k, v in sorted(rows.items(), key=lambda kv: -kv[1]["leads"])]
 
 

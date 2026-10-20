@@ -72,11 +72,11 @@ function Steps({ client, url }: { client: ClientKey; url: string }) {
 function CodeLine({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
-    <div className="flex items-center gap-2 bg-gray-50 rounded-xl border border-gray-200 px-3 py-2">
-      <code className="text-[11px] text-gray-700 flex-1 overflow-x-auto whitespace-nowrap font-mono">{text}</code>
+    <div className="flex items-center gap-2 bg-[var(--haip-surface)] rounded-xl border border-[var(--haip-border)] px-3 py-2">
+      <code className="text-[11px] text-[var(--haip-fg-2)] flex-1 overflow-x-auto whitespace-nowrap font-mono">{text}</code>
       <button
         onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-        className={cn("flex-shrink-0 p-1 rounded-lg", copied ? "text-green-600" : "text-teal-600 hover:bg-teal-50")}
+        className={cn("flex-shrink-0 p-1 rounded-lg", copied ? "text-green-600" : "text-primary hover:bg-[var(--haip-primary-tint)]")}
         aria-label="Copy"
       >
         {copied ? <CheckCircle2 size={13} /> : <Copy size={13} />}
@@ -120,8 +120,8 @@ export function McpConnectPanel({ mcpUrl, onToast }: { mcpUrl: string; onToast: 
     <div className="space-y-8">
       <section className="space-y-3">
         <div>
-          <h2 className="text-sm font-semibold text-gray-800">Connect an AI assistant</h2>
-          <p className="text-xs text-gray-400 mt-0.5">
+          <h2 className="text-sm font-semibold text-[var(--haip-fg)]">Connect an AI assistant</h2>
+          <p className="text-xs text-[var(--haip-fg-subtle)] mt-0.5">
             Ask Claude or ChatGPT about your leads, calls and bookings, get reports, and update the CRM from a chat.
           </p>
         </div>
@@ -137,41 +137,41 @@ export function McpConnectPanel({ mcpUrl, onToast }: { mcpUrl: string; onToast: 
               onClick={() => setClient(c.key)}
               className={cn(
                 "px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors",
-                client === c.key ? "bg-teal-50 text-teal-700" : "text-gray-500 hover:bg-gray-50"
+                client === c.key ? "bg-[var(--haip-primary-tint)] text-primary" : "text-[var(--haip-fg-subtle)] hover:bg-[var(--haip-surface)]"
               )}
             >
               {c.label}
             </button>
           ))}
         </div>
-        <div className="text-xs text-gray-600 leading-relaxed">
+        <div className="text-xs text-[var(--haip-fg-muted)] leading-relaxed">
           <Steps client={client} url={mcpUrl} />
         </div>
-        <p className="text-[11px] text-gray-400 leading-relaxed">
+        <p className="text-[11px] text-[var(--haip-fg-subtle)] leading-relaxed">
           Only owners and managers can connect. The assistant sees what you see, guest phone numbers stay masked,
           it asks before changing anything, and it can never message a guest.
         </p>
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold text-gray-800">Connected apps</h2>
+        <h2 className="text-sm font-semibold text-[var(--haip-fg)]">Connected apps</h2>
         {isLoading ? (
-          <p className="text-xs text-gray-400">Loading…</p>
+          <p className="text-xs text-[var(--haip-fg-subtle)]">Loading…</p>
         ) : active.length === 0 ? (
-          <p className="text-xs text-gray-400">Nothing connected yet.</p>
+          <p className="text-xs text-[var(--haip-fg-subtle)]">Nothing connected yet.</p>
         ) : (
           active.map(g => (
-            <div key={g.id} className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white">
+            <div key={g.id} className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-[var(--haip-border)] bg-white">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-teal-50 text-teal-600">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-[var(--haip-primary-tint)] text-primary">
                   <Link2 size={14} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-800 truncate">{g.client_name}</p>
-                  <p className="text-xs text-gray-400 flex items-center gap-1.5">
+                  <p className="text-sm font-semibold text-[var(--haip-fg)] truncate">{g.client_name}</p>
+                  <p className="text-xs text-[var(--haip-fg-subtle)] flex items-center gap-1.5">
                     <Clock size={11} />
                     <span>{ago(g.last_used_at)}</span>
-                    <span className="text-gray-300">·</span>
+                    <span className="text-[var(--haip-fg-subtle)]/70">·</span>
                     <span>{g.scopes.includes("write") ? "Read and update" : "Read only"}</span>
                   </p>
                 </div>

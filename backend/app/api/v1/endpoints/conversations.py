@@ -24,6 +24,16 @@ _IDEMPOTENCY_KEY_MAX_LEN = 64
 _IDEMPOTENCY_WINDOW_HOURS = 24
 
 
+def _refuse_personal_bridge(conv: Conversation) -> None:
+    """409 for a thread mirrored from the read-only personal WhatsApp bridge: the agent talks to this guest on their own phone,
+    and anything sent here would go out from the official WhatsApp number instead. Internal notes are not sends."""
+    if conv is not None and conv.is_personal_bridge:
+        raise HTTPException(status_code=409, detail={
+            "code": "personal_bridge_read_only",
+            "message": "This chat is on the agent's personal WhatsApp. Reply from that phone; HAIP only mirrors it.",
+        })
+
+
 def _validate_iso_cursor(value: str, param_name: str) -> None:
     """Validate a `before` pagination cursor is a real ISO timestamp. 422s on
     a malformed cursor rather than silently returning an unfiltered (or
@@ -116,6 +126,11 @@ def list_conversations(
         .distinct(Message.conversation_id)
         .all()
     )
+    # DISTINCT ON is PostgreSQL-only; elsewhere every row comes back newest first, so keep the first row per conversation.
+    _first: dict = {}
+    for row in latest_rows:
+        _first.setdefault(row.conversation_id, row)
+    latest_rows = list(_first.values())
     preview_by_conv = {row.conversation_id: row.body for row in latest_rows}
     msg_time_by_conv = {row.conversation_id: row.created_at for row in latest_rows}
     waiting_reply_by_conv = {
@@ -210,21 +225,19 @@ def list_conversations(
         ).all()
     }
 
-    def _sla_status(inquiry) -> "str | None":
-        """Same 30-min/80%-elapsed threshold as insight_detector.py's A2
-        detector -- never Inquiry.sla_breached, which is written nowhere."""
-        if not inquiry:
+    def _sla_status(conv) -> "str | None":
+        """30-min reply target, 80% = warning (same threshold as insight_detector.py's A2 detector), measured on the
+        guest's CURRENT wait: the time since their latest unanswered message. It used to read Inquiry.first_response_at,
+        which nothing writes, so every chat older than 30 minutes showed "SLA breached" forever, even after a person or
+        the bot had replied. A chat whose guest is not waiting is on time."""
+        if not conv.inquiry:
             return None
-        if inquiry.first_response_at:
+        if not waiting_reply_by_conv.get(conv.id, False):
             return "on_time"
-        created = inquiry.created_at
-        if created is None:
+        since = _parse_dt(msg_time_by_conv.get(conv.id))
+        if since is None:
             return None
-        if isinstance(created, str):
-            created = datetime.fromisoformat(created.replace("Z", "+00:00"))
-        if created.tzinfo is None:
-            created = created.replace(tzinfo=timezone.utc)
-        elapsed_minutes = (datetime.now(timezone.utc) - created).total_seconds() / 60
+        elapsed_minutes = (datetime.now(timezone.utc) - since).total_seconds() / 60
         sla_minutes = 30
         if elapsed_minutes >= sla_minutes:
             return "breached"
@@ -272,7 +285,7 @@ def list_conversations(
         if c.inquiry:
             if c.inquiry.stage_id and c.inquiry.stage_id in stage_by_id:
                 out.stage_key, out.stage_label = stage_by_id[c.inquiry.stage_id]
-            out.sla_status = _sla_status(c.inquiry)
+            out.sla_status = _sla_status(c)
         out.has_phone_decline_alert = c.id in phone_decline_conv_ids
         out.guest_channels = channels_by_guest.get(c.guest_id, [])
         if out.is_waiting_reply:
@@ -432,6 +445,8 @@ def send_message(
     conv = db.query(Conversation).filter_by(id=conversation_id, tenant_id=current_user.tenant_id).first()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    if not body.is_internal:
+        _refuse_personal_bridge(conv)
 
     # ── Idempotency check ─────────────────────────────────────────────────────
     idempotency_key = _extract_idempotency_key(request)
@@ -554,6 +569,7 @@ def send_template_message(
     conv = db.query(Conversation).filter_by(id=conversation_id, tenant_id=current_user.tenant_id).first()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    _refuse_personal_bridge(conv)
 
     channel = str(conv.channel.value if hasattr(conv.channel, "value") else conv.channel)
     if channel != "whatsapp":
@@ -641,6 +657,7 @@ def request_ai_draft(
     conv = db.query(Conversation).filter_by(id=conversation_id, tenant_id=current_user.tenant_id).first()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    _refuse_personal_bridge(conv)       # concierge_draft refuses it too; this answers the agent instead of a silent no-op
 
     draft_id = str(uuid.uuid4())
     concierge_draft.delay(
@@ -777,6 +794,7 @@ def retry_failed_message(
     conversation = db.query(Conversation).filter_by(
         id=conversation_id, tenant_id=current_user.tenant_id
     ).first()
+    _refuse_personal_bridge(conversation)
     channel = conversation.channel.value if conversation and hasattr(conversation.channel, "value") else (
         conversation.channel if conversation else None
     )
@@ -1095,6 +1113,7 @@ def approve_ai_draft(
     # on an Instagram (or any non-WhatsApp) conversation queued a WhatsApp send against a guest who often has no phone signal.
     # Route by the conversation's real channel and fail loudly for channels with no outbound-send task.
     conversation = db.query(Conversation).filter_by(id=conversation_id, tenant_id=tenant_id).first()
+    _refuse_personal_bridge(conversation)        # before the guarded UPDATE: the draft stays pending, nothing is claimed
     channel = conversation.channel.value if conversation and hasattr(conversation.channel, "value") else (
         conversation.channel if conversation else None
     )

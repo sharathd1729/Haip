@@ -112,6 +112,14 @@ export function PWARegister() {
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
 
+    // Not in `next dev`: sw.js caches /_next/static/* as immutable under a cache named after the git commit, but dev chunks
+    // keep their names while their code changes, so the worker kept serving the previous code after every edit until the
+    // next commit. Remove any worker a dev session left behind. Set NEXT_PUBLIC_ENABLE_DEV_SW=1 to test push locally.
+    if (process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_ENABLE_DEV_SW !== "1") {
+      navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(() => {});
+      return;
+    }
+
     const { setUpdateAvailable } = useAppUpdateStore.getState();
 
     // Once the user clicks "Update now" (or, on the fallback path, once a

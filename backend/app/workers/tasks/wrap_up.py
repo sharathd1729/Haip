@@ -106,6 +106,21 @@ WRAP_UP_TOOL = {
             "next_action": {"type": "string"},
             "follow_up_message": {"type": "string"},  # no union types
             "confidence": {"type": "number"},
+            # v5 actionable read (services/ai_actionable.py cleans it; all optional so an older-shaped answer still works)
+            "outcome": {"type": "string"},
+            "decline_reason": {"type": "string"},
+            "decline_quote": {"type": "string"},
+            "next_best_action": {"type": "object", "properties": {
+                "action": {"type": "string"}, "owner": {"type": "string"}, "channel": {"type": "string"},
+                "deadline": {"type": "string"}, "why": {"type": "string"}}},
+            "blocking_objection": {"type": "object", "properties": {
+                "objection": {"type": "string"}, "counter": {"type": "string"}}},
+            "missed_revenue": {"type": "array", "items": {"type": "object", "properties": {
+                "kind": {"type": "string"}, "what": {"type": "string"}, "est_inr": {"type": "number"},
+                "grounded": {"type": "boolean"}, "evidence": {"type": "string"}}}},
+            "temperature": {"type": "object", "properties": {"value": {"type": "string"}, "reason": {"type": "string"}}},
+            "haip_updates": {"type": "array", "items": {"type": "object", "properties": {
+                "field": {"type": "string"}, "value": {"type": "string"}, "why": {"type": "string"}}}},
         },
         "required": ["summary", "suggested_disposition", "next_action"],
     },
@@ -158,8 +173,16 @@ def wrap_up(self, call_id: str, tenant_id: str, classification: dict = None, jud
         classification = classification or {}
         judge_result = judge_result or {}
 
+        from app.models.guest import Guest
+        from app.services import ai_actionable
+        guest = db.query(Guest).filter_by(id=call.guest_id, tenant_id=tenant_id).first() if call.guest_id else None
+
         template = _jinja_env.get_template("wrap_up.jinja")
         system_prompt = template.render(
+            call_date=call.created_at.date().isoformat() if call.created_at else None,
+            guest_name=(guest.name if guest and guest.name else None),
+            actionable_spec=ai_actionable.PROMPT_SPEC.rstrip(),
+            actionable_rules=ai_actionable.PROMPT_RULES,
             property_name=prop.name if prop else "(unknown)",
             agent_name=agent.name if agent else "(unknown)",
             duration_sec=call.duration_seconds,
@@ -180,7 +203,9 @@ def wrap_up(self, call_id: str, tenant_id: str, classification: dict = None, jud
         wu = result.get("tool_use") or {}
 
         call.ai_summary = wu.get("summary", call.ai_summary)
-        call.ai_next_action = wu.get("next_action")
+        insights = ai_actionable.clean_call_insights(wu)
+        call.ai_insights = insights
+        call.ai_next_action = wu.get("next_action") or ai_actionable.next_action_text((insights or {}).get("next_best_action"))
         # A missing/unrecognized disposition must never default to CALLBACK
         # -- that's an ANSWERED value (call_status_service.py's ANSWERED
         # set), so "the model gave us nothing usable" was silently reading
@@ -196,8 +221,27 @@ def wrap_up(self, call_id: str, tenant_id: str, classification: dict = None, jud
         if call.ai_disposition == CallDisposition.CALLBACK:
             _maybe_create_callback_requested_task(db, tenant_id, call)
 
+        # Lead workflows: a call that turns out to be unanswered (voicemail, no answer) gets its missed-call / no-answer
+        # WhatsApp now if ingest could not tell (the run's unique key makes a second trigger a no-op).
+        try:
+            from app.services.lead_playbook_engine import playbook_for_call
+            if playbook_for_call(call):
+                from app.workers.tasks.lead_playbooks import queue_on_call
+                queue_on_call(call.tenant_id, call.id, countdown=5)
+        except Exception as _pb_exc:  # noqa: BLE001
+            log.warning("playbook_requeue_failed", call_id=call.id, error=str(_pb_exc)[:200])
+
         log.info("wrap_up_done", call_id=call_id, disposition=disposition_str,
                  **stamp("call_wrap_up", model=result.get("model")))
+
+        # Lead autopilot: the call is fully analysed now (disposition + outcome), so re-read the lead's stage.
+        try:
+            from app.services import lead_autopilot_service
+            lead_autopilot_service.queue_evaluation(
+                call.inquiry_id or lead_autopilot_service.open_inquiry_for_guest(db, tenant_id, call.guest_id),
+                tenant_id, trigger="call")
+        except Exception as _ap_exc:
+            log.warning("wrap_up_autopilot_enqueue_failed", call_id=call_id, error=str(_ap_exc)[:200])
 
         # Emit SSE event so the frontend cockpit updates in real time
         _emit_sse(tenant_id=tenant_id, event="call_processed", call_id=call_id)

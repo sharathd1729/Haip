@@ -665,6 +665,13 @@ async def click_to_call(
 
     from app.workers.tasks.call_ingest import cache_click_to_call_agent
     cache_click_to_call_agent(current_user.tenant_id, call_id, current_user.id)
+    try:   # lead journey: the only record of the attempt itself (the IVR reports the call later, or never)
+        from app.services.lead_journey_tracker import record_call_attempt
+        record_call_attempt(db, current_user.tenant_id, req.inquiry_id, current_user.id, str(call_id))
+        db.commit()
+    except Exception as exc:  # noqa: BLE001 -- tracking must never fail the call
+        db.rollback()
+        log.warning("click_to_call_journey_failed", tenant=current_user.tenant_id, error=str(exc)[:200])
 
     # Hashed, not raw -- but real enough to answer "did this ring the
     # clicking agent's own number or fall back?" without needing to
@@ -944,6 +951,9 @@ def _serialize_call_detail(call: Call, db) -> dict:
         # which the lead detail page's CallCard already relies on.
         "ai_summary": call.ai_summary,
         "ai_next_action": call.ai_next_action,
+        # wrap_up v5: next best action (owner/channel/deadline), blocking objection + counter, missed revenue,
+        # temperature, what to update in HAIP, call outcome. Null for calls analysed before v5.
+        "ai_insights": call.ai_insights,
         "wrap_up_notes": call.disposition_note,
         # AI Autonomy Plan Phase 2 ticket 5: the one action contract, everywhere
         # (next_action_service.py) -- feeds AIRecommendationCard on the call

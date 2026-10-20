@@ -13,6 +13,9 @@ import {
   useState, useMemo, useRef, useCallback, useEffect, memo,
 } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { canCreateBookings } from "@/lib/permissions";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { addDays, addMonths, format, parseISO, isToday, startOfMonth, startOfWeek } from "date-fns";
 import { ChevronLeft, ChevronRight, Calendar, Users, TrendingUp, RefreshCw, CloudDownload, CheckCircle2, AlertCircle, LogIn, LogOut, Home, DollarSign, BarChart2, Eye, Phone, Hash } from "@/lib/icons";
@@ -55,16 +58,16 @@ interface ChConfig {
 const CH: Record<string, ChConfig> = {
   airbnb:         { bg:"bg-rose-500",    text:"text-white", border:"border-rose-600",    dot:"bg-rose-400",    label:"Airbnb",       short:"ABB" },
   "booking.com":  { bg:"bg-blue-600",    text:"text-white", border:"border-blue-700",    dot:"bg-blue-500",    label:"Booking.com",  short:"BDC" },
-  direct:         { bg:"bg-emerald-500", text:"text-white", border:"border-emerald-600", dot:"bg-emerald-400", label:"Direct",       short:"DIR" },
+  direct:         { bg:"bg-[var(--haip-cal-direct)]", text:"text-white", border:"border-[var(--haip-cal-direct)]", dot:"bg-[var(--haip-cal-direct)]", label:"Direct",       short:"DIR" },
   makemytrip:     { bg:"bg-orange-500",  text:"text-white", border:"border-orange-600",  dot:"bg-orange-400",  label:"MMT",          short:"MMT" },
   vrbo:           { bg:"bg-purple-500",  text:"text-white", border:"border-purple-600",  dot:"bg-purple-400",  label:"VRBO",         short:"VBO" },
   expedia:        { bg:"bg-yellow-500",  text:"text-white", border:"border-yellow-600",  dot:"bg-yellow-400",  label:"Expedia",      short:"EXP" },
   hostaway:       { bg:"bg-violet-500",  text:"text-white", border:"border-violet-600",  dot:"bg-violet-400",  label:"Hostaway",     short:"HA"  },
   retalwise:      { bg:"bg-indigo-500",  text:"text-white", border:"border-indigo-600",  dot:"bg-indigo-400",  label:"RentalWise",   short:"RW"  },
 };
-const CH_DEFAULT: ChConfig = { bg:"bg-gray-500", text:"text-white", border:"border-gray-600", dot:"bg-gray-400", label:"Other",       short:"OTH" };
-const CH_BLOCKED: ChConfig = { bg:"bg-gray-300", text:"text-gray-700", border:"border-gray-400", dot:"bg-gray-300", label:"Blocked", short:"BLK" };
-const CH_MAINT:   ChConfig = { bg:"bg-red-500",  text:"text-white",  border:"border-red-600",  dot:"bg-red-500",  label:"Maint.",  short:"MNT" };
+const CH_DEFAULT: ChConfig = { bg:"bg-gray-500", text:"text-white", border:"border-gray-600", dot:"bg-[var(--haip-border-strong)]", label:"Other",       short:"OTH" };
+const CH_BLOCKED: ChConfig = { bg:"bg-[var(--haip-cal-block)]", text:"text-[var(--haip-cal-block-fg)]", border:"border-[var(--haip-border-strong)]", dot:"bg-[var(--haip-cal-block)]", label:"Blocked", short:"BLK" };
+const CH_MAINT:   ChConfig = { bg:"bg-[var(--haip-cal-maint)]",  text:"text-white",  border:"border-[var(--haip-cal-maint)]",  dot:"bg-[var(--haip-cal-maint)]",  label:"Maint.",  short:"MNT" };
 
 function chConfig(src?: string | null): ChConfig {
   if (!src) return CH.direct;
@@ -79,11 +82,11 @@ const AVAIL_BG: Record<string, string> = {
   checked_in:      "bg-slate-300",
   quoted:          "bg-amber-100",
   inquiry:         "bg-sky-100",
-  blocked:         "bg-gray-300",
+  blocked:         "bg-[var(--haip-border-strong)]",
   maintenance:     "bg-red-400",
-  owner_use:       "bg-gray-300",
+  owner_use:       "bg-[var(--haip-border-strong)]",
   offline_booking: "bg-slate-300",
-  other:           "bg-gray-200",
+  other:           "bg-[var(--haip-border)]",
 };
 const AVAIL_LABEL: Record<string, string> = {
   free: "Available", available: "Available", confirmed: "Booked",
@@ -251,12 +254,12 @@ const TopSummaryBar = memo(function TopSummaryBar({
       icon: <Home size={13} />,
       label: "Vacant",
       value: `${vacant}/${totalProps}`,
-      cls: "text-gray-600 bg-gray-50 ring-gray-200",
+      cls: "text-[var(--haip-fg-muted)] bg-[var(--haip-surface)] ring-[var(--haip-border)]",
     },
   ];
 
   return (
-    <div className="flex items-center gap-2.5 px-4 py-2 bg-white border-b border-gray-100 flex-wrap">
+    <div className="flex items-center gap-2.5 px-4 py-2 bg-white border-b border-[var(--haip-border)] flex-wrap">
       {chips.map(c => (
         <div key={c.label} className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-xl ring-1 text-xs font-semibold", c.cls)}>
           {c.icon}
@@ -288,7 +291,7 @@ const HoverCard = memo(function HoverCard({
 
   const card = (
     <div
-      className="fixed z-[9999] w-[252px] rounded-2xl shadow-2xl overflow-hidden pointer-events-none border border-gray-100"
+      className="fixed z-[9999] w-[252px] rounded-2xl shadow-2xl overflow-hidden pointer-events-none border border-[var(--haip-border)]"
       style={{ left, top }}
     >
       {/* Colour header */}
@@ -311,50 +314,50 @@ const HoverCard = memo(function HoverCard({
       {/* Body */}
       <div className="bg-white px-4 py-3 space-y-2 text-xs">
         {stay.guest_phone && (
-          <div className="flex items-center gap-2 text-gray-600">
-            <Phone size={11} className="text-gray-400 shrink-0" />
+          <div className="flex items-center gap-2 text-[var(--haip-fg-muted)]">
+            <Phone size={11} className="text-[var(--haip-fg-subtle)] shrink-0" />
             <span className="tabular-nums">{stay.guest_phone}</span>
           </div>
         )}
         {stay.external_id && (
-          <div className="flex items-center gap-2 text-gray-600">
-            <Hash size={11} className="text-gray-400 shrink-0" />
+          <div className="flex items-center gap-2 text-[var(--haip-fg-muted)]">
+            <Hash size={11} className="text-[var(--haip-fg-subtle)] shrink-0" />
             <span className="font-mono text-[11px]">{stay.external_id}</span>
           </div>
         )}
 
         {/* Dates */}
-        <div className="flex items-center justify-between pt-1.5 border-t border-gray-100">
+        <div className="flex items-center justify-between pt-1.5 border-t border-[var(--haip-border)]">
           <div>
-            <p className="text-[9px] text-gray-400 uppercase tracking-wide">Check-in</p>
-            <p className="font-semibold text-gray-800">{stay.check_in}</p>
+            <p className="text-[9px] text-[var(--haip-fg-subtle)] uppercase tracking-wide">Check-in</p>
+            <p className="font-semibold text-[var(--haip-fg)]">{stay.check_in}</p>
           </div>
-          <span className="text-gray-300 text-base">→</span>
+          <span className="text-[var(--haip-fg-subtle)]/70 text-base">→</span>
           <div className="text-right">
-            <p className="text-[9px] text-gray-400 uppercase tracking-wide">Check-out</p>
-            <p className="font-semibold text-gray-800">{stay.check_out}</p>
+            <p className="text-[9px] text-[var(--haip-fg-subtle)] uppercase tracking-wide">Check-out</p>
+            <p className="font-semibold text-[var(--haip-fg)]">{stay.check_out}</p>
           </div>
         </div>
-        <p className="text-[10px] text-gray-400 text-center -mt-1">
+        <p className="text-[10px] text-[var(--haip-fg-subtle)] text-center -mt-1">
           {nights} night{nights !== 1 ? "s" : ""}
         </p>
 
         {/* Financials */}
-        <div className="pt-1.5 border-t border-gray-100 space-y-1.5">
+        <div className="pt-1.5 border-t border-[var(--haip-border)] space-y-1.5">
           <div className="flex justify-between">
-            <span className="text-gray-500">Total amount</span>
-            <span className="font-bold text-gray-900">{fmt(stay.total_amount)}</span>
+            <span className="text-[var(--haip-fg-subtle)]">Total amount</span>
+            <span className="font-bold text-[var(--haip-fg)]">{fmt(stay.total_amount)}</span>
           </div>
           {stay.paid_amount != null && (
             <div className="flex justify-between">
-              <span className="text-gray-500">Paid</span>
+              <span className="text-[var(--haip-fg-subtle)]">Paid</span>
               <span className="font-semibold text-emerald-600">{fmt(stay.paid_amount)}</span>
             </div>
           )}
           {stay.paid_amount != null && stay.total_amount != null && (
             <div className="flex justify-between">
-              <span className="text-gray-500">Outstanding</span>
-              <span className={cn("font-semibold", outstanding > 0 ? "text-red-500" : "text-gray-400")}>
+              <span className="text-[var(--haip-fg-subtle)]">Outstanding</span>
+              <span className={cn("font-semibold", outstanding > 0 ? "text-red-500" : "text-[var(--haip-fg-subtle)]")}>
                 {fmt(outstanding)}
               </span>
             </div>
@@ -369,7 +372,7 @@ const HoverCard = memo(function HoverCard({
               ? "bg-green-100 text-green-700"
               : stay.status === "quoted"
               ? "bg-amber-100 text-amber-700"
-              : "bg-gray-100 text-gray-600",
+              : "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-muted)]",
           )}>
             {stay.status.replace("_", " ")}
           </span>
@@ -399,18 +402,18 @@ const PropertySidebarCell = memo(function PropertySidebarCell({
 
   return (
     <div
-      className="flex-shrink-0 flex items-center gap-2 px-2 bg-white border-r border-gray-300 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)] sticky left-0 z-20"
+      className="flex-shrink-0 flex items-center gap-2 px-2 bg-white border-r border-[var(--haip-border-strong)] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)] sticky left-0 z-20"
       style={{ width: SIDEBAR_W, height: rowH }}
     >
       {/* Info -- the thumbnail, type and bedroom line are gone: at 132px the name needs the room */}
       <div className="flex-1 min-w-0" title={`${row.property_name} · ${row.property_type} · ${row.bedrooms} BR · up to ${row.max_adults} guests`}>
-        <p className="text-[12px] font-bold text-gray-900 leading-tight line-clamp-2">
+        <p className="text-[12px] font-bold text-[var(--haip-fg)] leading-tight line-clamp-2">
           {row.property_name}
         </p>
 
         {/* Occupancy bar */}
         <div className="mt-1.5 flex items-center gap-1.5">
-          <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
+          <div className="flex-1 h-1 bg-[var(--haip-status-neutral-bg)] rounded-full overflow-hidden">
             <div
               className={cn(
                 "h-full rounded-full transition-all",
@@ -428,7 +431,7 @@ const PropertySidebarCell = memo(function PropertySidebarCell({
         </div>
 
         {rev != null && rev > 0 && (
-          <p className="text-[10px] text-gray-500 tabular-nums mt-0.5">{fmtK(rev)}</p>
+          <p className="text-[10px] text-[var(--haip-fg-subtle)] tabular-nums mt-0.5">{fmtK(rev)}</p>
         )}
       </div>
     </div>
@@ -533,10 +536,10 @@ const BookingBar = memo(function BookingBar({
 // Agreed colours: gray = blocked (owner use, offline, other), red = maintenance.
 const BLOCK_CLS: Record<string, string> = {
   maintenance:      "bg-red-500 border-red-600 text-white",
-  personal:         "bg-gray-300 border-gray-400 text-gray-800",
-  owner_use:        "bg-gray-300 border-gray-400 text-gray-800",
-  offline_booking:  "bg-gray-300 border-gray-400 text-gray-800",
-  other:            "bg-gray-300 border-gray-400 text-gray-800",
+  personal:         "bg-[var(--haip-border-strong)] border-[var(--haip-border-strong)] text-[var(--haip-fg)]",
+  owner_use:        "bg-[var(--haip-border-strong)] border-[var(--haip-border-strong)] text-[var(--haip-fg)]",
+  offline_booking:  "bg-[var(--haip-border-strong)] border-[var(--haip-border-strong)] text-[var(--haip-fg)]",
+  other:            "bg-[var(--haip-border-strong)] border-[var(--haip-border-strong)] text-[var(--haip-fg)]",
 };
 
 const BlockBar = memo(function BlockBar({ block, days, onOpen }: { block: BlockBar; days: string[]; onOpen: (block: BlockBar) => void }) {
@@ -599,7 +602,7 @@ const PropertyCalendarRow = memo(function PropertyCalendarRow({
 
   return (
     <div
-      className={cn("flex border-b border-gray-100", isEven ? "bg-white" : "bg-gray-50/50")}
+      className={cn("flex border-b border-[var(--haip-border)]", isEven ? "bg-white" : "bg-[var(--haip-surface)]/50")}
       style={{ height: rowH }}
     >
       {/* Sticky sidebar */}
@@ -619,13 +622,13 @@ const PropertyCalendarRow = memo(function PropertyCalendarRow({
                   key={day}
                   className={cn(
                     "flex-shrink-0 border-r border-white/60 h-full flex items-center justify-center",
-                    AVAIL_BG[status] ?? "bg-gray-100",
-                    todayDy && "ring-1 ring-inset ring-teal-400",
+                    AVAIL_BG[status] ?? "bg-[var(--haip-status-neutral-bg)]",
+                    todayDy && "ring-1 ring-inset ring-primary",
                   )}
                   style={{ width: DAY_W }}
                   title={AVAIL_LABEL[status] ?? status}
                 >
-                  <span className="text-[8px] font-bold text-gray-500/60 uppercase">
+                  <span className="text-[8px] font-bold text-[var(--haip-fg-subtle)]/60 uppercase">
                     {status === "confirmed" || status === "checked_in" ? "●" : ""}
                   </span>
                 </div>
@@ -644,9 +647,9 @@ const PropertyCalendarRow = memo(function PropertyCalendarRow({
                 <div
                   key={day}
                   className={cn(
-                    "flex-shrink-0 h-full border-r border-gray-100/60 flex flex-col items-center justify-center gap-0.5",
+                    "flex-shrink-0 h-full border-r border-[var(--haip-border)]/60 flex flex-col items-center justify-center gap-0.5",
                     isBooked ? revenueBg(rate, maxRate) : "bg-white",
-                    todayDy && "ring-1 ring-inset ring-teal-400",
+                    todayDy && "ring-1 ring-inset ring-primary",
                   )}
                   style={{ width: DAY_W }}
                 >
@@ -673,9 +676,9 @@ const PropertyCalendarRow = memo(function PropertyCalendarRow({
                   <div
                     key={day}
                     className={cn(
-                      "h-full border-r border-gray-100 flex-shrink-0",
-                      weekend && "bg-gray-50/70",
-                      todayDy && "bg-teal-50/50",
+                      "h-full border-r border-[var(--haip-border)] flex-shrink-0",
+                      weekend && "bg-[var(--haip-surface)]/70",
+                      todayDy && "bg-[var(--haip-accent-light)]",
                     )}
                     style={{ width: DAY_W }}
                   />
@@ -696,7 +699,7 @@ const PropertyCalendarRow = memo(function PropertyCalendarRow({
             {/* Rate sub-row (Rates mode only) */}
             {mode === "rates" && (
               <div
-                className="absolute left-0 right-0 bottom-0 flex border-t border-gray-100"
+                className="absolute left-0 right-0 bottom-0 flex border-t border-[var(--haip-border)]"
                 style={{ height: RATE_H }}
               >
                 {days.map(day => {
@@ -704,10 +707,10 @@ const PropertyCalendarRow = memo(function PropertyCalendarRow({
                   return (
                     <div
                       key={day}
-                      className="flex-shrink-0 flex items-center justify-center border-r border-gray-100"
+                      className="flex-shrink-0 flex items-center justify-center border-r border-[var(--haip-border)]"
                       style={{ width: DAY_W }}
                     >
-                      <span className="text-[9px] font-semibold tabular-nums text-gray-500">
+                      <span className="text-[9px] font-semibold tabular-nums text-[var(--haip-fg-subtle)]">
                         {fmtRate(rate)}
                       </span>
                     </div>
@@ -742,13 +745,13 @@ const CalendarHeader = memo(function CalendarHeader({
   }, [days]);
 
   return (
-    <div className="flex flex-shrink-0 border-b border-gray-200 shadow-sm sticky top-0 z-30 bg-white">
+    <div className="flex flex-shrink-0 border-b border-[var(--haip-border)] shadow-sm sticky top-0 z-30 bg-white">
       {/* Corner cell */}
       <div
-        className="flex-shrink-0 sticky left-0 z-40 bg-white border-r border-gray-200 flex items-end pb-1 px-3"
+        className="flex-shrink-0 sticky left-0 z-40 bg-white border-r border-[var(--haip-border)] flex items-end pb-1 px-3"
         style={{ width: SIDEBAR_W, height: 52 }}
       >
-        <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">
+        <span className="text-[10px] font-extrabold text-[var(--haip-fg-subtle)] uppercase tracking-wider">
           Properties
         </span>
       </div>
@@ -760,7 +763,7 @@ const CalendarHeader = memo(function CalendarHeader({
           {monthGroups.map(g => (
             <div
               key={g.label}
-              className="flex-shrink-0 text-[10px] font-extrabold text-gray-500 uppercase tracking-wider px-2 pt-1.5 border-r border-gray-100 last:border-0"
+              className="flex-shrink-0 text-[10px] font-extrabold text-[var(--haip-fg-subtle)] uppercase tracking-wider px-2 pt-1.5 border-r border-[var(--haip-border)] last:border-0"
               style={{ width: g.count * DAY_W }}
             >
               {g.label}
@@ -777,21 +780,21 @@ const CalendarHeader = memo(function CalendarHeader({
               <div
                 key={day}
                 className={cn(
-                  "flex-shrink-0 flex flex-col items-center justify-end pb-1 border-r border-gray-100",
-                  weekend && "bg-gray-50",
-                  todayDy && "bg-teal-50",
+                  "flex-shrink-0 flex flex-col items-center justify-end pb-1 border-r border-[var(--haip-border)]",
+                  weekend && "bg-[var(--haip-surface)]",
+                  todayDy && "bg-[var(--haip-accent-light)]",
                 )}
                 style={{ width: DAY_W, height: 30 }}
               >
                 <span className={cn(
                   "text-[10px] font-semibold leading-none",
                   todayDy
-                    ? "bg-teal-500 text-white rounded-full w-4 h-4 flex items-center justify-center"
-                    : weekend ? "text-gray-400" : "text-gray-500",
+                    ? "bg-[var(--haip-accent)] text-[var(--haip-on-accent)] rounded-full w-4 h-4 flex items-center justify-center"
+                    : weekend ? "text-[var(--haip-fg-subtle)]" : "text-[var(--haip-fg-subtle)]",
                 )}>
                   {format(d, "d")}
                 </span>
-                <span className="text-[7px] text-gray-300 mt-0.5 leading-none uppercase">
+                <span className="text-[7px] text-[var(--haip-fg-subtle)]/70 mt-0.5 leading-none uppercase">
                   {format(d, "EEE")[0]}
                 </span>
               </div>
@@ -801,16 +804,16 @@ const CalendarHeader = memo(function CalendarHeader({
         {/* Rate header row — only in rates mode */}
         {mode === "rates" && (
           <div
-            className="flex border-t border-gray-100"
+            className="flex border-t border-[var(--haip-border)]"
             style={{ height: RATE_H }}
           >
             {days.map(day => (
               <div
                 key={day}
-                className="flex-shrink-0 flex items-center justify-center border-r border-gray-100"
+                className="flex-shrink-0 flex items-center justify-center border-r border-[var(--haip-border)]"
                 style={{ width: DAY_W }}
               >
-                <span className="text-[8px] font-bold text-gray-400 uppercase">₹</span>
+                <span className="text-[8px] font-bold text-[var(--haip-fg-subtle)] uppercase">₹</span>
               </div>
             ))}
           </div>
@@ -834,10 +837,10 @@ const OTA_LEGEND_ITEMS = [
 
 function buildLegend(isCaravan: boolean) {
   return [
-    { dot: "bg-emerald-500", label: "Direct" },
+    { dot: "bg-[var(--haip-cal-direct)]", label: "Direct" },
     ...(isCaravan ? [] : OTA_LEGEND_ITEMS),
-    { dot: "bg-gray-300",    label: "Blocked" },
-    { dot: "bg-red-500",     label: "Maintenance" },
+    { dot: "bg-[var(--haip-cal-block)]",    label: "Blocked" },
+    { dot: "bg-[var(--haip-cal-maint)]",     label: "Maintenance" },
   ];
 }
 
@@ -867,6 +870,8 @@ function buildChannelOpts(isCaravan: boolean) {
 // ── Main Component ─────────────────────────────────────────────────────────────
 
 export default function PortfolioCalendarPage() {
+  const { data: session } = useSession();
+  const canBook = canCreateBookings(session?.user?.role);
   const businessType = useBusinessType();
   const isCaravan = businessType === "caravan";
   const LEGEND = useMemo(() => buildLegend(isCaravan), [isCaravan]);
@@ -890,6 +895,20 @@ export default function PortfolioCalendarPage() {
     apply();
     mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
+  }, []);
+  // My day's "Calendar clashes" link here with ?date=YYYY-MM-DD (and &property=<id>): open on that day and vehicle.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const day = q.get("date");
+    if (day && /^\d{4}-\d{2}-\d{2}$/.test(day)) {
+      const d = parseISO(day);
+      if (!Number.isNaN(d.getTime())) {
+        setStartDate(addDays(d, -3));
+        setMonthStart(startOfMonth(d));
+      }
+    }
+    const prop = q.get("property");
+    if (prop) setPropertyId(prop);
   }, []);
   useEffect(() => {
     if (!fullscreen) return;
@@ -1021,32 +1040,36 @@ export default function PortfolioCalendarPage() {
       )}
 
       {/* ── Controls ─────────────────────────────────────────── */}
-      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-3 py-2 md:px-4 md:py-2.5 space-y-2">
+      <div className="flex-shrink-0 bg-white border-b border-[var(--haip-border)] px-3 py-2 md:px-4 md:py-2.5 space-y-2">
         {/* Phone: month navigation + property + channel in two short rows */}
         {isPhone && (
           <div className="space-y-1.5">
             <div className="flex items-center gap-1.5">
               <button onClick={() => setMonthStart(m => addMonths(m, -1))} aria-label="Previous month"
-                className="flex h-11 w-11 items-center justify-center rounded-xl bg-gray-100 text-gray-700 active:bg-gray-200"><ChevronLeft size={18} /></button>
-              <h2 className="min-w-0 flex-1 text-center text-base font-bold text-gray-800" aria-live="polite">{format(monthStart, "MMMM yyyy")}</h2>
+                className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-2)] active:bg-[var(--haip-border)]"><ChevronLeft size={18} /></button>
+              <h2 className="min-w-0 flex-1 text-center text-base font-bold text-[var(--haip-fg)]" aria-live="polite">{format(monthStart, "MMMM yyyy")}</h2>
               <button onClick={() => setMonthStart(m => addMonths(m, 1))} aria-label="Next month"
-                className="flex h-11 w-11 items-center justify-center rounded-xl bg-gray-100 text-gray-700 active:bg-gray-200"><ChevronRight size={18} /></button>
+                className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-2)] active:bg-[var(--haip-border)]"><ChevronRight size={18} /></button>
               <button onClick={() => setMonthStart(startOfMonth(new Date()))}
-                className="h-11 rounded-xl bg-gray-100 px-3 text-xs font-semibold text-gray-700 active:bg-gray-200">Today</button>
-              <button onClick={() => refetch()} aria-label="Refresh" className="flex h-11 w-11 items-center justify-center rounded-xl text-gray-500 active:bg-gray-100">
+                className="h-11 rounded-xl bg-[var(--haip-status-neutral-bg)] px-3 text-xs font-semibold text-[var(--haip-fg-2)] active:bg-[var(--haip-border)]">Today</button>
+              <button onClick={() => refetch()} aria-label="Refresh" className="flex h-11 w-11 items-center justify-center rounded-xl text-[var(--haip-fg-subtle)] active:bg-[var(--haip-status-neutral-bg)]">
                 <RefreshCw size={14} className={isFetching ? "animate-spin" : ""} />
               </button>
             </div>
             <div className="flex items-center gap-1.5">
               <select value={showAll ? "all" : (selected?.property_id ?? "")} onChange={e => setPropertyId(e.target.value)} aria-label="Property"
-                className="min-h-11 min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-2 text-base text-gray-800 outline-none focus:ring-2 focus:ring-teal-300">
+                className="min-h-11 min-w-0 flex-1 rounded-xl border border-[var(--haip-border)] bg-white px-2 text-base text-[var(--haip-fg)] outline-none focus:ring-2 focus:ring-primary">
                 {properties.length === 0 && <option value="">No properties</option>}
                 {properties.length > 1 && <option value="all">All vehicles</option>}
                 {properties.map(p => <option key={p.property_id} value={p.property_id}>{p.property_name}</option>)}
               </select>
+              {canBook && (
+                <Link href={!showAll && selected?.property_id ? `/dashboard/bookings/new?property=${selected.property_id}` : "/dashboard/bookings/new"}
+                  className="flex h-11 shrink-0 items-center rounded-xl bg-primary px-3 text-xs font-semibold text-primary-foreground">New booking</Link>
+              )}
               {!isCaravan && (
                 <select value={channelFilter} onChange={e => setChan(e.target.value)} aria-label="Channel"
-                  className="min-h-11 w-32 rounded-xl border border-gray-200 bg-white px-2 text-base text-gray-700 outline-none focus:ring-2 focus:ring-teal-300">
+                  className="min-h-11 w-32 rounded-xl border border-[var(--haip-border)] bg-white px-2 text-base text-[var(--haip-fg-2)] outline-none focus:ring-2 focus:ring-primary">
                   {CHANNEL_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               )}
@@ -1056,14 +1079,14 @@ export default function PortfolioCalendarPage() {
         <div className={cn("flex items-center gap-2 flex-wrap", isPhone && "hidden")}>
 
           {/* Mode tabs (timeline only: the phone agenda has nothing to switch) */}
-          <div className="hidden md:flex items-center bg-gray-100 rounded-xl p-0.5">
+          <div className="hidden md:flex items-center bg-[var(--haip-status-neutral-bg)] rounded-xl p-0.5">
             {MODE_TABS.map(t => (
               <button
                 key={t.key}
                 onClick={() => setMode(t.key)}
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all",
-                  mode === t.key ? "bg-white text-teal-700 shadow-sm" : "text-gray-500 hover:text-gray-700",
+                  mode === t.key ? "bg-white text-primary shadow-sm" : "text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-2)]",
                 )}
               >
                 {t.icon}{t.label}
@@ -1072,41 +1095,41 @@ export default function PortfolioCalendarPage() {
           </div>
 
           {/* Date nav */}
-          <div className="flex items-center gap-0.5 bg-gray-100 rounded-xl p-0.5">
+          <div className="flex items-center gap-0.5 bg-[var(--haip-status-neutral-bg)] rounded-xl p-0.5">
             <button
               onClick={prevPeriod}
               title={`Previous ${numDays} days`}
               aria-label={`Previous ${numDays} days`}
-              className="flex items-center gap-1 px-2 min-h-11 md:min-h-0 md:h-7 rounded-lg hover:bg-white text-gray-600 text-[11px] font-medium"
+              className="flex items-center gap-1 px-2 min-h-11 md:min-h-0 md:h-7 rounded-lg hover:bg-white text-[var(--haip-fg-muted)] text-[11px] font-medium"
             >
               <ChevronLeft size={14} /> Past
             </button>
-            <button onClick={goToToday} className="px-3 min-h-11 md:min-h-0 md:py-1 text-xs font-semibold text-gray-700 hover:bg-white rounded-lg">
+            <button onClick={goToToday} className="px-3 min-h-11 md:min-h-0 md:py-1 text-xs font-semibold text-[var(--haip-fg-2)] hover:bg-white rounded-lg">
               Today
             </button>
             <button
               onClick={nextPeriod}
               title={`Next ${numDays} days`}
               aria-label={`Next ${numDays} days`}
-              className="flex items-center gap-1 px-2 min-h-11 md:min-h-0 md:h-7 rounded-lg hover:bg-white text-gray-600 text-[11px] font-medium"
+              className="flex items-center gap-1 px-2 min-h-11 md:min-h-0 md:h-7 rounded-lg hover:bg-white text-[var(--haip-fg-muted)] text-[11px] font-medium"
             >
               Future <ChevronRight size={14} />
             </button>
           </div>
 
-          <span className="text-sm font-bold text-gray-700 min-w-[130px]">
+          <span className="text-sm font-bold text-[var(--haip-fg-2)] min-w-[130px]">
             {format(startDate, "dd MMM")} – {format(addDays(startDate, numDays - 1), "dd MMM yyyy")}
           </span>
 
           {/* Window */}
-          <div className="hidden md:flex items-center gap-0.5 bg-gray-100 rounded-xl p-0.5">
+          <div className="hidden md:flex items-center gap-0.5 bg-[var(--haip-status-neutral-bg)] rounded-xl p-0.5">
             {(["14","30","60","90"] as ViewWindow[]).map(v => (
               <button
                 key={v}
                 onClick={() => setViewWindow(v)}
                 className={cn(
                   "px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors",
-                  viewWindow === v ? "bg-white text-teal-600 shadow-sm" : "text-gray-500 hover:text-gray-700",
+                  viewWindow === v ? "bg-white text-primary shadow-sm" : "text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg-2)]",
                 )}
               >
                 {v}d
@@ -1118,7 +1141,7 @@ export default function PortfolioCalendarPage() {
           <select
             value={channelFilter}
             onChange={e => setChan(e.target.value)}
-            className="text-base md:text-xs border border-gray-200 rounded-xl px-2 min-h-11 md:min-h-0 md:py-1.5 bg-white text-gray-700 outline-none focus:ring-2 focus:ring-teal-300 cursor-pointer"
+            className="text-base md:text-xs border border-[var(--haip-border)] rounded-xl px-2 min-h-11 md:min-h-0 md:py-1.5 bg-white text-[var(--haip-fg-2)] outline-none focus:ring-2 focus:ring-primary cursor-pointer"
           >
             {CHANNEL_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -1131,7 +1154,7 @@ export default function PortfolioCalendarPage() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search properties…"
-              className="text-base md:text-xs border border-gray-200 rounded-xl px-3 min-h-11 md:min-h-0 md:py-1.5 outline-none focus:ring-2 focus:ring-teal-300 w-full md:w-36"
+              className="text-base md:text-xs border border-[var(--haip-border)] rounded-xl px-3 min-h-11 md:min-h-0 md:py-1.5 outline-none focus:ring-2 focus:ring-primary w-full md:w-36"
             />
           )}
 
@@ -1163,12 +1186,17 @@ export default function PortfolioCalendarPage() {
               </button>
             </>
           )}
-          <button onClick={() => refetch()} aria-label="Refresh" className="w-11 h-11 md:w-8 md:h-8 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-500">
+          {canBook && (
+            <Link href="/dashboard/bookings/new" className="flex min-h-11 md:min-h-8 items-center rounded-xl bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-[var(--haip-primary-hover)]">
+              New booking
+            </Link>
+          )}
+          <button onClick={() => refetch()} aria-label="Refresh" className="w-11 h-11 md:w-8 md:h-8 flex items-center justify-center rounded-xl hover:bg-[var(--haip-status-neutral-bg)] text-[var(--haip-fg-subtle)]">
             <RefreshCw size={14} className={isFetching ? "animate-spin" : ""} />
           </button>
           <button
             onClick={() => setFullscreen(f => !f)} aria-pressed={fullscreen}
-            className="min-h-11 md:min-h-8 px-3 rounded-xl text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200"
+            className="min-h-11 md:min-h-8 px-3 rounded-xl text-xs font-semibold text-[var(--haip-fg-muted)] bg-[var(--haip-status-neutral-bg)] hover:bg-[var(--haip-border)]"
           >
             {fullscreen ? "Exit full screen" : "Full screen"}
           </button>
@@ -1179,11 +1207,11 @@ export default function PortfolioCalendarPage() {
           {LEGEND.map(l => (
             <div key={l.label} className="flex items-center gap-1">
               <div className={cn("w-2.5 h-2.5 rounded-sm", l.dot)} />
-              <span className="text-[10px] text-gray-500">{l.label}</span>
+              <span className="text-[10px] text-[var(--haip-fg-subtle)]">{l.label}</span>
             </div>
           ))}
           {!isPhone && (
-            <span className="text-[10px] text-gray-400 ml-auto tabular-nums">
+            <span className="text-[10px] text-[var(--haip-fg-subtle)] ml-auto tabular-nums">
               {properties.length} {properties.length === 1 ? "property" : "properties"} · {days.length} days
             </span>
           )}
@@ -1195,15 +1223,15 @@ export default function PortfolioCalendarPage() {
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <p className="text-sm font-semibold text-red-500">Failed to load calendar</p>
-            <button onClick={() => refetch()} className="mt-2 text-sm text-teal-600 hover:underline">Try again</button>
+            <button onClick={() => refetch()} className="mt-2 text-sm text-primary hover:underline">Try again</button>
           </div>
         </div>
       ) : isPhone ? (
         <div className="flex-1 overflow-y-auto overscroll-contain">
           {isLoading ? (
-            <div className="space-y-2 p-4">{[0, 1, 2].map(i => <div key={i} className="h-14 animate-pulse rounded-xl bg-gray-100" />)}</div>
+            <div className="space-y-2 p-4">{[0, 1, 2].map(i => <div key={i} className="h-14 animate-pulse rounded-xl bg-[var(--haip-status-neutral-bg)]" />)}</div>
           ) : !selected ? (
-            <p className="px-4 py-10 text-center text-sm text-gray-500">
+            <p className="px-4 py-10 text-center text-sm text-[var(--haip-fg-subtle)]">
               {search || channelFilter ? "No property matches this channel. Choose “All channels”." : "No properties yet. Add them in Portfolio settings."}
             </p>
           ) : (
@@ -1228,17 +1256,17 @@ export default function PortfolioCalendarPage() {
             {isLoading ? (
               <div>
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="flex border-b border-gray-100 animate-pulse" style={{ height: rowH }}>
-                    <div className="flex-shrink-0 bg-gray-100 border-r border-gray-100" style={{ width: SIDEBAR_W }} />
-                    <div className="flex-1 bg-gray-50" />
+                  <div key={i} className="flex border-b border-[var(--haip-border)] animate-pulse" style={{ height: rowH }}>
+                    <div className="flex-shrink-0 bg-[var(--haip-status-neutral-bg)] border-r border-[var(--haip-border)]" style={{ width: SIDEBAR_W }} />
+                    <div className="flex-1 bg-[var(--haip-surface)]" />
                   </div>
                 ))}
               </div>
             ) : properties.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-24 text-center">
-                <Bed size={40} className="text-gray-200 mb-4" />
-                <p className="text-gray-500 font-semibold">No properties found</p>
-                <p className="text-xs text-gray-400 mt-1">
+                <Bed size={40} className="text-[var(--haip-fg-subtle)]/70 mb-4" />
+                <p className="text-[var(--haip-fg-subtle)] font-semibold">No properties found</p>
+                <p className="text-xs text-[var(--haip-fg-subtle)] mt-1">
                   {search || channelFilter ? "Clear your filters to see all properties" : "Add properties in Portfolio settings"}
                 </p>
               </div>

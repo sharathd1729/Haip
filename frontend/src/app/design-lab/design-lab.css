@@ -1,0 +1,93 @@
+/* Design lab tokens: one scoped set per concept. Components reference these through var(); nothing here leaks into the
+   app (every rule is under .lab-*). Role names are shared so the concepts are comparable:
+   --bg ground, --surface panels, --raised hover/raised panels, --line rules, --ink text, --muted secondary text,
+   --accent primary action, --on-accent text on it, --info, --ok, --warn, --bad state colours, --chrome shell. */
+
+.lab-root { min-height: 100dvh; background: var(--bg); color: var(--ink); font-family: var(--font-ui); -webkit-font-smoothing: antialiased; }
+.lab-root *:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.lab-root ::selection { background: var(--selection); color: var(--ink); }
+.lab-root .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1, "lnum" 1; }
+.lab-root .scroll { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+.lab-root .scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.lab-root .scroll::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 8px; }
+.lab-root .press { transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1), background-color 150ms ease-out, color 150ms ease-out, border-color 150ms ease-out; }
+.lab-root .press:active { transform: scale(0.97); }
+.lab-root input::placeholder, .lab-root textarea::placeholder { color: var(--muted); opacity: 0.85; }
+.lab-root input, .lab-root textarea { caret-color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .lab-root *, .lab-root *::before, .lab-root *::after { transition-duration: 0ms !important; animation-duration: 0ms !important; } }
+
+/* A · Field Atlas: map paper, forest ink, ochre actions, river info, laterite urgency. */
+.lab-atlas {
+  --field: #8A8270;
+  --bg: #F3F0E8; --surface: #FBFAF6; --raised: #ECE8DC; --line: #DDD7C7; --line-strong: #C9C1AB;
+  --ink: #1B2620; --muted: #5C6157; --accent: #9A5A0C; --accent-hover: #844C08; --on-accent: #FFFDF8;
+  --info: #2563A0; --info-bg: #E3ECF4; --ok: #2F6B3F; --ok-bg: #E2ECE1; --warn: #7A5610; --warn-bg: #F4EAD2; --bad: #A63D2A; --bad-bg: #F5E1DA;
+  --chrome: #1E3A2B; --chrome-ink: #EEF0E6; --chrome-muted: #A9B8A8; --chrome-active: #2C5240;
+  --focus: #2563A0; --selection: #F0D9A8; --route: #9A5A0C;
+  --font-ui: var(--lab-public-sans), system-ui, sans-serif; --font-label: var(--lab-barlow-semi), var(--lab-public-sans), sans-serif;
+}
+
+/* B · Milestone: white stone, road black, signage blue, milestone yellow for attention only. */
+.lab-milestone {
+  --field: #767670;
+  --bg: #F2F2EF; --surface: #FFFFFF; --raised: #F6F6F3; --line: #E2E2DD; --line-strong: #BDBDB5;
+  --ink: #0F0F0F; --muted: #55554F; --accent: #1747C9; --accent-hover: #123AA8; --on-accent: #FFFFFF;
+  --info: #1747C9; --info-bg: #E6ECFB; --ok: #12733F; --ok-bg: #E3F1E8; --warn: #8A5A00; --warn-bg: #FFF2C2; --bad: #C21F1F; --bad-bg: #FBE4E2;
+  --chrome: #0F0F0F; --chrome-ink: #FFFFFF; --chrome-muted: #A3A39B; --chrome-active: #2A2A27;
+  --cap: #F5C400; --on-cap: #0F0F0F; --focus: #1747C9; --selection: #FFE680;
+  --font-ui: var(--lab-archivo), system-ui, sans-serif;
+}
+
+/* C · Indigo Atelier: linen, indigo, brass highlights, madder for urgency. */
+.lab-atelier {
+  --field: #878271;
+  --bg: #F4F2EC; --surface: #FDFCF9; --raised: #EFECE3; --line: #E2DED2; --line-strong: #CBC5B4;
+  --ink: #181B34; --muted: #5A5C70; --accent: #2F3A8F; --accent-hover: #262F78; --on-accent: #FBFAF6;
+  --info: #2F3A8F; --info-bg: #E5E7F3; --ok: #2E6E52; --ok-bg: #E1EDE6; --warn: #85601D; --warn-bg: #F3EAD5; --bad: #A8402E; --bad-bg: #F5E2DC;
+  --chrome: #1E2353; --chrome-ink: #F1EFE8; --chrome-muted: #A9ACC9; --chrome-active: #2C3270;
+  --brass: #846623; --brass-light: #C9A24E; --scrim: rgba(11, 13, 32, 0.5); --focus: #2F3A8F; --selection: #DCD4F0;
+  --font-ui: var(--lab-manrope), system-ui, sans-serif; --font-serif: var(--lab-spectral), Georgia, serif;
+}
+
+/* D · Calm SaaS: zinc neutrals, one teal accent. */
+.lab-calm {
+  --field: #8A8A94;
+  --bg: #FAFAFA; --surface: #FFFFFF; --raised: #F4F4F5; --line: #E4E4E7; --line-strong: #D4D4D8;
+  --ink: #18181B; --muted: #5E5E68; --accent: #0F766E; --accent-hover: #0B5F58; --on-accent: #FFFFFF;
+  --info: #2563EB; --info-bg: #EFF4FF; --ok: #15803D; --ok-bg: #ECFDF3; --warn: #A16207; --warn-bg: #FEF6E4; --bad: #B91C1C; --bad-bg: #FEF0F0;
+  --chrome: #F4F4F5; --chrome-ink: #18181B; --chrome-muted: #5E5E68; --chrome-active: #FFFFFF;
+  --focus: #0F766E; --selection: #CCEDE8;
+  --font-ui: var(--lab-geist), system-ui, sans-serif; --font-mono: var(--lab-geist-mono), ui-monospace, monospace;
+}
+
+/* E · AI Command Center: low-glare dark, cool blue actions, violet only for AI. */
+.lab-command {
+  --field: #66728C;
+  --bg: #0B0E14; --surface: #121722; --raised: #1A2030; --line: #232B3B; --line-strong: #34405A;
+  --ink: #E6EAF2; --muted: #98A2B6; --accent: #6E8BFF; --accent-hover: #8AA1FF; --on-accent: #0B0E14;
+  --info: #6E8BFF; --info-bg: #18213D; --ok: #46C08A; --ok-bg: #12291F; --warn: #E3AA4B; --warn-bg: #2E2414; --bad: #F06A5F; --bad-bg: #33181A;
+  --ai: #A795F7; --ai-bg: #211C3B; --chrome: #0E121B; --chrome-ink: #E6EAF2; --chrome-muted: #7D879C; --chrome-active: #1C2333;
+  --focus: #8AA1FF; --selection: #33407A;
+  --font-ui: var(--lab-onest), system-ui, sans-serif; --font-mono: var(--lab-jetbrains), ui-monospace, monospace;
+  color-scheme: dark;
+}
+
+/* F · Hospitality Hybrid: stone, jamun plum, marigold highlights. */
+.lab-hybrid {
+  --field: #8A847E;
+  --bg: #F5F5F4; --surface: #FFFFFF; --raised: #F0EFED; --line: #E7E5E4; --line-strong: #D6D3D1;
+  --ink: #1C1917; --muted: #5F5A55; --accent: #5A2D6B; --accent-hover: #4A2459; --on-accent: #FFFFFF;
+  --info: #3B5BA9; --info-bg: #ECF0FA; --ok: #276B43; --ok-bg: #E7F4EC; --warn: #8C5A06; --warn-bg: #FCF0D6; --bad: #B4322F; --bad-bg: #FBE7E5;
+  --marigold: #D9930D; --marigold-ink: #9A6406; --marigold-bg: #FCEFD2; --plum-bg: #F1E8F4;
+  --chrome: #FFFFFF; --chrome-ink: #1C1917; --chrome-muted: #5F5A55; --chrome-active: #F1E8F4;
+  --focus: #5A2D6B; --selection: #EBD9F1;
+  --font-ui: var(--lab-figtree), system-ui, sans-serif; --font-display: var(--lab-bricolage), var(--lab-figtree), sans-serif;
+}
+
+/* The lab's own chrome: deliberately neutral (graphite on stone) so it never favours one concept. */
+.lab-chrome {
+  --bg: #EEEDEA; --surface: #FFFFFF; --raised: #F4F3F0; --line: #DCDAD4; --line-strong: #B9B6AD; --field: #8A877F;
+  --ink: #161616; --muted: #5C5A55; --accent: #161616; --accent-hover: #000000; --on-accent: #FFFFFF;
+  --focus: #2457D6; --selection: #D9E2FA;
+  --font-ui: var(--lab-geist), system-ui, sans-serif;
+}

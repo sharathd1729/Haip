@@ -135,6 +135,22 @@ def test_lists_do_not_include_another_tenants_records(client, world, path):
     _assert_no_secret(other)
 
 
+@pytest.mark.parametrize("path", ["/api/v1/platform-leads", "/api/v1/roi-benchmarks"])
+def test_website_leads_and_benchmarks_are_only_for_haips_sales_workspace(client, db, world, monkeypatch, path):
+    """HAIP's own prospects (platform_leads, a documented platform-level table) and the assessment benchmarks are
+    reachable only by the owner of the workspace named in PLATFORM_LEADS_TENANT_SLUG; any other owner gets 403."""
+    from app.models.platform_lead import PlatformLead
+    monkeypatch.setattr("app.core.config.settings.PLATFORM_LEADS_TENANT_SLUG", world["a"].slug)
+    db.add(PlatformLead(kind="demo", submission_id=uuid.uuid4().hex, name=SECRET_NAME, phone=SECRET_PHONE,
+                        consent_given=True, details={}))
+    db.commit()
+    owner = client.get(path, headers=world["ha"])
+    assert owner.status_code == 200, f"positive control failed for {path}: {owner.status_code} {owner.text[:200]}"
+    other = client.get(path, headers=world["hb"])
+    assert other.status_code == 403
+    _assert_no_secret(other)
+
+
 def test_guest_timeline_of_another_tenants_guest_is_empty(client, world):
     url = f"/api/v1/guests/{world['guest'].id}/timeline"
     owner = client.get(url, headers=world["ha"])

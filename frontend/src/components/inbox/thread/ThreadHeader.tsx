@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusPill } from "@/components/ui/page";
 import { TalkedOn, toGuestChannel } from "@/components/inbox/ChannelBadges";
+import { SendQuoteButton } from "@/components/quotes/SendQuoteButton";
 import {
   type ConversationDetail, type Mut, getWindowSecondsLeft, formatWindowCountdown,
 } from "./types";
@@ -115,6 +116,10 @@ export function ThreadHeader({
             <span className="hidden sm:inline">Call</span>
           </button>
         )}
+
+        {/* The rate calculator on top of the chat, prefilled with this lead and the trip the chat mentioned. */}
+        <SendQuoteButton iconOnlyBelowSm className="h-9 min-h-0 sm:min-h-0"
+          args={{ conversationId: detail.id, inquiryId: detail.inquiry_id ?? null, from: "inbox", name: detail.guest_name || null }} />
 
         <button type="button" onClick={() => resolveMutation.mutate()} disabled={resolveMutation.isPending || detail.status === "resolved"}
           aria-label={detail.status === "resolved" ? "Resolved" : "Mark resolved"}

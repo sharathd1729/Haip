@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { useCallsStore } from "@/store/calls";
+import { MobileFilterSheet, MobileFilterTrigger } from "@/components/ui/MobileFilterSheet";
 import { CallDetailPanel, OUTCOMES } from "@/components/calls/CallDetailPanel";
 import {
   CallRow, SummaryTiles, RANGES, dayLabel,
@@ -145,6 +146,7 @@ export default function CallsPage() {
   const [autoPlay, setAutoPlay] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [showDialer, setShowDialer] = useState(false);
+  const [filterSheet, setFilterSheet] = useState(false);
   const pageSize = 25;
   const rangeLabel = RANGES.find(r => r.value === range)?.label ?? "Today";
 
@@ -253,10 +255,13 @@ export default function CallsPage() {
   );
   })}
   </div>
-  <div className="flex gap-2 sm:ml-auto overflow-x-auto scrollbar-hide">
+  {/* The date range stays visible everywhere; on phones agent and outcome move into one Filters sheet instead of a
+      second sideways-scrolling row. */}
+  <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
   <select value={range} onChange={e => setRange(e.target.value)} aria-label="Date range" className={selectCls} style={selectStyle}>
   {RANGES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
   </select>
+  <div className="hidden md:contents">
   <select value={agentId} onChange={e => setAgentId(e.target.value)} aria-label="Agent" className={selectCls} style={selectStyle}>
   <option value="">All agents</option>
   {team.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
@@ -266,6 +271,23 @@ export default function CallsPage() {
   {OUTCOMES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
   </select>
   </div>
+  <MobileFilterTrigger onClick={() => setFilterSheet(true)} hasActiveFilters={!!(agentId || outcome)} className="min-h-10" />
+  </div>
+  <MobileFilterSheet open={filterSheet} onOpenChange={setFilterSheet} hasActiveFilters={!!(agentId || outcome)}>
+  <label className="flex flex-col gap-1 text-[13px] font-medium text-[var(--haip-fg-2)]">Agent
+  <select value={agentId} onChange={e => setAgentId(e.target.value)} className={cn(selectCls, "h-12 w-full text-[16px]")} style={selectStyle}>
+  <option value="">All agents</option>
+  {team.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+  </select>
+  </label>
+  <label className="flex flex-col gap-1 text-[13px] font-medium text-[var(--haip-fg-2)]">Outcome
+  <select value={outcome} onChange={e => setOutcome(e.target.value)} className={cn(selectCls, "h-12 w-full text-[16px]")} style={selectStyle}>
+  <option value="">Any outcome</option>
+  {OUTCOMES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+  </select>
+  </label>
+  <button type="button" onClick={() => setFilterSheet(false)} className="mt-1 h-12 rounded-lg bg-primary text-[15px] font-semibold text-primary-foreground">Show calls</button>
+  </MobileFilterSheet>
   </div>
 
   {wrapUpQueue.length > 0 && (
@@ -284,7 +306,9 @@ export default function CallsPage() {
   {/* List */}
   <div className="flex-1 overflow-y-auto haip-scrollbar px-4 sm:px-5 pb-4">
   <div className="haip-card overflow-hidden p-0">
-  {isLoading ? (
+  {/* "No data yet" rather than isLoading: on the server a query is never fetching, so isLoading was false there and true
+      in the browser's first render -- a hydration mismatch that rebuilt the whole page on every load. */}
+  {!data && !isError ? (
   [...Array(6)].map((_, i) => (
   <div key={i} className="px-4 py-3 flex items-center gap-3"><Skeleton className="w-10 h-10 rounded-full" /><div className="flex-1 space-y-1.5"><Skeleton className="h-3.5 w-40" /><Skeleton className="h-3 w-24" /></div></div>
   ))
