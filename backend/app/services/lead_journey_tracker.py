@@ -26,6 +26,7 @@ from app.models.call import Call, CallDirection
 from app.models.inquiry import Inquiry
 from app.models.lead_workflow import LeadJourney, LeadView, PlaybookAction
 from app.schemas.guest_events import GuestEventType, SourceModule
+from app.services.date_presets import IST
 
 log = structlog.get_logger()
 
@@ -265,32 +266,89 @@ def sweep_tenant(db: Session, tenant_id: str, now: Optional[datetime] = None) ->
     return {"inquiries": len(recent), "filled": filled}
 
 
+SOURCE_LABEL = {
+    "website": "the website", "google": "Google", "meta_ig": "Instagram", "meta_fb": "Facebook", "click_to_wa": "a WhatsApp ad",
+    "wa_direct": "WhatsApp", "email": "email", "phone": "a phone call", "walk_in": "a walk-in", "referral": "a referral",
+    "travel_agent": "a travel agent", "inbound_call": "a phone call", "outbound_call": "our call", "organic_call": "a phone call",
+    "ota_airbnb": "Airbnb", "ota_booking": "Booking.com", "ota_vrbo": "Vrbo", "ota_mmt": "MakeMyTrip", "ota_goibibo": "Goibibo",
+    "channel_manager": "the channel manager",
+}
+CHANNEL_LABEL = {"whatsapp": "WhatsApp", "instagram": "Instagram", "personal_whatsapp": "personal WhatsApp", "call": "a call",
+                 "quote": "a shared quote", "other": "a message"}
+
+
 def journey_out(db: Session, tenant_id: str, inquiry: Inquiry) -> dict:
-    """The lead page's journey strip: each milestone with its time (None = not yet), plus the playbook actions."""
+    """The lead page's journey card: each milestone with when, who and a plain detail ("done" False = not yet), the
+    follow-ups, the outcome and what the playbooks did. Refreshed from the source rows on read, so it is never behind."""
+    from app.models.task import Task
+    from app.models.user import User
+    from app.services import call_status_service as cs
+    refresh(db, tenant_id, [inquiry])
     row = db.query(LeadJourney).filter_by(tenant_id=tenant_id, inquiry_id=inquiry.id).first()
-    if row is None:
-        refresh(db, tenant_id, [inquiry])
-        row = db.query(LeadJourney).filter_by(tenant_id=tenant_id, inquiry_id=inquiry.id).first()
 
     def iso(dt):
         return _aware(dt).isoformat() if dt else None
-    steps = [
-        {"key": "received", "label": "Received", "at": iso(row.received_at), "detail": row.received_via},
-        {"key": "notified", "label": "Team notified", "at": iso(row.first_notified_at), "detail": None},
-        {"key": "viewed", "label": "Seen", "at": iso(row.first_viewed_at), "detail": row.first_viewed_by},
-        {"key": "called", "label": "Called", "at": iso(row.first_call_attempt_at), "detail": None},
-        {"key": "connected", "label": "Spoke on call", "at": iso(row.first_connected_at), "detail": None},
-        {"key": "contacted", "label": "First contact", "at": iso(row.first_human_contact_at),
-         "detail": row.first_human_contact_channel},
-        {"key": "proposal", "label": "Proposal", "at": iso(row.proposal_shared_at), "detail": row.proposal_mode},
-        {"key": "proposal_read", "label": "Proposal read", "at": iso(row.proposal_read_at or row.proposal_delivered_at),
-         "detail": "read" if row.proposal_read_at else ("delivered" if row.proposal_delivered_at else None)},
-    ]
+    people = {u.id: u.name for u in db.query(User).filter(User.tenant_id == tenant_id).all()}
+    owner = people.get(inquiry.assigned_to) if inquiry.assigned_to else None
+    calls = [c for c in db.query(Call).filter(Call.tenant_id == tenant_id, Call.guest_id == inquiry.guest_id,
+                                              Call.created_at >= (_aware(inquiry.created_at) or _now()) - timedelta(minutes=1))]
+    outbound = [c for c in calls if c.direction == CallDirection.OUTBOUND]
+    unanswered = [c for c in outbound if cs.is_unanswered_outbound(c)]
     actions = (db.query(PlaybookAction).filter_by(tenant_id=tenant_id, inquiry_id=inquiry.id)
                .order_by(PlaybookAction.created_at.desc()).limit(20).all())
+    sent = sum(1 for a in actions if a.action in ("wa_template", "wa_text") and a.status in ("queued", "done"))
+    skipped = sum(1 for a in actions if a.status == "skipped")
+    followups = (db.query(Task).filter(Task.tenant_id == tenant_id, Task.inquiry_id == inquiry.id,
+                                       Task.kind.in_(("followup", "call", "decide"))).order_by(Task.due_date).all())
+    done_followups = [t for t in followups if t.is_done]
+    next_followup = next((t for t in followups if not t.is_done), None)
+    via = (row.received_via or "").lower()
+    source = SOURCE_LABEL.get(via) or (via.replace("_", " ") if via else "an unknown source")
+
+    def step(key, label, at, detail, *, done=None, warn=False):
+        return {"key": key, "label": label, "at": iso(at), "done": bool(at) if done is None else done, "warn": warn,
+                "detail": detail}
+    if unanswered and not row.first_connected_at:
+        spoke_detail = f"{len(unanswered)} call{'s' if len(unanswered) != 1 else ''}, no answer"
+    elif row.first_connected_at:
+        spoke_detail = "Spoke on a call"
+    else:
+        spoke_detail = "No call yet"
+    if row.proposal_shared_at:
+        state = "read" if row.proposal_read_at else ("delivered" if row.proposal_delivered_at else None)
+        proposal_detail = ("Copied to send from a phone" if row.proposal_mode == "copied" else "Sent on WhatsApp") +             (f" · {state}" if state else "")
+    else:
+        proposal_detail = "No proposal yet"
+    if next_followup is not None:
+        follow_detail = f"{next_followup.title}" + (f" · due {_aware(next_followup.due_date).astimezone(IST):%a %d %b}"
+                                                    if next_followup.due_date else "")
+    elif done_followups:
+        follow_detail = f"{len(done_followups)} done"
+    else:
+        follow_detail = "None yet"
+    outcome_detail = {"won": "Sold", "lost": f"Lost{' · ' + row.lost_reason.replace('_', ' ') if row.lost_reason else ''}",
+                      "closed": "Closed"}.get(row.outcome, "Active")
+    steps = [
+        step("received", "Received", row.received_at, f"From {source}"),
+        step("notified", "Team notified", row.first_notified_at or row.first_assigned_at,
+             f"Assigned to {owner}" if owner else "Nobody owns it yet"),
+        step("viewed", "Seen", row.first_viewed_at,
+             f"{people.get(row.first_viewed_by, 'Someone')} opened the lead" if row.first_viewed_at else "Not opened yet"),
+        step("called", "Called", row.first_call_attempt_at,
+             f"{len(outbound)} call{'s' if len(outbound) != 1 else ''} from us" if outbound else "No call yet"),
+        step("spoke", "Spoke on a call", row.first_connected_at, spoke_detail,
+             warn=bool(unanswered) and not row.first_connected_at),
+        step("contacted", "First contact", row.first_human_contact_at,
+             f"By {CHANNEL_LABEL.get(row.first_human_contact_channel or 'other', 'a message')}"
+             if row.first_human_contact_at else "Nobody has contacted the guest yet"),
+        step("proposal", "Proposal", row.proposal_shared_at, proposal_detail),
+        step("followups", "Follow-up", done_followups[-1].completed_at if done_followups else None, follow_detail,
+             done=bool(done_followups)),
+        step("outcome", "Outcome", row.outcome_at, outcome_detail, done=row.outcome != "active"),
+    ]
     return {
         "inquiry_id": inquiry.id, "steps": steps, "outcome": row.outcome, "outcome_at": iso(row.outcome_at),
-        "lost_reason": row.lost_reason, "auto_messages": row.auto_messages,
+        "lost_reason": row.lost_reason, "owner_name": owner, "auto_messages": sent, "auto_skipped": skipped,
         "paused": bool(row.playbooks_paused_at), "paused_at": iso(row.playbooks_paused_at),
         "automations": [action_out(a) for a in actions],
     }

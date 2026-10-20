@@ -376,6 +376,30 @@ the older blocks stay in the payload for other readers.
 
 (The open questions numbered D-22 / D-23 in `OWNER_DASHBOARD_AUDIT.md` were renumbered D-25 / D-26 so the ids stay unique.)
 
+## 16. Lead workflows: journey and report  *(20 Oct 2026)*
+
+`GET /workflows/report` (`workflow_report_service.py`, Workflows page, Report tab) and `GET /leads/{id}/journey`
+(`lead_journey_tracker.journey_out`, the lead page's Journey card). Source: `lead_journeys`, one row per enquiry with
+write-once milestones (the first time each thing happened), refreshed every 5 minutes and on every journey read.
+
+| Metric | Definition |
+|---|---|
+| Cohort | enquiries **received** in the period (`lead_journeys.received_at` = the enquiry's creation, IST days, from/to inclusive). One enquiry = one lead row; a returning guest's new trip is a new row. |
+| Seen | someone opened the lead page (`lead_views`; POST `/leads/{id}/viewed`). Not recorded before 20 Oct 2026. |
+| Called | the first outbound call to the person after the enquiry arrived (a click-to-call that never connected counts, from 20 Oct 2026). |
+| Spoke on a call | the first answered call either way (`call_status_service`). |
+| First contact | the first PERSON contact on any channel (`work_queue_signals.touch_rows`: a message a person sent or approved, an answered call, a quote shared). HAIP's own messages (playbooks, campaigns, booking templates, the AI on its own) and mirrored history never count. |
+| Proposal | the first quote shared (`inquiry_quotes.shared_at`): sent on WhatsApp, or copied to send from a phone; delivered / read from the WhatsApp receipt of the sent message. |
+| Followed up | a follow-up playbook step fired for the lead (P5/P6), or a follow-up / call task on it was done. |
+| Sold | the lead's stage is closed-won (journey outcome `won`). |
+| Speeds (per agent) | median minutes from **received** to seen / first call / first contact / proposal, over that agent's leads that reached the step. Agent = the lead's current owner (`inquiries.assigned_to`); "Unassigned" for none. |
+| Missed calls returned | inbound calls missed in the period (`call_status_service.is_missed_call`) that a later answered call returned (`calls.recovered_by_call_id`). Per agent: calls on that person's leads. |
+| Replied to automatic WhatsApp | playbook WhatsApps to guests in the period (`playbook_actions` wa_template / wa_text, queued or done) after which the guest wrote back within 24 hours. |
+| Lost reasons | journey outcome `lost`, by `lost_reason`; "No reason recorded" for older leads (a reason is required from 20 Oct 2026). |
+
+The funnel shows how many leads reached each step, not the share of the previous step: a lead can get a proposal without
+a call. "Biggest drop" = the largest fall between two neighbouring steps.
+
 ## 13. Decisions needed (none is assumed)
 
 | Id | Decision |
