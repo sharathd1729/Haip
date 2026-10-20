@@ -160,7 +160,8 @@ def test_only_follow_ups_on_open_valid_stage_leads_are_flagged(db):
     db.add(Task(id=str(uuid.uuid4()), tenant_id=t.id, title="Fix the awning", due_date=NOW - timedelta(hours=3), is_done=False))
     db.commit()
     res = wq.build(db, t, scope_user_id=None)
-    flagged = {i["title"] for i in res["items"] if i["kind"] == "followup" and "open_lead" in i["flags"]}
+    # A task about someone already on the list rides on their row (with its flag), so look at both.
+    flagged = {i["title"] for i in res["items"] if i["kind"] == "followup" and "open_lead" in i["flags"]} |         {t["title"] for i in res["items"] if "open_lead" in i["flags"] for t in i["tasks"] if t["title"].startswith("Call ")}
     assert flagged == {"Call On active"}
     assert res["flags"]["followup_open_lead"] == 1
     assert res["counts"]["followup"] == 4                       # My day still lists every task

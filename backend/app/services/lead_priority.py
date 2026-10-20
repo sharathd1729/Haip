@@ -53,7 +53,9 @@ def asked_for_callback(title: Optional[str]) -> bool:
 def score_item(item, inq, *, now: datetime, today: date, quote_out: bool = False) -> tuple[int, str, list[str]]:
     """(score 0-100, lane, reasons) for one queue item. ``inq`` is its enquiry or None."""
     reasons: list[str] = []
-    asked = item.kind == "followup" and asked_for_callback(item.title)
+    merged = getattr(item, "tasks", None) or []          # tasks folded into a person row (work_queue_signals)
+    asked = (item.kind == "followup" and asked_for_callback(item.title)) or \
+        any(asked_for_callback(t.get("title")) for t in merged)
     score = ASKED_CALLBACK_BASE if asked else BASE.get(item.kind, 15)
     if asked:
         reasons.append("Asked for a call back")

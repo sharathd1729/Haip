@@ -36,6 +36,8 @@ interface Item {
   flags?: Flag[];
   /** Who to work on first: 0-100, the My day lane, and why (lead_priority). */
   priority?: number; lane?: Lane; reasons?: string[];
+  /** Open tasks about this person, shown on their row instead of a second row (work_queue_signals.merge_tasks_into_people). */
+  tasks?: { title: string; due: string | null; overdue: boolean }[];
 }
 interface Queue {
   counts: Record<Kind, number>;
@@ -153,6 +155,16 @@ function Row({ item, active, index }: { item: Item; active: boolean; index: numb
           {item.kind !== "new_lead" && <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--haip-fg-subtle)]">{KIND_LABEL[item.kind]}</span>}
         </span>
         <p className="mt-0.5 line-clamp-2 text-xs text-[var(--haip-fg-subtle)]">{item.detail}</p>
+        {item.tasks?.map(t => (
+          <p key={t.title} className="mt-1 text-xs text-[var(--haip-fg-2)]">
+            <span className="font-semibold">Task:</span> {t.title}
+            {t.due && (
+              <span className={cn("ml-1 tabular-nums", t.overdue ? "font-semibold text-[var(--haip-status-danger-fg)]" : "text-[var(--haip-fg-subtle)]")}>
+                · {t.overdue ? `overdue ${ago(t.due)}` : `due ${ago(t.due)}`}
+              </span>
+            )}
+          </p>
+        ))}
         {(item.reasons?.length ?? 0) > 0 && (
           <p className="mt-1 flex flex-wrap gap-1">
             {item.reasons!.map(r => (
@@ -264,7 +276,9 @@ export default function MyDayPage() {
     refetchOnWindowFocus: true,
   });
 
-  const filtered = (data?.items ?? []).filter(i => (kind === "all" || i.kind === kind) && (!flag || (i.flags ?? []).includes(flag)));
+  // "Follow-ups" also shows people whose task rides on their row.
+  const filtered = (data?.items ?? []).filter(i =>
+    (kind === "all" || i.kind === kind || (kind === "followup" && (i.tasks?.length ?? 0) > 0)) && (!flag || (i.flags ?? []).includes(flag)));
   // Calendar clashes are about the calendar, not a person: their own section, outside the people lists and the J/K cursor.
   const clashes = filtered.filter(i => i.kind === "clash");
   const people = filtered.filter(i => i.kind !== "clash");
@@ -308,7 +322,8 @@ export default function MyDayPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [shown.length, at]);
 
-  const late = data ? data.severity.late + data.severity.urgent + data.severity.critical : 0;
+  // Rows, not tasks: a person whose task rides on their row counts once, like the people count beside it.
+  const late = (data?.items ?? []).filter(i => i.kind !== "clash" && ["late", "urgent", "critical"].includes(i.severity)).length;
   const subtitle = !data ? "Loading…"
     : data.total === 0 ? "Nobody is waiting. Nice."
       : `${data.people} ${data.people === 1 ? "person is" : "people are"} waiting${late ? `, ${late} past their target time` : ""}${data.unowned ? `, ${data.unowned} with no owner` : ""}`;
@@ -331,7 +346,7 @@ export default function MyDayPage() {
 
         {/* Counts double as filters, so the summary and the list can't disagree. */}
         <FilterBar className="flex-nowrap overflow-x-auto pb-1 sm:flex-wrap">
-          <FilterChip active={kind === "all"} onClick={() => { setKind("all"); setCursor(0); }} count={data?.total}>Everyone</FilterChip>
+          <FilterChip active={kind === "all"} onClick={() => { setKind("all"); setCursor(0); }} count={data?.people}>Everyone</FilterChip>
           {KINDS.map(k => (
             <FilterChip key={k.id} active={kind === k.id} count={data?.counts[k.id] ?? 0}
               onClick={() => { setKind(kind === k.id ? "all" : k.id); setCursor(0); }}>

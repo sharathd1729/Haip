@@ -99,6 +99,7 @@ class QueueItem:
     priority: int = 0                  # 0-100, who to work on first (lead_priority)
     lane: str = "today"                # now / today / chase -- the My day section (lead_priority)
     reasons: list[str] = field(default_factory=list)  # why it scored that way, as short chips
+    tasks: list[dict] = field(default_factory=list)   # open tasks about this person, folded into their row
 
     def as_dict(self) -> dict:
         return {
@@ -109,6 +110,7 @@ class QueueItem:
             "channels": self.channels, "since": _iso(self.since), "overdue": self.overdue,
             "severity": self.severity, "attempts": self.attempts, "facts": self.facts, "has_draft": self.has_draft,
             "flags": self.flags, "priority": self.priority, "lane": self.lane, "reasons": self.reasons,
+            "tasks": self.tasks,
         }
 
 
@@ -552,10 +554,13 @@ def build(db: Session, tenant: Tenant, scope_user_id: Optional[str], kinds: Opti
             item.overdue = item.severity != "fresh"
 
     all_items = [i for k in KINDS for i in by_kind[k]]
-    # Best chance first (lead_priority): lane, then score, then longest wait. Severity above still drives alerts.
-    lead_priority.apply(db, tenant.id, all_items, now, today)
-    all_items.sort(key=lambda i: lead_priority.sort_key(i, _aware))
     flags = work_queue_signals.apply_flags(db, tenant.id, all_items, now, today, frozenset(booked))
+    # The LIST shows one row per person: a task about someone already on it rides on their row. Counts, flags and
+    # severities above still count every task, so dashboard cards and scripts are unchanged.
+    shown = work_queue_signals.merge_tasks_into_people(all_items)
+    # Best chance first (lead_priority): lane, then score, then longest wait. Severity above still drives alerts.
+    lead_priority.apply(db, tenant.id, shown, now, today)
+    shown.sort(key=lambda i: lead_priority.sort_key(i, _aware))
     counts = {k: len(by_kind[k]) for k in KINDS}
     oldest = {
         k: _iso(min((i.since for i in by_kind[k] if i.since), key=_aware, default=None))
@@ -572,7 +577,7 @@ def build(db: Session, tenant: Tenant, scope_user_id: Optional[str], kinds: Opti
         "severity": severity,
         "unowned": sum(1 for i in by_kind["new_lead"] if not i.owner_id),
         "flags": flags,
-        "items": [i.as_dict() for i in all_items if i.kind in wanted],
+        "items": [i.as_dict() for i in shown if i.kind in wanted or (i.tasks and "followup" in wanted)],
         "scope": "mine" if scope_user_id else "team",
     }
 

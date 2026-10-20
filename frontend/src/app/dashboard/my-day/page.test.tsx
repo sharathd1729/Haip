@@ -42,6 +42,18 @@ function renderPage() {
 beforeEach(() => { cleanup(); get.mockReset(); post.mockReset(); nav.search = new URLSearchParams(); });
 
 describe("My day", () => {
+  it("shows a person's task on their own row, not as a second row", async () => {
+    get.mockResolvedValue({ data: queue([
+      item({ title: "Ananya", lane: "now", priority: 86, reasons: ["Asked for a call back"],
+             tasks: [{ title: "Callback requested — Ananya", due: new Date(Date.now() + 27 * 60_000).toISOString(), overdue: false }] }),
+    ]) });
+    renderPage();
+    expect(await screen.findByText("Ananya")).toBeTruthy();
+    expect(screen.getByText("Callback requested — Ananya")).toBeTruthy();
+    expect(screen.getByText(/due in 2[67]m/)).toBeTruthy();
+    expect(screen.getAllByText("Ananya").length).toBe(1);
+  });
+
   it("shows the three lanes in the server's order, with the score and the reasons behind it", async () => {
     get.mockResolvedValue({ data: queue([
       item({ title: "Ananya", kind: "followup", action: "Open", since: new Date(Date.now() + 36 * 60_000).toISOString(),
