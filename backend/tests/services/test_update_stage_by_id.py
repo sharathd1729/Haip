@@ -3,6 +3,7 @@ import uuid
 import pytest
 
 from app.models.tenant import Tenant
+from app.models.user import User, UserRole
 from app.models.guest import Guest
 from app.models.inquiry import Inquiry, InquiryStage, InquirySource
 from app.models.pipeline_stage import PipelineStage
@@ -14,6 +15,15 @@ def _make_tenant(db):
     db.add(t)
     db.flush()
     return t
+
+
+def _actor(db, tenant_id):
+    """A real user: audit_events.actor_user_id is a foreign key to users.id, enforced by PostgreSQL."""
+    u = User(id=str(uuid.uuid4()), tenant_id=tenant_id, name="Agent", email=f"a-{uuid.uuid4().hex[:6]}@t.com",
+             role=UserRole.CONCIERGE, is_active=True)
+    db.add(u)
+    db.flush()
+    return u.id
 
 
 def _make_stage(db, tenant_id, key, order, **kwargs):
@@ -60,9 +70,14 @@ def test_forward_transition_custom_stage(db):
     inq = _make_inquiry(db, t.id, s_new.id)
     update_stage_by_id(
         db, tenant_id=t.id, inquiry_id=inq.id, new_stage_id=s_negotiation.id,
-        actor_user_id="u1", actor_role="concierge",
+        actor_user_id=_actor(db, t.id), actor_role="concierge",
     )
     assert inq.stage_id == s_negotiation.id
+    # Flushed and actually stored: a failed audit insert used to be swallowed by a stage hook, leaving the session
+    # rolled back while the in-memory stage_id still looked right.
+    from app.models.audit_event import AuditEvent
+    db.flush()
+    assert db.query(AuditEvent).filter_by(target_id=inq.id, action="inquiry.stage_changed").count() == 1
 
 
 def test_exit_transition_allowed_from_any_active_stage(db):
@@ -70,7 +85,7 @@ def test_exit_transition_allowed_from_any_active_stage(db):
     inq = _make_inquiry(db, t.id, s_new.id)
     update_stage_by_id(
         db, tenant_id=t.id, inquiry_id=inq.id, new_stage_id=s_lost.id,
-        actor_user_id="u1", actor_role="concierge",
+        actor_user_id=_actor(db, t.id), actor_role="concierge",
     )
     assert inq.stage_id == s_lost.id
 
@@ -81,7 +96,7 @@ def test_terminal_stage_blocks_further_transitions(db):
     with pytest.raises(InvalidStageTransition):
         update_stage_by_id(
             db, tenant_id=t.id, inquiry_id=inq.id, new_stage_id=s_new.id,
-            actor_user_id="u1", actor_role="owner", reason="oops",
+            actor_user_id=_actor(db, t.id), actor_role="owner", reason="oops",
         )
 
 
@@ -92,18 +107,18 @@ def test_backward_transition_requires_role_and_reason(db):
     with pytest.raises(InvalidStageTransition):
         update_stage_by_id(
             db, tenant_id=t.id, inquiry_id=inq.id, new_stage_id=s_new.id,
-            actor_user_id="u1", actor_role="concierge", reason="wrong role",
+            actor_user_id=_actor(db, t.id), actor_role="concierge", reason="wrong role",
         )
 
     with pytest.raises(InvalidStageTransition):
         update_stage_by_id(
             db, tenant_id=t.id, inquiry_id=inq.id, new_stage_id=s_new.id,
-            actor_user_id="u1", actor_role="owner",
+            actor_user_id=_actor(db, t.id), actor_role="owner",
         )
 
     update_stage_by_id(
         db, tenant_id=t.id, inquiry_id=inq.id, new_stage_id=s_new.id,
-        actor_user_id="u1", actor_role="owner", reason="mistake",
+        actor_user_id=_actor(db, t.id), actor_role="owner", reason="mistake",
     )
     assert inq.stage_id == s_new.id
 
@@ -127,7 +142,7 @@ def test_won_transition_creates_stay_when_booking_fields_present(db):
 
     update_stage_by_id(
         db, tenant_id=t.id, inquiry_id=inq.id, new_stage_id=s_won.id,
-        actor_user_id="u1", actor_role="concierge",
+        actor_user_id=_actor(db, t.id), actor_role="concierge",
     )
 
     stay = db.query(Stay).filter_by(inquiry_id=inq.id).first()
@@ -155,7 +170,7 @@ def test_won_transition_skips_stay_when_booking_fields_missing(db):
 
     update_stage_by_id(
         db, tenant_id=t.id, inquiry_id=inq.id, new_stage_id=s_won.id,
-        actor_user_id="u1", actor_role="concierge",
+        actor_user_id=_actor(db, t.id), actor_role="concierge",
     )
 
     assert inq.stage_id == s_won.id
@@ -176,7 +191,7 @@ def test_won_transition_stay_creation_is_idempotent(db):
 
     update_stage_by_id(
         db, tenant_id=t.id, inquiry_id=inq.id, new_stage_id=s_won.id,
-        actor_user_id="u1", actor_role="concierge",
+        actor_user_id=_actor(db, t.id), actor_role="concierge",
     )
     from app.services.inquiry_service import _create_stay_for_won_inquiry
     _create_stay_for_won_inquiry(db, inq)  # simulate a second call
@@ -193,5 +208,5 @@ def test_tenant_isolation_rejects_cross_tenant_stage(db):
     with pytest.raises(ValueError):
         update_stage_by_id(
             db, tenant_id=t1.id, inquiry_id=inq.id, new_stage_id=other_stage.id,
-            actor_user_id="u1", actor_role="owner",
+            actor_user_id=_actor(db, t1.id), actor_role="owner",
         )
