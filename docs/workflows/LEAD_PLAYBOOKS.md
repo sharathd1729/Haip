@@ -12,7 +12,7 @@ Code: `backend/app/services/lead_playbook_*.py`, `lead_alert_*.py`, `lead_follow
 | # | Playbook | Trigger | What it does | Stops / skips when |
 |---|---|---|---|---|
 | P1 | Missed call: WhatsApp the guest | A guest calls and nobody picks up | ~45 s later: WhatsApp (text inside the 24 h window, else `haip_missed_call_v1`); high-priority callback task (15 min in business hours, else 09:30); push the owner | someone already called back or messaged, booked, closed |
-| P2 | No answer: WhatsApp the guest | An agent's call is not picked up | ~45 s later: "we tried calling" (`haip_tried_calling_v1`); the existing "Call back" reminder stays | the guest picked up a later call or replied, booked, closed |
+| P2 | No answer: WhatsApp the guest | An agent's call is not picked up | ~45 s later: "we tried calling" (`haip_tried_calling_v1`); the existing "Call back" reminder stays | the guest picked up a later call or replied, booked, closed (a lead the SYSTEM closed as Lost, e.g. the bulk reset or autopilot "no response", is reopened to Active first and still gets it; one a person marked Lost does not) |
 | P7 | Guest asks for a call back | Tap on "Call me back" / "Call me later" on a P1/P2 message | Short reply, callback task, push + WhatsApp to the owner | once per tap |
 | P3 | New lead not contacted | My day "New lead" | Team alert ladder: late (15 min) owner → urgent (1 h) managers → critical (4 h) owners | a person contacts the guest |
 | P4 | Waiting too long | My day "Reply" / "Callback" | Same ladder at 30 min / 2 h / 8 h | the item leaves My day |
