@@ -7,8 +7,8 @@ What it does (a DRY RUN unless you pass --apply; nothing is written in a dry run
      (new bookings: the agent writes Black or White in the booking's Notes).
   3. Moves bookings that still sit on an "Unassigned" placeholder to the first free vehicle, oldest check-in first (so the first
      booking takes Ratha 1 and an overlapping one takes Ratha 2). A booking that fits nowhere stays where it is and is listed.
-     Bookings that already ended are left alone unless you pass --include-past; a cancelled / checked-out one never blocks a
-     vehicle, so it simply takes the first.
+     Bookings that already ended are left alone unless you pass --include-past; a past (checked-out) one takes the first
+     caravan with no other non-cancelled trip on those dates, so two trips on the same day get Ratha 1 and Ratha 2.
 
 The vehicles are the properties of the tenant's shared Google Calendar link (the ones that have vehicle keywords); if there is no
 such link, every active non-placeholder property of the tenant. The keywords ("white", "black") are NOT changed, so a calendar
@@ -44,6 +44,21 @@ def vehicles_of(db, tenant_id: str) -> list[Property]:
     if ids:
         q = q.filter(Property.id.in_(ids))
     return [p for p in q.all() if not vehicle_pool.is_placeholder_name(p.name)]
+
+
+def _overlaps(a_in: date, a_out: date, b_in: date, b_out: date) -> bool:
+    """Two trips need the same caravan at once. A day trip has check-in == check-out; handing over on a check-out day is fine."""
+    return a_in == b_in or (a_in < b_out and b_in < a_out)
+
+
+def past_free(db, tenant_id: str, stay: Stay, vehicles: list[Property]) -> Property | None:
+    """The first vehicle with no other non-cancelled booking (any status, past ones included) overlapping this one."""
+    for prop in vehicles:
+        others = db.query(Stay).filter(Stay.tenant_id == tenant_id, Stay.property_id == prop.id, Stay.id != stay.id).all()
+        if not any("cancel" not in str(getattr(o.status, "value", o.status)).lower() and o.check_in and o.check_out
+                   and _overlaps(stay.check_in, stay.check_out, o.check_in, o.check_out) for o in others):
+            return prop
+    return None
 
 
 def order(vehicles: list[Property], first: str | None) -> list[Property]:
@@ -91,11 +106,18 @@ def run(db, tenant_id: str, first: str | None, today: date | None = None, includ
             q = q.filter(Stay.status.in_(bsvc.ACTIVE_STATUSES), Stay.check_out >= today)
         q = q.order_by(Stay.check_in, Stay.created_at)
     for stay in (q.all() if q is not None else []):
-        free = bsvc.pick_free_property(db, tenant_id, stay.check_in, stay.check_out, candidate_ids=[p.id for p in vehicles], exclude_stay_id=stay.id,
-                                       ignore_unassigned=True)
         row = {"stay_id": stay.id, "check_in": stay.check_in.isoformat(), "check_out": stay.check_out.isoformat()}
-        if free is None and stay.status not in bsvc.ACTIVE_STATUSES:
-            free = vehicles[0]                                   # cancelled / checked out: occupies nothing, so it just takes the first
+        free = None
+        if stay.status in bsvc.ACTIVE_STATUSES and stay.check_out >= today:
+            free = bsvc.pick_free_property(db, tenant_id, stay.check_in, stay.check_out, candidate_ids=[p.id for p in vehicles],
+                                           exclude_stay_id=stay.id, ignore_unassigned=True)
+        else:
+            # A trip that already happened (or a cancelled one): put it on the first caravan with no other (non-cancelled) trip on those dates, so
+            # two past trips on the same day land on Ratha 1 and Ratha 2. When both were busy, the first, flagged.
+            free = past_free(db, tenant_id, stay, vehicles)
+            if free is None:
+                free = vehicles[0]
+                row["overlap"] = True
         if free is None:
             stuck.append(row)
             continue
@@ -127,7 +149,8 @@ def main() -> int:
             print("  names already Ratha 1..N")
         print(f"  'Caravan: <old name>' note {'added to' if args.apply else 'would be added to'} {out['stays_noted']} booking(s)")
         for m in out["moved"]:
-            print(f"  move    {m['check_in']} -> {m['check_out']}  to {m['to']}   ({m['stay_id']})")
+            print(f"  move    {m['check_in']} -> {m['check_out']}  to {m['to']}   ({m['stay_id']})"
+                  + ("   OVERLAP: every caravan already had a trip then; check by hand" if m.get("overlap") else ""))
         for m in out["stuck"]:
             print(f"  STUCK   {m['check_in']} -> {m['check_out']}  no vehicle is free ({m['stay_id']}): sort out by hand")
         if args.apply:
