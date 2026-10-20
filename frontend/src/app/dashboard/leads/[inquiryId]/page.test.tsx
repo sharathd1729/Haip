@@ -31,6 +31,14 @@ const feed = {
   trip: { route: "Kabini, via Mysuru", pickup: null, special_requests: null, lost_reason: null },
   facts: { unanswered_outbound_calls: 0, missed_inbound_unreturned: false, pending_drafts: 0, last_inbound_at: null, last_outbound_at: null },
 };
+const journey = {
+  inquiry_id: "i1", outcome: "active", owner_name: "Jishanth", auto_messages: 1, auto_skipped: 0, paused: false, automations: [],
+  steps: [
+    { key: "received", label: "Received", at: "2026-10-20T04:40:00Z", done: true, warn: false, detail: "From meta ig" },
+    { key: "spoke", label: "Spoke on a call", at: null, done: false, warn: true, detail: "2 calls, no answer" },
+    { key: "proposal", label: "Proposal", at: null, done: false, warn: false, detail: "No proposal yet" },
+  ],
+};
 const stages = [
   { id: "s1", key: "general_enquiry", label: "General Enquiry", order: 1, category: "invalid", is_closed_won: false, is_closed_lost: false, is_default_entry: true },
   { id: "s2", key: "active", label: "Active", order: 3, category: "valid", is_closed_won: false, is_closed_lost: false, is_default_entry: false },
@@ -42,6 +50,7 @@ function routes(url: string) {
   if (url === "/leads/i1/feed") return Promise.resolve({ data: feed });
   if (url === "/pipeline-stages") return Promise.resolve({ data: stages });
   if (url === "/users/me") return Promise.resolve({ data: { id: "u1" } });
+  if (url === "/leads/i1/journey") return Promise.resolve({ data: journey });
   return Promise.resolve({ data: [] });
 }
 
@@ -87,5 +96,13 @@ describe("Lead page (C · Chat)", () => {
     await screen.findByTestId("next-step-bar");
     await userEvent.click(screen.getByRole("button", { name: "Book" }));
     expect(push).toHaveBeenCalledWith("/dashboard/bookings/new?inquiry=i1");
+  });
+
+  it("shows the lead's journey with what has not happened yet", async () => {
+    renderPage();
+    expect(await screen.findByText("Journey")).toBeTruthy();
+    expect(await screen.findByText("2 calls, no answer")).toBeTruthy();
+    expect(screen.getByText("No proposal yet")).toBeTruthy();
+    expect(screen.getByLabelText("Needs attention")).toBeTruthy();
   });
 });

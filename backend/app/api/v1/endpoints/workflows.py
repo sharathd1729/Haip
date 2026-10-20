@@ -12,6 +12,7 @@
   GET  /workflows/alerts/me               anyone           my own WhatsApp-alert opt-in
   PUT  /workflows/alerts/me               anyone           opt in / out of lead alerts on my own WhatsApp (audited)
   POST /workflows/alerts/{id}/ack         the recipient    acknowledge a team alert from the app (audited)
+  GET  /workflows/report                  owner, manager   leads received in a period: funnel, speeds per agent, lost reasons
 
 Lead visibility matches GET /leads/{id}: a non owner/manager only reaches their own and unassigned leads (404 otherwise,
 like a lead of another workspace). No LLM and no sends here: playbooks run in Celery (lead_playbooks.py).
@@ -210,3 +211,31 @@ def ack_alert(action_id: str, current_user: User = Depends(get_current_user), db
     alerts.acknowledge(db, action, current_user, via="app")
     db.commit()
     return {"acked_at": action.acked_at.isoformat() if action.acked_at else None}
+
+
+@router.get("/workflows/report")
+def get_report(
+    preset: Optional[str] = Query("this_month", max_length=20),
+    date_from: Optional[str] = Query(None, alias="from", max_length=10),
+    date_to: Optional[str] = Query(None, alias="to", max_length=10),
+    agent_id: Optional[str] = Query(None, max_length=64),
+    current_user: User = Depends(_MANAGERS),
+    db: Session = Depends(get_db),
+):
+    from datetime import date
+    from app.services import workflow_report_service
+    from app.services.date_presets import VALID_PRESETS, resolve_range, today_ist
+    if preset and preset not in VALID_PRESETS:
+        raise HTTPException(status_code=422, detail=f"Unknown period: {preset}")
+    try:
+        lo, hi = resolve_range(preset, date_from, date_to)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    today = today_ist()
+    d_from = date.fromisoformat(lo) if lo else today.replace(day=1)
+    d_to = date.fromisoformat(hi) if hi else today
+    if d_from > d_to or (d_to - d_from).days > 400:
+        raise HTTPException(status_code=422, detail="Pick a period of up to about a year, with the start before the end.")
+    if agent_id is not None and not db.query(User.id).filter_by(id=agent_id, tenant_id=current_user.tenant_id).first():
+        raise HTTPException(status_code=404, detail="Team member not found")
+    return workflow_report_service.report(db, current_user.tenant_id, d_from, d_to, agent_id)

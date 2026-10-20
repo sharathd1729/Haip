@@ -10,6 +10,7 @@ import { AIRecommendationCard, type RecommendedAction } from "@/components/ai/AI
 import { AutopilotPanel } from "@/components/leads/AutopilotPanel";
 import type { NextStep, NextStepAction, Temperature } from "@/lib/leadNextStep";
 import { AiAnalysis } from "./AiAnalysis";
+import { JourneyCard } from "./JourneyCard";
 import { TripFields } from "./TripFields";
 import { AiRepliesToggle, ContactCard, DealsCard, TasksCard, useReveal } from "./PanelSections";
 import { sourceName, istDate } from "./format";
@@ -145,6 +146,7 @@ export function LeadDetailsPanel({ lead, feed, stages, step, temp, perms, run, o
         </CardBody>
       </Card>
 
+      <JourneyCard inquiryId={lead.inquiry_id} canEdit={perms.canEdit} />
       <TripFields lead={lead} feed={feed} canEdit={perms.canEdit} />
       <TasksCard feed={feed} inquiryId={lead.inquiry_id} closed={closed} run={run} />
       <DealsCard lead={lead} feed={feed} canQuote={perms.canQuote} canBook={perms.canBook} canOpenBookings={perms.canOpenBookings} run={run} />
