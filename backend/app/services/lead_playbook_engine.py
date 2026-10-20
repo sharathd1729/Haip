@@ -260,11 +260,43 @@ def run_step(db: Session, run: PlaybookRun) -> dict:
     return {**out, "run_id": run.id}
 
 
+def reopen_if_closed_by_system(db: Session, run: PlaybookRun, inquiry: Optional[Inquiry]) -> bool:
+    """An agent called a lead the SYSTEM had closed as Lost (the 10 Oct bulk reset, autopilot "no response"): they are
+    working it again, so it goes back to the open stage the autopilot qualifies leads into (Active) and the no-answer
+    WhatsApp still goes (owner, 20 Oct 2026). A lead a PERSON marked Lost stays Lost and gets nothing (lead-closed guard);
+    Sold is never touched. Audited like any reopen (inquiry_service.reopen_lost_inquiry)."""
+    from app.models.inquiry_360 import InquiryStageLog
+    from app.models.pipeline_stage import PipelineStage
+    from app.services import inquiry_service
+    from app.services.lead_autopilot_rules import StageMap
+
+    if inquiry is None or not inquiry.stage_id:
+        return False
+    stage = db.query(PipelineStage).filter_by(id=inquiry.stage_id, tenant_id=run.tenant_id).first()
+    if stage is None or not stage.is_closed_lost:
+        return False
+    last = (db.query(InquiryStageLog).filter_by(tenant_id=run.tenant_id, inquiry_id=inquiry.id, to_stage=stage.key)
+            .order_by(InquiryStageLog.changed_at.desc()).first())
+    if last is None or last.changed_by != "system":
+        return False                                    # a person decided, or we can't tell: leave it Lost
+    target = StageMap.load(db, run.tenant_id).qualified
+    if target is None:
+        return False
+    inquiry_service.reopen_lost_inquiry(
+        db, tenant_id=run.tenant_id, inquiry_id=inquiry.id, new_stage_id=target.id, actor_user_id=None, actor_role="system",
+        reason="Reopened: an agent called this lead again (it had been closed automatically)")
+    db.commit()
+    _record(db, run, "reopen", "done", reason=f"closed automatically; moved to {target.label}")
+    return True
+
+
 def _run_call_playbook(db: Session, tenant: Tenant, run: PlaybookRun) -> dict:
     call = db.query(Call).filter_by(id=(run.context or {}).get("call_id"), tenant_id=run.tenant_id).first()
     guest = db.query(Guest).filter_by(id=run.guest_id, tenant_id=run.tenant_id).first() if run.guest_id else None
     inquiry = db.query(Inquiry).filter_by(id=run.inquiry_id, tenant_id=run.tenant_id).first() if run.inquiry_id else None
     since = _aware(call.created_at) if call else _now()
+    if run.playbook_key == cat.UNANSWERED_OUTBOUND:
+        reopen_if_closed_by_system(db, run, inquiry)
     reason = guards.check(db, tenant, guest, inquiry, playbook=run.playbook_key, since=since)
     missed = run.playbook_key == cat.MISSED_INBOUND_CALL
     pb = settings.playbook(tenant, run.playbook_key)

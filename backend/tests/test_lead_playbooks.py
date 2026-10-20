@@ -408,3 +408,71 @@ def test_drain_runs_due_steps_and_fails_stale_claims(db, tenant_and_user):
     db.refresh(stale)
     assert due.status == "done" and stale.status == "failed"
     s["template"].assert_called_once()
+
+
+# ── P2 on a lead the system had closed (owner, 20 Oct 2026) ─────────────────
+
+def _stages(db, tid):
+    from app.models.pipeline_stage import PipelineStage
+    from app.services.pipeline_stage_service import seed_default_pipeline_stages
+    if not db.query(PipelineStage).filter_by(tenant_id=tid).count():
+        seed_default_pipeline_stages(db, tid)
+        db.commit()
+    return {s.key: s for s in db.query(PipelineStage).filter_by(tenant_id=tid)}
+
+
+def _closed(db, tid, inq, stage, by):
+    from app.models.inquiry_360 import InquiryStageLog
+    inq.stage_id = stage.id
+    db.add(InquiryStageLog(tenant_id=tid, inquiry_id=inq.id, from_stage="active", to_stage=stage.key, changed_by=by,
+                           changed_at=datetime.now(timezone.utc) - timedelta(days=10), reason="Bulk clear"))
+    db.commit()
+
+
+def test_agent_calling_a_lead_the_system_closed_reopens_it_and_still_whatsapps(db, tenant_and_user):
+    tid = _tid(tenant_and_user)
+    st = _stages(db, tid)
+    _enable(db, tid, cat.UNANSWERED_OUTBOUND)
+    _approve(db, tid, pack.TRIED_CALLING)
+    guest, inq = _lead(db, tid)
+    _closed(db, tid, inq, st["lost"], by="system")
+    call = _call(db, tid, guest, inq, direction="outbound", agent_id=tenant_and_user["user"].id)
+    with _no_sends() as s:
+        engine.on_call(db, tid, call.id)
+    db.refresh(inq)
+    assert inq.stage_id == st["active"].id
+    assert s["template"].call_count == 1
+    assert [(a.action, a.status) for a in _actions(db, tid, guest_id=guest.id)][:1] == [("reopen", "done")]
+
+
+def test_a_lead_a_person_marked_lost_stays_lost_and_gets_nothing(db, tenant_and_user):
+    tid = _tid(tenant_and_user)
+    st = _stages(db, tid)
+    _enable(db, tid, cat.UNANSWERED_OUTBOUND)
+    _approve(db, tid, pack.TRIED_CALLING)
+    guest, inq = _lead(db, tid)
+    _closed(db, tid, inq, st["lost"], by=tenant_and_user["user"].id)
+    call = _call(db, tid, guest, inq, direction="outbound", agent_id=tenant_and_user["user"].id)
+    with _no_sends() as s:
+        engine.on_call(db, tid, call.id)
+    db.refresh(inq)
+    assert inq.stage_id == st["lost"].id and s["template"].call_count == 0
+    assert [(a.action, a.reason) for a in _actions(db, tid, guest_id=guest.id)] == [("wa_text", "the lead is closed")]
+
+
+def test_sold_and_missed_inbound_are_never_reopened(db, tenant_and_user):
+    tid = _tid(tenant_and_user)
+    st = _stages(db, tid)
+    _enable(db, tid, cat.UNANSWERED_OUTBOUND, cat.MISSED_INBOUND_CALL)
+    guest, inq = _lead(db, tid)
+    _closed(db, tid, inq, st["sold"], by="system")
+    with _no_sends():
+        engine.on_call(db, tid, _call(db, tid, guest, inq, direction="outbound").id)
+    db.refresh(inq)
+    assert inq.stage_id == st["sold"].id
+    g2, inq2 = _lead(db, tid, phone="+919876500001")
+    _closed(db, tid, inq2, st["lost"], by="system")
+    with _no_sends():
+        engine.on_call(db, tid, _call(db, tid, g2, inq2, direction="inbound").id)
+    db.refresh(inq2)
+    assert inq2.stage_id == st["lost"].id                      # a missed INBOUND call does not reopen (P2 only)
