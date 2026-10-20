@@ -1,6 +1,7 @@
 "use client";
-// My day -- the "act now" list. Everyone who gave us a number, called, or is waiting on a person, worst first, so no enquiry sits
-// unseen. Backed by GET /work-queue (work_queue_service), the same source the dashboard cards read, so the numbers always agree.
+// My day -- the "act now" list. Everyone who gave us a number, called, or is waiting on a person, best chance first, in three
+// lanes (Call now / Reply or follow up today / Chase when free, option B, owner pick 20 Oct 2026) so no enquiry sits unseen.
+// The lane and the 0-100 score come from the server (lead_priority) with the reasons behind them. Backed by GET /work-queue (work_queue_service), the same source the dashboard cards read, so the numbers always agree.
 //
 // A person appears once, under the most specific reason. How late something is comes from the server (`severity`), the same
 // rule the WhatsApp/reminder alerts use, so this screen and an alert never disagree about what is urgent.
@@ -18,10 +19,12 @@ import { ChannelBadges, toGuestChannel } from "@/components/inbox/ChannelBadges"
 import { SendQuoteButton } from "@/components/quotes/SendQuoteButton";
 import { Card, EmptyState, FilterBar, FilterChip, PageHeader, StatusPill, Tabs, type Tone } from "@/components/ui/kit";
 import { CalendarClashes } from "@/components/dashboard/today/CalendarClashes";
+import { Flame, MessageCircle, Clock } from "@/lib/icons";
 
 type Kind = "callback" | "new_lead" | "reply" | "no_reply" | "followup" | "clash";
 type Flag = "not_called" | "open_lead" | "at_risk";
 type Severity = "fresh" | "late" | "urgent" | "critical" | "stale";
+type Lane = "now" | "today" | "chase";
 
 interface Item {
   kind: Kind; title: string; detail: string; action: string; href: string;
@@ -31,6 +34,8 @@ interface Item {
   severity: Severity; attempts: number; facts: string[]; has_draft: boolean;
   /** Owner-dashboard marks from the same queue: never called, follow-up on an open lead, promising lead at risk. */
   flags?: Flag[];
+  /** Who to work on first: 0-100, the My day lane, and why (lead_priority). */
+  priority?: number; lane?: Lane; reasons?: string[];
 }
 interface Queue {
   counts: Record<Kind, number>;
@@ -66,6 +71,24 @@ const SEVERITY: Record<Severity, { label: string; tone: Tone; stripe: string }> 
   critical: { label: "Very overdue", tone: "danger",  stripe: "shadow-[inset_3px_0_0_var(--haip-status-danger-fg)]" },
   stale:    { label: "Gone cold",    tone: "neutral", stripe: "" },
 };
+
+const LANES: { id: Lane; title: string; hint: string; icon: React.ReactNode }[] = [
+  { id: "now",   title: "Call now",                 hint: "they asked, called, or just arrived", icon: <Flame size={14} /> },
+  { id: "today", title: "Reply or follow up today", hint: "still a good chance",                 icon: <MessageCircle size={14} /> },
+  { id: "chase", title: "Chase when free",          hint: "gone quiet, no details or trip over",  icon: <Clock size={14} /> },
+];
+// The score badge takes its lane's colour, so the order reads at a glance.
+const SCORE_CLS: Record<Lane, string> = {
+  now:   "bg-[var(--haip-status-danger-bg)] text-[var(--haip-status-danger-fg)]",
+  today: "bg-[var(--haip-status-warning-bg)] text-[var(--haip-status-warning-fg)]",
+  chase: "bg-[var(--haip-status-neutral-bg)] text-[var(--haip-status-neutral-fg)]",
+};
+// Chase is the long tail: the best few are shown, the rest behind a button.
+const CHASE_SHOWN = 5;
+
+function laneOf(item: Item): Lane {
+  return item.lane ?? (item.severity === "stale" ? "chase" : "today");
+}
 
 function ago(iso: string | null): string {
   if (!iso) return "";
@@ -114,6 +137,10 @@ function Row({ item, active, index }: { item: Item; active: boolean; index: numb
 
   const body = (
     <>
+      <span className={cn("hidden h-8 min-w-10 shrink-0 items-center justify-center rounded-lg text-[13px] font-bold tabular-nums sm:inline-flex", SCORE_CLS[laneOf(item)])}
+        title="Priority score: how likely this one is to book, from what they told us and how fresh it is">
+        {item.priority ?? "–"}
+      </span>
       <div className="min-w-0 flex-1">
         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
           <span className="truncate text-sm font-bold text-[var(--haip-fg)]">{item.title}</span>
@@ -126,6 +153,13 @@ function Row({ item, active, index }: { item: Item; active: boolean; index: numb
           {item.kind !== "new_lead" && <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--haip-fg-subtle)]">{KIND_LABEL[item.kind]}</span>}
         </span>
         <p className="mt-0.5 line-clamp-2 text-xs text-[var(--haip-fg-subtle)]">{item.detail}</p>
+        {(item.reasons?.length ?? 0) > 0 && (
+          <p className="mt-1 flex flex-wrap gap-1">
+            {item.reasons!.map(r => (
+              <span key={r} className="rounded-full border border-[var(--haip-border)] px-2 py-0.5 text-[11px] font-semibold text-[var(--haip-fg-2)]">{r}</span>
+            ))}
+          </p>
+        )}
         {(item.facts.length > 0 || item.has_draft || item.guest_phone || item.owner_name || item.kind === "new_lead") && (
           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] text-[var(--haip-fg-subtle)]">
             {item.facts.map(f => <span key={f} className="rounded bg-[var(--haip-surface)] px-1.5 py-0.5 font-medium text-[var(--haip-fg-2)]">{f}</span>)}
@@ -142,7 +176,7 @@ function Row({ item, active, index }: { item: Item; active: boolean; index: numb
           title={item.since ? `Waiting since ${new Date(item.since).toLocaleString("en-IN")}` : undefined}>
           {ago(item.since)}
         </span>
-        <span className="text-[10.5px] text-[var(--haip-fg-subtle)]">{item.kind === "followup" ? "overdue" : "waiting"}</span>
+        <span className="text-[10.5px] text-[var(--haip-fg-subtle)]">{item.kind !== "followup" ? "waiting" : item.overdue ? "overdue" : "due"}</span>
       </div>
     </>
   );
@@ -185,10 +219,13 @@ function isTyping(el: EventTarget | null): boolean {
   return !!n && (n.tagName === "INPUT" || n.tagName === "TEXTAREA" || n.tagName === "SELECT" || n.isContentEditable);
 }
 
-function Section({ title, hint, count, children }: { title: string; hint?: string; count: number; children: React.ReactNode }) {
+function Section({ title, hint, count, icon, children }: {
+  title: string; hint?: string; count: number; icon?: React.ReactNode; children: React.ReactNode;
+}) {
   return (
     <section className="space-y-2">
-      <h2 className="flex items-baseline gap-2 text-[13px] font-bold uppercase tracking-wide text-[var(--haip-fg-2)]">
+      <h2 className="flex flex-wrap items-center gap-2 text-[13px] font-bold uppercase tracking-wide text-[var(--haip-fg-2)]">
+        {icon && <span aria-hidden className="text-[var(--haip-fg-subtle)]">{icon}</span>}
         {title}
         <span className="rounded-full bg-[var(--haip-surface)] px-2 py-0.5 text-[11px] font-semibold tabular-nums text-[var(--haip-fg-subtle)]">{count}</span>
         {hint && <span className="text-[11.5px] font-normal normal-case tracking-normal text-[var(--haip-fg-subtle)]">{hint}</span>}
@@ -203,7 +240,7 @@ export default function MyDayPage() {
   const role = session?.user?.role;
   const isOwnerView = role === "owner" || role === "manager";
   const [mineOnly, setMineOnly] = useState(false);
-  const [showCold, setShowCold] = useState(false);
+  const [showAllChase, setShowAllChase] = useState(false);
   // The dashboard cards deep-link here with ?kind=, so a card opens exactly the rows it counted.
   const params0 = useSearchParams();
   const initial = params0.get("kind") as Kind | null;
@@ -231,13 +268,16 @@ export default function MyDayPage() {
   // Calendar clashes are about the calendar, not a person: their own section, outside the people lists and the J/K cursor.
   const clashes = filtered.filter(i => i.kind === "clash");
   const people = filtered.filter(i => i.kind !== "clash");
-  const act = people.filter(i => i.severity !== "stale" && i.severity !== "fresh");
-  const fresh = people.filter(i => i.severity === "fresh");
-  const cold = people.filter(i => i.severity === "stale");
+  // The server already sorts by lane, then score: each lane keeps that order.
+  const byLane: Record<Lane, Item[]> = { now: [], today: [], chase: [] };
+  for (const i of people) byLane[laneOf(i)].push(i);
+  const visible: Record<Lane, Item[]> = {
+    now: byLane.now, today: byLane.today, chase: showAllChase ? byLane.chase : byLane.chase.slice(0, CHASE_SHOWN),
+  };
   // One flat order for the keyboard cursor: exactly what is on screen, top to bottom.
-  const shown = useMemo(() => [...act, ...fresh, ...(showCold ? cold : [])], [act, fresh, cold, showCold]);
+  const shown = useMemo(() => [...visible.now, ...visible.today, ...visible.chase], [visible.now, visible.today, visible.chase]);
   const at = Math.min(cursor, Math.max(0, shown.length - 1));
-  const offset = { act: 0, fresh: act.length, cold: act.length + fresh.length };
+  const offset: Record<Lane, number> = { now: 0, today: visible.now.length, chase: visible.now.length + visible.today.length };
   const firstName = (session?.user?.name || "").split(" ")[0];
 
   // The tab title carries the number, so a pinned tab works as an alert.
@@ -323,22 +363,17 @@ export default function MyDayPage() {
           ) : (
             <>
               <CalendarClashes items={clashes} />
-              {act.length > 0 && (
-                <Section title="Past their target time" count={act.length} hint="call these first">{rows(act, offset.act)}</Section>
-              )}
-              {fresh.length > 0 && (
-                <Section title="Just arrived" count={fresh.length} hint="inside the target time">{rows(fresh, offset.fresh)}</Section>
-              )}
-              {cold.length > 0 && (
-                <section className="space-y-2">
-                  <button type="button" onClick={() => setShowCold(v => !v)} aria-expanded={showCold}
-                    className="flex min-h-11 w-full items-center justify-between rounded-lg border border-dashed border-[var(--haip-border)] px-4 text-left text-[13px] font-semibold text-[var(--haip-fg-2)] hover:bg-[var(--haip-surface)]">
-                    <span>Gone cold ({cold.length}) <span className="font-normal text-[var(--haip-fg-subtle)]">· waiting over 3 days, worth one last try</span></span>
-                    <span aria-hidden>{showCold ? "Hide" : "Show"}</span>
-                  </button>
-                  {showCold && <Card className="overflow-hidden">{rows(cold, offset.cold)}</Card>}
-                </section>
-              )}
+              {LANES.map(l => byLane[l.id].length > 0 && (
+                <Section key={l.id} icon={l.icon} title={l.title} count={byLane[l.id].length} hint={l.hint}>
+                  {rows(visible[l.id], offset[l.id])}
+                  {l.id === "chase" && byLane.chase.length > CHASE_SHOWN && (
+                    <button type="button" onClick={() => setShowAllChase(v => !v)} aria-expanded={showAllChase}
+                      className="flex min-h-11 w-full items-center justify-center border-t border-[var(--haip-border)] text-[13px] font-semibold text-primary hover:bg-[var(--haip-surface)]">
+                      {showAllChase ? "Show fewer" : `Show ${byLane.chase.length - CHASE_SHOWN} more`}
+                    </button>
+                  )}
+                </Section>
+              ))}
             </>
           )}
         </div>

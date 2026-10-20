@@ -186,7 +186,7 @@ def test_a_lead_with_no_enquiry_yet_is_still_listed(db):
 
 # ── urgency ──────────────────────────────────────────────────────────────────
 
-def test_severity_follows_the_sla_and_sorts_worst_first(db):
+def test_severity_follows_the_sla_and_the_list_is_best_chance_first(db):
     t = _tenant(db)
     _lead(db, t.id, minutes=5, name="Fresh")
     _lead(db, t.id, minutes=40, name="Late")
@@ -198,9 +198,12 @@ def test_severity_follows_the_sla_and_sorts_worst_first(db):
     res = wq.build(db, t, scope_user_id=None)
     sev = {i["title"]: i["severity"] for i in res["items"]}
     assert sev == {"Fresh": "fresh", "Late": "late", "Urgent": "urgent", "Critical": "critical", "Cold": "stale"}
-    assert [i["title"] for i in res["items"]] == ["Critical", "Urgent", "Late", "Fresh", "Cold"]   # cold goes last
+    # Order is lead_priority's, not the SLA's (owner, 20 Oct 2026): leads under a day old are "Call now", freshest (highest
+    # score) first, a tie goes to whoever waited longest; the cold one is "Chase when free", last.
+    assert [i["title"] for i in res["items"]] == ["Fresh", "Late", "Critical", "Urgent", "Cold"]
+    assert [i["lane"] for i in res["items"]] == ["now", "now", "now", "now", "chase"]
     assert res["severity"]["critical"] == 1 and res["severity"]["stale"] == 1
-    assert [i["overdue"] for i in res["items"]] == [True, True, True, False, True]
+    assert [i["overdue"] for i in res["items"]] == [False, True, True, True, True]
 
 
 # ── one row per person ───────────────────────────────────────────────────────
