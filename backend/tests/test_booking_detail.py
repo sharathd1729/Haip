@@ -221,6 +221,43 @@ def test_payment_link_needs_connection_then_creates(client, db, tenant_and_user)
     assert captured["amount_inr"] == 2500 and captured["notes"]["haip_stay_id"] == stay.id
 
 
+def test_each_payment_link_gets_its_own_reference_id(client, db, tenant_and_user):
+    # Razorpay rejects a reused reference_id: the balance link after an advance used to fail.
+    _, _, stay = _setup(db, tenant_and_user)
+    _connect_razorpay(db, tenant_and_user["tenant"].id)
+    refs = []
+
+    def fake(key_id, key_secret, **kw):
+        refs.append(kw["reference_id"])
+        return {"id": f"plink_{len(refs)}", "short_url": f"https://rzp.io/i/{len(refs)}"}
+    h = _h(tenant_and_user)
+    with patch("app.api.v1.endpoints.booking_detail.rzp.create_payment_link", side_effect=fake):
+        assert client.post(f"/api/v1/bookings/{stay.id}/payment-links", json={"amount": 4000}, headers=h).status_code == 201
+        assert client.post(f"/api/v1/bookings/{stay.id}/payment-links", json={}, headers=h).status_code == 201
+    assert len(refs) == 2 and refs[0] != refs[1] and all(len(r) <= 40 for r in refs)
+    rows = {r.external_id: r.id for r in db.query(StayPaymentLink).filter_by(stay_id=stay.id)}
+    assert rows["plink_1"].replace("-", "") == refs[0] and rows["plink_2"].replace("-", "") == refs[1]
+
+
+def test_payment_link_under_one_rupee_rejected(client, db, tenant_and_user):
+    _, _, stay = _setup(db, tenant_and_user)
+    _connect_razorpay(db, tenant_and_user["tenant"].id)
+    with patch("app.api.v1.endpoints.booking_detail.rzp.create_payment_link") as fake:
+        r = client.post(f"/api/v1/bookings/{stay.id}/payment-links", json={"amount": 0.5}, headers=_h(tenant_and_user))
+    assert r.status_code == 422 and "₹1" in r.json()["detail"]
+    fake.assert_not_called()
+
+
+@pytest.mark.parametrize("phone,kept", [("+919845612345", True), ("+91123", False), ("+9198456123456789", False)])
+def test_adapter_drops_contact_razorpay_would_reject(phone, kept):
+    from app.adapters.payments import razorpay as rzp
+    with patch.object(rzp, "_request", return_value={"id": "plink_x"}) as req:
+        rzp.create_payment_link("rzp_test_abc12345", "s3cretvalue", amount_inr=100, description="Stay", reference_id="abc",
+                                customer_name="Asha", customer_phone=phone, customer_email=None, expire_by=None, notes={})
+    customer = req.call_args.kwargs["json"]["customer"]
+    assert ("contact" in customer) is kept and customer["name"] == "Asha"
+
+
 def _signed(payload: dict, secret: str):
     body = json.dumps(payload).encode()
     return body, hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
@@ -254,6 +291,22 @@ def test_webhook_records_payment_once_and_rejects_bad_signature(client, db, tena
     assert len(pays) == 1 and float(pays[0].amount) == 2500 and pays[0].method == "razorpay"
     assert db.query(StayPaymentLink).filter_by(external_id="plink_1").first().status == "paid"
     assert client.get(f"/api/v1/bookings/{stay.id}", headers=_h(tenant_and_user)).json()["financials"]["paid"] == 2500
+
+
+def test_webhook_paid_on_is_the_ist_day_of_the_payment(client, db, tenant_and_user):
+    # 19 Oct 2026 19:00 UTC is 20 Oct 00:30 IST: the payment belongs to the 20th, not the server's UTC date.
+    _, _, stay = _setup(db, tenant_and_user)
+    tid, slug = tenant_and_user["tenant"].id, tenant_and_user["tenant"].slug
+    _connect_razorpay(db, tid)
+    db.add(StayPaymentLink(tenant_id=tid, stay_id=stay.id, provider="razorpay", external_id="plink_ist", short_url="https://rzp.io/i/ist",
+                           amount=2500, status="created"))
+    db.commit()
+    event = _paid_event("plink_ist", "pay_ist")
+    event["payload"]["payment"]["entity"]["created_at"] = 1792436400   # 2026-10-19T19:00:00Z
+    body, sig = _signed(event, "whsec_test_123")
+    r = client.post(f"/api/v1/webhooks/razorpay/{slug}", content=body, headers={"x-razorpay-signature": sig})
+    assert r.json()["status"] == "recorded"
+    assert db.query(StayPayment).filter_by(external_id="pay_ist").first().paid_on == date(2026, 10, 20)
 
 
 def test_webhook_unknown_tenant_and_unknown_link(client, db, tenant_and_user):

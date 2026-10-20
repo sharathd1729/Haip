@@ -26,6 +26,7 @@ from app.core.audit import append_audit
 from app.core.database import get_db
 from app.core.encryption import decrypt_credentials
 from app.models.audit_event import AuditEvent
+from app.models.base import gen_uuid
 from app.models.integration import Integration
 from app.models.property import PropertyAddOn, Stay
 from app.models.stay_finance import StayAddOn, StayDeposit, StayPayment, StayPaymentLink, StayServiceRequest
@@ -321,14 +322,19 @@ def create_payment_link(booking_id: str, body: PaymentLinkCreate, current_user: 
     amount = body.amount if body.amount is not None else outstanding
     if amount <= 0:
         raise HTTPException(status_code=422, detail="Nothing is outstanding on this booking.")
+    if amount < 1:
+        raise HTTPException(status_code=422, detail="Razorpay links need at least ₹1. Record smaller amounts as a manual payment.")
     guest, prop = stay.guest, stay.property
+    # Razorpay rejects a reused reference_id, so each link carries its own id
+    # (a booking often needs a second link: balance after advance, or after expiry).
+    link_id = gen_uuid()
     expires = datetime.now(timezone.utc) + timedelta(days=body.expires_in_days)
     phone = guest.phone if guest and guest.phone and not guest.phone.startswith("DELETED_") else None
     try:
         res = rzp.create_payment_link(
             creds["key_id"], creds["key_secret"], amount_inr=amount,
             description=f"{prop.name if prop else 'Stay'}, {stay.check_in:%d %b} to {stay.check_out:%d %b %Y}",
-            reference_id=stay.id.replace("-", "")[:32],
+            reference_id=link_id.replace("-", ""),
             customer_name=guest.name if guest else None, customer_phone=phone,
             customer_email=guest.email if guest else None,
             expire_by=int(expires.timestamp()) if expires.timestamp() > time.time() + 900 else None,
@@ -336,7 +342,7 @@ def create_payment_link(booking_id: str, body: PaymentLinkCreate, current_user: 
         )
     except rzp.RazorpayError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
-    link = StayPaymentLink(tenant_id=tid, stay_id=stay.id, provider="razorpay", external_id=res["id"],
+    link = StayPaymentLink(id=link_id, tenant_id=tid, stay_id=stay.id, provider="razorpay", external_id=res["id"],
                            short_url=res["short_url"], amount=amount, status="created", expires_at=expires,
                            created_by=current_user.id)
     db.add(link)
