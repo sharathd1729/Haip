@@ -455,6 +455,21 @@ def _handle_inbound_message(db, tenant: Tenant, msg: dict, contacts: list):
         except Exception as exc:
             log.error("opt_out_detection_failed", error=str(exc))
 
+    # ── Lead workflows: "Call me back" on one of our missed-call / no-answer WhatsApps ──
+    # A callback task + a short "we'll call you" reply (lead_playbooks.on_callback_tap) instead of an AI answer.
+    try:
+        from app.services.lead_playbook_engine import is_callback_tap
+        context_wamid = (msg.get("context") or {}).get("id")
+        if is_callback_tap(db, tenant.id, msg_type, body.strip(), context_wamid):
+            message.automation_outcome = "playbook_callback_requested"
+            db.commit()
+            from app.workers.tasks.lead_playbooks import on_callback_tap
+            on_callback_tap.apply_async(kwargs={"tenant_id": tenant.id, "guest_id": guest.id, "inquiry_id": conversation.inquiry_id,
+                                                "wa_msg_id": wa_msg_id, "button_text": body.strip()}, countdown=2)
+            return
+    except Exception as exc:  # noqa: BLE001 -- fall through to the normal AI reply
+        log.warning("playbook_callback_tap_failed", tenant_id=tenant.id, error=str(exc)[:200])
+
     # ── Trigger AI Concierge ───────────────────────────────────────────────
     # Only trigger for text/interactive messages (not raw media without caption)
     # Phase 2.5 agent-accountability instrumentation
@@ -575,3 +590,10 @@ def _handle_status_update(db, tenant: Tenant, status_obj: dict):
             wamid=wamid,
             new_state=new_state.value,
         )
+        if isinstance(meta, dict) and meta.get("source") == "quote":   # lead journey: proposal delivered / read
+            try:
+                from app.services.lead_journey_tracker import on_message_status
+                with db.begin_nested():
+                    on_message_status(db, str(tenant.id), message, meta_status)
+            except Exception as exc:  # noqa: BLE001 -- tracking must never lose the delivery update
+                log.warning("journey_quote_status_failed", message_id=message.id, error=str(exc)[:200])

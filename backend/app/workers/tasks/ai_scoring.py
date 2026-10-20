@@ -135,6 +135,16 @@ def score_call(self, call_id: str, tenant_id: str):
         db.commit()
         log.info("scoring_complete", call_id=call_id, score=percentage, model=model_used)
 
+        # Lead workflows: a call that turns out to be unanswered (voicemail, no answer) gets its missed-call / no-answer
+        # WhatsApp now if ingest could not tell (the run's unique key makes a second trigger a no-op).
+        try:
+            from app.services.lead_playbook_engine import playbook_for_call
+            if playbook_for_call(call):
+                from app.workers.tasks.lead_playbooks import queue_on_call
+                queue_on_call(call.tenant_id, call.id, countdown=5)
+        except Exception as _pb_exc:  # noqa: BLE001
+            log.warning("playbook_requeue_failed", call_id=call.id, error=str(_pb_exc)[:200])
+
     except Exception as exc:
         if db:
             try:

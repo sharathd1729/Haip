@@ -39,6 +39,8 @@ class User(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     # dialed, treated as most idle).
     ivr_last_dialed_at = Column(DateTime(timezone=True), nullable=True)
     last_seen_at = Column(DateTime(timezone=True), nullable=True)  # W18: presence heartbeat
+    # The person agreed to get lead alerts on their own WhatsApp (migration 151; used by the staff alert chain).
+    whatsapp_alerts_opt_in_at = Column(DateTime(timezone=True), nullable=True)
     mfa_secret = Column(String(64), nullable=True)   # base32 TOTP secret (encrypted at rest recommended)
     # migration 090: staff avatar photo. Fixed S3 key (media_storage.upload_user_avatar),
     # presigned on read -- never store a URL directly, same convention as

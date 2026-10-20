@@ -292,6 +292,8 @@ def _notify(db: Session, inquiry: Inquiry, user_id: str, method: str) -> None:
             db, inquiry.tenant_id, title="New lead for you", body=f"{name}: {why}",
             url=f"/dashboard/leads/{inquiry.id}", tag=f"lead-{inquiry.id}", user_id=user_id,
         )
+        from app.services.lead_journey_tracker import record_notified
+        record_notified(db, inquiry, user_id, why)
     except Exception as exc:  # push is best-effort
         log.warning("lead_assign_push_failed", inquiry_id=inquiry.id, error=str(exc))
 

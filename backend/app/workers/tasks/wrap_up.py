@@ -221,6 +221,16 @@ def wrap_up(self, call_id: str, tenant_id: str, classification: dict = None, jud
         if call.ai_disposition == CallDisposition.CALLBACK:
             _maybe_create_callback_requested_task(db, tenant_id, call)
 
+        # Lead workflows: a call that turns out to be unanswered (voicemail, no answer) gets its missed-call / no-answer
+        # WhatsApp now if ingest could not tell (the run's unique key makes a second trigger a no-op).
+        try:
+            from app.services.lead_playbook_engine import playbook_for_call
+            if playbook_for_call(call):
+                from app.workers.tasks.lead_playbooks import queue_on_call
+                queue_on_call(call.tenant_id, call.id, countdown=5)
+        except Exception as _pb_exc:  # noqa: BLE001
+            log.warning("playbook_requeue_failed", call_id=call.id, error=str(_pb_exc)[:200])
+
         log.info("wrap_up_done", call_id=call_id, disposition=disposition_str,
                  **stamp("call_wrap_up", model=result.get("model")))
 

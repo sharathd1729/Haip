@@ -33,6 +33,13 @@ class GuestEventType:
     AUTOMATION_EXECUTED = "automation.executed"
     AI_SUMMARY_UPDATED  = "ai.summary_updated"
 
+    # Lead workflows (lead_journey_tracker, lead_playbook_engine)
+    LEAD_NOTIFIED      = "lead.notified"
+    LEAD_VIEWED        = "lead.viewed"
+    LEAD_OUTCOME       = "lead.outcome"
+    CALL_ATTEMPTED     = "call.attempted"
+    PLAYBOOK_FIRED     = "playbook.fired"
+
 
 class SourceModule:
     """Which module produced the event — used for per-module filtering."""
@@ -43,6 +50,7 @@ class SourceModule:
     AUTOMATION = "automation"
     AI         = "ai"
     SYSTEM     = "system"
+    WORKFLOWS  = "workflows"
 
 
 # ── I/O schemas ───────────────────────────────────────────────────────────────
