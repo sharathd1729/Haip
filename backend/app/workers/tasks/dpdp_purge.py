@@ -1,106 +1,72 @@
 """
-DPDP purge task — daily at 02:00 IST.
-Hard-deletes guests tombstoned past their grace window and purges revoked refresh tokens.
+DPDP erasure job (daily 02:00 IST, beat "dpdp-purge-daily", task "tasks.dpdp_purge", queue call_ingest).
+
+Fulfils right-to-erasure requests whose 30-day grace period has passed (dpdp_erasure_service): everything HAIP holds about
+the guest is erased, one workspace per transaction (an audit chain is per tenant), each request on its own savepoint so one
+failure never blocks the others, then the stored files (recordings, media) are deleted. Also removes revoked login refresh
+tokens older than 90 days.
+
+Off until the owner switches it on: with DPDP_ERASURE_ENABLED false (the default) it only REPORTS -- how many requests are
+pending and due per workspace, and how many old revoked tokens there are -- and writes nothing. Before switching it on, run
+scripts/dpdp_erasure_report.py on production to see exactly what the first run will erase.
 """
-import boto3
-from datetime import datetime, timezone, timedelta
-from app.workers.celery_app import celery_app
-from app.core.database import SessionLocal
-from app.models.guest import Guest
-from app.models.user import RefreshToken
-from app.core.config import settings
-from app.core.audit import append_audit
+from datetime import datetime, timedelta, timezone
+
 import structlog
+
+from app.core.config import settings
+from app.core.database import SessionLocal, set_tenant_context
+from app.workers.celery_app import celery_app
 
 log = structlog.get_logger()
 
-GRACE_DAYS = 90          # 90-day right-to-erasure window
-TOKEN_PURGE_DAYS = 90    # purge revoked tokens after 90 days
+TOKEN_PURGE_DAYS = 90    # revoked refresh tokens are removed after 90 days
 
 
 @celery_app.task(name="tasks.dpdp_purge")
-def dpdp_purge():
-    """
-    Daily DPDP compliance purge:
-      1. Hard-delete soft-deleted guests older than GRACE_DAYS.
-      2. Hard-delete revoked refresh tokens older than TOKEN_PURGE_DAYS.
-    """
-    from app.core.database import set_tenant_context
+def dpdp_purge() -> dict:
     from app.models.tenant import Tenant
-    from sqlalchemy import text
+    from app.models.user import RefreshToken
+    from app.services import dpdp_erasure_service as erasure
 
+    apply = bool(getattr(settings, "DPDP_ERASURE_ENABLED", False))
+    stats: dict = {"applied": apply, "tenants": {}, "tokens": 0}
     db = SessionLocal()
     try:
-        stats: dict = {"guests_purged": 0, "tokens_purged": 0}
-        guest_cutoff = (datetime.now(timezone.utc) - timedelta(days=GRACE_DAYS)).isoformat()
-
-        # ── 1. Hard-delete tombstoned guests (process per-tenant for RLS) ─────
-        # First discover which tenants have guests to purge using a raw query
-        # (bypasses ORM-level RLS, safe because this is a superuser maintenance task
-        # and we immediately validate with per-tenant context below)
-        tenant_rows = db.execute(
-            text(
-                "SELECT DISTINCT tenant_id FROM guests "
-                "WHERE is_deleted = TRUE AND deleted_at <= :cutoff"
-            ),
-            {"cutoff": guest_cutoff},
-        ).fetchall()
-
-        for (tenant_id_val,) in tenant_rows:
-            set_tenant_context(db, str(tenant_id_val))
-            to_purge = (
-                db.query(Guest)
-                .filter(
-                    Guest.is_deleted == True,
-                    Guest.deleted_at <= guest_cutoff,
-                )
-                .all()
-            )
-            for guest in to_purge:
-                _purge_s3(guest.tenant_id, guest.id)
-                append_audit(
-                    db,
-                    tenant_id=guest.tenant_id,
-                    action="dpdp.purge_complete",
-                    target_type="guest",
-                    target_id=guest.id,
-                    payload={"phone_prefix": guest.phone[:8] if guest.phone else None},
-                )
-                db.delete(guest)
-                stats["guests_purged"] += 1
-
-        # ── 2. Hard-delete revoked refresh tokens (not tenant-scoped) ────────
-        token_cutoff = datetime.now(timezone.utc) - timedelta(days=TOKEN_PURGE_DAYS)
-        deleted_tokens = (
-            db.query(RefreshToken)
-            .filter(
-                RefreshToken.is_revoked == True,
-                RefreshToken.created_at <= token_cutoff.isoformat(),
-            )
-            .delete(synchronize_session=False)
-        )
-        stats["tokens_purged"] = deleted_tokens
-
-        db.commit()
-        log.info("dpdp_purge_complete", **stats)
+        tenant_ids = [t for (t,) in db.query(Tenant.id).all()]
     finally:
         db.close()
 
+    for tenant_id in tenant_ids:
+        db = SessionLocal()
+        try:
+            set_tenant_context(db, str(tenant_id))
+            out = erasure.run_tenant(db, str(tenant_id), apply=apply)
+            if out["pending"]:
+                stats["tenants"][str(tenant_id)] = {k: out[k] for k in ("pending", "due", "erased", "failed", "files")}
+        except Exception as exc:  # noqa: BLE001 -- one workspace failing must not stop the others
+            db.rollback()
+            log.error("dpdp_erasure_tenant_failed", tenant_id=tenant_id, error=str(exc)[:300])
+        finally:
+            db.close()
 
-def _purge_s3(tenant_id: str, guest_id: str):
-    """Delete all S3 objects under tenant/<tid>/guest/<gid>/."""
+    db = SessionLocal()
     try:
-        s3 = boto3.client(
-            "s3",
-            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-            region_name=settings.AWS_REGION,
-        )
-        prefix = f"{tenant_id}/guest/{guest_id}/"
-        paginator = s3.get_paginator("list_objects_v2")
-        for page in paginator.paginate(Bucket=settings.S3_BUCKET_NAME, Prefix=prefix):
-            objects = [{"Key": o["Key"]} for o in page.get("Contents", [])]
-            if objects:
-                s3.delete_objects(Bucket=settings.S3_BUCKET_NAME, Delete={"Objects": objects})
-    except Exception as e:
-        log.warning("s3_purge_failed", tenant_id=tenant_id, guest_id=guest_id, error=str(e))
+        cutoff = datetime.now(timezone.utc) - timedelta(days=TOKEN_PURGE_DAYS)
+        q = db.query(RefreshToken).filter(RefreshToken.is_revoked.is_(True), RefreshToken.created_at <= cutoff.isoformat())
+        if apply:
+            stats["tokens"] = q.delete(synchronize_session=False)
+            db.commit()
+        else:
+            stats["tokens"] = q.count()
+    finally:
+        db.close()
+
+    due = sum(t["due"] for t in stats["tenants"].values())
+    if apply:
+        log.info("dpdp_erasure_run", **{k: v for k, v in stats.items() if k != "tenants"},
+                 erased=sum(t["erased"] for t in stats["tenants"].values()), due=due)
+    elif due:
+        log.warning("dpdp_erasure_due_but_disabled", due=due, tenants=len(stats["tenants"]),
+                    hint="set DPDP_ERASURE_ENABLED=true after checking scripts/dpdp_erasure_report.py")
+    return stats

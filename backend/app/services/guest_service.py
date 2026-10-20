@@ -154,55 +154,9 @@ def get_timeline(db: Session, tenant_id: str, guest_id: str) -> dict:
 
 
 def dpdp_delete(db: Session, tenant_id: str, guest_id: str) -> dict:
-    """
-    DPDP deletion: hard-delete all PII-bearing rows, tombstone the guest.
-    Caller must commit after this returns.
-    """
-    # Hard-delete child data
-    conv_ids = [c.id for c in db.query(Conversation.id).filter_by(tenant_id=tenant_id, guest_id=guest_id)]
-    if conv_ids:
-        db.query(Message).filter(Message.conversation_id.in_(conv_ids)).delete(synchronize_session=False)
-    db.query(Conversation).filter_by(tenant_id=tenant_id, guest_id=guest_id).delete()
-
-    call_ids = [c.id for c in db.query(Call.id).filter_by(tenant_id=tenant_id, guest_id=guest_id)]
-    if call_ids:
-        db.query(Transcript).filter(Transcript.call_id.in_(call_ids)).delete(synchronize_session=False)
-        db.query(CallScore).filter(CallScore.call_id.in_(call_ids)).delete(synchronize_session=False)
-    db.query(Call).filter_by(tenant_id=tenant_id, guest_id=guest_id).delete()
-
-    db.query(Inquiry).filter_by(tenant_id=tenant_id, guest_id=guest_id).delete()
-    # Money and add-on lines hang off the stay; they carry payer references and
-    # notes, so they go with it (the DB cascade is a backstop, not the plan).
-    from app.models.stay_finance import (
-        StayAddOn, StayDeposit, StayInstalment, StayPayment, StayPaymentLink, StayServiceRequest,
-    )
-    stay_ids = [x.id for x in db.query(Stay.id).filter_by(tenant_id=tenant_id, guest_id=guest_id)]
-    if stay_ids:
-        for model in (StayAddOn, StayPayment, StayPaymentLink, StayInstalment, StayDeposit, StayServiceRequest):
-            db.query(model).filter(model.tenant_id == tenant_id, model.stay_id.in_(stay_ids)).delete(synchronize_session=False)
-        # Issued invoices are tax records the business must keep (GST: 72 months), so they are detached from the
-        # booking, not deleted. They keep the buyer snapshot taken at issue time. Owner/legal to confirm (CLAUDE.md).
-        from app.models.invoice import Invoice
-        db.query(Invoice).filter(Invoice.tenant_id == tenant_id, Invoice.stay_id.in_(stay_ids)).update(
-            {Invoice.stay_id: None}, synchronize_session=False)
-    db.query(Stay).filter_by(tenant_id=tenant_id, guest_id=guest_id).delete()
-    db.query(Consent).filter_by(tenant_id=tenant_id, guest_id=guest_id).delete()
-
-    # guest_events carries message previews and AI summaries — PII-bearing, so
-    # it must be purged here like every other child table. Missing it would
-    # leave a readable copy of the guest's conversation behind after a DPDP
-    # deletion request.
-    from app.models.guest_event import GuestEvent
-    db.query(GuestEvent).filter_by(tenant_id=tenant_id, guest_id=guest_id).delete()
-
-    # Tombstone guest — anonymise PII, keep id for audit referential integrity
-    guest = db.query(Guest).filter_by(id=guest_id, tenant_id=tenant_id).first()
-    if guest:
-        guest.phone = f"DELETED_{guest_id[:8]}"
-        guest.email = None
-        guest.name = "[Deleted]"
-        guest.is_deleted = True
-        guest.deleted_at = datetime.now(timezone.utc)
-
-    log.info("dpdp_deletion_completed", tenant_id=tenant_id, guest_id=guest_id)
-    return {"status": "deleted", "guest_id": guest_id}
+    """DPDP deletion of one guest: everything HAIP holds about the person is erased and the guest row is tombstoned
+    (dpdp_erasure_service.erase_guest has the full list). Caller must commit after this returns; stored files
+    (recordings, media) are deleted after the commit via media_storage.delete_tenant_objects(tenant_id, result["files"])."""
+    from app.services.dpdp_erasure_service import erase_guest
+    result = erase_guest(db, tenant_id, guest_id)
+    return {"status": "deleted", "guest_id": guest_id, "rows": result["rows"], "files": result["files"]}

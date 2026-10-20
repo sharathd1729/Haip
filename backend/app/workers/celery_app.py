@@ -26,7 +26,6 @@ celery_app = Celery(
         "app.workers.tasks.concierge_draft",
         "app.workers.tasks.rewrite_draft",
         "app.workers.tasks.send_whatsapp",
-        "app.workers.tasks.lost_reason_cluster",
         "app.workers.tasks.dpdp_purge",
         # Instagram
         "app.workers.tasks.process_instagram_dm",
@@ -41,7 +40,6 @@ celery_app = Celery(
         "app.workers.tasks.retention_purge",
         "app.workers.tasks.meta_quality_poll",
         # A7: owner daily digest
-        "app.workers.tasks.owner_digest",
         # Phase 1: AI Insights Engine
         "app.workers.tasks.run_insights",
         # Phase 3: Intent classification
@@ -143,7 +141,6 @@ celery_app.conf.update(
         "app.workers.tasks.sync_wa_templates.*":    {"queue": "whatsapp"},
         "app.workers.tasks.automation_engine.*":    {"queue": "whatsapp"},
         "app.workers.tasks.check_automation_timers.*": {"queue": "whatsapp"},
-        "app.workers.tasks.lost_reason_cluster.*":  {"queue": "ai_scoring"},
         "app.workers.tasks.dpdp_purge.*":           {"queue": "call_ingest"},
         "app.workers.tasks.process_instagram_dm.*": {"queue": "whatsapp"},
         "app.workers.tasks.send_instagram_dm.*":    {"queue": "whatsapp"},
@@ -193,6 +190,8 @@ celery_app.conf.update(
         "tasks.classify":                            {"queue": "ai_scoring"},
         "tasks.concierge_draft":                     {"queue": "whatsapp"},
         "tasks.dpdp_purge":                          {"queue": "call_ingest"},
+        # Nightly intent tags from the stated occasion (keyword matching, no LLM; owner OK 20 Oct 2026).
+        "app.workers.tasks.classify_intent.run":     {"queue": "default"},
         "tasks.judge":                                {"queue": "ai_scoring"},
         "tasks.run_campaign":                        {"queue": "whatsapp"},
         "tasks.launch_due_campaigns":                {"queue": "whatsapp"},
@@ -228,16 +227,12 @@ celery_app.conf.update(
         "instagram_token.refresh_all_tenants":       {"queue": "whatsapp"},
         "instagram_token.refresh_tenant":            {"queue": "whatsapp"},
         "instagram_insights.poll_all_tenants":       {"queue": "whatsapp"},
-        "owner_digest.orchestrate":                  {"queue": "ai_scoring"},
         # Registered under short names, so the "app.workers.tasks.<module>.*" globs above never
         # matched them and they fell into the unconsumed "celery" queue. The inbox "rewrite"
         # buttons enqueue the first two on every click; the last three are only reached from
         # beat entries that are not wired up yet (see tests/test_celery_task_routing.py).
         "tasks.rewrite_draft":                       {"queue": "whatsapp"},
         "tasks.composer_rewrite":                    {"queue": "whatsapp"},
-        "lost_reason_cluster.nightly":               {"queue": "ai_scoring"},
-        "lost_reason_cluster.full_refit":            {"queue": "ai_scoring"},
-        "owner_digest":                              {"queue": "ai_scoring"},
         "retention.nightly_purge":                   {"queue": "call_ingest"},
         "call_ingest.fetch_recording":                {"queue": "call_ingest"},
         "dograh.process_call_completed":              {"queue": "call_ingest"},
@@ -384,12 +379,8 @@ celery_app.conf.beat_schedule = {
         "task": "tasks.launch_due_campaigns",
         "schedule": 60.0,
     },
-    "lost-reason-cluster-weekly": {
-        "task": "app.workers.tasks.lost_reason_cluster.run",
-        "schedule": crontab(hour=23, minute=0, day_of_week=0),
-    },
     "dpdp-purge-daily": {
-        "task": "app.workers.tasks.dpdp_purge.run",
+        "task": "tasks.dpdp_purge",
         "schedule": crontab(hour=2, minute=0),
     },
     "retention-purge-nightly": {
@@ -409,10 +400,6 @@ celery_app.conf.beat_schedule = {
         # Offset from automation-timers-30min (both were firing at :00/:30
         # simultaneously) to spread DB load across the beat cycle.
         "schedule": crontab(minute="5,35"),
-    },
-    "meta-quality-hourly": {
-        "task": "app.workers.tasks.meta_quality_poll.poll_all_tenants",
-        "schedule": crontab(minute=15),
     },
     # 03:00 IST. Meta finalises the previous day overnight; each run re-reads the last 7 days.
     "meta-ads-sync-daily": {
@@ -451,10 +438,6 @@ celery_app.conf.beat_schedule = {
     "sync-hostaway-hourly": {
         "task": "app.workers.tasks.sync_all_pms.sync_hostaway_all_tenants",
         "schedule": crontab(minute=10),
-    },
-    "owner-digest-hourly": {
-        "task": "app.workers.tasks.owner_digest.orchestrate",
-        "schedule": crontab(minute=0),
     },
     "lead-assignment-5min": {
         "task": "lead_assignment.tick",
