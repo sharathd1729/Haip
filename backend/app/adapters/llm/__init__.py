@@ -148,6 +148,10 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # Public property assessment (HAIP's own website): a short write-up that may only restate numbers the engine
     # already computed (assessment_narrative.py rejects any other number). Not guest-facing, same tier as the above.
     "assessment_narrative": ("nvidia", "openai/gpt-oss-20b"),
+    # Lead follow-up draft (lead_followup_draft.py, lead workflows P5/P6 in "drafts" mode): one short WhatsApp follow-up a
+    # PERSON approves before it is sent; a price in the reply is rejected and replaced by fixed wording. Same tier as
+    # concierge_rewrite (short text, no tools), with the Gemini fallback below.
+    "lead_followup_draft": ("nvidia", "openai/gpt-oss-20b"),
 }
 
 
@@ -168,6 +172,7 @@ _GEMINI_FALLBACK_TASKS: dict[str, float] = {
     "agent_leads_feedback":        60,
     "deep_reason":                 120,   # judge's low-confidence re-score
     "assessment_narrative":        60,
+    "lead_followup_draft":         40,
 }
 
 

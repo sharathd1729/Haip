@@ -8,6 +8,9 @@
   lead_journey.sweep_tenant         refresh the journey milestones of recent enquiries
   lead_alerts.tick_all_tenants      beat, every 2 minutes: fan out lead_alerts.tick_tenant
   lead_alerts.tick_tenant           team alerts (P3/P4): climb the ladder for items waiting in My day
+  lead_followups.sweep_all_tenants  beat, every 15 minutes: fan out lead_followups.sweep_tenant
+  lead_followups.sweep_tenant       start follow-up runs (P5 shared quotes, P6 quiet leads, P8 lost leads)
+  lead_playbooks.draft_followup     one AI follow-up draft (LLM, queue ai_scoring); never retried, the fixed wording is the fallback
 
 All on exact-name routes (celery_app.py): the playbook tasks on "whatsapp" (they queue WhatsApp sends), the sweep on
 "default". None of them retries a step that may already have sent a message.
@@ -127,4 +130,48 @@ def alerts_tick_all_tenants() -> dict:
         db.close()
     for tid in tenant_ids:
         alerts_tick_tenant.delay(tid)
+    return {"tenants_queued": len(tenant_ids)}
+
+
+def queue_draft(tenant_id: str, run_id: str, step: str, conversation_id: str, fallback_text: str) -> None:
+    draft_followup.apply_async(kwargs={"tenant_id": tenant_id, "run_id": run_id, "step": step,
+                                       "conversation_id": conversation_id, "fallback_text": fallback_text})
+
+
+@shared_task(name="lead_playbooks.draft_followup")
+def draft_followup(tenant_id: str, run_id: str, step: str, conversation_id: str, fallback_text: str) -> dict:
+    from app.services import lead_followup_service
+    db = SessionLocal()
+    try:
+        set_tenant_context(db, tenant_id)
+        return {"message_id": lead_followup_service.make_draft(db, tenant_id, run_id, step, conversation_id, fallback_text)}
+    finally:
+        db.close()
+
+
+@shared_task(name="lead_followups.sweep_tenant")
+def followups_sweep_tenant(tenant_id: str) -> dict:
+    from app.services import lead_followup_service
+    db = SessionLocal()
+    try:
+        set_tenant_context(db, tenant_id)
+        tenant = db.query(Tenant).filter_by(id=tenant_id).first()
+        return lead_followup_service.sweep_tenant(db, tenant) if tenant else {"status": "no_tenant"}
+    finally:
+        db.close()
+
+
+@shared_task(name="lead_followups.sweep_all_tenants")
+def followups_sweep_all_tenants() -> dict:
+    """Only workspaces with a follow-up playbook switched on."""
+    from app.services import lead_playbook_catalog as cat
+    from app.services import lead_playbook_settings as pb_settings
+    db = SessionLocal()
+    try:
+        tenant_ids = [t.id for t in db.query(Tenant).filter(Tenant.is_active.is_(True)).all()
+                      if any(pb_settings.playbook(t, key)["active"] for key in cat.FOLLOWUP_PLAYBOOKS)]
+    finally:
+        db.close()
+    for tid in tenant_ids:
+        followups_sweep_tenant.delay(tid)
     return {"tenants_queued": len(tenant_ids)}

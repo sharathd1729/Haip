@@ -108,6 +108,19 @@ def get_inquiry(
     return inq
 
 
+def _require_lost_reason(db: Session, tenant_id: str, updates: dict) -> None:
+    """A person marking a lead Lost must say why (lead workflows phase 3): the lost reasons feed the reports and the
+    win-back playbook. The lead autopilot and the services supply their own reason and do not come through here."""
+    target_lost = False
+    if updates.get("stage_id"):
+        from app.models.pipeline_stage import PipelineStage
+        target_lost = bool(db.query(PipelineStage.is_closed_lost).filter_by(id=updates["stage_id"], tenant_id=tenant_id).scalar())
+    elif updates.get("stage"):
+        target_lost = str(updates["stage"]).lower() == InquiryStage.LOST.value
+    if target_lost and not updates.get("lost_reason"):
+        raise HTTPException(status_code=422, detail="Choose why the lead was lost: open the lead and use Mark Lost.")
+
+
 @router.patch("/{inquiry_id}", response_model=InquiryOut)
 def update_inquiry(
     inquiry_id: str,
@@ -129,6 +142,7 @@ def update_inquiry(
     # migrated over. Both share the same actor-role/reason backward-move
     # guardrails, just against different underlying data.
     actor_role = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    _require_lost_reason(db, current_user.tenant_id, updates)
     if "stage_id" in updates:
         try:
             update_stage_by_id(

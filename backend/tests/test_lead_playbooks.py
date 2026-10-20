@@ -355,7 +355,7 @@ def test_stop_runs_and_settings_validation(db, tenant_and_user):
     assert run.status == "stopped"
     tenant = db.query(Tenant).filter_by(id=tid).first()
     with pytest.raises(ValueError):
-        pb_settings.update(db, tenant, None, {"playbooks": {cat.PROPOSAL_FOLLOWUP: {"enabled": True}}})
+        pb_settings.update(db, tenant, None, {"playbooks": {cat.PROPOSAL_FOLLOWUP: {"mode": "loud"}}})
     with pytest.raises(ValueError):
         pb_settings.update(db, tenant, None, {"playbooks": {cat.MISSED_INBOUND_CALL: {"delay_seconds": 5}}})
     changes = pb_settings.update(db, tenant, None, {"playbooks": {cat.MISSED_INBOUND_CALL: {"enabled": True}}})

@@ -17,7 +17,7 @@ PROPOSAL_FOLLOWUP = "proposal_followup"
 QUIET_LEAD_NURTURE = "quiet_lead_nurture"
 LOST_REENGAGE = "lost_reengage"
 
-FOLLOWUP_MODES = ("off", "tasks", "drafts", "autopilot")
+FOLLOWUP_MODES = ("tasks", "drafts", "autopilot")      # "off" is the playbook's own switch
 
 CATALOG: list[dict] = [
     {
@@ -73,31 +73,34 @@ CATALOG: list[dict] = [
         "defaults": {"enabled": False},
     },
     {
-        "key": PROPOSAL_FOLLOWUP, "code": "P5", "built": False, "kind": "followup",
+        "key": PROPOSAL_FOLLOWUP, "code": "P5", "built": True, "kind": "followup",
         "name": "Proposal follow-up",
         "trigger": "A quote is shared with the guest.",
-        "actions": ["6 h no reply: nudge", "Day 3: call task", "Day 7: final message", "Day 8: decide won or lost"],
+        "actions": ["6 h with no reply: a follow-up (a task, an AI draft to approve, or sent automatically, by mode)",
+                    "Day 3: a call task for the lead's owner", "Day 7: a last-call message (valid until ...)",
+                    "Day 8: a task to decide won or lost (with the reason)"],
         "stops": "The guest replies, books, or the lead is lost or paused.",
         "template": "haip_quote_followup_v1",
         "defaults": {"enabled": False, "mode": "drafts"},
     },
     {
-        "key": QUIET_LEAD_NURTURE, "code": "P6", "built": False, "kind": "followup",
+        "key": QUIET_LEAD_NURTURE, "code": "P6", "built": True, "kind": "followup",
         "name": "Quiet lead follow-up",
         "trigger": "We wrote last and the guest has been quiet for a day (no quote yet).",
-        "actions": ["Day 1: task or draft", "Day 3: check-in message", "Day 7: final message, then decide"],
+        "actions": ["Day 1: a follow-up (a task, an AI draft to approve, or sent automatically, by mode)",
+                    "Day 3: a check-in message", "Day 7: a task to decide: still interested, or lost (with the reason)"],
         "stops": "The guest replies or the lead is closed.",
         "template": "haip_checkin_v1",
         "defaults": {"enabled": False, "mode": "drafts"},
     },
     {
-        "key": LOST_REENGAGE, "code": "P8", "built": False, "kind": "followup",
+        "key": LOST_REENGAGE, "code": "P8", "built": True, "kind": "followup",
         "name": "Win back lost leads",
         "trigger": "45 days after a lead was lost, only if the guest agreed to offers.",
-        "actions": ["One offer message, at most every 90 days"],
+        "actions": ["One offer message (a MARKETING template), at most every 90 days per guest"],
         "stops": "Any reply or a new enquiry.",
         "template": "haip_reengage_v1",
-        "defaults": {"enabled": False, "mode": "off"},
+        "defaults": {"enabled": False, "mode": "autopilot"},
     },
 ]
 
@@ -113,5 +116,7 @@ WORKSPACE_DEFAULTS = {"enabled": True, "guest_cap_hours": 4, "daily_cap": 150, "
                       # Team alerts (P3/P4/P7): WhatsApp to staff who opted in, held during quiet hours (local time) and
                       # sent as one morning summary instead.
                       "staff_whatsapp": True, "quiet_start_hour": 22, "quiet_end_hour": 8}
+
+FOLLOWUP_PLAYBOOKS = (PROPOSAL_FOLLOWUP, QUIET_LEAD_NURTURE, LOST_REENGAGE)
 
 ALERT_PLAYBOOKS = {NEW_LEAD_ALERT: ("new_lead",), SLA_ESCALATION: ("reply", "callback")}
