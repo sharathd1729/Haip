@@ -5,7 +5,8 @@ Texts come from the approved mock-up (docs/design/bookings-mockup/quotes.html, T
 send, after the fixed "https://rzp.io/". Document headers carry this guest's invoice or quote, attached per send.
 
 ``create_drafts`` only adds DRAFT rows to wa_templates. Nothing here talks to Meta: the owner opens each draft in the
-template editor, uploads a sample PDF for document headers (Meta's review needs one) and submits it.
+template editor and submits it; a document header with no sample gets a generated sample PDF on Submit
+(wa_template_sample_doc; Meta's review needs one).
 """
 from __future__ import annotations
 
