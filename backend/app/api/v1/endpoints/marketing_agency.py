@@ -139,7 +139,7 @@ def _attempts(db: Session, tenant_id: str, item_id: str) -> list[dict]:
     rows = (db.query(MarketingPublishAttempt).filter_by(tenant_id=tenant_id, content_id=item_id)
             .order_by(MarketingPublishAttempt.created_at.desc()).all())
     return [{"id": a.id, "version_id": a.version_id, "status": a.status, "scheduled_for": a.scheduled_for, "tries": a.tries,
-             "permalink": a.permalink, "error": a.error, "published_at": a.published_at} for a in rows]
+             "permalink": a.permalink, "error": a.error, "published_at": a.published_at, "channel": a.channel} for a in rows]
 
 
 @router.get("/content/{item_id}/publishing")
@@ -149,15 +149,25 @@ def publishing(item_id: str, user: User = Depends(get_current_user), db: Session
         item = svc.get_item(db, user.tenant_id, item_id)
     except svc.MarketingError as exc:
         raise _err(exc)
+    from app.services import marketing_ai_service as ai
+    from app.services import marketing_channels as channels
     tenant = _tenant(db, user)
-    problems, notes = ([], [])
+    targets = channels.targets_of(item)
+    problems, notes, previews = [], [], {}
     if item.status in ("approved", "scheduled"):
         try:
-            problems, notes = pub.preflight(db, user.tenant_id, item, svc.approved_payload(db, user.tenant_id, item.id))
+            payload = svc.approved_payload(db, user.tenant_id, item.id)
+            for c in targets:
+                p_, n_ = pub.preflight(db, user.tenant_id, item, payload, c)
+                problems += [f"{channels.LABEL[c]}: {x}" if c != "instagram" else x for x in p_]
+                notes += [f"{channels.LABEL[c]}: {x}" if c != "instagram" else x for x in n_]
+                previews[c] = channels.preview(item.kind, payload, ai.get_profile(tenant), c)
         except svc.MarketingError as exc:
             problems = [exc.message]
-    return {"status": item.status, "publish_level": agency.level(tenant, "publish"), "problems": problems, "notes": notes,
-            "suggested_time": pub.suggest_time(db, tenant).isoformat(), "attempts": _attempts(db, user.tenant_id, item.id)}
+    return {"status": item.status, "publish_level": agency.level(tenant, "publish"), "problems": sorted(set(problems)),
+            "notes": notes, "targets": targets, "available_channels": list(channels.channels_for(item.kind)),
+            "previews": previews, "suggested_time": pub.suggest_time(db, tenant).isoformat(),
+            "attempts": _attempts(db, user.tenant_id, item.id)}
 
 
 @router.post("/content/{item_id}/schedule")
@@ -166,11 +176,12 @@ def schedule(item_id: str, body: ScheduleIn = ScheduleIn(), user: User = Depends
     from app.services import marketing_publish_service as pub
     tenant = _tenant(db, user)
     try:
-        attempt = pub.schedule(db, tenant, item_id, body.scheduled_for or pub.suggest_time(db, tenant), user.id)
+        attempts = pub.schedule_all(db, tenant, item_id, body.scheduled_for or pub.suggest_time(db, tenant), user.id)
     except svc.MarketingError as exc:
         raise _err(exc)
     db.commit()
-    return {"status": attempt.status, "scheduled_for": attempt.scheduled_for}
+    return {"status": attempts[0].status, "scheduled_for": attempts[0].scheduled_for,
+            "channels": [a.channel for a in attempts]}
 
 
 @router.post("/content/{item_id}/unschedule")

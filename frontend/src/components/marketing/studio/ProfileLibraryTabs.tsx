@@ -9,6 +9,7 @@ import { STUDIO, btn, btnPrimary, inputCls, studioError, type Asset } from "./ty
 import { AiImagesPanel } from "./AiImagesPanel";
 import { BrandDraftPanel, ClaimsEditor, PhotoTagsRow, TaggingBar, type Claim } from "./BrainPanels";
 import { CreativePanel } from "./CreativePanel";
+import { ChannelsPanel } from "./ChannelsReviews";
 import { useSession } from "next-auth/react";
 
 interface VoiceTrait { trait: string; we_are: string; we_are_not: string; sounds_like: string | null; not_like: string | null }
@@ -200,6 +201,7 @@ export function LibraryTab() {
         <button type="button" className={btnPrimary} disabled={upload.isPending} onClick={() => file.current?.click()}>{upload.isPending ? "Uploading…" : "Upload photo"}</button>
       </div>
       <TaggingBar />
+      <ChannelsPanel />
       <CreativePanel photos={assets.data ?? []} />
       <AiImagesPanel />
       {render && (

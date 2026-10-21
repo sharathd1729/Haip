@@ -16,6 +16,7 @@ class MarketingAudit(Base, TimestampMixin):
     id = Column(String, primary_key=True, default=gen_uuid)
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
     channel = Column(String(20), nullable=False, default="instagram")
+    targets = Column(JSON, nullable=True)            # channels to publish to (agency M3); None = ["instagram"]
     measured = Column(JSON, nullable=False)          # provider numbers, with source + captured_at; never AI-written
     assessment = Column(JSON, nullable=True)         # AuditAssessment; AI-written, labelled as such
     status = Column(String(20), nullable=False, default="pending")   # pending | ready | failed
@@ -239,6 +240,7 @@ class MarketingPublishAttempt(Base, TimestampMixin):
     sha256 = Column(String(64), nullable=False)
     scheduled_for = Column(DateTime(timezone=True), nullable=False)
     status = Column(String(20), nullable=False, default="scheduled")   # scheduled|publishing|published|failed|cancelled
+    channel = Column(String(20), nullable=False, default="instagram")  # instagram | facebook | google (agency M3)
     container_ids = Column(JSON, nullable=True)
     media_ids = Column(JSON, nullable=True)
     permalink = Column(Text, nullable=True)
@@ -247,7 +249,7 @@ class MarketingPublishAttempt(Base, TimestampMixin):
     scheduled_by = Column(String, nullable=True)
     published_at = Column(DateTime(timezone=True), nullable=True)
 
-    __table_args__ = (UniqueConstraint("content_id", "version_id", name="uq_marketing_publish_attempts_version"),
+    __table_args__ = (UniqueConstraint("content_id", "version_id", "channel", name="uq_marketing_publish_attempts_channel"),
                       Index("ix_marketing_publish_attempts_due", "status", "scheduled_for"))
 
 
@@ -295,3 +297,31 @@ class MarketingCreativeJob(Base, TimestampMixin):
     asset_id = Column(String, nullable=True)
     polls = Column(Integer, nullable=False, default=0)
     created_by = Column(String, nullable=True)
+
+
+class MarketingGuestReview(Base, TimestampMixin):
+    """A public guest review (Google Business Profile today) and HAIP's reply to it (agency M3).
+
+    The review text is untrusted input. A reply is drafted by AI or a person, approved by someone with
+    marketing.approve, then posted; `reply_posted` is what Google shows. Unique per (tenant, source, external_id)."""
+    __tablename__ = "marketing_guest_reviews"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    source = Column(String(20), nullable=False, default="google")
+    external_id = Column(String(300), nullable=False)
+    location = Column(String(200), nullable=True)
+    rating = Column(Integer, nullable=True)
+    reviewer = Column(String(200), nullable=True)
+    comment = Column(Text, nullable=True)
+    reviewed_at = Column(String(40), nullable=True)
+    reply_status = Column(String(20), nullable=False, default="none")   # none | drafting | draft | approved | posted | failed
+    reply_draft = Column(Text, nullable=True)
+    reply_origin = Column(String(10), nullable=True)                    # ai | human
+    reply_posted = Column(Text, nullable=True)
+    reply_error = Column(Text, nullable=True)
+    drafted_by = Column(String, nullable=True)
+    approved_by = Column(String, nullable=True)
+    posted_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (UniqueConstraint("tenant_id", "source", "external_id", name="uq_marketing_guest_reviews_ext"),)

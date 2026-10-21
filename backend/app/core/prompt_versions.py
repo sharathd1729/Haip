@@ -158,6 +158,8 @@ PROMPT_VERSIONS: dict[str, str] = {
     "marketing_review": "marketing-review-v1",
     # Brand DNA draft (marketing_brand_dna): voice/tone/claims SUGGESTED from the website, captions, property text.
     "marketing_brand_dna": "marketing-brand-dna-v1",
+    # Reply to a public Google review (marketing_guest_reviews): review text treated as data; a person posts it.
+    "marketing_review_reply": "marketing-review-reply-v1",
     # Fixed suffix appended to AI image prompts (marketing_image_service.PROMPT_SUFFIX).
     "marketing_image": "marketing-image-v1",
 }

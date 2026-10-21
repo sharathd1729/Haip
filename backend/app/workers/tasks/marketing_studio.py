@@ -229,6 +229,56 @@ def video_poll(tenant_id: str, job_id: str):
             video_poll.apply_async((tenant_id, job_id), countdown=video.POLL_SECONDS)
 
 
+# ── Google reviews (agency M3) ──────────────────────────────────────────────────────────────────────────────────────
+
+@shared_task(name="marketing_studio.draft_review_reply", bind=True, max_retries=MAX_RETRIES)
+def draft_review_reply(self, tenant_id: str, review_id: str):
+    from app.models.marketing import MarketingGuestReview
+    from app.models.tenant import Tenant
+    from app.services import marketing_ai_service as ai
+    from app.services import marketing_guest_reviews as reviews
+
+    with SessionLocal() as db:
+        try:
+            reviews.draft_ai(db, db.query(Tenant).filter_by(id=tenant_id).one(), review_id)
+            db.commit()
+        except ai.LLMTransientError as exc:
+            db.rollback()
+            if self.request.retries < MAX_RETRIES:
+                raise self.retry(exc=exc, countdown=BASE_COUNTDOWN * (2 ** self.request.retries))
+            row = db.query(MarketingGuestReview).filter_by(id=review_id, tenant_id=tenant_id).first()
+            if row is not None:
+                row.reply_status, row.reply_error = "failed", f"The AI service is unavailable right now ({exc})."
+            db.commit()
+
+
+@shared_task(name="marketing_reviews.sync_all")
+def reviews_sync_all():
+    """Hourly: one task per workspace with a connected Google Business Profile."""
+    from app.services import marketing_guest_reviews as reviews
+    with SessionLocal() as db:
+        ids = reviews.tenants_with_google(db)
+    for tid in ids:
+        reviews_sync_tenant.delay(tid)
+    return {"queued": len(ids)}
+
+
+@shared_task(name="marketing_reviews.sync_tenant")
+def reviews_sync_tenant(tenant_id: str):
+    from app.adapters.instagram.publishing import PublishError
+    from app.models.tenant import Tenant
+    from app.services import marketing_guest_reviews as reviews
+    with SessionLocal() as db:
+        try:
+            out = reviews.sync(db, db.query(Tenant).filter_by(id=tenant_id).one())
+            db.commit()
+            return out
+        except PublishError as exc:
+            db.rollback()
+            log.warning("marketing_reviews_sync_failed", tenant_id=tenant_id, error=str(exc)[:200])
+            return {"error": str(exc)[:200]}
+
+
 # ── Agency (plan phase A) ───────────────────────────────────────────────────────────────────────────────────────────
 
 @shared_task(name="marketing_agency.orchestrate")

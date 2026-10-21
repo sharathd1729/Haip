@@ -47,9 +47,12 @@ def _asset_ids(kind: str, payload: dict) -> list[Optional[str]]:
     return [f["asset_id"] for f in render.frames(kind, payload)]
 
 
-def preflight(db: Session, tenant_id: str, item: MarketingContent, payload: dict) -> tuple[list[str], list[str]]:
-    """(problems that block publishing, notes). Every slide or frame needs an approved library photo."""
-    problems, notes = [], []
+def preflight(db: Session, tenant_id: str, item: MarketingContent, payload: dict,
+              channel: str = "instagram") -> tuple[list[str], list[str]]:
+    """(problems that block publishing, notes). Every slide or frame needs an approved library photo; Facebook and
+    Google add their own rules (marketing_channels.problems)."""
+    from app.services import marketing_channels as channels
+    problems, notes = channels.problems(item.kind, payload, channel)
     ids = _asset_ids(item.kind, payload)
     if not ids or any(not a for a in ids):
         problems.append("Every slide or frame needs a photo from the library before it can be posted.")
@@ -87,14 +90,32 @@ def suggest_time(db: Session, tenant: Tenant, day: Optional[date] = None) -> dat
     return when if when > now else now + timedelta(minutes=10)
 
 
-def schedule(db: Session, tenant: Tenant, item_id: str, when: datetime, actor_id: str) -> MarketingPublishAttempt:
+def schedule_all(db: Session, tenant: Tenant, item_id: str, when: datetime, actor_id: str) -> list[MarketingPublishAttempt]:
+    """Schedule the approved version on every channel the item targets (marketing_channels.targets_of). All or none:
+    if any channel has a blocking problem, nothing is scheduled and every problem is listed with its channel."""
+    from app.services import marketing_channels as channels
+    item = content_svc.get_item(db, tenant.id, item_id)
+    targets = channels.targets_of(item)
+    if item.status == "approved":
+        payload = content_svc.approved_payload(db, tenant.id, item.id)
+        bad = [f"{channels.LABEL[c]}: {p}" for c in targets for p in preflight(db, tenant.id, item, payload, c)[0]]
+        if bad:
+            raise MarketingError(422, "not_publishable", "This can't be posted yet.", sorted(set(bad)))
+    return [schedule(db, tenant, item.id, when, actor_id, channel=c, _checked=True) for c in targets]
+
+
+def schedule(db: Session, tenant: Tenant, item_id: str, when: datetime, actor_id: str, *, channel: str = "instagram",
+             _checked: bool = False) -> MarketingPublishAttempt:
+    from app.services import marketing_channels as channels
     if agency.level(tenant, "publish") == "off":
         raise MarketingError(409, "publishing_off", "Publishing is switched off for this workspace.")
     item = content_svc.get_item(db, tenant.id, item_id)
-    if item.status != "approved":
+    if item.status not in ("approved", "scheduled") or (item.status == "scheduled" and not _checked):
         raise MarketingError(409, "not_approved", "Only approved content can be scheduled.")
+    if channel not in channels.CHANNELS:
+        raise MarketingError(422, "bad_channel", "Unknown channel.")
     payload = content_svc.approved_payload(db, tenant.id, item.id)
-    problems, _ = preflight(db, tenant.id, item, payload)
+    problems, _ = preflight(db, tenant.id, item, payload, channel)
     if problems:
         raise MarketingError(422, "not_publishable", "This can't be posted yet.", problems)
     when = when if when.tzinfo else when.replace(tzinfo=timezone.utc)
@@ -102,20 +123,34 @@ def schedule(db: Session, tenant: Tenant, item_id: str, when: datetime, actor_id
     if when < now - timedelta(minutes=1) or when > now + timedelta(days=MAX_AHEAD_DAYS):
         raise MarketingError(422, "bad_time", f"Pick a time from now up to {MAX_AHEAD_DAYS} days ahead.")
     attempt = (db.query(MarketingPublishAttempt)
-               .filter_by(tenant_id=tenant.id, content_id=item.id, version_id=item.approved_version_id).first())
+               .filter_by(tenant_id=tenant.id, content_id=item.id, version_id=item.approved_version_id, channel=channel).first())
     if attempt is not None and attempt.status in ("published", "publishing"):
-        raise MarketingError(409, "already_published", "This version is already posted or being posted.")
+        raise MarketingError(409, "already_published", "This version is already posted or being posted there.")
     if attempt is None:
         attempt = MarketingPublishAttempt(tenant_id=tenant.id, content_id=item.id, version_id=item.approved_version_id,
-                                          sha256=item.approved_sha256, scheduled_for=when, scheduled_by=actor_id)
+                                          sha256=item.approved_sha256, scheduled_for=when, scheduled_by=actor_id,
+                                          channel=channel)
         db.add(attempt)
     attempt.status, attempt.scheduled_for, attempt.error, attempt.tries = "scheduled", when, None, 0
     item.status = "scheduled"
     db.flush()
     append_audit(db, tenant_id=tenant.id, action="marketing.content.scheduled", actor_user_id=actor_id,
                  target_type="marketing_content", target_id=item.id,
-                 payload={"version_id": attempt.version_id, "scheduled_for": when.isoformat()})
+                 payload={"version_id": attempt.version_id, "scheduled_for": when.isoformat(), "channel": channel})
     return attempt
+
+
+def _settle(db: Session, item: MarketingContent, version_id: str) -> None:
+    """The item's status after one channel finished: still scheduled while another channel is waiting; published
+    once any channel posted and none is waiting; back to approved when nothing was posted."""
+    statuses = [s for (s,) in db.query(MarketingPublishAttempt.status)
+                .filter_by(tenant_id=item.tenant_id, content_id=item.id, version_id=version_id)]
+    if any(s in ("scheduled", "publishing") for s in statuses):
+        item.status = "scheduled"
+    elif "published" in statuses:
+        item.status = "published"
+    else:
+        item.status = "approved"
 
 
 def unschedule(db: Session, tenant_id: str, item_id: str, actor_id: str) -> None:
@@ -137,7 +172,7 @@ def on_approved(db: Session, tenant: Tenant, item_id: str) -> Optional[Marketing
     item = content_svc.get_item(db, tenant.id, item_id)
     try:
         day = date.fromisoformat(item.planned_for) if item.planned_for else None
-        return schedule(db, tenant, item.id, suggest_time(db, tenant, day), "agency")
+        return schedule_all(db, tenant, item.id, suggest_time(db, tenant, day), "agency")[0]
     except MarketingError as exc:
         log.info("auto_schedule_skipped", tenant_id=tenant.id, item_id=item.id, reason=exc.message)
         return None
@@ -199,7 +234,8 @@ def publish_attempt(db: Session, attempt_id: str, *, publisher_factory: Optional
             attempt.scheduled_for = datetime.now(timezone.utc) + timedelta(minutes=BACKOFF_MIN[attempt.tries - 1])
         else:
             attempt.status = "failed"
-            item.status = "approved"
+            db.flush()
+            _settle(db, item, attempt.version_id)
             agency.notify_needs_approval(db, tenant.id, "Marketing: a post could not be published", item.title)
         attempt.error = msg[:2000]
         append_audit(db, tenant_id=tenant.id, action="marketing.content.publish_failed", actor_user_id="agency",
@@ -221,14 +257,14 @@ def publish_attempt(db: Session, attempt_id: str, *, publisher_factory: Optional
         attempt.status, attempt.error = "cancelled", exc.message
         db.commit()
         return attempt
-    problems, notes = preflight(db, tenant.id, item, payload)
+    problems, notes = preflight(db, tenant.id, item, payload, attempt.channel or "instagram")
     if problems:
         return fail("; ".join(problems), False)
 
     from app.services.media_library_service import MediaError
     containers = list(attempt.container_ids or [])
     images: list[MediaAsset] = []
-    if not containers:
+    if not containers or attempt.channel != "instagram":      # renders are deduplicated: re-rendering is cheap
         try:
             images = render.render(db, tenant, item.kind, payload, read_bytes=read_bytes)
             db.commit()
@@ -238,6 +274,8 @@ def publish_attempt(db: Session, attempt_id: str, *, publisher_factory: Optional
             db.rollback()
             log.warning("marketing_render_failed", tenant_id=tenant.id, item_id=item.id, error=str(exc)[:200])
             return fail("The images could not be prepared; will try again.", True)
+    if attempt.channel and attempt.channel != "instagram":
+        return _publish_other(db, tenant, item, attempt, payload, images, notes, url_for, fail, publisher_factory)
     pub = (publisher_factory or _publisher_for)(db, tenant.id)
     try:
         left = pub.quota_left()
@@ -276,12 +314,65 @@ def publish_attempt(db: Session, attempt_id: str, *, publisher_factory: Optional
     finally:
         pub.close()
     attempt.status, attempt.published_at, attempt.error = "published", datetime.now(timezone.utc), ("; ".join(notes) or None)
-    item.status = "published"
+    db.flush()
+    _settle(db, item, attempt.version_id)
     from app.services import usage_service
     usage_service.record(db, tenant.id, module="marketing_studio", kind="publish", units=len(published),
                          provider="instagram", ref_type="marketing_content", ref_id=item.id)
     append_audit(db, tenant_id=tenant.id, action="marketing.content.published", actor_user_id="agency",
                  target_type="marketing_content", target_id=item.id,
                  payload={"version_id": attempt.version_id, "media_ids": published, "permalink": attempt.permalink})
+    db.commit()
+    return attempt
+
+
+def _publish_other(db: Session, tenant: Tenant, item: MarketingContent, attempt: MarketingPublishAttempt, payload: dict,
+                   images: list, notes: list, url_for: Callable, fail: Callable,
+                   publisher_factory: Optional[Callable]) -> MarketingPublishAttempt:
+    """Facebook Page or Google Business Profile (marketing_channels). Same claim, retry and audit rules as Instagram."""
+    from app.adapters.instagram.publishing import PublishError
+    from app.services import marketing_ai_service as ai
+    from app.services import marketing_channel_connections as conns
+    from app.services import marketing_channels as channels
+    from app.services import usage_service
+
+    if attempt.media_ids:                       # posted on an earlier try that crashed before it was recorded as done
+        attempt.status = "published"
+        db.commit()
+        return attempt
+    try:
+        if attempt.channel == "facebook":
+            pub = (publisher_factory or conns.facebook_publisher)(db, tenant.id)
+            try:
+                published = channels.publish_facebook(pub, attempt, item, payload, images, url_for, db.commit)
+                attempt.media_ids = published
+                db.commit()                     # saved at once: a retry never posts twice
+                attempt.permalink = pub.permalink(published[0])
+            finally:
+                pub.close()
+        elif attempt.channel == "google":
+            if publisher_factory is not None:
+                pub, config = publisher_factory(db, tenant.id)
+            else:
+                pub, config = conns.google_client(db, tenant.id)
+            try:
+                published = channels.publish_google(pub, config, item, payload, ai.get_profile(tenant), images, url_for)
+                attempt.media_ids = published
+                db.commit()
+            finally:
+                pub.close()
+        else:
+            return fail(f"Unknown channel {attempt.channel}", False)
+    except PublishError as exc:
+        return fail(str(exc), exc.transient)
+    attempt.status, attempt.published_at, attempt.error = "published", datetime.now(timezone.utc), ("; ".join(notes) or None)
+    db.flush()
+    _settle(db, item, attempt.version_id)
+    usage_service.record(db, tenant.id, module="marketing_studio", kind="publish", units=1, provider=attempt.channel,
+                         ref_type="marketing_content", ref_id=item.id)
+    append_audit(db, tenant_id=tenant.id, action="marketing.content.published", actor_user_id="agency",
+                 target_type="marketing_content", target_id=item.id,
+                 payload={"version_id": attempt.version_id, "channel": attempt.channel, "media_ids": attempt.media_ids,
+                          "permalink": attempt.permalink})
     db.commit()
     return attempt

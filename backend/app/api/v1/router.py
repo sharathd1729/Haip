@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from app.api.v1.endpoints import (
-    auth, calls, workspace_context, marketing_studio, marketing_agency, marketing_research, marketing_brain, marketing_creative, website, website_public,
+    auth, calls, workspace_context, marketing_studio, marketing_agency, marketing_research, marketing_brain, marketing_creative, marketing_channels, website, website_public,
     tenants, users, guests, inquiries, conversations, properties,
     qa, integrations, ical_feeds, api_keys, meta_ads, webhook_endpoints, booking_agenda, booking_compose, booking_detail, booking_extras, invoices, payments_razorpay, analytics, analytics_executive, instagram_insights, audit, sse, messaging, messaging_campaign_reports, reports, saved_replies, saved_views,
     webhooks_callerdesk, webhooks_acefone, webhooks_mcube, webhooks_whatsapp, webhooks_instagram,
@@ -70,6 +70,7 @@ api_router.include_router(marketing_agency.router)
 api_router.include_router(marketing_research.router)
 api_router.include_router(marketing_brain.router)
 api_router.include_router(marketing_creative.router)
+api_router.include_router(marketing_channels.router)
 api_router.include_router(targets.router)
 api_router.include_router(work_queue.router)
 api_router.include_router(lead_activity.router)

@@ -15,12 +15,13 @@ import { ApprovalsTab } from "@/components/marketing/studio/ApprovalsTab";
 import { ResearchTab } from "@/components/marketing/studio/ResearchTab";
 import { AuditTab, PlanTab } from "@/components/marketing/studio/InsightsTabs";
 import { LibraryTab, ProfileTab } from "@/components/marketing/studio/ProfileLibraryTabs";
+import { ReviewsTab } from "@/components/marketing/studio/ChannelsReviews";
 import { STUDIO, btn, btnPrimary, studioError } from "@/components/marketing/studio/types";
 
 const TABS = [
   { value: "agency", label: "Agency" }, { value: "approvals", label: "Approvals" }, { value: "research", label: "Research" },
   { value: "content", label: "Content" }, { value: "plan", label: "Plan" }, { value: "audit", label: "Audit" },
-  { value: "library", label: "Library" }, { value: "profile", label: "Profile" },
+  { value: "reviews", label: "Reviews" }, { value: "library", label: "Library" }, { value: "profile", label: "Profile" },
 ];
 
 export default function MarketingStudioPage() {
@@ -68,6 +69,7 @@ export default function MarketingStudioPage() {
             {tab === "content" && <ContentTab />}
             {tab === "plan" && <PlanTab />}
             {tab === "audit" && <AuditTab />}
+            {tab === "reviews" && <ReviewsTab />}
             {tab === "library" && <LibraryTab />}
             {tab === "profile" && <ProfileTab />}
           </>

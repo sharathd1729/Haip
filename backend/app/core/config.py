@@ -115,6 +115,10 @@ class Settings(BaseSettings):
     # Each workspace then connects its own Canva account (OAuth + PKCE). Empty = the Canva option is hidden.
     CANVA_CLIENT_ID: str = ""
     CANVA_CLIENT_SECRET: str = ""
+    # Google Business Profile (Marketing Studio, agency M3): a Google Cloud OAuth client with the Business Profile APIs
+    # enabled (Google must approve API access). Each workspace connects its own Google account. Empty = hidden.
+    GOOGLE_BUSINESS_CLIENT_ID: str = ""
+    GOOGLE_BUSINESS_CLIENT_SECRET: str = ""
     META_INSTAGRAM_ACCESS_TOKEN: str = ""
     META_INSTAGRAM_PAGE_ID: str = ""
     INSTAGRAM_APP_ID: str = ""

@@ -246,6 +246,9 @@ celery_app.conf.update(
         "marketing_studio.canva_design":             {"queue": "default"},
         "marketing_studio.video_submit":             {"queue": "default"},
         "marketing_studio.video_poll":               {"queue": "default"},
+        "marketing_studio.draft_review_reply":       {"queue": "default"},
+        "marketing_reviews.sync_all":                {"queue": "default"},
+        "marketing_reviews.sync_tenant":             {"queue": "default"},
         "marketing_agency.orchestrate":              {"queue": "default"},
         "marketing_agency.run_week":                 {"queue": "default"},
         "marketing_agency.step":                     {"queue": "default"},
@@ -466,6 +469,11 @@ celery_app.conf.beat_schedule = {
     "marketing-agency-orchestrate-hourly": {
         "task": "marketing_agency.orchestrate",
         "schedule": crontab(minute=5),
+    },
+    # Google reviews for connected Business Profiles (agency M3): new reviews in, low ratings alert owners.
+    "marketing-reviews-sync-hourly": {
+        "task": "marketing_reviews.sync_all",
+        "schedule": crontab(minute=35),
     },
     # Instagram publisher: posts approved, scheduled content whose time has come.
     "marketing-publish-dispatch": {
