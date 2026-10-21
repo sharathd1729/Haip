@@ -143,8 +143,8 @@ def test_an_approved_claim_makes_its_number_usable(db, ws):  # noqa: F811
 
 def test_long_weekends_include_bridges_and_occasions_have_kinds():
     lws = demand.long_weekends("KA", date(2026, 10, 1), date(2027, 1, 31))
-    assert {"start": "2026-10-02", "end": "2026-10-04", "days": 3, "leave_days": 0,
-            "reason": "Mahatma Gandhi's Jayanti"} in lws                           # Friday holiday
+    gandhi = next(x for x in lws if x["start"] == "2026-10-02")                    # Friday holiday
+    assert (gandhi["end"], gandhi["days"], gandhi["leave_days"]) == ("2026-10-04", 3, 0) and "Gandhi" in gandhi["reason"]
     dussehra = next(x for x in lws if x["start"] == "2026-10-17")
     assert dussehra["days"] == 4 and dussehra["leave_days"] == 1 and "Monday" in dussehra["reason"]
     occ = demand.occasions("KA", date(2026, 11, 1), date(2026, 12, 31))

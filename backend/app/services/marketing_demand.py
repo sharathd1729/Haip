@@ -33,6 +33,10 @@ _STATE_CODES = {
 }
 
 
+# Holiday names in Indian English whatever the server locale: the library follows LANG otherwise, so CI (en_US)
+# and production could name the same day differently ("Mahatma Gandhi's Birthday" vs "...Jayanti").
+LANGUAGE = "en_IN"
+
 def state_code(value: Optional[str]) -> Optional[str]:
     if not value:
         return None
@@ -57,8 +61,8 @@ def home_state(db: Session, tenant: Tenant) -> Optional[str]:
 def occasions(state: Optional[str], start: date, end: date) -> list[dict]:
     """Public holidays (kind=public) and festivals people travel for (kind=festival, the library's optional list)."""
     years = sorted({start.year, end.year})
-    public = holidays.India(years=years, subdiv=state, categories=("public",))
-    optional = holidays.India(years=years, subdiv=state, categories=("optional",))
+    public = holidays.India(years=years, subdiv=state, categories=("public",), language=LANGUAGE)
+    optional = holidays.India(years=years, subdiv=state, categories=("optional",), language=LANGUAGE)
     out = []
     for d in sorted(set(public) | set(optional)):
         if start <= d <= end:
@@ -70,7 +74,7 @@ def occasions(state: Optional[str], start: date, end: date) -> list[dict]:
 def long_weekends(state: Optional[str], start: date, end: date) -> list[dict]:
     """Runs of 3+ days off (Sat/Sun or a public holiday). A holiday on a Tuesday or Thursday also makes a 4-day
     "bridge" weekend that needs one day of leave (Monday or Friday)."""
-    hol = holidays.India(years=sorted({start.year, end.year}), subdiv=state, categories=("public",))
+    hol = holidays.India(years=sorted({start.year, end.year}), subdiv=state, categories=("public",), language=LANGUAGE)
 
     def off(d: date) -> bool:
         return d.weekday() >= 5 or d in hol

@@ -34,7 +34,7 @@ export function WhereFromCard({ inquiryId, canEdit }: { inquiryId: string; canEd
     onSuccess: d => { qc.setQueryData(key, d); toast({ variant: "success", title: "Saved" }); },
     onError: () => toast({ variant: "error", title: "Not saved", description: "Try again." }),
   });
-  const t = q.data;
+  const t = q.data && Array.isArray(q.data.choices) ? q.data : undefined;   // a malformed reply shows the error line
   const dirty = !!t && (answer !== (t.heard_about ?? "") || note !== (t.heard_about_note ?? ""));
   return (
     <Card>
