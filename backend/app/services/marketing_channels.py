@@ -25,7 +25,7 @@ _HASHTAG = re.compile(r"(?:^|\s)#[\wऀ-ॿ]+")
 
 def channels_for(kind: str) -> tuple[str, ...]:
     """Where an item can go. A promo can also become a WhatsApp campaign DRAFT (marketing_whatsapp), never a post."""
-    if kind == "story":
+    if kind in ("story", "reel"):          # reels go to Instagram only for now (Facebook Reels is a separate API)
         return ("instagram",)
     return (*CHANNELS, "whatsapp") if kind == "promo" else CHANNELS
 

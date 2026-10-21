@@ -215,24 +215,31 @@ def _draft(db, tenant, run, st):
 
 
 def _review_draft(db, tenant, item, idea: str) -> int:
-    """Brand review of a fresh draft. A blocking finding gets one rewrite with the findings as the brief; then the AI
-    editor adds advice. Returns 1 if the draft was rewritten. Provider trouble never loses the draft."""
+    """Brand review + critic of a fresh draft. A blocking finding OR a score below the bar gets ONE rewrite (findings,
+    weak marks and advice as the brief), which is then reviewed again. Returns 1 if the draft was rewritten. Provider
+    trouble never loses the draft; there is never a second rewrite."""
     from app.services import marketing_review_service as review
-    rewritten = 0
-    rev = review.current(db, tenant, item)
-    if rev is not None and rev.blocking:
+
+    def editor():
         try:
-            ai.run_content(db, tenant.id, item.id, None, review.fix_brief(idea, rev.findings))
-            rewritten = 1
+            review.run_ai(db, tenant, item.id)
         except ai.LLMTransientError as exc:
-            log.info("agency_rewrite_skipped", tenant_id=tenant.id, item_id=item.id, error=str(exc)[:200])
+            row = review.current(db, tenant, item)
+            if row is not None:
+                row.ai_status, row.ai_error = "failed", f"The AI editor is unavailable right now: {exc}"[:2000]
+
+    editor()
+    rev = review.current(db, tenant, item)
+    weak = review.weak_points(rev.scores) if rev is not None and rev.ai_status == "ready" else []
+    if rev is None or not (rev.blocking or weak):
+        return 0
     try:
-        review.run_ai(db, tenant, item.id)
+        ai.run_content(db, tenant.id, item.id, None, review.fix_brief(idea, rev.findings, weak=weak, advice=rev.advice))
     except ai.LLMTransientError as exc:
-        row = review.current(db, tenant, item)
-        if row is not None:
-            row.ai_status, row.ai_error = "failed", f"The AI editor is unavailable right now: {exc}"[:2000]
-    return rewritten
+        log.info("agency_rewrite_skipped", tenant_id=tenant.id, item_id=item.id, error=str(exc)[:200])
+        return 0
+    editor()
+    return 1
 
 
 def _photos(db, tenant, run, st):
@@ -291,6 +298,13 @@ def _submit(db, tenant, run, st):
                     continue
                 content_svc.submit(db, tenant.id, item.id, item.current_version_id, AGENCY_ACTOR)
                 sent += 1
+                if item.kind == "reel":                # the approver watches the exact file that will be posted
+                    try:
+                        from app.workers.tasks.marketing_studio import render_reel
+                        render_reel.delay(tenant.id, item.id, item.current_version_id)
+                    except Exception as exc:  # noqa: BLE001  the publisher renders it if this never runs
+                        log.info("agency_reel_render_not_queued", tenant_id=tenant.id, item_id=item.id,
+                                 error=str(exc)[:200])
         db.commit()
         if sent:
             agency.notify_needs_approval(db, tenant.id, "Marketing: posts ready for approval",

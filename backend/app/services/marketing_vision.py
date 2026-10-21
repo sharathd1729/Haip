@@ -81,6 +81,8 @@ def tag_asset(db: Session, tenant: Tenant, asset_id: str, *, read_bytes=None, de
     asset = db.query(MediaAsset).filter_by(id=asset_id, tenant_id=tenant.id, status="active").first()
     if asset is None:
         raise MarketingError(404, "not_found", "No such photo in this workspace's library.")
+    if not (asset.mime_type or "").startswith("image/"):
+        raise MarketingError(422, "not_a_photo", "Only photos are tagged; describe a clip in its alt text.")
     try:
         model = vision_adapter.get_model(vision_model_key(tenant))
     except vision_adapter.VisionModelBlocked as exc:
@@ -106,7 +108,8 @@ def tag_asset(db: Session, tenant: Tenant, asset_id: str, *, read_bytes=None, de
 
 def untagged(db: Session, tenant_id: str, limit: int = BACKLOG_BATCH) -> list[str]:
     return [r[0] for r in db.query(MediaAsset.id).filter(MediaAsset.tenant_id == tenant_id, MediaAsset.status == "active",
-                                                         MediaAsset.tagged_at.is_(None))
+                                                         MediaAsset.tagged_at.is_(None),
+                                                         MediaAsset.mime_type.like("image/%"))   # clips are not tagged
             .order_by(MediaAsset.created_at.desc()).limit(limit)]
 
 

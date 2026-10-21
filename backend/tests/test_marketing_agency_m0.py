@@ -72,7 +72,8 @@ def test_picker_matches_the_described_photo_and_avoids_repeats(db, ws):  # noqa:
     v = svc.get_version(db, tid, db.get(MarketingContent, item.id).current_version_id)
     chosen = [s["media"]["asset_id"] for s in v.payload["slides"]]
     assert chosen == [chai.id, pool.id] and v.origin == "ai" and "Photos chosen" in v.note
-    assert v.payload["design"] == {"style": "overlay", "colour": "#1E7A5A"}
+    assert v.payload["design"] == {"style": "overlay", "colour": "#1E7A5A", "accent": None, "font": "plain",
+                                   "logo_asset_id": None, "logo_position": "none"}   # brand kit frozen in (M3)
     assert photos.attach_photos(db, ws["tenant"], item.id) == 0              # nothing left to fill: no new version
 
 
@@ -219,7 +220,7 @@ def test_copywriter_sees_plan_siblings_history_notes_and_photo_descriptions(db, 
         ai.run_content(db, tid, item.id, None, "Kabini loop")
     v = svc.get_version(db, tid, item.current_version_id)
     assert "Less about the bed" in seen["user"] and "designer picks a library photo" in seen["system"]
-    assert v.payload["design"] == {"style": "panel", "colour": None} and v.prompt_version == "marketing-content-v6"
+    assert {k: v.payload["design"][k] for k in ("style", "colour")} == {"style": "panel", "colour": None} and v.prompt_version == "marketing-content-v7"
 
 
 def test_context_notes_on_this_post_come_first_and_other_tenants_never_leak(db, ws):  # noqa: F811

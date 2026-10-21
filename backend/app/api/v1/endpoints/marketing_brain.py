@@ -18,7 +18,9 @@ from app.api.v1.deps import get_current_user, require_module
 from app.core.database import get_db
 from app.models.tenant import Tenant
 from app.models.user import User
+from app.services import marketing_ai_service as ai
 from app.services import marketing_brand_dna as dna
+from app.services import marketing_brand_kit as kit_svc
 from app.services import marketing_content_service as svc
 from app.services import marketing_demand as demand
 from app.services import marketing_vision as vision
@@ -99,6 +101,45 @@ def people_ok(asset_id: str, body: PeopleOk, user: User = Depends(get_current_us
         raise _err(exc)
     db.commit()
     return {"id": asset.id, "people_ok": asset.people_ok}
+
+
+class CreativeModelIn(BaseModel):
+    model: str
+
+
+@router.get("/creative-model")
+def get_creative_model(user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
+    return {"model": ai.creative_model(_tenant(db, user)), "models": list(ai.CREATIVE_MODELS)}
+
+
+@router.put("/creative-model")
+def put_creative_model(body: CreativeModelIn, user: User = Depends(get_current_user), db: Session = Depends(get_db),
+                       _m=_module, _c=_owner):
+    tenant = _tenant(db, user)
+    try:
+        ai.set_creative_model(db, tenant, body.model, user.id)
+    except svc.MarketingError as exc:
+        raise _err(exc)
+    db.commit()
+    return {"model": ai.creative_model(tenant), "models": list(ai.CREATIVE_MODELS)}
+
+
+@router.get("/brand-kit")
+def get_brand_kit(user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
+    return kit_svc.get_kit(_tenant(db, user))
+
+
+@router.put("/brand-kit")
+def put_brand_kit(body: dict, user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module,
+                  _c=_approve):
+    """Applies to drafts filled from now on; an approved post keeps the look it was approved with."""
+    tenant = _tenant(db, user)
+    try:
+        kit = kit_svc.put_kit(db, tenant, body, user.id)
+    except svc.MarketingError as exc:
+        raise _err(exc)
+    db.commit()
+    return kit
 
 
 @router.get("/demand")

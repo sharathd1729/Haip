@@ -35,5 +35,6 @@ class MediaAsset(Base, TimestampMixin):
     tag_model = Column(String(80), nullable=True)
     tagged_at = Column(DateTime(timezone=True), nullable=True)
     people_ok = Column(Boolean, nullable=False, default=False)
+    duration_ms = Column(Integer, nullable=True)                      # video clips only (ffprobe), agency M3 reels
 
     __table_args__ = (Index("ix_media_assets_tenant_sha", "tenant_id", "sha256"),)

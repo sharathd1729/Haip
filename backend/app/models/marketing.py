@@ -268,6 +268,7 @@ class MarketingReview(Base, TimestampMixin):
     blocking = Column(Boolean, nullable=False, default=False)
     advice = Column(JSON, nullable=True)                          # list[ReviewFinding] from the AI reviewer
     summary = Column(Text, nullable=True)
+    scores = Column(JSON, nullable=True)                          # critic 1-5: hook, specificity, voice, clarity, ask (M3)
     ai_status = Column(String(20), nullable=False, default="skipped")   # skipped | pending | ready | failed
     ai_error = Column(Text, nullable=True)
     model = Column(String(120), nullable=True)

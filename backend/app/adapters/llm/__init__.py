@@ -157,6 +157,8 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     "marketing_audit":   ("nvidia", "openai/gpt-oss-20b"),
     "marketing_plan":    ("nvidia", "openai/gpt-oss-20b"),
     "marketing_content": ("nvidia", "openai/gpt-oss-20b"),
+    # Agency M3: the owner may pick the stronger writer for copy. Falls back to marketing_content on any error.
+    "marketing_content_premium": ("gemini", "gemini-3.6-flash"),
     "marketing_research": ("nvidia", "openai/gpt-oss-20b"),
     "marketing_review":   ("nvidia", "openai/gpt-oss-20b"),     # brand editor: advisory findings on one draft
     "marketing_brand_dna": ("nvidia", "openai/gpt-oss-20b"),    # brand voice DRAFT from the business's own published text

@@ -121,7 +121,7 @@ def test_ai_editor_adds_advice_capped_at_medium_with_known_labels(db, ws):  # no
     with patch.object(ai, "_call", side_effect=fake):
         row = review.run_ai(db, ws["tenant"], item.id)
     assert seen["task"] == "marketing_review" and "[caption] Monsoon in Coorg" in seen["user"]
-    assert row.ai_status == "ready" and row.summary == "Close." and row.prompt_version == "marketing-review-v1"
+    assert row.ai_status == "ready" and row.summary == "Close." and row.prompt_version == "marketing-review-v2"
     assert [(a["severity"], a["where"]) for a in row.advice] == [("medium", "caption"), ("low", "caption")]
     with patch.object(ai, "_call", return_value=({"summary": "x", "findings": [{"issue": "y", "where": "caption",
                                                                                 "severity": "high"}]}, {}, "nvidia")):
@@ -131,8 +131,9 @@ def test_ai_editor_adds_advice_capped_at_medium_with_known_labels(db, ws):  # no
 
 # ── Agency run: one rewrite, then held ──────────────────────────────────────────────────────────────────────────────
 
-def _run_with(db, ws, captions):  # noqa: F811
-    """A run whose copywriter returns `captions` in turn for the single planned post."""
+def _run_with(db, ws, captions, scores=None):  # noqa: F811
+    """A run whose copywriter returns `captions` in turn for the single planned post; the critic returns `scores` in
+    turn (agency M3), the last one repeating."""
     tid = ws["tenant"].id
     _seed_insights(db, tid)
     start = datetime.now(ZoneInfo("Asia/Kolkata")).date() + timedelta(days=1)
@@ -147,7 +148,8 @@ def _run_with(db, ws, captions):  # noqa: F811
         if task == "marketing_plan":
             return plan, {"model": "m"}, "nvidia"
         if task == "marketing_review":
-            return {"summary": "ok", "findings": []}, {"model": "m"}, "nvidia"
+            marks = (scores.pop(0) if len(scores) > 1 else scores[0]) if scores else None
+            return {"summary": "ok", "findings": [], **({"scores": marks} if marks else {})}, {"model": "m"}, "nvidia"
         briefs.append(user)
         return {"caption": queue.pop(0) if len(queue) > 1 else queue[0]}, {"model": "m"}, "nvidia"
     with patch.object(ai, "_call", side_effect=fake), patch.object(agency, "notify_needs_approval"):

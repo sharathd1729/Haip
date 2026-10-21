@@ -1,0 +1,43 @@
+{
+  "_about": "Agency M3 prompt test set. Each case is a draft with the facts the copywriter was given and the verdict the deterministic brand review must reach. tests/test_marketing_prompt_eval.py runs every case in CI; scripts/marketing_prompt_eval.py runs the live copywriter on the briefs and grades its drafts with the same checks. Dummy business only.",
+  "facts": "Ratha Demo Caravans. Two caravans, Ratha 1 and Ratha 2, each sleeps 4 guests. Routes: Coorg (265 km from Bangalore), Chikmagalur, Wayanad. Chauffeur included. Breakfast on board. Pet friendly.",
+  "competitors": ["Hilltop Glamping", "Westwind Caravans"],
+  "cases": [
+    {"id": "good_post", "kind": "post", "blocking": false, "rules": [],
+     "payload": {"caption": "Coorg at 7am, seen from the caravan door: mist on the coffee, chai on the step. Ratha 1 sleeps 4 guests and the chauffeur drives. DM us for dates.", "hashtags": ["#coorg"]}},
+    {"id": "good_carousel", "kind": "carousel", "blocking": false, "rules": [],
+     "payload": {"caption": "Three mornings on the Wayanad route. Save it for the long weekend, then DM us.", "framework": "list",
+                 "slides": [{"headline": "3 Wayanad mornings"}, {"headline": "Mist over the tea"}, {"headline": "Breakfast on board"}, {"headline": "The quiet road home"}]}},
+    {"id": "good_reel", "kind": "reel", "blocking": false, "rules": [],
+     "payload": {"caption": "A slow Chikmagalur morning in 20 seconds. Comment ROUTE for the itinerary.", "cover_text": "Slow Chikmagalur",
+                 "comment_dm": {"keyword": "ROUTE", "message": "Here is the Chikmagalur route we drive. Reply with your dates and we will check the caravans."},
+                 "clips": [{"seconds": 4, "caption": "6am, still dark"}, {"seconds": 5, "caption": "Coffee on the step"}, {"seconds": 5, "caption": "The estate road"}, {"seconds": 4, "caption": "DM for dates"}]}},
+    {"id": "invented_distance", "kind": "post", "blocking": true, "rules": ["unverified_number"],
+     "payload": {"caption": "Only 40 km from Mysore and a world away. DM us."}},
+    {"id": "left_a_need", "kind": "post", "blocking": true, "rules": ["missing_fact"],
+     "payload": {"caption": "Check-in is at [NEED: check-in time]. DM us for dates."}},
+    {"id": "contrast_reveal", "kind": "post", "blocking": true, "rules": ["contrast_reveal"],
+     "payload": {"caption": "It's not just a caravan, it's a home on wheels. DM us."}},
+    {"id": "engagement_bait", "kind": "post", "blocking": true, "rules": ["engagement_bait"],
+     "payload": {"caption": "Mornings in Coorg hit different. Agree?"}},
+    {"id": "guarantee", "kind": "promo", "blocking": true, "rules": ["guarantee"],
+     "payload": {"caption": "Diwali in Coorg. DM us.", "headline": "Diwali on the road", "body": "Guaranteed mist every morning.", "cta": "DM us"}},
+    {"id": "competitor_named", "kind": "post", "blocking": true, "rules": ["competitor_named"],
+     "payload": {"caption": "More room than Hilltop Glamping, and the chauffeur drives. DM us."}},
+    {"id": "count_mismatch", "kind": "carousel", "blocking": true, "rules": ["count_mismatch"],
+     "payload": {"caption": "Save this for your Coorg trip, then DM us.",
+                 "slides": [{"headline": "5 Coorg stops"}, {"headline": "Abbey Falls"}, {"headline": "Coffee estate"}]}},
+    {"id": "comment_keyword_missing", "kind": "post", "blocking": true, "rules": ["comment_keyword_missing"],
+     "payload": {"caption": "Coorg at dawn from the caravan door. DM us for dates.",
+                 "comment_dm": {"keyword": "STAY", "message": "Here are the open dates for Ratha 1 this month. Reply with yours."}}},
+    {"id": "stock_phrases_are_advice", "kind": "post", "blocking": false, "rules": ["stock_phrases"],
+     "payload": {"caption": "Nestled in the hills, a hidden gem awaits you. DM us for dates."}},
+    {"id": "reel_caption_invented_number", "kind": "reel", "blocking": true, "rules": ["unverified_number"],
+     "payload": {"caption": "Coorg, slowly. DM us.", "clips": [{"seconds": 4, "caption": "Sleeps 6 guests"}, {"seconds": 4, "caption": "Coffee on the step"}]}}
+  ],
+  "briefs": [
+    {"kind": "post", "title": "Coorg monsoon mornings", "idea": "What a monsoon morning in Coorg looks like from the caravan"},
+    {"kind": "carousel", "title": "Wayanad in three days", "idea": "A three-day Wayanad itinerary in the caravan"},
+    {"kind": "reel", "title": "Chikmagalur sunrise", "idea": "A 20-second reel of a slow Chikmagalur morning"}
+  ]
+}

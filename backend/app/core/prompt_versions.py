@@ -144,7 +144,7 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v3: the strategist also reads the research analyst's latest competitor brief (agency phase B).
     # v4 (M2): the demand brief (open dates, long weekends, festivals); targets, campaigns, 60/30/10 buckets,
     # indicator + stop_if per entry, reactive days.
-    "marketing_plan": "marketing-plan-v4",
+    "marketing_plan": "marketing-plan-v5",
     "marketing_research": "marketing-research-v1",
     # Website builder AI developer (services/website_ai_prompts.py): first full copy, and chat edits as operations.
     "website_generate": "website-generate-v1",
@@ -154,9 +154,9 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v4 (M1): brand voice traits + tone, AI-tell bans, carousel frameworks, [NEED: ...] for missing facts.
     # v5 (M2): approved claims; a post sells exactly its plan entry's target dates.
     # v6 (M3): optional comment_dm ("comment STAY for dates").
-    "marketing_content": "marketing-content-v6",
+    "marketing_content": "marketing-content-v7",
     # Brand editor (marketing_review_service): advisory findings on one draft; deterministic checks block, not this.
-    "marketing_review": "marketing-review-v1",
+    "marketing_review": "marketing-review-v2",
     # Brand DNA draft (marketing_brand_dna): voice/tone/claims SUGGESTED from the website, captions, property text.
     "marketing_brand_dna": "marketing-brand-dna-v1",
     # Reply to a public Google review (marketing_guest_reviews): review text treated as data; a person posts it.

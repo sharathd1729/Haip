@@ -46,7 +46,7 @@ def test_generated_content_becomes_an_ai_version_and_is_metered(db, tid, item, t
         ai.run_content(db, tid, item.id, tenant_and_user["user"].id, "monsoon mood")
     db.commit()
     v = db.query(MarketingContentVersion).filter_by(content_id=item.id).one()
-    assert v.origin == "ai" and v.prompt_version == "marketing-content-v6" and v.payload["hashtags"] == ["#monsoon"]
+    assert v.origin == "ai" and v.prompt_version == "marketing-content-v7" and v.payload["hashtags"] == ["#monsoon"]
     assert v.created_by == tenant_and_user["user"].id     # the requester counts as author for the self-approval rule
     ev = db.query(UsageEvent).filter_by(tenant_id=tid, ref_id=item.id).one()
     assert (ev.kind, ev.units, ev.input_units, ev.provider) == ("llm_tokens", 1200, 900, "nvidia")
@@ -365,8 +365,8 @@ def test_plan_shape_repairs_from_a_live_run():
                                             {"date": "2026-11-03", "kind": "carousel_album", "pillar": "Routes", "idea": "x"},
                                             {"date": "2026-11-04", "kind": "billboard", "pillar": "Routes", "idea": "y"}]})
     assert fixed["rotation"] == "Routes: 2/week; Life: 1/week"
-    assert [e["kind"] for e in fixed["calendar"]] == ["post", "carousel", "billboard"]   # unknown kinds still fail validation
-    assert fixed["calendar"][0]["idea"] == "Reel idea: Ghat drive"
+    assert [e["kind"] for e in fixed["calendar"]] == ["reel", "carousel", "billboard"]   # unknown kinds still fail validation
+    assert ai.as_reel_idea("Ghat drive") == "Reel idea: Ghat drive"          # what a reel becomes without clips (M3)
 
 
 def test_price_check_does_not_join_fields_or_read_dates(db, tid):

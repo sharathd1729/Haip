@@ -85,3 +85,11 @@ Agency M1 adapts ideas from its `brand-review` skill:
 - compliance flags: unproven superlatives, guarantees, competitor mentions and unattributed testimonials.
 
 These appear in `marketing_review_service.py`, `marketing_lint.py` and `marketing-review-v1`. Nothing is copied verbatim; the ideas are re-expressed for HAIP.
+
+## Noto Sans / Noto Serif (brand-kit typefaces, agency M3)
+
+Installed from the Debian package `fonts-noto-core` in `backend/Dockerfile`; not copied into this repository. Licence: SIL Open Font License 1.1 (https://openfontlicense.org). `marketing_render.py` and `marketing_reel.py` draw text with them onto images and videos the workspace posts; the OFL allows that, and the fonts themselves are not redistributed.
+
+## FFmpeg (reels, agency M3)
+
+Installed from the Debian package `ffmpeg` in `backend/Dockerfile` and called as a separate program (`marketing_reel.py`); not linked or redistributed by HAIP. Licence: LGPL 2.1+ / GPL depending on the build (https://ffmpeg.org/legal.html). Reels use only the workspace's own clips and photos; no music or sound is added.

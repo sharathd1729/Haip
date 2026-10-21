@@ -6,6 +6,7 @@ POST /marketing/studio/agency/run                   run the weekly cycle now (ma
 GET  /marketing/studio/approvals                    everything waiting for a person (content + AI images)
 POST /marketing/studio/approvals/{type}/{id}/approve | reject     marketing.approve; delegates to the existing reviews
 GET  /marketing/studio/content/{id}/preview         the images exactly as they would be posted (half size, data URLs)
+GET  /marketing/studio/content/{id}/variants        the first image in each look (overlay / panel / photo)
 POST /marketing/studio/content/{id}/pick-photos     fill empty photo slots from the library (new version, marketing.edit)
 GET  /marketing/studio/content/{id}/review          brand review of the current text: checks (live) + AI editor advice
 POST /marketing/studio/content/{id}/review          ask the AI editor again (queued; marketing.edit)
@@ -220,6 +221,36 @@ def preview(item_id: str, version_id: Optional[str] = None, user: User = Depends
     return {"version_id": version.id, "problems": [], "frames": [
         {"src": "data:image/jpeg;base64," + base64.b64encode(data).decode(), "asset_id": src.id,
          "headline": f["headline"], "style": f["style"]} for data, src, f in drawn]}
+
+
+@router.get("/content/{item_id}/variants")
+def variants(item_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module,
+             _c=_read):
+    """The first image of the current version drawn in each look (agency M3), so a person can pick one. Nothing is
+    stored; picking a look saves a new version through the normal edit."""
+    import base64
+
+    from app.services import marketing_render as render
+    from app.services.media_library_service import MediaError
+    try:
+        item = svc.get_item(db, user.tenant_id, item_id)
+        version = svc.get_version(db, user.tenant_id, item.current_version_id)
+    except svc.MarketingError as exc:
+        raise _err(exc)
+    payload = (version.payload if version is not None else None) or {}
+    current = (payload.get("design") or {}).get("style") or "overlay"
+    tenant = _tenant(db, user)
+    out = []
+    for style in ("overlay", "panel", "photo"):
+        look = {**payload, "design": {**(payload.get("design") or {}), "style": style}}
+        try:
+            drawn = render.images(db, tenant, item.kind, look, scale=0.35, limit=1)
+        except MediaError as exc:
+            return {"current": current, "variants": [], "problems": [exc.message]}
+        except Exception:  # noqa: BLE001  storage unreachable
+            return {"current": current, "variants": [], "problems": ["The photos could not be loaded right now."]}
+        out.append({"style": style, "src": "data:image/jpeg;base64," + base64.b64encode(drawn[0][0]).decode()})
+    return {"current": current, "variants": out, "problems": []}
 
 
 @router.post("/content/{item_id}/pick-photos")

@@ -3,7 +3,7 @@ import type { Tone } from "@/components/ui/kit";
 
 export const STUDIO = "/marketing/studio";
 
-export type Kind = "post" | "carousel" | "story" | "promo";
+export type Kind = "post" | "carousel" | "story" | "promo" | "reel";
 export type ItemStatus = "draft" | "in_review" | "approved" | "rejected" | "archived" | "scheduled" | "published";
 
 export interface Version {
@@ -76,7 +76,7 @@ export interface Asset {
   id: string; url: string | null; mime_type: string; width: number | null; height: number | null; bytes: number;
   alt_text: string | null; source: "upload" | "template" | "ai" | "instagram" | "canva"; created_at: string;
   status?: "active" | "pending_review" | "archived"; created_by?: string | null; provenance?: Record<string, unknown> | null;
-  tags?: PhotoTags | null; people_ok?: boolean;
+  tags?: PhotoTags | null; people_ok?: boolean; duration_ms?: number | null;
 }
 
 /** What the vision model saw in a library photo (agency M2). */
@@ -85,7 +85,7 @@ export interface PhotoTags {
   mood: string[]; description: string;
 }
 
-export const KIND_LABEL: Record<Kind, string> = { post: "Post", carousel: "Carousel", story: "Story", promo: "Promo" };
+export const KIND_LABEL: Record<Kind, string> = { post: "Post", carousel: "Carousel", story: "Story", promo: "Promo", reel: "Reel" };
 
 export const STATUS: Record<ItemStatus, { label: string; tone: Tone }> = {
   draft: { label: "Draft", tone: "neutral" },

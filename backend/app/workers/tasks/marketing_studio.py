@@ -130,6 +130,28 @@ def tag_photo(self, tenant_id: str, asset_id: str):
             log.info("marketing_tag_skipped", tenant_id=tenant_id, asset_id=asset_id, reason=exc.message)
 
 
+@shared_task(name="marketing_studio.render_reel")
+def render_reel(tenant_id: str, item_id: str, version_id: str):
+    """Render a reel version (agency M3) so the approver watches the exact file; the publisher reuses it. Not
+    retried: a bad clip fails the same way again, and the publisher renders it itself if this never ran."""
+    from app.models.tenant import Tenant
+    from app.services import marketing_content_service as content_svc
+    from app.services import marketing_reel
+    from app.services.media_library_service import MediaError
+
+    with SessionLocal() as db:
+        tenant = db.query(Tenant).filter_by(id=tenant_id).one()
+        version = content_svc.get_version(db, tenant_id, version_id)
+        if version is None or version.content_id != item_id:
+            return
+        try:
+            marketing_reel.render_reel(db, tenant, version.payload or {})
+            db.commit()
+        except MediaError as exc:
+            db.rollback()
+            log.info("marketing_reel_not_rendered", tenant_id=tenant_id, item_id=item_id, reason=exc.message)
+
+
 @shared_task(name="marketing_studio.draft_profile", bind=True, max_retries=MAX_RETRIES)
 def draft_profile(self, tenant_id: str):
     """Brand DNA draft (agency M2): a suggestion the owner reviews; never applied automatically."""

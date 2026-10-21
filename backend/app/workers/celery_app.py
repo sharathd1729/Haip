@@ -242,6 +242,7 @@ celery_app.conf.update(
         "marketing_studio.generate_image":           {"queue": "default"},
         "marketing_studio.review_content":           {"queue": "default"},
         "marketing_studio.tag_photo":                {"queue": "default"},
+        "marketing_studio.render_reel":              {"queue": "default"},
         "marketing_studio.draft_profile":            {"queue": "default"},
         "marketing_studio.canva_design":             {"queue": "default"},
         "marketing_studio.video_submit":             {"queue": "default"},

@@ -69,6 +69,10 @@ def segments(kind: str, payload: dict) -> list[tuple[str, str]]:
     elif kind == "promo":
         for key in ("headline", "offer", "body", "cta"):
             add(key, payload.get(key))
+    elif kind == "reel":
+        add("cover", payload.get("cover_text"))
+        for i, c in enumerate(payload.get("clips") or [], start=1):
+            add(f"clip {i}", c.get("caption"))
     else:
         add("text on image", payload.get("overlay_text"))
     add("caption", payload.get("caption"))

@@ -148,7 +148,7 @@ def _is_transient(exc: Exception) -> bool:
 
 # Output budgets per task. A two-week calendar overran 3,000 tokens on a live gpt-oss-20b run (18 Oct 2026) and the
 # tool call was cut off, so the plan gets more room.
-MAX_TOKENS = {"marketing_audit": 3000, "marketing_plan": 8000, "marketing_content": 4000, "marketing_review": 2000, "marketing_brand_dna": 3000, "marketing_review_reply": 1000}
+MAX_TOKENS = {"marketing_audit": 3000, "marketing_plan": 8000, "marketing_content": 4000, "marketing_content_premium": 4000, "marketing_review": 2000, "marketing_brand_dna": 3000, "marketing_review_reply": 1000}
 
 
 def _call(task: str, tenant_id: str, system: str, user: str, tool: dict) -> tuple[dict, dict, str]:
@@ -205,7 +205,7 @@ def run_audit(db: Session, tenant_id: str, audit_id: str) -> MarketingAudit:
 
 _KIND_SYNONYMS = {
     "post": "post", "image": "post", "photo": "post", "single": "post", "single_image": "post", "static": "post",
-    "reel": "post", "reels": "post", "video": "post",                 # no reel kind until the video editor (phase D)
+    "reel": "reel", "reels": "reel", "video": "reel", "short": "reel",
     "carousel": "carousel", "carousel_album": "carousel", "album": "carousel",
     "story": "story", "stories": "story", "promo": "promo", "offer": "promo", "ad": "promo",
 }
@@ -229,10 +229,7 @@ def normalise_plan(data: dict) -> dict:
             continue
         e = dict(e)
         raw = str(e.get("kind", "")).strip().lower().replace(" ", "_")
-        kind = _KIND_SYNONYMS.get(raw, raw)
-        if raw in ("reel", "reels", "video") and isinstance(e.get("idea"), str) and not e["idea"].lower().startswith("reel"):
-            e["idea"] = f"Reel idea: {e['idea']}"[:300]
-        e["kind"] = kind
+        e["kind"] = _KIND_SYNONYMS.get(raw, raw)
         cal.append(e)
     if "calendar" in out:
         out["calendar"] = cal
@@ -260,22 +257,38 @@ def _demand(db: Session, tenant: Tenant) -> Optional[dict]:
         return None
 
 
+def as_reel_idea(idea: str) -> str:
+    """A planned reel turned into a post (no clips yet) keeps its idea, marked so the owner knows to film it."""
+    return idea if idea.lower().startswith("reel") else f"Reel idea: {idea}"[:300]
+
+
+def _clip_count(db: Session, tenant_id: str) -> int:
+    from app.models.media_asset import MediaAsset
+    return (db.query(MediaAsset).filter(MediaAsset.tenant_id == tenant_id, MediaAsset.status == "active",
+                                        MediaAsset.mime_type.like("video/%")).count())
+
+
 def run_plan(db: Session, tenant_id: str, plan_id: str) -> MarketingPlan:
     plan = db.query(MarketingPlan).filter_by(id=plan_id, tenant_id=tenant_id).one()
     tenant = db.query(Tenant).filter_by(id=tenant_id).one()
     plan.prompt_version = get_version("marketing_plan")
     audit = db.query(MarketingAudit).filter_by(id=plan.audit_id, tenant_id=tenant_id).first() if plan.audit_id else None
     demand = _demand(db, tenant)
+    clips = _clip_count(db, tenant_id)
     try:
         user = (f"Business facts:\n{_facts(db, tenant)}\n\nPeriod: {plan.period_start} to {plan.period_end}\n"
                 f"Owner's brief: {plan.brief or '(none)'}\n"
                 f"Audit findings: {audit.assessment if audit is not None and audit.status == 'ready' else '(no audit)'}\n"
                 f"Competitor research: {_latest_research(db, tenant_id)}\n"
-                f"Demand (computed from bookings and the holiday calendar): {demand or '(not available)'}")
+                f"Demand (computed from bookings and the holiday calendar): {demand or '(not available)'}\n"
+                f"Video clips in the library: {clips}")
         data, raw, provider = _call("marketing_plan", tenant_id, _system(prompts.PLAN_SYSTEM, tenant), user, prompts.PLAN_TOOL)
         usage_service.record_llm(db, tenant_id, MODULE, raw, provider=provider, ref_type="marketing_plan", ref_id=plan.id)
         body = MarketingPlanBody.model_validate(normalise_plan(data)).model_dump(mode="json")
         body["calendar"] = [e for e in body["calendar"] if plan.period_start <= e["date"] <= plan.period_end]
+        if clips < 2:                            # a reel needs the property's own clips; without them it is a post
+            body["calendar"] = [{**e, "kind": "post", "idea": as_reel_idea(e["idea"])} if e["kind"] == "reel" else e
+                                for e in body["calendar"]]
         # out_of_scope names what the account must NOT post ("cheap deals"), so it is exempt from the banned-word check.
         problems = content_svc.check_text(db, tenant_id, {k: v for k, v in body.items() if k != "out_of_scope"})
         if problems:
@@ -289,20 +302,54 @@ def run_plan(db: Session, tenant_id: str, plan_id: str) -> MarketingPlan:
     return plan
 
 
+CREATIVE_MODELS = ("standard", "premium")     # standard = NVIDIA gpt-oss-20b; premium = Gemini Flash (agency M3)
+
+
+def creative_model(tenant: Optional[Tenant]) -> str:
+    cfg = ((tenant.brand_config or {}).get("marketing_studio") or {}) if tenant is not None else {}
+    value = cfg.get("creative_model") if isinstance(cfg, dict) else None
+    return value if value in CREATIVE_MODELS else "standard"
+
+
+def set_creative_model(db: Session, tenant: Tenant, value: str, actor_id: str) -> str:
+    if value not in CREATIVE_MODELS:
+        raise content_svc.MarketingError(422, "bad_model", "Choose standard or premium.")
+    before = creative_model(tenant)
+    cfg = dict(tenant.brand_config or {})
+    section = dict(cfg.get("marketing_studio") or {})
+    section["creative_model"] = value
+    cfg["marketing_studio"] = section
+    tenant.brand_config = cfg
+    flag_modified(tenant, "brand_config")
+    append_audit(db, tenant_id=tenant.id, action="marketing.creative_model.updated", actor_user_id=actor_id,
+                 target_type="tenant", target_id=tenant.id, payload={"before": before, "after": value})
+    return value
+
+
 def run_content(db: Session, tenant_id: str, item_id: str, actor_id: Optional[str], brief: Optional[str]) -> MarketingContent:
     item = content_svc.get_item(db, tenant_id, item_id)
     tenant = db.query(Tenant).filter_by(id=tenant_id).one()
     try:
         user = (f"Business facts:\n{_facts(db, tenant, item.property_id)}\n\nKind: {item.kind}\nTitle: {item.title}\n"
                 f"Brief: {brief or '(none)'}\n\n{marketing_context.build(db, tenant_id, item)}")
-        data, raw, provider = _call("marketing_content", tenant_id, _system(prompts.CONTENT_SYSTEM, tenant), user,
-                                    prompts.content_tool(item.kind))
+        system, tool = _system(prompts.CONTENT_SYSTEM, tenant), prompts.content_tool(item.kind)
+        task = "marketing_content_premium" if creative_model(tenant) == "premium" else "marketing_content"
+        try:
+            data, raw, provider = _call(task, tenant_id, system, user, tool)
+        except (LLMTransientError, ValueError) as exc:
+            if task == "marketing_content":
+                raise
+            log.warning("marketing_premium_fell_back", tenant_id=tenant_id, error=str(exc)[:200])
+            data, raw, provider = _call("marketing_content", tenant_id, system, user, tool)   # never lose the draft
         usage_service.record_llm(db, tenant_id, MODULE, raw, provider=provider, ref_type="marketing_content", ref_id=item.id)
         data.pop("kind", None)
+        hooks = [str(h).strip()[:160] for h in (data.pop("hook_options", None) or []) if str(h).strip()][:2]
         if isinstance(data.get("design"), dict):
-            data["design"].pop("colour", None)           # the brand colour is set by the designer step, not the model
+            for key in ("colour", "accent", "font", "logo_asset_id", "logo_position"):
+                data["design"].pop(key, None)            # the brand kit is applied by the designer step, not the model
+        note = " ".join(x for x in ((brief or "")[:500], ("Other first lines: " + " | ".join(hooks)) if hooks else "") if x)
         content_svc.add_version(db, tenant_id, item.id, data, origin="ai", actor_id=actor_id,
-                                note=(brief or "")[:500] or None, prompt_version=get_version("marketing_content"),
+                                note=note[:1000] or None, prompt_version=get_version("marketing_content"),
                                 model=raw.get("model"))
     except content_svc.MarketingError as exc:
         item.generation_status = "failed"

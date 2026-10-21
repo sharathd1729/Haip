@@ -9,7 +9,23 @@ import { StatusPill, type Tone } from "@/components/ui/kit";
 import { STUDIO, btn, studioError } from "./types";
 
 interface Finding { rule: string; severity: "high" | "medium" | "low"; where: string; message: string; quote: string | null; suggestion: string | null }
-interface Review { status: "none" | "skipped" | "pending" | "ready" | "failed"; blocking: boolean; findings: Finding[]; advice: Finding[]; summary: string | null; error: string | null }
+type Scores = Record<"hook" | "specificity" | "voice" | "clarity" | "ask", number>;
+interface Review {
+  status: "none" | "skipped" | "pending" | "ready" | "failed"; blocking: boolean; findings: Finding[]; advice: Finding[];
+  summary: string | null; error: string | null; scores?: Scores | null; weak?: string[];
+}
+const SCORE_LABEL: Record<keyof Scores, string> = { hook: "Hook", specificity: "Specific", voice: "Voice", clarity: "Clear", ask: "Ask" };
+
+/** The critic's 1-5 marks (agency M3). Below the bar the agency rewrites once; the marks never block a person. */
+function ScoreRow({ scores, weak }: { scores: Scores; weak: string[] }) {
+  return (
+    <ul className="flex flex-wrap gap-1.5" aria-label="Critic's marks out of 5">
+      {(Object.keys(SCORE_LABEL) as (keyof Scores)[]).map(k => (
+        <li key={k}><StatusPill tone={scores[k] <= 2 ? "danger" : weak.includes(k) ? "warning" : "success"}>{SCORE_LABEL[k]} {scores[k]}/5</StatusPill></li>
+      ))}
+    </ul>
+  );
+}
 
 const SEVERITY: Record<Finding["severity"], { label: string; tone: Tone }> = {
   high: { label: "Must fix", tone: "danger" }, medium: { label: "Should fix", tone: "warning" }, low: { label: "Polish", tone: "neutral" },
@@ -68,6 +84,7 @@ export function BrandReviewPanel({ itemId, versionId, canAsk }: { itemId: string
           {r.status === "failed" && r.error && <p className="text-sm text-[var(--haip-status-danger-fg)]">{r.error}</p>}
           {r.status === "ready" && (
             <div className="space-y-2">
+              {r.scores && <ScoreRow scores={r.scores} weak={r.weak ?? []} />}
               <p className="text-[13px] font-semibold text-[var(--haip-fg-2)]">Editor's notes{r.summary ? `: ${r.summary}` : ""}</p>
               {r.advice.length > 0 && <ul className="space-y-2">{r.advice.map((f, i) => <Item key={`a${i}`} f={f} />)}</ul>}
             </div>

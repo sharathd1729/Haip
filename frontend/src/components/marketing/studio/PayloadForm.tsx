@@ -8,7 +8,9 @@ import { PhotoPicker } from "./PhotoPicker";
 type P = Record<string, unknown>;
 type Sticker = { type: "poll" | "question" | "link"; text: string; options?: string[] };
 type Media = { asset_id?: string | null; alt_text?: string | null };
-type Row = { headline?: string; body?: string; text?: string; cta?: string; shot_note?: string; sticker?: Sticker; media?: Media };
+type Row = { headline?: string; body?: string; text?: string; cta?: string; shot_note?: string; sticker?: Sticker; media?: Media;
+  caption?: string; start_s?: number; seconds?: number };
+const REEL_MAX = 60;   // seconds, ReelContent in schemas/marketing.py
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -25,6 +27,7 @@ export function emptyPayload(kind: Kind): P {
     case "carousel": return { caption: "", hashtags: [], slides: [{}, {}] };
     case "story": return { frames: [{}] };
     case "promo": return { caption: "", hashtags: [], headline: "", body: "", cta: "DM us" };
+    case "reel": return { caption: "", hashtags: [], clips: [{ seconds: 3 }, { seconds: 3 }, { seconds: 3 }] };
     default: return { caption: "", hashtags: [] };
   }
 }
@@ -38,12 +41,14 @@ export function PayloadForm({ kind, value, onChange, disabled }: { kind: Kind; v
   const str = (k: string) => (typeof value[k] === "string" ? (value[k] as string) : "");
   // Raw text kept locally so a trailing space survives typing; the parent remounts this form per version (key).
   const [tags, setTags] = useState(Array.isArray(value.hashtags) ? (value.hashtags as string[]).join(" ") : "");
-  const listKey = kind === "carousel" ? "slides" : kind === "story" ? "frames" : null;
+  const listKey = kind === "carousel" ? "slides" : kind === "story" ? "frames" : kind === "reel" ? "clips" : null;
   const list = listKey ? rows(value[listKey]) : [];
   const setRow = (i: number, k: keyof Row, v: unknown) => {
     if (!listKey) return;
-    set(listKey, list.map((r, j) => (j === i ? { ...r, [k]: v || undefined } : r)));
+    set(listKey, list.map((r, j) => (j === i ? { ...r, [k]: v || v === 0 ? v : undefined } : r)));
   };
+  const num = (v: string) => (v === "" ? undefined : Number(v));
+  const total = kind === "reel" ? list.reduce((s, r) => s + (r.seconds ?? 3), 0) : 0;
   const setSticker = (i: number, type: string) => {
     const old = list[i]?.sticker;
     setRow(i, "sticker", type ? { type, text: old?.text ?? "", ...(type === "poll" ? { options: old?.options ?? ["Yes", "No"] } : {}) } : undefined);
@@ -55,8 +60,9 @@ export function PayloadForm({ kind, value, onChange, disabled }: { kind: Kind; v
     o[k] = v;
     setRow(i, "sticker", { ...s, options: o });
   };
-  const max = 10;
-  const min = kind === "carousel" ? 2 : 1;
+  const max = kind === "reel" ? 12 : 10;
+  const min = kind === "carousel" || kind === "reel" ? 2 : 1;
+  const rowLabel = kind === "carousel" ? "Slide" : kind === "reel" ? "Clip" : "Frame";
   const caption = str("caption");
 
   return (
@@ -84,14 +90,27 @@ export function PayloadForm({ kind, value, onChange, disabled }: { kind: Kind; v
           {list.map((r, i) => (
             <div key={i} className="space-y-2 rounded-xl border border-[var(--haip-border)] p-3">
               <div className="flex items-center justify-between">
-                <span className="text-[13px] font-semibold text-[var(--haip-fg-2)]">{kind === "carousel" ? "Slide" : "Frame"} {i + 1}</span>
+                <span className="text-[13px] font-semibold text-[var(--haip-fg-2)]">{rowLabel} {i + 1}</span>
                 {!disabled && list.length > min && (
                   <button type="button" className="min-h-11 px-2 text-xs font-semibold text-[var(--haip-fg-subtle)] hover:text-[var(--haip-fg)] sm:min-h-0"
                     onClick={() => set(listKey, list.filter((_, j) => j !== i))}>Remove</button>
                 )}
               </div>
-              <PhotoPicker value={r.media} onChange={m => setRow(i, "media", m)} disabled={disabled} />
-              {kind === "carousel" ? (
+              <PhotoPicker value={r.media} onChange={m => setRow(i, "media", m)} disabled={disabled} clips={kind === "reel"} />
+              {kind === "reel" ? (
+                <>
+                  <input className={inputCls} placeholder="Words on the video (optional)" maxLength={80} value={r.caption ?? ""} onChange={e => setRow(i, "caption", e.target.value)} />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Field label="Start at (s)" hint="Clips only">
+                      <input className={inputCls} type="number" inputMode="decimal" min={0} max={600} step={0.5} value={r.start_s ?? 0} onChange={e => setRow(i, "start_s", num(e.target.value))} />
+                    </Field>
+                    <Field label="Length (s)">
+                      <input className={inputCls} type="number" inputMode="decimal" min={1} max={15} step={0.5} value={r.seconds ?? 3} onChange={e => setRow(i, "seconds", num(e.target.value))} />
+                    </Field>
+                  </div>
+                  <input className={inputCls} placeholder="What to film if nothing fits (optional)" maxLength={200} value={r.shot_note ?? ""} onChange={e => setRow(i, "shot_note", e.target.value)} />
+                </>
+              ) : kind === "carousel" ? (
                 <>
                   <input className={inputCls} placeholder="Headline" maxLength={80} value={r.headline ?? ""} onChange={e => setRow(i, "headline", e.target.value)} />
                   <textarea className={inputCls} placeholder="Body" rows={2} maxLength={200} value={r.body ?? ""} onChange={e => setRow(i, "body", e.target.value)} />
@@ -122,7 +141,12 @@ export function PayloadForm({ kind, value, onChange, disabled }: { kind: Kind; v
               )}
             </div>
           ))}
-          {!disabled && list.length < max && <button type="button" className={btn} onClick={() => set(listKey, [...list, {}])}>Add {kind === "carousel" ? "slide" : "frame"}</button>}
+          {kind === "reel" && (
+            <p className={`text-xs ${total > REEL_MAX ? "text-[var(--haip-status-danger-fg)]" : "text-[var(--haip-fg-subtle)]"}`}>
+              {total} of {REEL_MAX} seconds. Silent: no music or clip sound is added.
+            </p>
+          )}
+          {!disabled && list.length < max && <button type="button" className={btn} onClick={() => set(listKey, [...list, kind === "reel" ? { seconds: 3 } : {}])}>Add {rowLabel.toLowerCase()}</button>}
         </div>
       )}
 
@@ -139,6 +163,11 @@ export function PayloadForm({ kind, value, onChange, disabled }: { kind: Kind; v
               onChange={e => { setTags(e.target.value); set("hashtags", e.target.value.split(/\s+/).filter(Boolean)); }} />
           </Field>
         </>
+      )}
+      {kind === "reel" && (
+        <Field label="Cover text (optional)" hint="Drawn on the cover frame shown in your grid.">
+          <input className={inputCls} maxLength={60} value={str("cover_text")} onChange={e => set("cover_text", e.target.value || undefined)} />
+        </Field>
       )}
       {kind === "post" && (
         <Field label="Text on the image (optional)">

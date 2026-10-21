@@ -9,7 +9,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-CONTENT_KINDS = ("post", "carousel", "story", "promo")
+CONTENT_KINDS = ("post", "carousel", "story", "promo", "reel")
 CHANNELS = ("instagram",)
 
 # Item lifecycle in Phase 1 (no external publishing yet): draft -> in_review -> approved | rejected; any edit -> draft.
@@ -124,6 +124,21 @@ class Design(_Strict):
     exact look that will be posted: overlay = dark fade with white text; panel = brand-coloured band; photo = no text."""
     style: Literal["overlay", "panel", "photo"] = "overlay"
     colour: Optional[str] = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
+    # From the brand kit (agency M3), frozen when photos are attached; None = the renderer's plain default.
+    accent: Optional[str] = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
+    font: Optional[Literal["plain", "sans", "serif"]] = None
+    logo_asset_id: Optional[str] = Field(default=None, max_length=64)
+    logo_position: Optional[Literal["top_left", "top_right", "none"]] = None
+
+
+class BrandKit(_Strict):
+    """brand_config.marketing_studio.brand_kit (agency M3). primary = the panel/brand colour, accent = the CTA pill
+    and accent bar. plain = the bundled font; sans/serif need the Noto fonts in the image (backend/Dockerfile)."""
+    logo_asset_id: Optional[str] = Field(default=None, max_length=64)
+    primary: Optional[str] = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
+    accent: Optional[str] = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
+    font: Literal["plain", "sans", "serif"] = "plain"
+    logo_position: Literal["top_left", "top_right", "none"] = "top_right"
 
 
 class CommentDM(_Strict):
@@ -236,8 +251,38 @@ class PromoContent(_Captioned):
     comment_dm: Optional[CommentDM] = None
 
 
+REEL_MAX_SECONDS = 60
+
+
+class ReelClip(_Strict):
+    """One cut of a reel: a library clip (from start_s, for `seconds`) or a still photo shown with a slow zoom."""
+    media: MediaRef = Field(default_factory=MediaRef)
+    start_s: float = Field(default=0, ge=0, le=600)
+    seconds: float = Field(default=3, ge=1, le=15)
+    caption: Optional[str] = Field(default=None, max_length=80)      # drawn on the video
+    shot_note: Optional[str] = Field(default=None, max_length=200)   # what to film if the library has nothing that fits
+
+
+class ReelContent(_Captioned):
+    """A reel cut from the property's own clips (agency M3; services/marketing_reel.py). No music, no clip sound."""
+    kind: Literal["reel"] = "reel"
+    clips: list[ReelClip] = Field(min_length=2, max_length=12)
+    cover_text: Optional[str] = Field(default=None, max_length=60)
+    cover_clip: int = Field(default=0, ge=0)
+    design: Optional[Design] = None
+    comment_dm: Optional[CommentDM] = None
+
+    @model_validator(mode="after")
+    def _length(self):
+        if sum(c.seconds for c in self.clips) > REEL_MAX_SECONDS:
+            raise ValueError(f"a reel can be at most {REEL_MAX_SECONDS} seconds")
+        if self.cover_clip >= len(self.clips):
+            raise ValueError("cover_clip must point at one of the clips")
+        return self
+
+
 CONTENT_MODELS: dict[str, type[BaseModel]] = {
-    "post": PostContent, "carousel": CarouselContent, "story": StoryContent, "promo": PromoContent,
+    "post": PostContent, "carousel": CarouselContent, "story": StoryContent, "promo": PromoContent, "reel": ReelContent,
 }
 
 
@@ -258,7 +303,8 @@ def strings_of(payload: dict) -> list[str]:
             parts.append(v)
         elif isinstance(v, dict):
             for k, x in v.items():
-                if k not in ("asset_id", "kind", "date", "valid_until", "framework", "style", "colour"):
+                if k not in ("asset_id", "kind", "date", "valid_until", "framework", "style", "colour", "accent", "font",
+                             "logo_asset_id", "logo_position"):
                     walk(x)
         elif isinstance(v, list):
             for x in v:
@@ -318,9 +364,19 @@ class AIReviewFinding(_Strict):
     suggestion: Optional[str] = Field(default=None, max_length=300)
 
 
+class CriticScores(_Strict):
+    """The critic's 1-5 marks (agency M3). Below the bar (average < 3.5 or any mark <= 2) the agency rewrites once."""
+    hook: int = Field(ge=1, le=5)          # does the first line stop the scroll
+    specificity: int = Field(ge=1, le=5)   # concrete details of THIS place, not any resort
+    voice: int = Field(ge=1, le=5)
+    clarity: int = Field(ge=1, le=5)
+    ask: int = Field(ge=1, le=5)           # one clear next step
+
+
 class AIBrandReview(_Strict):
     summary: str = Field(min_length=1, max_length=500)
     findings: list[AIReviewFinding] = Field(default_factory=list, max_length=8)
+    scores: Optional[CriticScores] = None
 
 
 # ── AI outputs ──────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -358,7 +414,7 @@ class AuditAssessment(_Strict):
 
 class CalendarEntry(_Strict):
     date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
-    kind: Literal["post", "carousel", "story", "promo"]
+    kind: Literal["post", "carousel", "story", "promo", "reel"]
     pillar: str = Field(min_length=1, max_length=60)
     idea: str = Field(min_length=1, max_length=300)
     # Agency M2 (all optional so older plans still validate):

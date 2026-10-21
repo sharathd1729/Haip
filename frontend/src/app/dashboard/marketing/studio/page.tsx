@@ -16,6 +16,7 @@ import { ResearchTab } from "@/components/marketing/studio/ResearchTab";
 import { AuditTab, PlanTab } from "@/components/marketing/studio/InsightsTabs";
 import { LibraryTab, ProfileTab } from "@/components/marketing/studio/ProfileLibraryTabs";
 import { ReviewsTab } from "@/components/marketing/studio/ChannelsReviews";
+import { BrandKitPanel } from "@/components/marketing/studio/BrandKitPanel";
 import { STUDIO, btn, btnPrimary, studioError } from "@/components/marketing/studio/types";
 
 const TABS = [
@@ -71,7 +72,7 @@ export default function MarketingStudioPage() {
             {tab === "audit" && <AuditTab />}
             {tab === "reviews" && <ReviewsTab />}
             {tab === "library" && <LibraryTab />}
-            {tab === "profile" && <ProfileTab />}
+            {tab === "profile" && <div className="space-y-4"><ProfileTab /><BrandKitPanel /></div>}
           </>
         )}
       </div>

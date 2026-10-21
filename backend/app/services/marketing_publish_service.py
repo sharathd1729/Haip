@@ -41,6 +41,7 @@ DEFAULT_HOUR = 10
 # ── Preflight ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
 SOURCE_TYPES = ("image/jpeg", "image/png", "image/webp")
+VIDEO_TYPES = ("video/mp4",)      # library clips, reels only (marketing_reel)
 
 
 def _asset_ids(kind: str, payload: dict) -> list[Optional[str]]:
@@ -62,7 +63,7 @@ def preflight(db: Session, tenant_id: str, item: MarketingContent, payload: dict
         asset = found.get(a)
         if asset is None or asset.status != "active":
             problems.append("A chosen photo is missing or not approved.")
-        elif asset.mime_type not in SOURCE_TYPES:
+        elif asset.mime_type not in SOURCE_TYPES and not (item.kind == "reel" and asset.mime_type in VIDEO_TYPES):
             problems.append("Use a JPEG, PNG or WebP photo.")
     if item.kind == "story" and any(f.get("sticker") for f in payload.get("frames", [])):
         notes.append("Instagram's API cannot add poll, question or link stickers; add them in the app after posting.")
@@ -269,7 +270,11 @@ def publish_attempt(db: Session, attempt_id: str, *, publisher_factory: Optional
     images: list[MediaAsset] = []
     if not containers or attempt.channel != "instagram":      # renders are deduplicated: re-rendering is cheap
         try:
-            images = render.render(db, tenant, item.kind, payload, read_bytes=read_bytes)
+            if item.kind == "reel":                       # [video, cover]; reused if the approval preview rendered it
+                from app.services import marketing_reel
+                images = list(marketing_reel.render_reel(db, tenant, payload, read_bytes=read_bytes))
+            else:
+                images = render.render(db, tenant, item.kind, payload, read_bytes=read_bytes)
             db.commit()
         except MediaError as exc:
             return fail(exc.message, False)
@@ -295,6 +300,10 @@ def publish_attempt(db: Session, attempt_id: str, *, publisher_factory: Optional
         elif item.kind == "story":
             if not containers:
                 containers = [pub.image_container(url_for(a), story=True) for a in images]
+        elif item.kind == "reel":
+            if not containers:
+                containers = [pub.reel_container(url_for(images[0]), caption=_caption(payload),
+                                                 cover_url=url_for(images[1]))]
         elif not containers:
             containers = [pub.image_container(url_for(images[0]), caption=_caption(payload))]
         attempt.container_ids = containers

@@ -13,6 +13,7 @@ import { PayloadForm, emptyPayload } from "./PayloadForm";
 import { PublishPanel } from "./PublishPanel";
 import { RenderedPreview } from "./RenderedPreview";
 import { BrandReviewPanel } from "./BrandReviewPanel";
+import { LookVariants, ReelPlayer } from "./ReelAndLook";
 import { CanvaButton } from "./CreativePanel";
 import { WhatsAppDraft } from "./OutreachPanels";
 import { KIND_LABEL, STATUS, STUDIO, btn, btnPrimary, inputCls, studioError, when, type ContentItem } from "./types";
@@ -126,8 +127,11 @@ export function ContentDrawer({ id, onClose }: { id: string | null; onClose: () 
               {current.origin === "ai" && <StatusPill tone="info">Written by AI · check facts before approving</StatusPill>}
               <RenderedPreview itemId={item.id} versionId={current.id} kind={item.kind}
                 note={dirty ? "Showing the saved version; save to see your edits" : undefined} />
+              {item.kind === "reel" && <ReelPlayer itemId={item.id} versionId={current.id} canRender={role !== "viewer"} />}
               {!locked && (
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                  <LookVariants itemId={item.id} versionId={current.id} story={item.kind === "story" || item.kind === "reel"} disabled={busy}
+                    selected={look} onPick={setLook}>
                   <div role="radiogroup" aria-label="Look" className="flex flex-wrap gap-1.5">
                     {LOOKS.map(l => (
                       <button key={l.value} type="button" role="radio" aria-checked={look === l.value} title={l.hint} disabled={busy}
@@ -138,6 +142,7 @@ export function ContentDrawer({ id, onClose }: { id: string | null; onClose: () 
                       </button>
                     ))}
                   </div>
+                  </LookVariants>
                   <button type="button" className={btn} disabled={busy || dirty} onClick={() => pick.mutate()}
                     title={dirty ? "Save your edits first." : "Fill every empty photo slot from your library"}>
                     {pick.isPending ? "Choosing…" : "Pick photos from the library"}

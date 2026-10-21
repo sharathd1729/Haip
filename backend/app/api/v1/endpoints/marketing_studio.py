@@ -352,7 +352,7 @@ def _asset_out(a: MediaAsset) -> dict:
             "created_by": a.created_by,
             "width": a.width, "height": a.height, "bytes": a.bytes, "alt_text": a.alt_text, "source": a.source,
             "provenance": a.provenance, "property_id": a.property_id, "created_at": a.created_at,
-            "tags": a.tags, "people_ok": bool(a.people_ok)}
+            "tags": a.tags, "people_ok": bool(a.people_ok), "duration_ms": a.duration_ms}
 
 
 @router.get("/media")

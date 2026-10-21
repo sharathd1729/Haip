@@ -177,9 +177,10 @@ export function LibraryTab() {
   const assets = useQuery<Asset[]>({ queryKey: ["studio-media"], queryFn: () => api.get(`${STUDIO}/media`).then(r => r.data) });
   const templates = useQuery<{ key: string; label: string }[]>({ queryKey: ["studio-templates"], queryFn: () => api.get(`${STUDIO}/templates`).then(r => r.data) });
   const upload = useMutation({
-    mutationFn: (f: File) => { const fd = new FormData(); fd.append("file", f); return api.post(`${STUDIO}/media`, fd); },
+    // A video goes to /media/clips (agency M3: probed, sound and metadata stripped, used by reels).
+    mutationFn: (f: File) => { const fd = new FormData(); fd.append("file", f); return api.post(`${STUDIO}/media${f.type.startsWith("video/") ? "/clips" : ""}`, fd); },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["studio-media"] }),
-    onError: e => toast({ variant: "error", title: "Upload failed", description: studioError(e, "Use a JPEG, PNG or WebP up to 10 MB.") }),
+    onError: e => toast({ variant: "error", title: "Upload failed", description: studioError(e, "Photos: JPEG, PNG or WebP up to 10 MB. Clips: MP4 or MOV, up to 90 s and 100 MB.") }),
   });
   const review = useMutation({
     mutationFn: ({ id, approve }: { id: string; approve: boolean }) => api.post(`${STUDIO}/media/${id}/${approve ? "approve" : "reject"}`, {}),
@@ -196,9 +197,9 @@ export function LibraryTab() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-[var(--haip-fg-muted)]">Your own photos, creatives made from them, and approved AI images.</p>
-        <input ref={file} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only"
+        <input ref={file} type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" className="sr-only"
           onChange={e => { const f = e.target.files?.[0]; if (f) upload.mutate(f); e.target.value = ""; }} />
-        <button type="button" className={btnPrimary} disabled={upload.isPending} onClick={() => file.current?.click()}>{upload.isPending ? "Uploading…" : "Upload photo"}</button>
+        <button type="button" className={btnPrimary} disabled={upload.isPending} onClick={() => file.current?.click()}>{upload.isPending ? "Uploading…" : "Upload photo or clip"}</button>
       </div>
       <TaggingBar />
       <ChannelsPanel />
@@ -236,7 +237,8 @@ export function LibraryTab() {
                 {a.source === "ai" ? (
                   <StatusPill tone={a.status === "pending_review" ? "warning" : "info"}>{a.mime_type.startsWith("video/") ? (a.status === "pending_review" ? "AI video · needs approval" : "AI video")
                     : a.status === "pending_review" ? "AI image · needs approval" : "AI image"}</StatusPill>
-                ) : <StatusPill tone={a.source === "template" || a.source === "canva" ? "brand" : "neutral"}>{a.source === "template" ? "Creative" : a.source === "canva" ? "Canva design" : "Photo"}</StatusPill>}
+                ) : <StatusPill tone={a.source === "template" || a.source === "canva" ? "brand" : "neutral"}>{a.source === "template" ? "Creative" : a.source === "canva" ? "Canva design"
+                  : a.mime_type.startsWith("video/") ? `Clip${a.duration_ms ? ` · ${Math.round(a.duration_ms / 1000)} s` : ""}` : "Photo"}</StatusPill>}
                 {a.status !== "pending_review" && (a.source === "upload" || a.source === "ai") && a.mime_type.startsWith("image/") && (
                   <button type="button" className="min-h-11 px-1 text-xs font-semibold text-primary sm:min-h-0" onClick={() => setRender(a)}>Make creative</button>
                 )}

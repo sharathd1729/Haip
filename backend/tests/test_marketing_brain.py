@@ -204,7 +204,7 @@ def test_plan_gets_the_demand_brief_and_keeps_it(db, ws):  # noqa: F811
     with patch.object(ai, "_demand", return_value=brief), patch.object(ai, "_call", side_effect=fake):
         ai.run_plan(db, tid, plan.id)
     assert plan.status == "ready", plan.error
-    assert "2026-11-13" in seen["user"] and "Demand comes first" in seen["system"] and plan.prompt_version == "marketing-plan-v4"
+    assert "2026-11-13" in seen["user"] and "Demand comes first" in seen["system"] and plan.prompt_version == "marketing-plan-v5"
     assert plan.body["demand"] == brief and plan.body["calendar"][0]["bucket"] == "proven"
 
 

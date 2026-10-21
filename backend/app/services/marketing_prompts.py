@@ -54,6 +54,8 @@ Demand comes first. The "Demand" data lists open dates per vehicle/property (gap
 - `bucket` every entry: about 60% proven (what the audit says works), 30% new, 10% experimental;
 - `indicator`: the early signal to watch (e.g. "DMs asking about 13-16 Nov"); `stop_if`: when to drop the idea;
 - leave about one day in five free in `reactive_days` for what happens that week.
+- kind "reel" (a short video cut from the property's own clips) only when "Video clips in the library" is 2 or more;
+  at most two reels a week.
 Answer only by calling the tool.
 """ + _COMMON_RULES
 
@@ -67,6 +69,10 @@ CONTENT_SYSTEM = """You write Instagram content for a hospitality brand. Produce
   scroll-stopper, under 8 words; if it promises a number, deliver exactly that many slides after it (plus an optional
   final ask). ONE idea per slide (a headline plus at most a short line); the last slide is the single ask. The
   caption's first line is its own hook, never slide 1's words.
+- Reel: 4-8 clips, 15-30 seconds in all (each clip 2-5 `seconds`), cut from the property's own videos. The first
+  clip is the hook and must work with the sound off; a short `caption` per clip (under 8 words, drawn on the video);
+  the last clip carries the ask. Describe each clip's footage in media.alt_text using a library clip's words, and in
+  shot_note what to film if nothing fits. cover_text: under 6 words. No music, voice-over or sound is added.
 - Story: 5-7 frames: an opening worth tapping past, build, one interaction, the ask. At most ONE sticker of type
   poll or question in the whole sequence, and the link sticker (if any) only after the value. Short text per frame,
   and a shot_note saying what to film or photograph.
@@ -89,6 +95,7 @@ CONTENT_SYSTEM = """You write Instagram content for a hospitality brand. Produce
   each slot's photo in alt_text, reusing the words of a library photo that fits. Keep headlines and frame text short;
   they are drawn onto the photo. design.style: "overlay" (text on a dark fade) suits most; "panel" (a solid
   brand-colour band) suits promos and text-heavy slides; "photo" means no text on the image.
+- hook_options: two OTHER first lines you considered (different angles, same facts). The owner may swap one in.
 Answer only by calling the tool.
 """ + _COMMON_RULES
 
@@ -146,7 +153,13 @@ PLAN_TOOL = {"name": "submit_plan", "description": "Return the marketing plan.",
 
 
 def content_tool(kind: str) -> dict:
-    return {"name": "submit_content", "description": f"Return one Instagram {kind}.", "input_schema": _schema(CONTENT_MODELS[kind])}
+    """The kind's schema plus `hook_options` (two alternative first lines). marketing_ai_service.run_content pops
+    hook_options before the payload is validated, so they land in the version note, never in the post."""
+    schema = _schema(CONTENT_MODELS[kind])
+    schema.setdefault("properties", {})["hook_options"] = {
+        "type": "array", "maxItems": 2, "items": {"type": "string", "maxLength": 160},
+        "description": "Two other first lines you considered."}
+    return {"name": "submit_content", "description": f"Return one Instagram {kind}.", "input_schema": schema}
 
 
 RESEARCH_SYSTEM = """You are a market research analyst for a hospitality brand on Instagram.
@@ -177,6 +190,9 @@ Report only real problems, at most 8, most important first:
 For each: where (exactly one of the labels given), severity (medium = should fix before posting, low = polish),
 the words it refers to (quote, copied exactly), and a concrete rewrite as the suggestion. Do not report spelling of
 place names, hashtags, or style choices that fit the voice. If the draft is good, return no findings and say so.
+Then score the draft 1-5 on each of: hook (would the first line stop a guest scrolling), specificity (details only
+THIS place has, not words that fit any resort), voice, clarity, ask (one clear next step). 3 = fine, 5 = could not be
+better, 1-2 = a guest would skip it. Score honestly: most drafts are 3s and 4s.
 Answer only by calling the tool.
 """ + _COMMON_RULES
 
