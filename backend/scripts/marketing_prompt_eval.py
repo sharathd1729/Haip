@@ -28,6 +28,7 @@ def _prompts() -> dict:
     from app.services import marketing_brand_dna as dna
     from app.services import marketing_guest_reviews as guest_reviews
     from app.services import marketing_prompts as p
+    from app.services import marketing_reputation as reputation
     return {
         "marketing_audit": (p.AUDIT_SYSTEM, [p.AUDIT_TOOL]),
         "marketing_plan": (p.PLAN_SYSTEM, [p.PLAN_TOOL]),
@@ -36,6 +37,7 @@ def _prompts() -> dict:
         "marketing_review": (p.REVIEW_SYSTEM, [p.REVIEW_TOOL]),
         "marketing_brand_dna": (dna.SYSTEM, [dna._tool()]),
         "marketing_review_reply": (guest_reviews.SYSTEM, [guest_reviews._tool()]),
+        "marketing_ota_copy": (p.OTA_SYSTEM, [reputation.ota_tool(k) for k in ("airbnb", "booking", "makemytrip")]),
     }
 
 

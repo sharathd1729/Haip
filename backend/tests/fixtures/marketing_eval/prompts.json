@@ -11,6 +11,10 @@
     "sha": "b116ebf691851351a9aed3ce4a280e16c66135aed47b9c12521a9919e8e9d980",
     "version": "marketing-content-v7"
   },
+  "marketing_ota_copy": {
+    "sha": "3ee9e51949953d581bc9d213da4ec3553dedf77505dad0fca03a6ebef6cf2aaa",
+    "version": "marketing-ota-copy-v1"
+  },
   "marketing_plan": {
     "sha": "31e2d1f62538b9cb0b07feeb2e4c8bac65b1ee6ed4d4c45032fdb6593bae1359",
     "version": "marketing-plan-v6"

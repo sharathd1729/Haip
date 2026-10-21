@@ -161,6 +161,8 @@ PROMPT_VERSIONS: dict[str, str] = {
     "marketing_brand_dna": "marketing-brand-dna-v1",
     # Reply to a public Google review (marketing_guest_reviews): review text treated as data; a person posts it.
     "marketing_review_reply": "marketing-review-reply-v1",
+    # Agency M7: OTA listing copy drafts (marketing_reputation); a person pastes them into the OTA.
+    "marketing_ota_copy": "marketing-ota-copy-v1",
     # Fixed suffix appended to AI image prompts (marketing_image_service.PROMPT_SUFFIX).
     "marketing_image": "marketing-image-v1",
 }

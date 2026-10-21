@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardBody, CardHeader, EmptyState, StatusPill, type Tone } from "@/components/ui/kit";
 import { STUDIO, btn, btnPrimary, inputCls, studioError, when } from "./types";
 import { WhatsAppDefaults } from "./OutreachPanels";
+import { ReviewToPost } from "./PartnersTab";
 
 interface Channels {
   facebook: { available: boolean; connected: boolean; page_name: string | null; pages: { id: string; name: string | null }[] };
@@ -83,6 +84,7 @@ interface Review {
   id: string; rating: number | null; reviewer: string | null; comment: string | null; reviewed_at: string | null;
   reply_status: "none" | "drafting" | "draft" | "approved" | "posted" | "failed"; reply_draft: string | null;
   reply_origin: "ai" | "human" | null; reply_posted: string | null; reply_error: string | null; drafted_by: string | null;
+  content_id?: string | null;
 }
 
 const REPLY_TONE: Record<Review["reply_status"], Tone> = { none: "warning", drafting: "info", draft: "info", approved: "info", posted: "success", failed: "danger" };
@@ -108,6 +110,7 @@ function ReviewRow({ r, canPost, isOwner, me }: { r: Review; canPost: boolean; i
         <StatusPill tone={REPLY_TONE[r.reply_status]}>{REPLY_LABEL[r.reply_status]}</StatusPill>
       </p>
       {r.comment && <p className="text-sm text-[var(--haip-fg-2)]">{r.comment}</p>}
+      {canPost && r.rating === 5 && r.comment && <ReviewToPost reviewId={r.id} contentId={r.content_id ?? null} />}
       {r.reply_status === "posted" ? <p className="rounded-lg bg-[var(--haip-surface)] p-2 text-sm">{r.reply_posted}</p> : (
         <div className="space-y-2">
           {r.reply_error && <p className="text-xs text-[var(--haip-status-danger-fg)]">{r.reply_error}</p>}

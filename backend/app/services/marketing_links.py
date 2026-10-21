@@ -1,7 +1,7 @@
 """Links that say where a guest came from (agency M6): UTM tags on every link HAIP puts out, and the link-in-bio page.
 
 utm_campaign names the content or ad itself: "c-<first 8 of the content id>" for a post, "a-<first 8 of the ad draft
-id>" for an ad. The website already keeps utm_* on every enquiry and booking (inquiry.custom_fields.utm), so a
+id>" for an ad, "cr-<first 8 of the deal id>" for a creator's link (agency M7). The website already keeps utm_* on every enquiry and booking (inquiry.custom_fields.utm), so a
 booking made after tapping a bio link or a Google post button traces back to the exact post (marketing_attribution).
 No cookies, no personal data in the URL.
 """
@@ -51,8 +51,12 @@ def _match(db: Session, model, tenant_id: str, short: str) -> Optional[str]:
 
 
 def resolve_campaign(db: Session, tenant_id: str, campaign: Optional[str]) -> dict:
-    """{content_id} / {ad_draft_id, content_id} for a HAIP utm_campaign, {} for anything else."""
+    """{content_id} / {ad_draft_id, content_id} / {creator_deal_id} for a HAIP utm_campaign, {} for anything else."""
     c = (campaign or "").strip().lower()
+    if c.startswith("cr-"):                                  # a creator deal's link (agency M7)
+        from app.models.marketing_partners import MarketingCreatorDeal
+        did = _match(db, MarketingCreatorDeal, tenant_id, c[3:])
+        return {"creator_deal_id": did} if did else {}
     if c.startswith("c-"):
         cid = _match(db, MarketingContent, tenant_id, c[2:])
         return {"content_id": cid} if cid else {}

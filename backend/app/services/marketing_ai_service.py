@@ -148,7 +148,7 @@ def _is_transient(exc: Exception) -> bool:
 
 # Output budgets per task. A two-week calendar overran 3,000 tokens on a live gpt-oss-20b run (18 Oct 2026) and the
 # tool call was cut off, so the plan gets more room.
-MAX_TOKENS = {"marketing_audit": 3000, "marketing_plan": 8000, "marketing_content": 4000, "marketing_content_premium": 4000, "marketing_review": 2000, "marketing_brand_dna": 3000, "marketing_review_reply": 1000}
+MAX_TOKENS = {"marketing_audit": 3000, "marketing_plan": 8000, "marketing_content": 4000, "marketing_content_premium": 4000, "marketing_review": 2000, "marketing_brand_dna": 3000, "marketing_review_reply": 1000, "marketing_ota_copy": 3000}
 
 
 def _call(task: str, tenant_id: str, system: str, user: str, tool: dict) -> tuple[dict, dict, str]:

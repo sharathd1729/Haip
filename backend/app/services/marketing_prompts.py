@@ -200,3 +200,16 @@ Answer only by calling the tool.
 """ + _COMMON_RULES
 
 REVIEW_TOOL = {"name": "submit_review", "description": "Return the brand review.", "input_schema": _schema(AIBrandReview)}
+
+
+OTA_SYSTEM = """You write listing copy for one property on an online travel site (Airbnb, Booking.com or MakeMyTrip).
+Fill every field of the tool for the platform you are given, within its limits. Each platform has its own job:
+- Airbnb: a title that says what the stay IS and where (not adjectives); the space, guest access, the neighbourhood and
+  getting around, in plain friendly sentences.
+- Booking.com: a factual headline and description a guest compares side by side with others; highlights as short facts.
+- MakeMyTrip: an Indian family/couple traveller reading on a phone; short paragraphs, highlights as short facts,
+  house rules only if the facts give them.
+Use only what the facts say: sleeps, rooms, amenities, distances, routes, inclusions. A fact you don't have is left out,
+never guessed. No hashtags, no emoji, no capital-letter shouting, no "best"/"#1", no guarantees.
+Answer only by calling the tool.
+""" + _COMMON_RULES

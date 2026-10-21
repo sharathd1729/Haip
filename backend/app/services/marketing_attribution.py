@@ -88,6 +88,7 @@ def touches(db: Session, tenant_id: str, inquiries: list[Inquiry]) -> dict[str, 
             found = links.resolve_campaign(db, tenant_id, u.get("utm_campaign"))
             out[inq.id].append({"at": _utc(inq.created_at), "kind": "website", "channel": "website",
                                 "ad_id": None, "ad_draft_id": found.get("ad_draft_id"), "content_id": found.get("content_id"),
+                                "creator_deal_id": found.get("creator_deal_id"),
                                 "detail": " / ".join(x for x in (u.get("utm_source"), u.get("utm_medium"),
                                                                  u.get("utm_campaign")) if x)})
     guests = {g.id: g for g in db.query(Guest).filter(Guest.tenant_id == tenant_id,
@@ -105,7 +106,7 @@ def chain(ts: list[dict], before: Optional[datetime] = None) -> dict:
     """First touch, last touch, and the post/ad credited (the last touch that names one, before the booking)."""
     before = _utc(before)
     upto = [t for t in ts if before is None or t["at"] is None or t["at"] <= before] or ts
-    named = [t for t in upto if t["content_id"] or t["ad_draft_id"] or t["ad_id"]]
+    named = [t for t in upto if t["content_id"] or t["ad_draft_id"] or t["ad_id"] or t.get("creator_deal_id")]
     return {"first": ts[0] if ts else None, "last": upto[-1] if upto else None,
             "credited": named[-1] if named else None, "known": bool(named), "touches": len(ts)}
 
@@ -118,12 +119,24 @@ def _titles(db: Session, tenant_id: str, ids: set) -> dict[str, str]:
         MarketingContent.tenant_id == tenant_id, MarketingContent.id.in_(ids)))
 
 
+def _creator_names(db: Session, tenant_id: str, deal_ids: set) -> dict[str, str]:
+    deal_ids = {d for d in deal_ids if d}
+    if not deal_ids:
+        return {}
+    from app.models.marketing_partners import MarketingCreator, MarketingCreatorDeal
+    rows = (db.query(MarketingCreatorDeal.id, MarketingCreator.handle)
+            .join(MarketingCreator, MarketingCreator.id == MarketingCreatorDeal.creator_id)
+            .filter(MarketingCreatorDeal.tenant_id == tenant_id, MarketingCreatorDeal.id.in_(deal_ids)))
+    return {d: f"Creator @{h}" for d, h in rows}
+
+
 def bookings(db: Session, tenant_id: str, since: date, until: date) -> dict:
     """Bookings made in [since, until] with the post or ad behind each, and how much is unknown."""
     ist = ZoneInfo("Asia/Kolkata")                       # the workspace's day, not UTC's
     start = datetime.combine(since, time.min, tzinfo=ist).astimezone(timezone.utc)
     end = datetime.combine(until, time.max, tzinfo=ist).astimezone(timezone.utc)
     stays = (db.query(Stay).filter(Stay.tenant_id == tenant_id, Stay.status != "cancelled",
+                                   (Stay.channel_source.is_(None)) | (Stay.channel_source != "creator"),   # comped (M7)
                                    Stay.created_at >= start, Stay.created_at <= end)
              .order_by(Stay.created_at.asc()).all())
     inq = {i.id: i for i in db.query(Inquiry).filter(Inquiry.tenant_id == tenant_id,
@@ -141,11 +154,13 @@ def bookings(db: Session, tenant_id: str, since: date, until: date) -> dict:
                      "heard_about": HEARD_ABOUT.get(i.heard_about) if i is not None and i.heard_about else None,
                      "channel_source": s.channel_source})
     titles = _titles(db, tenant_id, credited_ids)
+    creators = _creator_names(db, tenant_id, {(r["chain"]["credited"] or {}).get("creator_deal_id") for r in rows})
     by_post = defaultdict(lambda: {"bookings": 0, "revenue": 0.0})
     for r in rows:
         cr = r["chain"]["credited"]
         r["credited_title"] = titles.get(cr["content_id"]) if cr and cr["content_id"] else (
-            f"Meta ad {cr['ad_id']}" if cr and cr["ad_id"] else None)
+            f"Meta ad {cr['ad_id']}" if cr and cr["ad_id"] else
+            creators.get(cr.get("creator_deal_id")) if cr and cr.get("creator_deal_id") else None)
         if r["credited_title"]:
             by_post[r["credited_title"]]["bookings"] += 1
             by_post[r["credited_title"]]["revenue"] += r["amount"]

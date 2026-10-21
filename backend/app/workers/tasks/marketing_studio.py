@@ -152,6 +152,25 @@ def render_reel(tenant_id: str, item_id: str, version_id: str):
             log.info("marketing_reel_not_rendered", tenant_id=tenant_id, item_id=item_id, reason=exc.message)
 
 
+@shared_task(name="marketing_studio.ota_copy", bind=True, max_retries=MAX_RETRIES)
+def ota_copy(self, tenant_id: str, row_id: str):
+    """OTA listing copy draft (agency M7). Only a transient provider error is retried."""
+    from app.services import marketing_ai_service as ai
+    from app.services import marketing_reputation as reputation
+    with SessionLocal() as db:
+        try:
+            reputation.run_copy(db, tenant_id, row_id)
+            db.commit()
+        except ai.LLMTransientError as exc:
+            db.rollback()
+            if self.request.retries < MAX_RETRIES:
+                raise self.retry(exc=exc, countdown=BASE_COUNTDOWN * (2 ** self.request.retries))
+            from app.models.marketing_partners import MarketingOtaCopy
+            row = db.query(MarketingOtaCopy).filter_by(id=row_id, tenant_id=tenant_id).one()
+            row.status, row.error = "failed", f"The AI is unavailable right now: {exc}"[:2000]
+            db.commit()
+
+
 @shared_task(name="marketing_studio.draft_profile", bind=True, max_retries=MAX_RETRIES)
 def draft_profile(self, tenant_id: str):
     """Brand DNA draft (agency M2): a suggestion the owner reviews; never applied automatically."""

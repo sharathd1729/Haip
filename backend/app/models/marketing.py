@@ -324,6 +324,11 @@ class MarketingGuestReview(Base, TimestampMixin):
     drafted_by = Column(String, nullable=True)
     approved_by = Column(String, nullable=True)
     posted_at = Column(DateTime(timezone=True), nullable=True)
+    # Agency M7: the review turned into a post, only after a person recorded that the guest agreed.
+    content_id = Column(String, nullable=True)
+    consent_note = Column(String(300), nullable=True)
+    consent_by = Column(String, nullable=True)
+    consent_at = Column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (UniqueConstraint("tenant_id", "source", "external_id", name="uq_marketing_guest_reviews_ext"),)
 

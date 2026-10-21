@@ -72,7 +72,8 @@ def listing(db: Session, tenant_id: str, limit: int = 100) -> list[dict]:
     return [{"id": r.id, "source": r.source, "rating": r.rating, "reviewer": r.reviewer, "comment": r.comment,
              "reviewed_at": r.reviewed_at, "reply_status": r.reply_status, "reply_draft": r.reply_draft,
              "reply_origin": r.reply_origin, "reply_posted": r.reply_posted, "reply_error": r.reply_error,
-             "drafted_by": r.drafted_by, "posted_at": r.posted_at} for r in rows]
+             "drafted_by": r.drafted_by, "posted_at": r.posted_at, "content_id": r.content_id,
+             "consent_note": r.consent_note} for r in rows]
 
 
 def sync(db: Session, tenant: Tenant, *, http=None) -> dict:
