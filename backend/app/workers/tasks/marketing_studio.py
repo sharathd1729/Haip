@@ -279,6 +279,23 @@ def reviews_sync_tenant(tenant_id: str):
             return {"error": str(exc)[:200]}
 
 
+@shared_task(name="marketing_newsletter.send_batch")
+def newsletter_send_batch(tenant_id: str, newsletter_id: str):
+    """One batch of a newsletter; queues the next until nobody is left. Each email is committed as it goes."""
+    from app.services import marketing_newsletter as newsletter
+    with SessionLocal() as db:
+        try:
+            left = newsletter.send_batch(db, tenant_id, newsletter_id)
+        except Exception as exc:  # noqa: BLE001 -- the recipients still queued are picked up by the next run
+            db.rollback()
+            log.exception("newsletter_batch_crashed", tenant_id=tenant_id, newsletter_id=newsletter_id)
+            newsletter_send_batch.apply_async((tenant_id, newsletter_id), countdown=300)
+            return {"error": type(exc).__name__}
+    if left:
+        newsletter_send_batch.apply_async((tenant_id, newsletter_id), countdown=5)
+    return {"left": left}
+
+
 # ── Agency (plan phase A) ───────────────────────────────────────────────────────────────────────────────────────────
 
 @shared_task(name="marketing_agency.orchestrate")

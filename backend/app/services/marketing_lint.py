@@ -73,6 +73,9 @@ def segments(kind: str, payload: dict) -> list[tuple[str, str]]:
         add("text on image", payload.get("overlay_text"))
     add("caption", payload.get("caption"))
     add("first comment", payload.get("first_comment"))
+    dm = payload.get("comment_dm") or {}
+    add("comment DM", dm.get("message"))
+    add("comment reply", dm.get("public_reply"))
     return out
 
 
@@ -166,6 +169,16 @@ def structure(kind: str, payload: dict) -> list[dict]:
     return out
 
 
+def comment_dm(payload: dict) -> list[dict]:
+    """A "comment KEYWORD" trigger only works if the caption tells people the keyword."""
+    dm = payload.get("comment_dm") or {}
+    kw = (dm.get("keyword") or "").strip()
+    if kw and kw.lower() not in (payload.get("caption") or "").lower():
+        return [_f("comment_keyword_missing", "high", "caption", f"The caption never tells people to comment “{kw}”.",
+                   None, f"Add a line like “Comment {kw.upper()} and we'll send you the dates.”")]
+    return []
+
+
 def check(kind: str, payload: dict, *, facts_text: str = "", competitors: Iterable[str] = (),
           strict_numbers: bool = True) -> list[dict]:
     """Every finding for a payload, high first."""
@@ -176,6 +189,7 @@ def check(kind: str, payload: dict, *, facts_text: str = "", competitors: Iterab
         out += ai_tells(where, text)
         out += compliance(where, text, competitors)
     out += structure(kind, payload)
+    out += comment_dm(payload)
     order = {"high": 0, "medium": 1, "low": 2}
     return sorted(out, key=lambda f: order[f["severity"]])
 

@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardBody, CardHeader, EmptyState, StatusPill, type Tone } from "@/components/ui/kit";
 import { STUDIO, btn, btnPrimary, inputCls, studioError, when } from "./types";
+import { WhatsAppDefaults } from "./OutreachPanels";
 
 interface Channels {
   facebook: { available: boolean; connected: boolean; page_name: string | null; pages: { id: string; name: string | null }[] };
@@ -66,6 +67,13 @@ export function ChannelsPanel() {
               {c.google.locations.map(l => <option key={l.location} value={l.location}>{l.title ?? l.location}</option>)}
             </select>) : <>Posts and review replies for {c.google.location_title}.</>,
           "Needs the Google account that manages your Business Profile.")}
+        {isOwner && <>
+          <div className="border-t border-[var(--haip-border)]" />
+          <div className="space-y-2">
+            <p className="text-sm font-semibold">WhatsApp campaign drafts</p>
+            <WhatsAppDefaults />
+          </div>
+        </>}
       </CardBody>
     </Card>
   );

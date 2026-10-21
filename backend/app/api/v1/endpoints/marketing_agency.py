@@ -154,10 +154,11 @@ def publishing(item_id: str, user: User = Depends(get_current_user), db: Session
     tenant = _tenant(db, user)
     targets = channels.targets_of(item)
     problems, notes, previews = [], [], {}
+    publish_to = [c for c in targets if c in channels.CHANNELS]
     if item.status in ("approved", "scheduled"):
         try:
             payload = svc.approved_payload(db, user.tenant_id, item.id)
-            for c in targets:
+            for c in publish_to:
                 p_, n_ = pub.preflight(db, user.tenant_id, item, payload, c)
                 problems += [f"{channels.LABEL[c]}: {x}" if c != "instagram" else x for x in p_]
                 notes += [f"{channels.LABEL[c]}: {x}" if c != "instagram" else x for x in n_]

@@ -12,6 +12,14 @@ POST   /marketing/studio/guest-reviews/sync                    fetch new reviews
 POST   /marketing/studio/guest-reviews/{id}/draft              ask the AI for a reply (queued; marketing.edit)
 PUT    /marketing/studio/guest-reviews/{id}/draft              write or edit the reply (marketing.edit)
 POST   /marketing/studio/guest-reviews/{id}/post               post the reply on Google (marketing.approve)
+GET    /marketing/studio/whatsapp                              defaults, rates, approved templates, Studio campaign drafts
+PUT    /marketing/studio/whatsapp                              owner: default template + subscriber tags + rates
+POST   /marketing/studio/whatsapp/estimate                     recipients and estimated cost for a template + audience
+POST   /marketing/studio/content/{id}/whatsapp                 a DRAFT campaign from an approved promo (never sent here)
+GET    /marketing/studio/newsletters                           newsletters + how many guests can be emailed
+POST   /marketing/studio/newsletters                           a draft from 1-4 approved posts (marketing.edit)
+GET    /marketing/studio/newsletters/{id}/preview              the email as it will look (HTML)
+POST   /marketing/studio/newsletters/{id}/send                 send it (marketing.approve; consent confirmed each time)
 """
 from urllib.parse import urlencode
 
@@ -153,6 +161,9 @@ def set_targets(item_id: str, body: TargetsIn, user: User = Depends(get_current_
         raise _err(svc.MarketingError(422, "bad_channel", f"Can't post this {item.kind} to: {', '.join(bad)}."))
     connected = {"instagram"} | {c for c, kind in _KINDS.items()
                                  if db.query(Integration.id).filter_by(tenant_id=user.tenant_id, kind=kind, status="active").first()}
+    if db.query(Integration.id).filter(Integration.tenant_id == user.tenant_id, Integration.status == "active",
+                                       Integration.kind.in_(("whatsapp_meta", "whatsapp"))).first():
+        connected.add("whatsapp")
     missing = [t for t in wanted if t not in connected]
     if missing:
         raise _err(svc.MarketingError(409, "not_connected", f"Connect {', '.join(channels.LABEL[m] for m in missing)} first."))
@@ -238,3 +249,141 @@ def guest_review_post(review_id: str, user: User = Depends(get_current_user), db
         raise _err(exc)
     db.commit()
     return {"id": row.id, "reply_status": row.reply_status, "reply_error": row.reply_error}
+
+
+# ── WhatsApp campaign drafts ────────────────────────────────────────────────────────────────────────────────────────
+
+@router.get("/whatsapp")
+def whatsapp_info(user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
+    from app.api.v1.endpoints.messaging import TemplateStatus, WATemplate
+    from app.models.tenant import Tenant
+    from app.services import marketing_whatsapp as wa
+    tenant = db.query(Tenant).filter_by(id=user.tenant_id).one()
+    templates = (db.query(WATemplate).filter_by(tenant_id=user.tenant_id, status=TemplateStatus.APPROVED)
+                 .order_by(WATemplate.name).limit(100).all())
+    return {"settings": wa.settings_of(tenant), "campaigns": wa.studio_campaigns(db, user.tenant_id),
+            "templates": [{"id": t.id, "name": t.name, "category": getattr(t.category, "value", t.category)} for t in templates]}
+
+
+class WhatsAppSettingsIn(BaseModel):
+    template_id: str | None = None
+    tags: list[str] | None = Field(default=None, max_length=10)
+    rates_inr: dict[str, float] | None = None
+    variable_map: dict | None = None
+
+
+@router.put("/whatsapp")
+def whatsapp_settings(body: WhatsAppSettingsIn, user: User = Depends(get_current_user), db: Session = Depends(get_db),
+                      _m=_module, _c=_owner):
+    from app.models.tenant import Tenant
+    from app.services import marketing_whatsapp as wa
+    tenant = db.query(Tenant).filter_by(id=user.tenant_id).one()
+    try:
+        if body.template_id:
+            wa._template(db, tenant.id, body.template_id)
+        out = wa.update_settings(db, tenant, user.id, rates=body.rates_inr, template_id=body.template_id,
+                                 tags=body.tags, variable_map=body.variable_map)
+    except svc.MarketingError as exc:
+        raise _err(exc)
+    db.commit()
+    return out
+
+
+class AudienceIn(BaseModel):
+    template_id: str = Field(min_length=1, max_length=64)
+    audience_filter: dict = Field(default_factory=dict)
+    variable_map: dict = Field(default_factory=dict)
+
+
+@router.post("/whatsapp/estimate")
+def whatsapp_estimate(body: AudienceIn, user: User = Depends(get_current_user), db: Session = Depends(get_db),
+                      _m=_module, _c=_read):
+    from app.models.tenant import Tenant
+    from app.services import marketing_whatsapp as wa
+    try:
+        return wa.estimate(db, db.query(Tenant).filter_by(id=user.tenant_id).one(), body.template_id, body.audience_filter)
+    except svc.MarketingError as exc:
+        raise _err(exc)
+
+
+@router.post("/content/{item_id}/whatsapp", status_code=201)
+def whatsapp_draft(item_id: str, body: AudienceIn, user: User = Depends(get_current_user), db: Session = Depends(get_db),
+                   _m=_module, _c=_edit):
+    from app.models.tenant import Tenant
+    from app.services import marketing_whatsapp as wa
+    try:
+        campaign, cost = wa.draft_campaign(db, db.query(Tenant).filter_by(id=user.tenant_id).one(), item_id, user.id,
+                                           template_id=body.template_id, audience_filter=body.audience_filter,
+                                           variable_map=body.variable_map)
+    except svc.MarketingError as exc:
+        raise _err(exc)
+    db.commit()
+    return {"campaign_id": campaign.id, "status": "draft", **cost}
+
+
+# ── Email newsletters ───────────────────────────────────────────────────────────────────────────────────────────────
+
+@router.get("/newsletters")
+def newsletters(user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
+    from app.services import marketing_newsletter as nl
+    return {"newsletters": nl.listing(db, user.tenant_id), "audience": len(nl.audience(db, user.tenant_id)),
+            "email_ready": bool(settings.RESEND_API_KEY)}
+
+
+class NewsletterIn(BaseModel):
+    subject: str = Field(min_length=3, max_length=200)
+    intro: str | None = Field(default=None, max_length=2000)
+    content_ids: list[str] = Field(min_length=1, max_length=4)
+
+
+@router.post("/newsletters", status_code=201)
+def newsletter_create(body: NewsletterIn, user: User = Depends(get_current_user), db: Session = Depends(get_db),
+                      _m=_module, _c=_edit):
+    from app.services import marketing_newsletter as nl
+    try:
+        row = nl.create(db, user.tenant_id, body.subject, body.intro, body.content_ids, user.id)
+    except svc.MarketingError as exc:
+        raise _err(exc)
+    db.commit()
+    return {"id": row.id, "status": row.status}
+
+
+@router.get("/newsletters/{newsletter_id}/preview")
+def newsletter_preview(newsletter_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db),
+                       _m=_module, _c=_read):
+    from fastapi.responses import HTMLResponse
+    from app.models.marketing import MarketingNewsletter
+    from app.models.tenant import Tenant
+    from app.services import marketing_newsletter as nl
+    row = db.query(MarketingNewsletter).filter_by(id=newsletter_id, tenant_id=user.tenant_id).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "No such newsletter.", "problems": []})
+    try:
+        page, _ = nl.render(db, db.query(Tenant).filter_by(id=user.tenant_id).one(), row, "#unsubscribe")
+    except svc.MarketingError as exc:
+        raise _err(exc)
+    return HTMLResponse(page, headers={"Content-Security-Policy": "default-src 'none'; img-src https: data:; style-src 'unsafe-inline'"})
+
+
+class SendIn(BaseModel):
+    consent_confirmed: bool = False
+
+
+@router.post("/newsletters/{newsletter_id}/send", status_code=202)
+def newsletter_send(newsletter_id: str, body: SendIn, user: User = Depends(get_current_user), db: Session = Depends(get_db),
+                    _m=_module, _c=_approve):
+    from app.models.tenant import Tenant
+    from app.services import marketing_newsletter as nl
+    from app.workers.tasks.marketing_studio import newsletter_send_batch
+    try:
+        row = nl.start_send(db, db.query(Tenant).filter_by(id=user.tenant_id).one(), newsletter_id, user,
+                            consent_confirmed=body.consent_confirmed)
+    except svc.MarketingError as exc:
+        raise _err(exc)
+    db.commit()
+    try:
+        newsletter_send_batch.delay(user.tenant_id, row.id)
+    except Exception:  # noqa: BLE001 -- recipients stay queued; the owner can retry
+        raise HTTPException(status_code=503, detail={"code": "queue_unavailable", "message": "Background jobs are unavailable.",
+                                                     "problems": []})
+    return {"id": row.id, "status": row.status, "recipients": row.recipients}

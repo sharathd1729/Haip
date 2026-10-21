@@ -16,21 +16,29 @@ from app.adapters.google_business import SUMMARY_MAX
 from app.adapters.instagram.publishing import PublishError
 from app.models.media_asset import MediaAsset
 
-CHANNELS = ("instagram", "facebook", "google")
-LABEL = {"instagram": "Instagram", "facebook": "Facebook Page", "google": "Google Business Profile"}
+CHANNELS = ("instagram", "facebook", "google")          # channels a post is PUBLISHED to
+LABEL = {"instagram": "Instagram", "facebook": "Facebook Page", "google": "Google Business Profile", "whatsapp": "WhatsApp"}
 FB_HASHTAGS = 3
 _PHONE = re.compile(r"(?:\+?91[\s-]?)?\b[6-9]\d{4}[\s-]?\d{5}\b|\b0\d{2,4}[\s-]?\d{6,8}\b")
 _HASHTAG = re.compile(r"(?:^|\s)#[\wऀ-ॿ]+")
 
 
 def channels_for(kind: str) -> tuple[str, ...]:
-    return ("instagram",) if kind == "story" else CHANNELS
+    """Where an item can go. A promo can also become a WhatsApp campaign DRAFT (marketing_whatsapp), never a post."""
+    if kind == "story":
+        return ("instagram",)
+    return (*CHANNELS, "whatsapp") if kind == "promo" else CHANNELS
+
+
+def publish_targets(item) -> list[str]:
+    return [c for c in targets_of(item) if c in CHANNELS]
 
 
 def targets_of(item) -> list[str]:
     raw = item.targets if isinstance(getattr(item, "targets", None), list) else None
     allowed = channels_for(item.kind)
     return [c for c in (raw or ["instagram"]) if c in allowed] or ["instagram"]
+
 
 
 def facebook_message(payload: dict) -> str:

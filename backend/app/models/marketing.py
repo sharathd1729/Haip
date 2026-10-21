@@ -16,7 +16,6 @@ class MarketingAudit(Base, TimestampMixin):
     id = Column(String, primary_key=True, default=gen_uuid)
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
     channel = Column(String(20), nullable=False, default="instagram")
-    targets = Column(JSON, nullable=True)            # channels to publish to (agency M3); None = ["instagram"]
     measured = Column(JSON, nullable=False)          # provider numbers, with source + captured_at; never AI-written
     assessment = Column(JSON, nullable=True)         # AuditAssessment; AI-written, labelled as such
     status = Column(String(20), nullable=False, default="pending")   # pending | ready | failed
@@ -52,6 +51,7 @@ class MarketingContent(Base, TimestampMixin):
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
     kind = Column(String(20), nullable=False)
     channel = Column(String(20), nullable=False, default="instagram")
+    targets = Column(JSON, nullable=True)            # channels to publish to (agency M3); None = ["instagram"]
     title = Column(String(160), nullable=False)
     property_id = Column(String, nullable=True)
     plan_id = Column(String, nullable=True)
@@ -325,3 +325,38 @@ class MarketingGuestReview(Base, TimestampMixin):
     posted_at = Column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (UniqueConstraint("tenant_id", "source", "external_id", name="uq_marketing_guest_reviews_ext"),)
+
+
+class MarketingNewsletter(Base, TimestampMixin):
+    """An email newsletter built from approved posts (agency M3). Sent only by a person with marketing.approve, to
+    guests with an email address and recorded marketing consent, minus anyone who unsubscribed from email."""
+    __tablename__ = "marketing_newsletters"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    subject = Column(String(200), nullable=False)
+    intro = Column(Text, nullable=True)
+    content_ids = Column(JSON, nullable=False)              # approved marketing_content ids, in order
+    status = Column(String(20), nullable=False, default="draft")   # draft | sending | sent | failed
+    created_by = Column(String, nullable=True)
+    sent_by = Column(String, nullable=True)
+    sent_at = Column(DateTime(timezone=True), nullable=True)
+    recipients = Column(Integer, nullable=False, default=0)
+    delivered = Column(Integer, nullable=False, default=0)
+    failed = Column(Integer, nullable=False, default=0)
+
+
+class MarketingNewsletterRecipient(Base, TimestampMixin):
+    """One guest a newsletter goes to. Unique per (newsletter, guest), so a re-run never emails anyone twice."""
+    __tablename__ = "marketing_newsletter_recipients"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    newsletter_id = Column(String, ForeignKey("marketing_newsletters.id"), nullable=False, index=True)
+    guest_id = Column(String, nullable=False)
+    email = Column(String(255), nullable=False)
+    status = Column(String(20), nullable=False, default="queued")   # queued | sent | failed | unsubscribed
+    error = Column(Text, nullable=True)
+    sent_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (UniqueConstraint("newsletter_id", "guest_id", name="uq_marketing_newsletter_recipient"),)

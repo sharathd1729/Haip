@@ -126,6 +126,14 @@ class Design(_Strict):
     colour: Optional[str] = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
 
 
+class CommentDM(_Strict):
+    """"Comment STAY for dates" (agency M3): when someone comments the keyword on this post, Instagram sends them this
+    DM (and optionally a short public reply). Part of the approved payload, so the approval covers the DM text too."""
+    keyword: str = Field(pattern=r"^[A-Za-z0-9\u0900-\u097f]{2,20}$")
+    message: str = Field(min_length=10, max_length=1000)
+    public_reply: Optional[str] = Field(default=None, max_length=300)
+
+
 class _Captioned(_Strict):
     caption: str = Field(min_length=1, max_length=CAPTION_MAX)
     hashtags: list[str] = Field(default_factory=list)
@@ -152,6 +160,7 @@ class PostContent(_Captioned):
     media: MediaRef = Field(default_factory=MediaRef)
     overlay_text: Optional[str] = Field(default=None, max_length=120)
     design: Optional[Design] = None
+    comment_dm: Optional[CommentDM] = None
 
 
 class CarouselSlide(_Strict):
@@ -171,6 +180,7 @@ class CarouselContent(_Captioned):
     slides: list[CarouselSlide] = Field(min_length=2, max_length=10)
     design: Optional[Design] = None
     framework: Optional[Literal["list", "itinerary", "walkthrough", "problem_proof", "guide"]] = None
+    comment_dm: Optional[CommentDM] = None
 
 
 class StorySticker(_Strict):
@@ -223,6 +233,7 @@ class PromoContent(_Captioned):
     valid_until: Optional[str] = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
     media: MediaRef = Field(default_factory=MediaRef)
     design: Optional[Design] = None
+    comment_dm: Optional[CommentDM] = None
 
 
 CONTENT_MODELS: dict[str, type[BaseModel]] = {

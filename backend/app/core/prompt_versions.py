@@ -153,7 +153,8 @@ PROMPT_VERSIONS: dict[str, str] = {
     # library's descriptions; it describes each slot's photo for the picker and may choose the text design.
     # v4 (M1): brand voice traits + tone, AI-tell bans, carousel frameworks, [NEED: ...] for missing facts.
     # v5 (M2): approved claims; a post sells exactly its plan entry's target dates.
-    "marketing_content": "marketing-content-v5",
+    # v6 (M3): optional comment_dm ("comment STAY for dates").
+    "marketing_content": "marketing-content-v6",
     # Brand editor (marketing_review_service): advisory findings on one draft; deterministic checks block, not this.
     "marketing_review": "marketing-review-v1",
     # Brand DNA draft (marketing_brand_dna): voice/tone/claims SUGGESTED from the website, captions, property text.

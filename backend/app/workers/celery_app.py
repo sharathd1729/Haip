@@ -249,6 +249,7 @@ celery_app.conf.update(
         "marketing_studio.draft_review_reply":       {"queue": "default"},
         "marketing_reviews.sync_all":                {"queue": "default"},
         "marketing_reviews.sync_tenant":             {"queue": "default"},
+        "marketing_newsletter.send_batch":           {"queue": "default"},
         "marketing_agency.orchestrate":              {"queue": "default"},
         "marketing_agency.run_week":                 {"queue": "default"},
         "marketing_agency.step":                     {"queue": "default"},

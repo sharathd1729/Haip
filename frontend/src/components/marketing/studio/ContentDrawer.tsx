@@ -14,6 +14,7 @@ import { PublishPanel } from "./PublishPanel";
 import { RenderedPreview } from "./RenderedPreview";
 import { BrandReviewPanel } from "./BrandReviewPanel";
 import { CanvaButton } from "./CreativePanel";
+import { WhatsAppDraft } from "./OutreachPanels";
 import { KIND_LABEL, STATUS, STUDIO, btn, btnPrimary, inputCls, studioError, when, type ContentItem } from "./types";
 
 const LOOKS = [
@@ -168,6 +169,7 @@ export function ContentDrawer({ id, onClose }: { id: string | null; onClose: () 
           )}
 
           {["approved", "scheduled", "published"].includes(item.status) && <PublishPanel itemId={item.id} canSchedule={canApprove} />}
+          <WhatsAppDraft item={item} />
 
           <section className="space-y-2">
             <h3 className="text-[13px] font-bold text-[var(--haip-fg)]">History</h3>

@@ -76,6 +76,9 @@ CONTENT_SYSTEM = """You write Instagram content for a hospitality brand. Produce
   bullets; stock phrases (nestled, hidden gem, look no further, unforgettable experience, hustle and bustle, embark on,
   elevate your, a haven of, awaits you, imagine waking up, in the heart of); guarantees; superlatives you can't prove;
   other businesses' names; invented guest quotes.
+- To turn comments into DMs, set `comment_dm`: a one-word keyword (e.g. STAY), the DM to send (what they asked for,
+  then how to book), and optionally a short public reply; the caption must tell people to comment that word. Use it
+  for posts that sell dates or a package, not for every post.
 - `profile.claims` are facts the owner approved for public use: use them as written. When the plan entry names
   `targets` (open dates or an occasion), the post sells exactly those; never say other dates are available.
 - Use only figures that are in the facts. If you need a fact you don't have (a distance, a time, what's included),

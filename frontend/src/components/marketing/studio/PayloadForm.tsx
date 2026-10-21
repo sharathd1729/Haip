@@ -145,6 +145,38 @@ export function PayloadForm({ kind, value, onChange, disabled }: { kind: Kind; v
           <input className={inputCls} maxLength={120} value={str("overlay_text")} onChange={e => set("overlay_text", e.target.value || undefined)} />
         </Field>
       )}
+      {kind !== "story" && <CommentDmFields value={value.comment_dm as Dm | undefined} onChange={v => set("comment_dm", v)} />}
     </fieldset>
+  );
+}
+
+type Dm = { keyword: string; message: string; public_reply?: string | null };
+
+/** "Comment STAY for dates": when someone comments the keyword on the post, Instagram sends them this DM. */
+function CommentDmFields({ value, onChange }: { value?: Dm; onChange: (v: Dm | undefined) => void }) {
+  const on = !!value;
+  const v = value ?? { keyword: "", message: "" };
+  return (
+    <div className="space-y-2 rounded-xl border border-[var(--haip-border)] p-3">
+      <label className="flex items-center gap-2 text-[13px] font-semibold text-[var(--haip-fg-2)]">
+        <input type="checkbox" className="size-4" checked={on} onChange={e => onChange(e.target.checked ? { keyword: "STAY", message: "" } : undefined)} />
+        Send a DM to people who comment a keyword (Instagram)
+      </label>
+      {on && (
+        <div className="grid gap-2 sm:grid-cols-[8rem_1fr]">
+          <Field label="Keyword" hint="One word; say it in the caption.">
+            <input className={inputCls} maxLength={20} value={v.keyword} onChange={e => onChange({ ...v, keyword: e.target.value.replace(/\s+/g, "") })} />
+          </Field>
+          <Field label="The DM they get">
+            <textarea className={inputCls} rows={2} maxLength={1000} value={v.message} onChange={e => onChange({ ...v, message: e.target.value })} />
+          </Field>
+          <div className="sm:col-span-2">
+            <Field label="Public reply under their comment (optional)" hint="e.g. “Sent you a DM!”">
+              <input className={inputCls} maxLength={300} value={v.public_reply ?? ""} onChange={e => onChange({ ...v, public_reply: e.target.value || null })} />
+            </Field>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

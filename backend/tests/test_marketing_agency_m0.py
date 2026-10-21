@@ -219,7 +219,7 @@ def test_copywriter_sees_plan_siblings_history_notes_and_photo_descriptions(db, 
         ai.run_content(db, tid, item.id, None, "Kabini loop")
     v = svc.get_version(db, tid, item.current_version_id)
     assert "Less about the bed" in seen["user"] and "designer picks a library photo" in seen["system"]
-    assert v.payload["design"] == {"style": "panel", "colour": None} and v.prompt_version == "marketing-content-v5"
+    assert v.payload["design"] == {"style": "panel", "colour": None} and v.prompt_version == "marketing-content-v6"
 
 
 def test_context_notes_on_this_post_come_first_and_other_tenants_never_leak(db, ws):  # noqa: F811

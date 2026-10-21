@@ -95,7 +95,7 @@ def schedule_all(db: Session, tenant: Tenant, item_id: str, when: datetime, acto
     if any channel has a blocking problem, nothing is scheduled and every problem is listed with its channel."""
     from app.services import marketing_channels as channels
     item = content_svc.get_item(db, tenant.id, item_id)
-    targets = channels.targets_of(item)
+    targets = channels.publish_targets(item) or ["instagram"]
     if item.status == "approved":
         payload = content_svc.approved_payload(db, tenant.id, item.id)
         bad = [f"{channels.LABEL[c]}: {p}" for c in targets for p in preflight(db, tenant.id, item, payload, c)[0]]
@@ -166,10 +166,13 @@ def unschedule(db: Session, tenant_id: str, item_id: str, actor_id: str) -> None
 
 
 def on_approved(db: Session, tenant: Tenant, item_id: str) -> Optional[MarketingPublishAttempt]:
-    """With the publish role on autopilot, an approved item is scheduled at the suggested time on its planned day."""
+    """With the publish role on autopilot, an approved item is scheduled at the suggested time on its planned day.
+    An approved promo that targets WhatsApp gets a DRAFT campaign either way (marketing_whatsapp; never sent here)."""
+    item = content_svc.get_item(db, tenant.id, item_id)
+    from app.services import marketing_whatsapp
+    marketing_whatsapp.on_approved(db, tenant, item)
     if agency.level(tenant, "publish") != "autopilot":
         return None
-    item = content_svc.get_item(db, tenant.id, item_id)
     try:
         day = date.fromisoformat(item.planned_for) if item.planned_for else None
         return schedule_all(db, tenant, item.id, suggest_time(db, tenant, day), "agency")[0]
@@ -309,6 +312,9 @@ def publish_attempt(db: Session, attempt_id: str, *, publisher_factory: Optional
             except PublishError as exc:
                 notes.append(f"First comment not posted: {exc}")
         attempt.permalink = pub.permalink(published[0]) if published else None
+        if payload.get("comment_dm") and published and item.kind != "story":
+            from app.services import marketing_comment_dm
+            marketing_comment_dm.activate(db, tenant.id, item, payload, published[0])
     except PublishError as exc:
         return fail(str(exc), exc.transient)
     finally:

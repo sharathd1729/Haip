@@ -46,7 +46,7 @@ def test_generated_content_becomes_an_ai_version_and_is_metered(db, tid, item, t
         ai.run_content(db, tid, item.id, tenant_and_user["user"].id, "monsoon mood")
     db.commit()
     v = db.query(MarketingContentVersion).filter_by(content_id=item.id).one()
-    assert v.origin == "ai" and v.prompt_version == "marketing-content-v5" and v.payload["hashtags"] == ["#monsoon"]
+    assert v.origin == "ai" and v.prompt_version == "marketing-content-v6" and v.payload["hashtags"] == ["#monsoon"]
     assert v.created_by == tenant_and_user["user"].id     # the requester counts as author for the self-approval rule
     ev = db.query(UsageEvent).filter_by(tenant_id=tid, ref_id=item.id).one()
     assert (ev.kind, ev.units, ev.input_units, ev.provider) == ("llm_tokens", 1200, 900, "nvidia")
