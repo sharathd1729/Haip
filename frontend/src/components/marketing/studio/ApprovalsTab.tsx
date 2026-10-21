@@ -1,5 +1,6 @@
 "use client";
-// Everything waiting for a person: drafted posts and AI images. Opening a post shows the full editor.
+// Everything waiting for a person: drafted posts and AI images. A post is reviewed in its drawer, where the images are
+// shown exactly as they will be posted and "Ask for changes" needs a note (the AI uses it for the next version).
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
@@ -36,10 +37,13 @@ export function ApprovalsTab() {
         </p>
       </div>) },
     { key: "since", header: "Waiting since", hideBelow: "md", cell: p => when(p.waiting_since) },
-    { key: "act", header: "", align: "right", cell: p => canReview ? (
+    { key: "act", header: "", align: "right", cell: p => p.type === "content" ? (
+      <span className="flex justify-end" onClick={e => e.stopPropagation()}>
+        <button type="button" className={canReview ? btnPrimary : btn} onClick={() => setOpen(p.id)}>{canReview ? "Review" : "Open"}</button>
+      </span>) : canReview ? (
       <span className="flex justify-end gap-2" onClick={e => e.stopPropagation()}>
         <button type="button" className={btnPrimary} disabled={act.isPending} onClick={() => act.mutate({ p, approve: true })}>Approve</button>
-        <button type="button" className={btn} disabled={act.isPending} onClick={() => act.mutate({ p, approve: false })}>{p.type === "ai_image" ? "Reject" : "Ask for changes"}</button>
+        <button type="button" className={btn} disabled={act.isPending} onClick={() => act.mutate({ p, approve: false })}>Reject</button>
       </span>) : null },
   ];
 

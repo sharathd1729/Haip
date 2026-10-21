@@ -1,6 +1,6 @@
 "use client";
-// Pick a photo from the library for one slot (post, carousel slide, story frame). Only approved images are offered;
-// Instagram needs JPEG, so non-JPEG photos are marked (make a creative from them to get a JPEG).
+// Pick a photo from the library for one slot (post, carousel slide, story frame). Only approved images are offered.
+// Any JPEG, PNG or WebP works: what is posted is a JPEG drawn from it (backend services/marketing_render.py).
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { STUDIO, inputCls, type Asset } from "./types";
@@ -11,7 +11,7 @@ export function PhotoPicker({ value, onChange, disabled }: { value: Media | unde
   const q = useQuery<Asset[]>({ queryKey: ["studio-media"], queryFn: () => api.get(`${STUDIO}/media`).then(r => r.data), staleTime: 60_000 });
   const usable = (q.data ?? []).filter(a => (a.status ?? "active") === "active");
   const chosen = usable.find(a => a.id === value?.asset_id);
-  const label = (a: Asset) => `${a.source === "ai" ? "AI image" : a.source === "template" ? "Creative" : "Photo"}${a.mime_type !== "image/jpeg" ? " (not JPEG)" : ""} · ${new Date(a.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`;
+  const label = (a: Asset) => `${a.source === "ai" ? "AI image" : a.source === "template" ? "Creative" : "Photo"}${a.alt_text ? ` · ${a.alt_text.slice(0, 40)}` : ""} · ${new Date(a.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`;
   return (
     <div className="flex items-center gap-2">
       {chosen?.url ? <img src={chosen.url} alt={chosen.alt_text ?? ""} className="size-11 shrink-0 rounded-lg object-cover" /> : <div className="size-11 shrink-0 rounded-lg bg-[var(--haip-surface)]" />}

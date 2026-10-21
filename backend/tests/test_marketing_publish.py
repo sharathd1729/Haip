@@ -1,9 +1,11 @@
 """Scheduler + publisher (agency phase C): approval gate, preflight, idempotency, retries, kill switch, autopilot."""
+import io
 import uuid
 from datetime import datetime, timedelta, timezone
 
 import httpx
 import pytest
+from PIL import Image
 
 from app.adapters.instagram.publishing import PublishError, Publisher
 from app.models.audit_event import AuditEvent
@@ -59,6 +61,26 @@ class FakePublisher:
         pass
 
 
+def _photo_bytes(colour=(40, 120, 90)):
+    out = io.BytesIO()
+    Image.new("RGB", (1600, 1200), colour).save(out, format="JPEG")
+    return out.getvalue()
+
+
+PHOTO = _photo_bytes()
+
+
+@pytest.fixture(autouse=True)
+def _fake_storage(monkeypatch):
+    stored = []
+
+    def upload(t, content, mime, ext):
+        stored.append((content, mime))
+        return f"{t}/marketing/{uuid.uuid4().hex}.{ext}"
+    monkeypatch.setattr("app.services.media_storage.upload_marketing_media", upload)
+    return stored
+
+
 def _jpeg(db, tid):
     a = MediaAsset(id=str(uuid.uuid4()), tenant_id=tid, storage_key=f"{tid}/marketing/{uuid.uuid4().hex}.jpg",
                    mime_type="image/jpeg", bytes=10, sha256=uuid.uuid4().hex * 2, status="active")
@@ -81,7 +103,8 @@ def _approved(db, ws, kind="post", payload=None):  # noqa: F811
 
 
 def _run(db, attempt, fake):
-    return pub.publish_attempt(db, attempt.id, publisher_factory=lambda d, t: fake, media_url=lambda a: f"https://cdn/{a.id}.jpg")
+    return pub.publish_attempt(db, attempt.id, publisher_factory=lambda d, t: fake, media_url=lambda a: f"https://cdn/{a.id}.jpg",
+                               read_bytes=lambda key: PHOTO)
 
 
 def _aware(dt):
@@ -109,13 +132,16 @@ def test_only_approved_publishable_content_can_be_scheduled(db, ws):  # noqa: F8
         pub.schedule(db, ws["tenant"], no_photo.id, datetime.now(timezone.utc), ws["owner"].id)
     assert exc.value.code == "not_publishable" and "photo" in exc.value.problems[0]
 
-    png = MediaAsset(id=str(uuid.uuid4()), tenant_id=tid, storage_key="k", mime_type="image/png", bytes=1, sha256="1" * 64, status="active")
-    db.add(png)
+    gif = MediaAsset(id=str(uuid.uuid4()), tenant_id=tid, storage_key="k", mime_type="image/gif", bytes=1, sha256="1" * 64, status="active")
+    png = MediaAsset(id=str(uuid.uuid4()), tenant_id=tid, storage_key="k2", mime_type="image/png", bytes=1, sha256="2" * 64, status="active")
+    db.add_all([gif, png])
     db.commit()
-    as_png = _approved(db, ws, payload={"caption": "png", "media": {"asset_id": png.id}})
+    as_gif = _approved(db, ws, payload={"caption": "gif", "media": {"asset_id": gif.id}})
     with pytest.raises(svc.MarketingError) as exc:
-        pub.schedule(db, ws["tenant"], as_png.id, datetime.now(timezone.utc), ws["owner"].id)
-    assert "JPEG" in exc.value.problems[0]
+        pub.schedule(db, ws["tenant"], as_gif.id, datetime.now(timezone.utc), ws["owner"].id)
+    assert "JPEG, PNG or WebP" in exc.value.problems[0]
+    as_png = _approved(db, ws, payload={"caption": "png", "media": {"asset_id": png.id}})
+    assert pub.schedule(db, ws["tenant"], as_png.id, datetime.now(timezone.utc), ws["owner"].id).status == "scheduled"
 
 
 def test_schedule_api_needs_approve_capability(client, db, ws):  # noqa: F811
@@ -145,6 +171,29 @@ def test_post_is_published_once_with_caption_hashtags_and_first_comment(db, ws):
     again = FakePublisher()
     _run(db, attempt, again)                                    # re-delivered job
     assert again.calls == []
+
+
+def test_what_is_posted_is_the_rendered_jpeg_with_the_text_on_it(db, ws, _fake_storage):  # noqa: F811
+    tid = ws["tenant"].id
+    a = _jpeg(db, tid)
+    item = _approved(db, ws, kind="carousel", payload={
+        "caption": "Route", "design": {"style": "panel", "colour": "#224466"},
+        "slides": [{"headline": "Day 1: Coorg", "body": "Coffee estates", "media": {"asset_id": a.id}},
+                   {"headline": "Day 2: Kabini", "media": {"asset_id": a.id}}]})
+    att = pub.schedule(db, ws["tenant"], item.id, datetime.now(timezone.utc), ws["owner"].id)
+    db.commit()
+    fake = FakePublisher()
+    _run(db, att, fake)
+    assert att.status == "published"
+    derived = db.query(MediaAsset).filter_by(tenant_id=tid, status="derived").all()
+    assert len(derived) == 2 and {d.provenance["headline"] for d in derived} == {"Day 1: Coorg", "Day 2: Kabini"}
+    assert all(d.mime_type == "image/jpeg" and (d.width, d.height) == (1080, 1350) for d in derived)
+    urls = [c[1] for c in fake.calls if c[0] == "container"]
+    assert urls == [f"https://cdn/{d.id}.jpg" for d in sorted(derived, key=lambda d: d.provenance["headline"])]
+    assert a.id not in "".join(urls)                            # never the raw library photo
+    data, mime = _fake_storage[0]
+    img = Image.open(io.BytesIO(data))
+    assert mime == "image/jpeg" and img.format == "JPEG" and img.getpixel((540, 1300)) != img.getpixel((540, 100))
 
 
 def test_carousel_and_story_shapes(db, ws):  # noqa: F811

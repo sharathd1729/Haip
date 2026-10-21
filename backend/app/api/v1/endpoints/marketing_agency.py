@@ -5,8 +5,10 @@ PUT  /marketing/studio/agency                       owner: change role levels / 
 POST /marketing/studio/agency/run                   run the weekly cycle now (marketing.edit)
 GET  /marketing/studio/approvals                    everything waiting for a person (content + AI images)
 POST /marketing/studio/approvals/{type}/{id}/approve | reject     marketing.approve; delegates to the existing reviews
+GET  /marketing/studio/content/{id}/preview         the images exactly as they would be posted (half size, data URLs)
+POST /marketing/studio/content/{id}/pick-photos     fill empty photo slots from the library (new version, marketing.edit)
 """
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,7 +17,6 @@ from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_current_user, require_module
 from app.core.database import get_db
-from app.models.marketing import MarketingTask
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.services import marketing_agency_run as runs
@@ -31,7 +32,6 @@ _read = Depends(require_capability("marketing.read"))
 _edit = Depends(require_capability("marketing.edit"))
 _approve = Depends(require_capability("marketing.approve"))
 _owner = Depends(require_capability("settings.manage"))
-RUN_LOCK = timedelta(minutes=30)     # a run older than this that never finished is treated as dead
 
 
 def _err(exc: svc.MarketingError):
@@ -71,11 +71,10 @@ def put_agency(body: AgencyUpdate, user: User = Depends(get_current_user), db: S
 def run_now(user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_edit):
     from app.workers.tasks.marketing_studio import agency_run_week
 
-    busy = (db.query(MarketingTask.id)
-            .filter(MarketingTask.tenant_id == user.tenant_id, MarketingTask.step == "run",
-                    MarketingTask.status == "running",
-                    MarketingTask.created_at >= datetime.now(timezone.utc) - RUN_LOCK).first())
-    if busy:
+    if agency.get_agency(_tenant(db, user))["paused"]:
+        raise HTTPException(status_code=409, detail={"code": "agency_paused",
+                                                     "message": "The agency is paused. Resume it to run.", "problems": []})
+    if runs.running(db, user.tenant_id) is not None:
         raise HTTPException(status_code=409, detail={"code": "run_in_progress", "message": "A run is already going.", "problems": []})
     try:
         agency_run_week.delay(user.tenant_id, "manual", user.id)
@@ -181,3 +180,43 @@ def unschedule(item_id: str, user: User = Depends(get_current_user), db: Session
         raise _err(exc)
     db.commit()
     return {"ok": True}
+
+
+@router.get("/content/{item_id}/preview")
+def preview(item_id: str, version_id: Optional[str] = None, user: User = Depends(get_current_user),
+            db: Session = Depends(get_db), _m=_module, _c=_read):
+    """Drawn in memory from the version's payload with the same code the publisher uses; nothing is stored."""
+    import base64
+
+    from app.services import marketing_render as render
+    from app.services.media_library_service import MediaError
+    try:
+        item = svc.get_item(db, user.tenant_id, item_id)
+        version = svc.get_version(db, user.tenant_id, version_id or item.current_version_id)
+    except svc.MarketingError as exc:
+        raise _err(exc)
+    if version is None or version.content_id != item.id:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Version not found.", "problems": []})
+    try:
+        drawn = render.images(db, _tenant(db, user), item.kind, version.payload or {}, scale=0.5)
+    except MediaError as exc:
+        return {"version_id": version.id, "frames": [], "problems": [exc.message]}
+    except Exception:  # noqa: BLE001  storage unreachable: say so rather than 500
+        return {"version_id": version.id, "frames": [], "problems": ["The photos could not be loaded right now."]}
+    return {"version_id": version.id, "problems": [], "frames": [
+        {"src": "data:image/jpeg;base64," + base64.b64encode(data).decode(), "asset_id": src.id,
+         "headline": f["headline"], "style": f["style"]} for data, src, f in drawn]}
+
+
+@router.post("/content/{item_id}/pick-photos")
+def pick_photos(item_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_edit):
+    from app.services import marketing_photos as photos
+    try:
+        item = svc.get_item(db, user.tenant_id, item_id)
+        if item.status not in ("draft", "rejected"):
+            raise svc.MarketingError(409, "not_editable", "Only a draft can be changed; it is waiting for approval or posted.")
+        filled = photos.attach_photos(db, _tenant(db, user), item.id, actor_id=user.id)
+    except svc.MarketingError as exc:
+        raise _err(exc)
+    db.commit()
+    return {"filled": filled, "version_id": svc.get_item(db, user.tenant_id, item_id).current_version_id}

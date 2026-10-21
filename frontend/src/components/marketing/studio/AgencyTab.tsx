@@ -15,7 +15,15 @@ interface Run { run_id: string; status: string; trigger: string; started_at: str
 interface Agency { paused: boolean; roster: Member[]; runs: Run[]; schedule: string; pending_approvals: number }
 
 const LEVEL_LABEL: Record<Level, string> = { off: "Off", suggest: "Asks first", autopilot: "Autopilot" };
-const STEP_LABEL: Record<string, string> = { audit: "Audit", plan: "Weekly plan", draft: "Drafts", image: "Images", submit: "Sent for approval" };
+const STEP_LABEL: Record<string, string> = { audit: "Audit", competitors: "Competitors", plan: "Weekly plan", draft: "Drafts",
+  photos: "Photos", image: "AI images", submit: "Sent for approval" };
+
+/** "Drafts: 2 of 7" while drafting; otherwise the status, and why a step was skipped. */
+function stepText(s: Step): string {
+  const d = (s.detail ?? {}) as { drafted?: number; of?: number; reason?: string };
+  if (s.step === "draft" && s.status === "running" && d.of) return `${d.drafted ?? 0} of ${d.of}`;
+  return s.status;
+}
 const STATUS_TONE: Record<string, Tone> = { done: "success", failed: "danger", skipped: "neutral", running: "info", needs_approval: "warning" };
 
 export function AgencyTab() {
@@ -91,11 +99,14 @@ export function AgencyTab() {
                   <ul className="mt-2 flex flex-wrap gap-2">
                     {r.steps.map((s, i) => (
                       <li key={i} title={s.error ?? (s.detail ? JSON.stringify(s.detail) : undefined)}>
-                        <StatusPill tone={STATUS_TONE[s.status] ?? "neutral"}>{STEP_LABEL[s.step] ?? s.step}: {s.status}</StatusPill>
+                        <StatusPill tone={STATUS_TONE[s.status] ?? "neutral"}>{STEP_LABEL[s.step] ?? s.step}: {stepText(s)}</StatusPill>
                       </li>
                     ))}
                   </ul>
                   {r.steps.filter(s => s.error).map((s, i) => <p key={i} className="mt-1 text-xs text-[var(--haip-status-danger-fg)]">{STEP_LABEL[s.step] ?? s.step}: {s.error}</p>)}
+                  {r.steps.filter(s => s.status === "skipped" && (s.detail as { reason?: string } | null)?.reason).map((s, i) => (
+                    <p key={`skip-${i}`} className="mt-1 text-xs text-[var(--haip-fg-subtle)]">{STEP_LABEL[s.step] ?? s.step}: {(s.detail as { reason: string }).reason}</p>))}
+                  {r.error && !r.steps.some(s => s.error) && <p className="mt-1 text-xs text-[var(--haip-status-danger-fg)]">{r.error}</p>}
                 </li>
               ))}
             </ul>

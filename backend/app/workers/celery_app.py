@@ -242,6 +242,7 @@ celery_app.conf.update(
         "marketing_studio.generate_image":           {"queue": "default"},
         "marketing_agency.orchestrate":              {"queue": "default"},
         "marketing_agency.run_week":                 {"queue": "default"},
+        "marketing_agency.step":                     {"queue": "default"},
         "marketing_research.refresh":                {"queue": "default"},
         "marketing_publish.dispatch":                {"queue": "default"},
         "marketing_publish.publish_one":             {"queue": "default"},

@@ -23,6 +23,7 @@ from app.models.property import Property
 from app.models.tenant import Tenant
 from app.schemas.marketing import AuditAssessment, BusinessProfile, MarketingPlanBody
 from app.services import marketing_content_service as content_svc
+from app.services import marketing_context
 from app.services import marketing_prompts as prompts
 from app.services import price_policy, usage_service
 
@@ -280,11 +281,13 @@ def run_content(db: Session, tenant_id: str, item_id: str, actor_id: Optional[st
     tenant = db.query(Tenant).filter_by(id=tenant_id).one()
     try:
         user = (f"Business facts:\n{_facts(db, tenant, item.property_id)}\n\nKind: {item.kind}\nTitle: {item.title}\n"
-                f"Brief: {brief or '(none)'}")
+                f"Brief: {brief or '(none)'}\n\n{marketing_context.build(db, tenant_id, item)}")
         data, raw, provider = _call("marketing_content", tenant_id, _system(prompts.CONTENT_SYSTEM, tenant), user,
                                     prompts.content_tool(item.kind))
         usage_service.record_llm(db, tenant_id, MODULE, raw, provider=provider, ref_type="marketing_content", ref_id=item.id)
         data.pop("kind", None)
+        if isinstance(data.get("design"), dict):
+            data["design"].pop("colour", None)           # the brand colour is set by the designer step, not the model
         content_svc.add_version(db, tenant_id, item.id, data, origin="ai", actor_id=actor_id,
                                 note=(brief or "")[:500] or None, prompt_version=get_version("marketing_content"),
                                 model=raw.get("model"))
