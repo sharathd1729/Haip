@@ -4,10 +4,11 @@ Steps, each logged as a marketing_tasks row under one run_id, each gated by its 
   audit       (research) fresh audit: measured snapshot + AI reading
   competitors (research) competitor snapshots + research brief, when competitors are listed
   plan        (strategy) plan for the next 7 days (uses the audit and the brief)
-  draft       (copy)     one draft per calendar entry (max MAX_DRAFTS), each with the plan and history as context
+  draft       (copy)     one draft per calendar entry (max MAX_DRAFTS), each with the plan and history as context,
+                         then the brand review (M1): a blocking finding gets ONE rewrite; the AI editor adds advice
   photos      (design)   a library photo in every slot + the brand colour, saved as a new version
   image       (design)   an AI image request per post/promo, only if AI images are on and under the monthly cap
-  submit      (copy)     drafts go to "waiting for approval"; anything public still needs a person
+  submit      (copy)     drafts go to "waiting for approval"; a draft the review still blocks stays a draft (held)
 A step that fails stops the steps that depend on it; the failure and reason stay visible in the run log.
 
 Execution: `start_run` creates the run row; `run_step` does the NEXT unit of work (one step, or one draft) and saves
@@ -183,7 +184,7 @@ def _draft(db, tenant, run, st):
             _finish(t, "skipped", detail={"reason": f"{agency.ROLES['copy'][0]} is set to {lvl}" if not allowed
                                           else "The plan has no calendar entries."})
             return None
-        st.update(draft_task=t.id, cursor=0, drafts=[], failed=0)
+        st.update(draft_task=t.id, cursor=0, drafts=[], failed=0, rewritten=0)
     t = db.query(MarketingTask).filter_by(id=st["draft_task"], tenant_id=tenant.id).one()
     i = st["cursor"]
     if i < len(entries):
@@ -197,17 +198,48 @@ def _draft(db, tenant, run, st):
             item.generation_status, item.generation_error = "failed", f"The AI service is unavailable: {exc}"[:2000]
         if item.current_version_id:
             st["drafts"] = [*st["drafts"], item.id]
+            st["rewritten"] = st.get("rewritten", 0) + _review_draft(db, tenant, item, entry["idea"])
         else:
             st["failed"] += 1
         st["cursor"] = i + 1
-        t.detail = {"drafted": len(st["drafts"]), "failed": st["failed"], "of": len(entries)}
+        t.detail = {"drafted": len(st["drafts"]), "failed": st["failed"], "rewritten": st.get("rewritten", 0),
+                    "of": len(entries)}
         flag_modified(t, "detail")
         if st["cursor"] < len(entries):
             return "draft"
     made = bool(st["drafts"])
-    _finish(t, "done" if made else "failed", detail={"drafted": len(st["drafts"]), "failed": st["failed"]},
+    _finish(t, "done" if made else "failed", detail={"drafted": len(st["drafts"]), "failed": st["failed"],
+                                                     "rewritten": st.get("rewritten", 0)},
             error=None if made else "No draft could be written.")
     return "photos" if made else None
+
+
+def _review_draft(db, tenant, item, idea: str) -> int:
+    """Brand review + critic of a fresh draft. A blocking finding OR a score below the bar gets ONE rewrite (findings,
+    weak marks and advice as the brief), which is then reviewed again. Returns 1 if the draft was rewritten. Provider
+    trouble never loses the draft; there is never a second rewrite."""
+    from app.services import marketing_review_service as review
+
+    def editor():
+        try:
+            review.run_ai(db, tenant, item.id)
+        except ai.LLMTransientError as exc:
+            row = review.current(db, tenant, item)
+            if row is not None:
+                row.ai_status, row.ai_error = "failed", f"The AI editor is unavailable right now: {exc}"[:2000]
+
+    editor()
+    rev = review.current(db, tenant, item)
+    weak = review.weak_points(rev.scores) if rev is not None and rev.ai_status == "ready" else []
+    if rev is None or not (rev.blocking or weak):
+        return 0
+    try:
+        ai.run_content(db, tenant.id, item.id, None, review.fix_brief(idea, rev.findings, weak=weak, advice=rev.advice))
+    except ai.LLMTransientError as exc:
+        log.info("agency_rewrite_skipped", tenant_id=tenant.id, item_id=item.id, error=str(exc)[:200])
+        return 0
+    editor()
+    return 1
 
 
 def _photos(db, tenant, run, st):
@@ -255,17 +287,31 @@ def _image(db, tenant, run, st):
 
 def _submit(db, tenant, run, st):
     def fn(t):
-        sent = 0
+        from app.services import marketing_review_service as review
+        sent, held = 0, 0
         for item_id in st.get("drafts", []):
             item = content_svc.get_item(db, tenant.id, item_id)
             if item.status == "draft" and item.current_version_id:
+                rev = review.current(db, tenant, item)
+                if rev is not None and rev.blocking:
+                    held += 1                          # stays a draft; its findings show in the Content tab
+                    continue
                 content_svc.submit(db, tenant.id, item.id, item.current_version_id, AGENCY_ACTOR)
                 sent += 1
+                if item.kind == "reel":                # the approver watches the exact file that will be posted
+                    try:
+                        from app.workers.tasks.marketing_studio import render_reel
+                        render_reel.delay(tenant.id, item.id, item.current_version_id)
+                    except Exception as exc:  # noqa: BLE001  the publisher renders it if this never runs
+                        log.info("agency_reel_render_not_queued", tenant_id=tenant.id, item_id=item.id,
+                                 error=str(exc)[:200])
         db.commit()
         if sent:
             agency.notify_needs_approval(db, tenant.id, "Marketing: posts ready for approval",
                                          f"The agency drafted {sent} posts for next week.")
-        _finish(t, "done" if sent else "skipped", detail={"submitted": sent})
+        _finish(t, "done" if sent else "skipped", detail={"submitted": sent, "held": held,
+                                                          **({"reason": f"{held} held back by the brand review"}
+                                                             if held and not sent else {})})
         return sent > 0
     _step(db, tenant, run, "copy", "submit", fn)
     return None

@@ -14,7 +14,7 @@ export function RenderedPreview({ itemId, versionId, kind, note }: { itemId: str
     queryKey: ["studio-preview", itemId, versionId], staleTime: Infinity,
     queryFn: () => api.get(`${STUDIO}/content/${itemId}/preview`, { params: { version_id: versionId } }).then(r => r.data),
   });
-  const story = kind === "story";
+  const story = kind === "story" || kind === "reel";     // a reel's stills: one per clip, 9:16
   const tile = story ? "w-[132px] aspect-[9/16]" : "w-[168px] aspect-[4/5]";
   return (
     <section className="space-y-2" aria-label="How it will look on Instagram">

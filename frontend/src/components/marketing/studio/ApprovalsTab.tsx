@@ -10,7 +10,10 @@ import { Card, DataTable, StatusPill, type Column } from "@/components/ui/kit";
 import { ContentDrawer } from "./ContentDrawer";
 import { KIND_LABEL, STUDIO, btn, btnPrimary, day, studioError, when, type Kind } from "./types";
 
-interface Pending { type: "content" | "ai_image"; id: string; title: string; kind: string; version_id: string | null; planned_for: string | null; waiting_since: string; created_by: string | null }
+interface Pending {
+  type: "content" | "ai_image"; id: string; title: string; kind: string; version_id: string | null; planned_for: string | null;
+  waiting_since: string; created_by: string | null; review?: { high: number; medium: number; reviewed: boolean };
+}
 
 export function ApprovalsTab() {
   const { data: session } = useSession();
@@ -34,6 +37,9 @@ export function ApprovalsTab() {
         <p className="text-xs text-[var(--haip-fg-subtle)]">
           {p.type === "ai_image" ? "AI image" : KIND_LABEL[p.kind as Kind] ?? p.kind}{p.planned_for ? ` · planned ${day(p.planned_for)}` : ""}
           {p.created_by === "agency" && <StatusPill tone="info" className="ml-2">By the agency</StatusPill>}
+          {p.review && (p.review.high > 0 ? <StatusPill tone="danger" className="ml-2">{p.review.high} must fix</StatusPill>
+            : p.review.medium > 0 ? <StatusPill tone="warning" className="ml-2">{p.review.medium} to check</StatusPill>
+            : p.review.reviewed ? <StatusPill tone="success" className="ml-2">Checks passed</StatusPill> : null)}
         </p>
       </div>) },
     { key: "since", header: "Waiting since", hideBelow: "md", cell: p => when(p.waiting_since) },

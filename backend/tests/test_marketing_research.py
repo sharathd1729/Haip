@@ -12,7 +12,7 @@ from app.core.security import create_access_token
 from app.models.audit_event import AuditEvent
 from app.models.integration import Integration
 from app.models.marketing import MarketingCompetitorPost, MarketingCompetitorSnapshot
-from app.schemas.marketing import CompetitorIn, CompetitorPostIn
+from app.schemas.marketing_research import CompetitorIn, CompetitorPostIn
 from app.services import marketing_ai_service as ai
 from app.services import marketing_content_service as svc
 from app.services import marketing_research_service as research
@@ -176,7 +176,7 @@ def test_plan_prompt_includes_research(db, ws):  # noqa: F811
     db.commit()
     with patch.object(ai, "_call", side_effect=ValueError("stop")) as call:
         ai.run_plan(db, tid, plan.id)
-    assert "Slow mornings" in call.call_args.args[3] and plan.prompt_version == "marketing-plan-v3"
+    assert "Slow mornings" in call.call_args.args[3] and plan.prompt_version == "marketing-plan-v6"
 
 
 # ── Facebook OAuth (single-use state) ───────────────────────────────────────────────────────────────────────────────

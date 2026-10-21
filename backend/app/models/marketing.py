@@ -3,7 +3,7 @@
 Measured provider data and AI assessment are stored in separate columns so they can never be confused in the UI.
 A content version is immutable: an edit is a new version, and an approval is bound to one version's sha256.
 """
-from sqlalchemy import JSON, Column, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 
 from app.core.database import Base
 from app.models.base import TimestampMixin, gen_uuid
@@ -51,6 +51,7 @@ class MarketingContent(Base, TimestampMixin):
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
     kind = Column(String(20), nullable=False)
     channel = Column(String(20), nullable=False, default="instagram")
+    targets = Column(JSON, nullable=True)            # channels to publish to (agency M3); None = ["instagram"]
     title = Column(String(160), nullable=False)
     property_id = Column(String, nullable=True)
     plan_id = Column(String, nullable=True)
@@ -239,6 +240,7 @@ class MarketingPublishAttempt(Base, TimestampMixin):
     sha256 = Column(String(64), nullable=False)
     scheduled_for = Column(DateTime(timezone=True), nullable=False)
     status = Column(String(20), nullable=False, default="scheduled")   # scheduled|publishing|published|failed|cancelled
+    channel = Column(String(20), nullable=False, default="instagram")  # instagram | facebook | google (agency M3)
     container_ids = Column(JSON, nullable=True)
     media_ids = Column(JSON, nullable=True)
     permalink = Column(Text, nullable=True)
@@ -247,5 +249,120 @@ class MarketingPublishAttempt(Base, TimestampMixin):
     scheduled_by = Column(String, nullable=True)
     published_at = Column(DateTime(timezone=True), nullable=True)
 
-    __table_args__ = (UniqueConstraint("content_id", "version_id", name="uq_marketing_publish_attempts_version"),
+    __table_args__ = (UniqueConstraint("content_id", "version_id", "channel", name="uq_marketing_publish_attempts_channel"),
                       Index("ix_marketing_publish_attempts_due", "status", "scheduled_for"))
+
+
+class MarketingReview(Base, TimestampMixin):
+    """Brand review of a draft's TEXT (agency M1). Keyed by the hash of the guest-visible text, so a version that only
+    changes photos or the look keeps its review. `findings` = deterministic checks (only these can be `high` and block
+    the agency from sending a draft for approval); `advice` = the AI reviewer's opinion, shown to the approver."""
+    __tablename__ = "marketing_reviews"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    content_id = Column(String, ForeignKey("marketing_content.id"), nullable=False, index=True)
+    version_id = Column(String, nullable=False)                   # the version the review was run on
+    text_sha = Column(String(64), nullable=False)
+    findings = Column(JSON, nullable=False)                       # list[ReviewFinding]
+    blocking = Column(Boolean, nullable=False, default=False)
+    advice = Column(JSON, nullable=True)                          # list[ReviewFinding] from the AI reviewer
+    summary = Column(Text, nullable=True)
+    scores = Column(JSON, nullable=True)                          # critic 1-5: hook, specificity, voice, clarity, ask (M3)
+    ai_status = Column(String(20), nullable=False, default="skipped")   # skipped | pending | ready | failed
+    ai_error = Column(Text, nullable=True)
+    model = Column(String(120), nullable=True)
+    prompt_version = Column(String(60), nullable=True)
+
+    __table_args__ = (UniqueConstraint("content_id", "text_sha", name="uq_marketing_reviews_text"),)
+
+
+class MarketingCreativeJob(Base, TimestampMixin):
+    """One request to an outside creative tool (agency M2b): a Canva design filled from a draft, or a Higgsfield clip
+    made from library photos. The finished file lands in media_assets (a Canva export as an active photo the owner
+    designed; an AI video as pending_review, unusable until approved). The tool's own ids are saved as soon as they
+    exist, so a retry polls the same request instead of paying for a new one."""
+    __tablename__ = "marketing_creative_jobs"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    provider = Column(String(20), nullable=False)          # canva | higgsfield
+    kind = Column(String(20), nullable=False)              # design | video
+    content_id = Column(String, nullable=True)             # the draft a Canva design was filled from
+    inputs = Column(JSON, nullable=False)                  # template id + field data, or model + photo ids + prompt
+    external_id = Column(String(200), nullable=True)       # Canva design id / Higgsfield request id
+    external_url = Column(Text, nullable=True)             # Canva edit link (the owner can open it in Canva)
+    idempotency_key = Column(String(64), nullable=False)
+    status = Column(String(20), nullable=False, default="pending")   # pending | running | ready | failed
+    error = Column(Text, nullable=True)
+    asset_id = Column(String, nullable=True)
+    polls = Column(Integer, nullable=False, default=0)
+    created_by = Column(String, nullable=True)
+
+
+class MarketingGuestReview(Base, TimestampMixin):
+    """A public guest review (Google Business Profile today) and HAIP's reply to it (agency M3).
+
+    The review text is untrusted input. A reply is drafted by AI or a person, approved by someone with
+    marketing.approve, then posted; `reply_posted` is what Google shows. Unique per (tenant, source, external_id)."""
+    __tablename__ = "marketing_guest_reviews"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    source = Column(String(20), nullable=False, default="google")
+    external_id = Column(String(300), nullable=False)
+    location = Column(String(200), nullable=True)
+    rating = Column(Integer, nullable=True)
+    reviewer = Column(String(200), nullable=True)
+    comment = Column(Text, nullable=True)
+    reviewed_at = Column(String(40), nullable=True)
+    reply_status = Column(String(20), nullable=False, default="none")   # none | drafting | draft | approved | posted | failed
+    reply_draft = Column(Text, nullable=True)
+    reply_origin = Column(String(10), nullable=True)                    # ai | human
+    reply_posted = Column(Text, nullable=True)
+    reply_error = Column(Text, nullable=True)
+    drafted_by = Column(String, nullable=True)
+    approved_by = Column(String, nullable=True)
+    posted_at = Column(DateTime(timezone=True), nullable=True)
+    # Agency M7: the review turned into a post, only after a person recorded that the guest agreed.
+    content_id = Column(String, nullable=True)
+    consent_note = Column(String(300), nullable=True)
+    consent_by = Column(String, nullable=True)
+    consent_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (UniqueConstraint("tenant_id", "source", "external_id", name="uq_marketing_guest_reviews_ext"),)
+
+
+class MarketingNewsletter(Base, TimestampMixin):
+    """An email newsletter built from approved posts (agency M3). Sent only by a person with marketing.approve, to
+    guests with an email address and recorded marketing consent, minus anyone who unsubscribed from email."""
+    __tablename__ = "marketing_newsletters"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    subject = Column(String(200), nullable=False)
+    intro = Column(Text, nullable=True)
+    content_ids = Column(JSON, nullable=False)              # approved marketing_content ids, in order
+    status = Column(String(20), nullable=False, default="draft")   # draft | sending | sent | failed
+    created_by = Column(String, nullable=True)
+    sent_by = Column(String, nullable=True)
+    sent_at = Column(DateTime(timezone=True), nullable=True)
+    recipients = Column(Integer, nullable=False, default=0)
+    delivered = Column(Integer, nullable=False, default=0)
+    failed = Column(Integer, nullable=False, default=0)
+
+
+class MarketingNewsletterRecipient(Base, TimestampMixin):
+    """One guest a newsletter goes to. Unique per (newsletter, guest), so a re-run never emails anyone twice."""
+    __tablename__ = "marketing_newsletter_recipients"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    newsletter_id = Column(String, ForeignKey("marketing_newsletters.id"), nullable=False, index=True)
+    guest_id = Column(String, nullable=False)
+    email = Column(String(255), nullable=False)
+    status = Column(String(20), nullable=False, default="queued")   # queued | sent | failed | unsubscribed
+    error = Column(Text, nullable=True)
+    sent_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (UniqueConstraint("newsletter_id", "guest_id", name="uq_marketing_newsletter_recipient"),)

@@ -1,0 +1,34 @@
+{
+  "marketing_audit": {
+    "sha": "fc8df1dc3ac1acd1e4157072b44a26757e9abfed8bb8a29202ac21cdbf192b2f",
+    "version": "marketing-audit-v2"
+  },
+  "marketing_brand_dna": {
+    "sha": "f38c65cbe3e2d9474201c7fc1322a685855b3ae6bde9b6a88d6afcc17d9411ed",
+    "version": "marketing-brand-dna-v1"
+  },
+  "marketing_content": {
+    "sha": "b116ebf691851351a9aed3ce4a280e16c66135aed47b9c12521a9919e8e9d980",
+    "version": "marketing-content-v7"
+  },
+  "marketing_ota_copy": {
+    "sha": "3ee9e51949953d581bc9d213da4ec3553dedf77505dad0fca03a6ebef6cf2aaa",
+    "version": "marketing-ota-copy-v1"
+  },
+  "marketing_plan": {
+    "sha": "31e2d1f62538b9cb0b07feeb2e4c8bac65b1ee6ed4d4c45032fdb6593bae1359",
+    "version": "marketing-plan-v6"
+  },
+  "marketing_research": {
+    "sha": "f2d1738ce83fcdbb6ee93157416e16b276cd968009c4e334e62f542bb0eaca8b",
+    "version": "marketing-research-v1"
+  },
+  "marketing_review": {
+    "sha": "1c70703344623f242601d64c28c044ac75f2de6873781d3c0d89e2b687a0dbcb",
+    "version": "marketing-review-v2"
+  },
+  "marketing_review_reply": {
+    "sha": "cba34a095ee265724c9ac8d05369252438dedd8373da3bcc1e6e69665171f570",
+    "version": "marketing-review-reply-v1"
+  }
+}

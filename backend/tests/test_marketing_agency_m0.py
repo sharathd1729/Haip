@@ -72,7 +72,8 @@ def test_picker_matches_the_described_photo_and_avoids_repeats(db, ws):  # noqa:
     v = svc.get_version(db, tid, db.get(MarketingContent, item.id).current_version_id)
     chosen = [s["media"]["asset_id"] for s in v.payload["slides"]]
     assert chosen == [chai.id, pool.id] and v.origin == "ai" and "Photos chosen" in v.note
-    assert v.payload["design"] == {"style": "overlay", "colour": "#1E7A5A"}
+    assert v.payload["design"] == {"style": "overlay", "colour": "#1E7A5A", "accent": None, "font": "plain",
+                                   "logo_asset_id": None, "logo_position": "none"}   # brand kit frozen in (M3)
     assert photos.attach_photos(db, ws["tenant"], item.id) == 0              # nothing left to fill: no new version
 
 
@@ -219,7 +220,7 @@ def test_copywriter_sees_plan_siblings_history_notes_and_photo_descriptions(db, 
         ai.run_content(db, tid, item.id, None, "Kabini loop")
     v = svc.get_version(db, tid, item.current_version_id)
     assert "Less about the bed" in seen["user"] and "designer picks a library photo" in seen["system"]
-    assert v.payload["design"] == {"style": "panel", "colour": None} and v.prompt_version == "marketing-content-v3"
+    assert {k: v.payload["design"][k] for k in ("style", "colour")} == {"style": "panel", "colour": None} and v.prompt_version == "marketing-content-v7"
 
 
 def test_context_notes_on_this_post_come_first_and_other_tenants_never_leak(db, ws):  # noqa: F811
@@ -257,7 +258,7 @@ def test_each_unit_is_one_call_and_drafts_go_one_at_a_time(db, ws):  # noqa: F81
     db.refresh(run)
     assert run.status == "done" and run.detail["drafts"] == 3
     draft = db.query(MarketingTask).filter_by(run_id=run.run_id, step="draft").one()
-    assert draft.status == "done" and draft.detail == {"drafted": 3, "failed": 0}
+    assert draft.status == "done" and draft.detail == {"drafted": 3, "failed": 0, "rewritten": 0}
     photos_step = db.query(MarketingTask).filter_by(run_id=run.run_id, step="photos").one()
     assert photos_step.status == "done" and photos_step.detail["slots_filled"] >= 3
     items = db.query(MarketingContent).filter_by(tenant_id=tid).all()
@@ -280,7 +281,7 @@ def test_one_draft_failing_does_not_stop_the_others(db, ws):  # noqa: F811
     with patch.object(ai, "_call", side_effect=flaky), patch.object(agency, "notify_needs_approval"):
         run_id = runs.run_week(db, tid, trigger="manual")
     draft = db.query(MarketingTask).filter_by(run_id=run_id, step="draft").one()
-    assert draft.status == "done" and draft.detail == {"drafted": 2, "failed": 1}
+    assert draft.status == "done" and draft.detail == {"drafted": 2, "failed": 1, "rewritten": 0}
     failed = db.query(MarketingContent).filter_by(tenant_id=tid, kind="carousel").one()
     assert failed.generation_status == "failed" and "unavailable" in failed.generation_error
 

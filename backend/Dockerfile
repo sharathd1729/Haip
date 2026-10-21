@@ -2,11 +2,13 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# System deps — gcc for C extensions, libpq for psycopg2, ffmpeg for audio
+# System deps — gcc for C extensions, libpq for psycopg2, ffmpeg for audio + marketing reels,
+# fonts-noto-core for brand-kit typefaces on rendered posts (services/marketing_render.py)
 RUN apt-get update && apt-get install -y \
     gcc \
     libpq-dev \
     ffmpeg \
+    fonts-noto-core \
     curl \
     && rm -rf /var/lib/apt/lists/*
 

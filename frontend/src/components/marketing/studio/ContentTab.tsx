@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
 import { Card, DataTable, StatusPill, Tabs, type Column } from "@/components/ui/kit";
+import { NewslettersPanel } from "./OutreachPanels";
 import { ContentDrawer } from "./ContentDrawer";
 import { KIND_LABEL, STATUS, STUDIO, btnPrimary, day, inputCls, studioError, when, type ContentItem, type Kind } from "./types";
 
@@ -69,6 +70,7 @@ export function ContentTab() {
         onRowClick={c => setOpen(c.id)}
         empty={{ title: "No content here yet", hint: "Create a piece above, or turn a plan's calendar into drafts on the Plan tab." }} />
       <ContentDrawer id={open} onClose={() => setOpen(null)} />
+      <NewslettersPanel />
     </div>
   );
 }

@@ -93,6 +93,7 @@ celery_app = Celery(
         "app.workers.tasks.instagram_insights_poll",
         # Marketing Studio AI runs (audit, plan, content)
         "app.workers.tasks.marketing_studio",
+        "app.workers.tasks.marketing_ads",
         "app.workers.tasks.website",
         # Automations engine + timer triggers
         "app.workers.tasks.automation_engine",
@@ -228,6 +229,13 @@ celery_app.conf.update(
         "meta_ads.sync_all_tenants":                 {"queue": "whatsapp"},
         "meta_ads.sync_tenant":                      {"queue": "whatsapp"},
         "meta_ads.backfill_tenant":                  {"queue": "whatsapp"},
+        "marketing_ads.push":                        {"queue": "whatsapp"},
+        "marketing_ads.evaluate_all":                {"queue": "whatsapp"},
+        "marketing_ads.evaluate_tenant":             {"queue": "whatsapp"},
+        "marketing_capi.sweep_all":                  {"queue": "whatsapp"},
+        "marketing_capi.send_tenant":                {"queue": "whatsapp"},
+        "marketing_reports.weekly_all":              {"queue": "default"},
+        "marketing_reports.weekly_tenant":           {"queue": "default"},
         # The 5-minute lead-assignment tick had no route, so it sat on
         # Celery's implicit "celery" queue that no worker consumes and never ran.
         "lead_assignment.tick":                      {"queue": "default"},
@@ -240,6 +248,18 @@ celery_app.conf.update(
         "marketing_studio.generate_plan":            {"queue": "default"},
         "marketing_studio.generate_content":         {"queue": "default"},
         "marketing_studio.generate_image":           {"queue": "default"},
+        "marketing_studio.review_content":           {"queue": "default"},
+        "marketing_studio.tag_photo":                {"queue": "default"},
+        "marketing_studio.render_reel":              {"queue": "default"},
+        "marketing_studio.ota_copy":                 {"queue": "default"},
+        "marketing_studio.draft_profile":            {"queue": "default"},
+        "marketing_studio.canva_design":             {"queue": "default"},
+        "marketing_studio.video_submit":             {"queue": "default"},
+        "marketing_studio.video_poll":               {"queue": "default"},
+        "marketing_studio.draft_review_reply":       {"queue": "default"},
+        "marketing_reviews.sync_all":                {"queue": "default"},
+        "marketing_reviews.sync_tenant":             {"queue": "default"},
+        "marketing_newsletter.send_batch":           {"queue": "default"},
         "marketing_agency.orchestrate":              {"queue": "default"},
         "marketing_agency.run_week":                 {"queue": "default"},
         "marketing_agency.step":                     {"queue": "default"},
@@ -460,6 +480,25 @@ celery_app.conf.beat_schedule = {
     "marketing-agency-orchestrate-hourly": {
         "task": "marketing_agency.orchestrate",
         "schedule": crontab(minute=5),
+    },
+    # Google reviews for connected Business Profiles (agency M3): new reviews in, low ratings alert owners.
+    "marketing-reviews-sync-hourly": {
+        "task": "marketing_reviews.sync_all",
+        "schedule": crontab(minute=35),
+    },
+    # Performance marketer (agency M5): boost rules + the spend watchdog, and bookings to Meta's Conversions API.
+    "marketing-ads-evaluate": {
+        "task": "marketing_ads.evaluate_all",
+        "schedule": crontab(minute=20),
+    },
+    "marketing-capi-sweep": {
+        "task": "marketing_capi.sweep_all",
+        "schedule": crontab(minute=50),
+    },
+    # Agency M6: the weekly marketing report email, Monday 09:30 IST (beat timezone); off unless the owner turns it on.
+    "marketing-weekly-report": {
+        "task": "marketing_reports.weekly_all",
+        "schedule": crontab(minute=30, hour=9, day_of_week=1),
     },
     # Instagram publisher: posts approved, scheduled content whose time has come.
     "marketing-publish-dispatch": {

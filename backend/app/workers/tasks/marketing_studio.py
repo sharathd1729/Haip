@@ -77,6 +77,266 @@ def generate_content(self, tenant_id: str, item_id: str, actor_id: str, brief: s
     _run(self, "content", tenant_id, item_id, lambda db: svc.run_content(db, tenant_id, item_id, actor_id, brief), MarketingContent)
 
 
+@shared_task(name="marketing_studio.review_content", bind=True, max_retries=MAX_RETRIES)
+def review_content(self, tenant_id: str, item_id: str):
+    """The AI brand editor's advice on one draft (agency M1). Deterministic findings are stored either way."""
+    from app.models.tenant import Tenant
+    from app.services import marketing_ai_service as ai
+    from app.services import marketing_content_service as content_svc
+    from app.services import marketing_review_service as review
+
+    def give_up(db, message: str) -> None:
+        tenant = db.query(Tenant).filter_by(id=tenant_id).one()
+        row = review.current(db, tenant, content_svc.get_item(db, tenant_id, item_id))
+        if row is not None:
+            row.ai_status, row.ai_error = "failed", message[:2000]
+        db.commit()
+
+    with SessionLocal() as db:
+        try:
+            tenant = db.query(Tenant).filter_by(id=tenant_id).one()
+            review.run_ai(db, tenant, item_id)
+            db.commit()
+        except ai.LLMTransientError as exc:
+            db.rollback()
+            if self.request.retries < MAX_RETRIES:
+                raise self.retry(exc=exc, countdown=BASE_COUNTDOWN * (2 ** self.request.retries))
+            give_up(db, f"The AI editor is unavailable right now ({exc}). Try again later.")
+        except Exception as exc:  # noqa: BLE001 -- never leave the review pending
+            db.rollback()
+            log.exception("marketing_review_crashed", tenant_id=tenant_id, item_id=item_id)
+            give_up(db, f"The review failed unexpectedly: {type(exc).__name__}")
+
+
+@shared_task(name="marketing_studio.tag_photo", bind=True, max_retries=MAX_RETRIES)
+def tag_photo(self, tenant_id: str, asset_id: str):
+    """Vision tags for one library photo (agency M2). A permanent failure leaves the photo untagged and usable."""
+    from app.adapters.vision import VisionError
+    from app.models.tenant import Tenant
+    from app.services import marketing_vision as vision
+    from app.services.marketing_content_service import MarketingError
+
+    with SessionLocal() as db:
+        try:
+            vision.tag_asset(db, db.query(Tenant).filter_by(id=tenant_id).one(), asset_id)
+            db.commit()
+        except VisionError as exc:
+            db.rollback()
+            if exc.transient and self.request.retries < MAX_RETRIES:
+                raise self.retry(exc=exc, countdown=BASE_COUNTDOWN * (2 ** self.request.retries))
+            log.warning("marketing_tag_failed", tenant_id=tenant_id, asset_id=asset_id, error=str(exc)[:200])
+        except MarketingError as exc:
+            db.rollback()
+            log.info("marketing_tag_skipped", tenant_id=tenant_id, asset_id=asset_id, reason=exc.message)
+
+
+@shared_task(name="marketing_studio.render_reel")
+def render_reel(tenant_id: str, item_id: str, version_id: str):
+    """Render a reel version (agency M3) so the approver watches the exact file; the publisher reuses it. Not
+    retried: a bad clip fails the same way again, and the publisher renders it itself if this never ran."""
+    from app.models.tenant import Tenant
+    from app.services import marketing_content_service as content_svc
+    from app.services import marketing_reel
+    from app.services.media_library_service import MediaError
+
+    with SessionLocal() as db:
+        tenant = db.query(Tenant).filter_by(id=tenant_id).one()
+        version = content_svc.get_version(db, tenant_id, version_id)
+        if version is None or version.content_id != item_id:
+            return
+        try:
+            marketing_reel.render_reel(db, tenant, version.payload or {})
+            db.commit()
+        except MediaError as exc:
+            db.rollback()
+            log.info("marketing_reel_not_rendered", tenant_id=tenant_id, item_id=item_id, reason=exc.message)
+
+
+@shared_task(name="marketing_studio.ota_copy", bind=True, max_retries=MAX_RETRIES)
+def ota_copy(self, tenant_id: str, row_id: str):
+    """OTA listing copy draft (agency M7). Only a transient provider error is retried."""
+    from app.services import marketing_ai_service as ai
+    from app.services import marketing_reputation as reputation
+    with SessionLocal() as db:
+        try:
+            reputation.run_copy(db, tenant_id, row_id)
+            db.commit()
+        except ai.LLMTransientError as exc:
+            db.rollback()
+            if self.request.retries < MAX_RETRIES:
+                raise self.retry(exc=exc, countdown=BASE_COUNTDOWN * (2 ** self.request.retries))
+            from app.models.marketing_partners import MarketingOtaCopy
+            row = db.query(MarketingOtaCopy).filter_by(id=row_id, tenant_id=tenant_id).one()
+            row.status, row.error = "failed", f"The AI is unavailable right now: {exc}"[:2000]
+            db.commit()
+
+
+@shared_task(name="marketing_studio.draft_profile", bind=True, max_retries=MAX_RETRIES)
+def draft_profile(self, tenant_id: str):
+    """Brand DNA draft (agency M2): a suggestion the owner reviews; never applied automatically."""
+    from app.services import marketing_ai_service as ai
+    from app.services import marketing_brand_dna as dna
+
+    with SessionLocal() as db:
+        try:
+            dna.run(db, tenant_id)
+            db.commit()
+        except ai.LLMTransientError as exc:
+            db.rollback()
+            if self.request.retries < MAX_RETRIES:
+                raise self.retry(exc=exc, countdown=BASE_COUNTDOWN * (2 ** self.request.retries))
+            from app.models.tenant import Tenant
+            tenant = db.query(Tenant).filter_by(id=tenant_id).one()
+            dna._store(tenant, {**(dna.get_draft(tenant) or {}), "status": "failed",
+                                "error": f"The AI service is unavailable right now ({exc}). Try again later."})
+            db.commit()
+
+
+# ── Outside creative tools (agency M2b): Canva designs, Higgsfield videos ──────────────────────────────────────────
+
+def _job_failed(db, tenant_id: str, job_id: str, message: str) -> None:
+    from app.models.marketing import MarketingCreativeJob
+    job = db.query(MarketingCreativeJob).filter_by(id=job_id, tenant_id=tenant_id).first()
+    if job is not None and job.status not in ("ready", "failed"):
+        job.status, job.error = "failed", message[:2000]
+    db.commit()
+
+
+@shared_task(name="marketing_studio.canva_design", bind=True, max_retries=3)
+def canva_design(self, tenant_id: str, job_id: str):
+    from app.adapters.canva import CanvaError
+    from app.models.tenant import Tenant
+    from app.services import marketing_canva_service as canva
+    from app.services.marketing_content_service import MarketingError
+
+    with SessionLocal() as db:
+        try:
+            canva.run_design(db, db.query(Tenant).filter_by(id=tenant_id).one(), job_id)
+            db.commit()
+        except CanvaError as exc:
+            db.rollback()
+            if exc.transient and self.request.retries < 3:
+                raise self.retry(exc=exc, countdown=BASE_COUNTDOWN * (2 ** self.request.retries))
+            _job_failed(db, tenant_id, job_id, f"Canva: {exc}")
+        except MarketingError as exc:
+            db.rollback()
+            _job_failed(db, tenant_id, job_id, exc.message)
+        except Exception as exc:  # noqa: BLE001 -- never leave a job running
+            db.rollback()
+            log.exception("canva_design_crashed", tenant_id=tenant_id, job_id=job_id)
+            _job_failed(db, tenant_id, job_id, f"Unexpected error: {type(exc).__name__}")
+
+
+@shared_task(name="marketing_studio.video_submit", bind=True, max_retries=3)
+def video_submit(self, tenant_id: str, job_id: str):
+    from app.adapters.video import VideoError
+    from app.models.tenant import Tenant
+    from app.services import marketing_video_service as video
+
+    with SessionLocal() as db:
+        try:
+            job = video.submit(db, db.query(Tenant).filter_by(id=tenant_id).one(), job_id)
+            db.commit()
+        except VideoError as exc:
+            db.rollback()
+            if self.request.retries < 3:          # the Idempotency-Key makes a resubmit safe
+                raise self.retry(exc=exc, countdown=BASE_COUNTDOWN * (2 ** self.request.retries))
+            _job_failed(db, tenant_id, job_id, f"Higgsfield: {exc}")
+            return
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            log.exception("video_submit_crashed", tenant_id=tenant_id, job_id=job_id)
+            _job_failed(db, tenant_id, job_id, f"Unexpected error: {type(exc).__name__}")
+            return
+        if job.status == "running":
+            video_poll.apply_async((tenant_id, job_id), countdown=video.POLL_SECONDS)
+
+
+@shared_task(name="marketing_studio.video_poll")
+def video_poll(tenant_id: str, job_id: str):
+    from app.models.tenant import Tenant
+    from app.services import marketing_video_service as video
+
+    with SessionLocal() as db:
+        try:
+            job = video.poll(db, db.query(Tenant).filter_by(id=tenant_id).one(), job_id)
+            db.commit()
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            log.exception("video_poll_crashed", tenant_id=tenant_id, job_id=job_id)
+            _job_failed(db, tenant_id, job_id, f"Unexpected error: {type(exc).__name__}")
+            return
+        if job.status == "running":
+            video_poll.apply_async((tenant_id, job_id), countdown=video.POLL_SECONDS)
+
+
+# ── Google reviews (agency M3) ──────────────────────────────────────────────────────────────────────────────────────
+
+@shared_task(name="marketing_studio.draft_review_reply", bind=True, max_retries=MAX_RETRIES)
+def draft_review_reply(self, tenant_id: str, review_id: str):
+    from app.models.marketing import MarketingGuestReview
+    from app.models.tenant import Tenant
+    from app.services import marketing_ai_service as ai
+    from app.services import marketing_guest_reviews as reviews
+
+    with SessionLocal() as db:
+        try:
+            reviews.draft_ai(db, db.query(Tenant).filter_by(id=tenant_id).one(), review_id)
+            db.commit()
+        except ai.LLMTransientError as exc:
+            db.rollback()
+            if self.request.retries < MAX_RETRIES:
+                raise self.retry(exc=exc, countdown=BASE_COUNTDOWN * (2 ** self.request.retries))
+            row = db.query(MarketingGuestReview).filter_by(id=review_id, tenant_id=tenant_id).first()
+            if row is not None:
+                row.reply_status, row.reply_error = "failed", f"The AI service is unavailable right now ({exc})."
+            db.commit()
+
+
+@shared_task(name="marketing_reviews.sync_all")
+def reviews_sync_all():
+    """Hourly: one task per workspace with a connected Google Business Profile."""
+    from app.services import marketing_guest_reviews as reviews
+    with SessionLocal() as db:
+        ids = reviews.tenants_with_google(db)
+    for tid in ids:
+        reviews_sync_tenant.delay(tid)
+    return {"queued": len(ids)}
+
+
+@shared_task(name="marketing_reviews.sync_tenant")
+def reviews_sync_tenant(tenant_id: str):
+    from app.adapters.instagram.publishing import PublishError
+    from app.models.tenant import Tenant
+    from app.services import marketing_guest_reviews as reviews
+    with SessionLocal() as db:
+        try:
+            out = reviews.sync(db, db.query(Tenant).filter_by(id=tenant_id).one())
+            db.commit()
+            return out
+        except PublishError as exc:
+            db.rollback()
+            log.warning("marketing_reviews_sync_failed", tenant_id=tenant_id, error=str(exc)[:200])
+            return {"error": str(exc)[:200]}
+
+
+@shared_task(name="marketing_newsletter.send_batch")
+def newsletter_send_batch(tenant_id: str, newsletter_id: str):
+    """One batch of a newsletter; queues the next until nobody is left. Each email is committed as it goes."""
+    from app.services import marketing_newsletter as newsletter
+    with SessionLocal() as db:
+        try:
+            left = newsletter.send_batch(db, tenant_id, newsletter_id)
+        except Exception as exc:  # noqa: BLE001 -- the recipients still queued are picked up by the next run
+            db.rollback()
+            log.exception("newsletter_batch_crashed", tenant_id=tenant_id, newsletter_id=newsletter_id)
+            newsletter_send_batch.apply_async((tenant_id, newsletter_id), countdown=300)
+            return {"error": type(exc).__name__}
+    if left:
+        newsletter_send_batch.apply_async((tenant_id, newsletter_id), countdown=5)
+    return {"left": left}
+
+
 # ── Agency (plan phase A) ───────────────────────────────────────────────────────────────────────────────────────────
 
 @shared_task(name="marketing_agency.orchestrate")

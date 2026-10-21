@@ -74,6 +74,14 @@ class Publisher:
             params["caption"] = caption
         return self._req("POST", f"{self.ig}/media", **params)["id"]
 
+    def reel_container(self, video_url: str, *, caption: str, cover_url: Optional[str] = None) -> str:
+        """A REELS container (agency M3): Instagram fetches the MP4 itself and takes minutes to process it, so
+        wait_ready may raise a transient error; the caller keeps the container id and retries."""
+        params = {"media_type": "REELS", "video_url": video_url, "caption": caption, "share_to_feed": "true"}
+        if cover_url:
+            params["cover_url"] = cover_url
+        return self._req("POST", f"{self.ig}/media", **params)["id"]
+
     def carousel_container(self, children: list[str], caption: str) -> str:
         return self._req("POST", f"{self.ig}/media", media_type="CAROUSEL", children=",".join(children), caption=caption)["id"]
 

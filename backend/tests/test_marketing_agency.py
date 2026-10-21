@@ -38,6 +38,8 @@ def _fake_call(tenant_start):
             return dict(AUDIT), {"model": "m"}, "nvidia"
         if task == "marketing_plan":
             return _plan(tenant_start), {"model": "m"}, "nvidia"
+        if task == "marketing_review":
+            return {"summary": "Reads well.", "findings": []}, {"model": "m"}, "nvidia"
         kind = next(k for k in CONTENT if f"Kind: {k}" in user)
         return dict(CONTENT[kind]), {"model": "m"}, "nvidia"
     return fake
@@ -56,7 +58,8 @@ def test_defaults_follow_owner_decision(ws):  # noqa: F811
     levels = agency.get_agency(ws["tenant"])["roles"]
     assert levels["research"] == levels["strategy"] == levels["copy"] == levels["design"] == "autopilot"
     assert levels["publish"] == "suggest"
-    assert set(levels) == {"research", "strategy", "copy", "design", "publish"}     # only roles with code behind them
+    assert levels["ads"] == "off"                                                   # spends money: off until the owner says (M5)
+    assert set(levels) == {"research", "strategy", "copy", "design", "publish", "ads"}   # only roles with code behind them
 
 
 def test_kill_switch_forces_suggest_and_off_stays_off(db, ws):  # noqa: F811

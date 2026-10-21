@@ -142,14 +142,27 @@ PROMPT_VERSIONS: dict[str, str] = {
     # carousel/story rules (techniques from Ootto-AI/claude-content-skills, MIT; see THIRD_PARTY_NOTICES.md).
     "marketing_audit": "marketing-audit-v2",
     # v3: the strategist also reads the research analyst's latest competitor brief (agency phase B).
-    "marketing_plan": "marketing-plan-v3",
+    # v4 (M2): the demand brief (open dates, long weekends, festivals); targets, campaigns, 60/30/10 buckets,
+    # indicator + stop_if per entry, reactive days.
+    "marketing_plan": "marketing-plan-v6",
     "marketing_research": "marketing-research-v1",
     # Website builder AI developer (services/website_ai_prompts.py): first full copy, and chat edits as operations.
     "website_generate": "website-generate-v1",
     "website_edit": "website-edit-v1",
     # v3: the copywriter also gets the plan, the week's other posts, recent openings, reviewer notes and the photo
     # library's descriptions; it describes each slot's photo for the picker and may choose the text design.
-    "marketing_content": "marketing-content-v3",
+    # v4 (M1): brand voice traits + tone, AI-tell bans, carousel frameworks, [NEED: ...] for missing facts.
+    # v5 (M2): approved claims; a post sells exactly its plan entry's target dates.
+    # v6 (M3): optional comment_dm ("comment STAY for dates").
+    "marketing_content": "marketing-content-v7",
+    # Brand editor (marketing_review_service): advisory findings on one draft; deterministic checks block, not this.
+    "marketing_review": "marketing-review-v2",
+    # Brand DNA draft (marketing_brand_dna): voice/tone/claims SUGGESTED from the website, captions, property text.
+    "marketing_brand_dna": "marketing-brand-dna-v1",
+    # Reply to a public Google review (marketing_guest_reviews): review text treated as data; a person posts it.
+    "marketing_review_reply": "marketing-review-reply-v1",
+    # Agency M7: OTA listing copy drafts (marketing_reputation); a person pastes them into the OTA.
+    "marketing_ota_copy": "marketing-ota-copy-v1",
     # Fixed suffix appended to AI image prompts (marketing_image_service.PROMPT_SUFFIX).
     "marketing_image": "marketing-image-v1",
 }

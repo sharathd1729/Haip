@@ -6,7 +6,10 @@ POST /marketing/studio/agency/run                   run the weekly cycle now (ma
 GET  /marketing/studio/approvals                    everything waiting for a person (content + AI images)
 POST /marketing/studio/approvals/{type}/{id}/approve | reject     marketing.approve; delegates to the existing reviews
 GET  /marketing/studio/content/{id}/preview         the images exactly as they would be posted (half size, data URLs)
+GET  /marketing/studio/content/{id}/variants        the first image in each look (overlay / panel / photo)
 POST /marketing/studio/content/{id}/pick-photos     fill empty photo slots from the library (new version, marketing.edit)
+GET  /marketing/studio/content/{id}/review          brand review of the current text: checks (live) + AI editor advice
+POST /marketing/studio/content/{id}/review          ask the AI editor again (queued; marketing.edit)
 """
 from datetime import datetime
 from typing import Optional
@@ -137,7 +140,7 @@ def _attempts(db: Session, tenant_id: str, item_id: str) -> list[dict]:
     rows = (db.query(MarketingPublishAttempt).filter_by(tenant_id=tenant_id, content_id=item_id)
             .order_by(MarketingPublishAttempt.created_at.desc()).all())
     return [{"id": a.id, "version_id": a.version_id, "status": a.status, "scheduled_for": a.scheduled_for, "tries": a.tries,
-             "permalink": a.permalink, "error": a.error, "published_at": a.published_at} for a in rows]
+             "permalink": a.permalink, "error": a.error, "published_at": a.published_at, "channel": a.channel} for a in rows]
 
 
 @router.get("/content/{item_id}/publishing")
@@ -147,15 +150,26 @@ def publishing(item_id: str, user: User = Depends(get_current_user), db: Session
         item = svc.get_item(db, user.tenant_id, item_id)
     except svc.MarketingError as exc:
         raise _err(exc)
+    from app.services import marketing_ai_service as ai
+    from app.services import marketing_channels as channels
     tenant = _tenant(db, user)
-    problems, notes = ([], [])
+    targets = channels.targets_of(item)
+    problems, notes, previews = [], [], {}
+    publish_to = [c for c in targets if c in channels.CHANNELS]
     if item.status in ("approved", "scheduled"):
         try:
-            problems, notes = pub.preflight(db, user.tenant_id, item, svc.approved_payload(db, user.tenant_id, item.id))
+            payload = svc.approved_payload(db, user.tenant_id, item.id)
+            for c in publish_to:
+                p_, n_ = pub.preflight(db, user.tenant_id, item, payload, c)
+                problems += [f"{channels.LABEL[c]}: {x}" if c != "instagram" else x for x in p_]
+                notes += [f"{channels.LABEL[c]}: {x}" if c != "instagram" else x for x in n_]
+                previews[c] = channels.preview(item.kind, payload, ai.get_profile(tenant), c)
         except svc.MarketingError as exc:
             problems = [exc.message]
-    return {"status": item.status, "publish_level": agency.level(tenant, "publish"), "problems": problems, "notes": notes,
-            "suggested_time": pub.suggest_time(db, tenant).isoformat(), "attempts": _attempts(db, user.tenant_id, item.id)}
+    return {"status": item.status, "publish_level": agency.level(tenant, "publish"), "problems": sorted(set(problems)),
+            "notes": notes, "targets": targets, "available_channels": list(channels.channels_for(item.kind)),
+            "previews": previews, "suggested_time": pub.suggest_time(db, tenant).isoformat(),
+            "attempts": _attempts(db, user.tenant_id, item.id)}
 
 
 @router.post("/content/{item_id}/schedule")
@@ -164,11 +178,12 @@ def schedule(item_id: str, body: ScheduleIn = ScheduleIn(), user: User = Depends
     from app.services import marketing_publish_service as pub
     tenant = _tenant(db, user)
     try:
-        attempt = pub.schedule(db, tenant, item_id, body.scheduled_for or pub.suggest_time(db, tenant), user.id)
+        attempts = pub.schedule_all(db, tenant, item_id, body.scheduled_for or pub.suggest_time(db, tenant), user.id)
     except svc.MarketingError as exc:
         raise _err(exc)
     db.commit()
-    return {"status": attempt.status, "scheduled_for": attempt.scheduled_for}
+    return {"status": attempts[0].status, "scheduled_for": attempts[0].scheduled_for,
+            "channels": [a.channel for a in attempts]}
 
 
 @router.post("/content/{item_id}/unschedule")
@@ -208,6 +223,36 @@ def preview(item_id: str, version_id: Optional[str] = None, user: User = Depends
          "headline": f["headline"], "style": f["style"]} for data, src, f in drawn]}
 
 
+@router.get("/content/{item_id}/variants")
+def variants(item_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module,
+             _c=_read):
+    """The first image of the current version drawn in each look (agency M3), so a person can pick one. Nothing is
+    stored; picking a look saves a new version through the normal edit."""
+    import base64
+
+    from app.services import marketing_render as render
+    from app.services.media_library_service import MediaError
+    try:
+        item = svc.get_item(db, user.tenant_id, item_id)
+        version = svc.get_version(db, user.tenant_id, item.current_version_id)
+    except svc.MarketingError as exc:
+        raise _err(exc)
+    payload = (version.payload if version is not None else None) or {}
+    current = (payload.get("design") or {}).get("style") or "overlay"
+    tenant = _tenant(db, user)
+    out = []
+    for style in ("overlay", "panel", "photo"):
+        look = {**payload, "design": {**(payload.get("design") or {}), "style": style}}
+        try:
+            drawn = render.images(db, tenant, item.kind, look, scale=0.35, limit=1)
+        except MediaError as exc:
+            return {"current": current, "variants": [], "problems": [exc.message]}
+        except Exception:  # noqa: BLE001  storage unreachable
+            return {"current": current, "variants": [], "problems": ["The photos could not be loaded right now."]}
+        out.append({"style": style, "src": "data:image/jpeg;base64," + base64.b64encode(drawn[0][0]).decode()})
+    return {"current": current, "variants": out, "problems": []}
+
+
 @router.post("/content/{item_id}/pick-photos")
 def pick_photos(item_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_edit):
     from app.services import marketing_photos as photos
@@ -220,3 +265,25 @@ def pick_photos(item_id: str, user: User = Depends(get_current_user), db: Sessio
         raise _err(exc)
     db.commit()
     return {"filled": filled, "version_id": svc.get_item(db, user.tenant_id, item_id).current_version_id}
+
+
+@router.get("/content/{item_id}/review")
+def get_review(item_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
+    from app.services import marketing_review_service as review
+    try:
+        item = svc.get_item(db, user.tenant_id, item_id)
+    except svc.MarketingError as exc:
+        raise _err(exc)
+    row = review.current(db, _tenant(db, user), item)
+    db.commit()
+    return review.as_dict(row)
+
+
+@router.post("/content/{item_id}/review", status_code=202)
+def request_review(item_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_edit):
+    from app.services import marketing_review_service as review
+    try:
+        item = svc.get_item(db, user.tenant_id, item_id)
+    except svc.MarketingError as exc:
+        raise _err(exc)
+    return review.as_dict(review.request_ai(db, _tenant(db, user), item))

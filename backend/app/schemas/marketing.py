@@ -9,7 +9,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-CONTENT_KINDS = ("post", "carousel", "story", "promo")
+CONTENT_KINDS = ("post", "carousel", "story", "promo", "reel")
 CHANNELS = ("instagram",)
 
 # Item lifecycle in Phase 1 (no external publishing yet): draft -> in_review -> approved | rejected; any edit -> draft.
@@ -53,6 +53,29 @@ class SocialLinks(_Strict):
         return v
 
 
+class VoiceTrait(_Strict):
+    """One trait of the brand voice, written the way an agency style guide does: what it is and where it stops."""
+    trait: str = Field(min_length=1, max_length=40)                  # e.g. "Warm"
+    we_are: str = Field(min_length=1, max_length=200)                # "Warm and specific: we name the place and the hour"
+    we_are_not: str = Field(min_length=1, max_length=200)            # "Gushing: no 'magical', no exclamation marks"
+    sounds_like: Optional[str] = Field(default=None, max_length=200)
+    not_like: Optional[str] = Field(default=None, max_length=200)
+
+
+class ChannelTone(_Strict):
+    """The voice stays the same everywhere; the tone shifts by channel."""
+    instagram: Optional[str] = Field(default=None, max_length=200)
+    whatsapp: Optional[str] = Field(default=None, max_length=200)
+    review_replies: Optional[str] = Field(default=None, max_length=200)
+    ads: Optional[str] = Field(default=None, max_length=200)
+
+
+class ApprovedClaim(_Strict):
+    """A fact the owner has confirmed may be said in public (agency M2), e.g. "12 km from Madikeri town"."""
+    text: str = Field(min_length=3, max_length=200)
+    source: Optional[str] = Field(default=None, max_length=200)    # where it comes from: "Google Maps", "award 2025"
+
+
 class BusinessProfile(_Strict):
     """What the AI may say about the business. `Tenant.brand_name` stays the canonical name and
     `brand_config.branding_theme` the visual source; this adds only what neither holds."""
@@ -70,6 +93,10 @@ class BusinessProfile(_Strict):
     gstin: Optional[str] = Field(default=None, pattern=r"^[0-9A-Z]{15}$")
     socials: SocialLinks = Field(default_factory=SocialLinks)
     default_hashtags: list[str] = Field(default_factory=list, max_length=HASHTAGS_MAX)
+    voice: list[VoiceTrait] = Field(default_factory=list, max_length=5)
+    channel_tone: ChannelTone = Field(default_factory=ChannelTone)   # `tone` above stays the overall "how you sound"
+    claims: list[ApprovedClaim] = Field(default_factory=list, max_length=40)
+    home_state: Optional[str] = Field(default=None, max_length=40)   # for state holidays; e.g. "KA" or "Karnataka"
 
     @field_validator("usps", "avoid")
     @classmethod
@@ -97,6 +124,29 @@ class Design(_Strict):
     exact look that will be posted: overlay = dark fade with white text; panel = brand-coloured band; photo = no text."""
     style: Literal["overlay", "panel", "photo"] = "overlay"
     colour: Optional[str] = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
+    # From the brand kit (agency M3), frozen when photos are attached; None = the renderer's plain default.
+    accent: Optional[str] = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
+    font: Optional[Literal["plain", "sans", "serif"]] = None
+    logo_asset_id: Optional[str] = Field(default=None, max_length=64)
+    logo_position: Optional[Literal["top_left", "top_right", "none"]] = None
+
+
+class BrandKit(_Strict):
+    """brand_config.marketing_studio.brand_kit (agency M3). primary = the panel/brand colour, accent = the CTA pill
+    and accent bar. plain = the bundled font; sans/serif need the Noto fonts in the image (backend/Dockerfile)."""
+    logo_asset_id: Optional[str] = Field(default=None, max_length=64)
+    primary: Optional[str] = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
+    accent: Optional[str] = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
+    font: Literal["plain", "sans", "serif"] = "plain"
+    logo_position: Literal["top_left", "top_right", "none"] = "top_right"
+
+
+class CommentDM(_Strict):
+    """"Comment STAY for dates" (agency M3): when someone comments the keyword on this post, Instagram sends them this
+    DM (and optionally a short public reply). Part of the approved payload, so the approval covers the DM text too."""
+    keyword: str = Field(pattern=r"^[A-Za-z0-9\u0900-\u097f]{2,20}$")
+    message: str = Field(min_length=10, max_length=1000)
+    public_reply: Optional[str] = Field(default=None, max_length=300)
 
 
 class _Captioned(_Strict):
@@ -125,6 +175,7 @@ class PostContent(_Captioned):
     media: MediaRef = Field(default_factory=MediaRef)
     overlay_text: Optional[str] = Field(default=None, max_length=120)
     design: Optional[Design] = None
+    comment_dm: Optional[CommentDM] = None
 
 
 class CarouselSlide(_Strict):
@@ -133,10 +184,18 @@ class CarouselSlide(_Strict):
     body: Optional[str] = Field(default=None, max_length=200)
 
 
+# Carousel structures (adapted from coreyhaines31/marketingskills `social`, MIT; THIRD_PARTY_NOTICES.md):
+# list = N reasons/places/things, itinerary = day by day, walkthrough = a tour of the stay, problem_proof = the trip
+# people want and why this stay delivers it, guide = how to plan or do something.
+CAROUSEL_FRAMEWORKS = ("list", "itinerary", "walkthrough", "problem_proof", "guide")
+
+
 class CarouselContent(_Captioned):
     kind: Literal["carousel"] = "carousel"
     slides: list[CarouselSlide] = Field(min_length=2, max_length=10)
     design: Optional[Design] = None
+    framework: Optional[Literal["list", "itinerary", "walkthrough", "problem_proof", "guide"]] = None
+    comment_dm: Optional[CommentDM] = None
 
 
 class StorySticker(_Strict):
@@ -189,10 +248,41 @@ class PromoContent(_Captioned):
     valid_until: Optional[str] = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
     media: MediaRef = Field(default_factory=MediaRef)
     design: Optional[Design] = None
+    comment_dm: Optional[CommentDM] = None
+
+
+REEL_MAX_SECONDS = 60
+
+
+class ReelClip(_Strict):
+    """One cut of a reel: a library clip (from start_s, for `seconds`) or a still photo shown with a slow zoom."""
+    media: MediaRef = Field(default_factory=MediaRef)
+    start_s: float = Field(default=0, ge=0, le=600)
+    seconds: float = Field(default=3, ge=1, le=15)
+    caption: Optional[str] = Field(default=None, max_length=80)      # drawn on the video
+    shot_note: Optional[str] = Field(default=None, max_length=200)   # what to film if the library has nothing that fits
+
+
+class ReelContent(_Captioned):
+    """A reel cut from the property's own clips (agency M3; services/marketing_reel.py). No music, no clip sound."""
+    kind: Literal["reel"] = "reel"
+    clips: list[ReelClip] = Field(min_length=2, max_length=12)
+    cover_text: Optional[str] = Field(default=None, max_length=60)
+    cover_clip: int = Field(default=0, ge=0)
+    design: Optional[Design] = None
+    comment_dm: Optional[CommentDM] = None
+
+    @model_validator(mode="after")
+    def _length(self):
+        if sum(c.seconds for c in self.clips) > REEL_MAX_SECONDS:
+            raise ValueError(f"a reel can be at most {REEL_MAX_SECONDS} seconds")
+        if self.cover_clip >= len(self.clips):
+            raise ValueError("cover_clip must point at one of the clips")
+        return self
 
 
 CONTENT_MODELS: dict[str, type[BaseModel]] = {
-    "post": PostContent, "carousel": CarouselContent, "story": StoryContent, "promo": PromoContent,
+    "post": PostContent, "carousel": CarouselContent, "story": StoryContent, "promo": PromoContent, "reel": ReelContent,
 }
 
 
@@ -213,7 +303,8 @@ def strings_of(payload: dict) -> list[str]:
             parts.append(v)
         elif isinstance(v, dict):
             for k, x in v.items():
-                if k not in ("asset_id", "kind", "date", "valid_until"):
+                if k not in ("asset_id", "kind", "date", "valid_until", "framework", "style", "colour", "accent", "font",
+                             "logo_asset_id", "logo_position"):
                     walk(x)
         elif isinstance(v, list):
             for x in v:
@@ -225,6 +316,67 @@ def strings_of(payload: dict) -> list[str]:
 
 def text_of(payload: dict) -> str:
     return "\n".join(strings_of(payload))
+
+
+# ── Photo tags (services/marketing_vision.py) ────────────────────────────────────────────────────────────────────────
+
+PHOTO_SUBJECTS = ("bedroom", "bathroom", "living_room", "kitchen", "dining", "exterior", "pool", "garden", "view",
+                  "food", "drink", "activity", "vehicle", "detail", "amenity", "local_area", "people")
+
+
+class PhotoTags(_Strict):
+    """What a vision model saw in one library photo. Used to pick photos; `people` photos need the owner's OK."""
+    subjects: list[Literal["bedroom", "bathroom", "living_room", "kitchen", "dining", "exterior", "pool", "garden",
+                           "view", "food", "drink", "activity", "vehicle", "detail", "amenity", "local_area",
+                           "people"]] = Field(default_factory=list, max_length=6)
+    light: Literal["day", "golden_hour", "night", "indoor", "unknown"] = "unknown"
+    season: Literal["monsoon", "winter", "summer", "any"] = "any"
+    people: bool = False
+    text_or_logo: bool = False
+    quality: int = Field(default=3, ge=1, le=5)
+    mood: list[str] = Field(default_factory=list, max_length=4)
+    description: str = Field(min_length=1, max_length=200)
+
+    @field_validator("mood")
+    @classmethod
+    def _mood(cls, v):
+        return [m.strip().lower()[:20] for m in v if m and m.strip()]
+
+
+# ── Brand review (services/marketing_review_service.py) ─────────────────────────────────────────────────────────────
+
+class ReviewFinding(_Strict):
+    """One issue in a draft. `high` comes only from the deterministic checks and blocks the agency from sending the
+    draft for approval; the AI reviewer's findings are advice (medium/low) shown to the approver."""
+    rule: str = Field(min_length=1, max_length=40)
+    severity: Literal["high", "medium", "low"]
+    where: str = Field(min_length=1, max_length=60)              # "caption", "slide 2", "frame 1"
+    message: str = Field(min_length=1, max_length=300)
+    quote: Optional[str] = Field(default=None, max_length=200)   # the words in the draft it refers to
+    suggestion: Optional[str] = Field(default=None, max_length=300)
+
+
+class AIReviewFinding(_Strict):
+    issue: str = Field(min_length=1, max_length=300)
+    where: str = Field(min_length=1, max_length=60)
+    severity: Literal["medium", "low"]
+    quote: Optional[str] = Field(default=None, max_length=200)
+    suggestion: Optional[str] = Field(default=None, max_length=300)
+
+
+class CriticScores(_Strict):
+    """The critic's 1-5 marks (agency M3). Below the bar (average < 3.5 or any mark <= 2) the agency rewrites once."""
+    hook: int = Field(ge=1, le=5)          # does the first line stop the scroll
+    specificity: int = Field(ge=1, le=5)   # concrete details of THIS place, not any resort
+    voice: int = Field(ge=1, le=5)
+    clarity: int = Field(ge=1, le=5)
+    ask: int = Field(ge=1, le=5)           # one clear next step
+
+
+class AIBrandReview(_Strict):
+    summary: str = Field(min_length=1, max_length=500)
+    findings: list[AIReviewFinding] = Field(default_factory=list, max_length=8)
+    scores: Optional[CriticScores] = None
 
 
 # ── AI outputs ──────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -262,9 +414,22 @@ class AuditAssessment(_Strict):
 
 class CalendarEntry(_Strict):
     date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
-    kind: Literal["post", "carousel", "story", "promo"]
+    kind: Literal["post", "carousel", "story", "promo", "reel"]
     pillar: str = Field(min_length=1, max_length=60)
     idea: str = Field(min_length=1, max_length=300)
+    # Agency M2 (all optional so older plans still validate):
+    targets: Optional[str] = Field(default=None, max_length=80)        # the free dates or occasion it sells, e.g. "2026-11-13 to 2026-11-16"
+    campaign: Optional[str] = Field(default=None, max_length=80)
+    bucket: Optional[Literal["proven", "new", "experimental"]] = None
+    indicator: Optional[str] = Field(default=None, max_length=160)     # the early signal to watch
+    stop_if: Optional[str] = Field(default=None, max_length=160)       # when to stop doing this
+
+
+class Campaign(_Strict):
+    name: str = Field(min_length=1, max_length=80)
+    goal: str = Field(min_length=1, max_length=200)
+    targets: Optional[str] = Field(default=None, max_length=120)       # dates or occasion
+    channels: list[str] = Field(default_factory=list, max_length=6)
 
 
 class MarketingPlanBody(_Strict):
@@ -276,6 +441,8 @@ class MarketingPlanBody(_Strict):
     out_of_scope: list[str] = Field(default_factory=list, max_length=8)  # what the account does not post
     cadence: str = Field(min_length=1, max_length=200)
     calendar: list[CalendarEntry] = Field(default_factory=list, max_length=62)
+    campaigns: list[Campaign] = Field(default_factory=list, max_length=6)
+    reactive_days: list[str] = Field(default_factory=list, max_length=12)   # days kept free for what happens that week
 
     @model_validator(mode="after")
     def _pillars_known(self):
@@ -284,57 +451,3 @@ class MarketingPlanBody(_Strict):
         if unknown:
             raise ValueError(f"calendar uses pillars that are not in the plan: {', '.join(unknown)[:200]}")
         return self
-
-
-# ── Research (agency phase B) ───────────────────────────────────────────────────────────────────────────────────────
-
-_HANDLE = re.compile(r"^@?[A-Za-z0-9._]{1,30}$")
-_IG_POST = re.compile(r"^https://(www\.)?instagram\.com/(p|reel|reels|tv)/[A-Za-z0-9_-]{5,}/?(\?.*)?$")
-
-
-class CompetitorIn(_Strict):
-    handle: str = Field(min_length=1, max_length=31)
-    display_name: Optional[str] = Field(default=None, max_length=120)
-    notes: Optional[str] = Field(default=None, max_length=1000)
-    followers: Optional[int] = Field(default=None, ge=0, le=1_000_000_000)   # typed in by a person (source=manual)
-
-    @field_validator("handle")
-    @classmethod
-    def _handle(cls, v):
-        if not _HANDLE.match(v):
-            raise ValueError("an Instagram handle has 1-30 letters, numbers, dots or underscores")
-        return v.lstrip("@").lower()
-
-
-class CompetitorPostIn(_Strict):
-    """A competitor post the owner saw and pasted in. Numbers are whatever they read off the app (source=manual)."""
-    permalink: str = Field(max_length=300)
-    caption: Optional[str] = Field(default=None, max_length=2200)
-    media_type: Optional[Literal["IMAGE", "CAROUSEL_ALBUM", "VIDEO", "REELS"]] = None
-    like_count: Optional[int] = Field(default=None, ge=0, le=100_000_000)
-    comments_count: Optional[int] = Field(default=None, ge=0, le=10_000_000)
-    posted_at: Optional[str] = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}")
-    note: Optional[str] = Field(default=None, max_length=500)
-
-    @field_validator("permalink")
-    @classmethod
-    def _link(cls, v):
-        if not _IG_POST.match(v.strip()):
-            raise ValueError("paste a post link like https://www.instagram.com/p/XXXX/")
-        return v.strip()
-
-
-class ResearchTheme(_Strict):
-    name: str = Field(min_length=1, max_length=80)
-    why_it_works: str = Field(min_length=1, max_length=400)
-    examples: list[str] = Field(default_factory=list, max_length=5)     # permalinks from the measured data only
-
-
-class ResearchBrief(_Strict):
-    """AI reading of competitor data. Numbers stay in the measured block; this holds opinion only."""
-    summary: str = Field(min_length=1, max_length=1500)
-    themes: list[ResearchTheme] = Field(default_factory=list, max_length=8)
-    formats: list[str] = Field(default_factory=list, max_length=6)
-    opportunities: list[str] = Field(default_factory=list, max_length=6)
-    avoid: list[str] = Field(default_factory=list, max_length=6)
-    not_enough_signal: list[str] = Field(default_factory=list, max_length=5)

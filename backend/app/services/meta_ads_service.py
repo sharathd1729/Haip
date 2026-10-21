@@ -380,6 +380,7 @@ def summary(db: Session, tenant_id: str, days: int = 30) -> dict:
                 "audience": meta_ads.summarize_targeting(adset.targeting) if adset else None,
                 **aout, "haip_leads": len(ad_inq[ad_id]), "bookings": ab, "revenue": ar,
                 "cost_per_lead": _ratio(aout["spend"], len(ad_inq[ad_id])) if aout["spend"] else None,
+                "cost_per_booking": _ratio(aout["spend"], ab) if aout["spend"] else None,
                 "roas": _ratio(ar, aout["spend"]) if aout["spend"] else None,
             })
         rows_out.append({
@@ -389,6 +390,7 @@ def summary(db: Session, tenant_id: str, days: int = 30) -> dict:
             "haip_conversations": len(conv_by[cid]), "haip_leads": leads, "bookings": bookings, "revenue": revenue,
             # A cost needs both a spend and something it bought; 0 / n would read as "free".
             "cost_per_lead": _ratio(spend, leads) if spend else None,
+            "cost_per_booking": _ratio(spend, bookings) if spend else None,     # agency M5: the number that matters
             "roas": _ratio(revenue, spend) if spend else None,
         })
     rows_out.sort(key=lambda r: (-r["spend"], -r["revenue"]))
@@ -408,6 +410,7 @@ def summary(db: Session, tenant_id: str, days: int = 30) -> dict:
             "haip_conversations": tot_haip_conv, "haip_leads": tot_leads,
             "bookings": sum(r["bookings"] for r in rows_out), "revenue": round(tot_rev, 2),
             "cost_per_lead": _ratio(t["spend"], tot_leads) if t["spend"] else None,
+            "cost_per_booking": _ratio(t["spend"], sum(r["bookings"] for r in rows_out)) if t["spend"] else None,
             "roas": _ratio(tot_rev, t["spend"]) if t["spend"] else None,
             # Meta says N people started a chat; HAIP saw M referrals. A big gap means the ad's attribution is
             # off or messages are being dropped.

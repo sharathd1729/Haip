@@ -18,9 +18,12 @@ from app.models.media_asset import MediaAsset
 from app.models.tenant import Tenant
 from app.services import marketing_content_service as content_svc
 from app.services.marketing_render import frames
-from app.services.media_library_service import _panel_colour
+from app.services.marketing_vision import needs_consent
+from app.services.marketing_vision import words as tag_words
+from app.services import marketing_brand_kit as brand_kit
 
 SOURCE_TYPES = ("image/jpeg", "image/png", "image/webp")
+VIDEO_TYPES = ("video/mp4",)          # library clips (marketing_reel.add_clip); only reels use them
 RECENT_DAYS = 30
 _WORD = re.compile(r"[a-zऀ-ॿ]{3,}")
 _STOP = {"the", "and", "with", "for", "from", "our", "your", "this", "that", "into", "onto", "over", "photo", "image",
@@ -34,12 +37,17 @@ def _words(*texts: Optional[str]) -> set[str]:
     return out
 
 
-def library(db: Session, tenant_id: str) -> list[MediaAsset]:
-    """Approved photos a post may use (AI images only once approved; rendered outputs never)."""
-    return (db.query(MediaAsset)
+def library(db: Session, tenant_id: str, *, videos: bool = False) -> list[MediaAsset]:
+    """Approved photos a post may use (AI images only once approved; rendered outputs never). A photo the vision model
+    saw people in is left out until the owner confirms consent (media_assets.people_ok, agency M2). `videos` adds the
+    library clips (reels only)."""
+    types = SOURCE_TYPES + (VIDEO_TYPES if videos else ())
+    rows = (db.query(MediaAsset)
             .filter(MediaAsset.tenant_id == tenant_id, MediaAsset.status == "active",
-                    MediaAsset.mime_type.in_(SOURCE_TYPES))
+                    MediaAsset.mime_type.in_(types))
             .order_by(MediaAsset.created_at.desc()).limit(500).all())
+    logo = brand_kit.logo_id(db.query(Tenant).filter_by(id=tenant_id).first())
+    return [a for a in rows if not needs_consent(a) and a.id != logo]        # the brand logo is never a post photo
 
 
 def recent_use(db: Session, tenant_id: str, *, exclude_item: Optional[str] = None) -> Counter:
@@ -58,25 +66,30 @@ def recent_use(db: Session, tenant_id: str, *, exclude_item: Optional[str] = Non
 
 
 def score(asset: MediaAsset, want: set[str], *, property_id: Optional[str], uses: int, in_this_post: bool,
-          context: frozenset[str] = frozenset()) -> float:
+          context: frozenset[str] = frozenset(), prefer_video: bool = False) -> float:
     """`want` = words of the slot's photo description; `context` = words of the slide text and title (weaker)."""
-    have = _words(asset.alt_text)
+    have = _words(asset.alt_text, tag_words(asset))
     s = 4.0 * len(want & have) + 1.0 * len((context - want) & have)
+    quality = (asset.tags or {}).get("quality")
+    if isinstance(quality, int):
+        s += 0.5 * (quality - 3)        # a sharper, better-lit photo wins a tie
     if property_id and asset.property_id == property_id:
         s += 2.0
     s -= 1.0 * min(uses, 5)
     if in_this_post:
         s -= 6.0                     # repeat a photo inside one post only when the library runs out
+    if prefer_video and (asset.mime_type or "").startswith("video/"):
+        s += 3.0                     # a reel moves: a real clip beats a still with a zoom
     return s
 
 
 def pick(photos: list[MediaAsset], want: set[str], *, property_id: Optional[str], used: Counter,
-         taken: set[str], context: frozenset[str] = frozenset()) -> Optional[MediaAsset]:
+         taken: set[str], context: frozenset[str] = frozenset(), prefer_video: bool = False) -> Optional[MediaAsset]:
     if not photos:
         return None
     # Ties keep library order (newest first), so the result is stable for the same inputs.
     return max(photos, key=lambda a: score(a, want, property_id=property_id, uses=used.get(a.id, 0),
-                                             in_this_post=a.id in taken, context=context))
+                                             in_this_post=a.id in taken, context=context, prefer_video=prefer_video))
 
 
 def _slots(kind: str, payload: dict) -> list[dict]:
@@ -85,6 +98,8 @@ def _slots(kind: str, payload: dict) -> list[dict]:
         return payload.get("slides", [])
     if kind == "story":
         return payload.get("frames", [])
+    if kind == "reel":
+        return payload.get("clips", [])
     return [payload]
 
 
@@ -92,7 +107,8 @@ def fill(db: Session, tenant: Tenant, item: MarketingContent, payload: dict,
          photos: Optional[list[MediaAsset]] = None, used: Optional[Counter] = None) -> tuple[int, list[int]]:
     """Put a library photo into every empty slot of `payload` (in place) and fix the design colour.
     Returns (slots filled, 1-based positions whose photo shares no word with what the slot asked for)."""
-    photos = library(db, tenant.id) if photos is None else photos
+    reel = item.kind == "reel"
+    photos = library(db, tenant.id, videos=True) if photos is None or reel else photos
     used = recent_use(db, tenant.id, exclude_item=item.id) if used is None else used
     fr = frames(item.kind, payload)
     taken = {f["asset_id"] for f in fr if f["asset_id"]}
@@ -103,7 +119,8 @@ def fill(db: Session, tenant: Tenant, item: MarketingContent, payload: dict,
         media = dict(slot.get("media") or {})
         want = _words(media.get("alt_text"))
         context = frozenset(_words(f["headline"], f["sub"], item.title))
-        chosen = pick(photos, want, property_id=item.property_id, used=used, taken=taken, context=context)
+        chosen = pick(photos, want, property_id=item.property_id, used=used, taken=taken, context=context,
+                      prefer_video=reel)
         if chosen is None:
             break
         media["asset_id"] = chosen.id
@@ -111,11 +128,12 @@ def fill(db: Session, tenant: Tenant, item: MarketingContent, payload: dict,
         taken.add(chosen.id)
         used[chosen.id] += 1
         filled += 1
-        if not (want | context) & _words(chosen.alt_text):
+        if not (want | context) & _words(chosen.alt_text, tag_words(chosen)):
             loose.append(n)                             # filled so the post can go out, but a person should look
     design = dict(payload.get("design") or {})
-    if not design.get("colour"):
-        design["colour"] = _panel_colour(tenant)       # frozen into the version, so approval covers the colour
+    for key, value in brand_kit.design_defaults(tenant).items():   # frozen into the version: approval covers the look
+        if design.get(key) is None:
+            design[key] = value
     design.setdefault("style", "photo" if item.kind == "post" and not payload.get("overlay_text") else "overlay")
     if design != payload.get("design"):
         payload["design"] = design

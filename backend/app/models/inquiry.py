@@ -140,6 +140,11 @@ class Inquiry(Base, TimestampMixin, TenantMixin):
     autopilot_paused_at = Column(DateTime(timezone=True), nullable=True)
     autopilot_paused_by = Column(String, nullable=True)
 
+    # Agency M6 (migration 166): what the guest SAID when asked "How did you first hear about us?". Self-reported,
+    # shown next to the measured first / last touch, never merged into them. Values: marketing_attribution.HEARD_ABOUT.
+    heard_about = Column(String(30), nullable=True)
+    heard_about_note = Column(String(200), nullable=True)
+
     # Metadata
     tags = Column(JSON, default=list)
     custom_fields = Column(JSON, default=dict)

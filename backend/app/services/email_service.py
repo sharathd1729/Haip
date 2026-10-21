@@ -18,8 +18,11 @@ log = structlog.get_logger()
 RESEND_API_URL = "https://api.resend.com/emails"
 
 
-async def _send(to: str, subject: str, html: str, text: str | None = None) -> bool:
-    """Send via Resend when key is set, otherwise log to console."""
+async def _send(to: str, subject: str, html: str, text: str | None = None, headers: dict | None = None,
+                log_to: bool = True) -> bool:
+    """Send via Resend when key is set, otherwise log to console. `headers` are extra email headers (e.g.
+    List-Unsubscribe); `log_to=False` keeps a guest's address out of the logs (marketing newsletters)."""
+    who = to if log_to else "guest"
     if not settings.RESEND_API_KEY:
         # Returns False, not True. This previously reported success when
         # nothing had been sent, so every caller counting results -- and the
@@ -28,7 +31,7 @@ async def _send(to: str, subject: str, html: str, text: str | None = None) -> bo
         # value, so reporting the truth breaks nothing.
         log.warning(
             "email_not_sent_no_key",
-            to=to,
+            to=who,
             subject=subject,
             note="Set RESEND_API_KEY in .env to enable real email sending",
         )
@@ -51,16 +54,17 @@ async def _send(to: str, subject: str, html: str, text: str | None = None) -> bo
                     "subject": subject,
                     "html": html,
                     **({"text": text} if text else {}),   # plain-text part: better deliverability, readable anywhere
+                    **({"headers": headers} if headers else {}),
                 },
             )
             if resp.status_code in (200, 201):
-                log.info("email_sent", to=to, subject=subject)
+                log.info("email_sent", to=who, subject=subject)
                 return True
             else:
-                log.error("email_send_failed", to=to, status=resp.status_code, body=resp.text[:200])
+                log.error("email_send_failed", to=who, status=resp.status_code, body=resp.text[:200])
                 return False
     except Exception as exc:
-        log.error("email_send_error", to=to, error=str(exc))
+        log.error("email_send_error", to=who, error=str(exc))
         return False
 
 

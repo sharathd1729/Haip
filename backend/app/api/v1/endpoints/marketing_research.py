@@ -29,7 +29,7 @@ from app.models.integration import Integration
 from app.models.marketing import MarketingCompetitorSnapshot, MarketingResearchBrief
 from app.models.tenant import Tenant
 from app.models.user import User
-from app.schemas.marketing import CompetitorIn, CompetitorPostIn
+from app.schemas.marketing_research import CompetitorIn, CompetitorPostIn
 from app.services import marketing_content_service as svc
 from app.services import marketing_research_service as research
 from app.services.authz_service import require_capability

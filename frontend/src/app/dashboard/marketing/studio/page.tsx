@@ -15,12 +15,17 @@ import { ApprovalsTab } from "@/components/marketing/studio/ApprovalsTab";
 import { ResearchTab } from "@/components/marketing/studio/ResearchTab";
 import { AuditTab, PlanTab } from "@/components/marketing/studio/InsightsTabs";
 import { LibraryTab, ProfileTab } from "@/components/marketing/studio/ProfileLibraryTabs";
+import { ReviewsTab } from "@/components/marketing/studio/ChannelsReviews";
+import { BrandKitPanel } from "@/components/marketing/studio/BrandKitPanel";
+import { AdsTab } from "@/components/marketing/studio/AdsTab";
+import { ResultsTab } from "@/components/marketing/studio/ResultsTab";
+import { PartnersTab } from "@/components/marketing/studio/PartnersTab";
 import { STUDIO, btn, btnPrimary, studioError } from "@/components/marketing/studio/types";
 
 const TABS = [
   { value: "agency", label: "Agency" }, { value: "approvals", label: "Approvals" }, { value: "research", label: "Research" },
   { value: "content", label: "Content" }, { value: "plan", label: "Plan" }, { value: "audit", label: "Audit" },
-  { value: "library", label: "Library" }, { value: "profile", label: "Profile" },
+  { value: "results", label: "Results" }, { value: "partners", label: "Partners" }, { value: "ads", label: "Ads" }, { value: "reviews", label: "Reviews" }, { value: "library", label: "Library" }, { value: "profile", label: "Profile" },
 ];
 
 export default function MarketingStudioPage() {
@@ -68,8 +73,12 @@ export default function MarketingStudioPage() {
             {tab === "content" && <ContentTab />}
             {tab === "plan" && <PlanTab />}
             {tab === "audit" && <AuditTab />}
+            {tab === "results" && <ResultsTab />}
+            {tab === "partners" && <PartnersTab />}
+            {tab === "ads" && <AdsTab />}
+            {tab === "reviews" && <ReviewsTab />}
             {tab === "library" && <LibraryTab />}
-            {tab === "profile" && <ProfileTab />}
+            {tab === "profile" && <div className="space-y-4"><ProfileTab /><BrandKitPanel /></div>}
           </>
         )}
       </div>
