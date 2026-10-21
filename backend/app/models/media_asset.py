@@ -8,7 +8,7 @@ from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Index, Integ
 from app.core.database import Base
 from app.models.base import TimestampMixin, gen_uuid
 
-ASSET_SOURCES = ("upload", "template", "ai", "instagram")
+ASSET_SOURCES = ("upload", "template", "ai", "instagram", "canva")
 
 
 class MediaAsset(Base, TimestampMixin):

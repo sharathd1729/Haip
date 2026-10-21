@@ -151,6 +151,84 @@ def draft_profile(self, tenant_id: str):
             db.commit()
 
 
+# ── Outside creative tools (agency M2b): Canva designs, Higgsfield videos ──────────────────────────────────────────
+
+def _job_failed(db, tenant_id: str, job_id: str, message: str) -> None:
+    from app.models.marketing import MarketingCreativeJob
+    job = db.query(MarketingCreativeJob).filter_by(id=job_id, tenant_id=tenant_id).first()
+    if job is not None and job.status not in ("ready", "failed"):
+        job.status, job.error = "failed", message[:2000]
+    db.commit()
+
+
+@shared_task(name="marketing_studio.canva_design", bind=True, max_retries=3)
+def canva_design(self, tenant_id: str, job_id: str):
+    from app.adapters.canva import CanvaError
+    from app.models.tenant import Tenant
+    from app.services import marketing_canva_service as canva
+    from app.services.marketing_content_service import MarketingError
+
+    with SessionLocal() as db:
+        try:
+            canva.run_design(db, db.query(Tenant).filter_by(id=tenant_id).one(), job_id)
+            db.commit()
+        except CanvaError as exc:
+            db.rollback()
+            if exc.transient and self.request.retries < 3:
+                raise self.retry(exc=exc, countdown=BASE_COUNTDOWN * (2 ** self.request.retries))
+            _job_failed(db, tenant_id, job_id, f"Canva: {exc}")
+        except MarketingError as exc:
+            db.rollback()
+            _job_failed(db, tenant_id, job_id, exc.message)
+        except Exception as exc:  # noqa: BLE001 -- never leave a job running
+            db.rollback()
+            log.exception("canva_design_crashed", tenant_id=tenant_id, job_id=job_id)
+            _job_failed(db, tenant_id, job_id, f"Unexpected error: {type(exc).__name__}")
+
+
+@shared_task(name="marketing_studio.video_submit", bind=True, max_retries=3)
+def video_submit(self, tenant_id: str, job_id: str):
+    from app.adapters.video import VideoError
+    from app.models.tenant import Tenant
+    from app.services import marketing_video_service as video
+
+    with SessionLocal() as db:
+        try:
+            job = video.submit(db, db.query(Tenant).filter_by(id=tenant_id).one(), job_id)
+            db.commit()
+        except VideoError as exc:
+            db.rollback()
+            if self.request.retries < 3:          # the Idempotency-Key makes a resubmit safe
+                raise self.retry(exc=exc, countdown=BASE_COUNTDOWN * (2 ** self.request.retries))
+            _job_failed(db, tenant_id, job_id, f"Higgsfield: {exc}")
+            return
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            log.exception("video_submit_crashed", tenant_id=tenant_id, job_id=job_id)
+            _job_failed(db, tenant_id, job_id, f"Unexpected error: {type(exc).__name__}")
+            return
+        if job.status == "running":
+            video_poll.apply_async((tenant_id, job_id), countdown=video.POLL_SECONDS)
+
+
+@shared_task(name="marketing_studio.video_poll")
+def video_poll(tenant_id: str, job_id: str):
+    from app.models.tenant import Tenant
+    from app.services import marketing_video_service as video
+
+    with SessionLocal() as db:
+        try:
+            job = video.poll(db, db.query(Tenant).filter_by(id=tenant_id).one(), job_id)
+            db.commit()
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            log.exception("video_poll_crashed", tenant_id=tenant_id, job_id=job_id)
+            _job_failed(db, tenant_id, job_id, f"Unexpected error: {type(exc).__name__}")
+            return
+        if job.status == "running":
+            video_poll.apply_async((tenant_id, job_id), countdown=video.POLL_SECONDS)
+
+
 # ── Agency (plan phase A) ───────────────────────────────────────────────────────────────────────────────────────────
 
 @shared_task(name="marketing_agency.orchestrate")

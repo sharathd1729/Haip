@@ -74,7 +74,7 @@ export interface Plan {
 
 export interface Asset {
   id: string; url: string | null; mime_type: string; width: number | null; height: number | null; bytes: number;
-  alt_text: string | null; source: "upload" | "template" | "ai" | "instagram"; created_at: string;
+  alt_text: string | null; source: "upload" | "template" | "ai" | "instagram" | "canva"; created_at: string;
   status?: "active" | "pending_review" | "archived"; created_by?: string | null; provenance?: Record<string, unknown> | null;
   tags?: PhotoTags | null; people_ok?: boolean;
 }

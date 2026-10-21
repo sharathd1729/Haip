@@ -8,6 +8,7 @@ import { Card, CardBody, CardHeader, EmptyState, StatusPill } from "@/components
 import { STUDIO, btn, btnPrimary, inputCls, studioError, type Asset } from "./types";
 import { AiImagesPanel } from "./AiImagesPanel";
 import { BrandDraftPanel, ClaimsEditor, PhotoTagsRow, TaggingBar, type Claim } from "./BrainPanels";
+import { CreativePanel } from "./CreativePanel";
 import { useSession } from "next-auth/react";
 
 interface VoiceTrait { trait: string; we_are: string; we_are_not: string; sounds_like: string | null; not_like: string | null }
@@ -199,6 +200,7 @@ export function LibraryTab() {
         <button type="button" className={btnPrimary} disabled={upload.isPending} onClick={() => file.current?.click()}>{upload.isPending ? "Uploading…" : "Upload photo"}</button>
       </div>
       <TaggingBar />
+      <CreativePanel photos={assets.data ?? []} />
       <AiImagesPanel />
       {render && (
         <Card className="p-4">
@@ -226,12 +228,14 @@ export function LibraryTab() {
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {assets.data.map(a => (
             <li key={a.id} className="overflow-hidden rounded-xl border border-[var(--haip-border)] bg-[var(--haip-card)]">
-              {a.url ? <img src={a.url} alt={a.alt_text ?? ""} className="aspect-square w-full object-cover" loading="lazy" /> : <div className="aspect-square bg-[var(--haip-surface)]" />}
+              {a.url && a.mime_type.startsWith("video/") ? <video src={a.url} className="aspect-square w-full object-cover" muted playsInline controls preload="metadata" />
+                : a.url ? <img src={a.url} alt={a.alt_text ?? ""} className="aspect-square w-full object-cover" loading="lazy" /> : <div className="aspect-square bg-[var(--haip-surface)]" />}
               <div className="flex flex-wrap items-center justify-between gap-2 p-2">
                 {a.source === "ai" ? (
-                  <StatusPill tone={a.status === "pending_review" ? "warning" : "info"}>{a.status === "pending_review" ? "AI image · needs approval" : "AI image"}</StatusPill>
-                ) : <StatusPill tone={a.source === "template" ? "brand" : "neutral"}>{a.source === "template" ? "Creative" : "Photo"}</StatusPill>}
-                {a.status !== "pending_review" && (a.source === "upload" || a.source === "ai") && (
+                  <StatusPill tone={a.status === "pending_review" ? "warning" : "info"}>{a.mime_type.startsWith("video/") ? (a.status === "pending_review" ? "AI video · needs approval" : "AI video")
+                    : a.status === "pending_review" ? "AI image · needs approval" : "AI image"}</StatusPill>
+                ) : <StatusPill tone={a.source === "template" || a.source === "canva" ? "brand" : "neutral"}>{a.source === "template" ? "Creative" : a.source === "canva" ? "Canva design" : "Photo"}</StatusPill>}
+                {a.status !== "pending_review" && (a.source === "upload" || a.source === "ai") && a.mime_type.startsWith("image/") && (
                   <button type="button" className="min-h-11 px-1 text-xs font-semibold text-primary sm:min-h-0" onClick={() => setRender(a)}>Make creative</button>
                 )}
               </div>

@@ -272,3 +272,26 @@ class MarketingReview(Base, TimestampMixin):
     prompt_version = Column(String(60), nullable=True)
 
     __table_args__ = (UniqueConstraint("content_id", "text_sha", name="uq_marketing_reviews_text"),)
+
+
+class MarketingCreativeJob(Base, TimestampMixin):
+    """One request to an outside creative tool (agency M2b): a Canva design filled from a draft, or a Higgsfield clip
+    made from library photos. The finished file lands in media_assets (a Canva export as an active photo the owner
+    designed; an AI video as pending_review, unusable until approved). The tool's own ids are saved as soon as they
+    exist, so a retry polls the same request instead of paying for a new one."""
+    __tablename__ = "marketing_creative_jobs"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    provider = Column(String(20), nullable=False)          # canva | higgsfield
+    kind = Column(String(20), nullable=False)              # design | video
+    content_id = Column(String, nullable=True)             # the draft a Canva design was filled from
+    inputs = Column(JSON, nullable=False)                  # template id + field data, or model + photo ids + prompt
+    external_id = Column(String(200), nullable=True)       # Canva design id / Higgsfield request id
+    external_url = Column(Text, nullable=True)             # Canva edit link (the owner can open it in Canva)
+    idempotency_key = Column(String(64), nullable=False)
+    status = Column(String(20), nullable=False, default="pending")   # pending | running | ready | failed
+    error = Column(Text, nullable=True)
+    asset_id = Column(String, nullable=True)
+    polls = Column(Integer, nullable=False, default=0)
+    created_by = Column(String, nullable=True)
