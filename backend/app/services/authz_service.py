@@ -66,6 +66,11 @@ _DEFAULT_GRANTS: dict[str, set[str]] = {
     "marketing.read": {"owner", "manager", "marketing"},
     "marketing.edit": {"owner", "manager", "marketing"},
     "marketing.approve": {"owner", "manager"},
+    # Website builder (migration 158). Same split as Marketing Studio: approve/publish = owner + manager, and nobody but
+    # the owner may approve a version they wrote or asked the AI developer for.
+    "website.read": {"owner", "manager", "marketing"},
+    "website.edit": {"owner", "manager", "marketing"},
+    "website.approve": {"owner", "manager"},
 }
 
 

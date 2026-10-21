@@ -39,6 +39,7 @@ MODULE_FLAG_MAP: dict[str, list[str]] = {
     "ai_insights":    ["ai_insights_enabled"],
     # Migration 153. Not in DEFAULT_MODULE_CODES: an owner switches it on.
     "marketing_studio": ["marketing_studio_enabled"],
+    "website": ["website_enabled"],
 }
 
 # Flags that require BOTH module AND plan (Scale/Enterprise)

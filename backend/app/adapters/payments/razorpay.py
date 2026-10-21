@@ -52,7 +52,7 @@ def check_credentials(key_id: str, key_secret: str) -> None:
 def create_payment_link(
     key_id: str, key_secret: str, *, amount_inr: float, description: str, reference_id: str,
     customer_name: Optional[str], customer_phone: Optional[str], customer_email: Optional[str],
-    expire_by: Optional[int], notes: dict,
+    expire_by: Optional[int], notes: dict, callback_url: Optional[str] = None,
 ) -> dict:
     # Razorpay rejects the whole link (HTTP 400) when contact is not 8-14 characters
     # including the country code, so an unusable number is left off instead.
@@ -72,6 +72,9 @@ def create_payment_link(
     }
     if expire_by:
         body["expire_by"] = expire_by
+    if callback_url and callback_url.startswith("https://"):
+        body["callback_url"] = callback_url[:2000]     # where Razorpay sends the guest after paying (website booking)
+        body["callback_method"] = "get"
     return _request("POST", "/payment_links", key_id, key_secret, json=body)
 
 

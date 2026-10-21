@@ -139,6 +139,14 @@ async def razorpay_webhook(tenant_slug: str, request: Request, db: Session = Dep
     link_ent = (payload.get("payment_link") or {}).get("entity") or {}
     link = db.query(StayPaymentLink).filter_by(tenant_id=tenant.id, external_id=link_ent.get("id")).first() if link_ent.get("id") else None
     if not link:
+        if link_ent.get("id") and name == "payment_link.paid":
+            # A website booking pays through its own hold's link (website_booking_service), not a StayPaymentLink.
+            from app.models.website import BookingHold
+            hold = db.query(BookingHold).filter_by(tenant_id=tenant.id, payment_link_id=link_ent.get("id")).first()
+            if hold:
+                from app.services.website_booking_service import on_hold_link_paid
+                pay_ent = (payload.get("payment") or {}).get("entity") or {}
+                return {"status": on_hold_link_paid(db, tenant, hold, pay_ent, link_ent)}
         return {"status": "ignored"}                 # not a link HAIP created
 
     if name == "payment_link.paid":
