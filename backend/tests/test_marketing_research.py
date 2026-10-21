@@ -14,7 +14,9 @@ from app.models.integration import Integration
 from app.models.marketing import MarketingCompetitorPost, MarketingCompetitorSnapshot
 from app.schemas.marketing_research import CompetitorIn, CompetitorPostIn
 from app.services import marketing_ai_service as ai
+from app.services import marketing_channel_connections as conns
 from app.services import marketing_content_service as svc
+from app.services import marketing_meta_token as meta_token
 from app.services import marketing_research_service as research
 from tests.test_marketing_studio_content import BASE, ws  # noqa: F401  (fixture)
 
@@ -246,3 +248,97 @@ def test_manual_followers_give_an_engagement_rate(db, ws):  # noqa: F811
     db.commit()
     c = research.measured(db, tid)["competitors"][0]
     assert (c["followers"], c["followers_source"], c["median_engagement"], c["median_engagement_rate"]) == (1000, "manual", 50, 0.05)
+
+
+# ── System User token (instead of Facebook Login) ───────────────────────────────────────────────────────────────────
+
+SYS_TOKEN = "EAAsystemusertoken1234567890"
+ALL_SCOPES = ["instagram_basic", "instagram_manage_insights", "pages_show_list", "pages_manage_posts",
+              "pages_read_engagement", "whatsapp_business_messaging"]
+
+
+def _meta(scopes=ALL_SCOPES, pages=None, valid=True):
+    pages = pages if pages is not None else [
+        {"id": "p-other", "name": "Other Page", "access_token": "pt-other"},
+        {"id": "p-ratha", "name": "Ratha", "access_token": "pt-ratha",
+         "instagram_business_account": {"id": "17841", "username": "rathabyjade"}}]
+
+    def handler(req):
+        assert req.url.host == "graph.facebook.com"
+        if req.url.path.endswith("/debug_token"):
+            return httpx.Response(200, json={"data": {"is_valid": valid, "type": "SYSTEM_USER", "expires_at": 0, "scopes": scopes}})
+        return httpx.Response(200, json={"data": pages})
+    return _client(handler)
+
+
+def test_system_token_connects_research_and_page_and_leaves_dm_and_whatsapp_alone(db, ws):  # noqa: F811
+    tid = ws["tenant"].id
+    ig = Integration(tenant_id=tid, kind="instagram", status="active", config={"instagram_business_account_id": "17841"},
+                     credentials_kms_blob=encrypt_credentials({"access_token": "IGAAdm", "instagram_business_account_id": "17841"}))
+    wa = Integration(tenant_id=tid, kind="whatsapp_meta", status="active",
+                     credentials_kms_blob=encrypt_credentials({"access_token": "EAAwhatsapp"}), config={})
+    db.add_all([ig, wa])
+    db.commit()
+    out = meta_token.connect(db, tid, SYS_TOKEN, ws["owner"].id, http=_meta())
+    db.commit()
+    assert out["research"] and out["facebook_page"] and out["ig_username"] == "rathabyjade" and out["missing"] == []
+    fb = research.fb_connection(db, tid)
+    assert fb.status == "active" and fb.config["ig_user_id"] == "17841" and fb.config["source"] == "system_user"
+    assert decrypt_credentials(fb.credentials_kms_blob)["access_token"] == SYS_TOKEN
+    page = conns.connection(db, tid, conns.FB_KIND)
+    assert page.config["page_id"] == "p-ratha"                       # the Page linked to HAIP's Instagram account
+    assert decrypt_credentials(page.credentials_kms_blob)["pages"] == {"p-other": "pt-other", "p-ratha": "pt-ratha"}
+    assert decrypt_credentials(ig.credentials_kms_blob)["access_token"] == "IGAAdm"
+    assert decrypt_credentials(wa.credentials_kms_blob)["access_token"] == "EAAwhatsapp"
+    assert db.query(AuditEvent).filter_by(tenant_id=tid, action="marketing.meta_token.connected").count() == 1
+
+
+def test_system_token_without_instagram_permissions_writes_nothing(db, ws):  # noqa: F811
+    tid = ws["tenant"].id
+    with pytest.raises(svc.MarketingError) as e:
+        meta_token.connect(db, tid, SYS_TOKEN, ws["owner"].id, http=_meta(scopes=["pages_show_list", "whatsapp_business_messaging"]))
+    assert e.value.code == "missing_permissions" and "instagram_basic" in e.value.problems
+    assert research.fb_connection(db, tid) is None and conns.connection(db, tid, conns.FB_KIND) is None
+
+
+@pytest.mark.parametrize("token,code", [("IGAAinstagramlogintoken123", "instagram_token"), ("not-a-meta-token-at-all", "not_a_token")])
+def test_system_token_refuses_other_tokens_before_calling_meta(db, ws, token, code):  # noqa: F811
+    boom = _client(lambda r: (_ for _ in ()).throw(AssertionError("must not call Meta")))
+    with pytest.raises(svc.MarketingError) as e:
+        meta_token.connect(db, ws["tenant"].id, token, ws["owner"].id, http=boom)
+    assert e.value.code == code
+
+
+def test_system_token_with_no_pages_or_invalid_token_fails_cleanly(db, ws):  # noqa: F811
+    with pytest.raises(svc.MarketingError) as e:
+        meta_token.connect(db, ws["tenant"].id, SYS_TOKEN, ws["owner"].id, http=_meta(pages=[]))
+    assert e.value.code == "no_pages"
+    with pytest.raises(svc.MarketingError) as e:
+        meta_token.connect(db, ws["tenant"].id, SYS_TOKEN, ws["owner"].id, http=_meta(valid=False))
+    assert e.value.code == "token_rejected"
+
+
+def test_system_token_endpoint_is_owner_only_and_stays_in_the_tenant(client, db, ws, monkeypatch):  # noqa: F811
+    from app.models.tenant import Tenant
+    import uuid
+    other = Tenant(id=str(uuid.uuid4()), name="O", slug=f"o-{uuid.uuid4().hex[:6]}", plan="growth")
+    db.add(other)
+    db.commit()
+    real = meta_token.connect
+    monkeypatch.setattr(meta_token, "connect", lambda db_, tid, tok, actor, http=None: real(db_, tid, tok, actor, http=_meta()))
+    assert client.post(f"{R}/facebook/token", json={"access_token": SYS_TOKEN}, headers=ws["mkt_h"]).status_code == 403
+    r = client.post(f"{R}/facebook/token", json={"access_token": SYS_TOKEN}, headers=ws["owner_h"])
+    assert r.status_code == 200 and r.json()["research"] is True
+    assert research.fb_connection(db, ws["tenant"].id).status == "active"
+    assert research.fb_connection(db, other.id) is None
+    got = client.get(R, headers=ws["owner_h"]).json()["facebook"]
+    assert got["status"] == "active" and got["source"] == "system_user"
+
+
+def test_page_from_system_token_is_available_without_facebook_login(db, ws, monkeypatch):  # noqa: F811
+    monkeypatch.setattr("app.core.config.settings.META_APP_ID", "")
+    tid = ws["tenant"].id
+    assert conns.status(db, tid)["facebook"]["available"] is False
+    meta_token.connect(db, tid, SYS_TOKEN, ws["owner"].id, http=_meta())
+    fb = conns.status(db, tid)["facebook"]
+    assert fb["available"] is True and fb["connected"] is True and fb["page_name"] == "Ratha"

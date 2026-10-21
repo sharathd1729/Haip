@@ -13,7 +13,8 @@ import { STUDIO, btn, btnPrimary, inputCls, studioError, when } from "./types";
 interface Competitor { id: string; handle: string; display_name: string | null; followers: number | null; last_snapshot_at: string | null; last_error: string | null }
 interface MeasuredComp { handle: string; followers: number | null; followers_source: string | null; median_engagement: number | null; posts_known: number; manual_posts: number; median_engagement_rate: number | null; posts_per_week: number | null; formats: Record<string, number> }
 interface Brief { status: string; error: string | null; created_at: string; measured: { competitors: MeasuredComp[] }; assessment: { summary: string; themes: { name: string; why_it_works: string; examples: string[] }[]; formats: string[]; opportunities: string[]; avoid: string[]; not_enough_signal: string[] } | null }
-interface Research { competitors: Competitor[]; max_competitors: number; facebook: { status: string; username: string | null; error: string | null }; brief: Brief | null }
+interface Research { competitors: Competitor[]; max_competitors: number; facebook: { status: string; username: string | null; error: string | null; source: string | null; login_available: boolean }; brief: Brief | null }
+interface TokenResult { research: boolean; facebook_page: boolean; ig_username: string | null; page_name: string | null; missing: string[] }
 
 const NUM = new Intl.NumberFormat("en-IN");
 const pct = (v: number | null) => (v == null ? "—" : `${(v * 100).toFixed(1)}%`);
@@ -50,6 +51,8 @@ export function ResearchTab() {
   const [handle, setHandle] = useState("");
   const [followers, setFollowers] = useState("");
   const [openPost, setOpenPost] = useState<string | null>(null);
+  const [pasting, setPasting] = useState(false);
+  const [sysToken, setSysToken] = useState("");
   const q = useQuery<Research>({ queryKey: ["studio-research"], queryFn: () => api.get(`${STUDIO}/research`).then(r => r.data) });
   const refreshAll = () => qc.invalidateQueries({ queryKey: ["studio-research"] });
 
@@ -74,6 +77,15 @@ export function ResearchTab() {
     onError: e => toast({ variant: "error", title: "Not started", description: studioError(e, "Try again.") }),
   });
   const disconnect = useMutation({ mutationFn: () => api.delete(`${STUDIO}/research/facebook`), onSuccess: refreshAll });
+  const saveToken = useMutation({   // a Meta System User token: connects Research (and the Facebook Page); WhatsApp and Instagram DMs untouched
+    mutationFn: () => api.post<TokenResult>(`${STUDIO}/research/facebook/token`, { access_token: sysToken.trim() }).then(r => r.data),
+    onSuccess: r => {
+      setSysToken(""); setPasting(false); refreshAll(); qc.invalidateQueries({ queryKey: ["studio-channels"] });
+      const parts = [r.research && `Competitor lookups as @${r.ig_username}`, r.facebook_page && `Facebook Page "${r.page_name}" for posting`].filter(Boolean);
+      toast({ variant: "success", title: "Connected", description: parts.join(" · ") + (r.missing.length ? `. Still missing: ${r.missing.join(", ")}` : ".") });
+    },
+    onError: e => toast({ variant: "error", title: "Not connected", description: studioError(e, "Check the token and try again.") }),
+  });
 
   if (q.isLoading) return <Skeleton className="h-64 w-full" />;
   if (q.isError || !q.data) return <Card><EmptyState title="Could not load research" hint={studioError(q.error, "Try again.")} /></Card>;
@@ -88,12 +100,25 @@ export function ResearchTab() {
       <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
         <div>
           <p className="text-[13px] font-bold">Competitor numbers from Instagram <StatusPill tone={fbOn ? "success" : d.facebook.status === "error" ? "danger" : "neutral"} className="ml-1">{fbOn ? `Connected${d.facebook.username ? ` as @${d.facebook.username}` : ""}` : d.facebook.status === "error" ? "Needs reconnecting" : "Not connected"}</StatusPill></p>
-          <p className="text-xs text-[var(--haip-fg-subtle)]">Uses Meta's Business Discovery (public followers, likes, comments; never reach). Needs a Facebook Page linked to your Instagram and Meta's approval. Until then, paste posts below.</p>
+          <p className="text-xs text-[var(--haip-fg-subtle)]">Uses Meta's Business Discovery (public followers, likes, comments; never reach). Needs a Facebook Page linked to your Instagram{d.facebook.source === "system_user" ? ", connected with a System User token" : ""}. Until then, paste posts below.</p>
           {d.facebook.error && <p className="text-xs text-[var(--haip-status-danger-fg)]">{d.facebook.error}</p>}
         </div>
         {(role === "owner" || role === "manager") && (fbOn
           ? role === "owner" && <button type="button" className={btn} onClick={() => { if (confirm("Disconnect Facebook? Competitor numbers that came from it will be deleted.")) disconnect.mutate(); }}>Disconnect</button>
-          : connectUrl && <a className={btnPrimary} href={connectUrl}>Connect Facebook</a>)}
+          : <span className="flex flex-wrap gap-2">
+              {role === "owner" && <button type="button" className={d.facebook.login_available ? btn : btnPrimary} onClick={() => setPasting(!pasting)}>{pasting ? "Cancel" : "Use a System User token"}</button>}
+              {d.facebook.login_available && connectUrl && <a className={btnPrimary} href={connectUrl}>Connect Facebook</a>}
+            </span>)}
+        {pasting && !fbOn && (
+          <form className="grid w-full gap-2" onSubmit={e => { e.preventDefault(); if (sysToken.trim()) saveToken.mutate(); }}>
+            <p className="text-xs text-[var(--haip-fg-2)]">From Meta Business Settings → System users → Generate token, with instagram_basic, instagram_manage_insights and pages_show_list (add pages_manage_posts and pages_read_engagement to post on the Facebook Page). Assign the Page and the Instagram account to the system user first. This does not change your WhatsApp or Instagram DM connection.</p>
+            <div className="flex gap-2">
+              <input className={inputCls} type="password" autoComplete="off" spellCheck={false} placeholder="EAA…" value={sysToken}
+                onChange={e => setSysToken(e.target.value)} aria-label="System User token" />
+              <button type="submit" className={btnPrimary} disabled={saveToken.isPending || !sysToken.trim()}>{saveToken.isPending ? "Checking…" : "Connect"}</button>
+            </div>
+          </form>
+        )}
       </Card>
 
       <Card>

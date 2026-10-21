@@ -7,6 +7,7 @@ POST   /marketing/studio/research/competitors/{id}/posts  paste a competitor pos
 POST   /marketing/studio/research/refresh                 snapshot competitors + new brief (async)
 GET    /marketing/studio/research/facebook/oauth-start    Facebook Login for Business Discovery (owner/manager)
 GET    /marketing/studio/research/facebook/oauth-callback Meta redirects here; single-use state from Redis
+POST   /marketing/studio/research/facebook/token          owner: paste a System User token instead (Research + Facebook Page)
 DELETE /marketing/studio/research/facebook                disconnect + delete all API-sourced competitor data (owner)
 """
 import json
@@ -18,6 +19,7 @@ import httpx
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_current_user, require_module
@@ -31,6 +33,7 @@ from app.models.tenant import Tenant
 from app.models.user import User
 from app.schemas.marketing_research import CompetitorIn, CompetitorPostIn
 from app.services import marketing_content_service as svc
+from app.services import marketing_meta_token as meta_token
 from app.services import marketing_research_service as research
 from app.services.authz_service import require_capability
 
@@ -74,7 +77,9 @@ def get_research(user: User = Depends(get_current_user), db: Session = Depends(g
     return {"competitors": out, "max_competitors": research.MAX_COMPETITORS,
             "facebook": {"status": integ.status if integ else "not_connected",
                          "username": (integ.config or {}).get("ig_username") if integ else None,
-                         "error": (integ.config or {}).get("last_error") if integ else None},
+                         "error": (integ.config or {}).get("last_error") if integ else None,
+                         "source": (integ.config or {}).get("source", "facebook_login") if integ else None,
+                         "login_available": bool(settings.META_APP_ID and settings.API_BASE_URL)},
             "brief": brief and {"id": brief.id, "status": brief.status, "error": brief.error, "measured": brief.measured,
                                 "assessment": brief.assessment, "created_at": brief.created_at, "model": brief.model}}
 
@@ -208,5 +213,22 @@ def fb_oauth_callback(code: str = Query(None), state: str = Query(None), error: 
 @router.delete("/facebook")
 def fb_disconnect(user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_owner):
     out = research.disconnect_fb(db, user.tenant_id, user.id)
+    db.commit()
+    return out
+
+
+class SystemTokenIn(BaseModel):
+    access_token: str = Field(min_length=20, max_length=1024)
+
+
+@router.post("/facebook/token")
+def fb_system_token(body: SystemTokenIn, user: User = Depends(get_current_user), db: Session = Depends(get_db),
+                    _m=_module, _c=_owner):
+    """Connect Research (and the Facebook Page, when the token allows) with a System User token. WhatsApp and the
+    Instagram DM connection are not touched."""
+    try:
+        out = meta_token.connect(db, user.tenant_id, body.access_token, user.id)
+    except svc.MarketingError as exc:          # raised before anything is written
+        raise _err(exc)
     db.commit()
     return out
