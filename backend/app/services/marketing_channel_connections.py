@@ -68,7 +68,8 @@ def connection(db: Session, tenant_id: str, kind: str, *, lock: bool = False) ->
 def status(db: Session, tenant_id: str) -> dict:
     fb, g = connection(db, tenant_id, FB_KIND), connection(db, tenant_id, GOOGLE_KIND)
     fbc, gc = (fb.config or {}) if fb else {}, (g.config or {}) if g else {}
-    return {"facebook": {"available": bool(settings.META_APP_ID and settings.META_APP_SECRET and settings.API_BASE_URL),
+    # A Page connected with a pasted System User token (marketing_meta_token) works without Facebook Login set up.
+    return {"facebook": {"available": fb is not None or bool(settings.META_APP_ID and settings.META_APP_SECRET and settings.API_BASE_URL),
                          "connected": fb is not None, "page_name": fbc.get("page_name"),
                          "pages": [{"id": p["id"], "name": p.get("name")} for p in fbc.get("pages") or []]},
             "google": {"available": bool(settings.GOOGLE_BUSINESS_CLIENT_ID and settings.GOOGLE_BUSINESS_CLIENT_SECRET
