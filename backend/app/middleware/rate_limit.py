@@ -56,6 +56,11 @@ _STRICT_PREFIXES = (
 # HAIP's own public website (no login): lead forms + the property assessment. Fail-OPEN on a Redis outage so a
 # visitor's lead is not lost; the per-visitor hourly count in platform_lead_service holds without Redis.
 _PUBLIC_SITE_PREFIX = "/api/v1/public/"
+# Client websites built by HAIP (website builder): guest reads are page loads (high), writes are bookings and forms.
+_CLIENT_SITE_PREFIXES = ("/api/v1/public/sites/", "/api/v1/public/preview/")
+_CLIENT_SITE_READ_LIMIT: Tuple[int, int] = (240, 60)
+_CLIENT_SITE_WRITE_LIMIT: Tuple[int, int] = (10, 60)
+_CLIENT_SITE_VIEW_LIMIT: Tuple[int, int] = (120, 60)
 _PUBLIC_LEAD_PATHS = ("/api/v1/public/leads",)
 _PUBLIC_LEAD_LIMIT: Tuple[int, int] = (10, 60)    # 10/min per IP: lead POSTs
 _PUBLIC_SITE_LIMIT: Tuple[int, int] = (30, 60)    # 30/min per IP: estimates, report reads
@@ -194,6 +199,21 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     if not allowed:
                         log.warning("rate_limit_exceeded", path=path, key=key)
                         return _rate_limit_response(retry_after)
+            return await call_next(request)
+
+        # ── Client websites (website builder): per-IP, fail-open ──────────────
+        if path.startswith(_CLIENT_SITE_PREFIXES):
+            if r is not None:
+                if request.method == "POST" and path.endswith("/views"):
+                    tier, (limit, window) = "view", _CLIENT_SITE_VIEW_LIMIT
+                elif request.method == "POST" and not path.endswith("/quote"):
+                    tier, (limit, window) = "write", _CLIENT_SITE_WRITE_LIMIT
+                else:
+                    tier, (limit, window) = "read", _CLIENT_SITE_READ_LIMIT
+                allowed, retry_after = _check_limit(r, f"rl:ip:{ip}:clientsite:{tier}", limit, window, strict=False)
+                if not allowed:
+                    log.warning("rate_limit_exceeded", path=path, tier=f"client_site_{tier}")
+                    return _rate_limit_response(retry_after)
             return await call_next(request)
 
         # ── HAIP public website forms: per-IP, fail-open (DB backstop) ────────

@@ -1,0 +1,5 @@
+node_modules
+.next
+src/site-blocks
+next-env.d.ts
+*.tsbuildinfo

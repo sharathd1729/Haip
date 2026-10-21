@@ -1,0 +1,27 @@
+{
+  "name": "haip-sites",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Renders client websites built in HAIP (website builder). Sections come from frontend/src/site-blocks.",
+  "scripts": {
+    "sync-blocks": "node scripts/sync-blocks.mjs",
+    "predev": "npm run sync-blocks",
+    "prebuild": "npm run sync-blocks",
+    "dev": "next dev -p 3020",
+    "build": "next build",
+    "start": "next start -p 3020",
+    "typecheck": "npm run sync-blocks && tsc --noEmit"
+  },
+  "dependencies": {
+    "lucide-react": "1.14.0",
+    "next": "16.2.6",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.40",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "typescript": "^5"
+  }
+}

@@ -21,6 +21,7 @@ const ROUTE_LABELS: Record<string, string> = {
   calendar:     "Calendar",
   marketing:    "Marketing",
   studio:       "Marketing Studio",
+  website:      "Website",
   inbox:        "Inbox",
   calls:        "Calls",
   leads:        "Leads",
@@ -74,6 +75,7 @@ const ROUTE_LABELS: Record<string, string> = {
 // Whole paths whose name is not their last segment's ("/new" alone says nothing).
 const PATH_LABELS: Record<string, string> = {
   "/dashboard/bookings/new": "New booking",
+  "/dashboard/marketing/website/edit": "Edit website",
 };
 
 function PageTitle() {

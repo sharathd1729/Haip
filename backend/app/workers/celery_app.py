@@ -93,6 +93,7 @@ celery_app = Celery(
         "app.workers.tasks.instagram_insights_poll",
         # Marketing Studio AI runs (audit, plan, content)
         "app.workers.tasks.marketing_studio",
+        "app.workers.tasks.website",
         # Automations engine + timer triggers
         "app.workers.tasks.automation_engine",
         "app.workers.tasks.check_automation_timers",
@@ -244,6 +245,12 @@ celery_app.conf.update(
         "marketing_research.refresh":                {"queue": "default"},
         "marketing_publish.dispatch":                {"queue": "default"},
         "marketing_publish.publish_one":             {"queue": "default"},
+        "website.ai_job":                            {"queue": "default"},
+        "website.after_booking":                     {"queue": "whatsapp"},
+        "website.expire_holds":                      {"queue": "default"},
+        "website.verify_domains":                    {"queue": "default"},
+        "website.revalidate":                        {"queue": "default"},
+        "website.send_manage_link":                  {"queue": "whatsapp"},
         # Registered under short names, so the "app.workers.tasks.<module>.*" globs above never
         # matched them and they fell into the unconsumed "celery" queue. The inbox "rewrite"
         # buttons enqueue the first two on every click; the last three are only reached from
@@ -457,6 +464,15 @@ celery_app.conf.beat_schedule = {
     "marketing-publish-dispatch": {
         "task": "marketing_publish.dispatch",
         "schedule": crontab(minute="*/5"),
+    },
+    # Website builder: lapsed booking holds free their dates; pending custom domains re-check DNS.
+    "website-expire-holds": {
+        "task": "website.expire_holds",
+        "schedule": crontab(minute="*/5"),
+    },
+    "website-verify-domains": {
+        "task": "website.verify_domains",
+        "schedule": crontab(minute=17),
     },
     "sync-retalwise-hourly": {
         "task": "app.workers.tasks.sync_all_pms.sync_retalwise_all_tenants",

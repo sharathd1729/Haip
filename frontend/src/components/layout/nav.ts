@@ -11,7 +11,7 @@ import {
   AtSign, BarChart2, Bot, BookmarkIcon, Building2, Calculator, Calendar, CreditCard, FileText, HelpCircle, Home, Inbox, Key,
   LayoutDashboard, Link2, ListChecks, Megaphone, MessageCircle, Palette, Phone, Send, Settings, Shield, Shuffle, Star, Target,
   TrendingUp, UserCircle, Users, Workflow, Zap,
-} from "@/lib/icons";
+ Globe } from "@/lib/icons";
 import { GitBranch, UserCheck } from "lucide-react";
 import { BOOKING_READ_ROLES, QUOTE_WRITE_ROLES, REVENUE_READ_ROLES, canSeeNav, type Resource } from "@/lib/permissions";
 import { useBusinessType } from "@/components/providers/WorkspaceProvider";
@@ -66,6 +66,7 @@ export const NAV_SECTIONS: NavSection[] = [
     { label: "Impact", href: "/dashboard/impact", icon: TrendingUp, resource: "analytics", onlyRoles: ["owner", "manager"] },
     { label: "Instagram insights", href: "/dashboard/instagram-insights", icon: AtSign, resource: "analytics" },
     { label: "Marketing", href: "/dashboard/marketing", icon: Megaphone, resource: "analytics", onlyRoles: ["owner", "manager", "marketing"] },
+    { label: "Website", href: "/dashboard/marketing/website", icon: Globe, resource: "analytics", onlyRoles: ["owner", "manager", "marketing"] },
     { label: "QA & scores", href: "/dashboard/qa", icon: Star, resource: "qa" },
     { label: "Compliance", href: "/dashboard/compliance", icon: Shield, resource: "compliance" },
   ] },
