@@ -72,8 +72,13 @@ def _package_view(rec, pkg, include_rates: bool) -> dict:
         "inclusions": list(pkg.inclusions), "exclusions": list(pkg.exclusions), "destination_keys": list(pkg.destination_keys),
         "quote_valid_days": pkg.quote_valid_days,
     }
+    if pkg.included_km_per_day is not None:
+        view["included_km_per_day"] = pkg.included_km_per_day
+    if pkg.at_actuals:
+        view["billed_at_actuals"] = list(pkg.at_actuals)            # e.g. JLR safari and meals: paid separately, never in the total
     if include_rates:
         view["gst_percent"] = pkg.gst_percent
+        view["gst_added_on_top"] = True
         view["rates"] = [{"label": r.label, "valid_from": r.valid_from, "valid_to": r.valid_to, "unit": r.unit, "amount": r.amount,
                           "days_of_week": r.days_of_week, "min_nights": r.min_nights} for r in pkg.rates]
         if pkg.extra_guest_charge:
@@ -82,7 +87,10 @@ def _package_view(rec, pkg, include_rates: bool) -> dict:
         if pkg.extra_km_charge:
             k = pkg.extra_km_charge
             view["extra_km_charge"] = {"amount": k.per_km} if not k.ranged else {"max_amount": k.max_per_km, "min_amount": k.min_per_km}
-        view["charges"] = [{"name": c.name, "kind": c.kind, "unit": c.unit, "amount": c.amount} for c in pkg.charges]
+        if pkg.extra_hour_charge:
+            view["extra_hour_charge"] = {"amount": pkg.extra_hour_charge.per_hour}
+        view["charges"] = [{"name": c.name, "kind": c.kind, "unit": c.unit, "amount": c.amount,
+                            **({"included": True} if c.kind == "experience" and pkg.kits_included else {})} for c in pkg.charges]
     return _s(view)
 
 
@@ -113,6 +121,8 @@ def list_packages(db: Session, tenant_id: str, guests: Optional[int] = None, nig
     out, sources = [], []
     for rec in recs:
         pkg = bds.parse(rec)
+        if pkg.audience == "b2b":                    # partner rates are never shown to a guest
+            continue
         if guests is not None and guests > pkg.max_guests:
             continue
         if nights is not None and (nights < pkg.min_nights or (pkg.max_nights is not None and nights > pkg.max_nights)):
@@ -129,6 +139,8 @@ def get_package(db: Session, tenant_id: str, key: str, include_rates: bool = Tru
     if rec is None:
         return GatewayResult(False, None, flags=["not_published"])
     pkg = bds.parse(rec)
+    if pkg.audience == "b2b":
+        return GatewayResult(False, None, flags=["b2b_only"])
     flags, sources = [], [_src(rec)]
     for dkey in pkg.destination_keys:
         d = bds.get_effective(db, tenant_id, "destination", dkey)
@@ -198,6 +210,10 @@ def quote_package(db: Session, tenant_id: str, package_key: str, check_in: date,
 def quote_package_detailed(db: Session, tenant_id: str, package_key: str, check_in: date, check_out: date, adults: int,
                            children: int = 0, **kw) -> tuple[GatewayResult, pps.PackageQuote]:
     """quote_package plus the PackageQuote itself, for code (the sales agent) that issues exactly the quote it showed the model."""
+    rec = bds.get_effective(db, tenant_id, "package", package_key)
+    if rec is not None and bds.parse(rec).audience == "b2b":       # the guest-facing path: staff price partner rates elsewhere
+        q = pps._refuse("b2b_only", "This is a partner rate; a person quotes it.", package_key=package_key, inputs={"package_key": package_key})
+        return _quote_result(q), q
     q = pps.quote(db, tenant_id, package_key, check_in, check_out, adults, children, **kw)
     return _quote_result(q), q
 
@@ -267,6 +283,8 @@ def match_package(db: Session, tenant_id: str, details: dict) -> Optional[str]:
     by_name, by_destination = [], []
     for rec in bds.list_effective(db, tenant_id, "package"):
         pkg = bds.parse(rec)
+        if pkg.audience == "b2b":
+            continue
         if any(n and n <= words for n in (_tokens(pkg.name), _tokens(rec.key.replace("-", " ")))):
             by_name.append(rec.key)
             continue

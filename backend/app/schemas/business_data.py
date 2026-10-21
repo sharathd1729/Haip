@@ -41,6 +41,9 @@ class Rate(_Strict):
     min_nights: Optional[int] = Field(default=None, ge=0, le=60)
     days_of_week: Optional[list[int]] = None             # 0 = Monday ... 6 = Sunday; None = every day
     level: Optional[str] = Field(default=None, min_length=1, max_length=40)   # e.g. "40000" for an all-inclusive level; the agent picks one
+    # The lowest this rate may ever be sold for (a price band: `amount` is the price, `floor_amount` the bottom). A discount that
+    # would take the package price below the floor is refused; between the two it still follows the discount policy (approval).
+    floor_amount: Optional[Money] = None
 
     @field_validator("days_of_week")
     @classmethod
@@ -53,6 +56,8 @@ class Rate(_Strict):
     def _window(self):
         if self.valid_to < self.valid_from:
             raise ValueError("valid_to is before valid_from")
+        if self.floor_amount is not None and self.floor_amount > self.amount:
+            raise ValueError("floor_amount is above amount")
         return self
 
     def signature(self) -> tuple:
@@ -166,6 +171,8 @@ class PackageData(_Strict):
     # The AI sales agent (autopilot) may send this package's quote + payment link without a person first confirming the
     # overnight stay with the partner. Owner's call; off by default.
     auto_bookable: bool = False
+    # b2b: a partner / reseller rate. Never listed, matched or quoted to a guest by the AI; staff and partner quotes only.
+    audience: Literal["retail", "b2b"] = "retail"
 
     @model_validator(mode="after")
     def _consistent(self):
