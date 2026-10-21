@@ -21,7 +21,7 @@ from app.models.integration import Integration
 from app.models.marketing import (MarketingCompetitor, MarketingCompetitorPost, MarketingCompetitorSnapshot,
                                   MarketingResearchBrief)
 from app.models.tenant import Tenant
-from app.schemas.marketing import CompetitorIn, CompetitorPostIn, ResearchBrief
+from app.schemas.marketing_research import CompetitorIn, CompetitorPostIn, ResearchBrief
 from app.services.marketing_content_service import MarketingError
 
 log = structlog.get_logger()

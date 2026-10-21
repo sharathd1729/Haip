@@ -14,6 +14,7 @@ import { PublishPanel } from "./PublishPanel";
 import { RenderedPreview } from "./RenderedPreview";
 import { BrandReviewPanel } from "./BrandReviewPanel";
 import { LookVariants, ReelPlayer } from "./ReelAndLook";
+import { PromoteButton } from "./AdsTab";
 import { CanvaButton } from "./CreativePanel";
 import { WhatsAppDraft } from "./OutreachPanels";
 import { KIND_LABEL, STATUS, STUDIO, btn, btnPrimary, inputCls, studioError, when, type ContentItem } from "./types";
@@ -174,6 +175,7 @@ export function ContentDrawer({ id, onClose }: { id: string | null; onClose: () 
           )}
 
           {["approved", "scheduled", "published"].includes(item.status) && <PublishPanel itemId={item.id} canSchedule={canApprove} />}
+          {["approved", "scheduled", "published"].includes(item.status) && item.kind !== "story" && role !== "viewer" && <PromoteButton contentId={item.id} />}
           <WhatsAppDraft item={item} />
 
           <section className="space-y-2">

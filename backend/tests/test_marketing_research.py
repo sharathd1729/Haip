@@ -12,7 +12,7 @@ from app.core.security import create_access_token
 from app.models.audit_event import AuditEvent
 from app.models.integration import Integration
 from app.models.marketing import MarketingCompetitorPost, MarketingCompetitorSnapshot
-from app.schemas.marketing import CompetitorIn, CompetitorPostIn
+from app.schemas.marketing_research import CompetitorIn, CompetitorPostIn
 from app.services import marketing_ai_service as ai
 from app.services import marketing_content_service as svc
 from app.services import marketing_research_service as research

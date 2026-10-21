@@ -93,6 +93,7 @@ celery_app = Celery(
         "app.workers.tasks.instagram_insights_poll",
         # Marketing Studio AI runs (audit, plan, content)
         "app.workers.tasks.marketing_studio",
+        "app.workers.tasks.marketing_ads",
         "app.workers.tasks.website",
         # Automations engine + timer triggers
         "app.workers.tasks.automation_engine",
@@ -228,6 +229,11 @@ celery_app.conf.update(
         "meta_ads.sync_all_tenants":                 {"queue": "whatsapp"},
         "meta_ads.sync_tenant":                      {"queue": "whatsapp"},
         "meta_ads.backfill_tenant":                  {"queue": "whatsapp"},
+        "marketing_ads.push":                        {"queue": "whatsapp"},
+        "marketing_ads.evaluate_all":                {"queue": "whatsapp"},
+        "marketing_ads.evaluate_tenant":             {"queue": "whatsapp"},
+        "marketing_capi.sweep_all":                  {"queue": "whatsapp"},
+        "marketing_capi.send_tenant":                {"queue": "whatsapp"},
         # The 5-minute lead-assignment tick had no route, so it sat on
         # Celery's implicit "celery" queue that no worker consumes and never ran.
         "lead_assignment.tick":                      {"queue": "default"},
@@ -476,6 +482,15 @@ celery_app.conf.beat_schedule = {
     "marketing-reviews-sync-hourly": {
         "task": "marketing_reviews.sync_all",
         "schedule": crontab(minute=35),
+    },
+    # Performance marketer (agency M5): boost rules + the spend watchdog, and bookings to Meta's Conversions API.
+    "marketing-ads-evaluate": {
+        "task": "marketing_ads.evaluate_all",
+        "schedule": crontab(minute=20),
+    },
+    "marketing-capi-sweep": {
+        "task": "marketing_capi.sweep_all",
+        "schedule": crontab(minute=50),
     },
     # Instagram publisher: posts approved, scheduled content whose time has come.
     "marketing-publish-dispatch": {

@@ -36,6 +36,9 @@ ROLES: dict[str, tuple[str, str, bool, str]] = {
     "design":     ("Designer", "Picks a photo for every slide, lays the text on it and, if switched on, requests AI images",
                    False, "autopilot"),
     "publish":    ("Scheduler & publisher", "Schedules and posts approved content to Instagram", True, "suggest"),
+    # Agency M5. Spends money, so OFF until the owner turns it on; autopilot = owner-approved boost rules run alone.
+    "ads":        ("Performance marketer", "Turns approved posts into Meta ads within your monthly budget; boost rules "
+                   "run on their own only on autopilot", True, "off"),
 }
 
 

@@ -58,7 +58,8 @@ def test_defaults_follow_owner_decision(ws):  # noqa: F811
     levels = agency.get_agency(ws["tenant"])["roles"]
     assert levels["research"] == levels["strategy"] == levels["copy"] == levels["design"] == "autopilot"
     assert levels["publish"] == "suggest"
-    assert set(levels) == {"research", "strategy", "copy", "design", "publish"}     # only roles with code behind them
+    assert levels["ads"] == "off"                                                   # spends money: off until the owner says (M5)
+    assert set(levels) == {"research", "strategy", "copy", "design", "publish", "ads"}   # only roles with code behind them
 
 
 def test_kill_switch_forces_suggest_and_off_stays_off(db, ws):  # noqa: F811

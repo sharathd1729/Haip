@@ -10,7 +10,8 @@ M1 (content v4, review v1): the AI-tell list, carousel frameworks and [NEED: ...
 coreyhaines31/marketingskills (MIT, Copyright (c) 2025 Corey Haines); the brand review structure (We are / We are not,
 tone by channel, severity findings, compliance flags) adapts anthropics/knowledge-work-plugins (Apache-2.0).
 """
-from app.schemas.marketing import AIBrandReview, AuditAssessment, MarketingPlanBody, ResearchBrief, CONTENT_MODELS
+from app.schemas.marketing import AIBrandReview, AuditAssessment, MarketingPlanBody, CONTENT_MODELS
+from app.schemas.marketing_research import ResearchBrief
 
 _COMMON_RULES = """Rules you must follow:
 - Write only about what the business facts below say. Never invent amenities, awards, reviews, locations or numbers.
