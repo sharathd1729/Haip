@@ -1,6 +1,7 @@
 "use client";
 // One content item: edit (each save is a new version), ask the AI for a version, send for approval, approve or ask
-// for changes. Approval is bound to the exact version shown; the server refuses if it changed meanwhile.
+// for changes. Approval is bound to the exact version shown; the server refuses if it changed meanwhile. The preview
+// is the saved version drawn exactly as it will be posted (photo, text and look), so it is what the approver signs off.
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
@@ -10,7 +11,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Drawer, StatusPill, Timeline, type TimelineEntry } from "@/components/ui/kit";
 import { PayloadForm, emptyPayload } from "./PayloadForm";
 import { PublishPanel } from "./PublishPanel";
+import { RenderedPreview } from "./RenderedPreview";
 import { KIND_LABEL, STATUS, STUDIO, btn, btnPrimary, inputCls, studioError, when, type ContentItem } from "./types";
+
+const LOOKS = [
+  { value: "overlay", label: "Text on photo", hint: "Dark fade with white text" },
+  { value: "panel", label: "Brand panel", hint: "Text on a band in your brand colour" },
+  { value: "photo", label: "Photo only", hint: "No text on the image" },
+] as const;
 
 const DECISION_LABEL = { submitted: "Sent for approval", approved: "Approved", rejected: "Changes asked", withdrawn: "Approval voided by an edit" };
 
@@ -42,6 +50,15 @@ export function ContentDrawer({ id, onClose }: { id: string | null; onClose: () 
   const save = useMutation({ mutationFn: () => api.post(`${STUDIO}/content/${id}/versions`, { payload: draft }), onSuccess: done, onError: fail("Not saved") });
   const gen = useMutation({ mutationFn: () => api.post(`${STUDIO}/content/${id}/generate`, { brief: brief || null }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["studio-item", id] }), onError: fail("Could not start the AI") });
+  const pick = useMutation({
+    mutationFn: () => api.post(`${STUDIO}/content/${id}/pick-photos`),
+    onSuccess: r => {
+      qc.invalidateQueries({ queryKey: ["studio-item", id] });
+      toast({ variant: "success", title: r.data.filled ? `${r.data.filled} photo${r.data.filled === 1 ? "" : "s"} chosen` : "Nothing to fill",
+        description: r.data.filled ? "Saved as a new version. Swap any photo below." : "Every slot already has a photo." });
+    },
+    onError: fail("Photos not chosen"),
+  });
   const act = useMutation({
     mutationFn: (a: "submit" | "approve" | "reject") => api.post(`${STUDIO}/content/${id}/${a}`, { version_id: current?.id, note: note || null }),
     onSuccess: r => { done(r); setNote(""); }, onError: fail("Not done"),
@@ -50,7 +67,9 @@ export function ContentDrawer({ id, onClose }: { id: string | null; onClose: () 
   const dirty = JSON.stringify(draft) !== JSON.stringify(current?.payload ?? {});
   const locked = ["in_review", "approved", "archived", "scheduled", "published"].includes(item?.status ?? "");
   const ownVersion = !!current && current.created_by === me && role !== "owner";
-  const busy = save.isPending || act.isPending || item?.generation_status === "pending";
+  const busy = save.isPending || act.isPending || pick.isPending || item?.generation_status === "pending";
+  const look = ((draft.design as { style?: string } | undefined)?.style) ?? (item?.kind === "post" && !draft.overlay_text ? "photo" : "overlay");
+  const setLook = (style: string) => setDraft({ ...draft, design: { ...((draft.design as object) ?? {}), style } });
 
   const timeline: TimelineEntry[] = [
     ...(item?.versions ?? []).map(v => ({ id: v.id, at: v.created_at, title: `Version ${v.version} · ${v.origin === "ai" ? "written by AI" : "edited by a person"}`,
@@ -72,7 +91,8 @@ export function ContentDrawer({ id, onClose }: { id: string | null; onClose: () 
             <>
               <button type="button" className={btnPrimary} disabled={busy || ownVersion} onClick={() => act.mutate("approve")}
                 title={ownVersion ? "You wrote or generated this version, so someone else must approve it." : undefined}>Approve this version</button>
-              <button type="button" className={btn} disabled={busy} onClick={() => act.mutate("reject")}>Ask for changes</button>
+              <button type="button" className={btn} disabled={busy || !note.trim()} onClick={() => act.mutate("reject")}
+                title={!note.trim() ? "Write what should change first; the AI uses it for the next version." : undefined}>Ask for changes</button>
             </>
           )}
           {dirty && !locked && <span className="text-xs text-[var(--haip-fg-subtle)]">Save your edits before sending for approval.</span>}
@@ -101,6 +121,26 @@ export function ContentDrawer({ id, onClose }: { id: string | null; onClose: () 
           {current ? (
             <>
               {current.origin === "ai" && <StatusPill tone="info">Written by AI · check facts before approving</StatusPill>}
+              <RenderedPreview itemId={item.id} versionId={current.id} kind={item.kind}
+                note={dirty ? "Showing the saved version; save to see your edits" : undefined} />
+              {!locked && (
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div role="radiogroup" aria-label="Look" className="flex flex-wrap gap-1.5">
+                    {LOOKS.map(l => (
+                      <button key={l.value} type="button" role="radio" aria-checked={look === l.value} title={l.hint} disabled={busy}
+                        onClick={() => setLook(l.value)}
+                        className={`min-h-11 rounded-full border px-3 text-[13px] font-semibold sm:min-h-9 ${look === l.value
+                          ? "border-primary bg-primary text-primary-foreground" : "border-[var(--haip-border)] text-[var(--haip-fg-2)] hover:bg-[var(--haip-surface)]"}`}>
+                        {l.label}
+                      </button>
+                    ))}
+                  </div>
+                  <button type="button" className={btn} disabled={busy || dirty} onClick={() => pick.mutate()}
+                    title={dirty ? "Save your edits first." : "Fill every empty photo slot from your library"}>
+                    {pick.isPending ? "Choosing…" : "Pick photos from the library"}
+                  </button>
+                </div>
+              )}
               <PayloadForm key={current.id} kind={item.kind} value={draft} onChange={setDraft} disabled={locked || busy} />
             </>
           ) : (
@@ -117,8 +157,9 @@ export function ContentDrawer({ id, onClose }: { id: string | null; onClose: () 
 
           {item.status === "in_review" && canApprove && (
             <label className="block space-y-1">
-              <span className="text-[13px] font-semibold text-[var(--haip-fg-2)]">Note for the team (optional)</span>
-              <input className={inputCls} maxLength={500} value={note} onChange={e => setNote(e.target.value)} />
+              <span className="text-[13px] font-semibold text-[var(--haip-fg-2)]">What should change?</span>
+              <input className={inputCls} maxLength={500} value={note} onChange={e => setNote(e.target.value)}
+                placeholder="Needed to ask for changes; optional when approving" />
             </label>
           )}
 

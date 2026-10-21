@@ -56,7 +56,12 @@ CONTENT_SYSTEM = """You write Instagram content for a hospitality brand. Produce
 - Story: 5-7 frames: an opening worth tapping past, build, one interaction, the ask. At most ONE sticker of type
   poll or question in the whole sequence, and the link sticker (if any) only after the value. Short text per frame,
   and a shot_note saying what to film or photograph.
-Leave media.asset_id empty; staff pick photos. Write alt_text describing the photo each slide or frame needs.
+- Fit the plan when one is given: its audience and position, this entry's pillar and idea. Do not repeat the hooks of
+  recent posts or the ideas of the other posts planned around it. Apply every reviewer note on this post.
+- Leave media.asset_id empty: the designer picks a library photo for every slot from your media.alt_text. Describe
+  each slot's photo in alt_text, reusing the words of a library photo that fits. Keep headlines and frame text short;
+  they are drawn onto the photo. design.style: "overlay" (text on a dark fade) suits most; "panel" (a solid
+  brand-colour band) suits promos and text-heavy slides; "photo" means no text on the image.
 Answer only by calling the tool.
 """ + _COMMON_RULES
 

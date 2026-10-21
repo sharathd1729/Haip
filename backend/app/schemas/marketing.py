@@ -13,7 +13,7 @@ CONTENT_KINDS = ("post", "carousel", "story", "promo")
 CHANNELS = ("instagram",)
 
 # Item lifecycle in Phase 1 (no external publishing yet): draft -> in_review -> approved | rejected; any edit -> draft.
-ITEM_STATUSES = ("draft", "in_review", "approved", "rejected", "archived")
+ITEM_STATUSES = ("draft", "in_review", "approved", "rejected", "archived", "scheduled", "published")
 GENERATION_STATUSES = ("idle", "pending", "failed")
 
 CAPTION_MAX = 2200
@@ -92,6 +92,13 @@ class MediaRef(_Strict):
     alt_text: Optional[str] = Field(default=None, max_length=300)
 
 
+class Design(_Strict):
+    """How text is drawn on the photos (services/marketing_render.py). Part of the payload, so an approval covers the
+    exact look that will be posted: overlay = dark fade with white text; panel = brand-coloured band; photo = no text."""
+    style: Literal["overlay", "panel", "photo"] = "overlay"
+    colour: Optional[str] = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
+
+
 class _Captioned(_Strict):
     caption: str = Field(min_length=1, max_length=CAPTION_MAX)
     hashtags: list[str] = Field(default_factory=list)
@@ -117,6 +124,7 @@ class PostContent(_Captioned):
     kind: Literal["post"] = "post"
     media: MediaRef = Field(default_factory=MediaRef)
     overlay_text: Optional[str] = Field(default=None, max_length=120)
+    design: Optional[Design] = None
 
 
 class CarouselSlide(_Strict):
@@ -128,6 +136,7 @@ class CarouselSlide(_Strict):
 class CarouselContent(_Captioned):
     kind: Literal["carousel"] = "carousel"
     slides: list[CarouselSlide] = Field(min_length=2, max_length=10)
+    design: Optional[Design] = None
 
 
 class StorySticker(_Strict):
@@ -159,6 +168,7 @@ class StoryContent(_Strict):
     """One ask per sequence: at most one poll/question and at most one link sticker across all frames."""
     kind: Literal["story"] = "story"
     frames: list[StoryFrame] = Field(min_length=1, max_length=10)
+    design: Optional[Design] = None
 
     @model_validator(mode="after")
     def _one_ask(self):
@@ -178,6 +188,7 @@ class PromoContent(_Captioned):
     offer: Optional[str] = Field(default=None, max_length=160)
     valid_until: Optional[str] = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
     media: MediaRef = Field(default_factory=MediaRef)
+    design: Optional[Design] = None
 
 
 CONTENT_MODELS: dict[str, type[BaseModel]] = {

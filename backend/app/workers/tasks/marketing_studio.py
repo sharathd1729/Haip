@@ -81,28 +81,51 @@ def generate_content(self, tenant_id: str, item_id: str, actor_id: str, brief: s
 
 @shared_task(name="marketing_agency.orchestrate")
 def agency_orchestrate():
-    """Hourly. Queues a weekly run for each workspace whose local time is Monday 09:00 and whose module is on."""
+    """Hourly. Closes runs that stopped moving, then queues the weekly run for each workspace that is due
+    (Monday from 09:00 local, module on, not paused, not yet run this week)."""
     from app.models.tenant import Tenant
     from app.services import marketing_agency_run as runs
 
     queued = 0
     with SessionLocal() as db:
+        try:
+            swept = runs.sweep_stuck(db)
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            swept = 0
+            log.error("agency_sweep_failed", error=str(exc))
         for tenant in db.query(Tenant).all():
             try:
-                if runs.due(db, tenant):
+                if runs.due(db, tenant) and runs.running(db, tenant.id) is None:
                     agency_run_week.delay(tenant.id, "schedule", None)
                     queued += 1
             except Exception as exc:  # noqa: BLE001 -- one workspace must not stop the others
                 log.error("agency_orchestrate_failed", tenant_id=tenant.id, error=str(exc))
-    return {"queued": queued}
+    return {"queued": queued, "swept": swept}
 
 
 @shared_task(name="marketing_agency.run_week")
 def agency_run_week(tenant_id: str, trigger: str = "schedule", actor_id=None):
+    """Starts a run and queues its first unit; each unit queues the next (marketing_agency.step)."""
     from app.services import marketing_agency_run as runs
 
     with SessionLocal() as db:
-        return runs.run_week(db, tenant_id, trigger=trigger, actor_id=actor_id)
+        run = runs.start_run(db, tenant_id, trigger=trigger, actor_id=actor_id)
+        if run.status == "running":
+            agency_step.delay(tenant_id, run.run_id)
+        return run.run_id
+
+
+@shared_task(name="marketing_agency.step")
+def agency_step(tenant_id: str, run_id: str):
+    """One unit of a run (one step, or one draft). Not retried: a failure is recorded on the run and it stops."""
+    from app.services import marketing_agency_run as runs
+
+    with SessionLocal() as db:
+        more = runs.run_step(db, tenant_id, run_id)
+    if more:
+        agency_step.delay(tenant_id, run_id)
+    return {"more": more}
 
 
 @shared_task(name="marketing_research.refresh")

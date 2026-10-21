@@ -1,11 +1,13 @@
 """The AI marketing agency: roles, autonomy per role, kill switch, approvals inbox, alerts.
 
 Autonomy levels (owner decision Q1, plan 18 Oct 2026), modelled on the concierge's off/shadow/autonomous:
-  * internal roles (research, strategy, copy, design, video, report): `autopilot` = runs in the weekly cycle,
+  * internal roles (research, strategy, copy, design): `autopilot` = runs in the weekly cycle,
     `suggest` = only when someone presses Run, `off` = never.
-  * public roles (publish, community, reputation): `suggest` = a person approves every public action,
-    `autopilot` = acts after the hard gates (price policy, banned words, approval hash, caps, publish limit).
-  * kill switch (`paused`): the weekly cycle stops and every public role behaves as `suggest`.
+  * public role (publish): `suggest` = a person schedules every approved post, `autopilot` = approved posts are
+    scheduled automatically (approval itself is always a person).
+  * kill switch (`paused`): no step of any run executes (weekly or manual) and nothing is posted.
+Only roles with working code behind them are listed (video, reporting, comments and reviews come with later phases);
+levels stored for retired roles are ignored.
 Settings live in brand_config["marketing_studio"]["agency"]; every change is owner-only and audited.
 """
 import json
@@ -31,12 +33,9 @@ ROLES: dict[str, tuple[str, str, bool, str]] = {
     "research":   ("Research analyst", "Audits your account and, once connected, competitors' public posts", False, "autopilot"),
     "strategy":   ("Strategist", "Turns research into a weekly plan, themes and calendar", False, "autopilot"),
     "copy":       ("Copywriter", "Writes captions, carousels, stories and promos for each calendar slot", False, "autopilot"),
-    "design":     ("Designer", "Makes AI images and template creatives for drafted posts", False, "autopilot"),
-    "video":      ("Video editor", "Builds template reels from your photos", False, "autopilot"),
-    "report":     ("Reporting analyst", "Sends the weekly marketing report", False, "autopilot"),
+    "design":     ("Designer", "Picks a photo for every slide, lays the text on it and, if switched on, requests AI images",
+                   False, "autopilot"),
     "publish":    ("Scheduler & publisher", "Schedules and posts approved content to Instagram", True, "suggest"),
-    "community":  ("Community manager", "Replies to comments on your posts", True, "suggest"),
-    "reputation": ("Reputation manager", "Drafts replies to Google reviews", True, "suggest"),
 }
 
 

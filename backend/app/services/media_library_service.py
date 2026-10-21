@@ -40,7 +40,7 @@ def _store(db: Session, tenant_id: str, data: bytes, mime: str, ext: str, size: 
            actor_id: Optional[str], alt_text: Optional[str], property_id: Optional[str], provenance: Optional[dict],
            status: str = "active") -> MediaAsset:
     sha = hashlib.sha256(data).hexdigest()
-    existing = db.query(MediaAsset).filter_by(tenant_id=tenant_id, sha256=sha, status="active").first()
+    existing = db.query(MediaAsset).filter_by(tenant_id=tenant_id, sha256=sha, status=status).first()
     if existing is not None:
         return existing
     key = media_storage.upload_marketing_media(tenant_id, data, mime, ext)

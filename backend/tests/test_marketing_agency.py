@@ -55,15 +55,16 @@ def _seed_insights(db, tid):
 def test_defaults_follow_owner_decision(ws):  # noqa: F811
     levels = agency.get_agency(ws["tenant"])["roles"]
     assert levels["research"] == levels["strategy"] == levels["copy"] == levels["design"] == "autopilot"
-    assert levels["publish"] == levels["community"] == levels["reputation"] == "suggest"
+    assert levels["publish"] == "suggest"
+    assert set(levels) == {"research", "strategy", "copy", "design", "publish"}     # only roles with code behind them
 
 
 def test_kill_switch_forces_suggest_and_off_stays_off(db, ws):  # noqa: F811
-    agency.update_agency(db, ws["tenant"], ws["owner"].id, roles={"publish": "autopilot", "video": "off"}, paused=True)
+    agency.update_agency(db, ws["tenant"], ws["owner"].id, roles={"publish": "autopilot", "design": "off"}, paused=True)
     db.commit()
     assert agency.level(ws["tenant"], "publish") == "suggest"
     assert agency.level(ws["tenant"], "research") == "suggest"
-    assert agency.level(ws["tenant"], "video") == "off"
+    assert agency.level(ws["tenant"], "design") == "off"
     assert db.query(AuditEvent).filter_by(tenant_id=ws["tenant"].id, action="marketing.agency.updated").count() == 1
 
 
@@ -72,7 +73,9 @@ def test_agency_api_owner_only_and_validated(client, ws):  # noqa: F811
     r = client.put(f"{BASE}/agency", json={"roles": {"publish": "sometimes"}}, headers=ws["owner_h"])
     assert r.status_code == 422 and r.json()["detail"]["code"] == "bad_level"
     r = client.put(f"{BASE}/agency", json={"roles": {"community": "autopilot"}}, headers=ws["owner_h"])
-    assert r.status_code == 200 and {x["role"]: x["level"] for x in r.json()["roster"]}["community"] == "autopilot"
+    assert r.status_code == 422 and r.json()["detail"]["code"] == "unknown_role"          # retired role
+    r = client.put(f"{BASE}/agency", json={"roles": {"publish": "autopilot"}}, headers=ws["owner_h"])
+    assert r.status_code == 200 and {x["role"]: x["level"] for x in r.json()["roster"]}["publish"] == "autopilot"
     assert client.get(f"{BASE}/agency", headers=ws["mkt_h"]).json()["schedule"].startswith("Mondays")
 
 
@@ -102,7 +105,8 @@ def test_weekly_run_audits_plans_drafts_and_submits_for_approval(db, ws):  # noq
     pending = agency.pending_approvals(db, tid)
     assert {p["type"] for p in pending} == {"content"} and len(pending) == 3
     hist = runs.history(db, tid)
-    assert hist[0]["summary"]["drafts"] == 3 and len(hist[0]["steps"]) == 6
+    assert hist[0]["summary"]["drafts"] == 3 and len(hist[0]["steps"]) == 7 and "state" not in hist[0]["summary"]
+    assert ("photos", "skipped") in steps                             # empty photo library
     assert ("competitors", "skipped") in steps                        # no competitors on the list yet
 
 
@@ -141,9 +145,14 @@ def test_scheduled_run_skips_suggest_roles_and_paused_workspace_does_nothing(db,
     assert {t.status for t in db.query(MarketingTask).filter_by(run_id=run_id) if t.step != "run"} == {"skipped"}
 
 
-def test_due_only_on_local_monday_nine_once_a_week_with_module_on(db, ws):  # noqa: F811
+def test_due_on_local_monday_from_nine_once_a_week_with_module_on(db, ws):  # noqa: F811
     tenant = ws["tenant"]
     monday_nine = datetime(2026, 10, 19, 9, 10, tzinfo=ZoneInfo("Asia/Kolkata"))
+    for early_or_sunday in (monday_nine.replace(hour=8), monday_nine - timedelta(days=1)):
+        with patch.object(runs, "get_tenant_now", return_value=early_or_sunday):
+            assert runs.due(db, tenant) is False
+    with patch.object(runs, "get_tenant_now", return_value=monday_nine.replace(hour=15)):
+        assert runs.due(db, tenant) is True                           # a missed 09:00 tick still runs that Monday
     with patch.object(runs, "get_tenant_now", return_value=monday_nine):
         assert runs.due(db, tenant) is True
         db.add(MarketingTask(tenant_id=tenant.id, role="manager", step="run", status="done", trigger="schedule",
@@ -162,7 +171,12 @@ def test_run_endpoint_queues_and_refuses_while_running(client, db, ws, monkeypat
     db.add(MarketingTask(tenant_id=ws["tenant"].id, role="manager", step="run", status="running", trigger="manual"))
     db.commit()
     r = client.post(f"{BASE}/agency/run", headers=ws["mkt_h"])
-    assert r.status_code == 409 and len(calls) == 1 and calls[0][1] == "manual"
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "run_in_progress"
+    assert len(calls) == 1 and calls[0][1] == "manual"
+    agency.update_agency(db, ws["tenant"], ws["owner"].id, paused=True)
+    db.commit()
+    r = client.post(f"{BASE}/agency/run", headers=ws["mkt_h"])
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "agency_paused" and len(calls) == 1
 
 
 # ── Approvals API ───────────────────────────────────────────────────────────────────────────────────────────────────

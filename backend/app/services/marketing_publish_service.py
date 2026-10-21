@@ -6,6 +6,8 @@
     automatically at the suggested time. Approval itself is always a person. Kill switch: nothing is published.
   * One attempt row per (content, version), unique. Container and media ids are saved the moment they exist, and a
     retry first asks Instagram whether a stored container was already published, so a retry never posts twice.
+  * What is posted is rendered from the approved payload (`marketing_render`): each photo cropped to the feed or story
+    canvas with its slide / frame text drawn on, saved as a JPEG. A PNG or WebP library photo is therefore fine.
   * Transient failures (timeouts, 429/5xx, quota exhausted, media still processing) retry at +5, +15, +60 min; after
     MAX_TRIES the attempt fails and the item returns to "approved" with the reason shown.
 """
@@ -25,6 +27,7 @@ from app.models.media_asset import MediaAsset
 from app.models.tenant import Tenant
 from app.services import marketing_agency_service as agency
 from app.services import marketing_content_service as content_svc
+from app.services import marketing_render as render
 from app.services.marketing_content_service import MarketingError
 
 log = structlog.get_logger()
@@ -37,16 +40,15 @@ DEFAULT_HOUR = 10
 
 # ── Preflight ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
+SOURCE_TYPES = ("image/jpeg", "image/png", "image/webp")
+
+
 def _asset_ids(kind: str, payload: dict) -> list[Optional[str]]:
-    if kind == "carousel":
-        return [((s.get("media") or {}).get("asset_id")) for s in payload.get("slides", [])]
-    if kind == "story":
-        return [((f.get("media") or {}).get("asset_id")) for f in payload.get("frames", [])]
-    return [((payload.get("media") or {}).get("asset_id"))]
+    return [f["asset_id"] for f in render.frames(kind, payload)]
 
 
 def preflight(db: Session, tenant_id: str, item: MarketingContent, payload: dict) -> tuple[list[str], list[str]]:
-    """(problems that block publishing, notes). Instagram needs a public JPEG for every image."""
+    """(problems that block publishing, notes). Every slide or frame needs an approved library photo."""
     problems, notes = [], []
     ids = _asset_ids(item.kind, payload)
     if not ids or any(not a for a in ids):
@@ -57,8 +59,8 @@ def preflight(db: Session, tenant_id: str, item: MarketingContent, payload: dict
         asset = found.get(a)
         if asset is None or asset.status != "active":
             problems.append("A chosen photo is missing or not approved.")
-        elif asset.mime_type != "image/jpeg":
-            problems.append("Instagram only accepts JPEG photos. Make a creative from it (that saves a JPEG) and use that.")
+        elif asset.mime_type not in SOURCE_TYPES:
+            problems.append("Use a JPEG, PNG or WebP photo.")
     if item.kind == "story" and any(f.get("sticker") for f in payload.get("frames", [])):
         notes.append("Instagram's API cannot add poll, question or link stickers; add them in the app after posting.")
     return sorted(set(problems)), notes
@@ -174,7 +176,8 @@ def due(db: Session, now: Optional[datetime] = None) -> list[MarketingPublishAtt
 
 
 def publish_attempt(db: Session, attempt_id: str, *, publisher_factory: Optional[Callable] = None,
-                    media_url: Optional[Callable[[MediaAsset], str]] = None) -> MarketingPublishAttempt:
+                    media_url: Optional[Callable[[MediaAsset], str]] = None,
+                    read_bytes: Optional[Callable[[str], bytes]] = None) -> MarketingPublishAttempt:
     from app.adapters.instagram.publishing import PublishError
     from app.services.media_storage import get_presigned_media_url
 
@@ -222,27 +225,37 @@ def publish_attempt(db: Session, attempt_id: str, *, publisher_factory: Optional
     if problems:
         return fail("; ".join(problems), False)
 
+    from app.services.media_library_service import MediaError
+    containers = list(attempt.container_ids or [])
+    images: list[MediaAsset] = []
+    if not containers:
+        try:
+            images = render.render(db, tenant, item.kind, payload, read_bytes=read_bytes)
+            db.commit()
+        except MediaError as exc:
+            return fail(exc.message, False)
+        except Exception as exc:                     # storage read/write failed: try again later
+            db.rollback()
+            log.warning("marketing_render_failed", tenant_id=tenant.id, item_id=item.id, error=str(exc)[:200])
+            return fail("The images could not be prepared; will try again.", True)
     pub = (publisher_factory or _publisher_for)(db, tenant.id)
     try:
         left = pub.quota_left()
         if left == 0:
             return fail("Instagram's 24-hour posting limit is used up.", True)
-        assets = {a.id: a for a in db.query(MediaAsset).filter(MediaAsset.tenant_id == tenant.id,
-                                                               MediaAsset.id.in_(_asset_ids(item.kind, payload)))}
-        ids = _asset_ids(item.kind, payload)
         containers = list(attempt.container_ids or [])
         published = list(attempt.media_ids or [])
         if item.kind == "carousel":
             if not containers:
-                kids = [pub.image_container(url_for(assets[a]), carousel_item=True) for a in ids]
+                kids = [pub.image_container(url_for(a), carousel_item=True) for a in images]
                 for k in kids:
                     pub.wait_ready(k)
                 containers = [pub.carousel_container(kids, _caption(payload))]
         elif item.kind == "story":
             if not containers:
-                containers = [pub.image_container(url_for(assets[a]), story=True) for a in ids]
+                containers = [pub.image_container(url_for(a), story=True) for a in images]
         elif not containers:
-            containers = [pub.image_container(url_for(assets[ids[0]]), caption=_caption(payload))]
+            containers = [pub.image_container(url_for(images[0]), caption=_caption(payload))]
         attempt.container_ids = containers
         db.commit()                                   # saved before publishing: a retry reuses these containers
         for cid in containers[len(published):]:

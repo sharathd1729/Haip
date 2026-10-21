@@ -27,6 +27,6 @@ class MediaAsset(Base, TimestampMixin):
     source = Column(String(20), nullable=False, default="upload")    # ASSET_SOURCES
     provenance = Column(JSON, nullable=True)                          # template id + inputs, or AI provider/model/prompt version
     created_by = Column(String, nullable=True)
-    status = Column(String(20), nullable=False, default="active")     # active | archived
+    status = Column(String(20), nullable=False, default="active")     # active | archived | pending_review (AI, unapproved) | derived (rendered for posting)
 
     __table_args__ = (Index("ix_media_assets_tenant_sha", "tenant_id", "sha256"),)
