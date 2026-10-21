@@ -144,7 +144,7 @@ PROMPT_VERSIONS: dict[str, str] = {
     # v3: the strategist also reads the research analyst's latest competitor brief (agency phase B).
     # v4 (M2): the demand brief (open dates, long weekends, festivals); targets, campaigns, 60/30/10 buckets,
     # indicator + stop_if per entry, reactive days.
-    "marketing_plan": "marketing-plan-v5",
+    "marketing_plan": "marketing-plan-v6",
     "marketing_research": "marketing-research-v1",
     # Website builder AI developer (services/website_ai_prompts.py): first full copy, and chat edits as operations.
     "website_generate": "website-generate-v1",

@@ -5,6 +5,7 @@ marketing_ads.evaluate_all    hourly: per tenant -> evaluate_tenant
 marketing_ads.evaluate_tenant boost rules + the spend watchdog for one tenant (one transaction per tenant)
 marketing_capi.sweep_all      hourly: per tenant with the Conversions API on -> send_tenant
 marketing_capi.send_tenant    send that tenant's new bookings as Purchase events
+marketing_reports.weekly_all  Monday morning: the weekly marketing report email (agency M6), where the owner turned it on
 """
 import structlog
 from celery import shared_task
@@ -91,3 +92,22 @@ def capi_send_tenant(tenant_id: str):
     from app.services import marketing_capi
     with SessionLocal() as db:
         return marketing_capi.send_tenant(db, db.query(Tenant).filter_by(id=tenant_id).one())
+
+
+@shared_task(name="marketing_reports.weekly_all")
+def weekly_reports_all():
+    from app.models.tenant import Tenant
+    from app.services import marketing_reports
+    with SessionLocal() as db:
+        tenants = [t.id for t in db.query(Tenant).all() if marketing_reports.settings_of(t)["weekly_email"]]
+    for tid in tenants:
+        weekly_report_tenant.delay(tid)
+    return {"tenants": len(tenants)}
+
+
+@shared_task(name="marketing_reports.weekly_tenant")
+def weekly_report_tenant(tenant_id: str):
+    from app.models.tenant import Tenant
+    from app.services import marketing_reports
+    with SessionLocal() as db:
+        return marketing_reports.send_weekly(db, db.query(Tenant).filter_by(id=tenant_id).one())

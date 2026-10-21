@@ -234,6 +234,8 @@ celery_app.conf.update(
         "marketing_ads.evaluate_tenant":             {"queue": "whatsapp"},
         "marketing_capi.sweep_all":                  {"queue": "whatsapp"},
         "marketing_capi.send_tenant":                {"queue": "whatsapp"},
+        "marketing_reports.weekly_all":              {"queue": "default"},
+        "marketing_reports.weekly_tenant":           {"queue": "default"},
         # The 5-minute lead-assignment tick had no route, so it sat on
         # Celery's implicit "celery" queue that no worker consumes and never ran.
         "lead_assignment.tick":                      {"queue": "default"},
@@ -491,6 +493,11 @@ celery_app.conf.beat_schedule = {
     "marketing-capi-sweep": {
         "task": "marketing_capi.sweep_all",
         "schedule": crontab(minute=50),
+    },
+    # Agency M6: the weekly marketing report email, Monday 09:30 IST (beat timezone); off unless the owner turns it on.
+    "marketing-weekly-report": {
+        "task": "marketing_reports.weekly_all",
+        "schedule": crontab(minute=30, hour=9, day_of_week=1),
     },
     # Instagram publisher: posts approved, scheduled content whose time has come.
     "marketing-publish-dispatch": {

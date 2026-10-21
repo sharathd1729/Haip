@@ -10,7 +10,7 @@ approver in the preview), never rewritten by AI:
     phone number, so one blocks the post. Stories are Instagram-only.
 """
 import re
-from typing import Callable
+from typing import Callable, Optional
 
 from app.adapters.google_business import SUMMARY_MAX
 from app.adapters.instagram.publishing import PublishError
@@ -56,9 +56,13 @@ def google_summary(payload: dict) -> str:
     return (cut[:end + 1] if end > SUMMARY_MAX // 2 else cut).strip()
 
 
-def google_action(kind: str, profile: dict) -> dict:
+def google_action(kind: str, profile: dict, content_id: Optional[str] = None) -> dict:
     site = ((profile.get("socials") or {}).get("website") or "").strip()
     if site.startswith("https://"):
+        if content_id:                    # agency M6: a booking from this button traces back to the post
+            from app.services import marketing_links as links
+            site = links.tag_url(site, links.utm(source="google", medium="business_profile",
+                                                 campaign=links.campaign_for_content(content_id), content=kind))
         return {"actionType": "BOOK" if kind == "promo" else "LEARN_MORE", "url": site}
     return {"actionType": "CALL"}
 
@@ -112,5 +116,5 @@ def publish_google(pub, config: dict, item, payload: dict, profile: dict, images
     if not account or not location:
         raise PublishError("Choose which Google Business location to post to.", transient=False)
     post = pub.create_post(account, location, google_summary(payload), url_for(images[0]) if images else None,
-                           google_action(item.kind, profile))
+                           google_action(item.kind, profile, item.id))
     return [post.get("name") or ""]

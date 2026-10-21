@@ -57,6 +57,8 @@ Demand comes first. The "Demand" data lists open dates per vehicle/property (gap
 - leave about one day in five free in `reactive_days` for what happens that week.
 - kind "reel" (a short video cut from the property's own clips) only when "Video clips in the library" is 2 or more;
   at most two reels a week.
+- "What has measurably worked" lists the formats, hooks, shots and pillars that beat this account's median; put the
+  "proven" 60% there. Values marked as not enough signal are only evidence for the "new" and "experimental" share.
 Answer only by calling the tool.
 """ + _COMMON_RULES
 

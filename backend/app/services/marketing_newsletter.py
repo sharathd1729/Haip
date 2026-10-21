@@ -151,6 +151,9 @@ def render(db: Session, tenant: Tenant, nl: MarketingNewsletter, unsubscribe_lin
     from app.services.media_storage import get_presigned_media_url
     colour, brand = _panel_colour(tenant), html.escape(tenant.brand_name or tenant.name)
     label, href = _button(tenant)
+    if href.startswith("https://") and "wa.me" not in href:      # agency M6: the website knows it came from this email
+        from app.services import marketing_links as links
+        href = links.tag_url(href, links.utm(source="newsletter", medium="email", campaign=f"n-{nl.id.replace('-', '')[:8]}"))
     blocks, texts = [], [nl.subject, "", nl.intro or ""]
     for item, payload in _items(db, tenant.id, nl.content_ids):
         frames = marketing_render.frames(item.kind, payload)

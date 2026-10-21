@@ -275,13 +275,16 @@ def run_plan(db: Session, tenant_id: str, plan_id: str) -> MarketingPlan:
     audit = db.query(MarketingAudit).filter_by(id=plan.audit_id, tenant_id=tenant_id).first() if plan.audit_id else None
     demand = _demand(db, tenant)
     clips = _clip_count(db, tenant_id)
+    from app.services import marketing_learning
+    learned = marketing_learning.summary_for_plan(db, tenant_id)
     try:
         user = (f"Business facts:\n{_facts(db, tenant)}\n\nPeriod: {plan.period_start} to {plan.period_end}\n"
                 f"Owner's brief: {plan.brief or '(none)'}\n"
                 f"Audit findings: {audit.assessment if audit is not None and audit.status == 'ready' else '(no audit)'}\n"
                 f"Competitor research: {_latest_research(db, tenant_id)}\n"
                 f"Demand (computed from bookings and the holiday calendar): {demand or '(not available)'}\n"
-                f"Video clips in the library: {clips}")
+                f"Video clips in the library: {clips}\n"
+                f"What has measurably worked on this account (published posts vs its own median):\n{learned}")
         data, raw, provider = _call("marketing_plan", tenant_id, _system(prompts.PLAN_SYSTEM, tenant), user, prompts.PLAN_TOOL)
         usage_service.record_llm(db, tenant_id, MODULE, raw, provider=provider, ref_type="marketing_plan", ref_id=plan.id)
         body = MarketingPlanBody.model_validate(normalise_plan(data)).model_dump(mode="json")
