@@ -152,6 +152,12 @@ _TASK_ROUTES: dict[str, tuple[str, str]] = {
     # PERSON approves before it is sent; a price in the reply is rejected and replaced by fixed wording. Same tier as
     # concierge_rewrite (short text, no tools), with the Gemini fallback below.
     "lead_followup_draft": ("nvidia", "openai/gpt-oss-20b"),
+    # Marketing Studio: audit reading, plan + calendar, one content piece. Structured output via one tool, so the
+    # reliable tool-calling tier; every result is re-validated and reviewed by a person before anything leaves HAIP.
+    "marketing_audit":   ("nvidia", "openai/gpt-oss-20b"),
+    "marketing_plan":    ("nvidia", "openai/gpt-oss-20b"),
+    "marketing_content": ("nvidia", "openai/gpt-oss-20b"),
+    "marketing_research": ("nvidia", "openai/gpt-oss-20b"),
 }
 
 
@@ -173,6 +179,10 @@ _GEMINI_FALLBACK_TASKS: dict[str, float] = {
     "deep_reason":                 120,   # judge's low-confidence re-score
     "assessment_narrative":        60,
     "lead_followup_draft":         40,
+    "marketing_audit":             60,
+    "marketing_plan":              90,
+    "marketing_content":           60,
+    "marketing_research":          60,
 }
 
 

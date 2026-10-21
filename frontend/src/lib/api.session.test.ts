@@ -4,7 +4,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const getSession = vi.fn();
-const signOut = vi.fn(() => Promise.resolve());
+const signOut = vi.fn((..._args: unknown[]) => Promise.resolve());
 vi.mock("next-auth/react", () => ({ getSession: () => getSession(), signOut: (...a: unknown[]) => signOut(...a) }));
 
 import api, { getToken } from "./api";

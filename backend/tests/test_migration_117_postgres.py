@@ -69,7 +69,9 @@ def narrow_column():
 def test_alembic_head_is_117_and_118_is_not_auto_applied():
     """Alembic only sees alembic/versions. 118 lives in alembic/proposed, so it cannot ship by accident.
 
-    (Name kept because the failure register refers to it.) The chain tip is now 152 (tasks.kind/playbook_run_id), on 151 (lead workflows: journeys, views, playbook runs/actions), on 150 (new booking: stays.gst_percent), on 148 (rate calculator: inquiry_quotes shared/approved
+    (Name kept because the failure register refers to it.) The chain tip is now 157 (Marketing Studio publish attempts), on 156 (marketing research), on 155 (marketing agency
+    foundations), on 154 (Marketing Studio image jobs), on 153 (Marketing Studio tables; written as 129-133 on the
+    unmerged branch and renumbered when it merged), on 152 (tasks.kind/playbook_run_id), on 151 (lead workflows: journeys, views, playbook runs/actions), on 150 (new booking: stays.gst_percent), on 148 (rate calculator: inquiry_quotes shared/approved
     columns; 147 is reserved by another branch), after 145 (public lead intake + ROI benchmarks),
     after 146 (impact baselines + profiles), after 144 (lead autopilot + calls.ai_insights), after 143 (knowledge source
     dates + flags), after 142 (sales_actions, the AI sales agent), after 141 (invoices + payment idempotency + quote-owned
@@ -78,7 +80,12 @@ def test_alembic_head_is_117_and_118_is_not_auto_applied():
     migration; 119 follows 117 directly because number 118 is reserved for the proposed RLS migration.
     """
     script = ScriptDirectory.from_config(Config(str(BACKEND / "alembic.ini")))
-    assert script.get_heads() == ["152"]
+    assert script.get_heads() == ["157"]
+    assert script.get_revision("157").down_revision == "156"
+    assert script.get_revision("156").down_revision == "155"
+    assert script.get_revision("155").down_revision == "154"
+    assert script.get_revision("154").down_revision == "153"
+    assert script.get_revision("153").down_revision == "152"
     assert script.get_revision("152").down_revision == "151"
     assert script.get_revision("151").down_revision == "150"
     assert script.get_revision("150").down_revision == "148"

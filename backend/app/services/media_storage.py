@@ -261,3 +261,23 @@ def delete_tenant_objects(tenant_id: str, keys: list[str]) -> int:
         return 0
     log.info("dpdp_files_deleted", tenant_id=tenant_id, files=len(own))
     return len(own)
+
+
+def upload_marketing_media(tenant_id: str, content: bytes, content_type: str, extension: str) -> str:
+    """Store a Marketing Studio library image (an upload or a rendered creative), return the storage key.
+    One key per asset; the media_assets row holds the metadata. Read back with get_presigned_media_url."""
+    import uuid
+    s3_key = f"{tenant_id}/marketing/{uuid.uuid4().hex}.{extension}"
+    s3 = _s3_client()
+    put_kwargs = dict(
+        Bucket=settings.S3_BUCKET_NAME,
+        Key=s3_key,
+        Body=content,
+        ContentType=content_type,
+    )
+    if settings.KMS_KEY_ID and not settings.AWS_S3_ENDPOINT_URL:
+        put_kwargs["ServerSideEncryption"] = "aws:kms"
+        put_kwargs["SSEKMSKeyId"] = settings.KMS_KEY_ID
+    s3.put_object(**put_kwargs)
+    log.info("marketing_media_stored", tenant_id=tenant_id, s3_key=s3_key)
+    return s3_key

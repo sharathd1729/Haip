@@ -20,6 +20,7 @@ const ROUTE_LABELS: Record<string, string> = {
   portfolio:    "Portfolio",
   calendar:     "Calendar",
   marketing:    "Marketing",
+  studio:       "Marketing Studio",
   inbox:        "Inbox",
   calls:        "Calls",
   leads:        "Leads",
