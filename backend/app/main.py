@@ -33,7 +33,7 @@ if settings.SENTRY_DSN:
 async def lifespan(app: FastAPI):
     import app.models  # noqa — registers all models with Base
     import time
-    # Neon serverless wakes on first connection — retry up to 5× with backoff
+    # The database (Supabase) can refuse the first connection during a restart or a pooler blip — retry up to 5× with backoff
     for attempt in range(1, 6):
         try:
             Base.metadata.create_all(bind=engine)

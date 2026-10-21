@@ -69,7 +69,7 @@ The following must always remain functional after any change:
 | Automations | Background job pipeline |
 | Redis | Queue and session store |
 | Celery | All background tasks |
-| Neon PostgreSQL | All persistent data |
+| Supabase PostgreSQL | All persistent data |
 
 ---
 
@@ -216,7 +216,7 @@ Before deploying any change, explicitly validate these integrations are unaffect
 | Acefone | `POST /webhooks/acefone` returns 200 |
 | Redis | `redis-cli ping` → PONG inside haip_redis |
 | Celery | Worker logs show `celery@... ready` |
-| Neon DB | `alembic current` shows `(head)` |
+| Supabase DB | `alembic current` shows `(head)` |
 
 ---
 
@@ -340,7 +340,7 @@ Run after every deployment:
 | API | https://genhaip.com/api/v1 (proxied via Next.js rewrite) |
 | Internal API | http://haip_api:8000 (Docker network) |
 | Redis | haip_redis:6379 (Docker network) |
-| Database | Neon PostgreSQL (external, URL in backend/.env) |
+| Database | Supabase PostgreSQL (external, URL in backend/.env) |
 
 ---
 

@@ -3,7 +3,7 @@ version: "3.9"
 # ── Production stack ───────────────────────────────────────────────────────────
 # Usage: docker compose -f docker-compose.prod.yml up -d
 # Expects: .env.production file (or env vars injected by your host)
-# External services (recommended): Neon (Postgres) + Upstash (Redis)
+# External services: Supabase (Postgres, DATABASE_URL in backend/.env) + Cloudflare R2 (media). Redis runs here (haip_redis).
 
 services:
   api:
