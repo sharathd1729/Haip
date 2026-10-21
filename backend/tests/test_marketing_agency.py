@@ -38,6 +38,8 @@ def _fake_call(tenant_start):
             return dict(AUDIT), {"model": "m"}, "nvidia"
         if task == "marketing_plan":
             return _plan(tenant_start), {"model": "m"}, "nvidia"
+        if task == "marketing_review":
+            return {"summary": "Reads well.", "findings": []}, {"model": "m"}, "nvidia"
         kind = next(k for k in CONTENT if f"Kind: {k}" in user)
         return dict(CONTENT[kind]), {"model": "m"}, "nvidia"
     return fake

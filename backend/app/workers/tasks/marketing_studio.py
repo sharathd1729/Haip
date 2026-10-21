@@ -77,6 +77,37 @@ def generate_content(self, tenant_id: str, item_id: str, actor_id: str, brief: s
     _run(self, "content", tenant_id, item_id, lambda db: svc.run_content(db, tenant_id, item_id, actor_id, brief), MarketingContent)
 
 
+@shared_task(name="marketing_studio.review_content", bind=True, max_retries=MAX_RETRIES)
+def review_content(self, tenant_id: str, item_id: str):
+    """The AI brand editor's advice on one draft (agency M1). Deterministic findings are stored either way."""
+    from app.models.tenant import Tenant
+    from app.services import marketing_ai_service as ai
+    from app.services import marketing_content_service as content_svc
+    from app.services import marketing_review_service as review
+
+    def give_up(db, message: str) -> None:
+        tenant = db.query(Tenant).filter_by(id=tenant_id).one()
+        row = review.current(db, tenant, content_svc.get_item(db, tenant_id, item_id))
+        if row is not None:
+            row.ai_status, row.ai_error = "failed", message[:2000]
+        db.commit()
+
+    with SessionLocal() as db:
+        try:
+            tenant = db.query(Tenant).filter_by(id=tenant_id).one()
+            review.run_ai(db, tenant, item_id)
+            db.commit()
+        except ai.LLMTransientError as exc:
+            db.rollback()
+            if self.request.retries < MAX_RETRIES:
+                raise self.retry(exc=exc, countdown=BASE_COUNTDOWN * (2 ** self.request.retries))
+            give_up(db, f"The AI editor is unavailable right now ({exc}). Try again later.")
+        except Exception as exc:  # noqa: BLE001 -- never leave the review pending
+            db.rollback()
+            log.exception("marketing_review_crashed", tenant_id=tenant_id, item_id=item_id)
+            give_up(db, f"The review failed unexpectedly: {type(exc).__name__}")
+
+
 # ── Agency (plan phase A) ───────────────────────────────────────────────────────────────────────────────────────────
 
 @shared_task(name="marketing_agency.orchestrate")

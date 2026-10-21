@@ -37,3 +37,51 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## coreyhaines31/marketingskills
+
+Source: https://github.com/coreyhaines31/marketingskills (read 21 Oct 2026, commit e85f3cbc).
+
+Agency M1 adapts techniques from these skills:
+- In the deterministic checks (`backend/app/services/marketing_lint.py`):
+  - `social`: the "AI tells" to avoid (contrast reveals, one sentence per line, engagement bait, emoji bullets, stock phrases) and the carousel rules (a count promised on the cover is delivered; one ask on the last slide; the caption has its own hook).
+  - `copy-editing`: write `[NEED: ...]` instead of inventing a missing fact. Its edit modes credit Profound and Wispr Flow upstream.
+- In `marketing-content-v4` (`backend/app/services/marketing_prompts.py`): the carousel frameworks (`social`).
+- In `ad-creative`: grounding claims in evidence.
+
+The rules are rewritten for Instagram hospitality content and for HAIP's price and grounding rules; no skill file is copied verbatim. The upstream licence is reproduced below as a courtesy.
+
+```
+MIT License
+
+Copyright (c) 2025 Corey Haines
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## anthropics/knowledge-work-plugins (marketing plugin)
+
+Source: https://github.com/anthropics/knowledge-work-plugins/tree/main/marketing (read 21 Oct 2026, commit bc8f6922). Licence: Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0). The repository has no NOTICE file.
+
+Agency M1 adapts ideas from its `brand-review` skill:
+- the brand voice as "We are / We are not / Sounds like / Doesn't sound like", with tone varying by channel (`BusinessProfile.voice` and `channel_tone` in `backend/app/schemas/marketing.py`);
+- review findings with a location, a severity and a suggested fix;
+- compliance flags: unproven superlatives, guarantees, competitor mentions and unattributed testimonials.
+
+These appear in `marketing_review_service.py`, `marketing_lint.py` and `marketing-review-v1`. Nothing is copied verbatim; the ideas are re-expressed for HAIP.

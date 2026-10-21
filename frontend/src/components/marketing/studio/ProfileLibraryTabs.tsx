@@ -9,10 +9,53 @@ import { STUDIO, btn, btnPrimary, inputCls, studioError, type Asset } from "./ty
 import { AiImagesPanel } from "./AiImagesPanel";
 import { useSession } from "next-auth/react";
 
+interface VoiceTrait { trait: string; we_are: string; we_are_not: string; sounds_like: string | null; not_like: string | null }
+type Channel = "instagram" | "whatsapp" | "review_replies" | "ads";
 interface Profile {
   tagline: string | null; description: string | null; audience: string | null; tone: string | null;
   usps: string[]; avoid: string[]; city: string | null; region: string | null; default_hashtags: string[];
+  voice?: VoiceTrait[]; channel_tone?: Partial<Record<Channel, string | null>>;
   [k: string]: unknown;
+}
+
+const CHANNELS: { key: Channel; label: string; hint: string }[] = [
+  { key: "instagram", label: "Instagram", hint: "e.g. unhurried and visual; short paragraphs" },
+  { key: "whatsapp", label: "WhatsApp", hint: "e.g. personal, first names, no hashtags" },
+  { key: "review_replies", label: "Review replies", hint: "e.g. thank by name, own any problem, no excuses" },
+  { key: "ads", label: "Ads", hint: "e.g. one clear offer, plain words" },
+];
+const BLANK_TRAIT: VoiceTrait = { trait: "", we_are: "", we_are_not: "", sounds_like: null, not_like: null };
+
+/** Brand voice the way an agency style guide writes it: each trait says what you are and where it stops. */
+function VoiceEditor({ value, onChange }: { value: VoiceTrait[]; onChange: (v: VoiceTrait[]) => void }) {
+  const set = (i: number, patch: Partial<VoiceTrait>) => onChange(value.map((t, j) => (j === i ? { ...t, ...patch } : t)));
+  const field = (i: number, key: keyof VoiceTrait, label: string, max: number, placeholder: string) => (
+    <label className="space-y-1">
+      <span className="text-xs font-semibold text-[var(--haip-fg-2)]">{label}</span>
+      <input className={inputCls} maxLength={max} placeholder={placeholder} value={value[i][key] ?? ""}
+        onChange={e => set(i, { [key]: e.target.value || (key === "sounds_like" || key === "not_like" ? null : "") })} />
+    </label>
+  );
+  return (
+    <div className="space-y-3">
+      {value.map((t, i) => (
+        <fieldset key={i} className="grid gap-3 rounded-xl border border-[var(--haip-border)] p-3 sm:grid-cols-2">
+          <legend className="sr-only">Voice trait {i + 1}</legend>
+          <div className="flex items-end gap-2 sm:col-span-2">
+            <div className="flex-1">{field(i, "trait", "Trait", 40, "e.g. Warm")}</div>
+            <button type="button" className={btn} onClick={() => onChange(value.filter((_, j) => j !== i))}>Remove</button>
+          </div>
+          {field(i, "we_are", "We are", 200, "Warm and specific: we name the place and the hour")}
+          {field(i, "we_are_not", "We are not", 200, "Gushing: no \"magical\", no exclamation marks")}
+          {field(i, "sounds_like", "Sounds like", 200, "\"Chai on the step at 7, mist still on the estate.\"")}
+          {field(i, "not_like", "Doesn't sound like", 200, "\"An unforgettable, magical experience awaits!\"")}
+        </fieldset>
+      ))}
+      {value.length < 5 && (
+        <button type="button" className={btn} onClick={() => onChange([...value, { ...BLANK_TRAIT }])}>Add a voice trait</button>
+      )}
+    </div>
+  );
 }
 
 const TEXT: { key: keyof Profile; label: string; max: number; rows?: number; hint?: string }[] = [
@@ -46,6 +89,7 @@ export function ProfileTab() {
       usps: lists.usps.split("\n").map(s => s.trim()).filter(Boolean),
       avoid: lists.avoid.split("\n").map(s => s.trim()).filter(Boolean),
       default_hashtags: lists.default_hashtags.split(/\s+/).filter(Boolean),
+      voice: (p?.voice ?? []).filter(t => t.trait.trim() && t.we_are.trim() && t.we_are_not.trim()),   // half-written traits are dropped
     }),
     onSuccess: r => { qc.setQueryData(["studio-profile"], r.data); toast({ variant: "success", title: "Profile saved" }); },
     onError: e => toast({ variant: "error", title: "Not saved", description: studioError(e, "Check the fields.") }),
@@ -75,6 +119,24 @@ export function ProfileTab() {
               <span className="block text-xs text-[var(--haip-fg-subtle)]">{f.hint}</span>
             </label>
           ))}
+          <section className="space-y-2 md:col-span-2">
+            <h3 className="text-[13px] font-bold text-[var(--haip-fg)]">Brand voice</h3>
+            <p className="text-xs text-[var(--haip-fg-subtle)]">Up to five traits. The copywriter follows them and the brand review checks every draft against them.</p>
+            <VoiceEditor value={p.voice ?? []} onChange={voice => setP({ ...p, voice })} />
+          </section>
+          <section className="space-y-2 md:col-span-2">
+            <h3 className="text-[13px] font-bold text-[var(--haip-fg)]">Tone by channel</h3>
+            <p className="text-xs text-[var(--haip-fg-subtle)]">The voice stays the same everywhere; the tone shifts by where people read it.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {CHANNELS.map(c => (
+                <label key={c.key} className="space-y-1">
+                  <span className="text-xs font-semibold text-[var(--haip-fg-2)]">{c.label}</span>
+                  <input className={inputCls} maxLength={200} placeholder={c.hint} value={p.channel_tone?.[c.key] ?? ""}
+                    onChange={e => setP({ ...p, channel_tone: { ...(p.channel_tone ?? {}), [c.key]: e.target.value || null } })} />
+                </label>
+              ))}
+            </div>
+          </section>
           <div className="md:col-span-2"><button type="submit" className={btnPrimary} disabled={save.isPending}>{save.isPending ? "Saving…" : "Save profile"}</button></div>
         </form>
       </CardBody>

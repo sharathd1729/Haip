@@ -27,7 +27,7 @@ from app.models.guest_merge_event import GuestMergeEvent
 from app.models.business_record import BusinessRecord
 from app.models.media_asset import MediaAsset
 from app.models.usage_event import UsageEvent
-from app.models.marketing import MarketingApproval, MarketingAudit, MarketingContent, MarketingContentVersion, MarketingImageJob, MarketingPlan, MarketingTask, InstagramPostMetricDaily, MarketingCompetitor, MarketingCompetitorSnapshot, MarketingCompetitorPost, MarketingResearchBrief, MarketingPublishAttempt
+from app.models.marketing import MarketingApproval, MarketingAudit, MarketingContent, MarketingContentVersion, MarketingImageJob, MarketingPlan, MarketingTask, InstagramPostMetricDaily, MarketingCompetitor, MarketingCompetitorSnapshot, MarketingCompetitorPost, MarketingResearchBrief, MarketingPublishAttempt, MarketingReview
 from app.models.website import BookingHold, GuestAccessToken, Site, SiteAiJob, SiteDomain, SitePageView, SiteVersion
 from app.models.ical_feed import ICalEventBooking, ICalEventDetail, ICalFeed, ICalFeedVehicle
 from app.models.api_key import ApiKey
@@ -54,7 +54,7 @@ __all__ = [
     "Site", "SiteVersion", "SiteDomain", "BookingHold", "GuestAccessToken", "SiteAiJob", "SitePageView",
     "MediaAsset", "UsageEvent",
     "MarketingAudit", "MarketingPlan", "MarketingContent", "MarketingContentVersion", "MarketingApproval", "MarketingImageJob", "MarketingTask", "InstagramPostMetricDaily",
-    "MarketingCompetitor", "MarketingCompetitorSnapshot", "MarketingCompetitorPost", "MarketingResearchBrief", "MarketingPublishAttempt",
+    "MarketingCompetitor", "MarketingCompetitorSnapshot", "MarketingCompetitorPost", "MarketingResearchBrief", "MarketingPublishAttempt", "MarketingReview",
     "Tenant", "User", "RefreshToken", "UserInvitation",
     "Guest", "Property", "RatePlan", "Stay",
     "Inquiry", "InquiryStageLog", "InquiryQuote",

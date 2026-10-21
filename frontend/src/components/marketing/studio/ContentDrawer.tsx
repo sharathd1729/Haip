@@ -12,6 +12,7 @@ import { Drawer, StatusPill, Timeline, type TimelineEntry } from "@/components/u
 import { PayloadForm, emptyPayload } from "./PayloadForm";
 import { PublishPanel } from "./PublishPanel";
 import { RenderedPreview } from "./RenderedPreview";
+import { BrandReviewPanel } from "./BrandReviewPanel";
 import { KIND_LABEL, STATUS, STUDIO, btn, btnPrimary, inputCls, studioError, when, type ContentItem } from "./types";
 
 const LOOKS = [
@@ -141,6 +142,7 @@ export function ContentDrawer({ id, onClose }: { id: string | null; onClose: () 
                   </button>
                 </div>
               )}
+              <BrandReviewPanel itemId={item.id} versionId={current.id} canAsk={role !== "viewer" && item.status !== "archived"} />
               <PayloadForm key={current.id} kind={item.kind} value={draft} onChange={setDraft} disabled={locked || busy} />
             </>
           ) : (

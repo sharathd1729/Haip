@@ -149,7 +149,10 @@ PROMPT_VERSIONS: dict[str, str] = {
     "website_edit": "website-edit-v1",
     # v3: the copywriter also gets the plan, the week's other posts, recent openings, reviewer notes and the photo
     # library's descriptions; it describes each slot's photo for the picker and may choose the text design.
-    "marketing_content": "marketing-content-v3",
+    # v4 (M1): brand voice traits + tone, AI-tell bans, carousel frameworks, [NEED: ...] for missing facts.
+    "marketing_content": "marketing-content-v4",
+    # Brand editor (marketing_review_service): advisory findings on one draft; deterministic checks block, not this.
+    "marketing_review": "marketing-review-v1",
     # Fixed suffix appended to AI image prompts (marketing_image_service.PROMPT_SUFFIX).
     "marketing_image": "marketing-image-v1",
 }

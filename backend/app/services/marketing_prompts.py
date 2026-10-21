@@ -6,8 +6,11 @@ so a model that ignores the schema produces a recorded failure, never stored con
 v2 techniques (judge against the account's own median, STOP/KEEP/TEST, "not enough signal", first comment, carousel
 slide rules, one-ask story arcs, 3-5 pillars with out-of-scope) are adapted from Ootto-AI/claude-content-skills,
 MIT licence, Copyright (c) 2026 Ootto. Notice: docs/marketing-website/THIRD_PARTY_NOTICES.md.
+M1 (content v4, review v1): the AI-tell list, carousel frameworks and [NEED: ...] discipline adapt
+coreyhaines31/marketingskills (MIT, Copyright (c) 2025 Corey Haines); the brand review structure (We are / We are not,
+tone by channel, severity findings, compliance flags) adapts anthropics/knowledge-work-plugins (Apache-2.0).
 """
-from app.schemas.marketing import AuditAssessment, MarketingPlanBody, ResearchBrief, CONTENT_MODELS
+from app.schemas.marketing import AIBrandReview, AuditAssessment, MarketingPlanBody, ResearchBrief, CONTENT_MODELS
 
 _COMMON_RULES = """Rules you must follow:
 - Write only about what the business facts below say. Never invent amenities, awards, reviews, locations or numbers.
@@ -50,12 +53,22 @@ CONTENT_SYSTEM = """You write Instagram content for a hospitality brand. Produce
   substance; then one clear call to action (usually "DM us" or "link in bio"). No hashtags inside the caption.
 - hashtags: 5-15 relevant ones, a mix of broad, mid and niche; no banned or spammy tags.
 - first_comment: one warm question that invites replies (no link, no hashtags).
-- Carousel: slide 1 is the scroll-stopper, under 8 words; then ONE idea per slide (a headline plus at most a short
-  line); the second-to-last slide is the summary worth saving; the last slide is the single ask. If a slide needs
-  three lines, it is two slides.
+- Carousel: first choose `framework`: list (N reasons/places), itinerary (day by day), walkthrough (a tour of the
+  stay), problem_proof (the trip people want, and why this stay gives it) or guide (how to plan it). Slide 1 is the
+  scroll-stopper, under 8 words; if it promises a number, deliver exactly that many slides after it (plus an optional
+  final ask). ONE idea per slide (a headline plus at most a short line); the last slide is the single ask. The
+  caption's first line is its own hook, never slide 1's words.
 - Story: 5-7 frames: an opening worth tapping past, build, one interaction, the ask. At most ONE sticker of type
   poll or question in the whole sequence, and the link sticker (if any) only after the value. Short text per frame,
   and a shot_note saying what to film or photograph.
+- Write in the brand voice: each `voice` trait in the profile says what the brand is and is not; follow
+  `tone` and `channel_tone.instagram`. Specific beats pretty: name the place, the hour, the dish, the view.
+- Never write: "It's not X, it's Y"; one short sentence per line; "Agree?", "Thoughts?", "Who else..."; emoji as
+  bullets; stock phrases (nestled, hidden gem, look no further, unforgettable experience, hustle and bustle, embark on,
+  elevate your, a haven of, awaits you, imagine waking up, in the heart of); guarantees; superlatives you can't prove;
+  other businesses' names; invented guest quotes.
+- Use only figures that are in the facts. If you need a fact you don't have (a distance, a time, what's included),
+  write [NEED: what is missing] in its place; a person fills it in. Never guess.
 - Fit the plan when one is given: its audience and position, this entry's pillar and idea. Do not repeat the hooks of
   recent posts or the ideas of the other posts planned around it. Apply every reviewer note on this post.
 - Leave media.asset_id empty: the designer picks a library photo for every slot from your media.alt_text. Describe
@@ -137,3 +150,20 @@ Answer only by calling the tool.
 
 RESEARCH_TOOL = {"name": "submit_research", "description": "Return the research brief.",
                  "input_schema": _schema(ResearchBrief)}
+
+
+REVIEW_SYSTEM = """You are the brand editor of a hospitality marketing agency. Review ONE Instagram draft before the
+owner sees it. You get the brand voice (each trait: what the brand is, what it is not, sounds like, does not sound
+like), the tone for Instagram, words to avoid, the business facts, and the draft with each part labelled.
+Report only real problems, at most 8, most important first:
+- voice: where the draft sounds like a "we are not" trait, or off the Instagram tone;
+- claims: anything stated that the business facts do not support (quote it);
+- clarity: a line a guest would not understand, or a slide doing two jobs;
+- the ask: missing, unclear, or more than one.
+For each: where (exactly one of the labels given), severity (medium = should fix before posting, low = polish),
+the words it refers to (quote, copied exactly), and a concrete rewrite as the suggestion. Do not report spelling of
+place names, hashtags, or style choices that fit the voice. If the draft is good, return no findings and say so.
+Answer only by calling the tool.
+""" + _COMMON_RULES
+
+REVIEW_TOOL = {"name": "submit_review", "description": "Return the brand review.", "input_schema": _schema(AIBrandReview)}

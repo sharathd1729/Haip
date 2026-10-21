@@ -53,6 +53,23 @@ class SocialLinks(_Strict):
         return v
 
 
+class VoiceTrait(_Strict):
+    """One trait of the brand voice, written the way an agency style guide does: what it is and where it stops."""
+    trait: str = Field(min_length=1, max_length=40)                  # e.g. "Warm"
+    we_are: str = Field(min_length=1, max_length=200)                # "Warm and specific: we name the place and the hour"
+    we_are_not: str = Field(min_length=1, max_length=200)            # "Gushing: no 'magical', no exclamation marks"
+    sounds_like: Optional[str] = Field(default=None, max_length=200)
+    not_like: Optional[str] = Field(default=None, max_length=200)
+
+
+class ChannelTone(_Strict):
+    """The voice stays the same everywhere; the tone shifts by channel."""
+    instagram: Optional[str] = Field(default=None, max_length=200)
+    whatsapp: Optional[str] = Field(default=None, max_length=200)
+    review_replies: Optional[str] = Field(default=None, max_length=200)
+    ads: Optional[str] = Field(default=None, max_length=200)
+
+
 class BusinessProfile(_Strict):
     """What the AI may say about the business. `Tenant.brand_name` stays the canonical name and
     `brand_config.branding_theme` the visual source; this adds only what neither holds."""
@@ -70,6 +87,8 @@ class BusinessProfile(_Strict):
     gstin: Optional[str] = Field(default=None, pattern=r"^[0-9A-Z]{15}$")
     socials: SocialLinks = Field(default_factory=SocialLinks)
     default_hashtags: list[str] = Field(default_factory=list, max_length=HASHTAGS_MAX)
+    voice: list[VoiceTrait] = Field(default_factory=list, max_length=5)
+    channel_tone: ChannelTone = Field(default_factory=ChannelTone)   # `tone` above stays the overall "how you sound"
 
     @field_validator("usps", "avoid")
     @classmethod
@@ -133,10 +152,17 @@ class CarouselSlide(_Strict):
     body: Optional[str] = Field(default=None, max_length=200)
 
 
+# Carousel structures (adapted from coreyhaines31/marketingskills `social`, MIT; THIRD_PARTY_NOTICES.md):
+# list = N reasons/places/things, itinerary = day by day, walkthrough = a tour of the stay, problem_proof = the trip
+# people want and why this stay delivers it, guide = how to plan or do something.
+CAROUSEL_FRAMEWORKS = ("list", "itinerary", "walkthrough", "problem_proof", "guide")
+
+
 class CarouselContent(_Captioned):
     kind: Literal["carousel"] = "carousel"
     slides: list[CarouselSlide] = Field(min_length=2, max_length=10)
     design: Optional[Design] = None
+    framework: Optional[Literal["list", "itinerary", "walkthrough", "problem_proof", "guide"]] = None
 
 
 class StorySticker(_Strict):
@@ -213,7 +239,7 @@ def strings_of(payload: dict) -> list[str]:
             parts.append(v)
         elif isinstance(v, dict):
             for k, x in v.items():
-                if k not in ("asset_id", "kind", "date", "valid_until"):
+                if k not in ("asset_id", "kind", "date", "valid_until", "framework", "style", "colour"):
                     walk(x)
         elif isinstance(v, list):
             for x in v:
@@ -225,6 +251,32 @@ def strings_of(payload: dict) -> list[str]:
 
 def text_of(payload: dict) -> str:
     return "\n".join(strings_of(payload))
+
+
+# ── Brand review (services/marketing_review_service.py) ─────────────────────────────────────────────────────────────
+
+class ReviewFinding(_Strict):
+    """One issue in a draft. `high` comes only from the deterministic checks and blocks the agency from sending the
+    draft for approval; the AI reviewer's findings are advice (medium/low) shown to the approver."""
+    rule: str = Field(min_length=1, max_length=40)
+    severity: Literal["high", "medium", "low"]
+    where: str = Field(min_length=1, max_length=60)              # "caption", "slide 2", "frame 1"
+    message: str = Field(min_length=1, max_length=300)
+    quote: Optional[str] = Field(default=None, max_length=200)   # the words in the draft it refers to
+    suggestion: Optional[str] = Field(default=None, max_length=300)
+
+
+class AIReviewFinding(_Strict):
+    issue: str = Field(min_length=1, max_length=300)
+    where: str = Field(min_length=1, max_length=60)
+    severity: Literal["medium", "low"]
+    quote: Optional[str] = Field(default=None, max_length=200)
+    suggestion: Optional[str] = Field(default=None, max_length=300)
+
+
+class AIBrandReview(_Strict):
+    summary: str = Field(min_length=1, max_length=500)
+    findings: list[AIReviewFinding] = Field(default_factory=list, max_length=8)
 
 
 # ── AI outputs ──────────────────────────────────────────────────────────────────────────────────────────────────────

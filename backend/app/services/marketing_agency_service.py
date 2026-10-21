@@ -99,8 +99,22 @@ def pending_approvals(db: Session, tenant_id: str) -> list[dict]:
              .order_by(MarketingContent.updated_at.asc()).limit(100).all())
     assets = (db.query(MediaAsset).filter_by(tenant_id=tenant_id, status="pending_review")
               .order_by(MediaAsset.created_at.asc()).limit(100).all())
+    from app.models.marketing import MarketingReview
+    latest: dict[str, MarketingReview] = {}
+    if items:
+        for r in (db.query(MarketingReview).filter(MarketingReview.tenant_id == tenant_id,
+                                                   MarketingReview.content_id.in_([c.id for c in items]))
+                  .order_by(MarketingReview.updated_at.asc())):
+            latest[r.content_id] = r                       # newest wins
+
+    def counts(c):
+        r = latest.get(c.id)
+        found = [*(r.findings or []), *(r.advice or [])] if r is not None else []
+        return {"high": sum(f["severity"] == "high" for f in found), "medium": sum(f["severity"] == "medium" for f in found),
+                "reviewed": r is not None}
     out = [{"type": "content", "id": c.id, "title": c.title, "kind": c.kind, "version_id": c.current_version_id,
-            "planned_for": c.planned_for, "waiting_since": c.updated_at, "created_by": c.created_by} for c in items]
+            "planned_for": c.planned_for, "waiting_since": c.updated_at, "created_by": c.created_by,
+            "review": counts(c)} for c in items]
     out += [{"type": "ai_image", "id": a.id, "title": ((a.provenance or {}).get("prompt") or "AI image")[:120], "kind": "image",
              "version_id": None, "planned_for": None, "waiting_since": a.created_at, "created_by": a.created_by} for a in assets]
     return sorted(out, key=lambda x: str(x["waiting_since"]))

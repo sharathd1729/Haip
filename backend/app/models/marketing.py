@@ -3,7 +3,7 @@
 Measured provider data and AI assessment are stored in separate columns so they can never be confused in the UI.
 A content version is immutable: an edit is a new version, and an approval is bound to one version's sha256.
 """
-from sqlalchemy import JSON, Column, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 
 from app.core.database import Base
 from app.models.base import TimestampMixin, gen_uuid
@@ -249,3 +249,26 @@ class MarketingPublishAttempt(Base, TimestampMixin):
 
     __table_args__ = (UniqueConstraint("content_id", "version_id", name="uq_marketing_publish_attempts_version"),
                       Index("ix_marketing_publish_attempts_due", "status", "scheduled_for"))
+
+
+class MarketingReview(Base, TimestampMixin):
+    """Brand review of a draft's TEXT (agency M1). Keyed by the hash of the guest-visible text, so a version that only
+    changes photos or the look keeps its review. `findings` = deterministic checks (only these can be `high` and block
+    the agency from sending a draft for approval); `advice` = the AI reviewer's opinion, shown to the approver."""
+    __tablename__ = "marketing_reviews"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    content_id = Column(String, ForeignKey("marketing_content.id"), nullable=False, index=True)
+    version_id = Column(String, nullable=False)                   # the version the review was run on
+    text_sha = Column(String(64), nullable=False)
+    findings = Column(JSON, nullable=False)                       # list[ReviewFinding]
+    blocking = Column(Boolean, nullable=False, default=False)
+    advice = Column(JSON, nullable=True)                          # list[ReviewFinding] from the AI reviewer
+    summary = Column(Text, nullable=True)
+    ai_status = Column(String(20), nullable=False, default="skipped")   # skipped | pending | ready | failed
+    ai_error = Column(Text, nullable=True)
+    model = Column(String(120), nullable=True)
+    prompt_version = Column(String(60), nullable=True)
+
+    __table_args__ = (UniqueConstraint("content_id", "text_sha", name="uq_marketing_reviews_text"),)

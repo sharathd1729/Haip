@@ -7,6 +7,8 @@ GET  /marketing/studio/approvals                    everything waiting for a per
 POST /marketing/studio/approvals/{type}/{id}/approve | reject     marketing.approve; delegates to the existing reviews
 GET  /marketing/studio/content/{id}/preview         the images exactly as they would be posted (half size, data URLs)
 POST /marketing/studio/content/{id}/pick-photos     fill empty photo slots from the library (new version, marketing.edit)
+GET  /marketing/studio/content/{id}/review          brand review of the current text: checks (live) + AI editor advice
+POST /marketing/studio/content/{id}/review          ask the AI editor again (queued; marketing.edit)
 """
 from datetime import datetime
 from typing import Optional
@@ -220,3 +222,25 @@ def pick_photos(item_id: str, user: User = Depends(get_current_user), db: Sessio
         raise _err(exc)
     db.commit()
     return {"filled": filled, "version_id": svc.get_item(db, user.tenant_id, item_id).current_version_id}
+
+
+@router.get("/content/{item_id}/review")
+def get_review(item_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_read):
+    from app.services import marketing_review_service as review
+    try:
+        item = svc.get_item(db, user.tenant_id, item_id)
+    except svc.MarketingError as exc:
+        raise _err(exc)
+    row = review.current(db, _tenant(db, user), item)
+    db.commit()
+    return review.as_dict(row)
+
+
+@router.post("/content/{item_id}/review", status_code=202)
+def request_review(item_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db), _m=_module, _c=_edit):
+    from app.services import marketing_review_service as review
+    try:
+        item = svc.get_item(db, user.tenant_id, item_id)
+    except svc.MarketingError as exc:
+        raise _err(exc)
+    return review.as_dict(review.request_ai(db, _tenant(db, user), item))
